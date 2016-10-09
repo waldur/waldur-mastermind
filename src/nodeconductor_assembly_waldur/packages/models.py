@@ -12,7 +12,7 @@ from nodeconductor.core import models as core_models
 @python_2_unicode_compatible
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
-                      core_models.DescribableMixin):
+                      core_models.UiDescribableMixin):
     class Type(object):
         OPENSTACK = 'openstack'
 
@@ -22,7 +22,15 @@ class PackageTemplate(core_models.UuidMixin,
 
     @property
     def price(self):
-        return self.components.aggregate(total=models.Sum('price', field='price*amount'))['total']
+        return self.components.aggregate(total=models.Sum(
+            models.F('price') * models.F('amount'),
+            output_field=models.DecimalField(decimal_places=2)))['total'] or Decimal('0.00')
+
+    @staticmethod
+    def get_required_component_types():
+        return (PackageComponent.Type.RAM,
+                PackageComponent.Type.CORES,
+                PackageComponent.Type.STORAGE)
 
     def __str__(self):
         return '%s | %s' % (self.name, self.type)
@@ -30,18 +38,21 @@ class PackageTemplate(core_models.UuidMixin,
 
 @python_2_unicode_compatible
 class PackageComponent(models.Model):
-    class Component(object):
+    class Meta(object):
+        unique_together = ('type', 'template')
+
+    class Type(object):
         RAM = 'ram'
         CORES = 'cores'
         STORAGE = 'storage'
 
         CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
 
-    name = models.CharField(max_length=15, choices=Component.CHOICES)
+    type = models.CharField(max_length=15, choices=Type.CHOICES)
     amount = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(default=0, max_digits=10, decimal_places=4,
-                                validators=[MinValueValidator(Decimal('0'))], help_text='Price per 1 amount')
+    price = models.DecimalField(default=0, max_digits=6, decimal_places=2,
+                                validators=[MinValueValidator(Decimal('0'))], help_text='The price per unit of amount')
     template = models.ForeignKey(PackageTemplate, related_name='components')
 
     def __str__(self):
-        return '%s | %s' % (self.name, self.template.name)
+        return '%s | %s' % (self.type, self.template.name)
