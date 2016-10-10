@@ -6,6 +6,9 @@ from nodeconductor_assembly_waldur.packages import models
 
 
 class PackageComponentInlineFormset(BaseInlineFormSet):
+    """
+    Formset responsible for package component inlines validation and their initial population.
+    """
     def __init__(self, **kwargs):
         # Fill inlines with required component types
         kwargs['initial'] = [{'type': t} for t in models.PackageTemplate.get_required_component_types()]

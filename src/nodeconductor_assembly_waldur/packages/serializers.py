@@ -4,7 +4,6 @@ from nodeconductor_assembly_waldur.packages import models
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
-    price = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=False)
 
     class Meta(object):
         model = models.PackageComponent
@@ -12,6 +11,7 @@ class PackageComponentSerializer(serializers.ModelSerializer):
 
 
 class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
+    price = serializers.DecimalField(max_digits=13, decimal_places=7)
     components = PackageComponentSerializer(many=True)
 
     class Meta(object):

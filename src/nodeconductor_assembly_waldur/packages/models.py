@@ -18,13 +18,13 @@ class PackageTemplate(core_models.UuidMixin,
 
         CHOICES = ((OPENSTACK, 'OpenStack'),)
 
-    type = models.CharField(max_length=10, choices=Type.CHOICES, default=Type.OPENSTACK)
+    type = models.CharField(max_length=50, choices=Type.CHOICES, default=Type.OPENSTACK)
 
     @property
     def price(self):
         return self.components.aggregate(total=models.Sum(
             models.F('price') * models.F('amount'),
-            output_field=models.DecimalField(decimal_places=2)))['total'] or Decimal('0.00')
+            output_field=models.DecimalField(max_digits=13, decimal_places=7)))['total'] or Decimal('0')
 
     @staticmethod
     def get_required_component_types():
@@ -48,9 +48,9 @@ class PackageComponent(models.Model):
 
         CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
 
-    type = models.CharField(max_length=15, choices=Type.CHOICES)
+    type = models.CharField(max_length=50, choices=Type.CHOICES)
     amount = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(default=0, max_digits=6, decimal_places=2,
+    price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))], help_text='The price per unit of amount')
     template = models.ForeignKey(PackageTemplate, related_name='components')
 

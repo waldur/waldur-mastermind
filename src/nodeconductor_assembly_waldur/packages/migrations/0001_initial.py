@@ -18,9 +18,9 @@ class Migration(migrations.Migration):
             name='PackageComponent',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('type', models.CharField(max_length=15, choices=[('ram', 'RAM'), ('cores', 'Cores'), ('storage', 'Storage')])),
+                ('type', models.CharField(max_length=50, choices=[('ram', 'RAM'), ('cores', 'Cores'), ('storage', 'Storage')])),
                 ('amount', models.PositiveIntegerField(default=0)),
-                ('price', models.DecimalField(default=0, help_text='The price per unit of amount', max_digits=6, decimal_places=2, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
+                ('price', models.DecimalField(default=0, help_text='The price per unit of amount', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
             ],
         ),
         migrations.CreateModel(
@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=150, verbose_name='name', validators=[nodeconductor.core.validators.validate_name])),
                 ('icon_url', models.URLField(verbose_name='icon url', blank=True)),
                 ('uuid', nodeconductor.core.fields.UUIDField()),
-                ('type', models.CharField(default='openstack', max_length=10, choices=[('openstack', 'OpenStack')])),
+                ('type', models.CharField(default='openstack', max_length=50, choices=[('openstack', 'OpenStack')])),
             ],
             options={
                 'abstract': False,
