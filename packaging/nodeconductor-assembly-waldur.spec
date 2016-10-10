@@ -3,18 +3,11 @@ Summary: NodeConductor assembly for Waldur project
 Group: Development/Libraries
 Version: 0.1.0
 Release: 1.el7
-License: Copyright 2016 OpenNode LLC. All rights reserved.
+License: MIT
 Url: http://nodeconductor.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor
-Requires: nodeconductor-jira
-Requires: nodeconductor-openid
-Requires: nodeconductor-openstack
-Requires: nodeconductor-organization
-Requires: nodeconductor-paypal
-Requires: nodeconductor-plus
-
+Requires: nodeconductor >= 0.108.1
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
