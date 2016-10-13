@@ -15,12 +15,7 @@ from nodeconductor_openstack import models as openstack_models
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       core_models.UiDescribableMixin):
-    class Type(object):
-        OPENSTACK = 'openstack'
-
-        CHOICES = ((OPENSTACK, 'OpenStack'),)
-
-    type = models.CharField(max_length=50, choices=Type.CHOICES, default=Type.OPENSTACK)
+    service_settings = models.ForeignKey(structure_models.ServiceSettings)
 
     @property
     def price(self):
@@ -35,7 +30,7 @@ class PackageTemplate(core_models.UuidMixin,
                 PackageComponent.Type.STORAGE)
 
     def __str__(self):
-        return '%s | %s' % (self.name, self.type)
+        return '%s | %s' % (self.name, self.service_settings.type)
 
 
 @python_2_unicode_compatible

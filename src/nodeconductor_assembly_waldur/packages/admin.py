@@ -49,9 +49,10 @@ class PackageComponentInline(admin.TabularInline):
 
 class PackageTemplateAdmin(admin.ModelAdmin):
     inlines = [PackageComponentInline]
-    fields = ('name', 'description', 'type', 'icon_url')
-    list_display = ('name', 'uuid', 'type', 'price')
-    list_filter = ('type',)
+    fields = ('name', 'description', 'icon_url', 'service_settings')
+    list_display = ('name', 'uuid', 'service_settings', 'price')
+    list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
+
 
 admin.site.register(models.PackageTemplate, PackageTemplateAdmin)
