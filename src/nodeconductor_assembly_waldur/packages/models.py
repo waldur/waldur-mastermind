@@ -7,6 +7,8 @@ from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 
 from nodeconductor.core import models as core_models
+from nodeconductor.structure import models as structure_models
+from nodeconductor_openstack import models as openstack_models
 
 
 @python_2_unicode_compatible
@@ -56,3 +58,16 @@ class PackageComponent(models.Model):
 
     def __str__(self):
         return '%s | %s' % (self.type, self.template.name)
+
+
+@python_2_unicode_compatible
+class OpenStackPackage(core_models.UuidMixin, core_models.NameMixin, core_models.DescribableMixin, models.Model):
+    """ OpenStackPackage allows to create OpenStack tenant based on PackageTemplate """
+    project = models.ForeignKey(structure_models.Project, related_name='packages',
+                                help_text='Tenant will be created in this project.')
+    template = models.ForeignKey(PackageTemplate, help_text='Tenant will be created based on this template.')
+    tenant = models.ForeignKey(openstack_models.Tenant)
+    service = models.ForeignKey(openstack_models.OpenStackService, null=True)
+
+    def __str__(self):
+        return 'Package "%s" for customer %s' % (self.template, self.customer)
