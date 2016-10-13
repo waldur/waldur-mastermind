@@ -56,10 +56,8 @@ class PackageComponent(models.Model):
 
 
 @python_2_unicode_compatible
-class OpenStackPackage(core_models.UuidMixin, core_models.NameMixin, core_models.DescribableMixin, models.Model):
+class OpenStackPackage(core_models.UuidMixin, models.Model):
     """ OpenStackPackage allows to create OpenStack tenant based on PackageTemplate """
-    project = models.ForeignKey(structure_models.Project, related_name='packages',
-                                help_text='Tenant will be created in this project.')
     template = models.ForeignKey(PackageTemplate, help_text='Tenant will be created based on this template.')
     tenant = models.ForeignKey(openstack_models.Tenant)
     service = models.ForeignKey(openstack_models.OpenStackService, null=True)
