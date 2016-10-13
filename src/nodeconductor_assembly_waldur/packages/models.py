@@ -25,9 +25,9 @@ class PackageTemplate(core_models.UuidMixin,
 
     @staticmethod
     def get_required_component_types():
-        return (PackageComponent.Type.RAM,
-                PackageComponent.Type.CORES,
-                PackageComponent.Type.STORAGE)
+        return (PackageComponent.Types.RAM,
+                PackageComponent.Types.CORES,
+                PackageComponent.Types.STORAGE)
 
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
@@ -38,14 +38,14 @@ class PackageComponent(models.Model):
     class Meta(object):
         unique_together = ('type', 'template')
 
-    class Type(object):
+    class Types(object):
         RAM = 'ram'
         CORES = 'cores'
         STORAGE = 'storage'
 
         CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
 
-    type = models.CharField(max_length=50, choices=Type.CHOICES)
+    type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))], help_text='The price per unit of amount')

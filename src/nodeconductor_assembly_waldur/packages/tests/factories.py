@@ -27,5 +27,5 @@ class PackageComponentFactory(factory.django.DjangoModelFactory):
     class Meta(object):
         model = models.PackageComponent
 
-    type = models.PackageComponent.Type.RAM
+    type = models.PackageComponent.Types.RAM
     template = factory.SubFactory(PackageTemplateFactory)

@@ -48,11 +48,12 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.OpenStackPackage
         fields = ('url', 'uuid', 'name', 'description', 'template', 'service_project_link', 'user_username',
-                  'availability_zone')
+                  'availability_zone', 'tenant',)
         view_name = 'openstack-package-detail'
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail'},
+            'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
         }
 
     def validate_template(self, template):
@@ -76,7 +77,19 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
         if not tenant_data['availability_zone']:
             tenant_data['availability_zone'] = template.service_settings.get_option('availability_zone') or ''
         if not tenant_data['user_username']:
-            tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user',
-        validated_data['tenant'] = openstack_models.Tenant.objects.create(
+            tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user'
+        validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
             user_password=core_utils.pwgen(), extra_configuration={'package': template.name}, **tenant_data)
-        super(OpenStackPackageSerializer, self).create(validated_data)
+        tenant.create_service()
+        self._set_tenant_quotas(tenant, template)
+        return super(OpenStackPackageSerializer, self).create(validated_data)
+
+    def _set_tenant_quotas(self, tenant, template):
+        components = {c.type: c.amount for c in template.components.all()}
+        quotas = {
+            openstack_models.Tenant.Quotas.ram: components[models.PackageComponent.Types.RAM],
+            openstack_models.Tenant.Quotas.vcpu: components[models.PackageComponent.Types.CORES],
+            openstack_models.Tenant.Quotas.storage: components[models.PackageComponent.Types.STORAGE],
+        }
+        for name, limit in quotas.items():
+            tenant.set_quota_limit(name, limit)
