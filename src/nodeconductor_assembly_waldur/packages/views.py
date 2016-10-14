@@ -13,7 +13,7 @@ class PackageTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
 
 
-class OpenStackPackageViewSet(mixins.CreateModelMixin, core_mixins.CreateExecutorMixin, viewsets.ReadOnlyModelViewSet):
+class OpenStackPackageViewSet(core_mixins.CreateExecutorMixin, mixins.CreateModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.OpenStackPackage.objects.all()
     serializer_class = serializers.OpenStackPackageSerializer
     lookup_field = 'uuid'
