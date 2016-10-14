@@ -71,7 +71,7 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        """ Create tenant  """
+        """ Create tenant and service settings from it """
         template = validated_data['template']
         tenant_data = validated_data['tenant']
         if not tenant_data['availability_zone']:
@@ -80,8 +80,9 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
             tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user'
         validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
             user_password=core_utils.pwgen(), extra_configuration={'package': template.name}, **tenant_data)
-        tenant.create_service()
         self._set_tenant_quotas(tenant, template)
+        service = tenant.create_service()
+        validated_data['service_settings'] = service.settings
         return super(OpenStackPackageSerializer, self).create(validated_data)
 
     def _set_tenant_quotas(self, tenant, template):
