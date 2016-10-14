@@ -57,10 +57,11 @@ class PackageComponent(models.Model):
 
 @python_2_unicode_compatible
 class OpenStackPackage(core_models.UuidMixin, models.Model):
-    """ OpenStackPackage allows to create OpenStack tenant based on PackageTemplate """
-    template = models.ForeignKey(PackageTemplate, help_text='Tenant will be created based on this template.')
-    tenant = models.ForeignKey(openstack_models.Tenant)
+    """ OpenStackPackage allows to create tenant and service_settings based on PackageTemplate """
+    template = models.ForeignKey(PackageTemplate, related_name='openstack_packages',
+                                 help_text='Tenant will be created based on this template.')
+    tenant = models.ForeignKey(openstack_models.Tenant, related_name='+')
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
     def __str__(self):
-        return 'Package "%s" for customer %s' % (self.template, self.customer)
+        return 'Package "%s" for tenant %s' % (self.template, self.tenant)
