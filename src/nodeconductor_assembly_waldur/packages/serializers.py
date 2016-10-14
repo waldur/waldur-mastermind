@@ -33,7 +33,7 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
 class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(source='tenant.name', help_text='Tenant name.')
     description = serializers.CharField(
-        initial='', required=False, allow_blank=True, source='tenant.description', help_text='Tenant description.')
+        required=False, allow_blank=True, source='tenant.description', help_text='Tenant description.')
     service_project_link = serializers.HyperlinkedRelatedField(
         source='tenant.service_project_link',
         view_name='openstack-spl-detail', write_only=True,
@@ -42,7 +42,7 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
         source='tenant.user_username', required=False, allow_null=True,
         help_text='Tenant user username. By default is generated as <tenant name> + "-user".')
     availability_zone = serializers.CharField(
-        source='tenant.availability_zone', initial='', required=False, allow_blank=True,
+        source='tenant.availability_zone', required=False, allow_blank=True,
         help_text='Tenant availability zone.')
 
     class Meta(object):
