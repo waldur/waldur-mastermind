@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='packagetemplate',
             name='service_settings',
-            field=models.ForeignKey(related_name='+', default=1, to='structure.ServiceSettings'),
+            field=models.ForeignKey(related_name='+', to='structure.ServiceSettings'),
             preserve_default=False,
         ),
         migrations.AddField(
