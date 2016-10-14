@@ -2,13 +2,14 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
-from nodeconductor_openstack import models as openstack_models
+from nodeconductor_openstack import models as openstack_models, apps as openstack_apps
 
 
 @python_2_unicode_compatible
@@ -28,6 +29,12 @@ class PackageTemplate(core_models.UuidMixin,
         return (PackageComponent.Types.RAM,
                 PackageComponent.Types.CORES,
                 PackageComponent.Types.STORAGE)
+
+    def clean(self):
+        openstack_type = openstack_apps.OpenStackConfig.service_name
+        if self.service_settings.type == openstack_type and not self.service_settings.options.get('is_admin', True):
+            raise ValidationError({'service_settings': 'Service settings should support tenant creation.'})
+        return self
 
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
