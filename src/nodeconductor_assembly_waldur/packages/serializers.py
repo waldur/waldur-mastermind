@@ -79,8 +79,9 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
             tenant_data['availability_zone'] = template.service_settings.get_option('availability_zone') or ''
         if not tenant_data['user_username']:
             tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user'
+        extra_configuration = {'package_name': template.name, 'package_uuid': template.uuid.hex}
         validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
-            user_password=core_utils.pwgen(), extra_configuration={'package': template.name}, **tenant_data)
+            user_password=core_utils.pwgen(), extra_configuration=extra_configuration, **tenant_data)
         self._set_tenant_quotas(tenant, template)
         service = tenant.create_service()
         validated_data['service_settings'] = service.settings
