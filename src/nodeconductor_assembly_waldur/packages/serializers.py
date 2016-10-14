@@ -59,7 +59,7 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
 
     def validate_template(self, template):
         if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
-            raise serializers.ValidationError('Package template should be related to OpenStack server.')
+            raise serializers.ValidationError('Package template should be related to OpenStack service settings.')
         return template
 
     def validate(self, attrs):
