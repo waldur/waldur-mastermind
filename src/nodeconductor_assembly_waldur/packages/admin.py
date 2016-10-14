@@ -55,4 +55,10 @@ class PackageTemplateAdmin(admin.ModelAdmin):
     search_fields = ('name', 'uuid')
 
 
+class OpenStackPackageAdmin(admin.ModelAdmin):
+    list_display = ('template', 'tenant', 'service_settings')
+    list_filter = ('template',)
+
+
 admin.site.register(models.PackageTemplate, PackageTemplateAdmin)
+admin.site.register(models.OpenStackPackage, OpenStackPackageAdmin)
