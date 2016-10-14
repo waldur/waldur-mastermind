@@ -15,7 +15,7 @@ from nodeconductor_openstack import models as openstack_models
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       core_models.UiDescribableMixin):
-    service_settings = models.ForeignKey(structure_models.ServiceSettings)
+    service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
     @property
     def price(self):
@@ -60,7 +60,7 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
     """ OpenStackPackage allows to create OpenStack tenant based on PackageTemplate """
     template = models.ForeignKey(PackageTemplate, help_text='Tenant will be created based on this template.')
     tenant = models.ForeignKey(openstack_models.Tenant)
-    service = models.ForeignKey(openstack_models.OpenStackService, null=True)
+    service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
     def __str__(self):
         return 'Package "%s" for customer %s' % (self.template, self.customer)
