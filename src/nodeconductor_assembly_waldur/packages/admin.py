@@ -1,3 +1,5 @@
+import collections
+
 from django.contrib import admin
 from django.forms import ValidationError
 from django.forms.models import BaseInlineFormSet
@@ -27,6 +29,9 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
             elif comp.get('DELETE', False):
                 marked_for_delete.append(comp['type'])
             filled.append(comp['type'])
+        duplicates = [item for item, count in collections.Counter(filled).items() if count > 1]
+        if duplicates:
+            raise ValidationError('One or more items are duplicated: %s' % ', '.join(duplicates))
 
         for t in models.PackageTemplate.get_required_component_types():
             if t not in filled:
