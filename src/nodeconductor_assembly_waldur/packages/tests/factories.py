@@ -1,14 +1,16 @@
 import factory
-
 from rest_framework.reverse import reverse
 
-from nodeconductor_assembly_waldur.packages import models
+from nodeconductor.structure.tests import factories as structure_factories
+
+from .. import models
 
 
 class PackageTemplateFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.PackageTemplate
 
+    service_settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'PackageTemplate%s' % n)
 
     @classmethod
