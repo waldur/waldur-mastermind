@@ -22,11 +22,12 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.PackageTemplate
         fields = (
-            'url', 'uuid', 'name', 'description', 'type', 'price', 'icon_url', 'components'
+            'url', 'uuid', 'name', 'description', 'service_settings', 'price', 'icon_url', 'components',
         )
         view_name = 'package-template-detail'
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
+            'service_settings': {'lookup_field': 'uuid'},
         }
 
 
