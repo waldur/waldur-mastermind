@@ -2,6 +2,7 @@ import factory
 from rest_framework.reverse import reverse
 
 from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor_openstack import models as openstack_models
 
 from .. import models
 
@@ -25,7 +26,7 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('package-template-list')
 
 
-class PackageComponentFactory(factory.django.DjangoModelFactory):
+class PackageComponentFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.PackageComponent
 

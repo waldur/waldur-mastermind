@@ -14,7 +14,7 @@ class OpenStackPackageErrorTask(core_tasks.ErrorStateTransitionTask):
         return 'Mark package "%s" components as erred.' % package
 
     def execute(self, package):
-        if package.tenant.state != openstack_models.States.OK:
+        if package.tenant.state != openstack_models.Tenant.States.OK:
             self.state_transition(package.tenant, 'set_erred')
             self.save_error_message(package.tenant)
             self.state_transition(package.service_settings, 'set_erred')
