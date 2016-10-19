@@ -65,7 +65,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         package = models.OpenStackPackage.objects.get(uuid=response.data['uuid'])
         tenant, template = package.tenant, package.template
-        for quota_name, component_type in models.PackageComponent.get_quota_to_component_mapping().items():
+        for quota_name, component_type in models.OpenStackPackage.get_quota_to_component_mapping().items():
             self.assertEqual(
                 tenant.quotas.get(name=quota_name).limit, template.components.get(type=component_type).amount)
 
