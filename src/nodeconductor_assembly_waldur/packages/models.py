@@ -16,6 +16,10 @@ from nodeconductor_openstack import models as openstack_models, apps as openstac
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       core_models.UiDescribableMixin):
+
+    class Permissions(object):
+        customer_path = 'service_settings__customer'
+
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
     @property
@@ -76,3 +80,11 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
 
     def __str__(self):
         return 'Package "%s" for tenant %s' % (self.template, self.tenant)
+
+    @staticmethod
+    def get_quota_to_component_mapping():
+        return {
+            openstack_models.Tenant.Quotas.ram: PackageComponent.Types.RAM,
+            openstack_models.Tenant.Quotas.vcpu: PackageComponent.Types.CORES,
+            openstack_models.Tenant.Quotas.storage: PackageComponent.Types.STORAGE,
+        }

@@ -3,6 +3,7 @@ from django.template.defaultfilters import slugify
 from rest_framework import serializers
 
 from nodeconductor.core import utils as core_utils
+from nodeconductor.structure import serializers as structure_serializers, models as structure_models
 from nodeconductor_openstack import apps as openstack_apps, models as openstack_models
 
 from . import models
@@ -31,7 +32,8 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
+class OpenStackPackageSerializer(
+        structure_serializers.PermissionFieldFilteringMixin, serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(source='tenant.name', help_text='Tenant name.')
     description = serializers.CharField(
         required=False, allow_blank=True, source='tenant.description', help_text='Tenant description.')
@@ -58,10 +60,20 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
             'service_settings': {'lookup_field': 'uuid', 'read_only': True},
         }
 
+    def get_filtered_field_names(self):
+        return ('service_settings', 'service_project_link')
+
     def validate_template(self, template):
         if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
             raise serializers.ValidationError('Package template should be related to OpenStack service settings.')
         return template
+
+    def validate_service_project_link(self, spl):
+        user = self.context['request'].user
+        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
+                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
+            raise serializers.ValidationError('Only staff, owner or manager can order package.')
+        return spl
 
     def validate(self, attrs):
         spl = attrs['tenant']['service_project_link']
@@ -76,9 +88,9 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
         """ Create tenant and service settings from it """
         template = validated_data['template']
         tenant_data = validated_data['tenant']
-        if not tenant_data['availability_zone']:
+        if not tenant_data.get('availability_zone'):
             tenant_data['availability_zone'] = template.service_settings.get_option('availability_zone') or ''
-        if not tenant_data['user_username']:
+        if not tenant_data.get('user_username'):
             tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user'
         extra_configuration = {'package_name': template.name, 'package_uuid': template.uuid.hex}
         validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
@@ -90,10 +102,5 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
 
     def _set_tenant_quotas(self, tenant, template):
         components = {c.type: c.amount for c in template.components.all()}
-        quotas = {
-            openstack_models.Tenant.Quotas.ram: components[models.PackageComponent.Types.RAM],
-            openstack_models.Tenant.Quotas.vcpu: components[models.PackageComponent.Types.CORES],
-            openstack_models.Tenant.Quotas.storage: components[models.PackageComponent.Types.STORAGE],
-        }
-        for name, limit in quotas.items():
-            tenant.set_quota_limit(name, limit)
+        for quota_name, component_type in models.OpenStackPackage.get_quota_to_component_mapping().items():
+            tenant.set_quota_limit(quota_name, components[component_type])
