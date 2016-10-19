@@ -3,6 +3,7 @@ from setuptools import setup, find_packages
 
 install_requires = [
     'nodeconductor>=0.108.1',
+    'nodeconductor_openstack>=0.7.0',
 ]
 
 tests_requires = [
