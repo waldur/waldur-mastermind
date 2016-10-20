@@ -96,7 +96,7 @@ class OpenStackPackageSerializer(
         validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
             user_password=core_utils.pwgen(), extra_configuration=extra_configuration, **tenant_data)
         self._set_tenant_quotas(tenant, template)
-        service = tenant.create_service()
+        service = tenant.create_service(name=tenant.name)
         validated_data['service_settings'] = service.settings
         return super(OpenStackPackageSerializer, self).create(validated_data)
 
