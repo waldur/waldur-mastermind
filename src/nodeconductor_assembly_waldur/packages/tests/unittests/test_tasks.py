@@ -2,15 +2,16 @@ from django.test import TestCase
 from mock import MagicMock
 
 from nodeconductor.core import models as core_models
+from nodeconductor_assembly_waldur.packages.tests.fixtures import PackageFixture
 
-from .. import factories
 from ... import tasks
 
 
 class OpenStackPackageErrorTaskTest(TestCase):
 
     def setUp(self):
-        self.openstack_package = factories.OpenStackPackageFactory()
+        fixture = PackageFixture()
+        self.openstack_package = fixture.openstack_package
         self.tenant = self.openstack_package.tenant
         self.service_settings = self.openstack_package.service_settings
         self.task = tasks.OpenStackPackageErrorTask()
