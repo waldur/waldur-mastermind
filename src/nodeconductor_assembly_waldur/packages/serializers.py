@@ -1,6 +1,12 @@
+from django.db import transaction
+from django.template.defaultfilters import slugify
 from rest_framework import serializers
 
-from nodeconductor_assembly_waldur.packages import models
+from nodeconductor.core import utils as core_utils
+from nodeconductor.structure import serializers as structure_serializers, models as structure_models
+from nodeconductor_openstack import apps as openstack_apps, models as openstack_models
+
+from . import models
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
@@ -17,9 +23,84 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.PackageTemplate
         fields = (
-            'url', 'uuid', 'name', 'description', 'type', 'price', 'icon_url', 'components'
+            'url', 'uuid', 'name', 'description', 'service_settings', 'price', 'icon_url', 'components',
         )
         view_name = 'package-template-detail'
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
+            'service_settings': {'lookup_field': 'uuid'},
         }
+
+
+class OpenStackPackageSerializer(
+        structure_serializers.PermissionFieldFilteringMixin, serializers.HyperlinkedModelSerializer):
+    name = serializers.CharField(source='tenant.name', help_text='Tenant name.')
+    description = serializers.CharField(
+        required=False, allow_blank=True, source='tenant.description', help_text='Tenant description.')
+    service_project_link = serializers.HyperlinkedRelatedField(
+        source='tenant.service_project_link',
+        view_name='openstack-spl-detail', write_only=True,
+        queryset=openstack_models.OpenStackServiceProjectLink.objects.all())
+    user_username = serializers.CharField(
+        source='tenant.user_username', required=False, allow_null=True,
+        help_text='Tenant user username. By default is generated as <tenant name> + "-user".')
+    availability_zone = serializers.CharField(
+        source='tenant.availability_zone', required=False, allow_blank=True,
+        help_text='Tenant availability zone.')
+
+    class Meta(object):
+        model = models.OpenStackPackage
+        fields = ('url', 'uuid', 'name', 'description', 'template', 'service_project_link', 'user_username',
+                  'availability_zone', 'tenant', 'service_settings',)
+        view_name = 'openstack-package-detail'
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail'},
+            'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
+            'service_settings': {'lookup_field': 'uuid', 'read_only': True},
+        }
+
+    def get_filtered_field_names(self):
+        return ('service_settings', 'service_project_link')
+
+    def validate_template(self, template):
+        if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
+            raise serializers.ValidationError('Package template should be related to OpenStack service settings.')
+        return template
+
+    def validate_service_project_link(self, spl):
+        user = self.context['request'].user
+        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
+                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
+            raise serializers.ValidationError('Only staff, owner or manager can order package.')
+        return spl
+
+    def validate(self, attrs):
+        spl = attrs['tenant']['service_project_link']
+        template = attrs['template']
+        if spl.service.settings != template.service_settings:
+            raise serializers.ValidationError(
+                'Template and service project link should be connected to the same service settings.')
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        """ Create tenant and service settings from it """
+        template = validated_data['template']
+        tenant_data = validated_data['tenant']
+        if not tenant_data.get('availability_zone'):
+            tenant_data['availability_zone'] = template.service_settings.get_option('availability_zone') or ''
+        if not tenant_data.get('user_username'):
+            tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user'
+        extra_configuration = {'package_name': template.name, 'package_uuid': template.uuid.hex}
+        validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
+            user_password=core_utils.pwgen(), extra_configuration=extra_configuration, **tenant_data)
+        self._set_tenant_quotas(tenant, template)
+        service = tenant.create_service(name=tenant.name)
+        validated_data['service_settings'] = service.settings
+        return super(OpenStackPackageSerializer, self).create(validated_data)
+
+    def _set_tenant_quotas(self, tenant, template):
+        components = {c.type: c.amount for c in template.components.all()}
+        for quota_name, component_type in models.OpenStackPackage.get_quota_to_component_mapping().items():
+            tenant.set_quota_limit(quota_name, components[component_type])

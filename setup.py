@@ -2,10 +2,11 @@
 from setuptools import setup, find_packages
 
 install_requires = [
-    'nodeconductor>=0.108.1',
+    'nodeconductor>=0.108.3',
+    'nodeconductor_openstack>=0.7.1',
 ]
 
-tests_requires = [
+test_requires = [
     'ddt>=1.0.0,<1.1.0',
     'factory_boy==2.4.1',
 ]
@@ -22,7 +23,7 @@ setup(
     packages=find_packages('src', exclude=['*.tests', '*.tests.*', 'tests.*', 'tests']),
     install_requires=install_requires,
     extras_require={
-        'tests': tests_requires,
+        'test': test_requires,
     },
     zip_safe=False,
     entry_points={
@@ -30,8 +31,6 @@ setup(
             'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
         ),
     },
-    tests_require=tests_requires,
-    test_suite='nodeconductor.server.test_runner.run_tests',
     include_package_data=True,
     classifiers=[
         'Framework :: Django',

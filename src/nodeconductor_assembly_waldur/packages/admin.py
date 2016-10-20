@@ -1,3 +1,5 @@
+import collections
+
 from django.contrib import admin
 from django.forms import ValidationError
 from django.forms.models import BaseInlineFormSet
@@ -27,6 +29,9 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
             elif comp.get('DELETE', False):
                 marked_for_delete.append(comp['type'])
             filled.append(comp['type'])
+        duplicates = [item for item, count in collections.Counter(filled).items() if count > 1]
+        if duplicates:
+            raise ValidationError('One or more items are duplicated: %s' % ', '.join(duplicates))
 
         for t in models.PackageTemplate.get_required_component_types():
             if t not in filled:
@@ -49,9 +54,16 @@ class PackageComponentInline(admin.TabularInline):
 
 class PackageTemplateAdmin(admin.ModelAdmin):
     inlines = [PackageComponentInline]
-    fields = ('name', 'description', 'type', 'icon_url')
-    list_display = ('name', 'uuid', 'type', 'price')
-    list_filter = ('type',)
+    fields = ('name', 'description', 'icon_url', 'service_settings')
+    list_display = ('name', 'uuid', 'service_settings', 'price')
+    list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
 
+
+class OpenStackPackageAdmin(admin.ModelAdmin):
+    list_display = ('template', 'tenant', 'service_settings')
+    list_filter = ('template',)
+
+
 admin.site.register(models.PackageTemplate, PackageTemplateAdmin)
+admin.site.register(models.OpenStackPackage, OpenStackPackageAdmin)
