@@ -2,8 +2,6 @@ import factory
 from rest_framework.reverse import reverse
 
 from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests.helpers import test_data
-from nodeconductor_openstack import models as openstack_models, apps as openstack_apps
 
 from .. import models
 
@@ -47,29 +45,10 @@ class PackageComponentFactory(factory.DjangoModelFactory):
     template = factory.SubFactory(PackageTemplateFactory)
 
 
-# We do not have access to openstack factories so we need to build tenant manually.
-def get_test_data_openstack_spl():
-    service_settings = structure_factories.ServiceSettingsFactory(type=openstack_apps.OpenStackConfig.service_name)
-    service = openstack_models.OpenStackService.objects.create(
-        customer=test_data.customer, settings=service_settings, name=service_settings.name)
-    return openstack_models.OpenStackServiceProjectLink.objects.create(project=test_data.project, service=service)
-
-
-# We do not have access to openstack factories so we need to build tenant manually.
-def get_test_data_tenant(**kwargs):
-    spl = get_test_data_openstack_spl()
-    return openstack_models.Tenant.objects.create(service_project_link=spl, **kwargs)
-
-
 class OpenStackPackageFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.OpenStackPackage
 
-    tenant = factory.Sequence(lambda n: get_test_data_tenant(name='tenant%s' % n))
-    service_settings = factory.LazyAttribute(
-        lambda package: structure_factories.ServiceSettingsFactory(type=openstack_apps.OpenStackConfig.service_name,
-                                                                   scope=package.tenant)
-    )
     template = factory.SubFactory(PackageTemplateFactory)
 
     @classmethod

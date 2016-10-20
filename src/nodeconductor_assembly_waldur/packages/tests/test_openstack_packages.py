@@ -1,10 +1,8 @@
-from ddt import ddt
+from ddt import ddt, data
 from rest_framework import test, status
 from rest_framework.reverse import reverse
 
-from nodeconductor.structure.tests.helpers import test_data
-
-from . import factories
+from . import factories, fixtures
 from .. import models
 
 
@@ -12,21 +10,22 @@ from .. import models
 class OpenStackPackageRetreiveTest(test.APITransactionTestCase):
 
     def setUp(self):
-        self.openstack_package = factories.OpenStackPackageFactory()
-        self.url = factories.OpenStackPackageFactory.get_url(self.openstack_package)
+        self.fixture = fixtures.PackageFixture()
 
-    @test_data('staff', 'owner', 'admin', 'manager')
+    def get_package(self):
+        openstack_package = self.fixture.openstack_package
+        return self.client.get(factories.OpenStackPackageFactory.get_url(openstack_package))
+
+    @data('staff', 'owner', 'admin', 'manager')
     def test_user_can_retrieve_openstack_package(self, user):
-        self.client.force_authenticate(user=user)
-
-        response = self.client.get(self.url)
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.get_package()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @test_data('user')
+    @data('user')
     def test_user_cannot_retrieve_openstack_package(self, user):
-        self.client.force_authenticate(user=user)
-
-        response = self.client.get(self.url)
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.get_package()
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
@@ -34,8 +33,11 @@ class OpenStackPackageRetreiveTest(test.APITransactionTestCase):
 class OpenStackPackageCreateTest(test.APITransactionTestCase):
     url = factories.OpenStackPackageFactory.get_list_url()
 
+    def setUp(self):
+        self.fixture = fixtures.PackageFixture()
+
     def get_valid_payload(self):
-        spl = factories.get_test_data_openstack_spl()
+        spl = self.fixture.openstack_spl
         spl_url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
         template = factories.PackageTemplateFactory(service_settings=spl.service.settings)
         return {
@@ -44,22 +46,22 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
             'template': factories.PackageTemplateFactory.get_url(template)
         }
 
-    @test_data('staff', 'owner', 'manager')
+    @data('staff', 'owner', 'manager')
     def test_user_can_create_openstack_package(self, user):
-        self.client.force_authenticate(user=user)
+        self.client.force_authenticate(user=getattr(self.fixture, user))
 
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @test_data('user', 'admin')
+    @data('user', 'admin')
     def test_user_cannot_create_openstack_package(self, user):
-        self.client.force_authenticate(user=user)
+        self.client.force_authenticate(user=getattr(self.fixture, user))
 
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_tenant_quotas_are_defined_by_template(self):
-        self.client.force_authenticate(user=test_data.owner)
+        self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -70,7 +72,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
                 tenant.quotas.get(name=quota_name).limit, template.components.get(type=component_type).amount)
 
     def test_template_data_is_saved_tenant_extra_configurations(self):
-        self.client.force_authenticate(user=test_data.owner)
+        self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
