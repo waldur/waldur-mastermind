@@ -19,6 +19,7 @@ class PackageTemplate(core_models.UuidMixin,
 
     class Permissions(object):
         customer_path = 'service_settings__customer'
+        project_path = 'service_settings__customer__projects'
 
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
