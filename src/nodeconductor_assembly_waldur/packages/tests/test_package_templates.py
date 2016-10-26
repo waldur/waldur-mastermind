@@ -11,7 +11,7 @@ class PackageTemplateListTest(test.APITransactionTestCase):
         self.package_template = self.fixture.openstack_template
         self.url = factories.PackageTemplateFactory.get_list_url()
 
-    @data('staff', 'owner', 'manager')
+    @data('staff', 'owner', 'manager', 'admin')
     def test_user_can_list_package_templates(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -30,7 +30,7 @@ class PackageTemplateRetreiveTest(test.APITransactionTestCase):
         self.package_template = self.fixture.openstack_template
         self.url = factories.PackageTemplateFactory.get_url(self.package_template)
 
-    @data('staff', 'owner', 'manager')
+    @data('staff', 'owner', 'manager', 'admin')
     def test_user_can_retrieve_package_template(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
