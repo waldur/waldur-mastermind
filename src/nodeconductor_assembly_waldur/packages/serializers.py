@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from nodeconductor.core import utils as core_utils
 from nodeconductor.structure import serializers as structure_serializers, models as structure_models
-from nodeconductor_openstack import apps as openstack_apps, models as openstack_models
+from nodeconductor_openstack.openstack import apps as openstack_apps, models as openstack_models
 
 from . import models
 

@@ -8,7 +8,7 @@ Url: http://nodeconductor.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: nodeconductor >= 0.108.3
-Requires: nodeconductor-openstack >= 0.7.1
+Requires: nodeconductor-openstack > 0.8.0
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot

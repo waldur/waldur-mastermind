@@ -1,7 +1,7 @@
 from django.utils.functional import cached_property
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests.fixtures import ProjectFixture
-from nodeconductor_openstack import models as openstack_models, apps as openstack_apps
+from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
 
 from . import factories
 
