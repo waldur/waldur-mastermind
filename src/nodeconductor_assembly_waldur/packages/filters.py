@@ -16,9 +16,10 @@ class PackageTemplateFilter(django_filters.FilterSet):
 
 class OpenStackPackageFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_type='icontains')
-    customer = UUIDFilter(name='tenant__service_project_link__project__customer')
-    project = UUIDFilter(name='tenant__service_project_link__project')
+    customer = UUIDFilter(name='tenant__service_project_link__project__customer__uuid')
+    project = UUIDFilter(name='tenant__service_project_link__project__uuid')
+    tenant = UUIDFilter(name='tenant__uuid')
 
     class Meta(object):
         model = models.OpenStackPackage
-        fields = ('name', 'customer', 'project')
+        fields = ('name', 'customer', 'project', 'tenant')
