@@ -9,7 +9,7 @@ from django.utils.encoding import python_2_unicode_compatible
 
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
-from nodeconductor_openstack import models as openstack_models, apps as openstack_apps
+from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
 
 
 @python_2_unicode_compatible
