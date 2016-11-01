@@ -5,6 +5,7 @@ from rest_framework import serializers
 from nodeconductor.core import utils as core_utils
 from nodeconductor.structure import serializers as structure_serializers, models as structure_models
 from nodeconductor_openstack.openstack import apps as openstack_apps, models as openstack_models
+from nodeconductor_openstack.openstack_tenant import models as openstack_tenant_models, apps as openstack_tenant_apps
 
 from . import models
 
@@ -96,9 +97,37 @@ class OpenStackPackageSerializer(
         validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
             user_password=core_utils.pwgen(), extra_configuration=extra_configuration, **tenant_data)
         self._set_tenant_quotas(tenant, template)
-        service = tenant.create_service(name=tenant.name)
-        validated_data['service_settings'] = service.settings
+        service_settings = self._create_service_settings(tenant)
+        validated_data['service_settings'] = service_settings
         return super(OpenStackPackageSerializer, self).create(validated_data)
+
+    def _create_service_settings(self, tenant):
+        """ Create service settings from tenant and connect them to tenant project. """
+        admin_settings = tenant.service_project_link.service.settings
+        customer = tenant.service_project_link.project.customer
+        service_settings = structure_models.ServiceSettings.objects.create(
+            name=tenant.name,
+            scope=tenant,
+            customer=customer,
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
+            backend_url=admin_settings.backend_url,
+            username=tenant.user_username,
+            password=tenant.user_password,
+            options={
+                'availability_zone': tenant.availability_zone,
+                'tenant_id': tenant.backend_id,
+            },
+        )
+        service = openstack_tenant_models.OpenStackTenantService.objects.create(
+            name=tenant.name,
+            settings=service_settings,
+            customer=customer,
+        )
+        openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.create(
+            service=service,
+            project=tenant.service_project_link.project,
+        )
+        return service_settings
 
     def _set_tenant_quotas(self, tenant, template):
         components = {c.type: c.amount for c in template.components.all()}

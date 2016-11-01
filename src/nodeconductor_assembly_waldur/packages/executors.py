@@ -17,10 +17,12 @@ class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
         create_tenant = openstack_executors.TenantCreateExecutor.get_task_signature(tenant, serialized_tenant)
         set_tenant_ok = core_tasks.StateTransitionTask().si(serialized_tenant, state_transition='set_ok')
 
+        populate_service_settings = tasks.OpenStackPackageSettingsPopulationTask().si(serialized_package)
+
         create_service_settings = structure_executors.ServiceSettingsCreateExecutor.get_task_signature(
             service_settings, serialized_service_settings)
 
-        return create_tenant | set_tenant_ok | create_service_settings
+        return create_tenant | set_tenant_ok | populate_service_settings | create_service_settings
 
     @classmethod
     def get_success_signature(cls, package, serialized_package, **kwargs):
@@ -31,4 +33,4 @@ class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
 
     @classmethod
     def get_failure_signature(cls, package, serialized_package, **kwargs):
-        return tasks.OpenStackPackageErrorTask().si(serialized_package)
+        return tasks.OpenStackPackageErrorTask().s(serialized_package)
