@@ -34,4 +34,6 @@ class OpenStackPackageSettingsPopulationTask(core_tasks.Task):
 
     def execute(self, package):
         package.service_settings.options['tenant_id'] = package.tenant.backend_id
+        package.service_settings.options['external_network_id'] = package.tenant.external_network_id
+        package.service_settings.options['internal_network_id'] = package.tenant.internal_network_id
         package.service_settings.save()
