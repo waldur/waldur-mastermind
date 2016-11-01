@@ -23,3 +23,15 @@ class OpenStackPackageErrorTask(core_tasks.ErrorStateTransitionTask):
         else:
             self.state_transition(package.service_settings, 'set_erred')
             self.save_error_message(package.service_settings)
+
+
+class OpenStackPackageSettingsPopulationTask(core_tasks.Task):
+    """ Populate service settings options based on provisioned tenant. """
+
+    @classmethod
+    def get_description(cls, package, *args, **kwargs):
+        return 'Copy tenant backend data to settings. Package "%s".' % package
+
+    def execute(self, package):
+        package.service_settings.options['tenant_id'] = package.tenant.backend_id
+        package.service_settings.save()
