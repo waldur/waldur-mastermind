@@ -21,11 +21,11 @@ class InvoiceConfig(AppConfig):
         signals.post_save.connect(
             handlers.add_new_openstack_package_details_to_invoice,
             sender=packages_models.OpenStackPackage,
-            dispatch_uid='nodeconductor_assembly_waldur.packages.add_new_openstack_package_details_to_invoice',
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.add_new_openstack_package_details_to_invoice',
         )
 
         signals.pre_delete.connect(
             handlers.update_invoice_on_openstack_package_deletion,
             sender=packages_models.OpenStackPackage,
-            dispatch_uid='nodeconductor_assembly_waldur.packages.update_invoice_on_openstack_package_deletion',
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_on_openstack_package_deletion',
         )
