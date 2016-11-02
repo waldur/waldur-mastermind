@@ -29,6 +29,7 @@ setup(
     entry_points={
         'nodeconductor_extensions': (
             'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
+            'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
         ),
     },
     include_package_data=True,
