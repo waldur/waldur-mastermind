@@ -2,6 +2,8 @@ from django.apps import AppConfig
 
 from django.db.models import signals
 
+from nodeconductor_assembly_waldur.packages import models as packages_models
+
 
 class InvoiceConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.invoices'
@@ -14,4 +16,16 @@ class InvoiceConfig(AppConfig):
             handlers.add_openstack_packages_details_to_new_invoice,
             sender=models.Invoice,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.add_openstack_packages_details_to_new_invoice'
+        )
+
+        signals.post_save.connect(
+            handlers.add_new_openstack_package_details_to_invoice,
+            sender=packages_models.OpenStackPackage,
+            dispatch_uid='nodeconductor_assembly_waldur.packages.add_new_openstack_package_details_to_invoice',
+        )
+
+        signals.pre_delete.connect(
+            handlers.update_invoice_on_openstack_package_deletion,
+            sender=packages_models.OpenStackPackage,
+            dispatch_uid='nodeconductor_assembly_waldur.packages.update_invoice_on_openstack_package_deletion',
         )

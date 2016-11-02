@@ -36,17 +36,17 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def total(self):
-        return self.items.aggregate(total=models.Sum('price'))['total']
+        return self.openstack_items.aggregate(total=models.Sum('price'))['total']
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
 @python_2_unicode_compatible
-class InvoiceItem(models.Model):
-    """ InvoiceItem stores details for invoices about purchased OpenStack packages """
+class OpenStackItem(models.Model):
+    """ OpenStackItem stores details for invoices about purchased OpenStack packages """
 
-    invoice = models.ForeignKey(Invoice, related_name='items')
+    invoice = models.ForeignKey(Invoice, related_name='openstack_items')
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True)
     template_name = models.CharField(max_length=150, validators=[validate_name], blank=True,

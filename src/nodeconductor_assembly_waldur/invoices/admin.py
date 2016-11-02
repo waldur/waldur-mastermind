@@ -4,8 +4,8 @@ from django.contrib import admin
 from . import models
 
 
-class InvoiceItemInline(admin.TabularInline):
-    model = models.InvoiceItem
+class OpenStackItemInline(admin.TabularInline):
+    model = models.OpenStackItem
     extra = 0
 
 
@@ -30,7 +30,7 @@ class InvoiceForm(forms.ModelForm):
 
 class InvoiceAdmin(admin.ModelAdmin):
     form = InvoiceForm
-    inlines = [InvoiceItemInline]
+    inlines = [OpenStackItemInline]
     fields = ('customer', 'state', 'total', 'year', 'month')
     readonly_fields = ('total',)
     list_display = ('customer', 'total', 'year', 'month', 'state')

@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name='InvoiceItem',
+            name='OpenStackItem',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('template_name', models.CharField(blank=True, help_text='Stores name of the package template after package deletion.', max_length=150, validators=[nodeconductor.core.validators.validate_name])),
@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
                 ('price', models.DecimalField(help_text='Price is calculated on a monthly basis.', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
                 ('start', models.DateTimeField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_month_start_datetime, help_text='Date and time when package usage has started.')),
                 ('end', models.DateTimeField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_month_end_datetime, help_text='Date and time when package usage has ended.')),
-                ('invoice', models.ForeignKey(related_name='items', to='invoices.Invoice')),
+                ('invoice', models.ForeignKey(related_name='openstack_items', to='invoices.Invoice')),
                 ('package', models.ForeignKey(on_delete=django.db.models.deletion.SET_NULL, to='packages.OpenStackPackage', null=True)),
             ],
         ),

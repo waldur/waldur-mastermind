@@ -25,6 +25,6 @@ class InvoiceTasksTest(TestCase):
         invoice.refresh_from_db()
         self.assertEqual(invoice.state, models.Invoice.States.BILLED)
 
-        # Check that new invoice where created with the same items
+        # Check that new invoice where created with the same openstack items
         new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.PENDING)
-        self.assertEqual(invoice.items.first().tenant_name, new_invoice.items.first().tenant_name)
+        self.assertEqual(invoice.openstack_items.first().tenant_name, new_invoice.openstack_items.first().tenant_name)
