@@ -35,8 +35,12 @@ class PackageTemplate(core_models.UuidMixin,
 
     def clean(self):
         openstack_type = openstack_apps.OpenStackConfig.service_name
+        if not self.service_settings.shared:
+            raise ValidationError({'service_settings': 'PackageTemplate can be created only for shared settings.'})
         if self.service_settings.type == openstack_type and not self.service_settings.options.get('is_admin', True):
             raise ValidationError({'service_settings': 'Service settings should support tenant creation.'})
+        if 'external_network_id' not in self.service_settings.options:
+            raise ValidationError({'service_settings': 'external_network_id has to be defined for service settings.'})
         return self
 
     def __str__(self):
