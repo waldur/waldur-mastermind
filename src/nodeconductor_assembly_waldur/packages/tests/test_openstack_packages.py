@@ -43,7 +43,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         return {
             'service_project_link': spl_url,
             'name': 'test_package',
-            'template': factories.PackageTemplateFactory.get_url(template)
+            'template': factories.PackageTemplateFactory.get_url(template),
         }
 
     @data('staff', 'owner', 'manager')

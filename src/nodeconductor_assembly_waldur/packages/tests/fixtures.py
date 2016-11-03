@@ -9,9 +9,11 @@ from . import factories
 class OpenStackFixture(ProjectFixture):
     @cached_property
     def openstack_service_settings(self):
+        # OpenStack packages should be used only with shared settings.
         return structure_factories.ServiceSettingsFactory(
             type=openstack_apps.OpenStackConfig.service_name,
-            customer=self.customer
+            shared=True,
+            options={'external_network_id': 'test_network_id'},
         )
 
     @cached_property
@@ -45,5 +47,12 @@ class PackageFixture(OpenStackFixture):
             service_settings=structure_factories.ServiceSettingsFactory(
                 customer=self.customer,
                 type=openstack_apps.OpenStackConfig.service_name,
-                scope=self.openstack_tenant)
+                scope=self.openstack_tenant,
+                options={
+                    'availability_zone': self.openstack_tenant.availability_zone,
+                    'tenant_id': self.openstack_tenant.backend_id,
+                    'external_network_id': self.openstack_tenant.external_network_id,
+                    'internal_network_id': self.openstack_tenant.internal_network_id,
+                }
+            )
         )

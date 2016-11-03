@@ -12,7 +12,7 @@ class PackageTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.PackageTemplateSerializer
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)
-    filter_backends = (structure_filters.GenericRoleFilter, rf_filters.DjangoFilterBackend,)
+    filter_backends = (rf_filters.DjangoFilterBackend,)
     filter_class = filters.PackageTemplateFilter
 
 
