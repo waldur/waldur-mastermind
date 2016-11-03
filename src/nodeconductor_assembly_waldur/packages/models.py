@@ -16,11 +16,9 @@ from nodeconductor_openstack.openstack import models as openstack_models, apps a
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       core_models.UiDescribableMixin):
-
-    class Permissions(object):
-        customer_path = 'service_settings__customer'
-        project_path = 'service_settings__customer__projects'
-
+    # We do not define permissions for PackageTemplate because we are planning
+    # to use them with shared service settings only - thats means that
+    # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
     @property
