@@ -25,7 +25,6 @@ class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             'url', 'uuid', 'customer', 'total', 'openstack_items', 'state', 'year', 'month'
         )
-        view_name = 'invoice-detail'
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
