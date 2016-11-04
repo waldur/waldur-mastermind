@@ -3,21 +3,17 @@ from rest_framework import serializers
 from . import models
 
 
-class OpenStackItemSerializer(serializers.ModelSerializer):
-    package = serializers.HyperlinkedRelatedField(view_name='openstack-package-detail',
-                                                  lookup_field='uuid', read_only=True)
-
+class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.OpenStackItem
-        fields = ('tenant_name', 'template_name', 'package', 'price', 'start', 'end')
+        fields = ('package_details', 'package', 'price', 'start', 'end')
+        extra_kwargs = {
+            'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
+        }
 
     def to_representation(self, instance):
-        ret = super(OpenStackItemSerializer, self).to_representation(instance)
-        if instance.package:
-            ret['tenant_name'] = instance.package.tenant.name
-            ret['template_name'] = instance.package.template.name
-
-        return ret
+        instance.package_details['name'] = instance.name
+        return super(OpenStackItemSerializer, self).to_representation(instance)
 
 
 class InvoiceSerializer(serializers.HyperlinkedModelSerializer):

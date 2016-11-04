@@ -10,13 +10,7 @@ class InvoiceConfig(AppConfig):
     verbose_name = 'Waldur assembly Invoices'
 
     def ready(self):
-        from . import handlers, models
-
-        signals.post_save.connect(
-            handlers.add_openstack_packages_details_to_new_invoice,
-            sender=models.Invoice,
-            dispatch_uid='nodeconductor_assembly_waldur.invoices.add_openstack_packages_details_to_new_invoice'
-        )
+        from . import handlers
 
         signals.post_save.connect(
             handlers.add_new_openstack_package_details_to_invoice,

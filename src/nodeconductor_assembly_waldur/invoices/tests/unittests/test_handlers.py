@@ -22,8 +22,7 @@ class InvoiceHandlersTest(TestCase):
 
     def test_invoice_is_updated_on_openstack_package_deletion(self):
         package = self.fixture.openstack_package
-        tenant_name = package.tenant.name
-        template_name = package.template.name
+        name = '%s (%s)' % (package.tenant.name, package.template.name)
         package.delete()
         invoice = invoice_models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
-        self.assertTrue(invoice.openstack_items.filter(template_name=template_name, tenant_name=tenant_name).exists())
+        self.assertEqual(invoice.openstack_items.first().package_details['name'], name)

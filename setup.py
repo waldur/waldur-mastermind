@@ -9,6 +9,7 @@ install_requires = [
 test_requires = [
     'ddt>=1.0.0,<1.1.0',
     'factory_boy==2.4.1',
+    'freezegun==0.3.7',
 ]
 
 setup(
