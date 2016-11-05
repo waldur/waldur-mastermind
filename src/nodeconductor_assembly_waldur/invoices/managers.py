@@ -1,36 +1,41 @@
-from django.db import models as django_models
-from django.utils import timezone
+import datetime
 
+from django.db import models as django_models
+
+from nodeconductor.core import utils as core_utils
 from nodeconductor_assembly_waldur.packages import models as package_models
-from . import utils
 
 
 class InvoiceQuerySet(django_models.QuerySet):
 
-    def create(self, customer, **kwargs):
+    def get_or_create_with_items(self, customer, month, year):
         """
         Performs following actions:
-            - Create new invoice
-            - Connect package details to the invoice and calculates their price
+            - Create new invoice or return existing one
+            - Connect package details to created invoice and calculate their price
         """
-        if 'month' not in kwargs:
-            kwargs['month'] = utils.get_current_month()
-        if 'year' not in kwargs:
-            kwargs['year'] = utils.get_current_year()
+        from . import models
+        try:
+            return models.Invoice.objects.get(customer=customer, month=month, year=year,
+                                              state=models.Invoice.States.PENDING), False
+        except models.Invoice.DoesNotExist:
+            pass
 
         # create invoice
-        invoice = super(InvoiceQuerySet, self).create(customer=customer, **kwargs)
+        invoice = self.create(customer=customer, month=month, year=year)
 
         # connect OpenStack packages details
+        date = datetime.date(day=1, year=year, month=month)
+        start_datetime = core_utils.month_start(date)
+        end_datetime = core_utils.month_end(date)
+
         packages = package_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer,
         )
-        datetime_now = timezone.now()
-        datetime_month_end = utils.get_current_month_end_datetime()
         for package in packages:
-            invoice.openstack_items.create(package=package, start=datetime_now, end=datetime_month_end)
+            models.OpenStackItem.objects.create_with_price(invoice, package, start_datetime, end_datetime)
 
-        return invoice
+        return invoice, True
 
 
 InvoiceManager = django_models.Manager.from_queryset(InvoiceQuerySet)
@@ -38,20 +43,16 @@ InvoiceManager = django_models.Manager.from_queryset(InvoiceQuerySet)
 
 class OpenStackItemQuerySet(django_models.QuerySet):
 
-    def create(self, invoice, package, **kwargs):
+    def create_with_price(self, invoice, package, start_datetime, end_datetime):
         """
         Performs following actions:
-            - Calculate price till end of current month
+            - Calculate price from "start_datetime" till "end_datetime" on hourly basis
             - Create Invoice OpenStack item
         """
-        if 'start' not in kwargs:
-            kwargs['start'] = timezone.now()
-        if 'end' not in kwargs:
-            kwargs['end'] = utils.get_current_month_end_datetime()
-
-        # price is calculated on hourly basis
-        price = package.template.price * 24 * (kwargs['end'] - kwargs['start']).days
-        return super(OpenStackItemQuerySet, self).create(package=package, invoice=invoice, price=price, **kwargs)
+        from models import OpenStackItem
+        price = OpenStackItem.calculate_price_for_period(package.template.price, start_datetime, end_datetime)
+        return self.create(package=package, invoice=invoice, price=price,
+                           start=start_datetime, end=end_datetime)
 
 
 OpenStackItemManager = django_models.Manager.from_queryset(OpenStackItemQuerySet)

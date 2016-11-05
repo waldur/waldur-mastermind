@@ -2,7 +2,6 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 
-from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
@@ -10,6 +9,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from jsonfield import JSONField
 
 from nodeconductor.core import models as core_models
+from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models as package_models
@@ -48,11 +48,11 @@ class Invoice(core_models.UuidMixin, models.Model):
     def set_billed(self):
         """
         Performs following actions:
-            - freezes all invoice items
-            - changes state from pending to billed
+            - Freeze all invoice items
+            - Change state from pending to billed
         """
         if self.state != self.States.PENDING:
-            raise ValidationError('Invoice must be in pending state.')
+            raise IncorrectStateException('Invoice must be in pending state.')
 
         # XXX: Consider refactoring when different types of packages will be exposed.
         items = self.openstack_items.select_related('package').all()
@@ -63,9 +63,9 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.state = self.States.BILLED
         self.save(update_fields=['state'])
 
-    def propagate(self):
+    def propagate(self, month, year):
         self.set_billed()
-        Invoice.objects.create(self.customer)
+        Invoice.objects.get_or_create_with_items(customer=self.customer, month=month, year=year)
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
@@ -90,28 +90,40 @@ class OpenStackItem(models.Model):
 
     @property
     def name(self):
-        name = self.package_details.get('name')
-        if name:
-            return name
-        elif self.package:
+        if self.package:
             return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
 
-    def freeze(self, package_deletion=False):
+        return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
+
+    @staticmethod
+    def calculate_price_for_period(price, start_datetime, end_datetime):
+        return price * 24 * (end_datetime - start_datetime).days
+
+    def freeze(self, end_datetime=None, package_deletion=False):
         """
         Performs following actions:
-            - saves name in package_details in format "<package tenant name> (<package template name>)"
-            - if package_deletion is set to True, then sets end field as current timestamp and
-              recalculates price based on the new end field.
+            - Save tenant and package template names in "package_details"
+            - On package deletion set "end" field as "end_datetime" and
+              recalculate price based on the new "end" field.
         """
-        self.package_details['name'] = '%s (%s)' % (self.package.tenant.name, self.package.template.name)
+        self.package_details['tenant_name'] = self.package.tenant.name
+        self.package_details['template_name'] = self.package.template.name
         update_fields = ['package_details']
 
         if package_deletion:
-            self.end = timezone.now()
-            self.price = self.package.template.price * 24 * (self.end - self.start).days
+            self.end = end_datetime or timezone.now()
+            self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
             update_fields.extend(['end', 'price'])
 
         self.save(update_fields=update_fields)
+
+    def recalculate_price(self, start_datetime):
+        """
+        Updates price according to the new "start_datetime"
+        """
+        self.start = start_datetime
+        self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
+        self.save(update_fields=['start', 'price'])
 
     def __str__(self):
         return self.name

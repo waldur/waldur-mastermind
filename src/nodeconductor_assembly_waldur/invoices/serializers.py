@@ -6,14 +6,10 @@ from . import models
 class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.OpenStackItem
-        fields = ('package_details', 'package', 'price', 'start', 'end')
+        fields = ('package_details', 'package', 'name', 'price', 'start', 'end')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
         }
-
-    def to_representation(self, instance):
-        instance.package_details['name'] = instance.name
-        return super(OpenStackItemSerializer, self).to_representation(instance)
 
 
 class InvoiceSerializer(serializers.HyperlinkedModelSerializer):

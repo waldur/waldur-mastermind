@@ -23,7 +23,7 @@ class InvoicesExtension(NodeConductorExtension):
         from celery.schedules import crontab
         return {
             'waldur-create-invoices': {
-                'task': 'invoices.create_monthly_invoices_for_openstack_packages',
+                'task': 'invoices.create_monthly_invoices_for_packages',
                 'schedule': crontab(minute=0, hour=0, day_of_month='1'),
                 'args': (),
             },

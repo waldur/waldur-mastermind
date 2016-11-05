@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
-from datetime import date
+from django.utils import timezone
+
+from nodeconductor.core import utils as core_utils
 
 from . import models
 
@@ -9,29 +11,29 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
     if not created:
         return
 
-    today = date.today()
+    now = timezone.now()
     customer = instance.tenant.service_project_link.project.customer
-
-    invoice = models.Invoice.objects.filter(
+    invoice, created = models.Invoice.objects.get_or_create_with_items(
         customer=customer,
-        state=models.Invoice.States.PENDING,
-        month=today.month,
-        year=today.year,
+        month=now.month,
+        year=now.year,
     )
-    if invoice.exists():
-        invoice = invoice.first()
-        models.OpenStackItem.objects.create(invoice=invoice, package=instance)
+    if not created:
+        end_datetime = core_utils.month_end(now)
+        models.OpenStackItem.objects.create_with_price(invoice=invoice, package=instance,
+                                                       start_datetime=now, end_datetime=end_datetime)
     else:
-        models.Invoice.objects.create(customer)
+        item = invoice.openstack_items.get(package=instance)
+        item.recalculate_price(now)
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
-    today = date.today()
+    end_datetime = timezone.now()
     invoice = models.Invoice.objects.get(
         customer=instance.tenant.service_project_link.project.customer,
         state=models.Invoice.States.PENDING,
-        month=today.month,
-        year=today.year,
+        month=end_datetime.month,
+        year=end_datetime.year,
     )
     item = invoice.openstack_items.get(package=instance)
-    item.freeze(package_deletion=True)
+    item.freeze(end_datetime=end_datetime, package_deletion=True)
