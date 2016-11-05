@@ -12,13 +12,14 @@ class InvoiceQuerySet(django_models.QuerySet):
         """
         Performs following actions:
             - Create new invoice or return existing one
-            - Connect package details to created invoice and calculate their price
+            - Connect packages details to created invoice and calculate their price
         """
-        from . import models
+        # Avoid circular import
+        from models import Invoice
         try:
-            return models.Invoice.objects.get(customer=customer, month=month, year=year,
-                                              state=models.Invoice.States.PENDING), False
-        except models.Invoice.DoesNotExist:
+            return Invoice.objects.get(customer=customer, month=month, year=year,
+                                       state=Invoice.States.PENDING), False
+        except Invoice.DoesNotExist:
             pass
 
         # create invoice
@@ -46,9 +47,10 @@ class OpenStackItemQuerySet(django_models.QuerySet):
     def create_with_price(self, invoice, package, start_datetime, end_datetime):
         """
         Performs following actions:
-            - Calculate price from "start_datetime" till "end_datetime" on hourly basis
+            - Calculate price from "start_datetime" till "end_datetime"
             - Create Invoice OpenStack item
         """
+        # Avoid circular import
         from models import OpenStackItem
         price = OpenStackItem.calculate_price_for_period(package.template.price, start_datetime, end_datetime)
         return self.create(package=package, invoice=invoice, price=price,
