@@ -6,7 +6,7 @@ from . import filters, models, serializers
 
 
 class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.Invoice.objects.all()
+    queryset = models.Invoice.objects.order_by('-year', '-month')
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated, permissions.DjangoObjectPermissions)
