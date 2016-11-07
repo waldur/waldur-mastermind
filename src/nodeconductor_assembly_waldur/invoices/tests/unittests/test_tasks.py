@@ -6,14 +6,13 @@ from nodeconductor_assembly_waldur.packages.tests import fixtures as package_fix
 from ... import models, tasks
 
 
-class InvoiceTasksTest(TestCase):
+class CreateMonthlyInvoicesForPackagesTest(TestCase):
     def test_invoice_is_created_monthly(self):
         with freeze_time('2016-11-01 00:00:00'):
             fixture = package_fixtures.PackageFixture()
             package = fixture.openstack_package
 
         with freeze_time('2016-12-01 00:00:00'):
-            # Make invoice expired
             invoice = models.Invoice.objects.get(customer=fixture.customer)
 
             # Create monthly invoices

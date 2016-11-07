@@ -16,7 +16,7 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
         response = self.client.get(factories.InvoiceFactory.get_url(self.fixture.invoice))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('manager', 'admin')
+    @data('manager', 'admin', 'user')
     def test_user_cannot_retrieve_customer_invoice(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(factories.InvoiceFactory.get_url(self.fixture.invoice))
