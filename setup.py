@@ -9,6 +9,7 @@ install_requires = [
 test_requires = [
     'ddt>=1.0.0,<1.1.0',
     'factory_boy==2.4.1',
+    'freezegun==0.3.7',
 ]
 
 setup(
@@ -29,6 +30,7 @@ setup(
     entry_points={
         'nodeconductor_extensions': (
             'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
+            'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
         ),
     },
     include_package_data=True,
