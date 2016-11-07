@@ -19,21 +19,21 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
         year=now.year,
     )
     if not created:
-        end_datetime = core_utils.month_end(now)
+        end = core_utils.month_end(now)
         models.OpenStackItem.objects.create_with_price(invoice=invoice, package=instance,
-                                                       start_datetime=now, end_datetime=end_datetime)
+                                                       start=now, end=end)
     else:
         item = invoice.openstack_items.get(package=instance)
         item.recalculate_price(now)
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
-    end_datetime = timezone.now()
+    now = timezone.now()
     item = models.OpenStackItem.objects.get(
         package=instance,
         invoice__customer=instance.tenant.service_project_link.project.customer,
         invoice__state=models.Invoice.States.PENDING,
-        invoice__year=end_datetime.year,
-        invoice__month=end_datetime.month,
+        invoice__year=now.year,
+        invoice__month=now.month,
     )
-    item.freeze(end_datetime=end_datetime, package_deletion=True)
+    item.freeze(end=now, package_deletion=True)

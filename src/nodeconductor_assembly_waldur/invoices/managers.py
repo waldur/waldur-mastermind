@@ -27,14 +27,14 @@ class InvoiceQuerySet(django_models.QuerySet):
 
         # connect OpenStack packages details
         date = datetime.date(day=1, year=year, month=month)
-        start_datetime = core_utils.month_start(date)
-        end_datetime = core_utils.month_end(date)
+        start = core_utils.month_start(date)
+        end = core_utils.month_end(date)
 
         packages = package_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer,
         )
         for package in packages:
-            OpenStackItem.objects.create_with_price(invoice, package, start_datetime, end_datetime)
+            OpenStackItem.objects.create_with_price(invoice, package, start, end)
 
         return invoice, True
 
@@ -44,17 +44,17 @@ InvoiceManager = django_models.Manager.from_queryset(InvoiceQuerySet)
 
 class OpenStackItemQuerySet(django_models.QuerySet):
 
-    def create_with_price(self, invoice, package, start_datetime, end_datetime):
+    def create_with_price(self, invoice, package, start, end):
         """
         Performs following actions:
-            - Calculate price from "start_datetime" till "end_datetime"
+            - Calculate price from "start" till "end"
             - Create Invoice OpenStack item
         """
         # Avoid circular import
         from models import OpenStackItem
-        price = OpenStackItem.calculate_price_for_period(package.template.price, start_datetime, end_datetime)
+        price = OpenStackItem.calculate_price_for_period(package.template.price, start, end)
         return self.create(package=package, invoice=invoice, price=price,
-                           start=start_datetime, end=end_datetime)
+                           start=start, end=end)
 
 
 OpenStackItemManager = django_models.Manager.from_queryset(OpenStackItemQuerySet)

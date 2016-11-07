@@ -81,9 +81,9 @@ class OpenStackItem(models.Model):
     package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
     price = models.DecimalField(max_digits=13, decimal_places=7, validators=[MinValueValidator(Decimal('0'))],
                                 help_text='Price is calculated on a monthly basis.')
-    start = models.DateTimeField(default=utils.get_current_month_start_datetime,
+    start = models.DateTimeField(default=utils.get_current_month_start,
                                  help_text='Date and time when package usage has started.')
-    end = models.DateTimeField(default=utils.get_current_month_end_datetime,
+    end = models.DateTimeField(default=utils.get_current_month_end,
                                help_text='Date and time when package usage has ended.')
 
     objects = managers.OpenStackItemManager()
@@ -96,15 +96,15 @@ class OpenStackItem(models.Model):
         return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
 
     @staticmethod
-    def calculate_price_for_period(price, start_datetime, end_datetime):
-        """ Calculates price from "start_datetime" till "end_datetime" """
-        return price * 24 * (end_datetime - start_datetime).days
+    def calculate_price_for_period(price, start, end):
+        """ Calculates price from "start" till "end" """
+        return price * 24 * (end - start).days
 
-    def freeze(self, end_datetime=None, package_deletion=False):
+    def freeze(self, end=None, package_deletion=False):
         """
         Performs following actions:
             - Save tenant and package template names in "package_details"
-            - On package deletion set "end" field as "end_datetime" and
+            - On package deletion set "end" field as "end" and
               recalculate price based on the new "end" field.
         """
         self.package_details['tenant_name'] = self.package.tenant.name
@@ -112,17 +112,17 @@ class OpenStackItem(models.Model):
         update_fields = ['package_details']
 
         if package_deletion:
-            self.end = end_datetime or timezone.now()
+            self.end = end or timezone.now()
             self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
             update_fields.extend(['end', 'price'])
 
         self.save(update_fields=update_fields)
 
-    def recalculate_price(self, start_datetime):
+    def recalculate_price(self, start):
         """
-        Updates price according to the new "start_datetime"
+        Updates price according to the new "start"
         """
-        self.start = start_datetime
+        self.start = start
         self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
         self.save(update_fields=['start', 'price'])
 

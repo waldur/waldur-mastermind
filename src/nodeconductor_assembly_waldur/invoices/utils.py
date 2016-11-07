@@ -11,9 +11,9 @@ def get_current_year():
     return timezone.now().year
 
 
-def get_current_month_end_datetime():
+def get_current_month_end():
     return core_utils.month_end(timezone.now())
 
 
-def get_current_month_start_datetime():
+def get_current_month_start():
     return core_utils.month_start(timezone.now())

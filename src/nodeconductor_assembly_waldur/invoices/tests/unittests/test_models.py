@@ -40,7 +40,7 @@ class InvoiceModelTest(TestCase):
         total = Decimal('0.00')
         with freeze_time('2016-11-04 12:00:00'):
 
-            hours = 24 * (utils.get_current_month_end_datetime() - timezone.now()).days
+            hours = 24 * (utils.get_current_month_end() - timezone.now()).days
             total += hours * self.package_template.price
             invoice = factories.InvoiceFactory(customer=self.tenant.service_project_link.project.customer)
             package_factories.OpenStackPackageFactory(tenant=self.tenant, template=self.package_template,
