@@ -4,6 +4,7 @@ from ddt import ddt, data
 
 from . import factories, fixtures
 
+
 @ddt
 class InvoiceRetrieveTest(test.APITransactionTestCase):
     def setUp(self):

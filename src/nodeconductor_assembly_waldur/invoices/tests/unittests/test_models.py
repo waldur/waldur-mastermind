@@ -6,7 +6,8 @@ from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
-from nodeconductor_openstack.openstack.tests import factories as openstack_factories
+from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
 
 from nodeconductor_assembly_waldur.packages.tests import factories as package_factories
 from ... import utils, models
@@ -15,8 +16,19 @@ from .. import factories
 
 class InvoiceModelTest(TestCase):
     def setUp(self):
-        self.tenant = openstack_factories.TenantFactory()
-        self.service_settings = self.tenant.service_project_link.service.settings
+        project = structure_factories.ProjectFactory()
+        self.service_settings = structure_factories.ServiceSettingsFactory(
+            type=openstack_apps.OpenStackConfig.service_name,
+            customer=project.customer
+        )
+        openstack_service = openstack_models.OpenStackService.objects.create(
+            customer=project.customer,
+            settings=self.service_settings,
+            name=self.service_settings.name
+        )
+        openstack_spl = openstack_models.OpenStackServiceProjectLink.objects.create(
+            project=project, service=openstack_service)
+        self.tenant = openstack_models.Tenant.objects.create(service_project_link=openstack_spl)
         self.package_template = package_factories.PackageTemplateFactory(
             service_settings=self.service_settings)
         self.package_template.components.all().update(

@@ -15,7 +15,7 @@ class InvoiceQuerySet(django_models.QuerySet):
             - Connect packages details to created invoice and calculate their price
         """
         # Avoid circular import
-        from models import Invoice
+        from models import Invoice, OpenStackItem
         try:
             return Invoice.objects.get(customer=customer, month=month, year=year,
                                        state=Invoice.States.PENDING), False
@@ -34,7 +34,7 @@ class InvoiceQuerySet(django_models.QuerySet):
             tenant__service_project_link__project__customer=customer,
         )
         for package in packages:
-            models.OpenStackItem.objects.create_with_price(invoice, package, start_datetime, end_datetime)
+            OpenStackItem.objects.create_with_price(invoice, package, start_datetime, end_datetime)
 
         return invoice, True
 
