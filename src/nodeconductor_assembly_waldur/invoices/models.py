@@ -1,7 +1,9 @@
 from __future__ import unicode_literals
 
+import datetime
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
@@ -27,25 +29,48 @@ class Invoice(core_models.UuidMixin, models.Model):
         unique_together = ('customer', 'month', 'year')
 
     class States(object):
-        BILLED = 'billed'
-        PAID = 'paid'
         PENDING = 'pending'
+        CREATED = 'created'
+        PAID = 'paid'
+        CANCELED = 'canceled'
 
-        CHOICES = ((BILLED, 'Billed'), (PAID, 'Paid'), (PENDING, 'Pending'))
+        CHOICES = ((PENDING, 'Pending'), (CREATED, 'Created'), (PAID, 'Paid'), (CANCELED, 'Canceled'))
 
     month = models.PositiveSmallIntegerField(default=utils.get_current_month,
                                              validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
-    state = models.CharField(max_length=7, choices=States.CHOICES, default=States.PENDING)
+    state = models.CharField(max_length=30, choices=States.CHOICES, default=States.PENDING)
     customer = models.ForeignKey(structure_models.Customer, related_name='+')
+    tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
+                                      validators=[MinValueValidator(0), MaxValueValidator(100)])
+    invoice_date = models.DateField(null=True, blank=True,
+                                    help_text='Date then invoice moved from state pending to created.')
 
     objects = managers.InvoiceManager()
 
+    # TODO: provide caching for property total.
+    @property
+    def price(self):
+        return self.openstack_items.aggregate(price=models.Sum('price'))['price'] or 0
+
+    @property
+    def tax(self):
+        return self.price * self.tax_percent / 100
+
     @property
     def total(self):
-        return self.openstack_items.aggregate(total=models.Sum('price'))['total']
+        return self.price + self.tax
 
-    def set_billed(self):
+    @property
+    def due_date(self):
+        if self.invoice_date:
+            return self.invoice_date + datetime.timedelta(days=settings.INVOICES['PAYMENT_INTERVAL'])
+
+    @property
+    def number(self):
+        return 100000 + self.id
+
+    def set_created(self):
         """
         Performs following actions:
             - Freeze all invoice items
@@ -60,11 +85,12 @@ class Invoice(core_models.UuidMixin, models.Model):
             if item.package:
                 item.freeze()
 
-        self.state = self.States.BILLED
-        self.save(update_fields=['state'])
+        self.state = self.States.CREATED
+        self.invoice_date = timezone.now().date()
+        self.save(update_fields=['state', 'invoice_date'])
 
     def propagate(self, month, year):
-        self.set_billed()
+        self.set_created()
         Invoice.objects.get_or_create_with_items(customer=self.customer, month=month, year=year)
 
     def __str__(self):
@@ -94,6 +120,14 @@ class OpenStackItem(models.Model):
             return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
 
         return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
+
+    @property
+    def tax(self):
+        return self.price * self.invoice.tax_percent / 100
+
+    @property
+    def total(self):
+        return self.price + self.tax
 
     @staticmethod
     def calculate_price_for_period(price, start, end):
@@ -132,3 +166,16 @@ class OpenStackItem(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class PaymentDetails(models.Model):
+    """ Customer payment details """
+    customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
+    company = models.CharField(blank=True, max_length=150)
+    address = models.CharField(blank=True, max_length=300)
+    country = models.CharField(blank=True, max_length=50)
+    email = models.EmailField(blank=True, max_length=75)
+    postal = models.CharField(blank=True, max_length=20)
+    phone = models.CharField(blank=True, max_length=20)
+    bank = models.CharField(blank=True, max_length=150)
+    account = models.CharField(blank=True, max_length=50)

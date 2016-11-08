@@ -20,7 +20,7 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
 
             # Check that old invoices has changed the state
             invoice.refresh_from_db()
-            self.assertEqual(invoice.state, models.Invoice.States.BILLED)
+            self.assertEqual(invoice.state, models.Invoice.States.CREATED)
 
             # Check that new invoice where created with the same openstack items
             new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.PENDING)
