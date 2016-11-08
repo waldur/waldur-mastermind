@@ -68,7 +68,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def number(self):
-        return 10000 + self.id
+        return 100000 + self.id
 
     def set_created(self):
         """

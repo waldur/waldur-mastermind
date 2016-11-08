@@ -13,7 +13,7 @@ class InvoicesExtension(NodeConductorExtension):
                 'email': 'info@opennodecloud.com',
                 'postal': '80041',
                 'phone': '(+372) 555-55-55',
-                'bank': 'American Bank',
+                'bank': 'Estonian Bank',
                 'account': '123456789',
             },
             # How many days are given to pay for created invoice
