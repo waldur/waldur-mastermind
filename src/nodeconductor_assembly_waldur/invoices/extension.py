@@ -4,6 +4,21 @@ from nodeconductor.core import NodeConductorExtension
 
 
 class InvoicesExtension(NodeConductorExtension):
+    class Settings:
+        INVOICES = {
+            'ISSUER_DETAILS': {
+                'company': 'OpenNode',
+                'address': 'Lille 4-205',
+                'country': 'Estonia',
+                'email': 'info@opennodecloud.com',
+                'postal': '80041',
+                'phone': '(+372) 555-55-55',
+                'bank': 'American Bank',
+                'account': '123456789',
+            },
+            # How many days are given to pay for created invoice
+            'PAYMENT_INTERVAL': 30,
+        }
 
     @staticmethod
     def django_app():

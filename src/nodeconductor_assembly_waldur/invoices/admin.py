@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from nodeconductor.structure import admin as structure_admin, models as structure_models
+
 from . import models
 
 
@@ -28,4 +30,9 @@ class InvoiceAdmin(admin.ModelAdmin):
         return False
 
 
+class PaymentDetailsInline(admin.StackedInline):
+    model = models.PaymentDetails
+
+
+structure_admin.CustomerAdmin.inlines += [PaymentDetailsInline]
 admin.site.register(models.Invoice, InvoiceAdmin)
