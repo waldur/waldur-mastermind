@@ -1,0 +1,2 @@
+include *.md *.rst
+recursive-include src/nodeconductor_assembly_waldur/invoices/templates *.html *.txt
