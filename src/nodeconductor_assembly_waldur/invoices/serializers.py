@@ -53,3 +53,14 @@ class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
             'phone': payment_details.phone,
             'bank': payment_details.bank,
         }
+
+
+class InvoiceNotificationSerializer(serializers.Serializer):
+    link_template = serializers.CharField(max_length=255, help_text='The template must include {uuid} parameter '
+                                                                    'e.g. http://example.com/invoice/{uuid}')
+
+    def validate_link_template(self, link_template):
+        if '{uuid}' not in link_template:
+            raise serializers.ValidationError("Link template must include '{uuid}' parameter.")
+
+        return link_template

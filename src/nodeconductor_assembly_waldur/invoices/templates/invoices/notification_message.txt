@@ -1,0 +1,4 @@
+Dear Sir or Madam,
+
+Please follow the link below to view {{ customer }}'s invoice for {{ month }}/{{ year }}:
+{{ link }}

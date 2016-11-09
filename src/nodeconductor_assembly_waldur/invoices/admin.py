@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from nodeconductor.structure import admin as structure_admin, models as structure_models
+from nodeconductor.structure import admin as structure_admin
 
 from . import models
 
