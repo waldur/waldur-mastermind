@@ -29,7 +29,7 @@ class InvoiceNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = factories.InvoiceFactory.get_url(self.fixture.invoice, action='send_notification')
-        self.fixture.invoice.state = models.Invoice.States.BILLED
+        self.fixture.invoice.state = models.Invoice.States.CREATED
         self.fixture.invoice.save(update_fields=['state'])
 
     @data('staff')
@@ -61,7 +61,7 @@ class InvoiceNotificationTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, ["Notification only for billed invoice can be sent."])
+        self.assertEqual(response.data, ["Notification only for the created invoice can be sent."])
 
     # Helper methods
     def _get_payload(self):

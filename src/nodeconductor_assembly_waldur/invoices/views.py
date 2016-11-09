@@ -23,8 +23,8 @@ class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
     @detail_route(methods=['post'], permission_classes=[permissions.IsAdminUser])
     def send_notification(self, request, uuid=None):
         invoice = self.get_object()
-        if invoice.state != models.Invoice.States.BILLED:
-            raise exceptions.ValidationError('Notification only for billed invoice can be sent.')
+        if invoice.state != models.Invoice.States.CREATED:
+            raise exceptions.ValidationError('Notification only for the created invoice can be sent.')
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
