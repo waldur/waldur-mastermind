@@ -9,6 +9,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from jsonfield import JSONField
+from model_utils import FieldTracker
 
 from nodeconductor.core import models as core_models
 from nodeconductor.core.exceptions import IncorrectStateException
@@ -47,6 +48,8 @@ class Invoice(core_models.UuidMixin, models.Model):
                                     help_text='Date then invoice moved from state pending to created.')
 
     objects = managers.InvoiceManager()
+
+    tracker = FieldTracker()
 
     # TODO: provide caching for property total.
     @property
