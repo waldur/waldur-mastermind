@@ -56,8 +56,8 @@ class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class InvoiceNotificationSerializer(serializers.Serializer):
-    link_template = serializers.CharField(max_length=255, help_text='The template must include {uuid} parameter '
-                                                                    'e.g. http://example.com/invoice/{uuid}')
+    link_template = serializers.URLField(help_text='The template must include {uuid} parameter '
+                                                   'e.g. http://example.com/invoice/{uuid}')
 
     def validate_link_template(self, link_template):
         if '{uuid}' not in link_template:
