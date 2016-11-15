@@ -64,11 +64,23 @@ class PackageComponent(models.Model):
 
         CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
 
+    UNITS = {
+        Types.RAM: 'MB',
+        Types.CORES: 'vCPU',
+        Types.STORAGE: 'MB'
+    }
+
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
-                                validators=[MinValueValidator(Decimal('0'))], help_text='The price per unit of amount')
+                                validators=[MinValueValidator(Decimal('0'))],
+                                help_text='The price per unit of amount',
+                                verbose_name='Price per hour')
     template = models.ForeignKey(PackageTemplate, related_name='components')
+
+    @property
+    def units(self):
+        return self.UNITS.get(self.type, 'Unknown')
 
     def __str__(self):
         return '%s | %s' % (self.type, self.template.name)
