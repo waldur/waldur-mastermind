@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
@@ -17,7 +18,7 @@ class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       core_models.UiDescribableMixin):
     # We do not define permissions for PackageTemplate because we are planning
-    # to use them with shared service settings only - thats means that
+    # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
@@ -45,6 +46,10 @@ class PackageTemplate(core_models.UuidMixin,
 
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
+
+    class Meta(object):
+        verbose_name = _('VPC package template')
+        verbose_name_plural = _('VPC package templates')
 
 
 @python_2_unicode_compatible
@@ -91,3 +96,7 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
             openstack_models.Tenant.Quotas.vcpu: PackageComponent.Types.CORES,
             openstack_models.Tenant.Quotas.storage: PackageComponent.Types.STORAGE,
         }
+
+    class Meta(object):
+        verbose_name = _('OpenStack VPC package')
+        verbose_name_plural = _('OpenStack VPC packages')
