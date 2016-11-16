@@ -62,13 +62,7 @@ class PackageComponent(models.Model):
         CORES = 'cores'
         STORAGE = 'storage'
 
-        CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
-
-    UNITS = {
-        Types.RAM: 'MB',
-        Types.CORES: 'vCPU',
-        Types.STORAGE: 'MB'
-    }
+        CHOICES = ((RAM, 'RAM, MB'), (CORES, 'Cores'), (STORAGE, 'Storage, MB'))
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
@@ -77,10 +71,6 @@ class PackageComponent(models.Model):
                                 help_text='The price per unit of amount',
                                 verbose_name='Price per hour')
     template = models.ForeignKey(PackageTemplate, related_name='components')
-
-    @property
-    def units(self):
-        return self.UNITS.get(self.type, 'Unknown')
 
     def __str__(self):
         return '%s | %s' % (self.type, self.template.name)
