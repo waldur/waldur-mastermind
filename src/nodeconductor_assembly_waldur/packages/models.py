@@ -62,12 +62,14 @@ class PackageComponent(models.Model):
         CORES = 'cores'
         STORAGE = 'storage'
 
-        CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
+        CHOICES = ((RAM, 'RAM, MB'), (CORES, 'Cores'), (STORAGE, 'Storage, MB'))
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
-                                validators=[MinValueValidator(Decimal('0'))], help_text='The price per unit of amount')
+                                validators=[MinValueValidator(Decimal('0'))],
+                                help_text='The price per unit of amount',
+                                verbose_name='Price per hour')
     template = models.ForeignKey(PackageTemplate, related_name='components')
 
     def __str__(self):

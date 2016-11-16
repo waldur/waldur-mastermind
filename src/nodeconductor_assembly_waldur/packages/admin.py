@@ -44,6 +44,7 @@ class PackageComponentInline(admin.TabularInline):
     formset = PackageComponentInlineFormset
     model = models.PackageComponent
     extra = 0
+    fields = ('type', 'amount', 'price')
 
     def get_extra(self, request, obj=None, **kwargs):
         if obj:
