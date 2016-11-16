@@ -182,3 +182,5 @@ class PaymentDetails(models.Model):
     phone = models.CharField(blank=True, max_length=20)
     bank = models.CharField(blank=True, max_length=150)
     account = models.CharField(blank=True, max_length=50)
+    default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
+                                              validators=[MinValueValidator(0), MaxValueValidator(100)])

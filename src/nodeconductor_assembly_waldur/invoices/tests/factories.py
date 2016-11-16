@@ -23,3 +23,10 @@ class InvoiceFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('invoice-list')
+
+
+class PaymentDetailsFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.PaymentDetails
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)

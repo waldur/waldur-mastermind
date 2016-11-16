@@ -65,3 +65,8 @@ class InvoiceHandlersTest(TestCase):
             expected_total = hours * package.template.price
             invoice = models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
             self.assertEqual(invoice.total, expected_total)
+
+    def test_default_tax_percent_is_used_on_invoice_creation(self):
+        payment_details = factories.PaymentDetailsFactory(default_tax_percent=20)
+        invoice = factories.InvoiceFactory(customer=payment_details.customer)
+        self.assertEqual(invoice.tax_percent, payment_details.default_tax_percent)

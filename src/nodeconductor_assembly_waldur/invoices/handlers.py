@@ -65,3 +65,12 @@ def log_invoice_state_transition(sender, instance, created=False, **kwargs):
             event_type='invoice_canceled',
             event_context={'month': instance.month, 'year': instance.year, 'customer': instance.customer}
         )
+
+
+def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
+    if instance.pk is not None:
+        return
+
+    payment_details = models.PaymentDetails.objects.filter(customer=instance.customer)
+    if payment_details.exists():
+        instance.tax_percent = payment_details.first().default_tax_percent
