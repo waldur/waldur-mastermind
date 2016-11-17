@@ -132,14 +132,30 @@ class OpenStackItem(models.Model):
     def total(self):
         return self.price + self.tax
 
+    @property
+    def daily_price(self):
+        """ Returns the price of OpenStack item per day """
+        full_days = utils.get_full_days(self.start, self.end)
+
+        return self.total / full_days
+
+    @property
+    def usage_days(self):
+        """
+        Returns the number of days package was used from the time
+        it was purchased or from the start of current month
+        """
+        now = timezone.now()
+        full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
+
+        return full_days
+
     @staticmethod
     def calculate_price_for_period(price, start, end):
         """ Calculates price from "start" till "end" """
-        seconds_in_day = 24 * 60 * 60
-        full_days, extra_seconds = divmod((end - start).total_seconds(), seconds_in_day)
-        if extra_seconds > 0:
-            full_days += 1
-        return price * 24 * int(full_days)
+        full_days = utils.get_full_days(start, end)
+
+        return price * 24 * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """

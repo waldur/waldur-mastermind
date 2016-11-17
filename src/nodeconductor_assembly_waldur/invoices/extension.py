@@ -15,6 +15,7 @@ class InvoicesExtension(NodeConductorExtension):
                 'phone': '(+372) 555-55-55',
                 'bank': 'Estonian Bank',
                 'account': '123456789',
+                'vat_code': 'EE123456789',
             },
             # How many days are given to pay for created invoice
             'PAYMENT_INTERVAL': 30,

@@ -17,3 +17,12 @@ def get_current_month_end():
 
 def get_current_month_start():
     return core_utils.month_start(timezone.now())
+
+
+def get_full_days(start, end):
+    seconds_in_day = 24 * 60 * 60
+    full_days, extra_seconds = divmod((end - start).total_seconds(), seconds_in_day)
+    if extra_seconds > 0:
+        full_days += 1
+
+    return int(full_days)
