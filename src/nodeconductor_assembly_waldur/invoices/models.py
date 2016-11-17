@@ -187,8 +187,11 @@ class OpenStackItem(models.Model):
         return self.name
 
 
-class PaymentDetails(models.Model):
+class PaymentDetails(core_models.UuidMixin, models.Model):
     """ Customer payment details """
+    class Permissions(object):
+        customer_path = 'customer'
+
     customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
     company = models.CharField(blank=True, max_length=150)
     address = models.CharField(blank=True, max_length=300)

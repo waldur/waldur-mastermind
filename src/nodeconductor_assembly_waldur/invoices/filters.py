@@ -1,6 +1,6 @@
 import django_filters
 
-from nodeconductor.core.filters import UUIDFilter
+from nodeconductor.core.filters import UUIDFilter, URLFilter
 
 from . import models
 
@@ -12,3 +12,48 @@ class InvoiceFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.Invoice
         fields = ('customer_uuid', 'state', 'year', 'month')
+
+
+class PaymentDetailsFilter(django_filters.FilterSet):
+    customer = UUIDFilter(name='customer__uuid')
+    customer_url = URLFilter(
+        view_name='customer-detail',
+        name='customer__uuid',
+    )
+
+    class Meta(object):
+        model = models.PaymentDetails
+        fields = [
+            'customer',
+            'customer_url',
+            'company',
+            'address',
+            'country',
+            'email',
+            'postal',
+            'phone',
+            'bank',
+            'account',
+            'default_tax_percent',
+        ]
+        order_by = [
+            'customer',
+            'company',
+            'address',
+            'country',
+            'email',
+            'postal',
+            'phone',
+            'bank',
+            'account',
+            # descending
+            '-customer',
+            '-company',
+            '-address',
+            '-country',
+            '-email',
+            '-postal',
+            '-phone',
+            '-bank',
+            '-account',
+        ]
