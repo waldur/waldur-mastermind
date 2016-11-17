@@ -146,7 +146,7 @@ class OpenStackItem(models.Model):
         it was purchased or from the start of current month
         """
         now = timezone.now()
-        full_days = utils.get_full_days(self.start, now)
+        full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
 
         return full_days
 
