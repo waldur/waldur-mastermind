@@ -1,5 +1,6 @@
 from django.conf import settings
 from rest_framework import serializers
+from  nodeconductor.core import serializers as core_serializers
 
 from . import models
 
@@ -66,7 +67,8 @@ class InvoiceNotificationSerializer(serializers.Serializer):
         return link_template
 
 
-class PaymentDetailsCreateSerializer(serializers.HyperlinkedModelSerializer):
+class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
+                               serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.PaymentDetails
         fields = (
@@ -74,21 +76,7 @@ class PaymentDetailsCreateSerializer(serializers.HyperlinkedModelSerializer):
             'country', 'email', 'postal', 'phone', 'bank', 'account',
             'default_tax_percent',
         )
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'payment-details-detail'},
-            'customer': {'lookup_field': 'uuid'},
-        }
-
-
-class PaymentDetailsSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
-        model = models.PaymentDetails
-        fields = (
-            'url', 'uuid', 'customer', 'company', 'address',
-            'country', 'email', 'postal', 'phone', 'bank', 'account',
-            'default_tax_percent',
-        )
-        read_only_fields = ('url', 'uuid', 'customer')
+        protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'payment-details-detail'},
             'customer': {'lookup_field': 'uuid'},

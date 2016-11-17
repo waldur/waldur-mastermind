@@ -44,9 +44,3 @@ class PaymentDetailsViewSet(viewsets.ModelViewSet):
                           permissions.DjangoObjectPermissions)
     filter_backends = (structure_filters.GenericRoleFilter, rf_filters.DjangoFilterBackend)
     filter_class = filters.PaymentDetailsFilter
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return serializers.PaymentDetailsCreateSerializer
-
-        return super(PaymentDetailsViewSet, self).get_serializer_class()
