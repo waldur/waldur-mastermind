@@ -45,14 +45,17 @@ class OpenStackPackageSerializer(
     user_username = serializers.CharField(
         source='tenant.user_username', required=False, allow_null=True,
         help_text='Tenant user username. By default is generated as <tenant name> + "-user".')
+    user_password = serializers.CharField(
+        source='tenant.user_password', required=False, allow_null=True,
+        help_text='Tenant user password. Leave blank if you want admin password to be auto-generated.')
     availability_zone = serializers.CharField(
         source='tenant.availability_zone', required=False, allow_blank=True,
         help_text='Tenant availability zone.')
 
     class Meta(object):
         model = models.OpenStackPackage
-        fields = ('url', 'uuid', 'name', 'description', 'template', 'service_project_link', 'user_username',
-                  'availability_zone', 'tenant', 'service_settings',)
+        fields = ('url', 'uuid', 'name', 'description', 'template', 'service_project_link',
+                  'user_username', 'user_password', 'availability_zone', 'tenant', 'service_settings',)
         view_name = 'openstack-package-detail'
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -93,9 +96,11 @@ class OpenStackPackageSerializer(
             tenant_data['availability_zone'] = template.service_settings.get_option('availability_zone') or ''
         if not tenant_data.get('user_username'):
             tenant_data['user_username'] = slugify(tenant_data['name'])[:30] + '-user'
+        if not tenant_data.get('user_password'):
+            tenant_data['user_password'] = core_utils.pwgen()
         extra_configuration = {'package_name': template.name, 'package_uuid': template.uuid.hex}
         validated_data['tenant'] = tenant = openstack_models.Tenant.objects.create(
-            user_password=core_utils.pwgen(), extra_configuration=extra_configuration, **tenant_data)
+            extra_configuration=extra_configuration, **tenant_data)
         self._set_tenant_quotas(tenant, template)
         service_settings = self._create_service_settings(tenant)
         validated_data['service_settings'] = service_settings
