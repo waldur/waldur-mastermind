@@ -22,6 +22,15 @@ class PackageTemplate(core_models.UuidMixin,
     # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
+    class Categories(object):
+        SMALL = 'small'
+        MEDIUM = 'medium'
+        LARGE = 'large'
+
+        CHOICES = ((SMALL, 'Small'), (MEDIUM, 'Medium'), (LARGE, 'Large'))
+
+    category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
+
     @property
     def price(self):
         return self.components.aggregate(total=models.Sum(
