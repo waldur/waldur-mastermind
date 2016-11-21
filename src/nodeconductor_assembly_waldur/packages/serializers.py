@@ -20,11 +20,13 @@ class PackageComponentSerializer(serializers.ModelSerializer):
 class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
     price = serializers.DecimalField(max_digits=13, decimal_places=7)
     components = PackageComponentSerializer(many=True)
+    category = serializers.ReadOnlyField(source='get_category_display')
 
     class Meta(object):
         model = models.PackageTemplate
         fields = (
-            'url', 'uuid', 'name', 'description', 'service_settings', 'price', 'icon_url', 'components',
+            'url', 'uuid', 'name', 'description', 'service_settings',
+            'price', 'icon_url', 'components', 'category'
         )
         view_name = 'package-template-detail'
         extra_kwargs = {
