@@ -9,8 +9,8 @@ Source0: %{name}-%{version}.tar.gz
 
 Requires: nodeconductor > 0.109.0
 Requires: nodeconductor-openstack > 0.8.0
-Requires: nodeconductor_plus >= 0.2.0
-Requires: nodeconductor_jira >= 0.4.0
+Requires: nodeconductor-plus >= 0.2.0
+Requires: nodeconductor-jira >= 0.4.0
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
