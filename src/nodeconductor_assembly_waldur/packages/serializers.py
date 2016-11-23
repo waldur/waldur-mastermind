@@ -11,7 +11,6 @@ from . import models
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
-
     class Meta(object):
         model = models.PackageComponent
         fields = ('type', 'amount', 'price')
@@ -35,8 +34,21 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class OpenStackPackageSerializer(
-        structure_serializers.PermissionFieldFilteringMixin, serializers.HyperlinkedModelSerializer):
+class OpenStackPackageMixin(structure_serializers.PermissionFieldFilteringMixin):
+    def validate_template(self, template):
+        if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
+            raise serializers.ValidationError('Template should be related to OpenStack service settings.')
+        elif template.service_settings.state != structure_models.ServiceSettings.States.OK:
+            raise serializers.ValidationError("Template's settings must be in OK state.")
+        return template
+
+    def _set_tenant_quotas(self, tenant, template):
+        components = {c.type: c.amount for c in template.components.all()}
+        for quota_name, component_type in models.OpenStackPackage.get_quota_to_component_mapping().items():
+            tenant.set_quota_limit(quota_name, components[component_type])
+
+
+class OpenStackPackageSerializer(OpenStackPackageMixin, serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(source='tenant.name', help_text='Tenant name.')
     description = serializers.CharField(
         required=False, allow_blank=True, source='tenant.description', help_text='Tenant description.')
@@ -68,11 +80,6 @@ class OpenStackPackageSerializer(
 
     def get_filtered_field_names(self):
         return ('service_settings', 'service_project_link')
-
-    def validate_template(self, template):
-        if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
-            raise serializers.ValidationError('Package template should be related to OpenStack service settings.')
-        return template
 
     def validate_service_project_link(self, spl):
         user = self.context['request'].user
@@ -136,7 +143,67 @@ class OpenStackPackageSerializer(
         )
         return service_settings
 
-    def _set_tenant_quotas(self, tenant, template):
-        components = {c.type: c.amount for c in template.components.all()}
-        for quota_name, component_type in models.OpenStackPackage.get_quota_to_component_mapping().items():
-            tenant.set_quota_limit(quota_name, components[component_type])
+
+class OpenStackPackageExtendSerializer(OpenStackPackageMixin, serializers.Serializer):
+    package = serializers.HyperlinkedRelatedField(
+        view_name='openstack-package-detail',
+        lookup_field='uuid',
+        queryset=models.OpenStackPackage.objects.all()
+    )
+    template = serializers.HyperlinkedRelatedField(
+        view_name='package-template-detail',
+        lookup_field='uuid',
+        queryset=models.PackageTemplate.objects.all()
+    )
+
+    def get_filtered_field_names(self):
+        return 'package',
+
+    def validate_package(self, package):
+        spl = package.tenant.service_project_link
+        user = self.context['request'].user
+        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
+                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
+            raise serializers.ValidationError('Only staff, owner or manager can extend package.')
+        elif package.tenant.state != openstack_models.Tenant.States.OK:
+            raise serializers.ValidationError("Package's tenant must be in OK state.")
+
+        return package
+
+    def validate(self, attrs):
+        package = attrs['package']
+        new_template = attrs['template']
+        if package.tenant.service_project_link.service.settings != new_template.service_settings:
+            raise serializers.ValidationError(
+                "Template and package's tenant should be connected to the same service settings.")
+
+        if package.template == new_template:
+            raise serializers.ValidationError(
+                "New package template cannot be the same as package's current template.")
+
+        old_components = {component.type: component.amount for component in package.template.components.all()}
+        for component in new_template.components.all():
+            if component.type not in old_components:
+                raise serializers.ValidationError(
+                    "Template's components must be the same as package template's components")
+            if component.amount < old_components[component.type]:
+                msg = "Template's {0} component must be larger or equal to package template's current {0} component."
+                raise serializers.ValidationError(msg.format(component.get_type_display()))
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        package = validated_data['package']
+        new_template = validated_data['template']
+        service_settings = package.service_settings
+        tenant = package.tenant
+        self._set_tenant_quotas(tenant, new_template)
+
+        package.delete()
+        new_package = models.OpenStackPackage.objects.create(
+            template=new_template,
+            service_settings=service_settings,
+            tenant=tenant
+        )
+
+        return new_package
