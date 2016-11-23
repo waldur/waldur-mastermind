@@ -87,7 +87,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
 @ddt
 class OpenStackPackageExtendTest(test.APITransactionTestCase):
-    extend_url = factories.OpenStackPackageFactory.get_list_url(extend=True)
+    extend_url = factories.OpenStackPackageFactory.get_list_url(action='extend')
 
     def setUp(self):
         self.fixture = fixtures.PackageFixture()

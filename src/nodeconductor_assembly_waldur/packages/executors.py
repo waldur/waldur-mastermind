@@ -42,6 +42,6 @@ class OpenStackPackageExtendExecutor(core_executors.BaseExecutor):
     def get_task_signature(cls, tenant, serialized_tenant):
         serialized_executor = core_utils.serialize_class(openstack_executors.TenantPushQuotasExecutor)
         quotas = tenant.quotas.all()
-        quotas = {q.name: int(q.limit) if q.limit.is_integer() else q.limit for q in quotas}
+        quotas = {q.name: int(q.limit) for q in quotas}
 
         return core_tasks.ExecutorTask().si(serialized_executor, serialized_tenant, quotas=quotas)

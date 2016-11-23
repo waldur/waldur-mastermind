@@ -34,7 +34,7 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class OpenStackPackageBaseSerializer(structure_serializers.PermissionFieldFilteringMixin):
+class OpenStackPackageMixin(structure_serializers.PermissionFieldFilteringMixin):
     def validate_template(self, template):
         if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
             raise serializers.ValidationError('Template should be related to OpenStack service settings.')
@@ -48,7 +48,7 @@ class OpenStackPackageBaseSerializer(structure_serializers.PermissionFieldFilter
             tenant.set_quota_limit(quota_name, components[component_type])
 
 
-class OpenStackPackageSerializer(OpenStackPackageBaseSerializer, serializers.HyperlinkedModelSerializer):
+class OpenStackPackageSerializer(OpenStackPackageMixin, serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(source='tenant.name', help_text='Tenant name.')
     description = serializers.CharField(
         required=False, allow_blank=True, source='tenant.description', help_text='Tenant description.')
@@ -144,7 +144,7 @@ class OpenStackPackageSerializer(OpenStackPackageBaseSerializer, serializers.Hyp
         return service_settings
 
 
-class OpenStackPackageExtendSerializer(OpenStackPackageBaseSerializer, serializers.Serializer):
+class OpenStackPackageExtendSerializer(OpenStackPackageMixin, serializers.Serializer):
     package = serializers.HyperlinkedRelatedField(
         view_name='openstack-package-detail',
         lookup_field='uuid',

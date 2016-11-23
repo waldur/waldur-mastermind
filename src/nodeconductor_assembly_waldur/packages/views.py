@@ -1,9 +1,9 @@
 from rest_framework import viewsets, mixins, permissions, response, status, filters as rf_filters
+from rest_framework.decorators import list_route
 
 from nodeconductor.core import mixins as core_mixins
 from nodeconductor.structure import filters as structure_filters
 from nodeconductor.structure.metadata import ActionsMetadata
-from rest_framework.decorators import list_route
 
 from . import filters, models, serializers, executors
 
