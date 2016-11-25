@@ -18,9 +18,9 @@ class Migration(migrations.Migration):
             name='PackageComponent',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('type', models.CharField(max_length=50, choices=[('ram', 'RAM'), ('cores', 'Cores'), ('storage', 'Storage')])),
+                ('type', models.CharField(max_length=50, choices=[('ram', 'RAM, MB'), ('cores', 'Cores'), ('storage', 'Storage, MB')])),
                 ('amount', models.PositiveIntegerField(default=0)),
-                ('price', models.DecimalField(default=0, help_text='The price per unit of amount', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
+                ('price', models.DecimalField(default=0, help_text='The price per unit of amount', verbose_name='Price per hour', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
             ],
         ),
         migrations.CreateModel(

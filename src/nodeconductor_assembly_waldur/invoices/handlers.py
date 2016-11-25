@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
 
-from . import models
+from . import models, log
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
@@ -37,3 +37,40 @@ def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
         invoice__month=now.month,
     )
     item.freeze(end=now, package_deletion=True)
+
+
+def log_invoice_state_transition(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    state = instance.state
+    if state == models.Invoice.States.PENDING or state == instance.tracker.previous('state'):
+        return
+
+    if state == models.Invoice.States.CREATED:
+        log.event_logger.invoice.info(
+            'Invoice for customer {customer_name} has been created.',
+            event_type='invoice_created',
+            event_context={'month': instance.month, 'year': instance.year, 'customer': instance.customer}
+        )
+    elif state == models.Invoice.States.PAID:
+        log.event_logger.invoice.info(
+            'Invoice for customer {customer_name} has been paid.',
+            event_type='invoice_paid',
+            event_context={'month': instance.month, 'year': instance.year, 'customer': instance.customer}
+        )
+    elif state == models.Invoice.States.CANCELED:
+        log.event_logger.invoice.info(
+            'Invoice for customer {customer_name} has been canceled.',
+            event_type='invoice_canceled',
+            event_context={'month': instance.month, 'year': instance.year, 'customer': instance.customer}
+        )
+
+
+def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
+    if instance.pk is not None:
+        return
+
+    payment_details = models.PaymentDetails.objects.filter(customer=instance.customer)
+    if payment_details.exists():
+        instance.tax_percent = payment_details.first().default_tax_percent

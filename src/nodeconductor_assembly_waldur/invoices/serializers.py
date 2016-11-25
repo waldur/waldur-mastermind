@@ -1,5 +1,6 @@
 from django.conf import settings
 from rest_framework import serializers
+from  nodeconductor.core import serializers as core_serializers
 
 from . import models
 
@@ -10,7 +11,7 @@ class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
         model = models.OpenStackItem
-        fields = ('package', 'name', 'price', 'tax', 'total', 'start', 'end')
+        fields = ('package', 'name', 'price', 'tax', 'total', 'daily_price', 'start', 'end', 'usage_days')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
         }
@@ -64,3 +65,19 @@ class InvoiceNotificationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Link template must include '{uuid}' parameter.")
 
         return link_template
+
+
+class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
+                               serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.PaymentDetails
+        fields = (
+            'url', 'uuid', 'customer', 'company', 'address',
+            'country', 'email', 'postal', 'phone', 'bank', 'account',
+            'default_tax_percent',
+        )
+        protected_fields = ('customer',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'payment-details-detail'},
+            'customer': {'lookup_field': 'uuid'},
+        }

@@ -21,7 +21,7 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_list_url(self):
+    def get_list_url(cls):
         return 'http://testserver' + reverse('package-template-list')
 
     @factory.post_generation
@@ -59,5 +59,6 @@ class OpenStackPackageFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_list_url(self):
-        return 'http://testserver' + reverse('openstack-package-list')
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('openstack-package-list')
+        return url if action is None else url + action + '/'

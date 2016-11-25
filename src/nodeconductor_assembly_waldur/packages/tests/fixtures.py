@@ -1,4 +1,6 @@
 from django.utils.functional import cached_property
+
+from nodeconductor.structure import models as structure_models
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests.fixtures import ProjectFixture
 from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
@@ -14,6 +16,7 @@ class OpenStackFixture(ProjectFixture):
             type=openstack_apps.OpenStackConfig.service_name,
             shared=True,
             options={'external_network_id': 'test_network_id'},
+            state=structure_models.ServiceSettings.States.OK,
         )
 
     @cached_property
@@ -31,7 +34,10 @@ class OpenStackFixture(ProjectFixture):
 
     @cached_property
     def openstack_tenant(self):
-        return openstack_models.Tenant.objects.create(service_project_link=self.openstack_spl)
+        return openstack_models.Tenant.objects.create(
+            service_project_link=self.openstack_spl,
+            state=openstack_models.Tenant.States.OK,
+        )
 
 
 class PackageFixture(OpenStackFixture):

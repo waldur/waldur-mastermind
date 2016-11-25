@@ -9,6 +9,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from jsonfield import JSONField
+from model_utils import FieldTracker
 
 from nodeconductor.core import models as core_models
 from nodeconductor.core.exceptions import IncorrectStateException
@@ -47,6 +48,8 @@ class Invoice(core_models.UuidMixin, models.Model):
                                     help_text='Date then invoice moved from state pending to created.')
 
     objects = managers.InvoiceManager()
+
+    tracker = FieldTracker()
 
     # TODO: provide caching for property total.
     @property
@@ -129,14 +132,30 @@ class OpenStackItem(models.Model):
     def total(self):
         return self.price + self.tax
 
+    @property
+    def daily_price(self):
+        """ Returns the price of OpenStack item per day """
+        full_days = utils.get_full_days(self.start, self.end)
+
+        return self.total / full_days
+
+    @property
+    def usage_days(self):
+        """
+        Returns the number of days package was used from the time
+        it was purchased or from the start of current month
+        """
+        now = timezone.now()
+        full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
+
+        return full_days
+
     @staticmethod
     def calculate_price_for_period(price, start, end):
         """ Calculates price from "start" till "end" """
-        seconds_in_day = 24 * 60 * 60
-        full_days, extra_seconds = divmod((end - start).total_seconds(), seconds_in_day)
-        if extra_seconds > 0:
-            full_days += 1
-        return price * 24 * int(full_days)
+        full_days = utils.get_full_days(start, end)
+
+        return price * 24 * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """
@@ -168,8 +187,11 @@ class OpenStackItem(models.Model):
         return self.name
 
 
-class PaymentDetails(models.Model):
+class PaymentDetails(core_models.UuidMixin, models.Model):
     """ Customer payment details """
+    class Permissions(object):
+        customer_path = 'customer'
+
     customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
     company = models.CharField(blank=True, max_length=150)
     address = models.CharField(blank=True, max_length=300)
@@ -179,3 +201,5 @@ class PaymentDetails(models.Model):
     phone = models.CharField(blank=True, max_length=20)
     bank = models.CharField(blank=True, max_length=150)
     account = models.CharField(blank=True, max_length=50)
+    default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
+                                              validators=[MinValueValidator(0), MaxValueValidator(100)])
