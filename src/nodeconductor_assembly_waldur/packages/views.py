@@ -3,7 +3,6 @@ from rest_framework.decorators import list_route
 
 from nodeconductor.core import mixins as core_mixins
 from nodeconductor.structure import filters as structure_filters
-from nodeconductor.structure.metadata import ActionsMetadata
 
 from . import filters, models, serializers, executors
 
@@ -25,7 +24,6 @@ class OpenStackPackageViewSet(core_mixins.CreateExecutorMixin, mixins.CreateMode
     filter_class = filters.OpenStackPackageFilter
     permission_classes = (permissions.IsAuthenticated, permissions.DjangoObjectPermissions)
     create_executor = executors.OpenStackPackageCreateExecutor
-    metadata_class = ActionsMetadata
 
     def get_serializer_class(self):
         if self.action == 'extend':
