@@ -8,5 +8,10 @@ class InvoiceLogger(EventLogger):
 
     class Meta:
         event_types = ('invoice_created', 'invoice_paid', 'invoice_canceled')
+        event_groups = {
+            'customers': event_types,
+            'invoices': event_types,
+        }
+
 
 event_logger.register('invoice', InvoiceLogger)
