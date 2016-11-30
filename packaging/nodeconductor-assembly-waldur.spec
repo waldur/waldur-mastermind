@@ -10,6 +10,7 @@ Source0: %{name}-%{version}.tar.gz
 Requires: nodeconductor > 0.109.0
 Requires: nodeconductor-openstack > 0.8.0
 Requires: nodeconductor-aws >= 0.1.0
+Requires: nodeconductor-digitalocean >= 0.1.0
 Requires: nodeconductor-jira >= 0.4.0
 
 BuildArch: noarch

@@ -5,6 +5,7 @@ install_requires = [
     'nodeconductor>0.109.0',
     'nodeconductor_openstack>0.8.0',
     'nodeconductor_aws>=0.1.0',
+    'nodeconductor_digitalocean>=0.1.0',
     'nodeconductor_jira>=0.4.0',
 ]
 
