@@ -1,5 +1,4 @@
 from django.apps import AppConfig
-
 from django.db.models import signals
 
 from nodeconductor_assembly_waldur.packages import models as packages_models
