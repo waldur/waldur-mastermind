@@ -36,18 +36,19 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
             (INCIDENT, _('Incident')),
         )
 
-    key = models.CharField(max_length=255)
+    backend_id = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=30, choices=Type.CHOICES, default=Type.INFORMATIONAL)
 
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    deadline = models.DateTimeField(blank=True, null=True)
 
     status = models.CharField(max_length=255)
     resolution = models.CharField(blank=True, max_length=255)
 
-    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='reported_issues')
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='created_issues')
-    assignee = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='assigned_issues', blank=True, null=True)
+    reporter = models.ForeignKey('SupportUser', related_name='reported_issues')
+    caller = models.ForeignKey('SupportUser', related_name='created_issues')
+    assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True)
 
     customer = models.ForeignKey(structure_models.Customer, related_name='issues', blank=True, null=True)
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)
@@ -60,8 +61,28 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
         return backend.IssueBackend()
 
     def get_log_fields(self):
-        return 'uuid', 'key', 'type', 'status', 'summary',\
-               'reporter', 'creator', 'customer', 'project', 'resource'
+        return ('uuid', 'type', 'status', 'summary', 'reporter', 'creator', 'customer', 'project', 'resource')
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)
+
+
+@python_2_unicode_compatible
+class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    backend_id = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
+class Comment(core_models.UuidMixin, models.Model):
+    issue = models.ForeignKey(Issue, related_name='comments')
+    author = models.ForeignKey(SupportUser, related_name='comments')
+    description = models.TextField()
+    is_public = models.BooleanField(default=True)
+    backend_id = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return self.description[:50]
