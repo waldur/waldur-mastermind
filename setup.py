@@ -2,11 +2,11 @@
 from setuptools import setup, find_packages
 
 install_requires = [
+    'jira>=1.0.4',
     'nodeconductor>0.109.0',
     'nodeconductor_auth_social>=0.1.0',
     'nodeconductor_aws>=0.1.0',
     'nodeconductor_digitalocean>=0.1.0',
-    'nodeconductor_jira>=0.4.0',
     'nodeconductor_openstack>0.8.0',
 ]
 
