@@ -35,6 +35,7 @@ setup(
         'nodeconductor_extensions': (
             'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
             'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
+            'waldur_support = nodeconductor_assembly_waldur.support.extension:SupportExtension',
         ),
     },
     include_package_data=True,
