@@ -14,4 +14,5 @@ class IssueEventLogger(EventLogger):
             'support': event_types,
         }
 
+
 event_logger.register('waldur_issue', IssueEventLogger)

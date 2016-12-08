@@ -20,9 +20,9 @@ class IssueFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueFactory()
-        url = 'http://testserver' + reverse('waldur-issues-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse('support-issue-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('waldur-issues-list')
+        return 'http://testserver' + reverse('support-issue-list')

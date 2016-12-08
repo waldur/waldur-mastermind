@@ -8,9 +8,13 @@ from . import models
 
 class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_type='icontains')
-    customer = core_filters.UUIDFilter(name='customer__uuid')
-    project = core_filters.UUIDFilter(name='project__uuid')
-    reporter = core_filters.UUIDFilter(name='reporter__uuid')
+    customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
+    customer_uuid = core_filters.UUIDFilter(name='customer__uuid')
+    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
+    project_uuid = core_filters.UUIDFilter(name='project__uuid')
+    reporter_name = django_filters.CharFilter(lookup_type='icontains', name='reporter__name')
+    caller_name = django_filters.CharFilter(lookup_type='icontains', name='caller__name')
+    assignee_name = django_filters.CharFilter(lookup_type='icontains', name='assignee__name')
 
     class Meta(object):
         model = models.Issue
@@ -35,3 +39,22 @@ class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
 
     def get_field_name(self):
         return 'resource'
+
+
+class CommentFilter(django_filters.FilterSet):
+    description = django_filters.CharFilter(lookup_type='icontains')
+    issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
+    issue_uuid = core_filters.UUIDFilter(name='issue__uuid')
+
+    class Meta(object):
+        model = models.Comment
+        fields = [
+            'is_public',
+        ]
+        order_by = [
+            'created',
+            'updated',
+            # desc
+            '-created',
+            '-updated',
+        ]

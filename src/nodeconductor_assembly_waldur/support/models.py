@@ -37,6 +37,7 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
         )
 
     backend_id = models.CharField(max_length=255, blank=True)
+    key = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=30, choices=Type.CHOICES, default=Type.INFORMATIONAL)
 
     summary = models.CharField(max_length=255)
@@ -61,7 +62,7 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
         return backend.IssueBackend()
 
     def get_log_fields(self):
-        return ('uuid', 'type', 'status', 'summary', 'reporter', 'creator', 'customer', 'project', 'resource')
+        return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'creator', 'customer', 'project', 'resource')
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)
@@ -77,7 +78,14 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class Comment(core_models.UuidMixin, models.Model):
+class Comment(core_models.UuidMixin, TimeStampedModel):
+    class Meta:
+        ordering = ['-created']
+
+    class Permissions(object):
+        customer_path = 'issue__customer'
+        project_path = 'issue__project'
+
     issue = models.ForeignKey(Issue, related_name='comments')
     author = models.ForeignKey(SupportUser, related_name='comments')
     description = models.TextField()
