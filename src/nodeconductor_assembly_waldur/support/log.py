@@ -10,5 +10,8 @@ class IssueEventLogger(EventLogger):
         event_types = ('issue_deletion_succeeded',
                        'issue_update_succeeded',
                        'issue_creation_succeeded')
+        event_groups = {
+            'support': event_types,
+        }
 
 event_logger.register('waldur_issue', IssueEventLogger)

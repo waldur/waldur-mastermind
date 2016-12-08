@@ -28,10 +28,10 @@ class IssueFilter(django_filters.FilterSet):
         ]
 
 
-class IssueScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
 
     def get_related_models(self):
         return structure_models.ResourceMixin.get_all_models()
 
     def get_field_name(self):
-        return 'scope'
+        return 'resource'

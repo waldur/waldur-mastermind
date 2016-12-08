@@ -9,7 +9,7 @@ from . import models
 class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                       serializers.HyperlinkedModelSerializer):
 
-    scope = core_serializers.GenericRelatedField(
+    resource = core_serializers.GenericRelatedField(
         related_models=structure_models.ResourceMixin.get_all_models(), required=False)
 
     class Meta(object):
@@ -22,10 +22,10 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'assignee', 'assignee_uuid', 'assignee_name', 'assignee_email',
             'customer', 'customer_uuid', 'customer_name',
             'project', 'project_uuid', 'project_name',
-            'scope', 'created', 'modified',
+            'resource', 'created', 'modified',
         )
         read_only_fields = 'key', 'status', 'resolution', 'creator'
-        protected_fields = 'customer', 'project', 'scope', 'type', 'reporter'
+        protected_fields = 'customer', 'project', 'resource', 'type', 'reporter'
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'waldur-issues-detail'},
             reporter={'lookup_field': 'uuid', 'view_name': 'user-detail'},

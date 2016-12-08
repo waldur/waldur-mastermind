@@ -15,7 +15,7 @@ from . import backend
 
 
 @python_2_unicode_compatible
-class Issue(core_models.UuidMixin, TimeStampedModel, structure_models.StructureLoggableMixin):
+class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, TimeStampedModel):
     class Meta:
         ordering = ['-modified']
 
@@ -24,10 +24,10 @@ class Issue(core_models.UuidMixin, TimeStampedModel, structure_models.StructureL
         project_path = 'project'
 
     class Type(object):
-        INFORMATIONAL = 0
-        SERVICE_REQUEST = 1
-        CHANGE_REQUEST = 2
-        INCIDENT = 3
+        INFORMATIONAL = 'informational'
+        SERVICE_REQUEST = 'service_request'
+        CHANGE_REQUEST = 'change_request'
+        INCIDENT = 'incident'
 
         CHOICES = (
             (INFORMATIONAL, _('Informational')),
@@ -37,7 +37,7 @@ class Issue(core_models.UuidMixin, TimeStampedModel, structure_models.StructureL
         )
 
     key = models.CharField(max_length=255)
-    type = models.SmallIntegerField(choices=Type.CHOICES, default=Type.INFORMATIONAL)
+    type = models.CharField(max_length=30, choices=Type.CHOICES, default=Type.INFORMATIONAL)
 
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -52,20 +52,16 @@ class Issue(core_models.UuidMixin, TimeStampedModel, structure_models.StructureL
     customer = models.ForeignKey(structure_models.Customer, related_name='issues', blank=True, null=True)
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)
 
-    content_type = models.ForeignKey(ContentType, null=True)
-    object_id = models.PositiveIntegerField(null=True)
-    scope = GenericForeignKey('content_type', 'object_id')
+    resource_content_type = models.ForeignKey(ContentType, null=True)
+    resource_object_id = models.PositiveIntegerField(null=True)
+    resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
     def get_backend(self):
         return backend.IssueBackend()
 
-    @classmethod
-    def get_url_name(cls):
-        return 'waldur-issues'
-
     def get_log_fields(self):
         return 'uuid', 'key', 'type', 'status', 'summary',\
-               'reporter', 'creator', 'customer', 'project'
+               'reporter', 'creator', 'customer', 'project', 'resource'
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)

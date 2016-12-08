@@ -34,3 +34,9 @@ class IssueCrudTest(test.APITransactionTestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data['summary'], 'New summary')
+
+    def test_staff_can_delete_issue(self):
+        self.client.force_authenticate(self.fixture.staff)
+        issue = factories.IssueFactory()
+        response = self.client.delete(factories.IssueFactory.get_url(issue))
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
