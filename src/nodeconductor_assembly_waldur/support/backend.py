@@ -3,6 +3,10 @@ from jira import JIRA
 from django.conf import settings
 
 
+def get_active_backned():
+    return globals()[settings.WALDUR_SUPPORT['ACTIVE_BACKEND']]()
+
+
 class SupportBackend(object):
     """ Interface for support backend """
     def create_issue(self, issue):

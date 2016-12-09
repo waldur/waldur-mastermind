@@ -20,6 +20,7 @@ class SupportExtension(NodeConductorExtension):
             },
             'ISSUE_TYPES': ['Informational', 'Service request', 'Change request', 'Incident'],
             'DEFAULT_ISSUE_TYPE': 'Informational',
+            'ACTIVE_BACKEND': 'JIRABackend',
         }
 
     @staticmethod
