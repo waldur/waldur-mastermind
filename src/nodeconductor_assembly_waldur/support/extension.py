@@ -6,11 +6,14 @@ from nodeconductor.core import NodeConductorExtension
 class SupportExtension(NodeConductorExtension):
 
     class Settings(object):
-        WALDUR_SUPPORT_CREDENTIALS = {
-            'password': 'PASSWORD',
-            'project': 'PROJECT',
-            'server': 'http://example.com/',
-            'username': 'USERNAME'
+        WALDUR_SUPPORT = {
+            'CREDENTIALS': {
+                'server': 'http://example.com/',
+                'username': 'USERNAME',
+                'password': 'PASSWORD',
+                'project': 'PROJECT',
+                'verify_ssl': False,
+            },
         }
 
     @staticmethod
