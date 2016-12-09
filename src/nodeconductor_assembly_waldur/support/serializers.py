@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import serializers
@@ -36,12 +37,16 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         read_only=True,
     )
     resource_type = serializers.SerializerMethodField()
+    type = serializers.ChoiceField(
+        choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE_TYPES']],
+        initial=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'],
+        default=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'])
 
     class Meta(object):
         model = models.Issue
         fields = (
-            'url', 'uuid', 'type', 'key', 'backend_id',
-            'summary', 'description', 'status', 'resolution',
+            'url', 'uuid', 'type', 'key', 'backend_id', 'link',
+            'summary', 'description', 'status', 'resolution', 'priority',
             'reporter_name', 'reporter_user',
             'caller_name', 'caller_user',
             'assignee_name', 'assignee_user',
@@ -50,7 +55,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'resource', 'resource_type',
             'created', 'modified',
         )
-        read_only_fields = ('key', 'status', 'resolution', 'backend_id')
+        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
         protected_fields = ('customer', 'project', 'resource', 'type', 'reporter_user')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -72,7 +77,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     @transaction.atomic()
     def create(self, validated_data):
         caller_user = self.context['request'].user
-        reporter_user = validated_data.get('reporter', {}).get('user', caller_user)
+        reporter_user = validated_data.get('reporter', {}).get('user') or caller_user
         validated_data['reporter'], _ = models.SupportUser.objects.get_or_create(
             user=reporter_user, defaults={'name': reporter_user.full_name})
         validated_data['caller'], _ = models.SupportUser.objects.get_or_create(
@@ -85,13 +90,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         if project:
             validated_data['customer'] = project.customer
 
-        issue = super(IssueSerializer, self).create(validated_data)
-        # Hotfix. Should be removed after proper integration implementation.
-        issue.key = 'SUPPORT-%s' % issue.id
-        issue.status = 'New'
-        issue.save()
-
-        return issue
+        return super(IssueSerializer, self).create(validated_data)
 
 
 class CommentSerializer(core_serializers.AugmentedSerializerMixin,

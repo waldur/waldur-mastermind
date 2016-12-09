@@ -1,9 +1,10 @@
+from django.db import transaction
 from rest_framework import viewsets, filters as rf_filters, permissions, decorators, response, status
 
 from nodeconductor.core import views as core_views
 from nodeconductor.structure import filters as structure_filters
 
-from . import filters, models, serializers
+from . import filters, models, serializers, backend
 
 
 class IssueViewSet(viewsets.ModelViewSet):
@@ -24,6 +25,21 @@ class IssueViewSet(viewsets.ModelViewSet):
         'comment': serializers.CommentSerializer,
     }
 
+    @transaction.atomic()
+    def perform_create(self, serializer):
+        issue = serializer.save()
+        backend.JIRABackend().create_issue(issue)
+
+    @transaction.atomic()
+    def perform_update(self, serializer):
+        issue = serializer.save()
+        backend.JIRABackend().update_issue(issue)
+
+    @transaction.atomic()
+    def perform_destroy(self, issue):
+        backend.JIRABackend().delete_issue(issue)
+        issue.delete()
+
     def get_serializer_class(self):
         return self.serializers.get(self.action, super(IssueViewSet, self).get_serializer_class())
 
@@ -37,7 +53,9 @@ class IssueViewSet(viewsets.ModelViewSet):
     def comment(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        with transaction.atomic():
+            comment = serializer.save()
+            backend.JIRABackend().create_comment(comment)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -54,3 +72,13 @@ class CommentViewSet(core_views.UpdateOnlyViewSet):
         rf_filters.DjangoFilterBackend,
     )
     filter_class = filters.CommentFilter
+
+    @transaction.atomic()
+    def perform_update(self, serializer):
+        comment = serializer.save()
+        backend.JIRABackend().update_comment(comment)
+
+    @transaction.atomic()
+    def perform_destroy(self, comment):
+        backend.JIRABackend().delete_comment(comment)
+        comment.delete()
