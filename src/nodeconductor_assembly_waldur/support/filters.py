@@ -13,8 +13,11 @@ class IssueFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = core_filters.UUIDFilter(name='project__uuid')
     reporter_name = django_filters.CharFilter(lookup_type='icontains', name='reporter__name')
+    reporter_user = core_filters.URLFilter(view_name='user-detail', name='reporter__user__uuid')
     caller_name = django_filters.CharFilter(lookup_type='icontains', name='caller__name')
+    caller_user = core_filters.URLFilter(view_name='user-detail', name='caller__user__uuid')
     assignee_name = django_filters.CharFilter(lookup_type='icontains', name='assignee__name')
+    assignee_user = core_filters.URLFilter(view_name='user-detail', name='assignee__user__uuid')
 
     class Meta(object):
         model = models.Issue
@@ -45,6 +48,8 @@ class CommentFilter(django_filters.FilterSet):
     description = django_filters.CharFilter(lookup_type='icontains')
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = core_filters.UUIDFilter(name='issue__uuid')
+    author_name = django_filters.CharFilter(lookup_type='icontains', name='author__name')
+    author_user = core_filters.URLFilter(view_name='user-detail', name='author__user__uuid')
 
     class Meta(object):
         model = models.Comment
