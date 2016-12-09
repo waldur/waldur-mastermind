@@ -7,14 +7,22 @@ from nodeconductor.structure.tests import factories as structure_factories
 from .. import models
 
 
+class SupportUserFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.SupportUser
+
+    name = factory.Sequence(lambda n: 'user-%s' % n)
+    user = factory.SubFactory(structure_factories.UserFactory)
+
+
 class IssueFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Issue
 
     key = factory.Sequence(lambda n: 'TST-%s' % n)
     project = factory.SubFactory(structure_factories.ProjectFactory)
-    creator = factory.SubFactory(structure_factories.UserFactory)
-    reporter = factory.SubFactory(structure_factories.UserFactory)
+    caller = factory.SubFactory(SupportUserFactory)
+    reporter = factory.SubFactory(SupportUserFactory)
 
     @classmethod
     def get_url(cls, issue=None, action=None):

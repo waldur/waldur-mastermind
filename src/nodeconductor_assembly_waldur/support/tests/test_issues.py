@@ -22,7 +22,7 @@ class IssueCrudTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(factories.IssueFactory.get_list_url(), {
             'summary': 'Unable to provision VM',
-            'reporter': structure_factories.UserFactory.get_url(self.fixture.staff)
+            'reporter_user': structure_factories.UserFactory.get_url(self.fixture.staff),
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
