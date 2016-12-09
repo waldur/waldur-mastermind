@@ -3,7 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
-from nodeconductor.structure import models as structure_models
+from nodeconductor.structure import models as structure_models, SupportedServices
 
 from . import models
 
@@ -35,6 +35,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         lookup_field='uuid',
         read_only=True,
     )
+    resource_type = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Issue
@@ -46,7 +47,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'assignee_name', 'assignee_user',
             'customer', 'customer_uuid', 'customer_name',
             'project', 'project_uuid', 'project_name',
-            'resource', 'created', 'modified',
+            'resource', 'resource_type',
+            'created', 'modified',
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id')
         protected_fields = ('customer', 'project', 'resource', 'type', 'reporter_user')
@@ -62,6 +64,10 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             customer=('uuid', 'name',),
             project=('uuid', 'name',),
         )
+
+    def get_resource_type(self, obj):
+        if obj.resource:
+            return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
 
     @transaction.atomic()
     def create(self, validated_data):
@@ -79,7 +85,13 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         if project:
             validated_data['customer'] = project.customer
 
-        return super(IssueSerializer, self).create(validated_data)
+        issue = super(IssueSerializer, self).create(validated_data)
+        # Hotfix. Should be removed after proper integration implementation.
+        issue.key = 'SUPPORT-%s' % issue.id
+        issue.status = 'New'
+        issue.save()
+
+        return issue
 
 
 class CommentSerializer(core_serializers.AugmentedSerializerMixin,
