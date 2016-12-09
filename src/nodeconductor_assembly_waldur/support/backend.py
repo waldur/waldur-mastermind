@@ -16,7 +16,7 @@ class SupportBackend(object):
 
 
 class JIRABackend(SupportBackend):
-    credentials = settings.WALDUR_SUPPORT.get('CREADENTIALS', {})
+    credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
 
     def get_manager(self):
         if not hasattr(self, '_manager'):

@@ -7,7 +7,7 @@ class SupportExtension(NodeConductorExtension):
 
     class Settings(object):
         WALDUR_SUPPORT = {
-            'CREADENTIALS': {
+            'CREDENTIALS': {
                 'server': 'http://example.com/',
                 'username': 'USERNAME',
                 'password': 'PASSWORD',
