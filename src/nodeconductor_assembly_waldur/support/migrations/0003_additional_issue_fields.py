@@ -26,4 +26,9 @@ class Migration(migrations.Migration):
             name='priority',
             field=models.CharField(max_length=255, blank=True),
         ),
+        migrations.AlterField(
+            model_name='issue',
+            name='type',
+            field=models.CharField(max_length=255),
+        ),
     ]
