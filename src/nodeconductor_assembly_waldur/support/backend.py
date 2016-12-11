@@ -47,8 +47,8 @@ class JIRABackend(SupportBackend):
         if not field_name:
             return None
         if not hasattr(self.__class__, '_fields'):
-            fields = self.__class__._fields = self.manager.fields()
-        return next(f['id'] for f in fields if field_name in f['clauseNames'])
+            self.__class__._fields = self.manager.fields()
+        return next(f['id'] for f in self.__class__._fields if field_name in f['clauseNames'])
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
