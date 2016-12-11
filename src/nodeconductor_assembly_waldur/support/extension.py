@@ -18,7 +18,7 @@ class SupportExtension(NodeConductorExtension):
                 'impact_field': 'Impact',
                 'reporter_field': 'Original Reporter',
             },
-            'ISSUE_TYPES': ['Informational', 'Service request', 'Change request', 'Incident'],
+            'ISSUE_TYPES': ['Informational', 'Service Request', 'Change Request', 'Incident'],
             'DEFAULT_ISSUE_TYPE': 'Informational',
             'ACTIVE_BACKEND': 'JIRABackend',
         }
