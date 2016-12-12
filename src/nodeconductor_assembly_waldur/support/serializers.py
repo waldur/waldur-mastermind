@@ -37,6 +37,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         read_only=True,
     )
     resource_type = serializers.SerializerMethodField()
+    resource_name = serializers.ReadOnlyField(source='resource.name')
     type = serializers.ChoiceField(
         choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE_TYPES']],
         initial=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'],
@@ -52,7 +53,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'assignee_name', 'assignee_user',
             'customer', 'customer_uuid', 'customer_name',
             'project', 'project_uuid', 'project_name',
-            'resource', 'resource_type',
+            'resource', 'resource_type', 'resource_name',
             'created', 'modified',
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
@@ -105,7 +106,8 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Comment
-        fields = ('url', 'uuid', 'issue', 'description', 'is_public', 'author_name', 'author_user', 'backend_id')
+        fields = ('url', 'uuid', 'issue', 'issue_key', 'description', 'is_public',
+                  'author_name', 'author_user', 'backend_id', 'created')
         read_only_fields = ('issue', 'backend_id',)
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-comment-detail'},
@@ -113,6 +115,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
         )
         related_paths = dict(
             author=('name',),
+            issue=('key',),
         )
 
     @transaction.atomic()
