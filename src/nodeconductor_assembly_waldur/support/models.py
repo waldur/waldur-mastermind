@@ -46,7 +46,7 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
     def get_log_fields(self):
-        return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'creator', 'customer', 'project', 'resource')
+        return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'caller', 'customer', 'project', 'resource')
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)
