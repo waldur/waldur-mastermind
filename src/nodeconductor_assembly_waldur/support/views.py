@@ -28,16 +28,16 @@ class IssueViewSet(viewsets.ModelViewSet):
     @transaction.atomic()
     def perform_create(self, serializer):
         issue = serializer.save()
-        backend.get_active_backned().create_issue(issue)
+        backend.get_active_backend().create_issue(issue)
 
     @transaction.atomic()
     def perform_update(self, serializer):
         issue = serializer.save()
-        backend.get_active_backned().update_issue(issue)
+        backend.get_active_backend().update_issue(issue)
 
     @transaction.atomic()
     def perform_destroy(self, issue):
-        backend.get_active_backned().delete_issue(issue)
+        backend.get_active_backend().delete_issue(issue)
         issue.delete()
 
     def get_serializer_class(self):
@@ -55,7 +55,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             comment = serializer.save()
-            backend.get_active_backned().create_comment(comment)
+            backend.get_active_backend().create_comment(comment)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -76,9 +76,9 @@ class CommentViewSet(core_views.UpdateOnlyViewSet):
     @transaction.atomic()
     def perform_update(self, serializer):
         comment = serializer.save()
-        backend.get_active_backned().update_comment(comment)
+        backend.get_active_backend().update_comment(comment)
 
     @transaction.atomic()
     def perform_destroy(self, comment):
-        backend.get_active_backned().delete_comment(comment)
+        backend.get_active_backend().delete_comment(comment)
         comment.delete()

@@ -3,7 +3,7 @@ from jira import JIRA
 from django.conf import settings
 
 
-def get_active_backned():
+def get_active_backend():
     return globals()[settings.WALDUR_SUPPORT['ACTIVE_BACKEND']]()
 
 
