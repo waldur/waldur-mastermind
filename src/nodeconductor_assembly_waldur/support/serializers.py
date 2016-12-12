@@ -78,10 +78,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     def create(self, validated_data):
         caller_user = self.context['request'].user
         reporter_user = validated_data.get('reporter', {}).get('user') or caller_user
-        validated_data['reporter'], _ = models.SupportUser.objects.get_or_create(
-            user=reporter_user, defaults={'name': reporter_user.full_name})
-        validated_data['caller'], _ = models.SupportUser.objects.get_or_create(
-            user=caller_user, defaults={'name': caller_user.full_name})
+        validated_data['reporter'], _ = models.SupportUser.objects.get_or_create_from_user(reporter_user)
+        validated_data['caller'], _ = models.SupportUser.objects.get_or_create_from_user(caller_user)
 
         resource = validated_data.get('resource')
         if resource:
@@ -118,7 +116,6 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
     @transaction.atomic()
     def create(self, validated_data):
         author_user = self.context['request'].user
-        validated_data['author'], _ = models.SupportUser.objects.get_or_create(
-            user=author_user, defaults={'name': author_user.full_name})
+        validated_data['author'], _ = models.SupportUser.objects.get_or_create_from_user(author_user)
         validated_data['issue'] = self.context['issue']
         return super(CommentSerializer, self).create(validated_data)

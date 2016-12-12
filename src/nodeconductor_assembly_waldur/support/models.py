@@ -10,6 +10,8 @@ from model_utils.models import TimeStampedModel
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 
+from . import managers
+
 
 @python_2_unicode_compatible
 class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, TimeStampedModel):
@@ -56,6 +58,8 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
 class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
     backend_id = models.CharField(max_length=255, blank=True)
+
+    objects = managers.SupportUserManager()
 
     def __str__(self):
         return self.name
