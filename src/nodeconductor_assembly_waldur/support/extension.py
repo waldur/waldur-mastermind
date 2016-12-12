@@ -11,9 +11,17 @@ class SupportExtension(NodeConductorExtension):
                 'server': 'http://example.com/',
                 'username': 'USERNAME',
                 'password': 'PASSWORD',
-                'project': 'PROJECT',
                 'verify_ssl': False,
             },
+            'PROJECT': {
+                'key': 'PROJECT',
+                'impact_field': 'Impact',
+                'reporter_field': 'Original Reporter',
+                'caller_field': 'Caller',
+            },
+            'ISSUE_TYPES': ['Informational', 'Service request', 'Change request', 'Incident'],
+            'DEFAULT_ISSUE_TYPE': 'Informational',
+            'ACTIVE_BACKEND': 'JiraBackend',
         }
 
     @staticmethod

@@ -1,13 +1,14 @@
+from django.conf import settings
 from rest_framework import test, status
 
-from nodeconductor.structure.tests import fixtures as structure_fixtures
-from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor.structure.tests import fixtures as structure_fixtures, factories as structure_factories
 
 from . import factories
 
 
 class IssueCrudTest(test.APITransactionTestCase):
     def setUp(self):
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = 'SupportBackend'
         self.fixture = structure_fixtures.ProjectFixture()
 
     def test_staff_can_list_issues(self):

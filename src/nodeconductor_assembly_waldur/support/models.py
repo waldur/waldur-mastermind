@@ -5,13 +5,12 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
-from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 
-from . import backend
+from . import managers
 
 
 @python_2_unicode_compatible
@@ -23,29 +22,19 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
         customer_path = 'customer'
         project_path = 'project'
 
-    class Type(object):
-        INFORMATIONAL = 'informational'
-        SERVICE_REQUEST = 'service_request'
-        CHANGE_REQUEST = 'change_request'
-        INCIDENT = 'incident'
-
-        CHOICES = (
-            (INFORMATIONAL, _('Informational')),
-            (SERVICE_REQUEST, _('Service request')),
-            (CHANGE_REQUEST, _('Change request')),
-            (INCIDENT, _('Incident')),
-        )
-
     backend_id = models.CharField(max_length=255, blank=True)
     key = models.CharField(max_length=255, blank=True)
-    type = models.CharField(max_length=30, choices=Type.CHOICES, default=Type.INFORMATIONAL)
+    type = models.CharField(max_length=255)
+    link = models.URLField(max_length=255, help_text='Link to issue in support system.', blank=True)
 
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     deadline = models.DateTimeField(blank=True, null=True)
+    impact = models.CharField(max_length=255, blank=True)
 
     status = models.CharField(max_length=255)
-    resolution = models.CharField(blank=True, max_length=255)
+    resolution = models.CharField(max_length=255, blank=True)
+    priority = models.CharField(max_length=255, blank=True)
 
     reporter = models.ForeignKey('SupportUser', related_name='reported_issues')
     caller = models.ForeignKey('SupportUser', related_name='created_issues')
@@ -58,11 +47,8 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
     resource_object_id = models.PositiveIntegerField(null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
-    def get_backend(self):
-        return backend.IssueBackend()
-
     def get_log_fields(self):
-        return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'creator', 'customer', 'project', 'resource')
+        return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'caller', 'customer', 'project', 'resource')
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)
@@ -72,6 +58,8 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
 class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
     backend_id = models.CharField(max_length=255, blank=True)
+
+    objects = managers.SupportUserManager()
 
     def __str__(self):
         return self.name
