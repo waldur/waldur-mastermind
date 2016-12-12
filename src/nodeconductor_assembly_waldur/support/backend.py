@@ -1,9 +1,10 @@
 import functools
 
+from django.conf import settings
 from django.utils import six
 from jira import JIRA, JIRAError
 
-from django.conf import settings
+from . import models
 
 
 def get_active_backend():
@@ -32,6 +33,14 @@ class SupportBackend(object):
         pass
 
     def delete_comment(self, comment):
+        pass
+
+    def get_users(self):
+        """
+        This method should return all users that are related to support project on backend.
+
+        Each user should be represented as not saved SupportUser instance.
+        """
         pass
 
 
@@ -128,3 +137,10 @@ class JiraBackend(SupportBackend):
     def delete_comment(self, comment):
         backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
         backend_comment.delete()
+
+    @reraise_exceptions
+    def get_users(self):
+        for user in self.manager.search_assignable_users_for_projects('', self.project_details['key']):
+            yield models.SupportUser(name=user.displayName, backend_id=user.key)
+
+    # http://jira.readthedocs.io/en/master/api.html?highlight=user(#jira.JIRA.assign_issue
