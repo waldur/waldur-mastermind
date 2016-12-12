@@ -81,6 +81,7 @@ class JiraBackend(SupportBackend):
             'description': issue.description,
             'issuetype': {'name': issue.type},
             self._get_field_id_by_name(self.project_details['reporter_field']): issue.reporter.name,
+            self._get_field_id_by_name(self.project_details['caller_field']): issue.caller.name,
         }
         if issue.impact:
             args[self._get_field_id_by_name(self.project_details['impact_field'])] = issue.impact
