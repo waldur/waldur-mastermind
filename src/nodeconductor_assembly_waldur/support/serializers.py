@@ -20,15 +20,15 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         source='reporter.user',
         view_name='user-detail',
         lookup_field='uuid',
-        queryset=User.objects.all(),
-        required=False,
-        allow_null=True,
+        read_only=True
     )
     caller_user = serializers.HyperlinkedRelatedField(
         source='caller.user',
         view_name='user-detail',
         lookup_field='uuid',
-        read_only=True,
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True,
     )
     assignee_user = serializers.HyperlinkedRelatedField(
         source='assignee.user',
@@ -57,7 +57,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'created', 'modified',
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
-        protected_fields = ('customer', 'project', 'resource', 'type', 'reporter_user')
+        protected_fields = ('customer', 'project', 'resource', 'type', 'caller_user')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},
@@ -77,8 +77,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
 
     @transaction.atomic()
     def create(self, validated_data):
-        caller_user = self.context['request'].user
-        reporter_user = validated_data.get('reporter', {}).get('user') or caller_user
+        reporter_user = self.context['request'].user
+        caller_user = validated_data.get('caller', {}).get('user') or reporter_user
         validated_data['reporter'], _ = models.SupportUser.objects.get_or_create_from_user(reporter_user)
         validated_data['caller'], _ = models.SupportUser.objects.get_or_create_from_user(caller_user)
 
