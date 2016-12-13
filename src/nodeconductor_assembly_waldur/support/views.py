@@ -90,3 +90,5 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAdminUser,)
     serializer_class = serializers.SupportUserSerializer
+    filter_backends = (rf_filters.DjangoFilterBackend,)
+    filter_class = filters.SupportUserFilter

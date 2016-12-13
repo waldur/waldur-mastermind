@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
                 ('resource_content_type', models.ForeignKey(to='contenttypes.ContentType', null=True)),
             ],
             options={
-                'ordering': ['-modified'],
+                'ordering': ['-created'],
             },
             bases=(models.Model, nodeconductor.structure.models.StructureLoggableMixin),
         ),
