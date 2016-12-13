@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework import viewsets, filters as rf_filters, permissions, decorators, response, status
 
+from nodeconductor.core import filters as core_filters
 from nodeconductor.core import views as core_views
 from nodeconductor.structure import filters as structure_filters
 
@@ -17,7 +18,7 @@ class IssueViewSet(viewsets.ModelViewSet):
     )
     filter_backends = (
         structure_filters.GenericRoleFilter,
-        rf_filters.DjangoFilterBackend,
+        core_filters.DjangoMappingFilterBackend,
         filters.IssueResourceFilterBackend,
     )
     filter_class = filters.IssueFilter
