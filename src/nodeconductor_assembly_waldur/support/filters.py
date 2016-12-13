@@ -70,6 +70,9 @@ class IssueFilter(django_filters.FilterSet):
 
 class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
 
+    content_type_field = 'resource_content_type'
+    object_id_field = 'resource_object_id'
+
     def get_related_models(self):
         return structure_models.ResourceMixin.get_all_models()
 
