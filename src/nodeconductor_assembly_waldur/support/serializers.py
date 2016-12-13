@@ -122,3 +122,13 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
         validated_data['author'], _ = models.SupportUser.objects.get_or_create_from_user(author_user)
         validated_data['issue'] = self.context['issue']
         return super(CommentSerializer, self).create(validated_data)
+
+
+class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.SupportUser
+        fields = ('url', 'uuid', 'name', 'backend_id', 'user')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-user-detail'},
+            user={'lookup_field': 'uuid', 'view_name': 'user-detail'}
+        )
