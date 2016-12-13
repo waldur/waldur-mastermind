@@ -84,18 +84,17 @@ class JiraBackend(SupportBackend):
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
+        caller_name = issue.caller.full_name or issue.caller.username
         args = {
             'project': self.project_details['key'],
             'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
+            self._get_field_id_by_name(self.project_details['caller_field']): caller_name,
         }
         if issue.reporter:
             args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
             # args['reporter'] = {'name': issue.reporter.name}
-        if issue.caller:
-            name = issue.caller.full_name or issue.caller.username
-            args[self._get_field_id_by_name(self.project_details['caller_field'])] = name
         if issue.impact:
             args[self._get_field_id_by_name(self.project_details['impact_field'])] = issue.impact
         if issue.priority:
