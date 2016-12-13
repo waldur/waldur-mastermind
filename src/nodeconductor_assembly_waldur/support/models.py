@@ -59,6 +59,9 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
 
 @python_2_unicode_compatible
 class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    class Meta:
+        ordering = ['name']
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
     backend_id = models.CharField(max_length=255, blank=True)
 
