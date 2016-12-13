@@ -145,7 +145,5 @@ class JiraBackend(SupportBackend):
 
     @reraise_exceptions
     def get_users(self):
-        for user in self.manager.search_assignable_users_for_projects('', self.project_details['key']):
-            yield models.SupportUser(name=user.displayName, backend_id=user.key)
-
-    # http://jira.readthedocs.io/en/master/api.html?highlight=user(#jira.JIRA.assign_issue
+        users = self.manager.search_assignable_users_for_projects('', self.project_details['key'])
+        return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]

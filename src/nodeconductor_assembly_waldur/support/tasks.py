@@ -15,3 +15,4 @@ class SupportUserPullTask(Task):
             if not created and user.name != backend_user.name:
                 user.name = backend_user.name
                 user.save()
+        models.SupportUser.objects.exclude(backend_id__in=[u.backend_id for u in backend_users]).delete()
