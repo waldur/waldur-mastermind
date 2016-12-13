@@ -33,10 +33,10 @@ class IssueFilter(django_filters.FilterSet):
         ]
         order_by = [
             'created',
-            'updated',
+            'modified',
             # desc
             '-created',
-            '-updated',
+            '-modified',
         ]
 
 
