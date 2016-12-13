@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+from datetime import timedelta
+
 from nodeconductor.core import NodeConductorExtension
 
 
@@ -36,3 +38,13 @@ class SupportExtension(NodeConductorExtension):
     @staticmethod
     def is_assembly():
         return True
+
+    @staticmethod
+    def celery_tasks():
+        return {
+            'pull-support-users': {
+                'task': 'support.SupportUserPullTask',
+                'schedule': timedelta(hour=6),
+                'args': (),
+            },
+        }

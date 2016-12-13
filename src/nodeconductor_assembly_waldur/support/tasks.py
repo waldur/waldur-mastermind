@@ -1,9 +1,9 @@
-from nodeconductor.core import tasks as core_tasks
+from celery import Task
 
 from . import backend, models
 
 
-class SupportUserPullTask(core_tasks.BackgroundTask):
+class SupportUserPullTask(Task):
     """ Pull support users from backend """
     name = 'support.SupportUserPullTask'
 
