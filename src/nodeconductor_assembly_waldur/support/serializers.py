@@ -50,7 +50,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         fields = (
             'url', 'uuid', 'type', 'key', 'backend_id', 'link',
             'summary', 'description', 'status', 'resolution', 'priority',
-            'caller', 'caller_uuid', 'caller_name',
+            'caller', 'caller_uuid', 'caller_full_name',
             'reporter', 'reporter_uuid', 'reporter_name',
             'assignee', 'assignee_uuid', 'assignee_name',
             'customer', 'customer_uuid', 'customer_name',
@@ -66,8 +66,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
         related_paths = dict(
+            caller=('uuid', 'full_name',),
             reporter=('uuid', 'name',),
-            caller=('uuid', 'name',),
             assignee=('uuid', 'name',),
             customer=('uuid', 'name',),
             project=('uuid', 'name',),

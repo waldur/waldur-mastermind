@@ -18,7 +18,7 @@ class IssueFilter(django_filters.FilterSet):
     reporter_name = django_filters.CharFilter(lookup_type='icontains', name='reporter__name')
     reporter = core_filters.URLFilter(view_name='support-user-detail', name='reporter__uuid')
 
-    caller_name = django_filters.CharFilter(lookup_type='icontains', name='caller__name')
+    caller_full_name = django_filters.CharFilter(lookup_type='icontains', name='caller__full_name')
     caller = core_filters.URLFilter(view_name='user-detail', name='caller__uuid')
 
     assignee_name = django_filters.CharFilter(lookup_type='icontains', name='assignee__name')
