@@ -29,10 +29,38 @@ class IssueFilter(django_filters.FilterSet):
         order_by = [
             'created',
             'updated',
+            'type',
+            'key',
+            'status',
+            'priority',
+            'summary',
+            'customer__name',
+            'project__name',
+            'caller__name',
+            'reporter__name',
+            'assignee__name',
             # desc
             '-created',
             '-updated',
+            '-type',
+            '-key',
+            '-status',
+            '-priority',
+            '-summary',
+            '-customer__name',
+            '-project__name',
+            '-caller__name',
+            '-reporter__name',
+            '-assignee__name',
         ]
+
+        order_by_mapping = {
+            'customer_name': 'customer__name',
+            'project_name': 'project__name',
+            'caller_name': 'caller__name',
+            'reporter_name': 'reporter__name',
+            'assignee_name': 'assignee__name',
+        }
 
 
 class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
