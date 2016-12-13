@@ -83,3 +83,10 @@ class CommentViewSet(core_views.UpdateOnlyViewSet):
     def perform_destroy(self, comment):
         backend.get_active_backend().delete_comment(comment)
         comment.delete()
+
+
+class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.SupportUser.objects.all()
+    lookup_field = 'uuid'
+    permission_classes = (permissions.IsAdminUser,)
+    serializer_class = serializers.SupportUserSerializer

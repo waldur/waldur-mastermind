@@ -1,9 +1,10 @@
 import functools
 
+from django.conf import settings
 from django.utils import six
 from jira import JIRA, JIRAError
 
-from django.conf import settings
+from . import models
 
 
 def get_active_backend():
@@ -32,6 +33,14 @@ class SupportBackend(object):
         pass
 
     def delete_comment(self, comment):
+        pass
+
+    def get_users(self):
+        """
+        This method should return all users that are related to support project on backend.
+
+        Each user should be represented as not saved SupportUser instance.
+        """
         pass
 
 
@@ -75,14 +84,17 @@ class JiraBackend(SupportBackend):
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
+        caller_name = issue.caller.full_name or issue.caller.username
         args = {
             'project': self.project_details['key'],
             'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.project_details['reporter_field']): issue.reporter.name,
-            self._get_field_id_by_name(self.project_details['caller_field']): issue.caller.name,
+            self._get_field_id_by_name(self.project_details['caller_field']): caller_name,
         }
+        if issue.reporter:
+            args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
+            # args['reporter'] = {'name': issue.reporter.name}
         if issue.impact:
             args[self._get_field_id_by_name(self.project_details['impact_field'])] = issue.impact
         if issue.priority:
@@ -92,6 +104,8 @@ class JiraBackend(SupportBackend):
     @reraise_exceptions
     def create_issue(self, issue):
         backend_issue = self.manager.create_issue(**self._issue_to_dict(issue))
+        if issue.assignee:
+            self.manager.assign_issue(backend_issue.key, issue.assignee.backend_id)
         issue.key = backend_issue.key
         issue.backend_id = backend_issue.key
         issue.resolution = backend_issue.fields.resolution or ''
@@ -128,3 +142,8 @@ class JiraBackend(SupportBackend):
     def delete_comment(self, comment):
         backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
         backend_comment.delete()
+
+    @reraise_exceptions
+    def get_users(self):
+        users = self.manager.search_assignable_users_for_projects('', self.project_details['key'], maxResults=False)
+        return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
