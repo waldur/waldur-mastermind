@@ -16,7 +16,7 @@ from . import managers
 @python_2_unicode_compatible
 class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, TimeStampedModel):
     class Meta:
-        ordering = ['-modified']
+        ordering = ['-created']
 
     class Permissions(object):
         customer_path = 'customer'

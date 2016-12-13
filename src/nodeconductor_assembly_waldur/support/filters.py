@@ -91,8 +91,15 @@ class CommentFilter(django_filters.FilterSet):
         ]
         order_by = [
             'created',
-            'updated',
+            'modified',
             # desc
             '-created',
-            '-updated',
+            '-modified',
         ]
+
+
+class SupportUserFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_type='icontains')
+
+    class Meta(object):
+        model = models.SupportUser
