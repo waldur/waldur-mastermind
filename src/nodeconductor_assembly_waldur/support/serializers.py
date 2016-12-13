@@ -59,7 +59,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'created', 'modified', 'is_reported_manually',
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
-        protected_fields = ('customer', 'project', 'resource', 'type', 'caller_user')
+        protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},
@@ -78,6 +78,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
 
     def validate(self, attrs):
+        if self.instance is not None:
+            return attrs
         if attrs.pop('is_reported_manually'):
             attrs['caller'] = self.context['request'].user
             if attrs.get('assignee'):

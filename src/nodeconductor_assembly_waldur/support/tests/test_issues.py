@@ -10,6 +10,7 @@ class IssueCrudTest(test.APITransactionTestCase):
     def setUp(self):
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = 'SupportBackend'
         self.fixture = structure_fixtures.ProjectFixture()
+        factories.SupportUserFactory(user=self.fixture.staff)
 
     def test_staff_can_list_issues(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -23,7 +24,7 @@ class IssueCrudTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(factories.IssueFactory.get_list_url(), {
             'summary': 'Unable to provision VM',
-            'reporter_user': structure_factories.UserFactory.get_url(self.fixture.staff),
+            'caller': structure_factories.UserFactory.get_url(self.fixture.staff),
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 

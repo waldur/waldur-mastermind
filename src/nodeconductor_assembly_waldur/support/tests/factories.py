@@ -21,7 +21,7 @@ class IssueFactory(factory.DjangoModelFactory):
 
     key = factory.Sequence(lambda n: 'TST-%s' % n)
     project = factory.SubFactory(structure_factories.ProjectFactory)
-    caller = factory.SubFactory(SupportUserFactory)
+    caller = factory.SubFactory(structure_factories.UserFactory)
     reporter = factory.SubFactory(SupportUserFactory)
 
     @classmethod

@@ -92,6 +92,7 @@ class JiraBackend(SupportBackend):
         }
         if issue.reporter:
             args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
+            # args['reporter'] = {'name': issue.reporter.name}
         if issue.caller:
             name = issue.caller.full_name or issue.caller.username
             args[self._get_field_id_by_name(self.project_details['caller_field'])] = name
