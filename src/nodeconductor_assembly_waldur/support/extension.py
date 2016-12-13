@@ -44,7 +44,7 @@ class SupportExtension(NodeConductorExtension):
         return {
             'pull-support-users': {
                 'task': 'support.SupportUserPullTask',
-                'schedule': timedelta(hour=6),
+                'schedule': timedelta(hours=6),
                 'args': (),
             },
         }

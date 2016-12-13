@@ -89,9 +89,12 @@ class JiraBackend(SupportBackend):
             'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.project_details['reporter_field']): issue.reporter.name,
-            self._get_field_id_by_name(self.project_details['caller_field']): issue.caller.name,
         }
+        if issue.reporter:
+            args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
+        if issue.caller:
+            name = issue.caller.full_name or issue.caller.username
+            args[self._get_field_id_by_name(self.project_details['caller_field'])] = name
         if issue.impact:
             args[self._get_field_id_by_name(self.project_details['impact_field'])] = issue.impact
         if issue.priority:
@@ -101,6 +104,8 @@ class JiraBackend(SupportBackend):
     @reraise_exceptions
     def create_issue(self, issue):
         backend_issue = self.manager.create_issue(**self._issue_to_dict(issue))
+        if issue.assignee:
+            self.manager.assign_issue(backend_issue.key, issue.assignee.backend_id)
         issue.key = backend_issue.key
         issue.backend_id = backend_issue.key
         issue.resolution = backend_issue.fields.resolution or ''

@@ -36,9 +36,12 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
     resolution = models.CharField(max_length=255, blank=True)
     priority = models.CharField(max_length=255, blank=True)
 
-    reporter = models.ForeignKey('SupportUser', related_name='reported_issues')
-    caller = models.ForeignKey('SupportUser', related_name='created_issues')
-    assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True)
+    caller = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='created_issues',
+                               help_text='Waldur user who has reported the issue.')
+    reporter = models.ForeignKey('SupportUser', related_name='reported_issues', blank=True, null=True,
+                                 help_text='Help desk user who have created the issue that is reported by caller.')
+    assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True,
+                                 help_text='Help desk user who will implement the issue')
 
     customer = models.ForeignKey(structure_models.Customer, related_name='issues', blank=True, null=True)
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)

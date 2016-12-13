@@ -16,25 +16,24 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                       serializers.HyperlinkedModelSerializer):
     resource = core_serializers.GenericRelatedField(
         related_models=structure_models.ResourceMixin.get_all_models(), required=False)
-    reporter_user = serializers.HyperlinkedRelatedField(
-        source='reporter.user',
-        view_name='user-detail',
-        lookup_field='uuid',
-        read_only=True
-    )
-    caller_user = serializers.HyperlinkedRelatedField(
-        source='caller.user',
+    caller = serializers.HyperlinkedRelatedField(
         view_name='user-detail',
         lookup_field='uuid',
         queryset=User.objects.all(),
         required=False,
         allow_null=True,
     )
-    assignee_user = serializers.HyperlinkedRelatedField(
-        source='assignee.user',
-        view_name='user-detail',
+    reporter = serializers.HyperlinkedRelatedField(
+        view_name='support-user-detail',
         lookup_field='uuid',
-        read_only=True,
+        read_only=True
+    )
+    assignee = serializers.HyperlinkedRelatedField(
+        view_name='support-user-detail',
+        lookup_field='uuid',
+        queryset=models.SupportUser.objects.all(),
+        required=False,
+        allow_null=True,
     )
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
@@ -42,19 +41,22 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE_TYPES']],
         initial=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'],
         default=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'])
+    is_reported_manually = serializers.BooleanField(
+        initial=False, default=False, write_only=True,
+        help_text='Set true if issue is created by regular user via portal.')
 
     class Meta(object):
         model = models.Issue
         fields = (
             'url', 'uuid', 'type', 'key', 'backend_id', 'link',
             'summary', 'description', 'status', 'resolution', 'priority',
-            'reporter_name', 'reporter_user',
-            'caller_name', 'caller_user',
-            'assignee_name', 'assignee_user',
+            'caller', 'caller_uuid', 'caller_name',
+            'reporter', 'reporter_uuid', 'reporter_name',
+            'assignee', 'assignee_uuid', 'assignee_name',
             'customer', 'customer_uuid', 'customer_name',
             'project', 'project_uuid', 'project_name',
             'resource', 'resource_type', 'resource_name',
-            'created', 'modified',
+            'created', 'modified', 'is_reported_manually',
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller_user')
@@ -64,9 +66,9 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
         related_paths = dict(
-            reporter=('name',),
-            caller=('name',),
-            assignee=('name',),
+            reporter=('uuid', 'name',),
+            caller=('uuid', 'name',),
+            assignee=('uuid', 'name',),
             customer=('uuid', 'name',),
             project=('uuid', 'name',),
         )
@@ -75,13 +77,24 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         if obj.resource:
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
 
+    def validate(self, attrs):
+        if attrs.pop('is_reported_manually'):
+            attrs['caller'] = self.context['request'].user
+            if attrs.get('assignee'):
+                raise serializers.ValidationError(
+                    {'assignee': 'Assignee cannot be defined if issue is reported manually.'})
+        else:
+            if not attrs.get('caller'):
+                raise serializers.ValidationError({'caller': 'This field is required.'})
+            reporter = models.SupportUser.objects.filter(user=self.context['request'].user).first()
+            if not reporter:
+                raise serializers.ValidationError(
+                    'You cannot report issues because your help desk account is not connected to profile.')
+            attrs['reporter'] = reporter
+        return attrs
+
     @transaction.atomic()
     def create(self, validated_data):
-        reporter_user = self.context['request'].user
-        caller_user = validated_data.get('caller', {}).get('user') or reporter_user
-        validated_data['reporter'], _ = models.SupportUser.objects.get_or_create_from_user(reporter_user)
-        validated_data['caller'], _ = models.SupportUser.objects.get_or_create_from_user(caller_user)
-
         resource = validated_data.get('resource')
         if resource:
             validated_data['project'] = resource.service_project_link.project
