@@ -70,10 +70,7 @@ class InvoiceNotificationSerializer(serializers.Serializer):
 class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
 
-    type = serializers.ChoiceField(
-        choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']],
-        initial=settings.INVOICES['COMPANY_TYPES'],
-        default=settings.INVOICES['COMPANY_TYPES'])
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']])
 
     class Meta(object):
         model = models.PaymentDetails
