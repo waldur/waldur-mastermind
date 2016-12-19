@@ -1,6 +1,6 @@
 from django.conf import settings
 from rest_framework import serializers
-from  nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import serializers as core_serializers
 
 from . import models
 
@@ -69,10 +69,13 @@ class InvoiceNotificationSerializer(serializers.Serializer):
 
 class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
+
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']])
+
     class Meta(object):
         model = models.PaymentDetails
         fields = (
-            'url', 'uuid', 'customer', 'company', 'address',
+            'url', 'uuid', 'customer', 'company', 'type', 'address',
             'country', 'email', 'postal', 'phone', 'bank', 'account',
             'default_tax_percent',
         )
