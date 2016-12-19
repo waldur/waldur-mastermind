@@ -27,6 +27,7 @@ class Migration(migrations.Migration):
                 ('account', models.CharField(max_length=50, blank=True)),
                 ('customer', models.OneToOneField(related_name='payment_details', to='structure.Customer')),
             ],
+            options={'verbose_name': 'Payment details', 'verbose_name_plural': 'Payment details'},
         ),
         migrations.AddField(
             model_name='invoice',

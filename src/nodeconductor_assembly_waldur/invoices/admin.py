@@ -36,3 +36,5 @@ class PaymentDetailsInline(admin.StackedInline):
 
 structure_admin.CustomerAdmin.inlines += [PaymentDetailsInline]
 admin.site.register(models.Invoice, InvoiceAdmin)
+admin.site.register(models.PaymentDetails)
+admin.site.register(models.CompanyType)

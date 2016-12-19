@@ -8,6 +8,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.translation import ugettext_lazy as _
 from jsonfield import JSONField
 from model_utils import FieldTracker
 
@@ -187,13 +188,28 @@ class OpenStackItem(models.Model):
         return self.name
 
 
+@python_2_unicode_compatible
+class CompanyType(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    """
+    For example: ministry, private company, public company, gov owned company
+    """
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
 class PaymentDetails(core_models.UuidMixin, models.Model):
     """ Customer payment details """
     class Permissions(object):
         customer_path = 'customer'
 
+    class Meta(object):
+        verbose_name = _('Payment details')
+        verbose_name_plural = _('Payment details')
+
     customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
     company = models.CharField(blank=True, max_length=150)
+    type = models.ForeignKey(CompanyType, related_name='+', blank=True, null=True)
     address = models.CharField(blank=True, max_length=300)
     country = models.CharField(blank=True, max_length=50)
     email = models.EmailField(blank=True, max_length=75)
@@ -203,3 +219,6 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
     account = models.CharField(blank=True, max_length=50)
     default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                               validators=[MinValueValidator(0), MaxValueValidator(100)])
+
+    def __str__(self):
+        return str(self.customer)

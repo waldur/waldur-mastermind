@@ -36,6 +36,14 @@ class InvoiceViewSet(viewsets.ReadOnlyModelViewSet):
                         status=status.HTTP_200_OK)
 
 
+class CompanyTypesViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.CompanyType.objects.all()
+    serializer_class = serializers.CompanyTypeSerializer
+    lookup_field = 'uuid'
+    permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly,
+                          permissions.DjangoObjectPermissions)
+
+
 class PaymentDetailsViewSet(viewsets.ModelViewSet):
     queryset = models.PaymentDetails.objects.order_by('customer')
     serializer_class = serializers.PaymentDetailsSerializer

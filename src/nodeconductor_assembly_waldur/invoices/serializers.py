@@ -67,17 +67,31 @@ class InvoiceNotificationSerializer(serializers.Serializer):
         return link_template
 
 
+class CompanyTypeSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.CompanyType
+        fields = ('url', 'name')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'company-type-detail'},
+        }
+
+
 class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
+
     class Meta(object):
         model = models.PaymentDetails
         fields = (
-            'url', 'uuid', 'customer', 'company', 'address',
+            'url', 'uuid', 'customer', 'company', 'type', 'type_name', 'address',
             'country', 'email', 'postal', 'phone', 'bank', 'account',
             'default_tax_percent',
         )
         protected_fields = ('customer',)
+        related_paths = {
+            'type': ('name',)
+        }
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'payment-details-detail'},
             'customer': {'lookup_field': 'uuid'},
+            'type': {'lookup_field': 'uuid', 'view_name': 'company-type-detail'},
         }
