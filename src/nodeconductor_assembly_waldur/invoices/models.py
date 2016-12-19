@@ -189,15 +189,6 @@ class OpenStackItem(models.Model):
 
 
 @python_2_unicode_compatible
-class CompanyType(core_models.UuidMixin, core_models.NameMixin, models.Model):
-    """
-    For example: ministry, private company, public company, gov owned company
-    """
-    def __str__(self):
-        return self.name
-
-
-@python_2_unicode_compatible
 class PaymentDetails(core_models.UuidMixin, models.Model):
     """ Customer payment details """
     class Permissions(object):
@@ -209,7 +200,7 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
 
     customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
     company = models.CharField(blank=True, max_length=150)
-    type = models.ForeignKey(CompanyType, related_name='+', blank=True, null=True)
+    type = models.CharField(blank=True, max_length=150)
     address = models.CharField(blank=True, max_length=300)
     country = models.CharField(blank=True, max_length=50)
     email = models.EmailField(blank=True, max_length=75)
@@ -221,4 +212,4 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
                                               validators=[MinValueValidator(0), MaxValueValidator(100)])
 
     def __str__(self):
-        return str(self.customer)
+        return 'PaymentDetails for %s' % self.customer

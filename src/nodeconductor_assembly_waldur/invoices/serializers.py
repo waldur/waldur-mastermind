@@ -1,6 +1,6 @@
 from django.conf import settings
 from rest_framework import serializers
-from  nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import serializers as core_serializers
 
 from . import models
 
@@ -67,31 +67,23 @@ class InvoiceNotificationSerializer(serializers.Serializer):
         return link_template
 
 
-class CompanyTypeSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
-        model = models.CompanyType
-        fields = ('url', 'name')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'company-type-detail'},
-        }
-
-
 class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
+
+    type = serializers.ChoiceField(
+        choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']],
+        initial=settings.INVOICES['COMPANY_TYPES'],
+        default=settings.INVOICES['COMPANY_TYPES'])
 
     class Meta(object):
         model = models.PaymentDetails
         fields = (
-            'url', 'uuid', 'customer', 'company', 'type', 'type_name', 'address',
+            'url', 'uuid', 'customer', 'company', 'type', 'address',
             'country', 'email', 'postal', 'phone', 'bank', 'account',
             'default_tax_percent',
         )
         protected_fields = ('customer',)
-        related_paths = {
-            'type': ('name',)
-        }
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'payment-details-detail'},
             'customer': {'lookup_field': 'uuid'},
-            'type': {'lookup_field': 'uuid', 'view_name': 'company-type-detail'},
         }
