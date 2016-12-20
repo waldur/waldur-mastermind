@@ -11,8 +11,8 @@ Requires: nodeconductor > 0.109.0
 Requires: nodeconductor-auth-social >= 0.1.0
 Requires: nodeconductor-aws >= 0.1.0
 Requires: nodeconductor-digitalocean >= 0.1.0
-Requires: nodeconductor-jira >= 0.4.0
 Requires: nodeconductor-openstack > 0.8.0
+Requires: python-jira >= 1.0.7
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
