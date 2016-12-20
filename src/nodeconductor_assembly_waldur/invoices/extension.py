@@ -19,6 +19,12 @@ class InvoicesExtension(NodeConductorExtension):
             },
             # How many days are given to pay for created invoice
             'PAYMENT_INTERVAL': 30,
+            'COMPANY_TYPES': (
+                'Ministry',
+                'Private company',
+                'Public company',
+                'Government owned company',
+            ),
         }
 
     @staticmethod

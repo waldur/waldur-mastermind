@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.contrib import admin
+from django.forms import ModelForm, ChoiceField
 
 from nodeconductor.structure import admin as structure_admin
 
@@ -34,5 +36,16 @@ class PaymentDetailsInline(admin.StackedInline):
     model = models.PaymentDetails
 
 
+class PaymentDetailsAdminForm(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(PaymentDetailsAdminForm, self).__init__(*args, **kwargs)
+        self.fields['type'] = ChoiceField(choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']])
+
+
+class PaymentDetailsAdmin(admin.ModelAdmin):
+    form = PaymentDetailsAdminForm
+
+
 structure_admin.CustomerAdmin.inlines += [PaymentDetailsInline]
 admin.site.register(models.Invoice, InvoiceAdmin)
+admin.site.register(models.PaymentDetails, PaymentDetailsAdmin)
