@@ -1,11 +1,9 @@
 from django.db import transaction
-from rest_framework import viewsets, filters as rf_filters, permissions, decorators, response, status
+from rest_framework import viewsets, views, filters as rf_filters, permissions, decorators, response, status
 
 from nodeconductor.core import filters as core_filters
 from nodeconductor.core import views as core_views
 from nodeconductor.structure import filters as structure_filters
-
-from nodeconductor_jira import serializers as jira_serializers
 
 from . import filters, models, serializers, backend
 
@@ -96,11 +94,15 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     filter_class = filters.SupportUserFilter
 
 
-class WebHookReceiverViewSet(viewsets.ModelViewSet):
+class WebHookReceiverViewSet(views.APIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebHookReceiverSerializer
 
     @transaction.atomic()
-    def perform_create(self, serializer):
-        serializer.save()
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+
+        return response.Response(status=status.HTTP_200_OK)

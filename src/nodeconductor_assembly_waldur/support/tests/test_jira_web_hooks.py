@@ -12,6 +12,9 @@ class TestJiraWebHooks(APITestCase):
 
     JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME = "jira_issue_updated_query.json"
 
+    def setUp(self):
+        self.url = reverse('web_hook_receiver')
+
     def test_issue_update_callback_updates_issue_summary(self):
 
         # arrange
@@ -27,10 +30,9 @@ class TestJiraWebHooks(APITestCase):
         request_data["issue"]["fields"]["summary"] = expected_summary
 
         # act
-        url = reverse('support-jira-webhook-list')
-        response = self.client.post(url, request_data)
+        response = self.client.post(self.url, request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.summary, expected_summary)
 
@@ -51,10 +53,9 @@ class TestJiraWebHooks(APITestCase):
         }
 
         # act
-        url = reverse('support-jira-webhook-list')
-        response = self.client.post(url, request_data)
+        response = self.client.post(self.url, request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.assignee.id, assignee.id)
 
@@ -74,10 +75,9 @@ class TestJiraWebHooks(APITestCase):
         }
 
         # act
-        url = reverse('support-jira-webhook-list')
-        response = self.client.post(url, request_data)
+        response = self.client.post(self.url, request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.reporter.id, reporter.id)
 
@@ -95,10 +95,9 @@ class TestJiraWebHooks(APITestCase):
         expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
 
         # act
-        url = reverse('support-jira-webhook-list')
-        response = self.client.post(url, request_data)
+        response = self.client.post(self.url, request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.comments.count(), expected_comments_count)
 
@@ -118,9 +117,8 @@ class TestJiraWebHooks(APITestCase):
         expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
 
         # act
-        url = reverse('support-jira-webhook-list')
-        response = self.client.post(url, request_data)
+        response = self.client.post(self.url, request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.comments.count(), expected_comments_count)

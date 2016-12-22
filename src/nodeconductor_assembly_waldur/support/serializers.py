@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import ObjectDoesNotExist
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
@@ -152,16 +151,10 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 class WebHookReceiverSerializer(serializers.Serializer):
 
-    class Event:
-        CREATE = 1
-        UPDATE = 2
-        DELETE = 4
-
-        CHOICES = {
-            ('jira:issue_created', CREATE),
-            ('jira:issue_updated', UPDATE),
-            ('jira:issue_deleted', DELETE),
-        }
+    class EventType:
+        CREATED = 'jira:issue_created'
+        UPDATED = 'jira:issue_updated'
+        DELETED = 'jira:issue_deleted'
 
     def validate(self, attrs):
         return self.initial_data
@@ -170,13 +163,13 @@ class WebHookReceiverSerializer(serializers.Serializer):
         fields = validated_data["issue"]["fields"]
         backend_id = validated_data["issue"]["key"]
 
-        event_type = dict(self.Event.CHOICES).get(validated_data['webhookEvent'])
+        event_type = validated_data['webhookEvent']
 
         issue = None
-        if event_type == self.Event.UPDATE:
+        if event_type == self.EventType.UPDATED:
             fields['link'] = validated_data['issue']['self']
             issue = self._update_issue(backend_id, fields)
-        elif event_type == self.Event.DELETE:
+        elif event_type == self.EventType.DELETED:
             pass
         else:
             pass
@@ -195,11 +188,11 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.description = fields['description']
         issue.type = fields['issuetype']['name']
 
-        assignee = self._get_assignee(fields=fields)
+        assignee = self._get_support_user_by_field_name(field_name="assignee", fields=fields)
         if assignee:
             issue.assignee = assignee
 
-        reporter = self._get_reporter(fields=fields)
+        reporter = self._get_support_user_by_field_name(field_name="reporter", fields=fields)
         if reporter:
             issue.reporter = reporter
 
@@ -225,19 +218,11 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 ids = [c['id'] for c in fields['comment']['comments']]
                 issue.comments.exclude(backend_id__in=ids).delete()
 
-    def _get_assignee(self, fields):
-        assignee = self._get_support_user_by_type(type="assignee", fields=fields)
-        return assignee
-
-    def _get_reporter(self, fields):
-        assignee = self._get_support_user_by_type(type="reporter", fields=fields)
-        return assignee
-
-    def _get_support_user_by_type(self, fields, type):
+    def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
 
-        if type in fields:
-            support_user_backend_key = fields[type]['key']
+        if field_name in fields:
+            support_user_backend_key = fields[field_name]['key']
 
             if support_user_backend_key:
                 support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
