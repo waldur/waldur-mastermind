@@ -221,7 +221,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 )
 
             # delete comments if required
-            if fields['comment']['total'] > issue.comments.count():
+            if fields['comment']['total'] != issue.comments.count():
                 ids = [c['id'] for c in fields['comment']['comments']]
                 issue.comments.exclude(backend_id__in=ids).delete()
 

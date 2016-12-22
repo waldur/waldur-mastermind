@@ -2,12 +2,10 @@ import pkg_resources
 import json
 
 from django.core.urlresolvers import reverse
-from jira import resources
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from nodeconductor_assembly_waldur.support.tests import factories
-from nodeconductor_jira.tests import factories as jira_factories
 
 
 class TestJiraWebHooks(APITestCase):
@@ -18,14 +16,14 @@ class TestJiraWebHooks(APITestCase):
 
         # arrange
         expected_summary = "Happy New Year"
-        jira_issue = jira_factories.IssueFactory(project__backend_id="Santa")
-        issue = factories.IssueFactory(backend_id=jira_issue.backend_id)
+        backend_id = "Santa"
+        issue = factories.IssueFactory(backend_id=backend_id)
         self.assertNotEquals(issue.summary, expected_summary)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
-        request_data["issue"]["key"] = jira_issue.backend_id
-        request_data["issue"]["fields"]["project"]["key"] = jira_issue.project.backend_id
+        request_data["issue"]["key"] = backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["summary"] = expected_summary
 
         # act
@@ -39,15 +37,15 @@ class TestJiraWebHooks(APITestCase):
     def test_issue_update_callback_updates_issue_assignee(self):
 
         # arrange
-        jira_issue = jira_factories.IssueFactory(project__backend_id="Santa")
-        issue = factories.IssueFactory(backend_id=jira_issue.backend_id)
+        backend_id="Santa"
+        issue = factories.IssueFactory(backend_id=backend_id)
         self.assertIsNone(issue.assignee)
         assignee = factories.SupportUserFactory(backend_id="Klaus")
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
-        request_data["issue"]["key"] = jira_issue.backend_id
-        request_data["issue"]["fields"]["project"]["key"] = jira_issue.project.backend_id
+        request_data["issue"]["key"] = backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["assignee"] = {
             "key": assignee.backend_id
         }
@@ -59,3 +57,70 @@ class TestJiraWebHooks(APITestCase):
         self.assertEquals(response.status_code, status.HTTP_201_CREATED)
         issue.refresh_from_db()
         self.assertEqual(issue.assignee.id, assignee.id)
+
+    def test_issue_update_callback_updates_issue_reporter(self):
+
+        # arrange
+        backend_id = "Happy New Year"
+        issue = factories.IssueFactory(backend_id=backend_id)
+        reporter = factories.SupportUserFactory(backend_id="Tiffany")
+
+        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
+        request_data = json.loads(jira_request)
+        request_data["issue"]["key"] = backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
+        request_data["issue"]["fields"]["reporter"] = {
+            "key": reporter.backend_id
+        }
+
+        # act
+        url = reverse('support-jira-webhook-list')
+        response = self.client.post(url, request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        issue.refresh_from_db()
+        self.assertEqual(issue.reporter.id, reporter.id)
+
+    def test_issue_update_callback_creates_a_comment(self):
+
+        # arrange
+        backend_id = "Happy New Year"
+        issue = factories.IssueFactory(backend_id=backend_id)
+        self.assertEqual(issue.comments.count(), 0)
+
+        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
+        request_data = json.loads(jira_request)
+        request_data["issue"]["key"] = backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
+        expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
+
+        # act
+        url = reverse('support-jira-webhook-list')
+        response = self.client.post(url, request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        issue.refresh_from_db()
+        self.assertEqual(issue.comments.count(), expected_comments_count)
+
+    def test_issue_update_callback_creates_deletes_a_comment(self):
+
+        # arrange
+        backend_id="Santa"
+        initial_number_of_comments = 2
+        issue = factories.IssueFactory(backend_id=backend_id)
+        factories.CommentFactory.create_batch(initial_number_of_comments, issue=issue)
+        self.assertEqual(issue.comments.count(), initial_number_of_comments)
+
+        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
+        request_data = json.loads(jira_request)
+        request_data["issue"]["key"] = issue.backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
+        expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
+
+        # act
+        url = reverse('support-jira-webhook-list')
+        response = self.client.post(url, request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_201_CREATED)
+        issue.refresh_from_db()
+        self.assertEqual(issue.comments.count(), expected_comments_count)

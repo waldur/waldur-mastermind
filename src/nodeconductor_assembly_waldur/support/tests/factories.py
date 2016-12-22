@@ -34,3 +34,12 @@ class IssueFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-issue-list')
+
+
+class CommentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Comment
+
+    issue = factory.SubFactory(IssueFactory)
+    author = factory.SubFactory(SupportUserFactory)
+    description = factory.Sequence(lambda n: 'This is a comment-%s' % n)
