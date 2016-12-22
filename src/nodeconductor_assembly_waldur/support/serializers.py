@@ -7,9 +7,6 @@ from rest_framework import serializers
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import models as structure_models, SupportedServices
 
-from nodeconductor_jira import serializers as jira_serializers
-from nodeconductor_jira import models as jira_models
-
 from . import models
 
 
@@ -155,42 +152,76 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 class WebHookReceiverSerializer(serializers.Serializer):
 
-    class Meta(object):
-        model = models.Issue
-        jira_webhook_serializer = jira_serializers.WebHookReceiverSerializer()
+    class Event:
+        CREATE = 1
+        UPDATE = 2
+        DELETE = 4
+
+        CHOICES = {
+            ('jira:issue_created', CREATE),
+            ('jira:issue_updated', UPDATE),
+            ('jira:issue_deleted', DELETE),
+        }
 
     def validate(self, attrs):
         return self.initial_data
 
     def create(self, validated_data):
         fields = validated_data["issue"]["fields"]
+        backend_id = validated_data["issue"]["key"]
 
-        # TODO [TM:12/22/16] move serializer to assembly or find a better way to reuse it.
-        data = self.Meta.jira_webhook_serializer.create(validated_data=validated_data)
-        backend_id = data['issue']['key']
-        jira_issue = jira_models.Issue.objects.get(backend_id=backend_id)
-        backend_issue = models.Issue.objects.get(backend_id=backend_id)
+        event_type = dict(self.Event.CHOICES).get(validated_data['webhookEvent'])
 
-        backend_issue.key = jira_issue.key
-        backend_issue.resolution = jira_issue.resolution
-        backend_issue.status = jira_issue.status
-        backend_issue.link = jira_issue.get_access_url()
-        backend_issue.priority = jira_issue.priority
-        backend_issue.summary = jira_issue.summary
-        backend_issue.impact = jira_issue.impact
-        self._update_assigne(backend_issue=backend_issue, fields=fields)
-        backend_issue.save()
+        issue = None
+        if event_type == self.Event.UPDATE:
+            fields['link'] = validated_data['issue']['self']
+            issue = self._update_issue(backend_id, fields)
+        elif event_type == self.Event.DELETE:
+            pass
+        else:
+            pass
 
-        return backend_issue
+        return issue
 
-    def _update_assigne(self, backend_issue, fields):
-        field_name = "assignee"
-        if field_name in fields:
-            assignee_email = fields[field_name]['emailAddress']
-            if assignee_email:
-                try:
-                    assignee = models.SupportUser.objects.get(user__email=assignee_email)
-                except ObjectDoesNotExist:
-                    pass
-                else:
-                    backend_issue.assignee = assignee
+    def _update_issue(self, backend_id, fields):
+        issue = models.Issue.objects.get(backend_id=backend_id)
+        issue.resolution = fields['resolution'] or ''
+        issue.status = fields['issuetype']['name']
+        issue.link = fields['link']
+        # TODO [TM:12/22/16] Find out what does 'impact' field mean
+        # issue.impact =
+        issue.summary = fields['summary']
+        issue.priority = fields['priority']['name']
+        issue.description = fields['description']
+        issue.type = fields['issuetype']['name']
+
+        assignee = self._get_assignee(fields=fields)
+        if assignee:
+            issue.assignee = assignee
+
+        reporter = self._get_reporter(fields=fields)
+        if reporter:
+            issue.reporter = reporter
+
+        issue.save()
+
+        return issue
+
+    def _get_assignee(self, fields):
+        assignee = self._get_support_user_by_type(type="assignee", fields=fields)
+        return assignee
+
+    def _get_reporter(self, fields):
+        assignee = self._get_support_user_by_type(type="reporter", fields=fields)
+        return assignee
+
+    def _get_support_user_by_type(self, fields, type):
+        support_user = None
+
+        if type in fields:
+            support_user_backend_key = fields[type]['key']
+
+            if support_user_backend_key:
+                support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
+
+        return support_user

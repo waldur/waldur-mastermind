@@ -42,16 +42,14 @@ class TestJiraWebHooks(APITestCase):
         jira_issue = jira_factories.IssueFactory(project__backend_id="Santa")
         issue = factories.IssueFactory(backend_id=jira_issue.backend_id)
         self.assertIsNone(issue.assignee)
-        assignee = factories.SupportUserFactory()
-        import pdb
-        pdb.set_trace()
+        assignee = factories.SupportUserFactory(backend_id="Klaus")
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = jira_issue.backend_id
         request_data["issue"]["fields"]["project"]["key"] = jira_issue.project.backend_id
         request_data["issue"]["fields"]["assignee"] = {
-            "emailAddress": assignee.user.email
+            "key": assignee.backend_id
         }
 
         # act
