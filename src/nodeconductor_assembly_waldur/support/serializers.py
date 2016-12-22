@@ -6,6 +6,8 @@ from rest_framework import serializers
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import models as structure_models, SupportedServices
 
+from nodeconductor_assembly_waldur.support import backend
+
 from . import models
 
 
@@ -181,8 +183,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.resolution = fields['resolution'] or ''
         issue.status = fields['issuetype']['name']
         issue.link = fields['link']
-        # TODO [TM:12/22/16] Find out what does 'impact' field mean
-        # issue.impact =
+        issue.impact = self._get_impact_field(fields=fields)
         issue.summary = fields['summary']
         issue.priority = fields['priority']['name']
         issue.description = fields['description']
@@ -201,6 +202,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.save()
 
         return issue
+
+    def _get_impact_field(self, fields):
+        impact_field = ''
+        impact_field_name = backend.get_active_backend().project_details.get('impact_field', None)
+        if impact_field_name and impact_field_name in fields:
+            impact_field = fields[impact_field_name] if
+
+        return impact_field
 
     def _update_comments(self, issue, fields):
         if 'comment' in fields:
