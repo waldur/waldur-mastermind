@@ -203,9 +203,27 @@ class WebHookReceiverSerializer(serializers.Serializer):
         if reporter:
             issue.reporter = reporter
 
+        self._update_comments(issue=issue, fields=fields)
+
         issue.save()
 
         return issue
+
+    def _update_comments(self, issue, fields):
+        if 'comment' in fields:
+            # update comments
+            for comment in fields['comment']['comments']:
+                author, _ = models.SupportUser.objects.get_or_create(backend_id=comment['author']['key'])
+                issue.comments.update_or_create(
+                    author=author,
+                    description=comment['body'],
+                    backend_id=comment['id']
+                )
+
+            # delete comments if required
+            if fields['comment']['total'] > issue.comments.count():
+                ids = [c['id'] for c in fields['comment']['comments']]
+                issue.comments.exclude(backend_id__in=ids).delete()
 
     def _get_assignee(self, fields):
         assignee = self._get_support_user_by_type(type="assignee", fields=fields)
