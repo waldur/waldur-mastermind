@@ -1,10 +1,14 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import ObjectDoesNotExist
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import models as structure_models, SupportedServices
+
+from nodeconductor_jira import serializers as jira_serializers
+from nodeconductor_jira import models as jira_models
 
 from . import models
 
@@ -147,3 +151,46 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
             url={'lookup_field': 'uuid', 'view_name': 'support-user-detail'},
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'}
         )
+
+
+class WebHookReceiverSerializer(serializers.Serializer):
+
+    class Meta(object):
+        model = models.Issue
+        jira_webhook_serializer = jira_serializers.WebHookReceiverSerializer()
+
+    def validate(self, attrs):
+        return self.initial_data
+
+    def create(self, validated_data):
+        fields = validated_data["issue"]["fields"]
+
+        # TODO [TM:12/22/16] move serializer to assembly or find a better way to reuse it.
+        data = self.Meta.jira_webhook_serializer.create(validated_data=validated_data)
+        backend_id = data['issue']['key']
+        jira_issue = jira_models.Issue.objects.get(backend_id=backend_id)
+        backend_issue = models.Issue.objects.get(backend_id=backend_id)
+
+        backend_issue.key = jira_issue.key
+        backend_issue.resolution = jira_issue.resolution
+        backend_issue.status = jira_issue.status
+        backend_issue.link = jira_issue.get_access_url()
+        backend_issue.priority = jira_issue.priority
+        backend_issue.summary = jira_issue.summary
+        backend_issue.impact = jira_issue.impact
+        self._update_assigne(backend_issue=backend_issue, fields=fields)
+        backend_issue.save()
+
+        return backend_issue
+
+    def _update_assigne(self, backend_issue, fields):
+        field_name = "assignee"
+        if field_name in fields:
+            assignee_email = fields[field_name]['emailAddress']
+            if assignee_email:
+                try:
+                    assignee = models.SupportUser.objects.get(user__email=assignee_email)
+                except ObjectDoesNotExist:
+                    pass
+                else:
+                    backend_issue.assignee = assignee

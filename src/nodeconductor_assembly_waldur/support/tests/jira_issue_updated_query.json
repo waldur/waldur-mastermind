@@ -1,0 +1,163 @@
+{
+  "changelog": {
+    "id": "10202",
+    "items": [
+      {
+        "field": "assignee",
+        "fieldtype": "jira",
+        "from": null,
+        "fromString": null,
+        "to": "test_user",
+        "toString": "test_user@gmail.com"
+      }
+    ]
+  },
+  "issue": {
+    "fields": {
+      "aggregateprogress": {
+        "progress": 0,
+        "total": 0
+      },
+      "aggregatetimeestimate": null,
+      "aggregatetimeoriginalestimate": null,
+      "aggregatetimespent": null,
+      "assignee": {
+        "active": true,
+        "avatarUrls": {
+        },
+        "displayName": "test_user@gmail.com",
+        "emailAddress": "test_user@gmail.com",
+        "key": "test_user",
+        "name": "test_user",
+        "self": "http://localhost:8080/rest/api/2/user?username=test_user",
+        "timeZone": "America/New_York"
+      },
+      "attachment": [],
+      "comment": {
+        "comments": [],
+        "maxResults": 0,
+        "startAt": 0,
+        "total": 0
+      },
+      "components": [],
+      "created": "2016-12-20T16:53:16.816-0500",
+      "creator": {
+        "active": true,
+        "avatarUrls": {
+        },
+        "displayName": "test_user@gmail.com",
+        "emailAddress": "test_user@gmail.com",
+        "key": "test_user",
+        "name": "test_user",
+        "self": "http://localhost:8080/rest/api/2/user?username=test_user",
+        "timeZone": "America/New_York"
+      },
+      "customfield_10000": null,
+      "customfield_10004": null,
+      "customfield_10005": "0|hzzzzz:",
+      "description": "this is a description",
+      "duedate": "2016-12-20",
+      "environment": null,
+      "fixVersions": [],
+      "issuelinks": [],
+      "issuetype": {
+        "avatarId": 10318,
+        "description": "A task that needs to be done.",
+        "iconUrl": "http://localhost:8080/secure/viewavatar?size=xsmall&avatarId=10318&avatarType=issuetype",
+        "id": "10001",
+        "name": "Task",
+        "self": "http://localhost:8080/rest/api/2/issuetype/10001",
+        "subtask": false
+      },
+      "labels": [],
+      "lastViewed": "2016-12-21T07:19:15.182-0500",
+      "priority": {
+        "iconUrl": "http://localhost:8080/images/icons/priorities/medium.svg",
+        "id": "3",
+        "name": "Medium",
+        "self": "http://localhost:8080/rest/api/2/priority/3"
+      },
+      "progress": {
+        "progress": 0,
+        "total": 0
+      },
+      "project": {
+        "avatarUrls": {
+        },
+        "id": "10000",
+        "key": "PROJ",
+        "name": "Project",
+        "self": "http://localhost:8080/rest/api/2/project/10000"
+      },
+      "reporter": {
+        "active": true,
+        "avatarUrls": {
+        },
+        "displayName": "test_user@gmail.com",
+        "emailAddress": "test_user@gmail.com",
+        "key": "test_user",
+        "name": "test_user",
+        "self": "http://localhost:8080/rest/api/2/user?username=test_user",
+        "timeZone": "America/New_York"
+      },
+      "resolution": null,
+      "resolutiondate": null,
+      "status": {
+        "description": "",
+        "iconUrl": "http://localhost:8080/images/icons/status_generic.gif",
+        "id": "10000",
+        "name": "To Do",
+        "self": "http://localhost:8080/rest/api/2/status/10000",
+        "statusCategory": {
+          "colorName": "blue-gray",
+          "id": 2,
+          "key": "new",
+          "name": "To Do",
+          "self": "http://localhost:8080/rest/api/2/statuscategory/2"
+        }
+      },
+      "subtasks": [],
+      "summary": "First issue",
+      "timeestimate": null,
+      "timeoriginalestimate": null,
+      "timespent": null,
+      "timetracking": {},
+      "updated": "2016-12-21T07:19:15.190-0500",
+      "versions": [],
+      "votes": {
+        "hasVoted": false,
+        "self": "http://localhost:8080/rest/api/2/issue/PROJ-1/votes",
+        "votes": 0
+      },
+      "watches": {
+        "isWatching": true,
+        "self": "http://localhost:8080/rest/api/2/issue/PROJ-1/watchers",
+        "watchCount": 1
+      },
+      "worklog": {
+        "maxResults": 20,
+        "startAt": 0,
+        "total": 0,
+        "worklogs": []
+      },
+      "workratio": -1
+    },
+    "id": "10000",
+    "key": "PROJ-1",
+    "self": "http://localhost:8080/rest/api/2/issue/10000"
+  },
+  "issue_event_type_name": "issue_assigned",
+  "timestamp": 1482322755204,
+  "user": {
+    "active": true,
+    "avatarUrls": {
+    },
+    "displayName": "test_user@gmail.com",
+    "emailAddress": "test_user@gmail.com",
+    "key": "test_user",
+    "name": "test_user",
+    "self": "http://localhost:8080/rest/api/2/user?username=test_user",
+    "timeZone": "America/New_York"
+  },
+  "webhookEvent": "jira:issue_updated"
+}

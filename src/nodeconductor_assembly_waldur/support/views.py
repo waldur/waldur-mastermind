@@ -5,6 +5,8 @@ from nodeconductor.core import filters as core_filters
 from nodeconductor.core import views as core_views
 from nodeconductor.structure import filters as structure_filters
 
+from nodeconductor_jira import serializers as jira_serializers
+
 from . import filters, models, serializers, backend
 
 
@@ -92,3 +94,13 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (rf_filters.DjangoFilterBackend,)
     filter_class = filters.SupportUserFilter
+
+
+class WebHookReceiverViewSet(viewsets.ModelViewSet):
+    authentication_classes = ()
+    permission_classes = ()
+    serializer_class = serializers.WebHookReceiverSerializer
+
+    @transaction.atomic()
+    def perform_create(self, serializer):
+        serializer.save()
