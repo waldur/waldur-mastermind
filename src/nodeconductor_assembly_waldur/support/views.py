@@ -97,11 +97,19 @@ class CommentViewSet(core_views.UpdateOnlyViewSet):
 
     @transaction.atomic()
     def perform_update(self, serializer):
+        # XXX: It is not right to check for permissions here. This should be moved to upper level.
+        #      Permission check should go before validation.
+        if not self.request.user.is_staff:
+            raise exceptions.PermissionDenied()
         comment = serializer.save()
         backend.get_active_backend().update_comment(comment)
 
     @transaction.atomic()
     def perform_destroy(self, comment):
+        # XXX: It is not right to check for permissions here. This should be moved to upper level.
+        #      Permission check should go before validation.
+        if not self.request.user.is_staff:
+            raise exceptions.PermissionDenied()
         backend.get_active_backend().delete_comment(comment)
         comment.delete()
 
