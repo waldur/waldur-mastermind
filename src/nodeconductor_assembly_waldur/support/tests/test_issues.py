@@ -193,3 +193,32 @@ class IssueDeleteTest(BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Issue.objects.filter(id=self.issue.id).exists())
+
+
+@ddt
+class IssueCommentTest(BaseTest):
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_user_with_access_to_issue_can_comment(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(factories.IssueFactory.get_url(issue, action='comment'), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Comment.objects.filter(issue=issue, description=payload['description']))
+
+    @data('admin', 'manager', 'user')
+    def test_user_without_access_to_instance_cannot_comment(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(customer=self.fixture.customer)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(factories.IssueFactory.get_url(issue, action='comment'), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(models.Comment.objects.filter(issue=issue, description=payload['description']))
+
+    def _get_valid_payload(self):
+        return {'description': 'Comment description'}
