@@ -207,7 +207,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         impact_field = ''
         impact_field_name = backend.get_active_backend().project_details.get('impact_field', None)
         if impact_field_name and impact_field_name in fields:
-            impact_field = fields[impact_field_name] if
+            impact_field = fields[impact_field_name]
 
         return impact_field
 
