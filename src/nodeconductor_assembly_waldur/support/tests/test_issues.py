@@ -1,22 +1,14 @@
-from django.conf import settings
 from ddt import ddt, data
-from rest_framework import test, status
+from rest_framework import status
 
-from nodeconductor.structure.tests import fixtures as structure_fixtures, factories as structure_factories
+from nodeconductor.structure.tests import factories as structure_factories
 
-from . import factories
+from . import factories, base
 from .. import models
 
 
-class BaseTest(test.APITransactionTestCase):
-
-    def setUp(self):
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = 'SupportBackend'
-        self.fixture = structure_fixtures.ProjectFixture()
-
-
 @ddt
-class IssueRetreiveTest(BaseTest):
+class IssueRetreiveTest(base.BaseTest):
 
     @data('staff', 'owner')
     def test_user_can_access_customer_issue_if_he_has_customer_level_permission(self, user):
@@ -56,7 +48,7 @@ class IssueRetreiveTest(BaseTest):
 
 
 @ddt
-class IssueCreateTest(BaseTest):
+class IssueCreateTest(base.BaseTest):
 
     def setUp(self):
         super(IssueCreateTest, self).setUp()
@@ -139,7 +131,7 @@ class IssueCreateTest(BaseTest):
 
 
 @ddt
-class IssueUpdateTest(BaseTest):
+class IssueUpdateTest(base.BaseTest):
 
     def setUp(self):
         super(IssueUpdateTest, self).setUp()
@@ -170,7 +162,7 @@ class IssueUpdateTest(BaseTest):
 
 
 @ddt
-class IssueDeleteTest(BaseTest):
+class IssueDeleteTest(base.BaseTest):
 
     def setUp(self):
         super(IssueDeleteTest, self).setUp()
@@ -196,7 +188,7 @@ class IssueDeleteTest(BaseTest):
 
 
 @ddt
-class IssueCommentTest(BaseTest):
+class IssueCommentTest(base.BaseTest):
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_user_with_access_to_issue_can_comment(self, user):
