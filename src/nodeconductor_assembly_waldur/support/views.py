@@ -1,5 +1,5 @@
 from django.db import transaction
-from rest_framework import viewsets, filters as rf_filters, permissions, decorators, response, status
+from rest_framework import viewsets, filters as rf_filters, permissions, decorators, response, status, exceptions
 
 from nodeconductor.core import filters as core_filters
 from nodeconductor.core import views as core_views
@@ -33,11 +33,17 @@ class IssueViewSet(viewsets.ModelViewSet):
 
     @transaction.atomic()
     def perform_update(self, serializer):
+        # XXX: It is not right to check for permissions here. This should be moved to upper level.
+        if not self.request.user.is_staff:
+            raise exceptions.PermissionDenied()
         issue = serializer.save()
         backend.get_active_backend().update_issue(issue)
 
     @transaction.atomic()
     def perform_destroy(self, issue):
+        # XXX: It is not right to check for permissions here. This should be moved to upper level.
+        if not self.request.user.is_staff:
+            raise exceptions.PermissionDenied()
         backend.get_active_backend().delete_issue(issue)
         issue.delete()
 
