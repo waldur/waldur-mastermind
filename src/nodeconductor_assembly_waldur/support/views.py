@@ -99,7 +99,6 @@ class WebHookReceiverViewSet(views.APIView):
     permission_classes = ()
     serializer_class = serializers.WebHookReceiverSerializer
 
-    @transaction.atomic()
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):

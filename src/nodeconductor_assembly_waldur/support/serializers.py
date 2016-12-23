@@ -160,6 +160,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def validate(self, attrs):
         return self.initial_data
 
+    @transaction.atomic()
     def create(self, validated_data):
         fields = validated_data["issue"]["fields"]
         backend_id = validated_data["issue"]["key"]
