@@ -112,14 +112,15 @@ class TestJiraWebHooks(APITestCase):
         backend_id = "Happy New Year"
         expected_comment_body = "Merry Christmas"
         issue = factories.IssueFactory(backend_id=backend_id)
-        factories.CommentFactory(issue=issue)
+        comment = factories.CommentFactory(issue=issue)
         factories.SupportUserFactory(backend_id=backend_id)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
-        request_data["issue"]["key"] = backend_id
+        request_data["issue"]["key"] = issue.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
+        request_data["issue"]["fields"]["comment"]["comments"][0]["id"] = comment.backend_id
         request_data["issue"]["fields"]["comment"]["comments"][0]["body"] = expected_comment_body
 
         # act
@@ -131,7 +132,7 @@ class TestJiraWebHooks(APITestCase):
         self.assertIsNotNone(issue_comment)
         self.assertEqual(issue_comment.description, expected_comment_body)
 
-    def test_issue_update_callback_creates_deletes_a_comment(self):
+    def test_issue_update_callback_creates_deletes_two_comments(self):
         # arrange
         backend_id = "Santa"
         initial_number_of_comments = 2

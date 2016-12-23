@@ -211,8 +211,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
         for exist_comment_id in set(backend_comments) & set(comments):
             backend_comment = backend_comments[exist_comment_id]
             comment = comments[exist_comment_id]
-            if comment["body"] != backend_comment.description:
-                comment.description = comment["body"]
+            if comment.description != backend_comment["body"]:
+                comment.description = backend_comment["body"]
                 comment.save()
 
         for new_comment_id in set(backend_comments) - set(comments):
@@ -225,7 +225,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend_id=backend_comment["id"],
             )
 
-        models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comment)).delete()
+        models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comments)).delete()
 
     def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
