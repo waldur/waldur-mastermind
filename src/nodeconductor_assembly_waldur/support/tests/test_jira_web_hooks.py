@@ -153,7 +153,7 @@ class TestJiraWebHooks(APITestCase):
         issue.refresh_from_db()
         self.assertEqual(issue.impact, impact_field_value)
 
-    def test_issue_update_callback_creates_issue(self):
+    def test_issue_update_callback_does_not_create_issue(self):
         # arrange
         backend_id = "Santa"
         reporter = factories.SupportUserFactory(backend_id=backend_id)
@@ -170,7 +170,7 @@ class TestJiraWebHooks(APITestCase):
         response = self.client.post(self.url, request_data)
 
         self.assertEquals(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(models.Issue.objects.count(), 1)
+        self.assertEqual(models.Issue.objects.count(), 0)
 
     def test_issue_update_callback_updates_issue_caller(self):
         # arrange

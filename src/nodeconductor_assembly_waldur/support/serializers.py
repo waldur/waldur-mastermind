@@ -1,13 +1,10 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import models as structure_models, SupportedServices
-
-from nodeconductor_assembly_waldur.support import backend
 
 from . import models
 
@@ -153,51 +150,43 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 class WebHookReceiverSerializer(serializers.Serializer):
     class EventType:
-        CREATED = 'jira:issue_created'
-        UPDATED = 'jira:issue_updated'
-        DELETED = 'jira:issue_deleted'
-
-    def validate(self, attrs):
-        return self.initial_data
+        CREATED = "jira:issue_created"
+        UPDATED = "jira:issue_updated"
+        DELETED = "jira:issue_deleted"
 
     @transaction.atomic()
-    def create(self, validated_data):
-        fields = validated_data["issue"]["fields"]
-        backend_id = validated_data["issue"]["key"]
-        link = validated_data['issue']['self']
+    def save(self, **kwargs):
+        fields = self.initial_data["issue"]["fields"]
+        backend_id = self.initial_data["issue"]["key"]
+        link = self.initial_data["issue"]["self"]
 
-        event_type = validated_data['webhookEvent']
+        event_type = self.initial_data["webhookEvent"]
 
-        issue = None
         if event_type == self.EventType.UPDATED:
             try:
                 issue = models.Issue.objects.get(backend_id=backend_id)
-            except ObjectDoesNotExist:
+            except models.Issue.DoesNotExist:
                 pass
             else:
-                issue = self._update_issue(issue=issue, fields=fields, link=link)
+                self._update_issue(issue=issue, fields=fields, link=link)
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
-        else:
-            issue = self._create_issue(fields=fields, link=link)
-
-        return issue
 
     def _create_issue(self, fields, link):
         reporter = self._get_support_user_by_field_name(field_name="reporter", fields=fields)
         issue = models.Issue.objects.create(
-            resolution=fields['resolution'] or '',
-            status=fields['issuetype']['name'],
+            resolution=fields["resolution"] or "",
+            status=fields["issuetype"]["name"],
             link=link,
             impact=self._get_impact_field(fields=fields),
-            summary=fields['summary'],
-            priority=fields['priority']['name'],
-            description=fields['description'],
-            type=fields['issuetype']['name'],
+            summary=fields["summary"],
+            priority=fields["priority"]["name"],
+            description=fields["description"],
+            type=fields["issuetype"]["name"],
             assignee=self._get_support_user_by_field_name(field_name="assignee", fields=fields),
             reporter=reporter,
-            caller=getattr(reporter, 'user', None),
+            caller=getattr(reporter, "user", None),
         )
 
         self._update_comments(issue=issue, fields=fields)
@@ -205,14 +194,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return issue
 
     def _update_issue(self, issue, fields, link):
-        issue.resolution = fields['resolution'] or ''
-        issue.status = fields['issuetype']['name']
+        issue.resolution = fields["resolution"] or ""
+        issue.status = fields["issuetype"]["name"]
         issue.link = link
         issue.impact = self._get_impact_field(fields=fields)
-        issue.summary = fields['summary']
-        issue.priority = fields['priority']['name']
-        issue.description = fields['description']
-        issue.type = fields['issuetype']['name']
+        issue.summary = fields["summary"]
+        issue.priority = fields["priority"]['name']
+        issue.description = fields["description"]
+        issue.type = fields["issuetype"]["name"]
 
         assignee = self._get_support_user_by_field_name(field_name="assignee", fields=fields)
         if assignee:
@@ -228,34 +217,37 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return issue
 
     def _get_impact_field(self, fields):
-        impact_field = ''
-        impact_field_name = backend.get_active_backend().project_details.get('impact_field', None)
-        if impact_field_name and impact_field_name in fields:
-            impact_field = fields[impact_field_name]
+        impact_field = ""
+        impact_field_name = "impact_field"
+        project_settings = settings.WALDUR_SUPPORT.get("PROJECT", {})
+        if impact_field_name in project_settings:
+            impact_field_name = project_settings.get("impact_field", None)
+            if impact_field_name and impact_field_name in fields:
+                impact_field = fields.get(impact_field_name, None)
 
         return impact_field
 
     def _update_comments(self, issue, fields):
-        if 'comment' in fields:
+        if "comment" in fields:
             # update comments
-            for comment in fields['comment']['comments']:
-                author, _ = models.SupportUser.objects.get_or_create(backend_id=comment['author']['key'])
+            for comment in fields["comment"]["comments"]:
+                author, _ = models.SupportUser.objects.get_or_create(backend_id=comment["author"]["key"])
                 issue.comments.update_or_create(
                     author=author,
-                    description=comment['body'],
-                    backend_id=comment['id']
+                    description=comment["body"],
+                    backend_id=comment["id"]
                 )
 
             # delete comments if required
-            if fields['comment']['total'] != issue.comments.count():
-                ids = [c['id'] for c in fields['comment']['comments']]
+            if fields["comment"]["total"] != issue.comments.count():
+                ids = [c["id"] for c in fields["comment"]["comments"]]
                 issue.comments.exclude(backend_id__in=ids).delete()
 
     def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
 
         if field_name in fields:
-            support_user_backend_key = fields[field_name]['key']
+            support_user_backend_key = fields[field_name]["key"]
 
             if support_user_backend_key:
                 support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
