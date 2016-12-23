@@ -2,7 +2,7 @@ import pkg_resources
 import json
 
 from django.core.urlresolvers import reverse
-from nodeconductor_assembly_waldur.support import backend
+from django.conf import settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -157,7 +157,7 @@ class TestJiraWebHooks(APITestCase):
     def test_issue_update_callback_populates_impact_field(self):
 
         # arrange
-        impact_field = backend.get_active_backend().project_details['impact_field']
+        impact_field = settings.WALDUR_SUPPORT["PROJECT"]["impact_field"]
         impact_field_value = 'Custom Value'
         backend_id = "Santa"
         issue = factories.IssueFactory(backend_id=backend_id)

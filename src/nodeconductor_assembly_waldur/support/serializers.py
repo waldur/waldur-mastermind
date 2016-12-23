@@ -198,22 +198,10 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.save()
         return issue
 
-    def _get_impact_field(self, fields):
-        """
-        Returns an impact field which cannot be null.
-        :param fields: a dictionary of issue fields received from Jira
-        :return: a value of impact field. Empty if not exists.
-        """
-
-        impact_field = ""
-        impact_field_name = "impact_field"
+    def _get_impact_field(self, fields):g
         project_settings = settings.WALDUR_SUPPORT.get("PROJECT", {})
-        if impact_field_name in project_settings:
-            impact_field_name = project_settings.get("impact_field", None)
-            if impact_field_name and impact_field_name in fields:
-                impact_field = fields.get(impact_field_name, None)
-
-        return impact_field
+        impact_field_name = project_settings.get("impact_field", None)
+        return fields.get(impact_field_name, '')
 
     @transaction.atomic()
     def _update_comments(self, issue, fields):
