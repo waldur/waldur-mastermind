@@ -8,24 +8,32 @@ www.atlassian.com/software/jira/download
 1.1 Please make sure the system for installation is prepared and you have selected the right version of JIRA.
 
 For Windows:
-1. Run an installer and follow the installation wizard
+^^^^^^^^^^^^
+2.1. Run an installer and follow the installation wizard
 
 For Linux:
-1. Place downloaded image on the server
+^^^^^^^^^^
+2.1. Place downloaded image on the server
 
-2. Make the package executable:
+2.2. Make the package executable:
 
-.. code-block:: bash
+.. code-block:: sh
+
     chmod a+x atlassian-jira-software-X.X.X-x64.bin
 
-3. Run the installer:
 
-.. code-block:: bash
+2.3. Run the installer:
+
+.. code-block:: sh
+
     sudo ./atlassian-jira-software-X.X.X-x64.bin
 
-4. After JIRA is installed open the port displayed after installation is finished. Usually it is 8080.
+Post installation steps
+^^^^^^^^^^^^^^^^^^^^^^^
 
-5. Configure JIRA by following an installation guide in your favourite browser.
+3. After JIRA is installed open the port displayed after installation is finished. Usually it is 8080.
+
+4. Configure JIRA by following an installation guide in your favourite browser.
 
 PS. If you are installing JIRA on a virtual machine please make sure that port forwarding is configured.
 
@@ -61,6 +69,6 @@ It is not needed to add any additional fields to request.
 4.4 Add a description.
 
 4.5 Please make sure you've picked 'created, updated and deleted' actions under 'Events' section.
-No need to to check Comments events, they will be synced with by the issue triggers.
+No need to to check Comments events, they will be synced by the issue triggers.
 
 4.6 Save configuration.
