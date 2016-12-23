@@ -165,9 +165,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         fields = validated_data["issue"]["fields"]
         backend_id = validated_data["issue"]["key"]
         link = validated_data['issue']['self']
-        caller_backend_id = validated_data['user']['key']
-        support_user, _ = models.SupportUser.objects.get_or_create(backend_id=caller_backend_id)
-        caller = support_user.user
 
         event_type = validated_data['webhookEvent']
 
@@ -178,16 +175,17 @@ class WebHookReceiverSerializer(serializers.Serializer):
             except ObjectDoesNotExist:
                 pass
             else:
-                issue = self._update_issue(issue=issue, fields=fields, link=link, caller=caller)
+                issue = self._update_issue(issue=issue, fields=fields, link=link)
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
         else:
-            issue = self._create_issue(fields=fields, link=link, caller=caller)
+            issue = self._create_issue(fields=fields, link=link)
 
         return issue
 
-    def _create_issue(self, fields, link, caller):
+    def _create_issue(self, fields, link):
+        reporter = self._get_support_user_by_field_name(field_name="reporter", fields=fields)
         issue = models.Issue.objects.create(
             resolution=fields['resolution'] or '',
             status=fields['issuetype']['name'],
@@ -198,15 +196,15 @@ class WebHookReceiverSerializer(serializers.Serializer):
             description=fields['description'],
             type=fields['issuetype']['name'],
             assignee=self._get_support_user_by_field_name(field_name="assignee", fields=fields),
-            reporter=self._get_support_user_by_field_name(field_name="reporter", fields=fields),
-            caller=caller,
+            reporter=reporter,
+            caller=getattr(reporter, 'user', None),
         )
 
         self._update_comments(issue=issue, fields=fields)
         issue.save()
         return issue
 
-    def _update_issue(self, issue, fields, link, caller):
+    def _update_issue(self, issue, fields, link):
         issue.resolution = fields['resolution'] or ''
         issue.status = fields['issuetype']['name']
         issue.link = link
@@ -215,7 +213,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.priority = fields['priority']['name']
         issue.description = fields['description']
         issue.type = fields['issuetype']['name']
-        issue.caller = caller
 
         assignee = self._get_support_user_by_field_name(field_name="assignee", fields=fields)
         if assignee:
@@ -224,6 +221,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         reporter = self._get_support_user_by_field_name(field_name="reporter", fields=fields)
         if reporter:
             issue.reporter = reporter
+            issue.caller = reporter.user
 
         self._update_comments(issue=issue, fields=fields)
         issue.save()
