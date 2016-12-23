@@ -199,6 +199,12 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return issue
 
     def _get_impact_field(self, fields):
+        """
+        Returns an impact field which cannot be null.
+        :param fields: a dictionary of issue fields received from Jira
+        :return: returns a value of impact field. Empty if not exists.
+        """
+
         impact_field = ""
         impact_field_name = "impact_field"
         project_settings = settings.WALDUR_SUPPORT.get("PROJECT", {})
