@@ -42,5 +42,16 @@ class CommentFactory(factory.DjangoModelFactory):
 
     issue = factory.SubFactory(IssueFactory)
     author = factory.SubFactory(SupportUserFactory)
-    description = factory.Sequence(lambda n: 'This is a comment-%s' % n)
     backend_id = factory.Sequence(lambda n: 'key_%s' % n)
+    description = factory.Sequence(lambda n: 'Comment-description-%s' % n)
+
+    @classmethod
+    def get_url(cls, comment=None, action=None):
+        if comment is None:
+            comment = IssueFactory()
+        url = 'http://testserver' + reverse('support-comment-detail', kwargs={'uuid': comment.uuid.hex})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-comment-list')
