@@ -1,0 +1,29 @@
+/dist
+/build
+/venv
+*.egg
+*.egg-info
+*.pyc
+db.sqlite3
+
+/.idea
+/.project
+/.pydevproject
+/.settings
+/.sublime
+
+
+# Editor artifacts
+# vim
+*.sw*
+
+# Testing artifacts
+
+TEST-*.xml
+
+# documentation
+docs/_build/
+docs/drfapi/
+
+/static_files
+
