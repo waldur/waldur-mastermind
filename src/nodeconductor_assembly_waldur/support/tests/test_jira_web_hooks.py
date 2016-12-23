@@ -14,7 +14,7 @@ class TestJiraWebHooks(APITestCase):
     JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME = "jira_issue_updated_query.json"
 
     def setUp(self):
-        self.url = reverse('web_hook_receiver')
+        self.url = reverse('web-hook-receiver')
         self.CREATED = 'jira:issue_created'
         self.UPDATED = 'jira:issue_updated'
         self.DELETED = 'jira:issue_deleted'
