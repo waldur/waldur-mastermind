@@ -3,16 +3,16 @@ Installation
 
 * `Install NodeConductor <http://nodeconductor.readthedocs.org/en/latest/guide/intro.html#installation-from-source>`_
 
-* Clone NodeConductor JIRA repository
+* Clone NodeConductor Assembly Waldur repository
 
   .. code-block:: bash
 
-    git clone https://github.com/opennode/nodeconductor-jira.git
+    git clone https://github.com/opennode/nodeconductor-assembly-waldur.git
 
-* Install NodeConductor JIRA into NodeConductor virtual environment
+* Install NodeConductor Assembly Waldur into NodeConductor virtual environment
 
   .. code-block:: bash
 
-    cd /path/to/nodeconductor-jira/
+    cd /path/to/nodeconductor-assembly-waldur/
     python setup.py install
 

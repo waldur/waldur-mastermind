@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# NodeConductor JIRA documentation build configuration file.
+# NodeConductor Assembly Waldur documentation build configuration file.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -43,15 +43,15 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'NodeConductor JIRA'
-copyright = u'2015, OpenNode'
+project = u'NodeConductor Assembly Waldur'
+copyright = u'2016, OpenNode'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-from nodeconductor_jira import __version__
+from nodeconductor_assembly_waldur import __version__
 
 version = __version__
 # The full version, including alpha/beta/rc tags.
@@ -179,7 +179,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'nodeconductor-jiradoc'
+htmlhelp_basename = 'nodeconductor-assembly-waldur'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -199,7 +199,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'nodeconductor-jira.tex', u'NodeConductor JIRA Documentation',
+  ('index', 'nodeconductor-assembly-waldur.tex', u'NodeConductor Assembly Waldur Documentation',
    u'OpenNode', 'manual'),
 ]
 
@@ -229,7 +229,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'nodeconductor-jira', u'NodeConductor JIRA Documentation',
+    ('index', 'nodeconductor-assembly-waldur', u'NodeConductor Assembly Waldur Documentation',
      [u'OpenNode'], 1)
 ]
 
@@ -243,8 +243,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'NodeConductor JIRA', u'NodeConductor JIRA Documentation',
-   u'OpenNode', 'nodeconductor-jira', 'One line description of project.',
+  ('index', 'NodeConductor Assembly Waldur ', u'NodeConductor Assembly Waldur Documentation',
+   u'OpenNode', 'nodeconductor-assembly-waldur', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -269,4 +269,4 @@ from django.core.wsgi import get_wsgi_application
 get_wsgi_application()
 
 from nodeconductor.core.management.commands.drfdocs import Command
-Command().handle('nodeconductor_jira', path='docs/drfapi')
+Command().handle('nodeconductor_assembly_waldur', path='docs/drfapi')
