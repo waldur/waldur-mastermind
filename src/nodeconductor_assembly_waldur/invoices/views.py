@@ -8,7 +8,7 @@ from nodeconductor.structure import filters as structure_filters, permissions as
 from . import filters, models, serializers, tasks
 
 
-class InvoiceViewSet(core_views.ReadOnlyActionViewSet):
+class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.order_by('-year', '-month')
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
