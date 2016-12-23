@@ -110,7 +110,11 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                 project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)):
             return project
         raise serializers.ValidationError(
-            'Only customer owner, project manager, project admin or staff can report issue for project.')
+            'Only customer owner, project manager, project admin or staff can report such issue.')
+
+    def validate_resource(self, resource):
+        self.validate_project(resource.service_project_link.project)
+        return resource
 
     @transaction.atomic()
     def create(self, validated_data):

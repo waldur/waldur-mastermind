@@ -1,3 +1,5 @@
+import json
+
 from ddt import ddt, data
 from rest_framework import status
 
@@ -120,6 +122,55 @@ class IssueCreateTest(base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.Issue.objects.filter(summary=payload['summary']).exists())
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_user_with_access_to_resource_can_create_resource_issue(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_payload(
+            resource=structure_factories.TestInstanceFactory.get_url(self.fixture.resource),
+            is_reported_manually=True,
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Issue.objects.filter(summary=payload['summary']).exists())
+
+    @data('user')
+    def test_user_without_access_to_resource_cannot_create_resource_issue(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = self._get_valid_payload(
+            resource=structure_factories.TestInstanceFactory.get_url(self.fixture.resource),
+            is_reported_manually=True,
+        )
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.Issue.objects.filter(summary=payload['summary']).exists())
+
+    def test_project_issue_populates_customer_field_on_creation(self):
+        factories.SupportUserFactory(user=self.fixture.staff)
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_payload(
+            project=structure_factories.ProjectFactory.get_url(self.fixture.project))
+
+        response = self.client.post(self.url, data=payload)
+
+        issue = models.Issue.objects.get(uuid=json.loads(response.content)['uuid'])
+        self.assertEqual(issue.customer, self.fixture.project.customer)
+
+    def test_resource_issue_populated_customer_and_project_field_on_creation(self):
+        factories.SupportUserFactory(user=self.fixture.staff)
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_payload(
+            resource=structure_factories.TestInstanceFactory.get_url(self.fixture.resource))
+
+        response = self.client.post(self.url, data=payload)
+
+        issue = models.Issue.objects.get(uuid=json.loads(response.content)['uuid'])
+        self.assertEqual(issue.project, self.fixture.resource.service_project_link.project)
+        self.assertEqual(issue.customer, self.fixture.resource.service_project_link.project.customer)
 
     def _get_valid_payload(self, **additional):
         payload = {
