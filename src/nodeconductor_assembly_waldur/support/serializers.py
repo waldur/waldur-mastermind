@@ -8,7 +8,6 @@ from nodeconductor.structure import models as structure_models, SupportedService
 
 from . import models
 
-
 User = get_user_model()
 
 
@@ -168,3 +167,94 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
             url={'lookup_field': 'uuid', 'view_name': 'support-user-detail'},
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'}
         )
+
+
+class WebHookReceiverSerializer(serializers.Serializer):
+    class EventType:
+        CREATED = "jira:issue_created"
+        UPDATED = "jira:issue_updated"
+        DELETED = "jira:issue_deleted"
+
+    @transaction.atomic()
+    def save(self, **kwargs):
+        fields = self.initial_data["issue"]["fields"]
+        backend_id = self.initial_data["issue"]["key"]
+        link = self.initial_data["issue"]["self"]
+
+        event_type = self.initial_data["webhookEvent"]
+
+        if event_type == self.EventType.UPDATED:
+            try:
+                issue = models.Issue.objects.get(backend_id=backend_id)
+            except models.Issue.DoesNotExist:
+                pass
+            else:
+                self._update_issue(issue=issue, fields=fields, link=link)
+        elif event_type == self.EventType.DELETED:
+            issue = models.Issue.objects.get(backend_id=backend_id)
+            issue.delete()
+
+    def _update_issue(self, issue, fields, link):
+        issue.resolution = fields["resolution"] or ""
+        issue.status = fields["issuetype"]["name"]
+        issue.link = link
+        issue.impact = self._get_impact_field(fields=fields)
+        issue.summary = fields["summary"]
+        issue.priority = fields["priority"]["name"]
+        issue.description = fields["description"]
+        issue.type = fields["issuetype"]["name"]
+
+        assignee = self._get_support_user_by_field_name(field_name="assignee", fields=fields)
+        if assignee:
+            issue.assignee = assignee
+
+        reporter = self._get_support_user_by_field_name(field_name="reporter", fields=fields)
+        if reporter:
+            issue.reporter = reporter
+            issue.caller = reporter.user
+
+        if "comment" in fields:
+            self._update_comments(issue=issue, fields=fields)
+
+        issue.save()
+        return issue
+
+    def _get_impact_field(self, fields):
+        project_settings = settings.WALDUR_SUPPORT.get("PROJECT", {})
+        impact_field_name = project_settings.get("impact_field", None)
+        return fields.get(impact_field_name, '')
+
+    @transaction.atomic()
+    def _update_comments(self, issue, fields):
+        backend_comments = {c["id"]: c for c in fields["comment"]["comments"]}
+        comments = {c.backend_id: c for c in issue.comments.all()}
+
+        for exist_comment_id in set(backend_comments) & set(comments):
+            backend_comment = backend_comments[exist_comment_id]
+            comment = comments[exist_comment_id]
+            if comment.description != backend_comment["body"]:
+                comment.description = backend_comment["body"]
+                comment.save()
+
+        for new_comment_id in set(backend_comments) - set(comments):
+            backend_comment = backend_comments[new_comment_id]
+            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment["author"]["key"])
+            models.Comment.objects.create(
+                issue=issue,
+                author=author,
+                description=backend_comment["body"],
+                backend_id=backend_comment["id"],
+            )
+
+        models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comments)).delete()
+
+    def _get_support_user_by_field_name(self, fields, field_name):
+        support_user = None
+
+        if field_name in fields:
+            support_user_backend_key = fields[field_name]["key"]
+
+            if support_user_backend_key:
+                support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
+
+        return support_user

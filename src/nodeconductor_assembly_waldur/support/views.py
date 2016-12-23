@@ -1,5 +1,5 @@
 from django.db import transaction
-from rest_framework import viewsets, filters as rf_filters, permissions, decorators, response, status, exceptions
+from rest_framework import viewsets, views, filters as rf_filters, permissions, decorators, response, status, exceptions
 
 from nodeconductor.core import filters as core_filters, views as core_views
 from nodeconductor.structure import filters as structure_filters, models as structure_models
@@ -121,3 +121,16 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (rf_filters.DjangoFilterBackend,)
     filter_class = filters.SupportUserFilter
+
+
+class WebHookReceiverView(views.APIView):
+    authentication_classes = ()
+    permission_classes = ()
+    serializer_class = serializers.WebHookReceiverSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+
+        return response.Response(status=status.HTTP_200_OK)
