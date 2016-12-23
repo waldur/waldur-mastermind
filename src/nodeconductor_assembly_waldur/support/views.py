@@ -123,7 +123,7 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     filter_class = filters.SupportUserFilter
 
 
-class WebHookReceiverViewSet(views.APIView):
+class WebHookReceiverView(views.APIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebHookReceiverSerializer
