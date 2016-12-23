@@ -173,26 +173,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
 
-    def _create_issue(self, fields, link):
-        reporter = self._get_support_user_by_field_name(field_name="reporter", fields=fields)
-        issue = models.Issue.objects.create(
-            resolution=fields["resolution"] or "",
-            status=fields["issuetype"]["name"],
-            link=link,
-            impact=self._get_impact_field(fields=fields),
-            summary=fields["summary"],
-            priority=fields["priority"]["name"],
-            description=fields["description"],
-            type=fields["issuetype"]["name"],
-            assignee=self._get_support_user_by_field_name(field_name="assignee", fields=fields),
-            reporter=reporter,
-            caller=getattr(reporter, "user", None),
-        )
-
-        self._update_comments(issue=issue, fields=fields)
-        issue.save()
-        return issue
-
     def _update_issue(self, issue, fields, link):
         issue.resolution = fields["resolution"] or ""
         issue.status = fields["issuetype"]["name"]
@@ -212,7 +192,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue.reporter = reporter
             issue.caller = reporter.user
 
-        self._update_comments(issue=issue, fields=fields)
+        if "comment" in fields:
+            self._update_comments(issue=issue, fields=fields)
+
         issue.save()
         return issue
 
@@ -227,21 +209,29 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         return impact_field
 
+    @transaction.atomic()
     def _update_comments(self, issue, fields):
-        if "comment" in fields:
-            # update comments
-            for comment in fields["comment"]["comments"]:
-                author, _ = models.SupportUser.objects.get_or_create(backend_id=comment["author"]["key"])
-                issue.comments.update_or_create(
-                    author=author,
-                    description=comment["body"],
-                    backend_id=comment["id"]
-                )
+        backend_comments = {c['id']: c for c in fields["comment"]["comments"]}
+        comments = {c.backend_id: c for c in issue.comments.all()}
 
-            # delete comments if required
-            if fields["comment"]["total"] != issue.comments.count():
-                ids = [c["id"] for c in fields["comment"]["comments"]]
-                issue.comments.exclude(backend_id__in=ids).delete()
+        for exist_comment_id in set(backend_comments) & set(comments):
+            backend_comment = backend_comments[exist_comment_id]
+            comment = comments[exist_comment_id]
+            if comment['body'] != backend_comment.description:
+                comment.description = comment['body']
+                comment.save()
+
+        for new_comment_id in set(backend_comments) - set(comments):
+            backend_comment = backend_comments[new_comment_id]
+            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment["author"]["key"])
+            models.Comment.objects.create(
+                issue=issue,
+                author=author,
+                description=backend_comment["body"],
+                backend_id=backend_comment["id"],
+            )
+
+        models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comment)).delete()
 
     def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
