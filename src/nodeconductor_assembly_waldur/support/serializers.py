@@ -198,7 +198,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.save()
         return issue
 
-    def _get_impact_field(self, fields):g
+    def _get_impact_field(self, fields):
         project_settings = settings.WALDUR_SUPPORT.get("PROJECT", {})
         impact_field_name = project_settings.get("impact_field", None)
         return fields.get(impact_field_name, '')
