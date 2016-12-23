@@ -179,7 +179,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.link = link
         issue.impact = self._get_impact_field(fields=fields)
         issue.summary = fields["summary"]
-        issue.priority = fields["priority"]['name']
+        issue.priority = fields["priority"]["name"]
         issue.description = fields["description"]
         issue.type = fields["issuetype"]["name"]
 
@@ -202,7 +202,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         """
         Returns an impact field which cannot be null.
         :param fields: a dictionary of issue fields received from Jira
-        :return: returns a value of impact field. Empty if not exists.
+        :return: a value of impact field. Empty if not exists.
         """
 
         impact_field = ""
