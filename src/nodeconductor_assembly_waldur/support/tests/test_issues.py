@@ -56,7 +56,7 @@ class IssueCreateTest(base.BaseTest):
         super(IssueCreateTest, self).setUp()
         self.url = factories.IssueFactory.get_list_url()
 
-    def test_staff_can_create_any_issue(self):
+    def test_staff_can_create_issue_if_he_has_support_user(self):
         factories.SupportUserFactory(user=self.fixture.staff)
         self.client.force_authenticate(self.fixture.staff)
 
@@ -229,7 +229,7 @@ class IssueDeleteTest(base.BaseTest):
         self.assertFalse(models.Issue.objects.filter(id=self.issue.id).exists())
 
     @data('owner', 'admin', 'manager')
-    def test_nonstaff_user_cannot_edit_issue(self, user):
+    def test_nonstaff_user_cannot_delete_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.delete(self.url)
