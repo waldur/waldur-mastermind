@@ -6,6 +6,7 @@ from nodeconductor_assembly_waldur.support import backend
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from nodeconductor_assembly_waldur.support import models
 from nodeconductor_assembly_waldur.support.tests import factories
 
 
@@ -14,17 +15,23 @@ class TestJiraWebHooks(APITestCase):
 
     def setUp(self):
         self.url = reverse('web_hook_receiver')
+        self.CREATED = 'jira:issue_created'
+        self.UPDATED = 'jira:issue_updated'
+        self.DELETED = 'jira:issue_deleted'
 
     def test_issue_update_callback_updates_issue_summary(self):
         # arrange
         expected_summary = "Happy New Year"
         backend_id = "Santa"
         issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(user=issue.caller, backend_id=caller_backend_id)
         self.assertNotEquals(issue.summary, expected_summary)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
+        request_data["user"]["key"] = caller.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["summary"] = expected_summary
 
@@ -39,12 +46,15 @@ class TestJiraWebHooks(APITestCase):
         # arrange
         backend_id = "Santa"
         issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(user=issue.caller, backend_id=caller_backend_id)
         self.assertIsNone(issue.assignee)
         assignee = factories.SupportUserFactory(backend_id="Klaus")
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
+        request_data["user"]["key"] = caller.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["assignee"] = {
             "key": assignee.backend_id
@@ -61,11 +71,15 @@ class TestJiraWebHooks(APITestCase):
         # arrange
         backend_id = "Happy New Year"
         issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(user=issue.caller, backend_id=caller_backend_id)
+        factories.SupportUserFactory(backend_id=backend_id)
         reporter = factories.SupportUserFactory(backend_id="Tiffany")
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
+        request_data["user"]["key"] = caller.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"] = {
             "key": reporter.backend_id
@@ -82,11 +96,15 @@ class TestJiraWebHooks(APITestCase):
         # arrange
         backend_id = "Happy New Year"
         issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(user=issue.caller, backend_id=caller_backend_id)
+        factories.SupportUserFactory(backend_id=backend_id)
         self.assertEqual(issue.comments.count(), 0)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
+        request_data["user"]["key"] = caller.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
 
@@ -102,12 +120,16 @@ class TestJiraWebHooks(APITestCase):
         backend_id = "Santa"
         initial_number_of_comments = 2
         issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(user=issue.caller, backend_id=caller_backend_id)
+        factories.SupportUserFactory(backend_id=backend_id)
         factories.CommentFactory.create_batch(initial_number_of_comments, issue=issue)
         self.assertEqual(issue.comments.count(), initial_number_of_comments)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = issue.backend_id
+        request_data["user"]["key"] = caller.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
 
@@ -125,10 +147,14 @@ class TestJiraWebHooks(APITestCase):
         impact_field_value = 'Custom Value'
         backend_id = "Santa"
         issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(user=issue.caller, backend_id=caller_backend_id)
+        factories.SupportUserFactory(backend_id=backend_id)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = issue.backend_id
+        request_data["user"]["key"] = caller.backend_id
         request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"][impact_field] = impact_field_value
 
@@ -138,3 +164,49 @@ class TestJiraWebHooks(APITestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.impact, impact_field_value)
+
+    def test_issue_update_callback_updates_creates_issue(self):
+        # arrange
+        backend_id = "Santa"
+        factories.SupportUserFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(backend_id=caller_backend_id)
+        self.assertEqual(models.Issue.objects.count(), 0)
+
+        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
+        request_data = json.loads(jira_request)
+        request_data["webhookEvent"] = self.CREATED
+        request_data["issue"]["key"] = backend_id
+        request_data["user"]["key"] = caller.backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
+
+        # act
+        response = self.client.post(self.url, request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(models.Issue.objects.count(), 1)
+
+    def test_issue_update_callback_updates_issue_caller(self):
+        # arrange
+        expected_summary = "Happy New Year"
+        backend_id = "Santa"
+        issue = factories.IssueFactory(backend_id=backend_id)
+        caller_backend_id = "john_doe"
+        caller = factories.SupportUserFactory(backend_id=caller_backend_id)
+        factories.SupportUserFactory(backend_id=backend_id)
+        self.assertNotEquals(issue.summary, expected_summary)
+
+        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
+        request_data = json.loads(jira_request)
+        request_data["issue"]["key"] = backend_id
+        request_data["user"]["key"] = caller.backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
+        request_data["issue"]["fields"]["summary"] = expected_summary
+        caller_id = request_data['user']['key']
+
+        # act
+        response = self.client.post(self.url, request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual(issue.caller.id, caller.user.id)

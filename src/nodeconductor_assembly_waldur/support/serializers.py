@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import serializers
 
@@ -9,7 +10,6 @@ from nodeconductor.structure import models as structure_models, SupportedService
 from nodeconductor_assembly_waldur.support import backend
 
 from . import models
-
 
 User = get_user_model()
 
@@ -152,7 +152,6 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-
     class EventType:
         CREATED = 'jira:issue_created'
         UPDATED = 'jira:issue_updated'
@@ -164,30 +163,58 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def create(self, validated_data):
         fields = validated_data["issue"]["fields"]
         backend_id = validated_data["issue"]["key"]
+        link = validated_data['issue']['self']
+        caller_backend_id = validated_data['user']['key']
+        support_user, _ = models.SupportUser.objects.get_or_create(backend_id=caller_backend_id)
+        caller = support_user.user
 
         event_type = validated_data['webhookEvent']
 
         issue = None
         if event_type == self.EventType.UPDATED:
-            fields['link'] = validated_data['issue']['self']
-            issue = self._update_issue(backend_id, fields)
+            try:
+                issue = models.Issue.objects.get(backend_id=backend_id)
+            except ObjectDoesNotExist:
+                pass
+            else:
+                issue = self._update_issue(issue=issue, fields=fields, link=link, caller=caller)
         elif event_type == self.EventType.DELETED:
-            pass
+            issue = models.Issue.objects.get(backend_id=backend_id)
+            issue.delete()
         else:
-            pass
+            issue = self._create_issue(fields=fields, link=link, caller=caller)
 
         return issue
 
-    def _update_issue(self, backend_id, fields):
-        issue = models.Issue.objects.get(backend_id=backend_id)
+    def _create_issue(self, fields, link, caller):
+        issue = models.Issue.objects.create(
+            resolution=fields['resolution'] or '',
+            status=fields['issuetype']['name'],
+            link=link,
+            impact=self._get_impact_field(fields=fields),
+            summary=fields['summary'],
+            priority=fields['priority']['name'],
+            description=fields['description'],
+            type=fields['issuetype']['name'],
+            assignee=self._get_support_user_by_field_name(field_name="assignee", fields=fields),
+            reporter=self._get_support_user_by_field_name(field_name="reporter", fields=fields),
+            caller=caller,
+        )
+
+        self._update_comments(issue=issue, fields=fields)
+        issue.save()
+        return issue
+
+    def _update_issue(self, issue, fields, link, caller):
         issue.resolution = fields['resolution'] or ''
         issue.status = fields['issuetype']['name']
-        issue.link = fields['link']
+        issue.link = link
         issue.impact = self._get_impact_field(fields=fields)
         issue.summary = fields['summary']
         issue.priority = fields['priority']['name']
         issue.description = fields['description']
         issue.type = fields['issuetype']['name']
+        issue.caller = caller
 
         assignee = self._get_support_user_by_field_name(field_name="assignee", fields=fields)
         if assignee:
@@ -198,9 +225,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue.reporter = reporter
 
         self._update_comments(issue=issue, fields=fields)
-
         issue.save()
-
         return issue
 
     def _get_impact_field(self, fields):
