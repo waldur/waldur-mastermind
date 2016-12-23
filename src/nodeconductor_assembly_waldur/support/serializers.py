@@ -211,14 +211,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     @transaction.atomic()
     def _update_comments(self, issue, fields):
-        backend_comments = {c['id']: c for c in fields["comment"]["comments"]}
+        backend_comments = {c["id"]: c for c in fields["comment"]["comments"]}
         comments = {c.backend_id: c for c in issue.comments.all()}
 
         for exist_comment_id in set(backend_comments) & set(comments):
             backend_comment = backend_comments[exist_comment_id]
             comment = comments[exist_comment_id]
-            if comment['body'] != backend_comment.description:
-                comment.description = comment['body']
+            if comment["body"] != backend_comment.description:
+                comment.description = comment["body"]
                 comment.save()
 
         for new_comment_id in set(backend_comments) - set(comments):
