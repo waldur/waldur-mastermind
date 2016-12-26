@@ -9,6 +9,7 @@ Source0: %{name}-%{version}.tar.gz
 
 Requires: nodeconductor > 0.112.0
 Requires: nodeconductor-auth-social >= 0.1.0
+Requires: nodeconductor-auth-openid >= 0.1.0
 Requires: nodeconductor-aws >= 0.1.3
 Requires: nodeconductor-digitalocean >= 0.1.4
 Requires: nodeconductor-openstack >= 0.11.0
