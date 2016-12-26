@@ -155,7 +155,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
     def create(self, validated_data):
         author_user = self.context['request'].user
         validated_data['author'], _ = models.SupportUser.objects.get_or_create_from_user(author_user)
-        validated_data['issue'] = self.context['issue']
+        validated_data['issue'] = self.context['view'].get_object()
         return super(CommentSerializer, self).create(validated_data)
 
 

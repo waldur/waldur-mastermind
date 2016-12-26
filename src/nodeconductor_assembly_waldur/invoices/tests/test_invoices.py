@@ -25,7 +25,7 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
 
 
 @ddt
-class InvoiceNotificationTest(test.APITransactionTestCase):
+class InvoiceSendNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = factories.InvoiceFactory.get_url(self.fixture.invoice, action='send_notification')
