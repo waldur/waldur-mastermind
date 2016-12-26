@@ -40,9 +40,7 @@ class IssueViewSet(core_views.ActionsViewSet):
 
     def _comment_permission(request, view, obj=None):
         user = request.user
-        if user.is_staff:
-            return
-        if not obj:
+        if user.is_staff or not obj:
             return
         issue = obj
         if issue.customer and issue.customer.has_user(user, structure_models.CustomerRole.OWNER):
