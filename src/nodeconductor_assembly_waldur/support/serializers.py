@@ -277,3 +277,4 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
 
         return support_user
+
