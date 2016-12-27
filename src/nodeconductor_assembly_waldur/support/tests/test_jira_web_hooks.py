@@ -1,3 +1,4 @@
+from datetime import datetime
 import pkg_resources
 import json
 
@@ -217,3 +218,25 @@ class TestJiraWebHooks(APITestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.caller.id, support_user.user.id)
+
+    def test_issue_update_callback_updates_first_response_sla(self):
+        # arrange
+        backend_id = "Santa"
+        issue = factories.IssueFactory(backend_id=backend_id)
+        support_user = factories.SupportUserFactory(backend_id="support")
+
+        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
+        request_data = json.loads(jira_request)
+        request_data["issue"]["key"] = backend_id
+        request_data["issue"]["fields"]["project"]["key"] = backend_id
+        request_data["issue"]["fields"]["reporter"]["key"] = support_user.backend_id
+        epoch_millis = request_data["issue"]["fields"]["customfield_10006"]["ongoingCycle"]["breachTime"]["epochMillis"]
+        expected_first_response_sla = datetime.fromtimestamp(epoch_millis / 1000.0)
+
+        # act
+        response = self.client.post(self.url, request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        naive_issue_time = issue.first_response_sla.replace(tzinfo=None)
+        self.assertEqual(naive_issue_time, expected_first_response_sla)

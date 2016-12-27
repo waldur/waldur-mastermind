@@ -64,7 +64,6 @@ class IssueViewSet(core_views.ActionsViewSet):
 
 
 class CommentViewSet(core_views.ActionsViewSet):
-    queryset = models.Comment.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.CommentSerializer
     filter_backends = (
@@ -86,6 +85,14 @@ class CommentViewSet(core_views.ActionsViewSet):
         comment.delete()
 
     destroy_permissions = [structure_permissions.is_staff]
+
+    def get_queryset(self):
+        queryset = models.Comment.objects
+
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(is_public=True)
+
+        return queryset
 
 
 class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):

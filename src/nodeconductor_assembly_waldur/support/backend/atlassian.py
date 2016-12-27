@@ -1,9 +1,14 @@
 import functools
+import json
 
 from django.conf import settings
 from django.utils import six
-from jira import JIRA
-from jira import JIRAError
+from jira import JIRA, JIRAError, Comment
+from jira.utils import json_loads
+
+from nodeconductor_assembly_waldur.support import models
+
+__all__ = ['get_active_backend']
 
 
 def get_active_backend():
@@ -47,7 +52,9 @@ class JiraBackendError(SupportBackendError):
     pass
 
 
-class AtlassianBackend(SupportBackend):
+class JiraBackend(SupportBackend):
+    credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
+    project_details = settings.WALDUR_SUPPORT.get('PROJECT', {})
 
     def reraise_exceptions(func):
         @functools.wraps(func)
@@ -57,16 +64,6 @@ class AtlassianBackend(SupportBackend):
             except JIRAError as e:
                 six.reraise(JiraBackendError, e)
         return wrapped
-
-    def __init__(self):
-        self.project_details = self._get_project_details()
-        self.credentials = self._get_credentials()
-
-    def _get_credentials(self):
-        raise NotImplemented
-
-    def _get_project_details(self):
-        raise NotImplemented
 
     @property
     @reraise_exceptions
@@ -155,3 +152,27 @@ class AtlassianBackend(SupportBackend):
         users = self.manager.search_assignable_users_for_projects('', self.project_details['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
 
+
+class ServiceDeskBackend(JiraBackend):
+
+    def create_comment(self, comment):
+        backend_comment = self._add_comment(
+            comment.issue.backend_id,
+            self._prepare_comment_message(comment),
+            is_internal=comment.is_public,
+        )
+        comment.backend_id = backend_comment.id
+        comment.save(update_fields=['backend_id', 'is_public'])
+
+    def _add_comment(self, issue, body, is_internal):
+        data = {
+            'body': body,
+            "properties": [{"key": "sd.public.comment", "value": {"internal": is_internal}},]
+        }
+
+        url = self.manager._get_url('issue/' + str(issue) + '/comment')
+        r = self.manager._session.post(
+            url, data=json.dumps(data))
+
+        comment = Comment(self._options, self._session, raw=json_loads(r))
+        return comment

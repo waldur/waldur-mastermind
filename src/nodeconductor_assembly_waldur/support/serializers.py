@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -56,6 +58,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'project', 'project_uuid', 'project_name',
             'resource', 'resource_type', 'resource_name',
             'created', 'modified', 'is_reported_manually',
+            'first_response_sla',
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
@@ -170,6 +173,8 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
+    TIME_TO_RESPONSE_NAME = "Time to first response"
+
     class EventType:
         CREATED = "jira:issue_created"
         UPDATED = "jira:issue_updated"
@@ -204,6 +209,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue.description = fields["description"]
         issue.type = fields["issuetype"]["name"]
 
+        custom_field_values = [fields[customfield] for customfield in fields if customfield.startswith('customfield')]
+        self._update_custom_fields(issue, custom_field_values)
+
         assignee = self._get_support_user_by_field_name(field_name="assignee", fields=fields)
         if assignee:
             issue.assignee = assignee
@@ -218,6 +226,17 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         issue.save()
         return issue
+
+    def _update_custom_fields(self, issue, custom_field_values):
+        for field in custom_field_values:
+            if isinstance(field, dict):
+                name = field.get("name", None)
+                if name == self.TIME_TO_RESPONSE_NAME:
+                    ongoing_cycle = field.get("ongoingCycle", {})
+                    breach_time = ongoing_cycle.get("breachTime", {})
+                    epoch_milliseconds = breach_time.get("epochMillis", None)
+                    if epoch_milliseconds:
+                        issue.first_response_sla = datetime.fromtimestamp(epoch_milliseconds / 1000.0)
 
     def _get_impact_field(self, fields):
         project_settings = settings.WALDUR_SUPPORT.get("PROJECT", {})

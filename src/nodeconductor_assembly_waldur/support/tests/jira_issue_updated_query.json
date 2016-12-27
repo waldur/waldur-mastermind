@@ -101,6 +101,43 @@
       "customfield_10000": null,
       "customfield_10004": null,
       "customfield_10005": "0|hzzzzz:",
+      "customfield_10006": {
+        "_links": {
+          "self": "http://127.0.0.1:8080/rest/servicedeskapi/request/10100/sla/1"
+        },
+        "completedCycles": [],
+        "id": "1",
+        "name": "Time to first response",
+        "ongoingCycle": {
+          "breachTime": {
+            "epochMillis": 1482760800000,
+            "friendly": "Yesterday 9:00 AM",
+            "iso8601": "2016-12-26T09:00:00-0500",
+            "jira": "2016-12-26T09:00:00.000-0500"
+          },
+          "breached": true,
+          "elapsedTime": {
+            "friendly": "16h",
+            "millis": 57600000
+          },
+          "goalDuration": {
+            "friendly": "8h",
+            "millis": 28800000
+          },
+          "paused": false,
+          "remainingTime": {
+            "friendly": "-8h",
+            "millis": -28800000
+          },
+          "startTime": {
+            "epochMillis": 1482500044518,
+            "friendly": "Friday 8:34 AM",
+            "iso8601": "2016-12-23T08:34:04-0500",
+            "jira": "2016-12-23T08:34:04.518-0500"
+          },
+          "withinCalendarHours": false
+        }
+      },
       "description": "this is a description",
       "duedate": "2016-12-20",
       "environment": null,
