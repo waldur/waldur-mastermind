@@ -162,7 +162,7 @@ class ServiceDeskBackend(JiraBackend):
             is_internal=comment.is_public,
         )
         comment.backend_id = backend_comment.id
-        comment.save(update_fields=['backend_id', 'is_public'])
+        comment.save(update_fields=['backend_id',])
 
     def _add_comment(self, issue, body, is_internal):
         data = {
