@@ -2,9 +2,8 @@ import functools
 
 from django.conf import settings
 from django.utils import six
-from jira import JIRA, JIRAError
-
-from . import models
+from jira import JIRA
+from jira import JIRAError
 
 
 def get_active_backend():
@@ -48,9 +47,7 @@ class JiraBackendError(SupportBackendError):
     pass
 
 
-class JiraBackend(SupportBackend):
-    credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
-    project_details = settings.WALDUR_SUPPORT.get('PROJECT', {})
+class AtlassianBackend(SupportBackend):
 
     def reraise_exceptions(func):
         @functools.wraps(func)
@@ -60,6 +57,16 @@ class JiraBackend(SupportBackend):
             except JIRAError as e:
                 six.reraise(JiraBackendError, e)
         return wrapped
+
+    def __init__(self):
+        self.project_details = self._get_project_details()
+        self.credentials = self._get_credentials()
+
+    def _get_credentials(self):
+        raise NotImplemented
+
+    def _get_project_details(self):
+        raise NotImplemented
 
     @property
     @reraise_exceptions
@@ -147,3 +154,4 @@ class JiraBackend(SupportBackend):
     def get_users(self):
         users = self.manager.search_assignable_users_for_projects('', self.project_details['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
+

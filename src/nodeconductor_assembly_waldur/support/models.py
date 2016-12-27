@@ -50,6 +50,8 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
     resource_object_id = models.PositiveIntegerField(null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
+    first_response_sla = models.DateTimeField(blank=True, null=True)
+
     def get_log_fields(self):
         return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'caller', 'customer', 'project', 'resource')
 
