@@ -30,7 +30,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         request_data["issue"]["fields"]["summary"] = expected_summary
 
@@ -51,7 +50,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         request_data["issue"]["fields"]["assignee"] = {
             "key": assignee.backend_id
@@ -74,7 +72,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         request_data["issue"]["fields"]["reporter"] = {
             "key": reporter.backend_id
@@ -97,7 +94,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
 
@@ -119,7 +115,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = issue.backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         request_data["issue"]["fields"]["comment"]["comments"][0]["id"] = comment.backend_id
         request_data["issue"]["fields"]["comment"]["comments"][0]["body"] = expected_comment_body
@@ -145,7 +140,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = issue.backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         expected_comments_count = request_data["issue"]["fields"]["comment"]["total"]
 
@@ -168,7 +162,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = issue.backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = issue.reporter.backend_id
         request_data["issue"]["fields"][impact_field] = impact_field_value
 
@@ -189,7 +182,6 @@ class TestJiraWebHooks(APITestCase):
         request_data = json.loads(jira_request)
         request_data["webhookEvent"] = self.CREATED
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = reporter.backend_id
 
         # act
@@ -208,7 +200,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = support_user.backend_id
         request_data["issue"]["fields"]["summary"] = expected_summary
 
@@ -228,7 +219,6 @@ class TestJiraWebHooks(APITestCase):
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
         request_data["issue"]["key"] = backend_id
-        request_data["issue"]["fields"]["project"]["key"] = backend_id
         request_data["issue"]["fields"]["reporter"]["key"] = support_user.backend_id
         epoch_millis = request_data["issue"]["fields"]["customfield_10006"]["ongoingCycle"]["breachTime"]["epochMillis"]
         expected_first_response_sla = datetime.fromtimestamp(epoch_millis / 1000.0)
