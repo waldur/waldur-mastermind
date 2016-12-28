@@ -87,7 +87,7 @@ class CommentViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_staff]
 
     def get_queryset(self):
-        queryset = models.Comment.objects
+        queryset = super(CommentViewSet, self).get_queryset()
 
         if not self.request.user.is_staff:
             queryset = queryset.filter(is_public=True)
