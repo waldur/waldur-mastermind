@@ -176,9 +176,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
     TIME_TO_RESPONSE_NAME = 'Time to first response'
 
     class EventType:
-        CREATED = 'jira:issue_created'''
-        UPDATED = 'jira:issue_updated'''
-        DELETED = 'jira:issue_deleted'''
+        CREATED = 'jira:issue_created'
+        UPDATED = 'jira:issue_updated'
+        DELETED = 'jira:issue_deleted'
 
     @transaction.atomic()
     def save(self, **kwargs):
