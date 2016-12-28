@@ -60,7 +60,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'created', 'modified', 'is_reported_manually',
             'first_response_sla',
         )
-        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
+        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
