@@ -71,6 +71,7 @@ class CommentViewSet(core_views.ActionsViewSet):
         rf_filters.DjangoFilterBackend,
     )
     filter_class = filters.CommentFilter
+    queryset = models.Comment.objects.all()
 
     @transaction.atomic()
     def perform_update(self, serializer):
