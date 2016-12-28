@@ -1,8 +1,14 @@
+import importlib
+
 from django.conf import settings
 
 
 def get_active_backend():
-    return globals()[settings.WALDUR_SUPPORT['ACTIVE_BACKEND']]()
+    path = settings.WALDUR_SUPPORT['ACTIVE_BACKEND']
+    module_path, class_name = path.split(':')
+    module = importlib.import_module(module_path)
+    klass = getattr(module, class_name)
+    return klass()
 
 
 class SupportBackendError(Exception):
