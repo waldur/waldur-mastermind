@@ -24,7 +24,7 @@ class TestJiraWebHooks(APITestCase):
         self.request_data = json.loads(jira_request)
 
     def set_issue_and_support_user(self):
-        backend_id = "Santa"
+        backend_id = "SNT-101"
         issue = factories.IssueFactory(backend_id=backend_id)
         support_user = factories.SupportUserFactory(backend_id="support")
         return backend_id, issue, support_user
@@ -157,7 +157,7 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_does_not_create_issue(self):
         # arrange
-        backend_id = "Santa"
+        backend_id = "SNT-102"
         reporter = factories.SupportUserFactory(backend_id=backend_id)
         self.assertEqual(models.Issue.objects.count(), 0)
 
