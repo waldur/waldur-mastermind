@@ -54,8 +54,8 @@ class JiraBackendError(SupportBackendError):
 
 
 class JiraBackend(SupportBackend):
-    credentials = settings.WALDUR_SUPPORT.get("CREDENTIALS", {})
-    project_details = settings.WALDUR_SUPPORT.get("PROJECT", {})
+    credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
+    project_details = settings.WALDUR_SUPPORT.get('PROJECT', {})
 
     def reraise_exceptions(func):
         @functools.wraps(func)
@@ -70,40 +70,40 @@ class JiraBackend(SupportBackend):
     @reraise_exceptions
     def manager(self):
         # manager will be the same for all issues - we can cache it on the class level.
-        if not hasattr(self.__class__, "_manager"):
+        if not hasattr(self.__class__, '_manager'):
             self.__class__._manager = JIRA(
-                server=self.credentials["server"],
-                options={"verify": self.credentials["verify_ssl"]},
-                basic_auth=(self.credentials["username"], self.credentials["password"]),
+                server=self.credentials['server'],
+                options={'verify': self.credentials['verify_ssl']},
+                basic_auth=(self.credentials['username'], self.credentials['password']),
                 validate=False)
         return self.__class__._manager
 
     @reraise_exceptions
     def _get_field_id_by_name(self, field_name):
-        if not hasattr(self.__class__, "_fields"):
+        if not hasattr(self.__class__, '_fields'):
             self.__class__._fields = self.manager.fields()
         try:
-            return next(f["id"] for f in self.__class__._fields if field_name in f["clauseNames"])
+            return next(f['id'] for f in self.__class__._fields if field_name in f['clauseNames'])
         except StopIteration:
-            return JiraBackendError("Field '{0}' does not exist in JIRA.".format(field_name))
+            return JiraBackendError('Field "{0}" does not exist in JIRA.'.format(field_name))
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
         caller_name = issue.caller.full_name or issue.caller.username
         args = {
-            "project": self.project_details["key"],
-            "summary": issue.summary,
-            "description": issue.description,
-            "issuetype": {"name": issue.type},
-            self._get_field_id_by_name(self.project_details["caller_field"]): caller_name,
+            'project': self.project_details['key'],
+            'summary': issue.summary,
+            'description': issue.description,
+            'issuetype': {'name': issue.type},
+            self._get_field_id_by_name(self.project_details['caller_field']): caller_name,
         }
         if issue.reporter:
-            args[self._get_field_id_by_name(self.project_details["reporter_field"])] = issue.reporter.name
-            # args["reporter"] = {"name": issue.reporter.name}
+            args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
+            # args['reporter'] = {'name': issue.reporter.name}
         if issue.impact:
-            args[self._get_field_id_by_name(self.project_details["impact_field"])] = issue.impact
+            args[self._get_field_id_by_name(self.project_details['impact_field'])] = issue.impact
         if issue.priority:
-            args["priority"] = {"name": issue.priority}
+            args['priority'] = {'name': issue.priority}
         return args
 
     @reraise_exceptions
@@ -113,8 +113,8 @@ class JiraBackend(SupportBackend):
             self.manager.assign_issue(backend_issue.key, issue.assignee.backend_id)
         issue.key = backend_issue.key
         issue.backend_id = backend_issue.key
-        issue.resolution = backend_issue.fields.resolution or ""
-        issue.status = backend_issue.fields.status.name or ""
+        issue.resolution = backend_issue.fields.resolution or ''
+        issue.status = backend_issue.fields.status.name or ''
         issue.link = backend_issue.permalink()
         issue.priority = backend_issue.fields.priority.name
         issue.save()
@@ -136,7 +136,7 @@ class JiraBackend(SupportBackend):
     def create_comment(self, comment):
         backend_comment = self.manager.add_comment(comment.issue.backend_id, self._prepare_comment_message(comment))
         comment.backend_id = backend_comment.id
-        comment.save(update_fields=["backend_id"])
+        comment.save(update_fields=['backend_id'])
 
     @reraise_exceptions
     def update_comment(self, comment):
@@ -150,7 +150,7 @@ class JiraBackend(SupportBackend):
 
     @reraise_exceptions
     def get_users(self):
-        users = self.manager.search_assignable_users_for_projects("", self.project_details["key"], maxResults=False)
+        users = self.manager.search_assignable_users_for_projects('', self.project_details['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
 
 
@@ -163,15 +163,15 @@ class ServiceDeskBackend(JiraBackend):
             is_internal=comment.is_public,
         )
         comment.backend_id = backend_comment.id
-        comment.save(update_fields=["backend_id"])
+        comment.save(update_fields=['backend_id'])
 
     def _add_comment(self, issue, body, is_internal):
         data = {
-            "body": body,
-            "properties": [{"key": "sd.public.comment", "value": {"internal": is_internal}}, ]
+            'body': body,
+            'properties': [{'key': 'sd.public.comment', 'value': {'internal': is_internal}}, ]
         }
 
-        url = self.manager._get_url("issue/{0}/comment".format(issue))
+        url = self.manager._get_url('issue/{0}/comment'.format(issue))
         r = self.manager._session.post(
             url, data=json.dumps(data))
 
