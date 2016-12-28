@@ -20,11 +20,17 @@ class TestJiraWebHooks(APITestCase):
         self.UPDATED = 'jira:issue_updated'
         self.DELETED = 'jira:issue_deleted'
 
+    def set_issue_and_support_user(self):
+        backend_id = "Santa"
+        issue = factories.IssueFactory(backend_id=backend_id)
+        support_user = factories.SupportUserFactory(backend_id="support")
+        return backend_id, issue, support_user
+
+
     def test_issue_update_callback_updates_issue_summary(self):
         # arrange
         expected_summary = "Happy New Year"
-        backend_id = "Santa"
-        issue = factories.IssueFactory(backend_id=backend_id)
+        backend_id, issue, _ = self.set_issue_and_support_user()
         self.assertNotEquals(issue.summary, expected_summary)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
@@ -42,10 +48,7 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_updates_issue_assignee(self):
         # arrange
-        backend_id = "Santa"
-        issue = factories.IssueFactory(backend_id=backend_id)
-        self.assertIsNone(issue.assignee)
-        assignee = factories.SupportUserFactory(backend_id="Klaus")
+        backend_id, issue, assignee = self.set_issue_and_support_user()
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
@@ -64,9 +67,7 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_updates_issue_reporter(self):
         # arrange
-        backend_id = "Happy New Year"
-        issue = factories.IssueFactory(backend_id=backend_id)
-        factories.SupportUserFactory(backend_id=backend_id)
+        backend_id, issue, _ = self.set_issue_and_support_user()
         reporter = factories.SupportUserFactory(backend_id="Tiffany")
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
@@ -86,8 +87,7 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_creates_a_comment(self):
         # arrange
-        backend_id = "Happy New Year"
-        issue = factories.IssueFactory(backend_id=backend_id)
+        backend_id, issue, _ = self.set_issue_and_support_user()
         factories.SupportUserFactory(backend_id=backend_id)
         self.assertEqual(issue.comments.count(), 0)
 
@@ -106,11 +106,9 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_updates_a_comment(self):
         # arrange
-        backend_id = "Happy New Year"
+        backend_id, issue, _ = self.set_issue_and_support_user()
         expected_comment_body = "Merry Christmas"
-        issue = factories.IssueFactory(backend_id=backend_id)
         comment = factories.CommentFactory(issue=issue)
-        factories.SupportUserFactory(backend_id=backend_id)
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
@@ -130,10 +128,8 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_creates_deletes_two_comments(self):
         # arrange
-        backend_id = "Santa"
+        backend_id, issue, _ = self.set_issue_and_support_user()
         initial_number_of_comments = 2
-        issue = factories.IssueFactory(backend_id=backend_id)
-        factories.SupportUserFactory(backend_id=backend_id)
         factories.CommentFactory.create_batch(initial_number_of_comments, issue=issue)
         self.assertEqual(issue.comments.count(), initial_number_of_comments)
 
@@ -155,9 +151,7 @@ class TestJiraWebHooks(APITestCase):
         # arrange
         impact_field = settings.WALDUR_SUPPORT["PROJECT"]["impact_field"]
         impact_field_value = 'Custom Value'
-        backend_id = "Santa"
-        issue = factories.IssueFactory(backend_id=backend_id)
-        factories.SupportUserFactory(backend_id=backend_id)
+        backend_id, issue, _ = self.set_issue_and_support_user()
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
@@ -193,9 +187,7 @@ class TestJiraWebHooks(APITestCase):
     def test_issue_update_callback_updates_issue_caller(self):
         # arrange
         expected_summary = "Happy New Year"
-        backend_id = "Santa"
-        issue = factories.IssueFactory(backend_id=backend_id)
-        support_user = factories.SupportUserFactory(backend_id="support")
+        backend_id, issue, support_user = self.set_issue_and_support_user()
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
@@ -212,9 +204,7 @@ class TestJiraWebHooks(APITestCase):
 
     def test_issue_update_callback_updates_first_response_sla(self):
         # arrange
-        backend_id = "Santa"
-        issue = factories.IssueFactory(backend_id=backend_id)
-        support_user = factories.SupportUserFactory(backend_id="support")
+        backend_id, issue, support_user = self.set_issue_and_support_user()
 
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         request_data = json.loads(jira_request)
