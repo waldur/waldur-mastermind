@@ -187,7 +187,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         link = self.initial_data['issue']['self']
 
         event_type = self.initial_data['webhookEvent']
-
         if event_type == self.EventType.UPDATED:
             try:
                 issue = models.Issue.objects.get(backend_id=backend_id)
@@ -219,7 +218,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
         reporter = self._get_support_user_by_field_name(field_name='reporter', fields=fields)
         if reporter:
             issue.reporter = reporter
-            issue.caller = reporter.user
+            if reporter.user:
+                issue.caller = reporter.user
 
         if 'comment' in fields:
             self._update_comments(issue=issue, fields=fields)
@@ -270,7 +270,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
 
-        if field_name in fields:
+        if field_name in fields and fields[field_name]:
             support_user_backend_key = fields[field_name]['key']
 
             if support_user_backend_key:
