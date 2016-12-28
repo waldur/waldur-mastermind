@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import functools
 import json
 
@@ -12,7 +13,7 @@ __all__ = ["get_active_backend"]
 
 
 def get_active_backend():
-    return globals()[settings.WALDUR_SUPPORT["ACTIVE_BACKEND"]]()
+    return globals()[settings.WALDUR_SUPPORT['ACTIVE_BACKEND']]()
 
 
 class SupportBackendError(Exception):
@@ -162,7 +163,7 @@ class ServiceDeskBackend(JiraBackend):
             is_internal=comment.is_public,
         )
         comment.backend_id = backend_comment.id
-        comment.save(update_fields=["backend_id", ])
+        comment.save(update_fields=["backend_id"])
 
     def _add_comment(self, issue, body, is_internal):
         data = {
@@ -170,7 +171,7 @@ class ServiceDeskBackend(JiraBackend):
             "properties": [{"key": "sd.public.comment", "value": {"internal": is_internal}}, ]
         }
 
-        url = self.manager._get_url("issue/" + str(issue) + "/comment")
+        url = self.manager._get_url("issue/{0}/comment".format(issue))
         r = self.manager._session.post(
             url, data=json.dumps(data))
 
