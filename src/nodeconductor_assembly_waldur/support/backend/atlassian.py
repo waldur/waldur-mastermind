@@ -1,47 +1,14 @@
+from __future__ import unicode_literals
 import functools
+import json
 
 from django.conf import settings
 from django.utils import six
-from jira import JIRA, JIRAError
+from jira import JIRA, JIRAError, Comment
+from jira.utils import json_loads
 
-from . import models
-
-
-def get_active_backend():
-    return globals()[settings.WALDUR_SUPPORT['ACTIVE_BACKEND']]()
-
-
-class SupportBackendError(Exception):
-    pass
-
-
-class SupportBackend(object):
-    """ Interface for support backend """
-    def create_issue(self, issue):
-        pass
-
-    def update_issue(self, issue):
-        pass
-
-    def delete_issue(self, issue):
-        pass
-
-    def create_comment(self, comment):
-        pass
-
-    def update_comment(self, comment):
-        pass
-
-    def delete_comment(self, comment):
-        pass
-
-    def get_users(self):
-        """
-        This method should return all users that are related to support project on backend.
-
-        Each user should be represented as not saved SupportUser instance.
-        """
-        pass
+from nodeconductor_assembly_waldur.support import models
+from nodeconductor_assembly_waldur.support.backend import SupportBackendError, SupportBackend
 
 
 class JiraBackendError(SupportBackendError):
@@ -80,7 +47,7 @@ class JiraBackend(SupportBackend):
         try:
             return next(f['id'] for f in self.__class__._fields if field_name in f['clauseNames'])
         except StopIteration:
-            return JiraBackendError('Field "%s" does not exist in JIRA.' % field_name)
+            return JiraBackendError('Field "{0}" does not exist in JIRA.'.format(field_name))
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
@@ -147,3 +114,28 @@ class JiraBackend(SupportBackend):
     def get_users(self):
         users = self.manager.search_assignable_users_for_projects('', self.project_details['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
+
+
+class ServiceDeskBackend(JiraBackend):
+
+    def create_comment(self, comment):
+        backend_comment = self._add_comment(
+            comment.issue.backend_id,
+            self._prepare_comment_message(comment),
+            is_internal=comment.is_public,
+        )
+        comment.backend_id = backend_comment.id
+        comment.save(update_fields=['backend_id'])
+
+    def _add_comment(self, issue, body, is_internal):
+        data = {
+            'body': body,
+            'properties': [{'key': 'sd.public.comment', 'value': {'internal': is_internal}}, ]
+        }
+
+        url = self.manager._get_url('issue/{0}/comment'.format(issue))
+        r = self.manager._session.post(
+            url, data=json.dumps(data))
+
+        comment = Comment(self._options, self._session, raw=json_loads(r))
+        return comment
