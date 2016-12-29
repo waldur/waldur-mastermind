@@ -1,10 +1,11 @@
 from __future__ import unicode_literals
+from calendar import monthrange
 
 from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
 
-from . import models, log, utils
+from . import models, log
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
@@ -28,16 +29,22 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
             previous_openstack_item = invoice.openstack_items.exclude(package=instance).filter(end=now).first()
             if previous_openstack_item:
                 # TODO [TM:12/29/16] Check if it is end of the month
+                first_day_in_month = now.day == monthrange(now.year, now.month)[0]
+                last_day_in_month = now.day == monthrange(now.year, now.month)[1]
 
                 new_price_per_day = item.get_price_per_day()
                 old_price_per_day = previous_openstack_item.get_price_per_day()
+                previous_rate_duration = previous_openstack_item.duration_in_days()
+                new_rate_duration = item.duration_in_days()
 
                 if new_price_per_day > old_price_per_day:
                     previous_openstack_item.end = now - timezone.timedelta(days=1)
                     previous_openstack_item.price = old_price_per_day * previous_openstack_item.duration_in_days()
                     previous_openstack_item.save()
                 else:
-                    item.start = now + timezone.timedelta(days=1)
+                    new_start_date = now + timezone.timedelta(days=1)
+                    item.start = new_start_date
+                    item.end = core_utils.month_end(new_start_date)
                     item.recalculate_price(item.start)
     else:
         item = invoice.openstack_items.get(package=instance)
