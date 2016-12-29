@@ -1,9 +1,17 @@
-from rest_framework import test, status
-
 from ddt import ddt, data
 
+from django.db.models import signals
+from django.utils import timezone
+from freezegun import freeze_time
+from rest_framework import test, status
+
+from nodeconductor_assembly_waldur.packages import models as packages_models
+from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
+
 from . import factories, fixtures
+from .. import handlers
 from .. import models
+from .. import utils
 
 
 @ddt
@@ -68,3 +76,58 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         return {
             'link_template': 'http://example.com/invoice/{uuid}',
         }
+
+
+class InvoiceTotalPriceUpdateTest(test.APITestCase):
+
+    def setUp(self):
+        signals.pre_delete.disconnect(
+            receiver=handlers.update_invoice_on_openstack_package_deletion,
+            sender=packages_models.OpenStackPackage,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_on_openstack_package_deletion')
+
+    @freeze_time("2016-10-14")
+    def test_package_creation_does_not_increase_price_from_old_package_if_it_is_cheaper(self):
+
+        # arrange
+        base_component_price = 10
+        advanced_component_price = base_component_price + 5
+        day_before_package_changed = timezone.now() + timezone.timedelta(days=5)
+        day_to_change_package = day_before_package_changed + timezone.timedelta(days=1)
+
+        # set up base package
+        base_package_template = packages_factories.PackageTemplateFactory()
+        first_component = base_package_template.components.first()
+        first_component.price = base_component_price
+        first_component.amount = 1
+        first_component.save()
+        old_package = packages_factories.OpenStackPackageFactory(template=base_package_template)
+        self.assertEqual(models.OpenStackItem.objects.count(), 1)
+        old_item = models.OpenStackItem.objects.first()
+        old_item.freeze(end=day_to_change_package, package_deletion=True)
+        old_package.delete()
+
+        # advanced package
+        advanced_package_template = packages_factories.PackageTemplateFactory(name="second")
+        advanced_component = advanced_package_template.components.first()
+        advanced_component.price = advanced_component_price
+        advanced_component.amount = 1
+        advanced_component.save()
+
+        with freeze_time(time_to_freeze=day_to_change_package):
+            packages_factories.OpenStackPackageFactory(template=advanced_package_template)
+        new_item = models.OpenStackItem.objects.exclude(pk=old_item.pk).first()
+
+        expected_price = models.OpenStackItem.calculate_price_for_period(
+            price=old_item.package.template.price,
+            start=timezone.now(),
+            end=day_before_package_changed
+        ) + models.OpenStackItem.calculate_price_for_period(
+            price=new_item.package.template.price,
+            start=day_to_change_package,
+            end=utils.get_current_month_end()
+        )
+
+        # assert
+        invoices_price = reduce(lambda previous, invoice: previous + invoice.price, models.Invoice.objects.all(), 0)
+        self.assertEqual(expected_price, invoices_price)
