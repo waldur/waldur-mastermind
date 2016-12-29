@@ -19,6 +19,7 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
         month=now.month,
         year=now.year,
     )
+
     if not created:
         end = core_utils.month_end(now)
         models.OpenStackItem.objects.create_with_price(invoice=invoice, package=instance,
@@ -47,6 +48,7 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
                     item.end = core_utils.month_end(new_start_date)
                     item.recalculate_price(item.start)
     else:
+        # TODO [TM:12/29/16] if start of the month - > check if in any invoice has been created in previous month
         item = invoice.openstack_items.get(package=instance)
         item.recalculate_price(now)
 
