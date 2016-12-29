@@ -184,6 +184,12 @@ class OpenStackItem(models.Model):
         self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
         self.save(update_fields=['start', 'price'])
 
+    def get_price_per_day(self):
+        return self.price / self.duration_in_days()
+
+    def duration_in_days(self):
+        return utils.get_full_days(self.start, self.end)
+
     def __str__(self):
         return self.name
 

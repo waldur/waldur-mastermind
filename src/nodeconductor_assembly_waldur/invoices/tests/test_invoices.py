@@ -1,3 +1,4 @@
+from decimal import Decimal
 from ddt import ddt, data
 
 from django.db.models import signals
@@ -105,29 +106,32 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         self.assertEqual(models.OpenStackItem.objects.count(), 1)
         old_item = models.OpenStackItem.objects.first()
         old_item.freeze(end=day_to_change_package, package_deletion=True)
+        customer = old_package.tenant.service_project_link.project.customer
         old_package.delete()
 
         # advanced package
-        advanced_package_template = packages_factories.PackageTemplateFactory(name="second")
+        advanced_package_template = packages_factories.PackageTemplateFactory()
         advanced_component = advanced_package_template.components.first()
         advanced_component.price = advanced_component_price
         advanced_component.amount = 1
         advanced_component.save()
 
         with freeze_time(time_to_freeze=day_to_change_package):
-            packages_factories.OpenStackPackageFactory(template=advanced_package_template)
-        new_item = models.OpenStackItem.objects.exclude(pk=old_item.pk).first()
+            packages_factories.OpenStackPackageFactory(
+                template=advanced_package_template,
+                tenant__service_project_link__project__customer=customer,
+            )
 
         expected_price = models.OpenStackItem.calculate_price_for_period(
-            price=old_item.package.template.price,
+            price=base_component_price,
             start=timezone.now(),
             end=day_before_package_changed
         ) + models.OpenStackItem.calculate_price_for_period(
-            price=new_item.package.template.price,
+            price=advanced_component_price,
             start=day_to_change_package,
             end=utils.get_current_month_end()
         )
 
         # assert
         invoices_price = reduce(lambda previous, invoice: previous + invoice.price, models.Invoice.objects.all(), 0)
-        self.assertEqual(expected_price, invoices_price)
+        self.assertEqual(Decimal(expected_price), invoices_price)
