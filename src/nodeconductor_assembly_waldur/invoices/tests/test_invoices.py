@@ -245,7 +245,7 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         advanced_component_price = base_component_price - 5
         day_before_package_changed = timezone.now() + timezone.timedelta(days=7)
 
-        # day to change package is 28th February 2014
+        # day to change package is 1st of March
         day_to_change_package = day_before_package_changed + timezone.timedelta(days=1)
 
         # set up base package
@@ -296,7 +296,7 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         advanced_component_price = base_component_price + 5
         day_before_package_changed = timezone.now() + timezone.timedelta(days=8)
 
-        # day to change package is 28th February 2014
+        # day to change package is 1st of March
         day_to_change_package = day_before_package_changed + timezone.timedelta(days=1)
 
         # set up base package
@@ -334,5 +334,107 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         # assert
         invoices_price = reduce(lambda previous, invoice: previous + invoice.price,
                                 models.Invoice.objects.filter(month=day_to_change_package.month).all(), 0)
+        self.assertEqual(Decimal(expected_price), invoices_price)
+
+    @freeze_time("2014-2-26")
+    def test_package_creation_does_not_increase_price_for_cheaper_1_day_long_old_package_in_the_end_of_the_month(self):
+
+        # arrange
+        base_component_price = 5
+        advanced_component_price = base_component_price + 5
+        day_before_package_changed = timezone.now() + timezone.timedelta(days=1)
+
+        # day to change package is 28th of February
+        day_to_change_package = day_before_package_changed + timezone.timedelta(days=1)
+
+        # set up base package
+        base_package_template = packages_factories.PackageTemplateFactory()
+        first_component = base_package_template.components.first()
+        first_component.price = base_component_price
+        first_component.amount = 1
+        first_component.save()
+        old_package = packages_factories.OpenStackPackageFactory(template=base_package_template)
+        self.assertEqual(models.OpenStackItem.objects.count(), 1)
+        old_item = models.OpenStackItem.objects.first()
+        old_item.freeze(end=day_to_change_package, package_deletion=True)
+        customer = old_package.tenant.service_project_link.project.customer
+        old_package.delete()
+
+        # advanced package
+        advanced_package_template = packages_factories.PackageTemplateFactory()
+        advanced_component = advanced_package_template.components.first()
+        advanced_component.price = advanced_component_price
+        advanced_component.amount = 1
+        advanced_component.save()
+
+        with freeze_time(time_to_freeze=day_to_change_package):
+            packages_factories.OpenStackPackageFactory(
+                template=advanced_package_template,
+                tenant__service_project_link__project__customer=customer,
+            )
+
+        expected_price = models.OpenStackItem.calculate_price_for_period(
+            price=base_component_price,
+            start=timezone.now(),
+            end=day_before_package_changed
+        ) + models.OpenStackItem.calculate_price_for_period(
+            price=advanced_component_price,
+            start=day_to_change_package,
+            end=utils.get_current_month_end(),
+        )
+
+        # assert
+        invoices_price = reduce(lambda previous, invoice: previous + invoice.price, models.Invoice.objects.all(), 0)
+        self.assertEqual(Decimal(expected_price), invoices_price)
+
+    @freeze_time("2014-2-28")
+    def test_package_creation_does_not_increase_price_for_cheaper_1_day_long_old_package_in_the_same_day(self):
+
+        # arrange
+        base_component_price = 10
+        advanced_component_price = base_component_price + 5
+        day_before_package_changed = timezone.now()
+
+        # day to change package is 28th of February
+        day_to_change_package = day_before_package_changed
+
+        # set up base package
+        base_package_template = packages_factories.PackageTemplateFactory()
+        first_component = base_package_template.components.first()
+        first_component.price = base_component_price
+        first_component.amount = 1
+        first_component.save()
+        old_package = packages_factories.OpenStackPackageFactory(template=base_package_template)
+        self.assertEqual(models.OpenStackItem.objects.count(), 1)
+        old_item = models.OpenStackItem.objects.first()
+        old_item.freeze(end=day_to_change_package, package_deletion=True)
+        customer = old_package.tenant.service_project_link.project.customer
+        old_package.delete()
+
+        # advanced package
+        advanced_package_template = packages_factories.PackageTemplateFactory()
+        advanced_component = advanced_package_template.components.first()
+        advanced_component.price = advanced_component_price
+        advanced_component.amount = 1
+        advanced_component.save()
+
+        with freeze_time(time_to_freeze=day_to_change_package):
+            packages_factories.OpenStackPackageFactory(
+                template=advanced_package_template,
+                tenant__service_project_link__project__customer=customer,
+            )
+
+        expected_price = models.OpenStackItem.calculate_price_for_period(
+            price=base_component_price,
+            start=timezone.now(),
+            end=day_before_package_changed
+        ) + models.OpenStackItem.calculate_price_for_period(
+            price=advanced_component_price,
+            start=day_to_change_package,
+            end=utils.get_current_month_end(),
+        )
+
+        # assert
+        invoices_price = reduce(lambda previous, invoice: previous + invoice.price, models.Invoice.objects.all(), 0)
         self.assertEqual(Decimal(expected_price), invoices_price)
 
