@@ -152,6 +152,20 @@ class OpenStackItem(models.Model):
 
         return full_days
 
+    def shift_backward_end_date(self, days=1):
+        if self.end == self.start:
+            return
+
+        old_daily_price = self.daily_price
+        self.end -= timezone.timedelta(days=1)
+        self.price = old_daily_price * self.usage_days
+        self.save()
+
+    def shift_forward_start_date(self):
+        self.start += timezone.timedelta(days=1)
+        self.end = utils.core_utils.month_end(self.start)
+        self.recalculate_price(self.start)
+
     @staticmethod
     def calculate_price_for_period(price, start, end):
         """ Calculates price from "start" till "end" """

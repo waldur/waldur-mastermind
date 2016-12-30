@@ -28,22 +28,13 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
             end=end
         )
 
-        invoice.refresh_from_db()
         if invoice.openstack_items.count() > 1:
             previous_openstack_item = invoice.openstack_items.exclude(package=instance).filter(end=now).first()
             if previous_openstack_item:
-
-                # cache previous daily price
-                previous_openstack_item_daily_price = previous_openstack_item.daily_price
-                if item.daily_price > previous_openstack_item_daily_price:
-                    previous_openstack_item.end = now - timezone.timedelta(days=1)
-                    previous_openstack_item.price = previous_openstack_item_daily_price * previous_openstack_item.usage_days
-                    previous_openstack_item.save()
+                if item.daily_price > previous_openstack_item.daily_price:
+                    previous_openstack_item.shift_backward_end_date()
                 else:
-                    new_start_date = now + timezone.timedelta(days=1)
-                    item.start = new_start_date
-                    item.end = core_utils.month_end(new_start_date)
-                    item.recalculate_price(item.start)
+                    item.shift_forward_start_date()
     else:
         item = invoice.openstack_items.get(package=instance)
         item.recalculate_price(now)
