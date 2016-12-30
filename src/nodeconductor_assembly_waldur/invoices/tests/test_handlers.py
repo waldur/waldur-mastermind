@@ -20,6 +20,12 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         first_component.save()
         return template
 
+    def create_package(self, component_price, time_to_freeze):
+        with freeze_time(time_to_freeze):
+            template = self.create_package_template(single_component_price=component_price)
+            package = packages_factories.OpenStackPackageFactory(template=template)
+            return package
+
     def test_package_creation_does_not_increase_price_from_old_package_if_it_is_cheaper(self):
         # arrange
         old_component_price = 10
@@ -27,11 +33,8 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         start_date = timezone.datetime(2014, 2, 14, tzinfo=pytz.UTC)
         package_change_date = timezone.datetime(2014, 2, 20, tzinfo=pytz.UTC)
 
-        with freeze_time(start_date):
-            base_template = self.create_package_template(single_component_price=old_component_price)
-            old_package = packages_factories.OpenStackPackageFactory(template=base_template)
-            self.assertEqual(models.OpenStackItem.objects.count(), 1)
-            customer = old_package.tenant.service_project_link.project.customer
+        old_package = self.create_package(component_price=old_component_price, time_to_freeze=start_date)
+        customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
@@ -68,12 +71,8 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         new_component_price = old_component_price - 5
         start_date = timezone.datetime(2014, 2, 14, tzinfo=pytz.UTC)
         package_change_date = timezone.datetime(2014, 2, 20, tzinfo=pytz.UTC)
-
-        with freeze_time(start_date):
-            base_template = self.create_package_template(single_component_price=old_component_price)
-            old_package = packages_factories.OpenStackPackageFactory(template=base_template)
-            self.assertEqual(models.OpenStackItem.objects.count(), 1)
-            customer = old_package.tenant.service_project_link.project.customer
+        old_package = self.create_package(component_price=old_component_price, time_to_freeze=start_date)
+        customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
@@ -111,12 +110,8 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         new_component_price = old_component_price + 5
         start_date = timezone.datetime(2014, 2, 20, tzinfo=pytz.UTC)
         package_change_date = timezone.datetime(2014, 2, 28, tzinfo=pytz.UTC)
-
-        with freeze_time(start_date):
-            base_template = self.create_package_template(single_component_price=old_component_price)
-            old_package = packages_factories.OpenStackPackageFactory(template=base_template)
-            self.assertEqual(models.OpenStackItem.objects.count(), 1)
-            customer = old_package.tenant.service_project_link.project.customer
+        old_package = self.create_package(component_price=old_component_price, time_to_freeze=start_date)
+        customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
@@ -153,12 +148,8 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         new_component_price = old_component_price - 5
         start_date = timezone.datetime(2014, 2, 20, tzinfo=pytz.UTC)
         package_change_date = timezone.datetime(2014, 2, 28, tzinfo=pytz.UTC)
-
-        with freeze_time(start_date):
-            base_template = self.create_package_template(single_component_price=old_component_price)
-            old_package = packages_factories.OpenStackPackageFactory(template=base_template)
-            self.assertEqual(models.OpenStackItem.objects.count(), 1)
-            customer = old_package.tenant.service_project_link.project.customer
+        old_package = self.create_package(component_price=old_component_price, time_to_freeze=start_date)
+        customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
@@ -196,12 +187,8 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         new_component_price = old_component_price + 5
         start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
         package_change_date = timezone.datetime(2014, 2, 28, tzinfo=pytz.UTC)
-
-        with freeze_time(start_date):
-            base_template = self.create_package_template(single_component_price=old_component_price)
-            old_package = packages_factories.OpenStackPackageFactory(template=base_template)
-            self.assertEqual(models.OpenStackItem.objects.count(), 1)
-            customer = old_package.tenant.service_project_link.project.customer
+        old_package = self.create_package(component_price=old_component_price, time_to_freeze=start_date)
+        customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
@@ -239,12 +226,8 @@ class InvoiceTotalPriceUpdateTest(test.APITestCase):
         new_component_price = old_component_price + 5
         start_date = timezone.datetime(2014, 2, 26, tzinfo=pytz.UTC)
         package_change_date = start_date
-
-        with freeze_time(start_date):
-            base_template = self.create_package_template(single_component_price=old_component_price)
-            old_package = packages_factories.OpenStackPackageFactory(template=base_template)
-            self.assertEqual(models.OpenStackItem.objects.count(), 1)
-            customer = old_package.tenant.service_project_link.project.customer
+        old_package = self.create_package(component_price=old_component_price, time_to_freeze=start_date)
+        customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
