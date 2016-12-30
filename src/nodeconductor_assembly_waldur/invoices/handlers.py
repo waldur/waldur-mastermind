@@ -21,19 +21,23 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
 
     if not created:
         end = core_utils.month_end(now)
-        models.OpenStackItem.objects.create_with_price(invoice=invoice, package=instance,
-                                                       start=now, end=end)
+        item = models.OpenStackItem.objects.create_with_price(
+            invoice=invoice,
+            package=instance,
+            start=now,
+            end=end
+        )
+
         invoice.refresh_from_db()
-        if invoice.openstack_items.count > 1:
-            item = invoice.openstack_items.get(package=instance)
+        if invoice.openstack_items.count() > 1:
             previous_openstack_item = invoice.openstack_items.exclude(package=instance).filter(end=now).first()
             if previous_openstack_item:
-                new_price_per_day = item.get_price_per_day()
-                old_price_per_day = previous_openstack_item.get_price_per_day()
 
-                if new_price_per_day > old_price_per_day:
+                # cache previous daily price
+                previous_openstack_item_daily_price = previous_openstack_item.daily_price
+                if item.daily_price > previous_openstack_item_daily_price:
                     previous_openstack_item.end = now - timezone.timedelta(days=1)
-                    previous_openstack_item.price = old_price_per_day * previous_openstack_item.duration_in_days()
+                    previous_openstack_item.price = previous_openstack_item_daily_price * previous_openstack_item.usage_days
                     previous_openstack_item.save()
                 else:
                     new_start_date = now + timezone.timedelta(days=1)
