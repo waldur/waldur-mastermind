@@ -137,8 +137,9 @@ class OpenStackItem(models.Model):
     def daily_price(self):
         """ Returns the price of OpenStack item per day """
         full_days = utils.get_full_days(self.start, self.end)
+        daily_price = self.total / full_days if full_days else 0
 
-        return self.total / full_days
+        return daily_price
 
     @property
     def usage_days(self):
@@ -150,6 +151,30 @@ class OpenStackItem(models.Model):
         full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
 
         return full_days
+
+    def shift_backward_end_date(self, days=1):
+        """
+        Moves "end" date to N days before current "end" date value.
+        Price will be recalculated accordingly.
+        :param days: amount of days to move "end" date. Default one is 1.
+        """
+        if self.end == self.start:
+            return
+
+        old_daily_price = self.daily_price
+        self.end -= timezone.timedelta(days=days)
+        self.price = old_daily_price * self.usage_days
+        self.save()
+
+    def shift_forward_start_date(self, days=1):
+        """
+        Moves "start" date to N days after current "start" date value.
+        Price will be recalculated accordingly.
+        :param days: amount of days to move "start" date. Default one is 1.
+        """
+        self.start += timezone.timedelta(days=days)
+        self.end = utils.core_utils.month_end(self.start)
+        self.recalculate_price(self.start)
 
     @staticmethod
     def calculate_price_for_period(price, start, end):

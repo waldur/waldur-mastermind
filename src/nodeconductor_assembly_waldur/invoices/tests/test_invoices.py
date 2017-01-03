@@ -1,6 +1,5 @@
-from rest_framework import test, status
-
 from ddt import ddt, data
+from rest_framework import test, status
 
 from . import factories, fixtures
 from .. import models
@@ -68,3 +67,4 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         return {
             'link_template': 'http://example.com/invoice/{uuid}',
         }
+
