@@ -153,16 +153,26 @@ class OpenStackItem(models.Model):
         return full_days
 
     def shift_backward_end_date(self, days=1):
+        """
+        Moves "end" date to N days before current "end" date value.
+        Price will be recalculated accordingly.
+        :param days: amount of days to move "end" date. Default one is 1.
+        """
         if self.end == self.start:
             return
 
         old_daily_price = self.daily_price
-        self.end -= timezone.timedelta(days=1)
+        self.end -= timezone.timedelta(days=days)
         self.price = old_daily_price * self.usage_days
         self.save()
 
-    def shift_forward_start_date(self):
-        self.start += timezone.timedelta(days=1)
+    def shift_forward_start_date(self, days=1):
+        """
+        Moves "start" date to N days after current "start" date value.
+        Price will be recalculated accordingly.
+        :param days: amount of days to move "start" date. Default one is 1.
+        """
+        self.start += timezone.timedelta(days=days)
         self.end = utils.core_utils.month_end(self.start)
         self.recalculate_price(self.start)
 
