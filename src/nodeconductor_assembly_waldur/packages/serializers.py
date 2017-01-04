@@ -38,7 +38,7 @@ def _check_template_service_settings(serializer, template):
     if template.service_settings.type != openstack_apps.OpenStackConfig.service_name:
         raise serializers.ValidationError('Template should be related to OpenStack service settings.')
     elif template.service_settings.state != structure_models.ServiceSettings.States.OK:
-        raise serializers.ValidationError("Template's settings must be in OK state.")
+        raise serializers.ValidationError('Template\'s settings must be in OK state.')
     return template
 
 
