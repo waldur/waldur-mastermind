@@ -5,6 +5,7 @@ from datetime import date
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db.models import Q
 from django.template.loader import render_to_string
 
 from . import models
@@ -24,9 +25,8 @@ def create_monthly_invoices_for_packages():
     today = date.today()
 
     old_invoices = models.Invoice.objects.filter(
-        state=models.Invoice.States.PENDING,
-        month__lt=today.month,
-        year__lte=today.year,
+        Q(state=models.Invoice.States.PENDING, year__lt=today.year) |
+        Q(state=models.Invoice.States.PENDING, year=today.year, month__lt=today.month)
     )
     for invoice in old_invoices:
         invoice.propagate(month=today.month, year=today.year)
