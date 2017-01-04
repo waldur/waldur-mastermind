@@ -123,8 +123,8 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
 
 
 class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
-    name = serializers.CharField(source='tenant.name', help_text='Tenant name.', read_only=True)
-    description = serializers.CharField(source='tenant.description', help_text='Tenant description.', read_only=True)
+    name = serializers.CharField(source='tenant.name', read_only=True)
+    description = serializers.CharField(source='tenant.description', read_only=True)
 
     class Meta(object):
         model = models.OpenStackPackage
