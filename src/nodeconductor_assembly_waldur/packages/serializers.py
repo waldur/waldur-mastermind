@@ -123,25 +123,15 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
 
 
 class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
-    name = serializers.CharField(source='tenant.name', help_text='Tenant name.')
-    description = serializers.CharField(source='tenant.description', help_text='Tenant description.')
-    user_username = serializers.CharField(
-        source='tenant.user_username',
-        help_text='Tenant user username. By default is generated as <tenant name> + "-user".')
-    user_password = serializers.CharField(
-        source='tenant.user_password',
-        help_text='Tenant user password. Leave blank if you want admin password to be auto-generated.')
-    availability_zone = serializers.CharField(
-        source='tenant.availability_zone',
-        help_text='Tenant availability zone.')
+    name = serializers.CharField(source='tenant.name', help_text='Tenant name.', read_only=True)
+    description = serializers.CharField(source='tenant.description', help_text='Tenant description.', read_only=True)
 
     class Meta(object):
         model = models.OpenStackPackage
         fields = ('url', 'uuid', 'name', 'description', 'template',
                   'user_username', 'user_password', 'availability_zone', 'tenant', 'service_settings',)
-        view_name = 'openstack-package-detail'
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            'url': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
             'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail'},
             'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
             'service_settings': {'lookup_field': 'uuid', 'read_only': True},
