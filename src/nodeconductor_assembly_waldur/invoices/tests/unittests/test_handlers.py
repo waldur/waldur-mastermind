@@ -6,7 +6,7 @@ from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from mock import patch, Mock
+from mock import Mock
 
 from nodeconductor.core import utils as core_utils
 
