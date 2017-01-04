@@ -128,11 +128,10 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
         model = models.OpenStackPackage
-        fields = ('url', 'uuid', 'name', 'description', 'template',
-                  'user_username', 'user_password', 'availability_zone', 'tenant', 'service_settings',)
+        fields = ('url', 'uuid', 'name', 'description', 'template', 'tenant', 'service_settings',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
-            'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail'},
+            'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail', 'read_only': True},
             'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
             'service_settings': {'lookup_field': 'uuid', 'read_only': True},
         }
