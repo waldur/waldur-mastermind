@@ -2,11 +2,15 @@ import datetime
 from decimal import Decimal
 import pytz
 
+from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
+from mock import patch, Mock
 
 from nodeconductor.core import utils as core_utils
+
+from nodeconductor_assembly_waldur.packages.models import OpenStackPackage
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
 
 from .. import factories, fixtures
@@ -42,6 +46,14 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
             hours = 24 * ((end - start).days + 1)
             expected_total = hours * package.template.price
             self.assertEqual(invoice.total, expected_total)
+
+    def test_invoice_update_handler_is_called_once_on_tenant_deletion(self):
+        mocked_handler = Mock()
+        pre_delete.connect(mocked_handler, sender=OpenStackPackage, dispatch_uid='test_handler')
+
+        package = self.fixture.openstack_package
+        package.tenant.delete()
+        self.assertEqual(mocked_handler.call_count, 1)
 
 
 class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
