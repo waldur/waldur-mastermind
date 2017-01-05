@@ -23,7 +23,7 @@ class SupportExtension(NodeConductorExtension):
             },
             'ISSUE_TYPES': ['Informational', 'Service request', 'Change request', 'Incident'],
             'DEFAULT_ISSUE_TYPE': 'Informational',
-            'ACTIVE_BACKEND': 'JiraBackend',
+            'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
         }
 
     @staticmethod
