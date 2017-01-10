@@ -1,4 +1,6 @@
 from __future__ import unicode_literals
+
+from datetime import datetime
 import functools
 import json
 
@@ -79,7 +81,18 @@ class JiraBackend(SupportBackend):
         issue.status = backend_issue.fields.status.name or ''
         issue.link = backend_issue.permalink()
         issue.priority = backend_issue.fields.priority.name
+        issue.first_response_sla = self._get_first_sla_field(backend_issue)
         issue.save()
+
+    def _get_first_sla_field(self, backend_issue):
+        custom_field_names = [attr for attr in dir(backend_issue.fields) if attr.startswith('customfield')]
+        for name in custom_field_names:
+            value = getattr(backend_issue.fields, name, None)
+            if value and getattr(value, 'name', None) == 'Time to first response':
+                epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
+                if epoch_milliseconds:
+                    return datetime.fromtimestamp(epoch_milliseconds / 1000.0)
+
 
     @reraise_exceptions
     def update_issue(self, issue):
