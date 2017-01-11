@@ -53,7 +53,15 @@ class JiraBackend(SupportBackend):
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
-        args = self._get_issue_arguments(issue)
+        args = {
+            'project': self.project_details['key'],
+            'summary': issue.summary,
+            'description': issue.description,
+            'issuetype': {'name': issue.type},
+        }
+        caller = self._get_caller_key_value_pair(issue)
+        args.update(caller)
+
         if issue.reporter:
             args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
             # args['reporter'] = {'name': issue.reporter.name}
@@ -63,14 +71,10 @@ class JiraBackend(SupportBackend):
             args['priority'] = {'name': issue.priority}
         return args
 
-    def _get_issue_arguments(self, issue):
-        caller_name = issue.caller.full_name or issue.caller.username
+    def _get_caller_key_value_pair(self, issue):
+        caller = issue.caller.full_name or issue.caller.username
         return {
-            'project': self.project_details['key'],
-            'summary': issue.summary,
-            'description': issue.description,
-            'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.project_details['caller_field']): caller_name,
+            self._get_field_id_by_name(self.project_details['caller_field']): caller
         }
 
     @reraise_exceptions
@@ -141,25 +145,34 @@ class ServiceDeskBackend(JiraBackend):
         }
 
         url = self.manager._get_url('issue/{0}/comment'.format(issue))
-        r = self.manager._session.post(url, data=json.dumps(data))
+        response = self.manager._session.post(url, data=json.dumps(data))
 
-        comment = Comment(self._options, self._session, raw=json_loads(r))
+        comment = Comment(self._options, self._session, raw=json_loads(response))
         return comment
 
     @reraise_exceptions
     def create_issue(self, issue):
+        if not issue.caller.email:
+            return
+
         self._create_customer(issue.caller.email, issue.caller.full_name)
         super(ServiceDeskBackend, self).create_issue(issue)
 
-    def _get_issue_arguments(self, issue):
+    def _get_caller_key_value_pair(self, issue):
         return {
-            'project': self.project_details['key'],
-            'summary': issue.summary,
-            'description': issue.description,
-            'issuetype': {'name': issue.type},
+            self.project_details['caller_field']: [{
+                "name": issue.caller.email,
+                "key": issue.caller.email
+            }]
         }
 
     def _create_customer(self, email, full_name):
+        """
+        Creates customer in Jira Service Desk without assigning it to any particular service desk.
+        :param email: customer email
+        :param full_name: customer full name
+        :return: True if customer is created. False if user exists already.
+        """
         data = {
             "fullName": full_name,
             "email": email
@@ -170,5 +183,14 @@ class ServiceDeskBackend(JiraBackend):
         }
 
         url = "{host}rest/{path}/customer".format(host=self.credentials['server'], path=self.servicedeskapi_path)
-        self.manager._session.post(url, data=json.dumps(data), headers=headers)
+        try:
+            self.manager._session.post(url, data=json.dumps(data), headers=headers)
+        except JIRAError as e:
+            # TODO [TM:1/11/17] replace it with api call when such an ability is provided
+            if e.status_code == 400 and "already exists" in e.text:
+                return False
+            else:
+                raise e
+        else:
+            return True
 
