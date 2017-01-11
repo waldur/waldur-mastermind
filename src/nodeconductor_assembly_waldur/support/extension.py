@@ -20,7 +20,7 @@ class SupportExtension(NodeConductorExtension):
                 'key': 'PROJECT',
             },
             'ISSUE': {
-                'types': ['Informational', 'Service request', 'Change request', 'Incident'],
+                'types': ['Informational', 'Service Request', 'Change Request', 'Incident'],
                 'impact_field': 'Impact',
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
