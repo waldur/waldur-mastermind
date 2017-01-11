@@ -9,6 +9,7 @@ class SupportExtension(NodeConductorExtension):
 
     class Settings(object):
         WALDUR_SUPPORT = {
+            'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
             'CREDENTIALS': {
                 'server': 'http://example.com/',
                 'username': 'USERNAME',
@@ -17,13 +18,13 @@ class SupportExtension(NodeConductorExtension):
             },
             'PROJECT': {
                 'key': 'PROJECT',
+            },
+            'ISSUE': {
+                'types': ['Informational', 'Service request', 'Change request', 'Incident'],
                 'impact_field': 'Impact',
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
             },
-            'ISSUE_TYPES': ['Informational', 'Service request', 'Change request', 'Incident'],
-            'DEFAULT_ISSUE_TYPE': 'Informational',
-            'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
         }
 
     @staticmethod
