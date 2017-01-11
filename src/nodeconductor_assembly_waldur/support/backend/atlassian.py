@@ -15,18 +15,20 @@ class JiraBackendError(SupportBackendError):
     pass
 
 
+def reraise_exceptions(func):
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except JIRAError as e:
+            six.reraise(JiraBackendError, e)
+
+    return wrapped
+
+
 class JiraBackend(SupportBackend):
     credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
     project_details = settings.WALDUR_SUPPORT.get('PROJECT', {})
-
-    def reraise_exceptions(func):
-        @functools.wraps(func)
-        def wrapped(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except JIRAError as e:
-                six.reraise(JiraBackendError, e)
-        return wrapped
 
     @property
     @reraise_exceptions
@@ -51,14 +53,7 @@ class JiraBackend(SupportBackend):
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
-        caller_name = issue.caller.full_name or issue.caller.username
-        args = {
-            'project': self.project_details['key'],
-            'summary': issue.summary,
-            'description': issue.description,
-            'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.project_details['caller_field']): caller_name,
-        }
+        args = self._get_issue_arguments(issue)
         if issue.reporter:
             args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
             # args['reporter'] = {'name': issue.reporter.name}
@@ -67,6 +62,16 @@ class JiraBackend(SupportBackend):
         if issue.priority:
             args['priority'] = {'name': issue.priority}
         return args
+
+    def _get_issue_arguments(self, issue):
+        caller_name = issue.caller.full_name or issue.caller.username
+        return {
+            'project': self.project_details['key'],
+            'summary': issue.summary,
+            'description': issue.description,
+            'issuetype': {'name': issue.type},
+            self._get_field_id_by_name(self.project_details['caller_field']): caller_name,
+        }
 
     @reraise_exceptions
     def create_issue(self, issue):
@@ -117,7 +122,9 @@ class JiraBackend(SupportBackend):
 
 
 class ServiceDeskBackend(JiraBackend):
+    servicedeskapi_path = 'servicedeskapi'
 
+    @reraise_exceptions
     def create_comment(self, comment):
         backend_comment = self._add_comment(
             comment.issue.backend_id,
@@ -134,8 +141,34 @@ class ServiceDeskBackend(JiraBackend):
         }
 
         url = self.manager._get_url('issue/{0}/comment'.format(issue))
-        r = self.manager._session.post(
-            url, data=json.dumps(data))
+        r = self.manager._session.post(url, data=json.dumps(data))
 
         comment = Comment(self._options, self._session, raw=json_loads(r))
         return comment
+
+    @reraise_exceptions
+    def create_issue(self, issue):
+        self._create_customer(issue.caller.email, issue.caller.full_name)
+        super(ServiceDeskBackend, self).create_issue(issue)
+
+    def _get_issue_arguments(self, issue):
+        return {
+            'project': self.project_details['key'],
+            'summary': issue.summary,
+            'description': issue.description,
+            'issuetype': {'name': issue.type},
+        }
+
+    def _create_customer(self, email, full_name):
+        data = {
+            "fullName": full_name,
+            "email": email
+        }
+
+        headers = {
+            'X-ExperimentalApi': 'true',
+        }
+
+        url = "{host}rest/{path}/customer".format(host=self.credentials['server'], path=self.servicedeskapi_path)
+        self.manager._session.post(url, data=json.dumps(data), headers=headers)
+
