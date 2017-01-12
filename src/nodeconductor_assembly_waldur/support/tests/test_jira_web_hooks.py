@@ -29,7 +29,6 @@ class TestJiraWebHooks(APITestCase):
         support_user = factories.SupportUserFactory(backend_id='support')
         return backend_id, issue, support_user
 
-
     def test_issue_update_callback_updates_issue_summary(self):
         # arrange
         expected_summary = 'Happy New Year'
@@ -138,9 +137,8 @@ class TestJiraWebHooks(APITestCase):
         self.assertEqual(issue.comments.count(), expected_comments_count)
 
     def test_issue_update_callback_populates_impact_field(self):
-
         # arrange
-        impact_field = settings.WALDUR_SUPPORT['PROJECT']['impact_field']
+        impact_field = settings.WALDUR_SUPPORT['ISSUE']['impact_field']
         impact_field_value = 'Custom Value'
         backend_id, issue, _ = self.set_issue_and_support_user()
 
