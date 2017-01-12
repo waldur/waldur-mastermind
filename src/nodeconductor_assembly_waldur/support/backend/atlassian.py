@@ -150,6 +150,7 @@ class ServiceDeskBackend(JiraBackend):
         if not issue.caller.email:
             return
 
+        # customer will be associated with the issue by updating issue arguments in _issue_to_dict.
         self._create_customer(issue.caller.email, issue.caller.full_name)
         super(ServiceDeskBackend, self).create_issue(issue)
 
