@@ -15,19 +15,21 @@ class JiraBackendError(SupportBackendError):
     pass
 
 
+def reraise_exceptions(func):
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except JIRAError as e:
+            six.reraise(JiraBackendError, e)
+
+    return wrapped
+
+
 class JiraBackend(SupportBackend):
     credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
     project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
     issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
-
-    def reraise_exceptions(func):
-        @functools.wraps(func)
-        def wrapped(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except JIRAError as e:
-                six.reraise(JiraBackendError, e)
-        return wrapped
 
     @property
     @reraise_exceptions
@@ -52,14 +54,15 @@ class JiraBackend(SupportBackend):
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
-        caller_name = issue.caller.full_name or issue.caller.username
+        caller = issue.caller.full_name or issue.caller.username
         args = {
             'project': self.project_settings['key'],
             'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.issue_settings['caller_field']): caller_name,
+            self._get_field_id_by_name(self.issue_settings['caller_field']): caller,
         }
+
         if issue.reporter:
             args[self._get_field_id_by_name(self.issue_settings['reporter_field'])] = issue.reporter.name
         if issue.impact:
@@ -118,7 +121,9 @@ class JiraBackend(SupportBackend):
 
 
 class ServiceDeskBackend(JiraBackend):
+    servicedeskapi_path = 'servicedeskapi'
 
+    @reraise_exceptions
     def create_comment(self, comment):
         backend_comment = self._add_comment(
             comment.issue.backend_id,
@@ -135,8 +140,53 @@ class ServiceDeskBackend(JiraBackend):
         }
 
         url = self.manager._get_url('issue/{0}/comment'.format(issue))
-        r = self.manager._session.post(
-            url, data=json.dumps(data))
+        response = self.manager._session.post(url, data=json.dumps(data))
 
-        comment = Comment(self._options, self._session, raw=json_loads(r))
+        comment = Comment(self._options, self._session, raw=json_loads(response))
         return comment
+
+    @reraise_exceptions
+    def create_issue(self, issue):
+        if not issue.caller.email:
+            return
+
+        # customer will be associated with the issue by updating issue arguments in _issue_to_dict.
+        self._create_customer(issue.caller.email, issue.caller.full_name)
+        super(ServiceDeskBackend, self).create_issue(issue)
+
+    def _issue_to_dict(self, issue):
+        args = super(ServiceDeskBackend, self)._issue_to_dict(issue)
+        args[self._get_field_id_by_name(self.issue_settings['caller_field'])] = [{
+                "name": issue.caller.email,
+                "key": issue.caller.email
+            }]
+        return args
+
+    def _create_customer(self, email, full_name):
+        """
+        Creates customer in Jira Service Desk without assigning it to any particular service desk.
+        :param email: customer email
+        :param full_name: customer full name
+        :return: True if customer is created. False if user exists already.
+        """
+        data = {
+            "fullName": full_name,
+            "email": email
+        }
+
+        headers = {
+            'X-ExperimentalApi': 'true',
+        }
+
+        url = "{host}rest/{path}/customer".format(host=self.credentials['server'], path=self.servicedeskapi_path)
+        try:
+            self.manager._session.post(url, data=json.dumps(data), headers=headers)
+        except JIRAError as e:
+            # TODO [TM:1/11/17] replace it with api call when such an ability is provided
+            if e.status_code == 400 and "already exists" in e.text:
+                return False
+            else:
+                raise e
+        else:
+            return True
+
