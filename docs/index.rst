@@ -10,7 +10,7 @@ Guide
    :maxdepth: 1
 
    installation
-   guide/setup
+   guide/index
 
 API
 ---
@@ -19,6 +19,14 @@ API
    :maxdepth: 1
 
    drfapi/index
+
+Developer
+---------
+
+.. toctree::
+   :maxdepth: 1
+
+   developer/index
 
 License
 -------

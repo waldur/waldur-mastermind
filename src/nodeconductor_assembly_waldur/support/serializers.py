@@ -39,9 +39,9 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
     type = serializers.ChoiceField(
-        choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE_TYPES']],
-        initial=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'],
-        default=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'])
+        choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE']['types']],
+        initial=settings.WALDUR_SUPPORT['ISSUE']['types'][0],
+        default=settings.WALDUR_SUPPORT['ISSUE']['types'][0])
     is_reported_manually = serializers.BooleanField(
         initial=False, default=False, write_only=True,
         help_text='Set true if issue is created by regular user via portal.')
@@ -99,12 +99,16 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
 
     def validate_customer(self, customer):
         """ User has to be customer owner or staff """
+        if not customer:
+            return customer
         user = self.context['request'].user
         if not customer or user.is_staff or customer.has_user(user, structure_models.CustomerRole.OWNER):
             return customer
         raise serializers.ValidationError('Only customer owner or staff can report customer issues.')
 
     def validate_project(self, project):
+        if not project:
+            return project
         user = self.context['request'].user
         if (not project or user.is_staff or
                 project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
@@ -115,7 +119,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'Only customer owner, project manager, project admin or staff can report such issue.')
 
     def validate_resource(self, resource):
-        self.validate_project(resource.service_project_link.project)
+        if resource:
+            self.validate_project(resource.service_project_link.project)
         return resource
 
     @transaction.atomic()
@@ -239,8 +244,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
                         issue.first_response_sla = datetime.fromtimestamp(epoch_milliseconds / 1000.0)
 
     def _get_impact_field(self, fields):
-        project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
-        impact_field_name = project_settings.get('impact_field', None)
+        issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+        impact_field_name = issue_settings.get('impact_field', None)
         return fields.get(impact_field_name, '')
 
     @transaction.atomic()
@@ -277,4 +282,3 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
 
         return support_user
-
