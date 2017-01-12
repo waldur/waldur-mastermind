@@ -85,13 +85,12 @@ class JiraBackend(SupportBackend):
         issue.save()
 
     def _get_first_sla_field(self, backend_issue):
-        custom_field_names = [attr for attr in dir(backend_issue.fields) if attr.startswith('customfield')]
-        for name in custom_field_names:
-            value = getattr(backend_issue.fields, name, None)
-            if value and getattr(value, 'name', None) == 'Time to first response':
-                epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
-                if epoch_milliseconds:
-                    return datetime.fromtimestamp(epoch_milliseconds / 1000.0)
+        field_name = self._get_field_id_by_name(self.project_details['sla_field'])
+        value = getattr(backend_issue.fields, field_name, None)
+        if value:
+            epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
+            if epoch_milliseconds:
+                return datetime.fromtimestamp(epoch_milliseconds / 1000.0)
 
 
     @reraise_exceptions
