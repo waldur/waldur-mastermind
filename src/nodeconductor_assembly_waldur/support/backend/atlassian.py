@@ -28,7 +28,8 @@ def reraise_exceptions(func):
 
 class JiraBackend(SupportBackend):
     credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
-    project_details = settings.WALDUR_SUPPORT.get('PROJECT', {})
+    project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
+    issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
 
     @property
     @reraise_exceptions
@@ -55,18 +56,17 @@ class JiraBackend(SupportBackend):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
         caller = issue.caller.full_name or issue.caller.username
         args = {
-            'project': self.project_details['key'],
+            'project': self.project_settings['key'],
             'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.project_details['caller_field']): caller,
+            self._get_field_id_by_name(self.issue_settings['caller_field']): caller,
         }
 
         if issue.reporter:
-            args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
-            # args['reporter'] = {'name': issue.reporter.name}
+            args[self._get_field_id_by_name(self.issue_settings['reporter_field'])] = issue.reporter.name
         if issue.impact:
-            args[self._get_field_id_by_name(self.project_details['impact_field'])] = issue.impact
+            args[self._get_field_id_by_name(self.issue_settings['impact_field'])] = issue.impact
         if issue.priority:
             args['priority'] = {'name': issue.priority}
         return args
@@ -83,6 +83,7 @@ class JiraBackend(SupportBackend):
         issue.link = backend_issue.permalink()
         issue.priority = backend_issue.fields.priority.name
         issue.save()
+        return backend_issue
 
     @reraise_exceptions
     def update_issue(self, issue):
@@ -115,7 +116,7 @@ class JiraBackend(SupportBackend):
 
     @reraise_exceptions
     def get_users(self):
-        users = self.manager.search_assignable_users_for_projects('', self.project_details['key'], maxResults=False)
+        users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
 
 
@@ -154,7 +155,7 @@ class ServiceDeskBackend(JiraBackend):
 
     def _issue_to_dict(self, issue):
         args = super(ServiceDeskBackend, self)._issue_to_dict(issue)
-        args[self._get_field_id_by_name(self.project_details['caller_field'])] = [{
+        args[self._get_field_id_by_name(self.issue_settings['caller_field'])] = [{
                 "name": issue.caller.email,
                 "key": issue.caller.email
             }]
