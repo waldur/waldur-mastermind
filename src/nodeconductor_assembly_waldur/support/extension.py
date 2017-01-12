@@ -24,6 +24,7 @@ class SupportExtension(NodeConductorExtension):
                 'impact_field': 'Impact',
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
+                'sla_field': 'Time to first response',
             },
         }
 
