@@ -178,7 +178,6 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-    TIME_TO_RESPONSE_NAME = 'Time to first response'
 
     class EventType:
         CREATED = 'jira:issue_created'
@@ -233,10 +232,12 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return issue
 
     def _update_custom_fields(self, issue, custom_field_values):
+        sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
+
         for field in custom_field_values:
             if isinstance(field, dict):
                 name = field.get('name', None)
-                if name == self.TIME_TO_RESPONSE_NAME:
+                if name and name == sla_field_name:
                     ongoing_cycle = field.get('ongoingCycle', {})
                     breach_time = ongoing_cycle.get('breachTime', {})
                     epoch_milliseconds = breach_time.get('epochMillis', None)
