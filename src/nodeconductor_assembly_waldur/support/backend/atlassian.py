@@ -53,14 +53,14 @@ class JiraBackend(SupportBackend):
 
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
+        caller = issue.caller.full_name or issue.caller.username
         args = {
             'project': self.project_details['key'],
             'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
+            self._get_field_id_by_name(self.project_details['caller_field']): caller,
         }
-        caller = self._get_caller_key_value_pair(issue)
-        args.update(caller)
 
         if issue.reporter:
             args[self._get_field_id_by_name(self.project_details['reporter_field'])] = issue.reporter.name
@@ -70,12 +70,6 @@ class JiraBackend(SupportBackend):
         if issue.priority:
             args['priority'] = {'name': issue.priority}
         return args
-
-    def _get_caller_key_value_pair(self, issue):
-        caller = issue.caller.full_name or issue.caller.username
-        return {
-            self._get_field_id_by_name(self.project_details['caller_field']): caller
-        }
 
     @reraise_exceptions
     def create_issue(self, issue):
@@ -158,13 +152,13 @@ class ServiceDeskBackend(JiraBackend):
         self._create_customer(issue.caller.email, issue.caller.full_name)
         super(ServiceDeskBackend, self).create_issue(issue)
 
-    def _get_caller_key_value_pair(self, issue):
-        return {
-            self.project_details['caller_field']: [{
+    def _issue_to_dict(self, issue):
+        args = super(ServiceDeskBackend, self)._issue_to_dict(issue)
+        args[self._get_field_id_by_name(self.project_details['caller_field'])] = [{
                 "name": issue.caller.email,
                 "key": issue.caller.email
             }]
-        }
+        return args
 
     def _create_customer(self, email, full_name):
         """
