@@ -1,6 +1,7 @@
 import factory
 from rest_framework.reverse import reverse
 
+from nodeconductor_openstack.openstack import models as openstack_models
 from nodeconductor.structure.tests import factories as structure_factories
 
 from .. import models
@@ -43,13 +44,39 @@ class PackageComponentFactory(factory.DjangoModelFactory):
 
     type = models.PackageComponent.Types.RAM
     template = factory.SubFactory(PackageTemplateFactory)
+    price = factory.fuzzy.FuzzyInteger(10, 20)
+
+
+class OpenStackServiceFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = openstack_models.OpenStackService
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
+
+
+class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = openstack_models.OpenStackServiceProjectLink
+
+    service = factory.SubFactory(OpenStackServiceFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+
+
+class TenantFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = openstack_models.Tenant
+
+    service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
 
 
 class OpenStackPackageFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.OpenStackPackage
 
+    tenant = factory.SubFactory(TenantFactory)
     template = factory.SubFactory(PackageTemplateFactory)
+    service_settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
 
     @classmethod
     def get_url(cls, openstack_package=None, action=None):

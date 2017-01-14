@@ -9,6 +9,7 @@ class SupportExtension(NodeConductorExtension):
 
     class Settings(object):
         WALDUR_SUPPORT = {
+            'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
             'CREDENTIALS': {
                 'server': 'http://example.com/',
                 'username': 'USERNAME',
@@ -17,18 +18,24 @@ class SupportExtension(NodeConductorExtension):
             },
             'PROJECT': {
                 'key': 'PROJECT',
+            },
+            'ISSUE': {
+                'types': ['Informational', 'Service Request', 'Change Request', 'Incident'],
                 'impact_field': 'Impact',
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
+                'sla_field': 'Time to first response',
             },
-            'ISSUE_TYPES': ['Informational', 'Service request', 'Change request', 'Incident'],
-            'DEFAULT_ISSUE_TYPE': 'Informational',
-            'ACTIVE_BACKEND': 'JiraBackend',
         }
 
     @staticmethod
     def django_app():
         return 'nodeconductor_assembly_waldur.support'
+
+    @staticmethod
+    def django_urls():
+        from .urls import urlpatterns
+        return urlpatterns
 
     @staticmethod
     def rest_urls():

@@ -3,11 +3,12 @@ from setuptools import setup, find_packages
 
 install_requires = [
     'jira>=1.0.7',
-    'nodeconductor>0.109.0',
+    'nodeconductor>=0.114.0',
     'nodeconductor_auth_social>=0.1.0',
+    'nodeconductor_auth_openid>=0.1.0',
     'nodeconductor_aws>=0.1.3',
     'nodeconductor_digitalocean>=0.1.4',
-    'nodeconductor_openstack>=0.11.0',
+    'nodeconductor_openstack>=0.12.0',
 ]
 
 test_requires = [
@@ -18,7 +19,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.0.0',
+    version='2.1.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -7,7 +9,6 @@ from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import models as structure_models, SupportedServices
 
 from . import models
-
 
 User = get_user_model()
 
@@ -38,9 +39,9 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
     type = serializers.ChoiceField(
-        choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE_TYPES']],
-        initial=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'],
-        default=settings.WALDUR_SUPPORT['DEFAULT_ISSUE_TYPE'])
+        choices=[(t, t) for t in settings.WALDUR_SUPPORT['ISSUE']['types']],
+        initial=settings.WALDUR_SUPPORT['ISSUE']['types'][0],
+        default=settings.WALDUR_SUPPORT['ISSUE']['types'][0])
     is_reported_manually = serializers.BooleanField(
         initial=False, default=False, write_only=True,
         help_text='Set true if issue is created by regular user via portal.')
@@ -57,8 +58,9 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'project', 'project_uuid', 'project_name',
             'resource', 'resource_type', 'resource_name',
             'created', 'modified', 'is_reported_manually',
+            'first_response_sla',
         )
-        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority')
+        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -94,6 +96,32 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                     'You cannot report issues because your help desk account is not connected to profile.')
             attrs['reporter'] = reporter
         return attrs
+
+    def validate_customer(self, customer):
+        """ User has to be customer owner or staff """
+        if not customer:
+            return customer
+        user = self.context['request'].user
+        if not customer or user.is_staff or customer.has_user(user, structure_models.CustomerRole.OWNER):
+            return customer
+        raise serializers.ValidationError('Only customer owner or staff can report customer issues.')
+
+    def validate_project(self, project):
+        if not project:
+            return project
+        user = self.context['request'].user
+        if (not project or user.is_staff or
+                project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
+                project.has_user(user, structure_models.ProjectRole.MANAGER) or
+                project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)):
+            return project
+        raise serializers.ValidationError(
+            'Only customer owner, project manager, project admin or staff can report such issue.')
+
+    def validate_resource(self, resource):
+        if resource:
+            self.validate_project(resource.service_project_link.project)
+        return resource
 
     @transaction.atomic()
     def create(self, validated_data):
@@ -135,7 +163,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
     def create(self, validated_data):
         author_user = self.context['request'].user
         validated_data['author'], _ = models.SupportUser.objects.get_or_create_from_user(author_user)
-        validated_data['issue'] = self.context['issue']
+        validated_data['issue'] = self.context['view'].get_object()
         return super(CommentSerializer, self).create(validated_data)
 
 
@@ -147,3 +175,111 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
             url={'lookup_field': 'uuid', 'view_name': 'support-user-detail'},
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'}
         )
+
+
+class WebHookReceiverSerializer(serializers.Serializer):
+
+    class EventType:
+        CREATED = 'jira:issue_created'
+        UPDATED = 'jira:issue_updated'
+        DELETED = 'jira:issue_deleted'
+
+    @transaction.atomic()
+    def save(self, **kwargs):
+        fields = self.initial_data['issue']['fields']
+        backend_id = self.initial_data['issue']['key']
+        link = self.initial_data['issue']['self']
+
+        event_type = self.initial_data['webhookEvent']
+        if event_type == self.EventType.UPDATED:
+            try:
+                issue = models.Issue.objects.get(backend_id=backend_id)
+            except models.Issue.DoesNotExist:
+                pass
+            else:
+                self._update_issue(issue=issue, fields=fields, link=link)
+        elif event_type == self.EventType.DELETED:
+            issue = models.Issue.objects.get(backend_id=backend_id)
+            issue.delete()
+
+    def _update_issue(self, issue, fields, link):
+        issue.resolution = fields['resolution'] or ''
+        issue.status = fields['issuetype']['name']
+        issue.link = link
+        issue.impact = self._get_impact_field(fields=fields)
+        issue.summary = fields['summary']
+        issue.priority = fields['priority']['name']
+        issue.description = fields['description']
+        issue.type = fields['issuetype']['name']
+
+        custom_field_values = [fields[customfield] for customfield in fields if customfield.startswith('customfield')]
+        self._update_custom_fields(issue, custom_field_values)
+
+        assignee = self._get_support_user_by_field_name(field_name='assignee', fields=fields)
+        if assignee:
+            issue.assignee = assignee
+
+        reporter = self._get_support_user_by_field_name(field_name='reporter', fields=fields)
+        if reporter:
+            issue.reporter = reporter
+            if reporter.user:
+                issue.caller = reporter.user
+
+        if 'comment' in fields:
+            self._update_comments(issue=issue, fields=fields)
+
+        issue.save()
+        return issue
+
+    def _update_custom_fields(self, issue, custom_field_values):
+        sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
+
+        for field in custom_field_values:
+            if isinstance(field, dict):
+                name = field.get('name', None)
+                if name and name == sla_field_name:
+                    ongoing_cycle = field.get('ongoingCycle', {})
+                    breach_time = ongoing_cycle.get('breachTime', {})
+                    epoch_milliseconds = breach_time.get('epochMillis', None)
+                    if epoch_milliseconds:
+                        issue.first_response_sla = datetime.fromtimestamp(epoch_milliseconds / 1000.0)
+
+    def _get_impact_field(self, fields):
+        issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+        impact_field_name = issue_settings.get('impact_field', None)
+        return fields.get(impact_field_name, '')
+
+    @transaction.atomic()
+    def _update_comments(self, issue, fields):
+        backend_comments = {c['id']: c for c in fields['comment']['comments']}
+        comments = {c.backend_id: c for c in issue.comments.all()}
+
+        for exist_comment_id in set(backend_comments) & set(comments):
+            backend_comment = backend_comments[exist_comment_id]
+            comment = comments[exist_comment_id]
+            if comment.description != backend_comment['body']:
+                comment.description = backend_comment['body']
+                comment.save()
+
+        for new_comment_id in set(backend_comments) - set(comments):
+            backend_comment = backend_comments[new_comment_id]
+            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment['author']['key'])
+            models.Comment.objects.create(
+                issue=issue,
+                author=author,
+                description=backend_comment['body'],
+                backend_id=backend_comment['id'],
+            )
+
+        models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comments)).delete()
+
+    def _get_support_user_by_field_name(self, fields, field_name):
+        support_user = None
+
+        if field_name in fields and fields[field_name]:
+            support_user_backend_key = fields[field_name]['key']
+
+            if support_user_backend_key:
+                support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
+
+        return support_user
