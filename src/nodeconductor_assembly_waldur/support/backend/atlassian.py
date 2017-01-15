@@ -96,7 +96,6 @@ class JiraBackend(SupportBackend):
             if epoch_milliseconds:
                 return datetime.fromtimestamp(epoch_milliseconds / 1000.0)
 
-
     @reraise_exceptions
     def update_issue(self, issue):
         backend_issue = self.manager.issue(issue.backend_id)
@@ -169,9 +168,9 @@ class ServiceDeskBackend(JiraBackend):
     def _issue_to_dict(self, issue):
         args = super(ServiceDeskBackend, self)._issue_to_dict(issue)
         args[self._get_field_id_by_name(self.issue_settings['caller_field'])] = [{
-                "name": issue.caller.email,
-                "key": issue.caller.email
-            }]
+            "name": issue.caller.email,
+            "key": issue.caller.email
+        }]
         return args
 
     def _create_customer(self, email, full_name):
@@ -201,4 +200,3 @@ class ServiceDeskBackend(JiraBackend):
                 raise e
         else:
             return True
-
