@@ -15,7 +15,7 @@ class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
         serialized_service_settings = core_utils.serialize_instance(service_settings)
 
         create_tenant = openstack_executors.TenantCreateExecutor.get_task_signature(tenant, serialized_tenant)
-        set_tenant_ok = core_tasks.StateTransitionTask().si(serialized_tenant, state_transition='set_ok')
+        set_tenant_ok = openstack_executors.TenantCreateExecutor.get_success_signature(tenant, serialized_tenant)
 
         populate_service_settings = tasks.OpenStackPackageSettingsPopulationTask().si(serialized_package)
 
