@@ -83,6 +83,6 @@ class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
         )
         protected_fields = ('customer',)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'payment-details-detail'},
+            'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
         }

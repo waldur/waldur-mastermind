@@ -72,6 +72,10 @@ class PackageTemplate(core_models.UuidMixin,
             raise ValidationError({'service_settings': 'external_network_id has to be defined for service settings.'})
         return self
 
+    @classmethod
+    def get_url_name(cls):
+        return 'package-template'
+
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
 
@@ -124,6 +128,10 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
     tenant = models.ForeignKey(openstack_models.Tenant, related_name='+')
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+', null=True,
                                          on_delete=models.SET_NULL)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstack-package'
 
     def __str__(self):
         return 'Package "%s" for tenant %s' % (self.template, self.tenant)
