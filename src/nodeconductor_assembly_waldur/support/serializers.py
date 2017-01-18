@@ -1,4 +1,5 @@
 from datetime import datetime
+from django.apps import apps
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -300,18 +301,28 @@ class OfferingSerializer(serializers.Serializer):
         return result
 
     def _get_field_instance(self, attr_name):
-        if attr_name.lower() in ['customer', 'first_response_sla', 'reporter', 'assignee', 'project']:
-            raise NotImplementedError('Next field "%s" is not supported by OfferingSerializer' % attr_name)
-
+        attr_name_lower = attr_name.lower()
         type = self.configuration[attr_name].get('type', None)
         if type is None:
             field = serializers.CharField(max_length=255)
         elif type.lower() == 'integer':
             field = serializers.IntegerField()
+        elif type.lower() == 'hyperlinked':
+            if attr_name_lower in ['customer', 'project']:
+                view_name = attr_name_lower + '-detail'
+                model = apps.get_model(app_label='structure', model_name=attr_name_lower)
+                field = serializers.HyperlinkedRelatedField(
+                    view_name=view_name,
+                    queryset=model.objects.all(),
+                    lookup_field='uuid',
+                    write_only=True,
+                )
+            else:
+                raise NotImplementedError('Next field "%s" is not supported by OfferingSerializer' % attr_name)
         else:
             raise NotImplementedError('Next type "%s" is not supported by OfferingSerializer' % type)
 
-        default_value = self.configuration[attr_name].get('default', None)
+        default_value = self.configuration[attr_name_lower].get('default', None)
         if default_value:
             field.default = default_value
             field.required = False

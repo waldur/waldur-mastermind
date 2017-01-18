@@ -36,6 +36,9 @@ class SupportExtension(NodeConductorExtension):
                     },
                     'status': {
                         'type': 'integer',
+                    },
+                    'project': {
+                        'type': 'hyperlinked', # handled as HyperlinkedRelatedField.
                     }
                 },
                 'devops': {
