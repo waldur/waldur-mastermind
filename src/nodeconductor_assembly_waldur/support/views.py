@@ -13,7 +13,7 @@ class IssueViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.IssueSerializer
     filter_backends = (
-        structure_filters.GenericRoleFilter,
+        filters.IssueCallerOrRoleFilterBackend,
         core_filters.DjangoMappingFilterBackend,
         filters.IssueResourceFilterBackend,
     )
