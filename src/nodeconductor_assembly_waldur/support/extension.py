@@ -26,6 +26,52 @@ class SupportExtension(NodeConductorExtension):
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
             },
+            'OFFERING': {
+                'transformation': {
+                    'summary': {},
+                    'description': {},
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': '',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    }
+                },
+                'devops': {
+                    'summary': {},
+                    'description': {},
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': '',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    }
+                },
+                'recovery': {
+                    'summary': {},
+                    'description': {},
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': '',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    }
+                },
+                'managed_apps': {
+                    'summary': {},
+                    'description': {},
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': '',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    }
+                },
+            },
         }
 
     @staticmethod

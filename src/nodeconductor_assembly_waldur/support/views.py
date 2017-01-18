@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.db import transaction
-from rest_framework import viewsets, views, filters as rf_filters, permissions, decorators, response, status, exceptions
+from rest_framework import viewsets, views, filters as rf_filters, permissions, decorators, response, status, exceptions, \
+    generics
 
 from nodeconductor.core import filters as core_filters, views as core_views
 from nodeconductor.structure import (filters as structure_filters, models as structure_models,
@@ -116,3 +118,25 @@ class WebHookReceiverView(views.APIView):
             serializer.save()
 
         return response.Response(status=status.HTTP_200_OK)
+
+
+class OfferingListView(views.APIView):
+
+    def get(self, request):
+        configuration = settings.WALDUR_SUPPORT['OFFERING']
+        return response.Response(configuration, status=status.HTTP_200_OK)
+
+
+class OfferingView(generics.CreateAPIView):
+    serializer_class = serializers.OfferingSerializer
+    configuration = settings.WALDUR_SUPPORT['OFFERING']
+
+    def post(self, request, name):
+        if name not in self.configuration:
+            return response.Response('provided name "%s" is not registered' % name, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(name=name, data=request.data)
+
+        if serializer.is_valid(raise_exception=True):
+            issue = serializer.save()
+            return response.Response(issue.pk, status=status.HTTP_201_CREATED)

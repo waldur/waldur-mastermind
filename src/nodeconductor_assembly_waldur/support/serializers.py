@@ -178,7 +178,6 @@ class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-
     class EventType:
         CREATED = 'jira:issue_created'
         UPDATED = 'jira:issue_updated'
@@ -283,3 +282,45 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
 
         return support_user
+
+
+class OfferingSerializer(serializers.Serializer):
+    class Meta:
+        model = models.Issue
+
+    def __init__(self, name, data, **kwargs):
+        super(OfferingSerializer, self).__init__(data=data, **kwargs)
+        self.configuration = settings.WALDUR_SUPPORT['OFFERING'][name]
+
+    def get_fields(self):
+        result = dict()
+        for attr_name in self.configuration:
+            result[attr_name] = self._get_field_instance(attr_name)
+
+        return result
+
+    def _get_field_instance(self, attr_name):
+        if attr_name.lower() in ['customer', 'first_response_sla', 'reporter', 'assignee', 'project']:
+            raise NotImplementedError('Next field "%s" is not supported by OfferingSerializer' % attr_name)
+
+        type = self.configuration[attr_name].get('type', None)
+        if type is None:
+            field = serializers.CharField(max_length=255)
+        elif type.lower() == 'integer':
+            field = serializers.IntegerField()
+        else:
+            raise NotImplementedError('Next type "%s" is not supported by OfferingSerializer' % type)
+
+        default_value = self.configuration[attr_name].get('default', None)
+        if default_value:
+            field.default = default_value
+            field.required = False
+        return field
+
+    def create(self, validated_data):
+        issue = models.Issue.objects.create(caller=self.context['request'].user)
+        for name in validated_data:
+            setattr(issue, name, validated_data[name])
+        issue.save()
+
+        return issue
