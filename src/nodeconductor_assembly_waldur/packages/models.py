@@ -26,8 +26,9 @@ class PackageTemplate(core_models.UuidMixin,
         SMALL = 'small'
         MEDIUM = 'medium'
         LARGE = 'large'
+        TRIAL = 'trial'
 
-        CHOICES = ((SMALL, 'Small'), (MEDIUM, 'Medium'), (LARGE, 'Large'))
+        CHOICES = ((SMALL, 'Small'), (MEDIUM, 'Medium'), (LARGE, 'Large'), (TRIAL, 'Trial'))
 
     category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
 
