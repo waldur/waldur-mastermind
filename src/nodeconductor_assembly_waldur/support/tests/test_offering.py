@@ -16,40 +16,39 @@ class BaseOfferingTest(base.BaseTest):
 
         self.client.force_authenticate(self.fixture.staff)
         settings.WALDUR_SUPPORT['OFFERING'] = {
-                'custom_vpc': {
-                    'label': 'Custom VPC',
-                    'order': ['name', 'description', 'storage', 'ram', 'cpu_count'],
-                    'options': {
-                        'name': {
-                            'default': 'Service Request',
-                            'label': 'Name'
-                        },
-                        'description': {
-                            'type': 'string',
-                            'label': 'Description',
-                        },
-                        'storage': {
-                            'type': 'integer',
-                            'label': 'Storage',
-                            'help_text': 'VPC storage limit in GB.',
-                        },
-                        'ram': {
-                            'type': 'integer',
-                            'label': 'CPU count',
-                            'help_text': 'VPC RAM limit in GB.',
-                        },
-                        'cpu_count': {
-                            'type': 'integer',
-                            'label': 'CPU count',
-                            'help_text': 'VPC CPU count limit.',
-                        },
+            'custom_vpc': {
+                'label': 'Custom VPC',
+                'order': ['name', 'description', 'storage', 'ram', 'cpu_count'],
+                'options': {
+                    'name': {
+                        'default': 'Service Request',
+                        'label': 'Name'
+                    },
+                    'description': {
+                        'type': 'string',
+                        'label': 'Description',
+                    },
+                    'storage': {
+                        'type': 'integer',
+                        'label': 'Storage',
+                        'help_text': 'VPC storage limit in GB.',
+                    },
+                    'ram': {
+                        'type': 'integer',
+                        'label': 'CPU count',
+                        'help_text': 'Ma RAM limit in GB.',
+                    },
+                    'cpu_count': {
+                        'type': 'integer',
+                        'label': 'CPU count',
+                        'help_text': 'VPC CPU count limit.',
                     },
                 },
+            },
         }
 
 
 class OfferingGetTest(BaseOfferingTest):
-
     def test_offering_view_returns_configured_offerings(self):
         url = reverse('offering-list')
         response = self.client.get(url)
@@ -58,7 +57,6 @@ class OfferingGetTest(BaseOfferingTest):
 
 
 class OfferingCreateTest(BaseOfferingTest):
-
     def setUp(self):
         super(OfferingCreateTest, self).setUp()
         self.url = reverse('offering-detail', kwargs={'name': 'custom_vpc'})
@@ -100,4 +98,3 @@ class OfferingCreateTest(BaseOfferingTest):
             'cpu_count': 2,
             'project': structure_factories.ProjectFactory.get_url(self.fixture.project)
         }
-

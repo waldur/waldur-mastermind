@@ -6,7 +6,6 @@ from nodeconductor.core import NodeConductorExtension
 
 
 class SupportExtension(NodeConductorExtension):
-
     class Settings(object):
         WALDUR_SUPPORT = {
             'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
@@ -41,17 +40,17 @@ class SupportExtension(NodeConductorExtension):
                         },
                         'storage': {
                             'type': 'integer',
-                            'label': 'Storage',
+                            'label': 'Max storage, GB',
                             'help_text': 'VPC storage limit in GB.',
                         },
                         'ram': {
                             'type': 'integer',
-                            'label': 'CPU count',
+                            'label': 'Max RAM, GB',
                             'help_text': 'VPC RAM limit in GB.',
                         },
                         'cpu_count': {
                             'type': 'integer',
-                            'label': 'CPU count',
+                            'label': 'Max vCPU',
                             'help_text': 'VPC CPU count limit.',
                         },
                     },
