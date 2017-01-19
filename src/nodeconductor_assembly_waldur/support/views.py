@@ -11,13 +11,20 @@ from . import filters, models, serializers, backend
 class IssueViewSet(core_views.ActionsViewSet):
     queryset = models.Issue.objects.all()
     lookup_field = 'uuid'
-    serializer_class = serializers.IssueSerializer
     filter_backends = (
         filters.IssueCallerOrRoleFilterBackend,
         core_filters.DjangoMappingFilterBackend,
         filters.IssueResourceFilterBackend,
     )
     filter_class = filters.IssueFilter
+
+    def get_serializer_class(self):
+        if self.request.user.is_staff or self.request.user.is_support:
+            self.serializer_class = serializers.FullIssueSerializer
+        else:
+            self.serializer_class = serializers.BaseIssueSerializer
+
+        return super(IssueViewSet, self).get_serializer_class()
 
     @transaction.atomic()
     def perform_create(self, serializer):

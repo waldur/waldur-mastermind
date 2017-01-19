@@ -13,7 +13,7 @@ from . import models
 User = get_user_model()
 
 
-class IssueSerializer(core_serializers.AugmentedSerializerMixin,
+class BaseIssueSerializer(core_serializers.AugmentedSerializerMixin,
                       serializers.HyperlinkedModelSerializer):
     resource = core_serializers.GenericRelatedField(
         related_models=structure_models.ResourceMixin.get_all_models(), required=False)
@@ -49,7 +49,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Issue
         fields = (
-            'url', 'uuid', 'type', 'key', 'backend_id', 'link',
+            'url', 'uuid', 'type', 'key', 'backend_id',
             'summary', 'description', 'status', 'resolution', 'priority',
             'caller', 'caller_uuid', 'caller_full_name',
             'reporter', 'reporter_uuid', 'reporter_name',
@@ -60,7 +60,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'created', 'modified', 'is_reported_manually',
             'first_response_sla',
         )
-        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
+        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'priority', 'first_response_sla')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -132,7 +132,14 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         if project:
             validated_data['customer'] = project.customer
 
-        return super(IssueSerializer, self).create(validated_data)
+        return super(BaseIssueSerializer, self).create(validated_data)
+
+
+class FullIssueSerializer(BaseIssueSerializer):
+
+    class Meta(BaseIssueSerializer.Meta):
+        fields = BaseIssueSerializer.Meta.fields + ('link',)
+        read_only_fields = BaseIssueSerializer.Meta.read_only_fields + ('link',)
 
 
 class CommentSerializer(core_serializers.AugmentedSerializerMixin,
