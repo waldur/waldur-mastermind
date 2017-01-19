@@ -318,9 +318,9 @@ class OfferingSerializer(serializers.Serializer):
                     write_only=True,
                 )
             else:
-                raise NotImplementedError('Next field "%s" is not supported by OfferingSerializer' % attr_name)
+                raise NotImplementedError('Field "%s" is not supported by OfferingSerializer' % attr_name)
         else:
-            raise NotImplementedError('Next type "%s" is not supported by OfferingSerializer' % type)
+            raise NotImplementedError('Type "%s" is not supported by OfferingSerializer' % type)
 
         default_value = self.configuration[attr_name_lower].get('default', None)
         if default_value:

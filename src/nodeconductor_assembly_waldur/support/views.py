@@ -135,7 +135,7 @@ class OfferingView(generics.CreateAPIView):
 
     def post(self, request, name):
         if name not in self.configuration:
-            return response.Response('provided name "%s" is not registered' % name, status=status.HTTP_404_NOT_FOUND)
+            return response.Response('Provided name "%s" is not registered' % name, status=status.HTTP_404_NOT_FOUND)
 
         serializer = self.get_serializer(name=name, data=request.data)
 
