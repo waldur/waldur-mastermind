@@ -24,19 +24,23 @@ class OfferingGetTest(BaseOfferingTest):
         },
         'OFFERING': {
             'transformation': {
-                'summary': {},
-                'description': {},
-                'type': {
-                    'default': 'Service Request',
-                    'help_text': 'SOS',
+                'order': ['summary', 'description', 'type', 'status', 'customer', 'project'],
+                'options': {
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': 'SOS',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    },
                 },
-                'status': {
-                    'type': 'integer',
-                }
-            },
-            'devops': {
-                'summary': {
-                    'default': 'Configuration',
+                'devops': {
+                    'order': ['summary'],
+                    'options': {
+                        'summary': {
+                            'default': 'Service Request',
+                        },
+                    }
                 },
             },
         }
@@ -57,14 +61,15 @@ class OfferingCreateTest(BaseOfferingTest):
         },
         'OFFERING': {
             'transformation': {
-                'summary': {},
-                'description': {},
-                'type': {
-                    'default': 'Service Request',
-                    'help_text': 'SOS',
-                },
-                'status': {
-                    'type': 'integer',
+                'order': ['summary', 'description', 'type', 'status'],
+                'options': {
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': 'SOS',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    },
                 },
             },
         }
@@ -76,20 +81,21 @@ class OfferingCreateTest(BaseOfferingTest):
         },
         'OFFERING': {
             'transformation': {
-                'summary': {},
-                'description': {},
-                'type': {
-                    'default': 'Service Request',
-                    'help_text': 'SOS',
-                },
-                'status': {
-                    'type': 'integer',
-                },
-                'customer': {
-                    'type': 'hyperlinked',
-                },
-                'project': {
-                    'type': 'hyperlinked',
+                'order': ['summary', 'description', 'type', 'status', 'customer', 'project'],
+                'options': {
+                    'type': {
+                        'default': 'Service Request',
+                        'help_text': 'SOS',
+                    },
+                    'status': {
+                        'type': 'integer',
+                    },
+                    'customer': {
+                        'type': 'hyperlinked',
+                    },
+                    'project': {
+                        'type': 'hyperlinked',
+                    },
                 }
             },
         }
@@ -125,7 +131,7 @@ class OfferingCreateTest(BaseOfferingTest):
 
     @override_settings(WALDUR_SUPPORT=settings)
     def test_offering_create_sets_default_value_if_it_was_not_provided(self):
-        default_value = settings.WALDUR_SUPPORT['OFFERING']['transformation']['type']['default']
+        default_value = settings.WALDUR_SUPPORT['OFFERING']['transformation']['options']['type']['default']
         request_data = self._get_valid_request()
         del request_data['type']
 

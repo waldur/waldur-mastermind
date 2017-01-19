@@ -297,14 +297,15 @@ class OfferingSerializer(serializers.Serializer):
 
     def get_fields(self):
         result = dict()
-        for attr_name in self.configuration:
+        for attr_name in self.configuration['order']:
             result[attr_name] = self._get_field_instance(attr_name)
 
         return result
 
     def _get_field_instance(self, attr_name):
         attr_name_lower = attr_name.lower()
-        type = self.configuration[attr_name].get('type', None)
+        attr_options = self.configuration['options'].get(attr_name, {})
+        type = attr_options.get('type', None)
         if type is None:
             field = serializers.CharField(max_length=255)
         elif type.lower() == 'integer':
@@ -324,7 +325,7 @@ class OfferingSerializer(serializers.Serializer):
         else:
             raise NotImplementedError('Type "%s" is not supported by OfferingSerializer' % type)
 
-        default_value = self.configuration[attr_name_lower].get('default', None)
+        default_value = attr_options.get('default', None)
         if default_value:
             field.default = default_value
             field.required = False

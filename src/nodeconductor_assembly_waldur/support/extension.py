@@ -28,51 +28,46 @@ class SupportExtension(NodeConductorExtension):
             },
             'OFFERING': {
                 'transformation': {
-                    'summary': {},
-                    'description': {},
-                    'type': {
-                        'default': 'Service Request',
-                        'help_text': '',
+                    'order': ['summary', 'description', 'type', 'status', 'project'],
+                    'options': {
+                        'type': {
+                            'default': 'Service Request',
+                            'help_text': '',
+                        },
+                        'project': {
+                            'type': 'hyperlinked',
+                        },
+                        'status': {
+                            'type': 'integer',
+                        },
                     },
-                    'status': {
-                        'type': 'integer',
-                    },
-                    'project': {
-                        'type': 'hyperlinked', # handled as HyperlinkedRelatedField.
-                    }
                 },
                 'devops': {
-                    'summary': {},
-                    'description': {},
-                    'type': {
-                        'default': 'Service Request',
-                        'help_text': '',
+                    'order': ['summary', 'description', 'type', 'status', 'project'],
+                    'options': {
+                        'type': {
+                            'default': 'Service Request',
+                            'help_text': '',
+                        },
                     },
-                    'status': {
-                        'type': 'integer',
-                    }
                 },
                 'recovery': {
-                    'summary': {},
-                    'description': {},
-                    'type': {
-                        'default': 'Service Request',
-                        'help_text': '',
+                    'order': ['summary', 'description', 'type', 'status', 'project'],
+                    'options': {
+                        'type': {
+                            'default': 'Service Request',
+                            'help_text': '',
+                        },
                     },
-                    'status': {
-                        'type': 'integer',
-                    }
                 },
                 'managed_apps': {
-                    'summary': {},
-                    'description': {},
-                    'type': {
-                        'default': 'Service Request',
-                        'help_text': '',
+                    'order': ['summary', 'description', 'type', 'status', 'project'],
+                    'options': {
+                        'type': {
+                            'default': 'Service Request',
+                            'help_text': '',
+                        },
                     },
-                    'status': {
-                        'type': 'integer',
-                    }
                 },
             },
         }
