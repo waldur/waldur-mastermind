@@ -295,7 +295,7 @@ class OfferingSerializer(serializers.Serializer):
 
     Field types:
         'integer' - corresponds to 'serializers.IntegerField'
-        'string' - is a default field type even if it is not defined explicitely in configuration.
+        'string' - is a default field type even if it is not defined explicitly in configuration.
                    Corresponds to 'serializers.CharField(max_length=255)'
 
     Default values:
