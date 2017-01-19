@@ -288,6 +288,35 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
 
 class OfferingSerializer(serializers.Serializer):
+    """
+    Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
+
+    Each configured field get's converted to serializer field according to field type in the configuration.
+
+    Field types:
+        'integer' - corresponds to 'serializers.IntegerField'
+        'string' - is a default field type even if it is not defined explicitely in configuration.
+                   Corresponds to 'serializers.CharField(max_length=255)'
+
+    Default values:
+        if 'default' key is present in option field configuration it is going to be used in serializer unless
+        the value itself has been provided in the create request.
+
+    Each offering corresponds to the single issue which has next values:
+        'project' - a hyperlinked field which must be provided with every request;
+        'customer' - customer is extracted from the provided project;
+        'caller' - a user who sent a request is considered to be a 'caller' of the issue;
+        'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
+        'description' - combined list of all other fields provided with the request;
+    """
+    project = serializers.HyperlinkedRelatedField(
+        view_name='project-detail',
+        queryset=structure_models.Project.objects.all(),
+        lookup_field='uuid',
+        write_only=True,
+    )
+    DEFAULT_TYPE = 'Service Request'
+
     class Meta:
         model = models.Issue
 
@@ -296,35 +325,21 @@ class OfferingSerializer(serializers.Serializer):
         self.configuration = settings.WALDUR_SUPPORT['OFFERING'][name]
 
     def get_fields(self):
-        result = dict()
+        result = super(OfferingSerializer, self).get_fields()
         for attr_name in self.configuration['order']:
-            result[attr_name] = self._get_field_instance(attr_name)
+            attr_options = self.configuration['options'].get(attr_name, {})
+            result[attr_name] = self._get_field_instance(attr_options)
 
         return result
 
-    def _get_field_instance(self, attr_name):
-        attr_name_lower = attr_name.lower()
-        attr_options = self.configuration['options'].get(attr_name, {})
+    def _get_field_instance(self, attr_options):
         type = attr_options.get('type', None)
-        if type is None:
+        if type is None or type.lower() == 'string':
             field = serializers.CharField(max_length=255)
         elif type.lower() == 'integer':
             field = serializers.IntegerField()
-        elif type.lower() == 'hyperlinked':
-            if attr_name_lower in ['customer', 'project']:
-                view_name = attr_name_lower + '-detail'
-                model = apps.get_model(app_label='structure', model_name=attr_name_lower)
-                field = serializers.HyperlinkedRelatedField(
-                    view_name=view_name,
-                    queryset=model.objects.all(),
-                    lookup_field='uuid',
-                    write_only=True,
-                )
-            else:
-                raise NotImplementedError('Field "%s" is not supported by OfferingSerializer' % attr_name)
         else:
             raise NotImplementedError('Type "%s" is not supported by OfferingSerializer' % type)
-
         default_value = attr_options.get('default', None)
         if default_value:
             field.default = default_value
@@ -332,9 +347,22 @@ class OfferingSerializer(serializers.Serializer):
         return field
 
     def create(self, validated_data):
-        issue = models.Issue.objects.create(caller=self.context['request'].user)
-        for name in validated_data:
-            setattr(issue, name, validated_data[name])
-        issue.save()
+        self.project = validated_data.pop('project')
+        issue = models.Issue.objects.create(
+            caller=self.context['request'].user,
+            project=self.project,
+            customer=self.project.customer,
+            type=self.DEFAULT_TYPE,
+            summary='Request for \'%s\'' % self.configuration.get('label', 'Support'),
+            description=self._form_description(validated_data)
+        )
 
         return issue
+
+    def _form_description(self, validated_data):
+        result = []
+        for key in validated_data:
+            label = self.configuration['options'][key].get('label', key)
+            result.append('%s: \'%s\'' % (label, validated_data[key]))
+
+        return '\n'.join(result)

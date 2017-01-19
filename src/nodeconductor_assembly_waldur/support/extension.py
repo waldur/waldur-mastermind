@@ -27,45 +27,32 @@ class SupportExtension(NodeConductorExtension):
                 'sla_field': 'Time to first response',
             },
             'OFFERING': {
-                'transformation': {
-                    'order': ['summary', 'description', 'type', 'status', 'project'],
+                'custom_vpc': {
+                    'label': 'Custom VPC',
+                    'order': ['name', 'description', 'storage', 'ram', 'cpu_count'],
                     'options': {
-                        'type': {
+                        'name': {
                             'default': 'Service Request',
-                            'help_text': '',
+                            'label': 'Name'
                         },
-                        'project': {
-                            'type': 'hyperlinked',
+                        'description': {
+                            'type': 'string',
+                            'label': 'Description',
                         },
-                        'status': {
+                        'storage': {
                             'type': 'integer',
+                            'label': 'Storage',
+                            'help_text': 'VPC storage limit in GB.',
                         },
-                    },
-                },
-                'devops': {
-                    'order': ['summary', 'description', 'type', 'status', 'project'],
-                    'options': {
-                        'type': {
-                            'default': 'Service Request',
-                            'help_text': '',
+                        'ram': {
+                            'type': 'integer',
+                            'label': 'CPU count',
+                            'help_text': 'VPC RAM limit in GB.',
                         },
-                    },
-                },
-                'recovery': {
-                    'order': ['summary', 'description', 'type', 'status', 'project'],
-                    'options': {
-                        'type': {
-                            'default': 'Service Request',
-                            'help_text': '',
-                        },
-                    },
-                },
-                'managed_apps': {
-                    'order': ['summary', 'description', 'type', 'status', 'project'],
-                    'options': {
-                        'type': {
-                            'default': 'Service Request',
-                            'help_text': '',
+                        'cpu_count': {
+                            'type': 'integer',
+                            'label': 'CPU count',
+                            'help_text': 'VPC CPU count limit.',
                         },
                     },
                 },

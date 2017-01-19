@@ -138,7 +138,7 @@ class OfferingView(generics.CreateAPIView):
             return response.Response('Provided name "%s" is not registered' % name, status=status.HTTP_404_NOT_FOUND)
 
         serializer = self.get_serializer(name=name, data=request.data)
-
-        if serializer.is_valid(raise_exception=True):
-            issue = serializer.save()
-            return response.Response(issue.pk, status=status.HTTP_201_CREATED)
+        serializer.is_valid(raise_exception=True)
+        issue = serializer.save()
+        backend.get_active_backend().create_issue(issue)
+        return response.Response(issue.pk, status=status.HTTP_201_CREATED)
