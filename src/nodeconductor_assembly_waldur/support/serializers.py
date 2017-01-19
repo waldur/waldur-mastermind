@@ -13,7 +13,7 @@ from . import models
 User = get_user_model()
 
 
-class BaseIssueSerializer(core_serializers.AugmentedSerializerMixin,
+class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                       serializers.HyperlinkedModelSerializer):
     resource = core_serializers.GenericRelatedField(
         related_models=structure_models.ResourceMixin.get_all_models(), required=False)
@@ -49,7 +49,7 @@ class BaseIssueSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Issue
         fields = (
-            'url', 'uuid', 'type', 'key', 'backend_id',
+            'url', 'uuid', 'type', 'key', 'backend_id', 'link',
             'summary', 'description', 'status', 'resolution', 'priority',
             'caller', 'caller_uuid', 'caller_full_name',
             'reporter', 'reporter_uuid', 'reporter_name',
@@ -60,7 +60,7 @@ class BaseIssueSerializer(core_serializers.AugmentedSerializerMixin,
             'created', 'modified', 'is_reported_manually',
             'first_response_sla',
         )
-        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'priority', 'first_response_sla')
+        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -74,6 +74,15 @@ class BaseIssueSerializer(core_serializers.AugmentedSerializerMixin,
             customer=('uuid', 'name',),
             project=('uuid', 'name',),
         )
+
+    def get_fields(self):
+        fields = super(IssueSerializer, self).get_fields()
+
+        user = self.context['view'].request.user
+        if not user.is_staff and not user.is_support:
+            del fields['link']
+
+        return fields
 
     def get_resource_type(self, obj):
         if obj.resource:
@@ -132,14 +141,7 @@ class BaseIssueSerializer(core_serializers.AugmentedSerializerMixin,
         if project:
             validated_data['customer'] = project.customer
 
-        return super(BaseIssueSerializer, self).create(validated_data)
-
-
-class FullIssueSerializer(BaseIssueSerializer):
-
-    class Meta(BaseIssueSerializer.Meta):
-        fields = BaseIssueSerializer.Meta.fields + ('link',)
-        read_only_fields = BaseIssueSerializer.Meta.read_only_fields + ('link',)
+        return super(IssueSerializer, self).create(validated_data)
 
 
 class CommentSerializer(core_serializers.AugmentedSerializerMixin,

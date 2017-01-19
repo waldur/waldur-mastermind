@@ -69,7 +69,7 @@ class IssueRetreiveTest(base.BaseTest):
         self.assertNotIn('link', response.data)
 
     @data('staff', 'global_support')
-    def test_user_can_see_link_to_jira_if_he_is_not_staff_or_support(self, user):
+    def test_user_can_see_link_to_jira_if_he_is_staff_or_support(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         issue = factories.IssueFactory(caller=getattr(self.fixture, user))
         url = factories.IssueFactory.get_url(issue=issue)

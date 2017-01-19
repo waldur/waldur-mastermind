@@ -17,14 +17,7 @@ class IssueViewSet(core_views.ActionsViewSet):
         filters.IssueResourceFilterBackend,
     )
     filter_class = filters.IssueFilter
-
-    def get_serializer_class(self):
-        if self.request.user.is_staff or self.request.user.is_support:
-            self.serializer_class = serializers.FullIssueSerializer
-        else:
-            self.serializer_class = serializers.BaseIssueSerializer
-
-        return super(IssueViewSet, self).get_serializer_class()
+    serializer_class = serializers.IssueSerializer
 
     @transaction.atomic()
     def perform_create(self, serializer):
