@@ -30,17 +30,17 @@ class BaseOfferingTest(base.BaseTest):
                     },
                     'storage': {
                         'type': 'integer',
-                        'label': 'Storage',
+                        'label': 'Max storage, GB',
                         'help_text': 'VPC storage limit in GB.',
                     },
                     'ram': {
                         'type': 'integer',
-                        'label': 'CPU count',
-                        'help_text': 'Ma RAM limit in GB.',
+                        'label': 'Max RAM, GB',
+                        'help_text': 'VPC RAM limit in GB.',
                     },
                     'cpu_count': {
                         'type': 'integer',
-                        'label': 'CPU count',
+                        'label': 'Max vCPU',
                         'help_text': 'VPC CPU count limit.',
                     },
                 },
