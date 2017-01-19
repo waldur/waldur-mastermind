@@ -11,13 +11,13 @@ from . import filters, models, serializers, backend
 class IssueViewSet(core_views.ActionsViewSet):
     queryset = models.Issue.objects.all()
     lookup_field = 'uuid'
-    serializer_class = serializers.IssueSerializer
     filter_backends = (
         filters.IssueCallerOrRoleFilterBackend,
         core_filters.DjangoMappingFilterBackend,
         filters.IssueResourceFilterBackend,
     )
     filter_class = filters.IssueFilter
+    serializer_class = serializers.IssueSerializer
 
     @transaction.atomic()
     def perform_create(self, serializer):

@@ -75,6 +75,15 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             project=('uuid', 'name',),
         )
 
+    def get_fields(self):
+        fields = super(IssueSerializer, self).get_fields()
+
+        user = self.context['view'].request.user
+        if not user.is_staff and not user.is_support:
+            del fields['link']
+
+        return fields
+
     def get_resource_type(self, obj):
         if obj.resource:
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())

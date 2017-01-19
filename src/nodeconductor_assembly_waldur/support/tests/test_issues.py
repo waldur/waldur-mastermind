@@ -58,6 +58,26 @@ class IssueRetreiveTest(base.BaseTest):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['key'], issue.key)
 
+    @data('user')
+    def test_user_can_not_see_link_to_jira_if_he_is_not_staff_or_support(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        url = factories.IssueFactory.get_url(issue=issue)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn('link', response.data)
+
+    @data('staff', 'global_support')
+    def test_user_can_see_link_to_jira_if_he_is_staff_or_support(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        url = factories.IssueFactory.get_url(issue=issue)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('link', response.data)
+
 
 @ddt
 class IssueCreateTest(base.BaseTest):
