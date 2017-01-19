@@ -45,20 +45,9 @@ class OfferingGetTest(BaseOfferingTest):
     @override_settings(WALDUR_SUPPORT=settings)
     def test_offering_view_returns_configured_offerings(self):
         url = reverse('offering-list')
-
         response = self.client.get(url)
         available_offerings = response.data
-        self.assertIsNotNone(available_offerings['transformation'])
-        self.assertIsNotNone(available_offerings['transformation']['summary'])
-        self.assertIsNotNone(available_offerings['transformation']['description'])
-        self.assertIsNotNone(available_offerings['transformation']['type'])
-        self.assertIsNotNone(available_offerings['transformation']['type']['help_text'])
-        self.assertIsNotNone(available_offerings['transformation']['type']['default'])
-        self.assertIsNotNone(available_offerings['transformation']['status'])
-        self.assertIsNotNone(available_offerings['transformation']['status']['type'])
-        self.assertIsNotNone(available_offerings['devops'])
-        self.assertIsNotNone(available_offerings['devops']['summary'])
-        self.assertIsNotNone(available_offerings['devops']['summary']['default'])
+        self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERING'])
 
 
 class OfferingCreateTest(BaseOfferingTest):
