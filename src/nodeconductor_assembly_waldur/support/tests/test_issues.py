@@ -18,7 +18,6 @@ class IssueRetreiveTest(base.BaseTest):
         issue = factories.IssueFactory(customer=self.fixture.customer)
 
         response = self.client.get(factories.IssueFactory.get_url(issue))
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data('admin', 'manager', 'user')
@@ -47,6 +46,37 @@ class IssueRetreiveTest(base.BaseTest):
         response = self.client.get(factories.IssueFactory.get_url(issue))
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @data('user')
+    def test_user_can_see_a_list_of_all_issues_where_user_is_a_caller(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        url = factories.IssueFactory.get_list_url()
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['key'], issue.key)
+
+    @data('user')
+    def test_user_can_not_see_link_to_jira_if_he_is_not_staff_or_support(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        url = factories.IssueFactory.get_url(issue=issue)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn('link', response.data)
+
+    @data('staff', 'global_support')
+    def test_user_can_see_link_to_jira_if_he_is_staff_or_support(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(caller=getattr(self.fixture, user))
+        url = factories.IssueFactory.get_url(issue=issue)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('link', response.data)
 
 
 @ddt

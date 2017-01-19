@@ -1,7 +1,8 @@
 import django_filters
+from rest_framework import filters as rf_filters
 
 from nodeconductor.core import filters as core_filters
-from nodeconductor.structure import models as structure_models
+from nodeconductor.structure import models as structure_models, filters as structure_filters
 
 from . import models
 
@@ -78,6 +79,12 @@ class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
 
     def get_field_name(self):
         return 'resource'
+
+
+class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
+    def filter_queryset(self, request, queryset, view):
+        return super(IssueCallerOrRoleFilterBackend, self).filter_queryset(request, queryset, view).distinct() | \
+               queryset.filter(caller=request.user).distinct()
 
 
 class CommentFilter(django_filters.FilterSet):
