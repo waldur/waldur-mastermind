@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 from django.conf import settings
 from django.db import transaction
 from rest_framework import viewsets, views, filters as rf_filters, permissions, decorators, response, status, exceptions, \
