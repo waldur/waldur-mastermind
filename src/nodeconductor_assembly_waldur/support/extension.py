@@ -25,13 +25,14 @@ class SupportExtension(NodeConductorExtension):
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
             },
+            'DEFAULT_OFFERING_TYPE': 'Service Request',
             'OFFERING': {
                 'custom_vpc': {
                     'label': 'Custom VPC',
                     'order': ['name', 'description', 'storage', 'ram', 'cpu_count'],
                     'options': {
                         'name': {
-                            'default': 'Service Request',
+                            'default': 'My Custom VPC',
                             'label': 'Name'
                         },
                         'description': {

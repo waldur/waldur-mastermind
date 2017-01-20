@@ -315,14 +315,14 @@ class OfferingSerializer(serializers.Serializer):
         lookup_field='uuid',
         write_only=True,
     )
-    DEFAULT_TYPE = 'Service Request'
 
     class Meta:
         model = models.Issue
 
     def __init__(self, name, data, **kwargs):
         super(OfferingSerializer, self).__init__(data=data, **kwargs)
-        self.configuration = settings.WALDUR_SUPPORT['OFFERING'][name]
+        self.offering_name = name
+        self.configuration = settings.WALDUR_SUPPORT['OFFERING'][self.offering_name]
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
@@ -352,8 +352,8 @@ class OfferingSerializer(serializers.Serializer):
             caller=self.context['request'].user,
             project=self.project,
             customer=self.project.customer,
-            type=self.DEFAULT_TYPE,
-            summary='Request for \'%s\'' % self.configuration.get('label', 'Support'),
+            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
+            summary='Request for \'%s\'' % self.configuration.get('label', self.offering_name),
             description=self._form_description(validated_data)
         )
 
