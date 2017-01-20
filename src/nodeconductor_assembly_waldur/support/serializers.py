@@ -315,6 +315,8 @@ class OfferingSerializer(serializers.Serializer):
         lookup_field='uuid',
         write_only=True,
     )
+    name = serializers.CharField(max_length=255, write_only=True)
+    description = serializers.CharField(required=False, max_length=255, write_only=True)
 
     class Meta:
         model = models.Issue
@@ -354,15 +356,19 @@ class OfferingSerializer(serializers.Serializer):
             customer=self.project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
             summary='Request for \'%s\'' % self.configuration.get('label', self.offering_name),
-            description=self._form_description(validated_data)
+            description=self._form_description(validated_data, validated_data.pop('description', None))
         )
 
         return issue
 
-    def _form_description(self, validated_data):
+    def _form_description(self, validated_data, appendix):
         result = []
         for key in validated_data:
-            label = self.configuration['options'][key].get('label', key)
-            result.append('%s: \'%s\'' % (label, validated_data[key]))
+            label = self.configuration['options'].get(key, {})
+            label_value = label.get('label', key)
+            result.append('%s: \'%s\'' % (label_value, validated_data[key]))
+
+        if appendix:
+            result.append('\n %s' % appendix)
 
         return '\n'.join(result)

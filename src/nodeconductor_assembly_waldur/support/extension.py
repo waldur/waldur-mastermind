@@ -29,16 +29,8 @@ class SupportExtension(NodeConductorExtension):
             'OFFERING': {
                 'custom_vpc': {
                     'label': 'Custom VPC',
-                    'order': ['name', 'description', 'storage', 'ram', 'cpu_count'],
+                    'order': ['storage', 'ram', 'cpu_count'],
                     'options': {
-                        'name': {
-                            'default': 'My Custom VPC',
-                            'label': 'Name'
-                        },
-                        'description': {
-                            'type': 'string',
-                            'label': 'Description',
-                        },
                         'storage': {
                             'type': 'integer',
                             'label': 'Max storage, GB',

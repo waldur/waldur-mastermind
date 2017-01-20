@@ -18,16 +18,8 @@ class BaseOfferingTest(base.BaseTest):
         settings.WALDUR_SUPPORT['OFFERING'] = {
             'custom_vpc': {
                 'label': 'Custom VPC',
-                'order': ['name', 'description', 'storage', 'ram', 'cpu_count'],
+                'order': ['storage', 'ram', 'cpu_count'],
                 'options': {
-                    'name': {
-                        'default': 'Service Request',
-                        'label': 'Name'
-                    },
-                    'description': {
-                        'type': 'string',
-                        'label': 'Description',
-                    },
                     'storage': {
                         'type': 'integer',
                         'label': 'Max storage, GB',
@@ -39,6 +31,7 @@ class BaseOfferingTest(base.BaseTest):
                         'help_text': 'VPC RAM limit in GB.',
                     },
                     'cpu_count': {
+                        'default': 93,
                         'type': 'integer',
                         'label': 'Max vCPU',
                         'help_text': 'VPC CPU count limit.',
@@ -68,6 +61,16 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
 
+    def test_offering_create_creates_issue_with_custom_description(self):
+        expected_description = 'This is a description'
+        request_data = self._get_valid_request()
+        request_data['description'] = expected_description
+
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(models.Issue.objects.count(), 1)
+        self.assertIn(expected_description, models.Issue.objects.first().description)
+
     def test_offering_create_associates_hyperlinked_fields_with_issue(self):
         request_data = self._get_valid_request()
 
@@ -80,14 +83,14 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(issue.project.uuid, self.fixture.issue.project.uuid)
 
     def test_offering_create_sets_default_value_if_it_was_not_provided(self):
-        default_value = settings.WALDUR_SUPPORT['OFFERING']['custom_vpc']['options']['name']['default']
+        default_value = settings.WALDUR_SUPPORT['OFFERING']['custom_vpc']['options']['cpu_count']['default']
         request_data = self._get_valid_request()
-        del request_data['name']
+        del request_data['cpu_count']
 
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
-        self.assertEqual(models.Issue.objects.first().type, default_value)
+        self.assertIn(str(default_value), models.Issue.objects.first().description)
 
     def _get_valid_request(self):
         return {
