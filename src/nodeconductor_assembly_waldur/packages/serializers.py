@@ -16,7 +16,8 @@ class PackageComponentSerializer(serializers.ModelSerializer):
 
 
 class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
-    price = serializers.DecimalField(max_digits=13, decimal_places=7)
+    price = serializers.DecimalField(max_digits=25, decimal_places=8)
+    monthly_price = serializers.DecimalField(max_digits=27, decimal_places=8)
     components = PackageComponentSerializer(many=True)
     category = serializers.ReadOnlyField(source='get_category_display')
 
@@ -24,7 +25,7 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
         model = models.PackageTemplate
         fields = (
             'url', 'uuid', 'name', 'description', 'service_settings',
-            'price', 'icon_url', 'components', 'category'
+            'price', 'monthly_price', 'icon_url', 'components', 'category'
         )
         view_name = 'package-template-detail'
         extra_kwargs = {
