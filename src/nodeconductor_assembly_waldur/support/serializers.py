@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 from datetime import datetime
-from django.apps import apps
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -296,7 +295,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return support_user
 
 
-class OfferingSerializer(serializers.Serializer):
+class OfferingRequestSerializer(serializers.Serializer):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
 
@@ -331,12 +330,12 @@ class OfferingSerializer(serializers.Serializer):
         model = models.Issue
 
     def __init__(self, name, data, **kwargs):
-        super(OfferingSerializer, self).__init__(data=data, **kwargs)
+        super(OfferingRequestSerializer, self).__init__(data=data, **kwargs)
         self.offering_name = name
         self.configuration = settings.WALDUR_SUPPORT['OFFERING'][self.offering_name]
 
     def get_fields(self):
-        result = super(OfferingSerializer, self).get_fields()
+        result = super(OfferingRequestSerializer, self).get_fields()
         for attr_name in self.configuration['order']:
             attr_options = self.configuration['options'].get(attr_name, {})
             result[attr_name] = self._get_field_instance(attr_options)
@@ -350,7 +349,7 @@ class OfferingSerializer(serializers.Serializer):
         elif type.lower() == 'integer':
             field = serializers.IntegerField()
         else:
-            raise NotImplementedError('Type "%s" is not supported by OfferingSerializer' % type)
+            raise NotImplementedError('Type "%s" can not be serialized.' % type)
         default_value = attr_options.get('default', None)
         if default_value:
             field.default = default_value
@@ -381,3 +380,20 @@ class OfferingSerializer(serializers.Serializer):
             result.append('\n %s' % appendix)
 
         return '\n'.join(result)
+
+
+class OfferingSerializer(serializers.HyperlinkedModelSerializer):
+    issue = serializers.HyperlinkedRelatedField(
+        view_name='support-issue-detail',
+        lookup_field='uuid',
+        queryset=models.Issue.objects.all(),
+    )
+
+    class Meta(object):
+        model = models.Offering
+        fields = ('url', 'uuid', 'name', 'description', 'issue', 'price', 'created', 'modified')
+        read_only_fields = ('created', 'modified')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+        )

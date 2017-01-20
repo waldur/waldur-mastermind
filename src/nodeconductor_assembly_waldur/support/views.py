@@ -122,15 +122,15 @@ class WebHookReceiverView(views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
-class OfferingListView(views.APIView):
+class OfferingRequestListView(views.APIView):
 
     def get(self, request):
         configuration = settings.WALDUR_SUPPORT['OFFERING']
         return response.Response(configuration, status=status.HTTP_200_OK)
 
 
-class OfferingView(generics.CreateAPIView):
-    serializer_class = serializers.OfferingSerializer
+class OfferingRequestView(generics.CreateAPIView):
+    serializer_class = serializers.OfferingRequestSerializer
     configuration = settings.WALDUR_SUPPORT['OFFERING']
 
     def post(self, request, name):
@@ -142,3 +142,10 @@ class OfferingView(generics.CreateAPIView):
         issue = serializer.save()
         backend.get_active_backend().create_issue(issue)
         return response.Response(issue.pk, status=status.HTTP_201_CREATED)
+
+
+class OfferingViewSet(core_views.ActionsViewSet):
+    queryset = models.Offering.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.OfferingSerializer
+

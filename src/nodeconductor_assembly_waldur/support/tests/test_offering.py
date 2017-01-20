@@ -43,7 +43,7 @@ class BaseOfferingTest(base.BaseTest):
 
 class OfferingGetTest(BaseOfferingTest):
     def test_offering_view_returns_configured_offerings(self):
-        url = reverse('offering-list')
+        url = reverse('offering-request-list')
         response = self.client.get(url)
         available_offerings = response.data
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERING'])
@@ -52,7 +52,7 @@ class OfferingGetTest(BaseOfferingTest):
 class OfferingCreateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateTest, self).setUp()
-        self.url = reverse('offering-detail', kwargs={'name': 'custom_vpc'})
+        self.url = reverse('offering-request-detail', kwargs={'name': 'custom_vpc'})
 
     def test_offering_create_creates_issue_with_valid_request(self):
         request_data = self._get_valid_request()
