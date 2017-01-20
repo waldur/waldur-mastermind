@@ -383,17 +383,18 @@ class OfferingRequestSerializer(serializers.Serializer):
 
 
 class OfferingSerializer(serializers.HyperlinkedModelSerializer):
-    issue = serializers.HyperlinkedRelatedField(
-        view_name='support-issue-detail',
-        lookup_field='uuid',
-        queryset=models.Issue.objects.all(),
-    )
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'description', 'issue', 'price', 'created', 'modified')
-        read_only_fields = ('created', 'modified')
+        fields = ('url', 'uuid', 'name', 'description', 'project', 'issue', 'price', 'created', 'modified')
+        read_only_fields = ('project', 'created', 'modified')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
+
+    def validate(self, attrs):
+        attrs = super(OfferingSerializer, self).validate(attrs)
+        attrs['project'] = attrs['issue'].project
+        return attrs

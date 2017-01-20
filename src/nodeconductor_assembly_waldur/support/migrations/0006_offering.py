@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from decimal import Decimal
 from django.db import migrations, models
-import django.utils.timezone
-import django.db.models.deletion
-import nodeconductor.core.fields
 import model_utils.fields
+import nodeconductor.core.fields
+import django.utils.timezone
+from decimal import Decimal
+import django.db.models.deletion
+import django.core.validators
 import nodeconductor.core.validators
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
+        ('structure', '0039_remove_permission_groups'),
         ('support', '0005_issue_first_response_sla'),
     ]
 
@@ -26,8 +28,9 @@ class Migration(migrations.Migration):
                 ('description', models.CharField(max_length=500, verbose_name='description', blank=True)),
                 ('name', models.CharField(max_length=150, verbose_name='name', validators=[nodeconductor.core.validators.validate_name])),
                 ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('price', models.DecimalField(decimal_places=7, default=0, max_digits=13, validators=[django.core.validators.MinValueValidator(Decimal('0'))], help_text='The price per unit of amount', verbose_name='Price per day')),
                 ('issue', models.ForeignKey(on_delete=django.db.models.deletion.SET_NULL, to='support.Issue', null=True)),
-                ('price', models.DecimalField(default=0, help_text='The price per unit of amount', verbose_name='Price per day', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
+                ('project', models.ForeignKey(on_delete=django.db.models.deletion.SET_NULL, to='structure.Project', null=True)),
             ],
             options={
                 'abstract': False,

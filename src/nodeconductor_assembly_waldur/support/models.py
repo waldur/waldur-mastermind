@@ -99,6 +99,7 @@ class Offering(core_models.UuidMixin,
                core_models.DescribableMixin,
                TimeStampedModel):
     issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
+    project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.SET_NULL)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 help_text='The price per unit of amount',
