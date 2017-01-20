@@ -43,8 +43,8 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
             package.delete()
 
             invoice = models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
-            hours = 24 * ((end - start).days + 1)
-            expected_total = hours * package.template.price
+            days = (end - start).days + 1
+            expected_total = days * package.template.price
             self.assertEqual(invoice.total, expected_total)
 
     def test_invoice_update_handler_is_called_once_on_tenant_deletion(self):
@@ -89,8 +89,8 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         with freeze_time('2016-11-04 12:00:00'):
             package = self.fixture.openstack_package
 
-            hours = 24 * ((utils.get_current_month_end() - timezone.now()).days + 1)
-            expected_total = hours * package.template.price
+            days = (utils.get_current_month_end() - timezone.now()).days + 1
+            expected_total = days * package.template.price
             invoice = models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
             self.assertEqual(invoice.total, expected_total)
 
