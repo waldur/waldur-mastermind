@@ -5,15 +5,16 @@ before_install:
 - sudo apt-get update -qq
 - sudo apt-get install gcc libffi-dev libldap2-dev libsasl2-dev libssl-dev python-dev
 install:
+- pip install -e .
 - python setup.py install
 script:
 - python setup.py test
 deploy:
   provider: pypi
   user: opennode
-  distributions: "sdist bdist_wheel"
   password:
-    secure: tY5F/L5Bz8uDr45tpX0CvDXQOSvCsRQ2+nObN1hwgG8NFMlSPC0LTZ8DQ6MLcFqBr36JQN+FUP2QmENgfyQcd0jAEC0iAaMf3rWDPpX1P5poQO3Vt6Wxby9NRiV8BxJqI7+/CAudgoPHN4cqrdl1e1bWByy+hguOxMxS2nTrEnsuGYTvtC5E00LN9hxHWTmYET/6yljXmlJCF0dMlv3JVW4NKDBrIE8wRN3FyZyw7hz9450ZlycXs7eHc5wzCT7hXAYOg/4U630gN0CRjL+t/GupOdb2AF24avQuTfe2UrY2VKHx4+LYv/qYaDAXscf0J7th2GTIPzYpeX+CP0kRF6oJ6NN1GD2STPQkpBxvgsJ2RR36nmAHhZB6CwJnD/Hi3yyMEBkzlwWHkGvs+npo/swM4f7a9n5H6HcAjUZWD3ap6g8v0FliJB1l7PYkEFzdPFWrlW+Pc7EgrhqieLMTkJybbRa/P+0e97/REDD1W77Nm8hbKtEIHBXakRLXrXA1VGLiOjIAfKrIrzqZWtWRNKMNzUutiQyhOqM5xhjtMaRBd4bmClRUj1WxVJk67+d3a8eHySbDO5z/AVbJAJ/leuAQzM5XhzKcWyo7gmBXn+nMqRNU1DnfYPwq2C2SgTcWYouSadz2xk3WyGpy2qVX8NNbHkWvkAMqUlu4Gi/qTCw=
+    secure: p6ainKHGPPYnUGNvjSLeR/gPd3dsF3ba46UEcIVeGzR16qB0J5rmAmN/DuJY8yaSfXvLBFzl+cQyR4wfc4vRRsg1uz8ZVgJ5atbbeEvZz064jcuF9kxKpJOK3ZwBrk5740OuMLsXClQPOcaKptZ8yFXY1WIIVjrFhw2Ntc40m98hu/VAy390aHqM2wFj4gfrubpEnsY3HmaZl9/7gH6liEtxXXjLG14R1uS2ivgSXowFZOCNwZ/3xce4DvHSdH+KOMI45qV78vRx05Hr15JVQAoSFpyvziLdSP+sSRTOj/TiHbnzCrwbWVTPEWQ20/iZ+a5BkFYM/jXrg0mKpOBfCt/Bfx/phTiHZK+45E3MCNxpZ20Nshm6DALn0ONWUvK0LaJN1bATt05Yojev7hnBGjRDBvGMsF8+tsIWEihPDR9x9EXC6+G0fLePPH2mHx0N42OQCYCW8IlHRo0wX6lVILNj1p/y18VFhNVMuritW9ZnJsK4XrvXgw7OA0CFvw7EeyT1NEgtAglXEgkdo2EiZ3naVGP3Ryqwexxj2+DyKIoDO7K7SUvW3YEH4vlrsVjmCyo/ah236x8XXy/tQGdgRp1celBUmFrfWzrdbwIrDcMUzBTB2iRKyUJtAsgEFJuU+Su2ToVW+GaYpBVoi2lrcWV6Tl26hK49rqW/cxjP7Ww=
   on:
     tags: true
+    distributions: sdist bdist_wheel
     repo: opennode/nodeconductor-assembly-waldur
