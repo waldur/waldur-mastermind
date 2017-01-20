@@ -35,7 +35,7 @@ class PackageComponentForm(forms.ModelForm):
         price_max = 10 ** (models.PackageComponent.PRICE_MAX_DIGITS - models.PackageComponent.PRICE_DECIMAL_PLACES)
         monthly_price_max = price_max * 30 * amount
         if monthly_price > monthly_price_max:
-            raise forms.ValidationError('Monthly price for "%s" cannot be lower than %s' % (type, monthly_price_max))
+            raise forms.ValidationError('Monthly price for "%s" should be lower than %s' % (type, monthly_price_max))
 
     def save(self, commit=True):
         monthly_price = self.cleaned_data.get('monthly_price', None)

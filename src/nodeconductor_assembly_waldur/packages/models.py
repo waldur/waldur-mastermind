@@ -40,7 +40,8 @@ class PackageTemplate(core_models.UuidMixin,
     def price(self):
         """ Price for whole template for one day """
         return self.components.aggregate(total=models.Sum(
-            models.F('price') * models.F('amount')))['total'] or Decimal('0')
+            models.F('price') * models.F('amount'),
+            output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
 
     @property
     def monthly_price(self):
@@ -72,8 +73,8 @@ class PackageTemplate(core_models.UuidMixin,
 
 @python_2_unicode_compatible
 class PackageComponent(models.Model):
-    PRICE_MAX_DIGITS = 16
-    PRICE_DECIMAL_PLACES = 8
+    PRICE_MAX_DIGITS = 14
+    PRICE_DECIMAL_PLACES = 10
 
     class Meta(object):
         unique_together = ('type', 'template')

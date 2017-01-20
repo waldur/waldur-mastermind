@@ -16,8 +16,8 @@ class PackageComponentSerializer(serializers.ModelSerializer):
 
 
 class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
-    price = serializers.DecimalField(max_digits=25, decimal_places=8)
-    monthly_price = serializers.DecimalField(max_digits=27, decimal_places=8)
+    price = serializers.DecimalField(max_digits=22, decimal_places=10)
+    monthly_price = serializers.DecimalField(max_digits=16, decimal_places=2)
     components = PackageComponentSerializer(many=True)
     category = serializers.ReadOnlyField(source='get_category_display')
 
