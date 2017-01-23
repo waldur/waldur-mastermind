@@ -360,9 +360,9 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
     def _get_field_instance(self, attr_options):
         filed_type = attr_options.get('type', None)
         if filed_type is None or filed_type.lower() == 'string':
-            field = serializers.CharField(max_length=255)
+            field = serializers.CharField(max_length=255, write_only=True)
         elif filed_type.lower() == 'integer':
-            field = serializers.IntegerField()
+            field = serializers.IntegerField(write_only=True)
         else:
             raise NotImplementedError('Type "%s" can not be serialized.' % type)
         default_value = attr_options.get('default', None)

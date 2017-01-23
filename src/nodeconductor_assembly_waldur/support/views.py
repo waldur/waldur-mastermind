@@ -138,7 +138,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         offering = serializer.save()
         backend.get_active_backend().create_issue(offering.issue)
-        return response.Response(offering.pk, status=status.HTTP_201_CREATED)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
