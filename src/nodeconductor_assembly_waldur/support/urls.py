@@ -15,6 +15,4 @@ def register_in(router):
 urlpatterns = patterns(
     '',
     url(r'^api/support-jira-webhook/$', views.WebHookReceiverView.as_view(), name='web-hook-receiver'),
-    url(r'^api/offering-request/$', views.OfferingRequestListView.as_view(), name='offering-request-list'),
-    url(r'^api/offering-request/(?P<name>\w+)/$', views.OfferingRequestView.as_view(), name='offering-request-detail'),
 )

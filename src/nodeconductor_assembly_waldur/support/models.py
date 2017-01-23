@@ -108,10 +108,12 @@ class Offering(core_models.UuidMixin,
 
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
+    type = models.CharField(blank=True, max_length=255)
+    type_label = models.CharField(blank=True, max_length=255)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.SET_NULL)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                help_text='The price per unit of amount',
+                                help_text='The price per unit of offering',
                                 verbose_name='Price per day')
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)

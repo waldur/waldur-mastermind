@@ -58,7 +58,7 @@ class CommentFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('support-comment-list')
 
 
-class OfferingRequestFactory(factory.DjangoModelFactory):
+class OfferingFactory(factory.DjangoModelFactory):
 
     class Meta:
         model = models.Offering
@@ -69,10 +69,14 @@ class OfferingRequestFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, offering=None, action=None):
         if offering is None:
-            offering = OfferingRequestFactory()
+            offering = OfferingFactory()
         url = 'http://testserver' + reverse('support-offering-detail', kwargs={'uuid': offering.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-offering-list')
+
+    @classmethod
+    def get_list_action_url(cls):
+        return 'http://testserver' + reverse('support-offering-list') + 'configured/'

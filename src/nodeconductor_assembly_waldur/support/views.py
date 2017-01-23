@@ -122,33 +122,23 @@ class WebHookReceiverView(views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
-class OfferingRequestListView(views.APIView):
-
-    def get(self, request):
-        configuration = settings.WALDUR_SUPPORT['OFFERING']
-        return response.Response(configuration, status=status.HTTP_200_OK)
-
-
-class OfferingRequestView(generics.CreateAPIView):
-    serializer_class = serializers.OfferingRequestSerializer
-    configuration = settings.WALDUR_SUPPORT['OFFERING']
-
-    def post(self, request, name):
-        if name not in self.configuration:
-            return response.Response('Provided name "%s" is not registered' % name, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = self.get_serializer(name=name, data=request.data)
-        serializer.is_valid(raise_exception=True)
-        issue = serializer.save()
-        backend.get_active_backend().create_issue(issue)
-        return response.Response(issue.pk, status=status.HTTP_201_CREATED)
-
-
 class OfferingViewSet(core_views.ActionsViewSet):
     queryset = models.Offering.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.OfferingSerializer
     unsafe_methods_permissions = [structure_permissions.is_staff]
+    configuration = settings.WALDUR_SUPPORT['OFFERING']
+
+    @decorators.list_route()
+    def configured(self, request):
+        return response.Response(self.configuration, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        offering = serializer.save()
+        backend.get_active_backend().create_issue(offering.issue)
+        return response.Response(offering.pk, status=status.HTTP_201_CREATED)
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:

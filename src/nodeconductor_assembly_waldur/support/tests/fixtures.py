@@ -13,4 +13,4 @@ class SupportFixture(structure_fixtures.ServiceFixture):
 
     @cached_property
     def offering(self):
-        return factories.OfferingRequestFactory(issue=self.issue)
+        return factories.OfferingFactory(issue=self.issue)
