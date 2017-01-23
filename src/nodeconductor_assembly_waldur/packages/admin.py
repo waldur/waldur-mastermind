@@ -1,13 +1,24 @@
 import collections
 
+from django import forms
 from django.contrib import admin
-from django.forms import ValidationError
-from django.forms.models import BaseInlineFormSet
+from django.contrib.admin import widgets
 
 from nodeconductor_assembly_waldur.packages import models
 
 
-class PackageComponentInlineFormset(BaseInlineFormSet):
+class KilobyteWidget(widgets.AdminIntegerFieldWidget):
+
+    def value_from_datadict(self, data, files, name):
+        value = super(KilobyteWidget, self).value_from_datadict(data, files, name)
+        value = int(value) * 1024
+        return value
+
+    def _format_value(self, value):
+        return int(value) / 1024
+
+
+class PackageComponentInlineFormset(forms.models.BaseInlineFormSet):
     """
     Formset responsible for package component inlines validation and their initial population.
     """
@@ -15,6 +26,11 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
         # Fill inlines with required component types
         kwargs['initial'] = [{'type': t} for t in models.PackageTemplate.get_required_component_types()]
         super(PackageComponentInlineFormset, self).__init__(**kwargs)
+
+    def add_fields(self, form, index):
+        super(PackageComponentInlineFormset, self).add_fields(form, index)
+        if 'type' in form.initial and form.initial['type'] in models.PackageTemplate.get_memory_types():
+            form.fields['amount'] = forms.IntegerField(min_value=0, initial=0, widget=KilobyteWidget())
 
     def clean(self):
         super(PackageComponentInlineFormset, self).clean()
@@ -31,13 +47,13 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
             filled.append(comp['type'])
         duplicates = [item for item, count in collections.Counter(filled).items() if count > 1]
         if duplicates:
-            raise ValidationError('One or more items are duplicated: %s' % ', '.join(duplicates))
+            raise forms.ValidationError('One or more items are duplicated: %s' % ', '.join(duplicates))
 
         for t in models.PackageTemplate.get_required_component_types():
             if t not in filled:
-                raise ValidationError('%s component must be specified.' % t.capitalize())
+                raise forms.ValidationError('%s component must be specified.' % t.capitalize())
             elif t in marked_for_delete:
-                raise ValidationError('%s component is required and cannot be deleted.' % t.capitalize())
+                raise forms.ValidationError('%s component is required and cannot be deleted.' % t.capitalize())
 
 
 class PackageComponentInline(admin.TabularInline):
