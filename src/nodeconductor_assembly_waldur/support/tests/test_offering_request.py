@@ -10,9 +10,9 @@ from . import base
 from .. import models
 
 
-class BaseOfferingTest(base.BaseTest):
+class BaseOfferingRequestTest(base.BaseTest):
     def setUp(self):
-        super(BaseOfferingTest, self).setUp()
+        super(BaseOfferingRequestTest, self).setUp()
 
         self.client.force_authenticate(self.fixture.staff)
         settings.WALDUR_SUPPORT['OFFERING'] = {
@@ -41,7 +41,7 @@ class BaseOfferingTest(base.BaseTest):
         }
 
 
-class OfferingGetTest(BaseOfferingTest):
+class OfferingRequestGetTest(BaseOfferingRequestTest):
     def test_offering_view_returns_configured_offerings(self):
         url = reverse('offering-request-list')
         response = self.client.get(url)
@@ -49,9 +49,9 @@ class OfferingGetTest(BaseOfferingTest):
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERING'])
 
 
-class OfferingCreateTest(BaseOfferingTest):
+class OfferingRequestCreateTest(BaseOfferingRequestTest):
     def setUp(self):
-        super(OfferingCreateTest, self).setUp()
+        super(OfferingRequestCreateTest, self).setUp()
         self.url = reverse('offering-request-detail', kwargs={'name': 'custom_vpc'})
 
     def test_offering_create_creates_issue_with_valid_request(self):

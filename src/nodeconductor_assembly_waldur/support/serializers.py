@@ -398,3 +398,16 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
         attrs = super(OfferingSerializer, self).validate(attrs)
         attrs['project'] = attrs['issue'].project
         return attrs
+
+
+class OfferingCompleteSerializer(serializers.Serializer):
+    price = serializers.IntegerField()
+
+    class Meta(object):
+        model = models.Offering
+
+    def update(self, instance, validated_data):
+        instance.price = validated_data['price']
+        instance.state = models.Offering.States.OK
+        instance.save(update_fields=['state', 'price'])
+        return instance
