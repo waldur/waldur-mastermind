@@ -32,11 +32,21 @@ class PackageTemplate(core_models.UuidMixin,
 
     category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
 
+    class Meta(object):
+        verbose_name = _('VPC package template')
+        verbose_name_plural = _('VPC package templates')
+
     @property
     def price(self):
+        """ Price for whole template for one day """
         return self.components.aggregate(total=models.Sum(
             models.F('price') * models.F('amount'),
-            output_field=models.DecimalField(max_digits=13, decimal_places=7)))['total'] or Decimal('0')
+            output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
+
+    @property
+    def monthly_price(self):
+        """ Price for one template for 30 days """
+        return round(self.price * 30, 2)
 
     @staticmethod
     def get_required_component_types():
@@ -65,13 +75,12 @@ class PackageTemplate(core_models.UuidMixin,
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
 
-    class Meta(object):
-        verbose_name = _('VPC package template')
-        verbose_name_plural = _('VPC package templates')
-
 
 @python_2_unicode_compatible
 class PackageComponent(models.Model):
+    PRICE_MAX_DIGITS = 14
+    PRICE_DECIMAL_PLACES = 10
+
     class Meta(object):
         unique_together = ('type', 'template')
 
@@ -84,14 +93,23 @@ class PackageComponent(models.Model):
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
+    price = models.DecimalField(default=0, max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                help_text='The price per unit of amount',
-                                verbose_name='Price per hour')
+                                verbose_name='Price per unit per day')
     template = models.ForeignKey(PackageTemplate, related_name='components')
 
     def __str__(self):
         return '%s | %s' % (self.type, self.template.name)
+
+    @property
+    def monthly_price(self):
+        """
+        Rounded price for 30-days.
+
+        This price should not be used for calculations.
+        Only to display price in human friendly way.
+        """
+        return round(self.price * 30 * self.amount, 2)
 
 
 @python_2_unicode_compatible

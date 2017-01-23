@@ -3,14 +3,15 @@ import collections
 from django import forms
 from django.contrib import admin
 from django.contrib.admin import widgets
+from django.forms.models import BaseInlineFormSet
 
 from nodeconductor_assembly_waldur.packages import models
 
 
-class KilobyteWidget(widgets.AdminIntegerFieldWidget):
+class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
 
     def value_from_datadict(self, data, files, name):
-        value = super(KilobyteWidget, self).value_from_datadict(data, files, name)
+        value = super(GBtoMBWidget, self).value_from_datadict(data, files, name)
         value = int(value) * 1024
         return value
 
@@ -18,10 +19,53 @@ class KilobyteWidget(widgets.AdminIntegerFieldWidget):
         return int(value) / 1024
 
 
-class PackageComponentInlineFormset(forms.models.BaseInlineFormSet):
+class PackageComponentForm(forms.ModelForm):
+    monthly_price = forms.DecimalField(label="Price for 30 days", initial=0, required=True)
+
+    class Meta:
+        model = models.PackageComponent
+        fields = ('type', 'amount', 'monthly_price', 'price')
+
+    def __init__(self, *args, **kwargs):
+        super(PackageComponentForm, self).__init__(*args, **kwargs)
+        if self.instance:
+            self.fields['monthly_price'].initial = self.instance.monthly_price
+
+    def clean(self):
+        super(PackageComponentForm, self).clean()
+        if 'monthly_price' not in self.cleaned_data or 'amount' not in self.cleaned_data:
+            return
+        type = self.cleaned_data['type']
+        monthly_price = self.cleaned_data['monthly_price']
+        amount = self.cleaned_data['amount']
+
+        price_min = 10 ** -models.PackageComponent.PRICE_DECIMAL_PLACES
+        monthly_price_min = price_min * 30 * amount
+        if monthly_price < monthly_price_min:
+            raise forms.ValidationError('Monthly price for "%s" should be greater than %s' % (type, monthly_price_min))
+
+        price_max = 10 ** (models.PackageComponent.PRICE_MAX_DIGITS - models.PackageComponent.PRICE_DECIMAL_PLACES)
+        monthly_price_max = price_max * 30 * amount
+        if monthly_price > monthly_price_max:
+            raise forms.ValidationError('Monthly price for "%s" should be lower than %s' % (type, monthly_price_max))
+
+    def save(self, commit=True):
+        monthly_price = self.cleaned_data.get('monthly_price', None)
+        amount = self.cleaned_data.get('amount', 0)
+        package_component = super(PackageComponentForm, self).save(commit=commit)
+        if amount:
+            package_component.price = monthly_price / 30 / amount
+        if commit:
+            package_component.save()
+        return package_component
+
+
+class PackageComponentInlineFormset(BaseInlineFormSet):
     """
     Formset responsible for package component inlines validation and their initial population.
     """
+    form = PackageComponentForm
+
     def __init__(self, **kwargs):
         # Fill inlines with required component types
         kwargs['initial'] = [{'type': t} for t in models.PackageTemplate.get_required_component_types()]
@@ -30,7 +74,7 @@ class PackageComponentInlineFormset(forms.models.BaseInlineFormSet):
     def add_fields(self, form, index):
         super(PackageComponentInlineFormset, self).add_fields(form, index)
         if 'type' in form.initial and form.initial['type'] in models.PackageTemplate.get_memory_types():
-            form.fields['amount'] = forms.IntegerField(min_value=0, initial=0, widget=KilobyteWidget())
+            form.fields['amount'] = forms.IntegerField(min_value=0, initial=0, widget=GBtoMBWidget())
 
     def clean(self):
         super(PackageComponentInlineFormset, self).clean()
@@ -57,10 +101,11 @@ class PackageComponentInlineFormset(forms.models.BaseInlineFormSet):
 
 
 class PackageComponentInline(admin.TabularInline):
+    form = PackageComponentForm
     formset = PackageComponentInlineFormset
     model = models.PackageComponent
     extra = 0
-    fields = ('type', 'amount', 'price')
+    readonly_fields = ('price', )
 
     def get_extra(self, request, obj=None, **kwargs):
         if obj:
@@ -72,7 +117,7 @@ class PackageComponentInline(admin.TabularInline):
 class PackageTemplateAdmin(admin.ModelAdmin):
     inlines = [PackageComponentInline]
     fields = ('name', 'category', 'description', 'icon_url', 'service_settings')
-    list_display = ('name', 'uuid', 'service_settings', 'price', 'category')
+    list_display = ('name', 'uuid', 'service_settings', 'price', 'monthly_price', 'category')
     list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
 

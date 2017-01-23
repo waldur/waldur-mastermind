@@ -178,10 +178,14 @@ class OpenStackItem(models.Model):
 
     @staticmethod
     def calculate_price_for_period(price, start, end):
-        """ Calculates price from "start" till "end" """
+        """
+        Calculates price from "start" till "end".
+
+        :param price: price for item per day.
+        """
         full_days = utils.get_full_days(start, end)
 
-        return price * 24 * full_days
+        return price * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """
