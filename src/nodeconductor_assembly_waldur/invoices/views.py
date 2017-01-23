@@ -1,4 +1,5 @@
-from rest_framework import filters as rf_filters, permissions, status, viewsets, exceptions
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import permissions, status, viewsets, exceptions
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
@@ -12,7 +13,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.order_by('-year', '-month')
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, rf_filters.DjangoFilterBackend,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.InvoiceFilter
 
     def _is_invoice_created(invoice):
@@ -42,5 +43,5 @@ class PaymentDetailsViewSet(viewsets.ModelViewSet):
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly,
                           permissions.DjangoObjectPermissions)
-    filter_backends = (structure_filters.GenericRoleFilter, rf_filters.DjangoFilterBackend)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.PaymentDetailsFilter
