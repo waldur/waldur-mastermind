@@ -89,7 +89,7 @@ class PackageComponent(models.Model):
         CORES = 'cores'
         STORAGE = 'storage'
 
-        CHOICES = ((RAM, 'RAM, GB'), (CORES, 'Cores'), (STORAGE, 'Storage, GB'))
+        CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)

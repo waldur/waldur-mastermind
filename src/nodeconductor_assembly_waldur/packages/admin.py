@@ -18,6 +18,10 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
     def _format_value(self, value):
         return int(value) / 1024
 
+    def render(self, name, value, attrs=None):
+        result = super(GBtoMBWidget, self).render(name, value, attrs)
+        return '<label>%s GB</label>' % result
+
 
 class PackageComponentForm(forms.ModelForm):
     monthly_price = forms.DecimalField(label="Price for 30 days", initial=0, required=True)

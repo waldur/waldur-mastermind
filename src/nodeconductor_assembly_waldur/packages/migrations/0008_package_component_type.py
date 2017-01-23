@@ -14,6 +14,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='packagecomponent',
             name='type',
-            field=models.CharField(max_length=50, choices=[('ram', 'RAM, GB'), ('cores', 'Cores'), ('storage', 'Storage, GB')]),
+            field=models.CharField(max_length=50, choices=[('ram', 'RAM'), ('cores', 'Cores'), ('storage', 'Storage')]),
         ),
     ]
