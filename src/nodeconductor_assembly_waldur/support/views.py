@@ -127,11 +127,10 @@ class OfferingViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.OfferingSerializer
     unsafe_methods_permissions = [structure_permissions.is_staff]
-    configuration = settings.WALDUR_SUPPORT['OFFERING']
 
     @decorators.list_route()
     def configured(self, request):
-        return response.Response(self.configuration, status=status.HTTP_200_OK)
+        return response.Response(settings.WALDUR_SUPPORT['OFFERING'], status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
