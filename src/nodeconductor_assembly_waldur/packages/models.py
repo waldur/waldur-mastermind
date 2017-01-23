@@ -54,6 +54,11 @@ class PackageTemplate(core_models.UuidMixin,
                 PackageComponent.Types.CORES,
                 PackageComponent.Types.STORAGE)
 
+    @staticmethod
+    def get_memory_types():
+        return (PackageComponent.Types.RAM,
+                PackageComponent.Types.STORAGE)
+
     def clean(self):
         openstack_type = openstack_apps.OpenStackConfig.service_name
 
@@ -84,7 +89,7 @@ class PackageComponent(models.Model):
         CORES = 'cores'
         STORAGE = 'storage'
 
-        CHOICES = ((RAM, 'RAM, MB'), (CORES, 'Cores'), (STORAGE, 'Storage, MB'))
+        CHOICES = ((RAM, 'RAM'), (CORES, 'Cores'), (STORAGE, 'Storage'))
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)

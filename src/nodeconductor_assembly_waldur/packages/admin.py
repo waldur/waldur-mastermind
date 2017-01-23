@@ -2,9 +2,25 @@ import collections
 
 from django import forms
 from django.contrib import admin
+from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 
 from nodeconductor_assembly_waldur.packages import models
+
+
+class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
+
+    def value_from_datadict(self, data, files, name):
+        value = super(GBtoMBWidget, self).value_from_datadict(data, files, name)
+        value = int(value) * 1024
+        return value
+
+    def _format_value(self, value):
+        return int(value) / 1024
+
+    def render(self, name, value, attrs=None):
+        result = super(GBtoMBWidget, self).render(name, value, attrs)
+        return '<label>%s GB</label>' % result
 
 
 class PackageComponentForm(forms.ModelForm):
@@ -58,6 +74,11 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
         # Fill inlines with required component types
         kwargs['initial'] = [{'type': t} for t in models.PackageTemplate.get_required_component_types()]
         super(PackageComponentInlineFormset, self).__init__(**kwargs)
+
+    def add_fields(self, form, index):
+        super(PackageComponentInlineFormset, self).add_fields(form, index)
+        if 'type' in form.initial and form.initial['type'] in models.PackageTemplate.get_memory_types():
+            form.fields['amount'] = forms.IntegerField(min_value=0, initial=0, widget=GBtoMBWidget())
 
     def clean(self):
         super(PackageComponentInlineFormset, self).clean()
