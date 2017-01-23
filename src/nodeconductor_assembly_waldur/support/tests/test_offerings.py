@@ -149,6 +149,17 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(models.Issue.objects.count(), 1)
         self.assertIn(expected_description, models.Issue.objects.first().description)
 
+    def test_offering_create_fills_type_of_the_offering(self):
+        expected_type = 'custom_vpc'
+        request_data = self._get_valid_request()
+
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(models.Offering.objects.count(), 1)
+        offering = models.Offering.objects.first()
+        self.assertIn(offering.type, 'custom_vpc')
+        self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERING'][expected_type]['label'])
+
     def test_offering_create_associates_hyperlinked_fields_with_issue(self):
         request_data = self._get_valid_request()
 

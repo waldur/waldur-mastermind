@@ -373,12 +373,13 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
 
     def create(self, validated_data):
         self.project = validated_data.pop('project')
+        type_label = self.configuration.get('label', self.type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
             project=self.project,
             customer=self.project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
-            summary='Request for \'%s\'' % self.configuration.get('label', self.type),
+            summary='Request for \'%s\'' % type_label,
             description=self._form_description(validated_data, validated_data.pop('description', None))
         )
 
@@ -386,7 +387,9 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
-            description=issue.description)
+            description=issue.description,
+            type=self.type,
+            type_label=type_label)
 
         return offering
 
