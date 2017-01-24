@@ -1,13 +1,11 @@
 import django_filters
 
-from nodeconductor.core.filters import UUIDFilter
-
 from . import models
 
 
 class PackageTemplateFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_type='icontains')
-    settings_uuid = UUIDFilter(name='service_settings__uuid')
+    settings_uuid = django_filters.UUIDFilter(name='service_settings__uuid')
 
     class Meta(object):
         model = models.PackageTemplate
@@ -16,9 +14,9 @@ class PackageTemplateFilter(django_filters.FilterSet):
 
 class OpenStackPackageFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_type='icontains')
-    customer = UUIDFilter(name='tenant__service_project_link__project__customer__uuid')
-    project = UUIDFilter(name='tenant__service_project_link__project__uuid')
-    tenant = UUIDFilter(name='tenant__uuid')
+    customer = django_filters.UUIDFilter(name='tenant__service_project_link__project__customer__uuid')
+    project = django_filters.UUIDFilter(name='tenant__service_project_link__project__uuid')
+    tenant = django_filters.UUIDFilter(name='tenant__uuid')
 
     class Meta(object):
         model = models.OpenStackPackage

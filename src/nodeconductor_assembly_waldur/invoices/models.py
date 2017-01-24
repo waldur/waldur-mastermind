@@ -240,5 +240,9 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
     default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                               validators=[MinValueValidator(0), MaxValueValidator(100)])
 
+    @classmethod
+    def get_url_name(cls):
+        return 'payment-details'
+
     def __str__(self):
         return 'PaymentDetails for %s' % self.customer

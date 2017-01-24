@@ -56,6 +56,10 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
 
     first_response_sla = models.DateTimeField(blank=True, null=True)
 
+    @classmethod
+    def get_url_name(cls):
+        return 'support-issue'
+
     def get_log_fields(self):
         return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'caller', 'customer', 'project', 'resource')
 
@@ -72,6 +76,10 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     backend_id = models.CharField(max_length=255, blank=True)
 
     objects = managers.SupportUserManager()
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-user'
 
     def __str__(self):
         return self.name
@@ -91,6 +99,10 @@ class Comment(core_models.UuidMixin, TimeStampedModel):
     description = models.TextField()
     is_public = models.BooleanField(default=True)
     backend_id = models.CharField(max_length=255, blank=True)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-comment'
 
     def __str__(self):
         return self.description[:50]
