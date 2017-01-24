@@ -122,23 +122,41 @@ class WebHookReceiverView(views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
-class OfferingListView(views.APIView):
-
-    def get(self, request):
-        configuration = settings.WALDUR_SUPPORT['OFFERING']
-        return response.Response(configuration, status=status.HTTP_200_OK)
-
-
-class OfferingView(generics.CreateAPIView):
+class OfferingViewSet(core_views.ActionsViewSet):
+    queryset = models.Offering.objects.all()
+    lookup_field = 'uuid'
     serializer_class = serializers.OfferingSerializer
-    configuration = settings.WALDUR_SUPPORT['OFFERING']
+    unsafe_methods_permissions = [structure_permissions.is_staff]
 
-    def post(self, request, name):
-        if name not in self.configuration:
-            return response.Response('Provided name "%s" is not registered' % name, status=status.HTTP_404_NOT_FOUND)
+    @decorators.list_route()
+    def configured(self, request):
+        return response.Response(settings.WALDUR_SUPPORT['OFFERING'], status=status.HTTP_200_OK)
 
-        serializer = self.get_serializer(name=name, data=request.data)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        issue = serializer.save()
-        backend.get_active_backend().create_issue(issue)
-        return response.Response(issue.pk, status=status.HTTP_201_CREATED)
+        offering = serializer.save()
+        backend.get_active_backend().create_issue(offering.issue)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def offering_is_in_requested_state(offering):
+        if offering.state != models.Offering.States.REQUESTED:
+            raise exceptions.ValidationError('Offering must be in requested state.')
+
+    @decorators.detail_route(methods=['post'])
+    def complete(self, request, uuid=None):
+        serializer = self.get_serializer(instance=self.get_object(), data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response({'status': 'Offering is marked as completed.'}, status=status.HTTP_200_OK)
+
+    complete_validators = [offering_is_in_requested_state]
+    complete_serializer_class = serializers.OfferingCompleteSerializer
+
+    @decorators.detail_route(methods=['post'])
+    def terminate(self, request, uuid=None):
+        offering = self.get_object()
+        offering.state = models.Offering.States.TERMINATED
+        offering.save()
+        return response.Response({'status': 'Offering is marked as terminated.'}, status=status.HTTP_200_OK)
+

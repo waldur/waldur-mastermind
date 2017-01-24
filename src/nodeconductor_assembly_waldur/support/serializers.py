@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 from datetime import datetime
-from django.apps import apps
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -296,7 +295,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return support_user
 
 
-class OfferingSerializer(serializers.Serializer):
+class OfferingSerializer(serializers.HyperlinkedModelSerializer):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
 
@@ -326,31 +325,46 @@ class OfferingSerializer(serializers.Serializer):
     )
     name = serializers.CharField(max_length=255, write_only=True)
     description = serializers.CharField(required=False, max_length=255, write_only=True)
+    type = serializers.CharField(max_length=255)
 
-    class Meta:
-        model = models.Issue
+    class Meta(object):
+        model = models.Offering
+        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'issue', 'price', 'created', 'modified')
+        read_only_fields = ('type', 'price', 'issue', 'created', 'modified')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+        )
 
-    def __init__(self, name, data, **kwargs):
-        super(OfferingSerializer, self).__init__(data=data, **kwargs)
-        self.offering_name = name
-        self.configuration = settings.WALDUR_SUPPORT['OFFERING'][self.offering_name]
+    @property
+    def configuration(self):
+        return settings.WALDUR_SUPPORT['OFFERING'][self.type]
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-        for attr_name in self.configuration['order']:
-            attr_options = self.configuration['options'].get(attr_name, {})
-            result[attr_name] = self._get_field_instance(attr_options)
+        if hasattr(self, 'type'):
+            for attr_name in self.configuration['order']:
+                attr_options = self.configuration['options'].get(attr_name, {})
+                result[attr_name] = self._get_field_instance(attr_options)
 
         return result
 
+    def run_validation(self, data=None):
+        self.type = data.get('type', None)
+        if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERING']:
+            raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
+
+        return super(OfferingSerializer, self).run_validation(data)
+
     def _get_field_instance(self, attr_options):
-        type = attr_options.get('type', None)
-        if type is None or type.lower() == 'string':
-            field = serializers.CharField(max_length=255)
-        elif type.lower() == 'integer':
-            field = serializers.IntegerField()
+        filed_type = attr_options.get('type', None)
+        if filed_type is None or filed_type.lower() == 'string':
+            field = serializers.CharField(max_length=255, write_only=True)
+        elif filed_type.lower() == 'integer':
+            field = serializers.IntegerField(write_only=True)
         else:
-            raise NotImplementedError('Type "%s" is not supported by OfferingSerializer' % type)
+            raise NotImplementedError('Type "%s" can not be serialized.' % type)
         default_value = attr_options.get('default', None)
         if default_value:
             field.default = default_value
@@ -359,16 +373,25 @@ class OfferingSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         self.project = validated_data.pop('project')
+        type_label = self.configuration.get('label', self.type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
             project=self.project,
             customer=self.project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
-            summary='Request for \'%s\'' % self.configuration.get('label', self.offering_name),
+            summary='Request for \'%s\'' % type_label,
             description=self._form_description(validated_data, validated_data.pop('description', None))
         )
 
-        return issue
+        offering = models.Offering.objects.create(
+            issue=issue,
+            project=issue.project,
+            name=validated_data.get('name'),
+            description=issue.description,
+            type=self.type,
+            type_label=type_label)
+
+        return offering
 
     def _form_description(self, validated_data, appendix):
         result = []
@@ -381,3 +404,13 @@ class OfferingSerializer(serializers.Serializer):
             result.append('\n %s' % appendix)
 
         return '\n'.join(result)
+
+
+class OfferingCompleteSerializer(serializers.Serializer):
+    price = serializers.DecimalField(max_digits=13, decimal_places=7)
+
+    def update(self, instance, validated_data):
+        instance.price = validated_data['price']
+        instance.state = models.Offering.States.OK
+        instance.save(update_fields=['state', 'price'])
+        return instance
