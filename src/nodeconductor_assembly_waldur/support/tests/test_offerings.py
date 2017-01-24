@@ -12,7 +12,6 @@ from .. import models
 class BaseOfferingTest(base.BaseTest):
     def setUp(self, **kwargs):
         super(BaseOfferingTest, self).setUp()
-        self.client.force_authenticate(self.fixture.staff)
         settings.WALDUR_SUPPORT['OFFERING'] = {
             'custom_vpc': {
                 'label': 'Custom VPC',
@@ -39,39 +38,6 @@ class BaseOfferingTest(base.BaseTest):
         }
 
 
-class OfferingPermissionsTest(base.BaseTest):
-
-    def setUp(self):
-        super(OfferingPermissionsTest, self).setUp()
-        self.offering = self.fixture.offering
-
-    def test_user_can_see_list_of_offerings(self):
-        self.client.force_authenticate(self.fixture.user)
-        url = factories.OfferingFactory.get_list_url()
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_user_cannot_complete_offering(self):
-        self.client.force_authenticate(self.fixture.user)
-        url = factories.OfferingFactory.get_url(offering=self.offering, action='complete')
-        request_data = {'price': 10}
-        response = self.client.post(url, request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.offering.refresh_from_db()
-        self.assertEqual(self.offering.state, models.Offering.States.REQUESTED)
-
-    def test_staff_can_complete_offering(self):
-        self.client.force_authenticate(self.fixture.staff)
-        url = factories.OfferingFactory.get_url(offering=self.offering, action='complete')
-        request_data = {'price': 10}
-        response = self.client.post(url, request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.offering.refresh_from_db()
-        self.assertEqual(self.offering.state, models.Offering.States.OK)
-
-
 class OfferingCompleteTest(BaseOfferingTest):
 
     def test_offering_is_in_ok_state_when_complete_is_called(self):
@@ -81,6 +47,7 @@ class OfferingCompleteTest(BaseOfferingTest):
 
         url = factories.OfferingFactory.get_url(offering=offering, action='complete')
         request_data = {'price': expected_price}
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url, request_data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -91,6 +58,7 @@ class OfferingCompleteTest(BaseOfferingTest):
     def test_offering_cannot_be_completed_if_it_is_terminated(self):
         offering = factories.OfferingFactory(state=models.Offering.States.TERMINATED)
         url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -98,11 +66,34 @@ class OfferingCompleteTest(BaseOfferingTest):
     def test_offering_cannot_be_completed_without_price(self):
         offering = factories.OfferingFactory()
         url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         offering.refresh_from_db()
         self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+
+    def test_user_cannot_complete_offering(self):
+        offering = self.fixture.offering
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        request_data = {'price': 10}
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.post(url, request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+
+    def test_staff_can_complete_offering(self):
+        offering = self.fixture.offering
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        request_data = {'price': 10}
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url, request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.OK)
 
 
 class OfferingTerminateTest(BaseOfferingTest):
@@ -112,6 +103,7 @@ class OfferingTerminateTest(BaseOfferingTest):
         self.assertEqual(offering.state, models.Offering.States.REQUESTED)
 
         url = factories.OfferingFactory.get_url(offering=offering, action='terminate')
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -120,7 +112,18 @@ class OfferingTerminateTest(BaseOfferingTest):
 
 
 class OfferingGetTest(BaseOfferingTest):
+
+    def test_user_can_see_list_of_offerings(self):
+        url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class OfferingGetConfiguredTest(BaseOfferingTest):
+
     def test_offering_view_returns_configured_offerings(self):
+        self.client.force_authenticate(self.fixture.user)
         url = factories.OfferingFactory.get_list_action_url(action='configured')
         response = self.client.get(url)
         available_offerings = response.data
@@ -131,6 +134,7 @@ class OfferingCreateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateTest, self).setUp()
         self.url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
 
     def test_offering_create_creates_issue_with_valid_request(self):
         request_data = self._get_valid_request()
