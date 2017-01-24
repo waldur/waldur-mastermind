@@ -407,7 +407,7 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class OfferingCompleteSerializer(serializers.Serializer):
-    price = serializers.DecimalField(max_digits=15, decimal_places=7)
+    price = serializers.DecimalField(max_digits=13, decimal_places=7)
 
     def update(self, instance, validated_data):
         instance.price = validated_data['price']
