@@ -78,5 +78,6 @@ class OfferingFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('support-offering-list')
 
     @classmethod
-    def get_list_action_url(cls):
-        return 'http://testserver' + reverse('support-offering-list') + 'configured/'
+    def get_list_action_url(cls, action=None):
+        url = 'http://testserver' + reverse('support-offering-list')
+        return url if action is None else url + action + '/'

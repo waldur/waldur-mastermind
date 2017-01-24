@@ -121,7 +121,7 @@ class OfferingTerminateTest(BaseOfferingTest):
 
 class OfferingGetTest(BaseOfferingTest):
     def test_offering_view_returns_configured_offerings(self):
-        url = factories.OfferingFactory.get_list_action_url()
+        url = factories.OfferingFactory.get_list_action_url(action='configured')
         response = self.client.get(url)
         available_offerings = response.data
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERING'])
