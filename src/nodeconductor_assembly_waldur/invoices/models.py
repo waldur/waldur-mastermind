@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-import abc
 import datetime
 from decimal import Decimal
 
@@ -48,22 +47,20 @@ class Invoice(core_models.UuidMixin, models.Model):
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     invoice_date = models.DateField(null=True, blank=True,
                                     help_text='Date then invoice moved from state pending to created.')
-    price = models.DecimalField(max_digits=13, decimal_places=7, default=0,
-                                validators=[MinValueValidator(Decimal('0'))], help_text='Price per day.')
 
     tracker = FieldTracker()
 
     @property
     def tax(self):
-        return self.usage_price * self.tax_percent / 100
+        return self.price * self.tax_percent / 100
 
     @property
     def total(self):
-        return self.usage_price + self.tax
+        return self.price + self.tax
 
     @property
-    def usage_price(self):
-        return sum((item.usage_price for item in self.openstack_items.iterator()))
+    def price(self):
+        return sum((item.price for item in self.openstack_items.iterator()))
 
     @property
     def due_date(self):
@@ -98,16 +95,12 @@ class Invoice(core_models.UuidMixin, models.Model):
             start = timezone.now()
 
         end = core_utils.month_end(start)
-
-        item = OpenStackItem.objects.create(
+        OpenStackItem.objects.create(
             package=package,
             price=package.template.price,
             invoice=self,
             start=start,
             end=end)
-
-        self.price = self.price + item.price
-        self.save(update_fields=['price'])
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
@@ -121,8 +114,10 @@ class OpenStackItem(models.Model):
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
     package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
-    price = models.DecimalField(max_digits=13, decimal_places=7, validators=[MinValueValidator(Decimal('0'))],
-                                help_text='Price per day.')
+    daily_price = models.DecimalField(max_digits=22, decimal_places=7,
+                                      validators=[MinValueValidator(Decimal('0'))],
+                                      default=0,
+                                      help_text='Price per day.')
     start = models.DateTimeField(default=utils.get_current_month_start,
                                  help_text='Date and time when package usage has started.')
     end = models.DateTimeField(default=utils.get_current_month_end,
@@ -137,15 +132,15 @@ class OpenStackItem(models.Model):
 
     @property
     def tax(self):
-        return self.usage_price * self.invoice.tax_percent / 100
+        return self.price * self.invoice.tax_percent / 100
 
     @property
     def total(self):
-        return self.usage_price + self.tax
+        return self.price + self.tax
 
     @property
-    def usage_price(self):
-        return self.price * self.usage_days
+    def price(self):
+        return self.daily_price * self.usage_days
 
     @property
     def usage_days(self):
@@ -163,7 +158,7 @@ class OpenStackItem(models.Model):
         Calculates price of the item from "start" till "end".
         """
         full_days = utils.get_full_days(start, end)
-        return self.price * full_days
+        return self.daily_price * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """
