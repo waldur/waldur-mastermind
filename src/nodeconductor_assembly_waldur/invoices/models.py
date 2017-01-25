@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import abc
 import datetime
 from decimal import Decimal
 
@@ -12,12 +13,12 @@ from django.utils.translation import ugettext_lazy as _
 from jsonfield import JSONField
 from model_utils import FieldTracker
 
-from nodeconductor.core import models as core_models
+from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models as package_models
-from . import utils, managers
+from . import utils
 
 
 @python_2_unicode_compatible
@@ -47,23 +48,22 @@ class Invoice(core_models.UuidMixin, models.Model):
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     invoice_date = models.DateField(null=True, blank=True,
                                     help_text='Date then invoice moved from state pending to created.')
-
-    objects = managers.InvoiceManager()
+    price = models.DecimalField(max_digits=13, decimal_places=7, default=0,
+                                validators=[MinValueValidator(Decimal('0'))], help_text='Price per day.')
 
     tracker = FieldTracker()
 
-    # TODO: provide caching for property total.
-    @property
-    def price(self):
-        return self.openstack_items.aggregate(price=models.Sum('price'))['price'] or 0
-
     @property
     def tax(self):
-        return self.price * self.tax_percent / 100
+        return self.usage_price * self.tax_percent / 100
 
     @property
     def total(self):
-        return self.price + self.tax
+        return self.usage_price + self.tax
+
+    @property
+    def usage_price(self):
+        return sum((item.usage_price for item in self.openstack_items.iterator()))
 
     @property
     def due_date(self):
@@ -93,9 +93,21 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
 
-    def propagate(self, month, year):
-        self.set_created()
-        Invoice.objects.get_or_create_with_items(customer=self.customer, month=month, year=year)
+    def register_package(self, package, start=None):
+        if start is None:
+            start = timezone.now()
+
+        end = core_utils.month_end(start)
+
+        item = OpenStackItem.objects.create(
+            package=package,
+            price=package.template.price,
+            invoice=self,
+            start=start,
+            end=end)
+
+        self.price = self.price + item.price
+        self.save(update_fields=['price'])
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
@@ -110,13 +122,11 @@ class OpenStackItem(models.Model):
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
     package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
     price = models.DecimalField(max_digits=13, decimal_places=7, validators=[MinValueValidator(Decimal('0'))],
-                                help_text='Price is calculated on a monthly basis.')
+                                help_text='Price per day.')
     start = models.DateTimeField(default=utils.get_current_month_start,
                                  help_text='Date and time when package usage has started.')
     end = models.DateTimeField(default=utils.get_current_month_end,
                                help_text='Date and time when package usage has ended.')
-
-    objects = managers.OpenStackItemManager()
 
     @property
     def name(self):
@@ -127,19 +137,15 @@ class OpenStackItem(models.Model):
 
     @property
     def tax(self):
-        return self.price * self.invoice.tax_percent / 100
+        return self.usage_price * self.invoice.tax_percent / 100
 
     @property
     def total(self):
-        return self.price + self.tax
+        return self.usage_price + self.tax
 
     @property
-    def daily_price(self):
-        """ Returns the price of OpenStack item per day """
-        full_days = utils.get_full_days(self.start, self.end)
-        daily_price = self.total / full_days if full_days else 0
-
-        return daily_price
+    def usage_price(self):
+        return self.price * self.usage_days
 
     @property
     def usage_days(self):
@@ -152,40 +158,12 @@ class OpenStackItem(models.Model):
 
         return full_days
 
-    def shift_backward_end_date(self, days=1):
+    def calculate_price_for_period(self, start, end):
         """
-        Moves "end" date to N days before current "end" date value.
-        Price will be recalculated accordingly.
-        :param days: amount of days to move "end" date. Default one is 1.
-        """
-        if self.end == self.start:
-            return
-
-        old_daily_price = self.daily_price
-        self.end -= timezone.timedelta(days=days)
-        self.price = old_daily_price * self.usage_days
-        self.save()
-
-    def shift_forward_start_date(self, days=1):
-        """
-        Moves "start" date to N days after current "start" date value.
-        Price will be recalculated accordingly.
-        :param days: amount of days to move "start" date. Default one is 1.
-        """
-        self.start += timezone.timedelta(days=days)
-        self.end = utils.core_utils.month_end(self.start)
-        self.recalculate_price(self.start)
-
-    @staticmethod
-    def calculate_price_for_period(price, start, end):
-        """
-        Calculates price from "start" till "end".
-
-        :param price: price for item per day.
+        Calculates price of the item from "start" till "end".
         """
         full_days = utils.get_full_days(start, end)
-
-        return price * full_days
+        return self.price * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """
@@ -200,18 +178,9 @@ class OpenStackItem(models.Model):
 
         if package_deletion:
             self.end = end or timezone.now()
-            self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
-            update_fields.extend(['end', 'price'])
+            update_fields.extend(['end'])
 
         self.save(update_fields=update_fields)
-
-    def recalculate_price(self, start):
-        """
-        Updates price according to the new "start"
-        """
-        self.start = start
-        self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
-        self.save(update_fields=['start', 'price'])
 
     def __str__(self):
         return self.name
@@ -220,6 +189,7 @@ class OpenStackItem(models.Model):
 @python_2_unicode_compatible
 class PaymentDetails(core_models.UuidMixin, models.Model):
     """ Customer payment details """
+
     class Permissions(object):
         customer_path = 'customer'
 

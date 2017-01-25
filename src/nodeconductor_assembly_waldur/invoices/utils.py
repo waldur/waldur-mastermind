@@ -1,3 +1,4 @@
+from calendar import monthrange
 from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
@@ -26,3 +27,9 @@ def get_full_days(start, end):
         full_days += 1
 
     return int(full_days)
+
+
+def get_current_month_days():
+    now = timezone.now()
+    range = monthrange(now.year, now.month)
+    return range[1]

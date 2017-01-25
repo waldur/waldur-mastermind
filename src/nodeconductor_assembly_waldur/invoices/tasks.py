@@ -8,6 +8,10 @@ from django.core.mail import send_mail
 from django.db.models import Q
 from django.template.loader import render_to_string
 
+from nodeconductor.core import utils as core_utils
+from nodeconductor.structure import models as structure_models
+from nodeconductor_assembly_waldur.packages import models as package_models
+
 from . import models
 
 
@@ -29,7 +33,20 @@ def create_monthly_invoices_for_packages():
         Q(state=models.Invoice.States.PENDING, year=today.year, month__lt=today.month)
     )
     for invoice in old_invoices:
-        invoice.propagate(month=today.month, year=today.year)
+        invoice.set_created()
+
+    for customer in structure_models.Customer.objects.iterator():
+        invoice, created = models.Invoice.objects.get_or_create(
+            customer=customer,
+            month=today.month,
+            year=today.year,
+        )
+
+        if created:
+            packages = package_models.OpenStackPackage.objects.filter(
+                tenant__service_project_link__project__customer=customer)
+            for package in packages:
+                invoice.register_package(package, start=today)
 
 
 @shared_task(name='invoices.send_invoice_notification')

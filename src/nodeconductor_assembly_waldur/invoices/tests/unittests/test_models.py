@@ -4,7 +4,6 @@ from django.test import TestCase
 from freezegun import freeze_time
 
 from .. import fixtures
-from ... import models
 
 
 class OpenStackItemTest(TestCase):
@@ -16,7 +15,8 @@ class OpenStackItemTest(TestCase):
         end = start + datetime.timedelta(hours=1)
         daily_price = 13
 
-        calculated_price = models.OpenStackItem.calculate_price_for_period(daily_price, start, end)
+        item = fixtures.factories.OpenStackItemFactory(price=daily_price)
+        calculated_price = item.calculate_price_for_period(start, end)
 
         self.assertEqual(calculated_price, daily_price)
 

@@ -2,43 +2,33 @@ from __future__ import unicode_literals
 
 from django.utils import timezone
 
-from nodeconductor.core import utils as core_utils
+from nodeconductor_assembly_waldur.packages import models as package_models
 
 from . import models, log
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
+    package = instance
     if not created:
         return
 
     now = timezone.now()
-    customer = instance.tenant.service_project_link.project.customer
-    invoice, created = models.Invoice.objects.get_or_create_with_items(
+    customer = package.tenant.service_project_link.project.customer
+    invoice, created = models.Invoice.objects.get_or_create(
         customer=customer,
         month=now.month,
         year=now.year,
     )
 
-    if not created:
-        end = core_utils.month_end(now)
-
-        previous_openstack_item = invoice.openstack_items.filter(end=now).first()
-
-        item = models.OpenStackItem.objects.create_with_price(
-            invoice=invoice,
-            package=instance,
-            start=now,
-            end=end,
-        )
-
-        if previous_openstack_item:
-            if item.daily_price > previous_openstack_item.daily_price:
-                previous_openstack_item.shift_backward_end_date()
-            else:
-                item.shift_forward_start_date()
+    if created:
+        packages_to_register = package_models.OpenStackPackage.objects.filter(
+            tenant__service_project_link__project__customer=customer,
+        ).iterator()
     else:
-        item = invoice.openstack_items.get(package=instance)
-        item.recalculate_price(now)
+        packages_to_register = [package]
+
+    for package in packages_to_register:
+        invoice.register_package(package, start=now)
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
