@@ -87,6 +87,8 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
 
             days = (utils.get_current_month_end() - timezone.now()).days + 1
             expected_total = days * package.template.price
+
+        with freeze_time(utils.get_current_month_end()):
             invoice = models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
             self.assertEqual(invoice.total, expected_total)
 

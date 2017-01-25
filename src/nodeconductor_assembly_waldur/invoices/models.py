@@ -97,7 +97,7 @@ class Invoice(core_models.UuidMixin, models.Model):
         end = core_utils.month_end(start)
         OpenStackItem.objects.create(
             package=package,
-            price=package.template.price,
+            daily_price=package.template.price,
             invoice=self,
             start=start,
             end=end)
@@ -152,13 +152,6 @@ class OpenStackItem(models.Model):
         full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
 
         return full_days
-
-    def calculate_price_for_period(self, start, end):
-        """
-        Calculates price of the item from "start" till "end".
-        """
-        full_days = utils.get_full_days(start, end)
-        return self.daily_price * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """

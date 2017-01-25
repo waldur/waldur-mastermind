@@ -46,7 +46,7 @@ def create_monthly_invoices_for_packages():
             packages = package_models.OpenStackPackage.objects.filter(
                 tenant__service_project_link__project__customer=customer)
             for package in packages:
-                invoice.register_package(package, start=today)
+                invoice.register_package(package, start=core_utils.month_start(today))
 
 
 @shared_task(name='invoices.send_invoice_notification')
