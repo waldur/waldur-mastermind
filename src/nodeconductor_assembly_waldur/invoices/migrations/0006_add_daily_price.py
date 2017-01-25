@@ -5,6 +5,8 @@ from django.db import migrations, models
 from decimal import Decimal
 import django.core.validators
 
+from .. import utils
+
 
 class Migration(migrations.Migration):
 
@@ -13,10 +15,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='openstackitem',
-            name='price',
-        ),
         migrations.AddField(
             model_name='openstackitem',
             name='daily_price',
