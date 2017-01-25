@@ -23,7 +23,7 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
     if created:
         packages_to_register = package_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer,
-        ).iterator()
+        ).distinct().iterator()
     else:
         packages_to_register = [package]
 
