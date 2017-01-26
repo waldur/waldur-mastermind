@@ -11,7 +11,7 @@ class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
         model = models.OpenStackItem
-        fields = ('package', 'name', 'price', 'tax', 'total', 'start', 'end', 'usage_days')
+        fields = ('package', 'name', 'price', 'tax', 'total', 'daily_price', 'start', 'end', 'usage_days')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
         }
