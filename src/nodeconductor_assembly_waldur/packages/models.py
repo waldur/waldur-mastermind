@@ -21,13 +21,8 @@ class PackageTemplate(core_models.UuidMixin,
     # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
-    archived = models.BooleanField(default=False)
-
-    def save(self, *args, **kwargs):
-        if self.openstack_packages.first():
-            raise models.ProtectedError('Current template has linked packages.', [self.openstack_packages.all()])
-
-        super(PackageTemplate, self).save(*args, **kwargs)
+    archived = models.BooleanField(default=False,
+                                   help_text='Forbids creation of new packages.')
 
     class Categories(object):
         SMALL = 'small'

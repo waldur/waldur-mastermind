@@ -120,8 +120,8 @@ class PackageComponentInline(admin.TabularInline):
 
 class PackageTemplateAdmin(admin.ModelAdmin):
     inlines = [PackageComponentInline]
-    fields = ('name', 'category', 'description', 'icon_url', 'service_settings')
-    list_display = ('name', 'uuid', 'service_settings', 'price', 'monthly_price', 'category')
+    fields = ('name', 'category', 'description', 'archived', 'icon_url', 'service_settings')
+    list_display = ('name', 'uuid', 'service_settings', 'price', 'archived', 'monthly_price', 'category')
     list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
 

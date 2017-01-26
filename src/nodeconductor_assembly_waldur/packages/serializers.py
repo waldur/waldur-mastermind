@@ -72,6 +72,9 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     def validate(self, attrs):
         """ Additionally check that template and service project link belong to the same service settings """
         template = attrs['template']
+        if template.archived:
+            raise serializers.ValidationError('New package cannot be created for archived template.')
+
         attrs = super(OpenStackPackageCreateSerializer, self).validate(attrs)
         spl = attrs['service_project_link']
         if spl.service.settings != template.service_settings:
