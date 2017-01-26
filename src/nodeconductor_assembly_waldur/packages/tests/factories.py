@@ -32,14 +32,18 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
         if not create:
             return
 
-        if extracted:
+        if extracted is not None:
             for component in extracted:
-                self.components.add(component)
+                component.template = self
+                component.save()
         else:
             for component_type in self.get_required_component_types():
                 self.components.get_or_create(type=component_type, price=random.randint(10, 20), amount=1)
 
 
+# XXX: this factory is useless. On template creation its components are already
+# generated in 'post_generation.components' method. So it is impossible to add
+# any new component to it.
 class PackageComponentFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.PackageComponent
