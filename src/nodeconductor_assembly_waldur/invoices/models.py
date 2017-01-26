@@ -97,7 +97,7 @@ class Invoice(core_models.UuidMixin, models.Model):
         end = core_utils.month_end(start)
         overlapping_item = OpenStackItem.objects.filter(
             invoice=self,
-            end__day=start.day
+            end__day=start.day,
         ).order_by('daily_price').first()
 
         daily_price = package.template.price

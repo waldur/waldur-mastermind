@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from django.db import transaction
 from django.utils import timezone
 
 from nodeconductor_assembly_waldur.packages import models as package_models
@@ -27,8 +28,9 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
     else:
         packages_to_register = [package]
 
-    for package in packages_to_register:
-        invoice.register_package(package, start=now)
+    with transaction.atomic():
+        for package in packages_to_register:
+            invoice.register_package(package, start=now)
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
