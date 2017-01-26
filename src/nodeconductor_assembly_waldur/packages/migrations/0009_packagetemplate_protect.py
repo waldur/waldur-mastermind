@@ -1,0 +1,25 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('packages', '0008_package_component_type'),
+    ]
+
+    operations = [
+        migrations.AddField(
+            model_name='packagetemplate',
+            name='archived',
+            field=models.BooleanField(default=False),
+        ),
+        migrations.AlterField(
+            model_name='openstackpackage',
+            name='template',
+            field=models.ForeignKey(related_name='openstack_packages', on_delete=django.db.models.deletion.PROTECT, to='packages.PackageTemplate', help_text='Tenant will be created based on this template.'),
+        ),
+    ]
