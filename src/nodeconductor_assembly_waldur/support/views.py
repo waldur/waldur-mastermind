@@ -2,10 +2,10 @@ from __future__ import unicode_literals
 
 from django.conf import settings
 from django.db import transaction
-from rest_framework import viewsets, views, filters as rf_filters, permissions, decorators, response, status, exceptions, \
-    generics
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions, generics
 
-from nodeconductor.core import filters as core_filters, views as core_views
+from nodeconductor.core import views as core_views
 from nodeconductor.structure import (filters as structure_filters, models as structure_models,
                                      permissions as structure_permissions)
 
@@ -17,7 +17,7 @@ class IssueViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     filter_backends = (
         filters.IssueCallerOrRoleFilterBackend,
-        core_filters.DjangoMappingFilterBackend,
+        DjangoFilterBackend,
         filters.IssueResourceFilterBackend,
     )
     filter_class = filters.IssueFilter
@@ -72,7 +72,7 @@ class CommentViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.CommentSerializer
     filter_backends = (
         structure_filters.GenericRoleFilter,
-        rf_filters.DjangoFilterBackend,
+        DjangoFilterBackend,
     )
     filter_class = filters.CommentFilter
     queryset = models.Comment.objects.all()
@@ -105,7 +105,7 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAdminUser,)
     serializer_class = serializers.SupportUserSerializer
-    filter_backends = (rf_filters.DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend,)
     filter_class = filters.SupportUserFilter
 
 

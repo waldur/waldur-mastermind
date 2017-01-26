@@ -1,4 +1,5 @@
-from rest_framework import viewsets, permissions, response, status, filters as rf_filters
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, permissions, response, status
 from rest_framework.decorators import list_route
 
 from nodeconductor.core import views as core_views
@@ -12,7 +13,7 @@ class PackageTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.PackageTemplateSerializer
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)
-    filter_backends = (rf_filters.DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend,)
     filter_class = filters.PackageTemplateFilter
 
 
@@ -20,7 +21,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
     queryset = models.OpenStackPackage.objects.all()
     serializer_class = serializers.OpenStackPackageSerializer
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, rf_filters.DjangoFilterBackend)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.OpenStackPackageFilter
     disabled_actions = ['update', 'partial_update', 'destroy']
 

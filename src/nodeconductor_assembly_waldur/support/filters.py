@@ -1,5 +1,4 @@
 import django_filters
-from rest_framework import filters as rf_filters
 
 from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import models as structure_models, filters as structure_filters
@@ -11,10 +10,10 @@ class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_type='icontains')
 
     customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
-    customer_uuid = core_filters.UUIDFilter(name='customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
 
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
-    project_uuid = core_filters.UUIDFilter(name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(name='project__uuid')
 
     reporter_name = django_filters.CharFilter(lookup_type='icontains', name='reporter__name')
     reporter = core_filters.URLFilter(view_name='support-user-detail', name='reporter__uuid')
@@ -25,6 +24,22 @@ class IssueFilter(django_filters.FilterSet):
     assignee_name = django_filters.CharFilter(lookup_type='icontains', name='assignee__name')
     assignee = core_filters.URLFilter(view_name='support-user-detail', name='assignee__uuid')
 
+    o = django_filters.OrderingFilter(
+        fields=(
+            ('created', 'created'),
+            ('modified', 'modified'),
+            ('type', 'type'),
+            ('key', 'key'),
+            ('status', 'status'),
+            ('priority', 'priority'),
+            ('summary', 'summary'),
+            ('customer__name', 'customer_name'),
+            ('project__name', 'project_name'),
+            ('caller__full_name', 'caller_full_name'),
+            ('reporter__name', 'reporter_name'),
+            ('assignee__name', 'assignee_name'),
+        ))
+
     class Meta(object):
         model = models.Issue
         fields = [
@@ -32,41 +47,6 @@ class IssueFilter(django_filters.FilterSet):
             'type',
             'status',
         ]
-        order_by = [
-            'created',
-            'modified',
-            'type',
-            'key',
-            'status',
-            'priority',
-            'summary',
-            'customer__name',
-            'project__name',
-            'caller__full_name',
-            'reporter__name',
-            'assignee__name',
-            # desc
-            '-created',
-            '-modified',
-            '-type',
-            '-key',
-            '-status',
-            '-priority',
-            '-summary',
-            '-customer__name',
-            '-project__name',
-            '-caller__full_name',
-            '-reporter__name',
-            '-assignee__name',
-        ]
-
-        order_by_mapping = {
-            'customer_name': 'customer__name',
-            'project_name': 'project__name',
-            'caller_full_name': 'caller__full_name',
-            'reporter_name': 'reporter__name',
-            'assignee_name': 'assignee__name',
-        }
 
 
 class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
@@ -90,21 +70,16 @@ class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
 class CommentFilter(django_filters.FilterSet):
     description = django_filters.CharFilter(lookup_type='icontains')
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
-    issue_uuid = core_filters.UUIDFilter(name='issue__uuid')
+    issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
     author_name = django_filters.CharFilter(lookup_type='icontains', name='author__name')
     author_user = core_filters.URLFilter(view_name='user-detail', name='author__user__uuid')
+
+    o = django_filters.OrderingFilter(fields=('created', 'modified'))
 
     class Meta(object):
         model = models.Comment
         fields = [
             'is_public',
-        ]
-        order_by = [
-            'created',
-            'modified',
-            # desc
-            '-created',
-            '-modified',
         ]
 
 

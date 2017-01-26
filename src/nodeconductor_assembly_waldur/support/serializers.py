@@ -65,7 +65,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            url={'lookup_field': 'uuid'},
             customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
@@ -162,7 +162,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
                   'author_name', 'author_user', 'backend_id', 'created')
         read_only_fields = ('issue', 'backend_id',)
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-comment-detail'},
+            url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
         )
         related_paths = dict(
@@ -178,12 +178,13 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
         return super(CommentSerializer, self).create(validated_data)
 
 
-class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
+class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
+                            serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.SupportUser
         fields = ('url', 'uuid', 'name', 'backend_id', 'user')
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-user-detail'},
+            url={'lookup_field': 'uuid'},
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'}
         )
 
