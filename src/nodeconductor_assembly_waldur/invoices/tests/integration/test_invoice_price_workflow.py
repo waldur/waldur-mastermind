@@ -25,6 +25,15 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         }
 
     def test_new_invoice_is_created_in_new_month_after_half_month_of_usage(self):
+        """
+        Tests that invoices are created and updated accordingle to the current state of customer's package.
+        Steps:
+            - Test that invoice has been created;
+            - Check price of it in the end of the month;
+            - Ensure that a new invoice has been generated in the new month;
+            - Assert that end date of newly created openstack item set to the date of package deletion.
+        :return:
+        """
         self.client.force_authenticate(user=self.fixture.staff)
 
         middle_of_the_month = datetime(2017, 1, 15)
