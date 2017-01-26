@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 from datetime import datetime
 
 from django.conf import settings
@@ -63,7 +65,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
         protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            url={'lookup_field': 'uuid'},
             customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
@@ -160,7 +162,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
                   'author_name', 'author_user', 'backend_id', 'created')
         read_only_fields = ('issue', 'backend_id',)
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-comment-detail'},
+            url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
         )
         related_paths = dict(
@@ -176,18 +178,18 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
         return super(CommentSerializer, self).create(validated_data)
 
 
-class SupportUserSerializer(serializers.HyperlinkedModelSerializer):
+class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
+                            serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.SupportUser
         fields = ('url', 'uuid', 'name', 'backend_id', 'user')
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-user-detail'},
+            url={'lookup_field': 'uuid'},
             user={'lookup_field': 'uuid', 'view_name': 'user-detail'}
         )
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-
     class EventType:
         CREATED = 'jira:issue_created'
         UPDATED = 'jira:issue_updated'
@@ -292,3 +294,124 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
 
         return support_user
+
+
+class OfferingSerializer(serializers.HyperlinkedModelSerializer):
+    """
+    Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
+
+    Each configured field get's converted to serializer field according to field type in the configuration.
+
+    Field types:
+        'integer' - corresponds to 'serializers.IntegerField'
+        'string' - is a default field type even if it is not defined explicitly in configuration.
+                   Corresponds to 'serializers.CharField(max_length=255)'
+
+    Default values:
+        if 'default' key is present in option field configuration it is going to be used in serializer unless
+        the value itself has been provided in the create request.
+
+    Each offering corresponds to the single issue which has next values:
+        'project' - a hyperlinked field which must be provided with every request;
+        'customer' - customer is extracted from the provided project;
+        'caller' - a user who sent a request is considered to be a 'caller' of the issue;
+        'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
+        'description' - combined list of all other fields provided with the request;
+    """
+    project = serializers.HyperlinkedRelatedField(
+        view_name='project-detail',
+        queryset=structure_models.Project.objects.all(),
+        lookup_field='uuid',
+        write_only=True,
+    )
+    name = serializers.CharField(max_length=255, write_only=True)
+    description = serializers.CharField(required=False, max_length=255, write_only=True)
+    type = serializers.CharField(max_length=255)
+
+    class Meta(object):
+        model = models.Offering
+        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'issue', 'price', 'created', 'modified')
+        read_only_fields = ('type', 'price', 'issue', 'created', 'modified')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+        )
+
+    @property
+    def configuration(self):
+        return settings.WALDUR_SUPPORT['OFFERING'][self.type]
+
+    def get_fields(self):
+        result = super(OfferingSerializer, self).get_fields()
+        if hasattr(self, 'type'):
+            for attr_name in self.configuration['order']:
+                attr_options = self.configuration['options'].get(attr_name, {})
+                result[attr_name] = self._get_field_instance(attr_options)
+
+        return result
+
+    def run_validation(self, data=None):
+        self.type = data.get('type', None)
+        if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERING']:
+            raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
+
+        return super(OfferingSerializer, self).run_validation(data)
+
+    def _get_field_instance(self, attr_options):
+        filed_type = attr_options.get('type', None)
+        if filed_type is None or filed_type.lower() == 'string':
+            field = serializers.CharField(max_length=255, write_only=True)
+        elif filed_type.lower() == 'integer':
+            field = serializers.IntegerField(write_only=True)
+        else:
+            raise NotImplementedError('Type "%s" can not be serialized.' % type)
+        default_value = attr_options.get('default', None)
+        if default_value:
+            field.default = default_value
+            field.required = False
+        return field
+
+    def create(self, validated_data):
+        self.project = validated_data.pop('project')
+        type_label = self.configuration.get('label', self.type)
+        issue = models.Issue.objects.create(
+            caller=self.context['request'].user,
+            project=self.project,
+            customer=self.project.customer,
+            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
+            summary='Request for \'%s\'' % type_label,
+            description=self._form_description(validated_data, validated_data.pop('description', None))
+        )
+
+        offering = models.Offering.objects.create(
+            issue=issue,
+            project=issue.project,
+            name=validated_data.get('name'),
+            description=issue.description,
+            type=self.type,
+            type_label=type_label)
+
+        return offering
+
+    def _form_description(self, validated_data, appendix):
+        result = []
+        for key in validated_data:
+            label = self.configuration['options'].get(key, {})
+            label_value = label.get('label', key)
+            result.append('%s: \'%s\'' % (label_value, validated_data[key]))
+
+        if appendix:
+            result.append('\n %s' % appendix)
+
+        return '\n'.join(result)
+
+
+class OfferingCompleteSerializer(serializers.Serializer):
+    price = serializers.DecimalField(max_digits=13, decimal_places=7)
+
+    def update(self, instance, validated_data):
+        instance.price = validated_data['price']
+        instance.state = models.Offering.States.OK
+        instance.save(update_fields=['state', 'price'])
+        return instance

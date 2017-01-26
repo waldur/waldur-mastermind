@@ -178,10 +178,14 @@ class OpenStackItem(models.Model):
 
     @staticmethod
     def calculate_price_for_period(price, start, end):
-        """ Calculates price from "start" till "end" """
+        """
+        Calculates price from "start" till "end".
+
+        :param price: price for item per day.
+        """
         full_days = utils.get_full_days(start, end)
 
-        return price * 24 * full_days
+        return price * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """
@@ -235,6 +239,10 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
     account = models.CharField(blank=True, max_length=50)
     default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                               validators=[MinValueValidator(0), MaxValueValidator(100)])
+
+    @classmethod
+    def get_url_name(cls):
+        return 'payment-details'
 
     def __str__(self):
         return 'PaymentDetails for %s' % self.customer

@@ -1,4 +1,5 @@
 import factory
+from factory import fuzzy
 
 from django.core.urlresolvers import reverse
 
@@ -55,3 +56,28 @@ class CommentFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-comment-list')
+
+
+class OfferingFactory(factory.DjangoModelFactory):
+
+    class Meta:
+        model = models.Offering
+
+    issue = factory.SubFactory(IssueFactory)
+    price = fuzzy.FuzzyInteger(0, 10)
+
+    @classmethod
+    def get_url(cls, offering=None, action=None):
+        if offering is None:
+            offering = OfferingFactory()
+        url = 'http://testserver' + reverse('support-offering-detail', kwargs={'uuid': offering.uuid.hex})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-offering-list')
+
+    @classmethod
+    def get_list_action_url(cls, action=None):
+        url = 'http://testserver' + reverse('support-offering-list')
+        return url if action is None else url + action + '/'

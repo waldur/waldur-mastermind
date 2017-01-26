@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
+from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import serializers as structure_serializers, models as structure_models
 from nodeconductor_openstack.openstack import (
     apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
@@ -15,8 +16,10 @@ class PackageComponentSerializer(serializers.ModelSerializer):
         fields = ('type', 'amount', 'price')
 
 
-class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
-    price = serializers.DecimalField(max_digits=13, decimal_places=7)
+class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
+                                serializers.HyperlinkedModelSerializer):
+    price = serializers.DecimalField(max_digits=22, decimal_places=10)
+    monthly_price = serializers.DecimalField(max_digits=16, decimal_places=2)
     components = PackageComponentSerializer(many=True)
     category = serializers.ReadOnlyField(source='get_category_display')
 
@@ -24,9 +27,8 @@ class PackageTemplateSerializer(serializers.HyperlinkedModelSerializer):
         model = models.PackageTemplate
         fields = (
             'url', 'uuid', 'name', 'description', 'service_settings',
-            'price', 'icon_url', 'components', 'category'
+            'price', 'monthly_price', 'icon_url', 'components', 'category'
         )
-        view_name = 'package-template-detail'
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'service_settings': {'lookup_field': 'uuid'},
@@ -122,7 +124,8 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         return service_settings
 
 
-class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
+class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
+                                 serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(source='tenant.name', read_only=True)
     description = serializers.CharField(source='tenant.description', read_only=True)
 
@@ -130,7 +133,7 @@ class OpenStackPackageSerializer(serializers.HyperlinkedModelSerializer):
         model = models.OpenStackPackage
         fields = ('url', 'uuid', 'name', 'description', 'template', 'tenant', 'service_settings',)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
+            'url': {'lookup_field': 'uuid'},
             'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail', 'read_only': True},
             'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
             'service_settings': {'lookup_field': 'uuid', 'read_only': True},
