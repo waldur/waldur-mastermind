@@ -1,4 +1,6 @@
 import factory
+import random
+
 from rest_framework.reverse import reverse
 
 from nodeconductor_openstack.openstack import models as openstack_models
@@ -35,7 +37,7 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
                 self.components.add(component)
         else:
             for component_type in self.get_required_component_types():
-                self.components.get_or_create(type=component_type)
+                self.components.get_or_create(type=component_type, price=random.randint(10, 20), amount=1)
 
 
 class PackageComponentFactory(factory.DjangoModelFactory):
@@ -61,6 +63,13 @@ class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
 
     service = factory.SubFactory(OpenStackServiceFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
+
+    @classmethod
+    def get_url(cls, service_project_link=None, action=None):
+        if service_project_link is None:
+            service_project_link = OpenStackServiceProjectLinkFactory()
+        url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': service_project_link.pk})
+        return url if action is None else url + action + '/'
 
 
 class TenantFactory(factory.DjangoModelFactory):
