@@ -95,9 +95,25 @@ class Invoice(core_models.UuidMixin, models.Model):
             start = timezone.now()
 
         end = core_utils.month_end(start)
+        overlapping_item = OpenStackItem.objects.filter(
+            invoice=self,
+            end__day=start.day
+        ).order_by('daily_price').first()
+
+        daily_price = package.template.price
+        if overlapping_item:
+            if overlapping_item.daily_price > daily_price:
+                if overlapping_item.end.day == utils.get_current_month_end().day:
+                    overlapping_item.extend_to_the_end_of_the_day()
+                    return
+
+                start = start + timezone.timedelta(days=1)
+            else:
+                overlapping_item.shift_backward()
+
         OpenStackItem.objects.create(
             package=package,
-            daily_price=package.template.price,
+            daily_price=daily_price,
             invoice=self,
             start=start,
             end=end)
@@ -169,6 +185,24 @@ class OpenStackItem(models.Model):
             update_fields.extend(['end'])
 
         self.save(update_fields=update_fields)
+
+    def shift_backward(self, days=1):
+        """
+        Shifts end date to N 'days' ago.
+        If N is larger than it lasts - zero length will be set.
+        :param days: number of days to shift end date
+        """
+        if (self.end - self.start).days > days:
+            end = self.end - timezone.timedelta(days=1)
+        else:
+            end = self.start
+
+        self.end = end
+        self.save()
+
+    def extend_to_the_end_of_the_day(self):
+        self.end = self.end.replace(hour=23, minute=59, second=59)
+        self.save()
 
     def __str__(self):
         return self.name
