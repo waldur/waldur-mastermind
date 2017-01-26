@@ -1,16 +1,20 @@
 import datetime
 
+from decimal import Decimal
+
+import pytz
 from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 from mock import Mock
 
+from nodeconductor.core import utils as core_utils
 from nodeconductor_assembly_waldur.packages.models import OpenStackPackage
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
 
 from .. import factories, fixtures
-from ... import models, utils
+from ... import models, utils, tasks
 
 
 class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
@@ -96,3 +100,58 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         payment_details = factories.PaymentDetailsFactory(default_tax_percent=20)
         invoice = factories.InvoiceFactory(customer=payment_details.customer)
         self.assertEqual(invoice.tax_percent, payment_details.default_tax_percent)
+
+    def test_package_creation_does_not_increase_price_from_old_package_if_it_is_cheaper(self):
+        old_component_price = 100
+        new_component_price = old_component_price + 50
+        start_date = timezone.datetime(2014, 2, 14, tzinfo=pytz.UTC)
+        package_change_date = timezone.datetime(2014, 2, 20, tzinfo=pytz.UTC)
+        end_of_the_month = core_utils.month_end(package_change_date)
+
+        with freeze_time(start_date):
+            old_package = self.create_package(component_price=old_component_price)
+        customer = old_package.tenant.service_project_link.project.customer
+
+        with freeze_time(package_change_date):
+            old_package.delete()
+            new_template = self.create_package_template(single_component_price=new_component_price)
+            new_package = packages_factories.OpenStackPackageFactory(
+                template=new_template,
+                tenant__service_project_link__project__customer=customer,
+            )
+
+        old_components_price = old_package.template.price * (package_change_date - start_date).days
+        second_component_usage_days = utils.get_full_days(package_change_date, end_of_the_month)
+        new_components_price = new_package.template.price * second_component_usage_days
+        expected_price = old_components_price + new_components_price
+
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        self.assertEqual(Decimal(expected_price), models.Invoice.objects.first().price)
+
+    def test_package_creation_increases_price_from_old_package_if_it_is_more_expensive(self):
+        old_component_price = 20
+        new_component_price = old_component_price - 10
+        start_date = timezone.datetime(2014, 2, 14, tzinfo=pytz.UTC)
+        package_change_date = timezone.datetime(2014, 2, 20, tzinfo=pytz.UTC)
+        end_of_the_month = core_utils.month_end(package_change_date)
+
+        with freeze_time(start_date):
+            old_package = self.create_package(component_price=old_component_price)
+        customer = old_package.tenant.service_project_link.project.customer
+
+        with freeze_time(package_change_date):
+            old_package.delete()
+            new_template = self.create_package_template(single_component_price=new_component_price)
+            new_package = packages_factories.OpenStackPackageFactory(
+                template=new_template,
+                tenant__service_project_link__project__customer=customer,
+            )
+
+        old_components_price = old_package.template.price * (package_change_date - start_date).days
+        second_component_usage_days = utils.get_full_days(package_change_date, end_of_the_month)
+        new_components_price = new_package.template.price * second_component_usage_days
+        expected_price = old_components_price + new_components_price
+
+        # assert
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        self.assertEqual(Decimal(expected_price), models.Invoice.objects.first().price)
