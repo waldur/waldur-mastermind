@@ -8,7 +8,7 @@ from . import filters, models, serializers, executors
 
 
 class PackageTemplateViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.PackageTemplate.objects.all()
+    queryset = models.PackageTemplate.objects.exclude(archived=True).all()
     serializer_class = serializers.PackageTemplateSerializer
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)

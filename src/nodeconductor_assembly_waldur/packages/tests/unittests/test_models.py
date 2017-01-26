@@ -2,6 +2,7 @@ from decimal import Decimal
 import random
 
 from django.test import TestCase
+from django.db.models import ProtectedError
 
 from .. import factories
 from ... import models
@@ -20,3 +21,18 @@ class PackageTemplateTest(TestCase):
             total += component.amount * component.price
 
         self.assertEqual(package_template.price, total)
+
+    def test_template_cannot_be_edited_if_has_linked_packages(self):
+        package_template = factories.PackageTemplateFactory(components=[])
+        factories.OpenStackPackageFactory(template=package_template)
+
+        with self.assertRaises(ProtectedError):
+            package_template.name = 'New name'
+            package_template.save(update_fields=['name'])
+
+    def test_template_cannot_be_deleted_if_has_linked_packaged(self):
+        package_template = factories.PackageTemplateFactory(components=[])
+        factories.OpenStackPackageFactory(template=package_template)
+
+        with self.assertRaises(ProtectedError):
+            package_template.delete()
