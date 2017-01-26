@@ -98,7 +98,7 @@ class Invoice(core_models.UuidMixin, models.Model):
         overlapping_item = OpenStackItem.objects.filter(
             invoice=self,
             end__day=start.day,
-        ).order_by('daily_price').first()
+        ).order_by('-daily_price').first()
 
         daily_price = package.template.price
         if overlapping_item:
@@ -164,9 +164,7 @@ class OpenStackItem(models.Model):
         Returns the number of days package was used from the time
         it was purchased or from the start of current month
         """
-        now = timezone.now()
-        full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
-
+        full_days = utils.get_full_days(self.start, self.end)
         return full_days
 
     def freeze(self, end=None, package_deletion=False):
