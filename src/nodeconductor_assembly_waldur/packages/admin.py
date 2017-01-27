@@ -40,7 +40,8 @@ class PackageComponentForm(forms.ModelForm):
         if 'monthly_price' not in self.cleaned_data or 'amount' not in self.cleaned_data:
             return
 
-        if self.instance.template.openstack_packages.first() and 'monthly_price' in self.changed_data:
+        if self.instance.template.openstack_packages.first() and (
+                    'monthly_price' in self.changed_data or 'amount' in self.changed_data):
             raise forms.ValidationError('Price cannot be changed for a template which has connected packages.')
 
         type = self.cleaned_data['type']
