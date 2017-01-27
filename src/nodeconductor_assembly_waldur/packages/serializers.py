@@ -27,7 +27,7 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.PackageTemplate
         fields = (
             'url', 'uuid', 'name', 'description', 'service_settings',
-            'price', 'monthly_price', 'icon_url', 'components', 'category'
+            'price', 'monthly_price', 'icon_url', 'components', 'category', 'archived'
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -67,14 +67,17 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             raise serializers.ValidationError('Only staff, owner or manager can order package.')
         return spl
 
-    validate_template = _check_template_service_settings
+    def validate_template(self, template):
+        template = _check_template_service_settings(self, template)
+
+        if template.archived:
+            raise serializers.ValidationError('New package cannot be created for archived template.')
+
+        return template
 
     def validate(self, attrs):
         """ Additionally check that template and service project link belong to the same service settings """
         template = attrs['template']
-        if template.archived:
-            raise serializers.ValidationError('New package cannot be created for archived template.')
-
         attrs = super(OpenStackPackageCreateSerializer, self).validate(attrs)
         spl = attrs['service_project_link']
         if spl.service.settings != template.service_settings:

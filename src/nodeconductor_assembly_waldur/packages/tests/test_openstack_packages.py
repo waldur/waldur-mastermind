@@ -84,6 +84,21 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         self.assertDictEqual(
             tenant.extra_configuration, {'package_name': template.name, 'package_uuid': template.uuid.hex})
 
+    def test_user_cannot_create_openstack_package_if_template_is_archived(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        spl = self.fixture.openstack_spl
+        spl_url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
+        template = factories.PackageTemplateFactory(archived=True,
+                                                    service_settings=spl.service.settings)
+        payload = {
+            'service_project_link': spl_url,
+            'name': 'test_package',
+            'template': factories.PackageTemplateFactory.get_url(template),
+        }
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class OpenStackPackageExtendTest(test.APITransactionTestCase):
