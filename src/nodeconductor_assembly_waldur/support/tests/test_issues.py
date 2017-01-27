@@ -12,7 +12,7 @@ from .. import models
 @ddt
 class IssueRetreiveTest(base.BaseTest):
 
-    @data('staff', 'owner')
+    @data('staff', 'global_support', 'owner')
     def test_user_can_access_customer_issue_if_he_has_customer_level_permission(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         issue = factories.IssueFactory(customer=self.fixture.customer)
@@ -29,7 +29,7 @@ class IssueRetreiveTest(base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_can_access_project_issue_if_he_has_project_level_permission(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         issue = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
@@ -86,22 +86,24 @@ class IssueCreateTest(base.BaseTest):
         super(IssueCreateTest, self).setUp()
         self.url = factories.IssueFactory.get_list_url()
 
-    def test_staff_can_create_issue_if_he_has_support_user(self):
-        factories.SupportUserFactory(user=self.fixture.staff)
-        self.client.force_authenticate(self.fixture.staff)
+    @data('staff', 'global_support')
+    def test_staff_or_support_can_create_issue_if_he_has_support_user(self, user):
+        factories.SupportUserFactory(user=getattr(self.fixture, user))
+        self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.post(self.url, data=self._get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_staff_cannot_create_issue_if_he_does_not_have_support_user(self):
-        self.client.force_authenticate(self.fixture.staff)
+    @data('staff', 'global_support')
+    def test_staff_or_support_cannot_create_issue_if_he_does_not_have_support_user(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.post(self.url, data=self._get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('staff', 'owner')
+    @data('staff', 'global_support', 'owner')
     def test_user_with_access_to_customer_can_create_customer_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
@@ -127,7 +129,7 @@ class IssueCreateTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.Issue.objects.filter(summary=payload['summary']).exists())
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_with_access_to_project_can_create_project_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
@@ -153,7 +155,7 @@ class IssueCreateTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.Issue.objects.filter(summary=payload['summary']).exists())
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_with_access_to_resource_can_create_resource_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
@@ -219,8 +221,9 @@ class IssueUpdateTest(base.BaseTest):
         self.issue = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
         self.url = factories.IssueFactory.get_url(self.issue)
 
-    def test_staff_can_edit_issue(self):
-        self.client.force_authenticate(self.fixture.staff)
+    @data('staff', 'global_support')
+    def test_staff_or_support_can_edit_issue(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload()
 
         response = self.client.patch(self.url, data=payload)
@@ -250,8 +253,9 @@ class IssueDeleteTest(base.BaseTest):
         self.issue = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
         self.url = factories.IssueFactory.get_url(self.issue)
 
-    def test_staff_can_delete_issue(self):
-        self.client.force_authenticate(self.fixture.staff)
+    @data('staff', 'global_support')
+    def test_staff_or_support_can_delete_issue(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.delete(self.url)
 
@@ -271,7 +275,7 @@ class IssueDeleteTest(base.BaseTest):
 @ddt
 class IssueCommentTest(base.BaseTest):
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_with_access_to_issue_can_comment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         issue = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)

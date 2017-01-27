@@ -15,6 +15,10 @@ class SupportUserFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'user-%s' % n)
     user = factory.SubFactory(structure_factories.UserFactory)
 
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-user-list')
+
 
 class IssueFactory(factory.DjangoModelFactory):
     class Meta(object):
