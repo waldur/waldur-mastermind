@@ -15,6 +15,7 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
 
     service_settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'PackageTemplate%s' % n)
+    archived = False
 
     @classmethod
     def get_url(cls, package_template=None, action=None):
