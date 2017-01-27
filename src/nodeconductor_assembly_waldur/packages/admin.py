@@ -39,6 +39,10 @@ class PackageComponentForm(forms.ModelForm):
         super(PackageComponentForm, self).clean()
         if 'monthly_price' not in self.cleaned_data or 'amount' not in self.cleaned_data:
             return
+
+        if self.instance.template.archived and 'monthly_price' in self.changed_data:
+            raise forms.ValidationError('price cannot be changed for "archived" template')
+
         type = self.cleaned_data['type']
         monthly_price = self.cleaned_data['monthly_price']
         amount = self.cleaned_data['amount']
