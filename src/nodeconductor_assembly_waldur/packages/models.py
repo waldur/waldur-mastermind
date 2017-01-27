@@ -21,8 +21,7 @@ class PackageTemplate(core_models.UuidMixin,
     # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
-    archived = models.BooleanField(default=False,
-                                   help_text='Forbids creation of new packages.')
+    archived = models.BooleanField(default=False, help_text='Forbids creation of new packages.')
 
     class Categories(object):
         SMALL = 'small'
