@@ -12,12 +12,12 @@ from django.utils.translation import ugettext_lazy as _
 from jsonfield import JSONField
 from model_utils import FieldTracker
 
-from nodeconductor.core import models as core_models
+from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models as package_models
-from . import utils, managers
+from . import utils
 
 
 @python_2_unicode_compatible
@@ -48,14 +48,7 @@ class Invoice(core_models.UuidMixin, models.Model):
     invoice_date = models.DateField(null=True, blank=True,
                                     help_text='Date then invoice moved from state pending to created.')
 
-    objects = managers.InvoiceManager()
-
     tracker = FieldTracker()
-
-    # TODO: provide caching for property total.
-    @property
-    def price(self):
-        return self.openstack_items.aggregate(price=models.Sum('price'))['price'] or 0
 
     @property
     def tax(self):
@@ -64,6 +57,10 @@ class Invoice(core_models.UuidMixin, models.Model):
     @property
     def total(self):
         return self.price + self.tax
+
+    @property
+    def price(self):
+        return sum((item.price for item in self.openstack_items.iterator()))
 
     @property
     def due_date(self):
@@ -93,9 +90,61 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
 
-    def propagate(self, month, year):
-        self.set_created()
-        Invoice.objects.get_or_create_with_items(customer=self.customer, month=month, year=year)
+    def register_package(self, package, start=None):
+        if start is None:
+            start = timezone.now()
+
+        end = core_utils.month_end(start)
+        overlapping_item = OpenStackItem.objects.filter(
+            invoice=self,
+            end__day=start.day,
+            package_details__contains=package.tenant.name,
+        ).order_by('-daily_price').first()
+
+        daily_price = package.template.price
+        if overlapping_item:
+            """
+            Notes:
+            |- date -| - used during the date
+            |- **** -| - used during the day
+            |- ---- -| - was requested to use in the current day but will be moved to next or previous one.
+            |-***?---| - was used for a half day and '?' stands for a conflict.
+
+            If there is an item that overlaps with current one as shown below:
+            |--03.01.2017-|-********-|-***?---|
+                                     |----?**-|-01.06.2017-|-******-|
+            we have to make next steps:
+            1) If item is more expensive -> use it for price calculation
+                and register new package starting from next day [-01.06.2017-]
+            |--03.01.2017-|-********-|-*****-|
+                                     |-------|-06.01.2017-|-******-|
+
+            2) If old package item is more expensive and it is the end of the month
+            extend package usage till the end of the day and set current package end date to start date,
+            so that usage days is 0 but it is still registered in the invoice.
+            |--29.01.2017-|-********-|-***31.01.2017***-|
+                                     |----31.01.2017----|
+
+            3) If item is cheaper do exactly the opposite and shift its end date to yesterday,
+            so new package will be registered today
+            |--03.01.2017-|-********-|-------|
+                                     |-*****-|-06.01.2017-|-******-|
+            """
+            if overlapping_item.daily_price > daily_price:
+                if overlapping_item.end.day == utils.get_current_month_end().day:
+                    overlapping_item.extend_to_the_end_of_the_day()
+                    end = start
+                else:
+                    start = start + timezone.timedelta(days=1)
+            else:
+                overlapping_item.shift_backward()
+
+        OpenStackItem.objects.create(
+            package=package,
+            daily_price=daily_price,
+            invoice=self,
+            start=start,
+            end=end)
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
@@ -109,14 +158,14 @@ class OpenStackItem(models.Model):
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
     package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
-    price = models.DecimalField(max_digits=13, decimal_places=7, validators=[MinValueValidator(Decimal('0'))],
-                                help_text='Price is calculated on a monthly basis.')
+    daily_price = models.DecimalField(max_digits=22, decimal_places=7,
+                                      validators=[MinValueValidator(Decimal('0'))],
+                                      default=0,
+                                      help_text='Price per day.')
     start = models.DateTimeField(default=utils.get_current_month_start,
                                  help_text='Date and time when package usage has started.')
     end = models.DateTimeField(default=utils.get_current_month_end,
                                help_text='Date and time when package usage has ended.')
-
-    objects = managers.OpenStackItemManager()
 
     @property
     def name(self):
@@ -134,12 +183,8 @@ class OpenStackItem(models.Model):
         return self.price + self.tax
 
     @property
-    def daily_price(self):
-        """ Returns the price of OpenStack item per day """
-        full_days = utils.get_full_days(self.start, self.end)
-        daily_price = self.total / full_days if full_days else 0
-
-        return daily_price
+    def price(self):
+        return self.daily_price * self.usage_days
 
     @property
     def usage_days(self):
@@ -147,45 +192,8 @@ class OpenStackItem(models.Model):
         Returns the number of days package was used from the time
         it was purchased or from the start of current month
         """
-        now = timezone.now()
-        full_days = utils.get_full_days(self.start, now if now < self.end else self.end)
-
+        full_days = utils.get_full_days(self.start, self.end)
         return full_days
-
-    def shift_backward_end_date(self, days=1):
-        """
-        Moves "end" date to N days before current "end" date value.
-        Price will be recalculated accordingly.
-        :param days: amount of days to move "end" date. Default one is 1.
-        """
-        if self.end == self.start:
-            return
-
-        old_daily_price = self.daily_price
-        self.end -= timezone.timedelta(days=days)
-        self.price = old_daily_price * self.usage_days
-        self.save()
-
-    def shift_forward_start_date(self, days=1):
-        """
-        Moves "start" date to N days after current "start" date value.
-        Price will be recalculated accordingly.
-        :param days: amount of days to move "start" date. Default one is 1.
-        """
-        self.start += timezone.timedelta(days=days)
-        self.end = utils.core_utils.month_end(self.start)
-        self.recalculate_price(self.start)
-
-    @staticmethod
-    def calculate_price_for_period(price, start, end):
-        """
-        Calculates price from "start" till "end".
-
-        :param price: price for item per day.
-        """
-        full_days = utils.get_full_days(start, end)
-
-        return price * full_days
 
     def freeze(self, end=None, package_deletion=False):
         """
@@ -200,18 +208,27 @@ class OpenStackItem(models.Model):
 
         if package_deletion:
             self.end = end or timezone.now()
-            self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
-            update_fields.extend(['end', 'price'])
+            update_fields.extend(['end'])
 
         self.save(update_fields=update_fields)
 
-    def recalculate_price(self, start):
+    def shift_backward(self, days=1):
         """
-        Updates price according to the new "start"
+        Shifts end date to N 'days' ago.
+        If N is larger than it lasts - zero length will be set.
+        :param days: number of days to shift end date
         """
-        self.start = start
-        self.price = self.calculate_price_for_period(self.package.template.price, self.start, self.end)
-        self.save(update_fields=['start', 'price'])
+        if (self.end - self.start).days > days:
+            end = self.end - timezone.timedelta(days=1)
+        else:
+            end = self.start
+
+        self.end = end
+        self.save()
+
+    def extend_to_the_end_of_the_day(self):
+        self.end = self.end.replace(hour=23, minute=59, second=59)
+        self.save()
 
     def __str__(self):
         return self.name
@@ -220,6 +237,7 @@ class OpenStackItem(models.Model):
 @python_2_unicode_compatible
 class PaymentDetails(core_models.UuidMixin, models.Model):
     """ Customer payment details """
+
     class Permissions(object):
         customer_path = 'customer'
 

@@ -41,7 +41,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
     def get_valid_payload(self):
         spl = self.fixture.openstack_spl
-        spl_url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
+        spl_url = factories.OpenStackServiceProjectLinkFactory.get_url(spl)
         template = factories.PackageTemplateFactory(service_settings=spl.service.settings)
         return {
             'service_project_link': spl_url,
