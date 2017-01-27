@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from django.conf import settings
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions, generics
+from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
 from nodeconductor.core import views as core_views
 from nodeconductor.structure import (filters as structure_filters, models as structure_models,
@@ -23,6 +23,10 @@ class IssueViewSet(core_views.ActionsViewSet):
     filter_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
 
+    def is_staff_or_support(request, view, obj=None):
+        if not request.user.is_staff and not request.user.is_support:
+            raise exceptions.PermissionDenied()
+
     @transaction.atomic()
     def perform_create(self, serializer):
         issue = serializer.save()
@@ -33,18 +37,18 @@ class IssueViewSet(core_views.ActionsViewSet):
         issue = serializer.save()
         backend.get_active_backend().update_issue(issue)
 
-    update_permissions = partial_update_permissions = [structure_permissions.is_staff]
+    update_permissions = partial_update_permissions = [is_staff_or_support]
 
     @transaction.atomic()
     def perform_destroy(self, issue):
         backend.get_active_backend().delete_issue(issue)
         issue.delete()
 
-    destroy_permissions = [structure_permissions.is_staff]
+    destroy_permissions = [is_staff_or_support]
 
     def _comment_permission(request, view, obj=None):
         user = request.user
-        if user.is_staff or not obj:
+        if user.is_staff or user.is_support or not obj:
             return
         issue = obj
         if issue.customer and issue.customer.has_user(user, structure_models.CustomerRole.OWNER):
@@ -100,10 +104,19 @@ class CommentViewSet(core_views.ActionsViewSet):
         return queryset
 
 
+class IsStaffOrSupportUser(permissions.BasePermission):
+    """
+    Allows access only to staff or global support users.
+    """
+
+    def has_permission(self, request, view):
+        return request.user.is_staff or request.user.is_support
+
+
 class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.SupportUser.objects.all()
     lookup_field = 'uuid'
-    permission_classes = (permissions.IsAdminUser,)
+    permission_classes = (permissions.IsAuthenticated, IsStaffOrSupportUser,)
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
     filter_class = filters.SupportUserFilter
