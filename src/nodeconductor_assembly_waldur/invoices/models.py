@@ -102,6 +102,23 @@ class Invoice(core_models.UuidMixin, models.Model):
 
         daily_price = package.template.price
         if overlapping_item:
+            """
+            If there is an item that overlaps with current one as shown below:
+            |--01.03.2017-|-********-|----?--|
+                                     |----?--|-01.06.2017-|-******-|
+            we have to make next steps:
+            1) If item is more expensive -> use it for price calculation
+                and register new package starting from next day [-01.06.2017-]
+            |--01.03.2017-|-********-|-*****-|
+                                     |-------|-01.06.2017-|-******-|
+
+            2) If item is more expensive and it is the end of the month
+            repeat step 1 but do not register new package. It will be registered from new month.
+            3) If item is cheaper do exactly the opposite and shift its end date to yesterday,
+            so new package will be registered today
+            |--01.03.2017-|-********-|-------|
+                                     |-*****-|-01.06.2017-|-******-|
+            """
             if overlapping_item.daily_price > daily_price:
                 if overlapping_item.end.day == utils.get_current_month_end().day:
                     overlapping_item.extend_to_the_end_of_the_day()
