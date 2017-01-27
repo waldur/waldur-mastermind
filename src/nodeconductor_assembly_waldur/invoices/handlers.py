@@ -15,20 +15,21 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
 
     now = timezone.now()
     customer = package.tenant.service_project_link.project.customer
-    invoice, created = models.Invoice.objects.get_or_create(
-        customer=customer,
-        month=now.month,
-        year=now.year,
-    )
-
-    if created:
-        packages_to_register = package_models.OpenStackPackage.objects.filter(
-            tenant__service_project_link__project__customer=customer,
-        ).distinct().iterator()
-    else:
-        packages_to_register = [package]
 
     with transaction.atomic():
+        invoice, created = models.Invoice.objects.get_or_create(
+            customer=customer,
+            month=now.month,
+            year=now.year,
+        )
+
+        if created:
+            packages_to_register = package_models.OpenStackPackage.objects.filter(
+                tenant__service_project_link__project__customer=customer,
+            ).distinct().iterator()
+        else:
+            packages_to_register = [package]
+
         for package in packages_to_register:
             invoice.register_package(package, start=now)
 
