@@ -20,13 +20,6 @@ class PackageTemplateListTest(test.APITransactionTestCase):
 
         self.assertEqual(len(response.data), 1)
 
-    @data('staff', 'owner', 'manager', 'admin', 'user')
-    def test_archived_templates_are_not_shown(self, user):
-        factories.PackageTemplateFactory(archived=True)
-        self.client.force_authenticate(user=getattr(self.fixture, user))
-        response = self.client.get(self.url)
-        self.assertEqual(len(response.data), 0)
-
 
 @ddt
 class PackageTemplateRetreiveTest(test.APITransactionTestCase):
