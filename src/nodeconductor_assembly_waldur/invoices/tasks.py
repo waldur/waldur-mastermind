@@ -5,8 +5,13 @@ from datetime import date
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db import transaction
 from django.db.models import Q
 from django.template.loader import render_to_string
+
+from nodeconductor.core import utils as core_utils
+from nodeconductor.structure import models as structure_models
+from nodeconductor_assembly_waldur.packages import models as package_models
 
 from . import models
 
@@ -29,7 +34,25 @@ def create_monthly_invoices_for_packages():
         Q(state=models.Invoice.States.PENDING, year=today.year, month__lt=today.month)
     )
     for invoice in old_invoices:
-        invoice.propagate(month=today.month, year=today.year)
+        invoice.set_created()
+
+    for customer in structure_models.Customer.objects.iterator():
+        packages_query = package_models.OpenStackPackage.objects.filter(
+            tenant__service_project_link__project__customer=customer).distinct()
+
+        if not packages_query.exists():
+            continue
+
+        with transaction.atomic():
+            invoice, created = models.Invoice.objects.get_or_create(
+                customer=customer,
+                month=today.month,
+                year=today.year,
+            )
+
+            if created:
+                for package in packages_query.iterator():
+                    invoice.register_package(package, start=core_utils.month_start(today))
 
 
 @shared_task(name='invoices.send_invoice_notification')

@@ -50,6 +50,15 @@ def _set_tenant_quotas(tenant, template):
         tenant.set_quota_limit(quota_name, components[component_type])
 
 
+def _set_tenant_extra_configuration(tenant, template):
+    tenant.extra_configuration = {
+        'package_name': template.name,
+        'package_uuid': template.uuid.hex,
+        'package_category': template.get_category_display(),
+    }
+    tenant.save()
+
+
 class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     template = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
@@ -90,9 +99,10 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         """ Create tenant and service settings from it """
         template = validated_data.pop('template')
         tenant = super(OpenStackPackageCreateSerializer, self).create(validated_data)
-        tenant.extra_configuration = {'package_name': template.name, 'package_uuid': template.uuid.hex}
-        tenant.save()
+
         _set_tenant_quotas(tenant, template)
+        _set_tenant_extra_configuration(tenant, template)
+
         service_settings = self._create_service_settings(tenant)
         package = models.OpenStackPackage.objects.create(
             tenant=tenant,
@@ -200,8 +210,10 @@ class OpenStackPackageExtendSerializer(structure_serializers.PermissionFieldFilt
         package = validated_data['package']
         new_template = validated_data['template']
         service_settings = package.service_settings
+
         tenant = package.tenant
         _set_tenant_quotas(tenant, new_template)
+        _set_tenant_extra_configuration(tenant, new_template)
 
         package.delete()
         new_package = models.OpenStackPackage.objects.create(

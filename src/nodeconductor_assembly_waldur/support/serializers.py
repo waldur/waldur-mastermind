@@ -109,25 +109,30 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
     def validate_customer(self, customer):
-        """ User has to be customer owner or staff """
+        """ User has to be customer owner, staff or global support """
         if not customer:
             return customer
         user = self.context['request'].user
-        if not customer or user.is_staff or customer.has_user(user, structure_models.CustomerRole.OWNER):
+        if (not customer or
+                user.is_staff or
+                user.is_support or
+                customer.has_user(user, structure_models.CustomerRole.OWNER)):
             return customer
-        raise serializers.ValidationError('Only customer owner or staff can report customer issues.')
+        raise serializers.ValidationError('Only customer owner, staff or support can report customer issues.')
 
     def validate_project(self, project):
         if not project:
             return project
         user = self.context['request'].user
-        if (not project or user.is_staff or
+        if (not project or
+                user.is_staff or
+                user.is_support or
                 project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
                 project.has_user(user, structure_models.ProjectRole.MANAGER) or
                 project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)):
             return project
         raise serializers.ValidationError(
-            'Only customer owner, project manager, project admin or staff can report such issue.')
+            'Only customer owner, project manager, project admin, staff or support can report such issue.')
 
     def validate_resource(self, resource):
         if resource:
