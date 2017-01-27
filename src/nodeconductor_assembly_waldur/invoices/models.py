@@ -98,14 +98,15 @@ class Invoice(core_models.UuidMixin, models.Model):
         overlapping_item = OpenStackItem.objects.filter(
             invoice=self,
             end__day=start.day,
+            package_details__contains=package.tenant.name,
         ).order_by('-daily_price').first()
 
         daily_price = package.template.price
         if overlapping_item:
             """
             If there is an item that overlaps with current one as shown below:
-            |--01.03.2017-|-********-|----?--|
-                                     |----?--|-01.06.2017-|-******-|
+            |--01.03.2017-|-********-|-***?---|
+                                     |----?**-|-01.06.2017-|-******-|
             we have to make next steps:
             1) If item is more expensive -> use it for price calculation
                 and register new package starting from next day [-01.06.2017-]

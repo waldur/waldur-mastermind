@@ -67,9 +67,12 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         )
         return template
 
-    def create_package(self, component_price):
+    def create_package(self, component_price, tenant=None):
         template = self.create_package_template(component_price=component_price)
-        package = packages_factories.OpenStackPackageFactory(template=template)
+        if not tenant:
+            tenant = packages_factories.TenantFactory()
+
+        package = packages_factories.OpenStackPackageFactory(template=template, tenant=tenant)
         return package
 
     def setUp(self):
@@ -139,13 +142,14 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         with freeze_time(start_date):
             old_package = self.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
+        tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
             new_template = self.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
-                tenant__service_project_link__project__customer=customer,
+                tenant=tenant,
             )
 
         old_components_price = old_package.template.price * (package_change_date - start_date).days
@@ -167,13 +171,14 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         with freeze_time(start_date):
             old_package = self.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
+        tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
             new_template = self.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
-                tenant__service_project_link__project__customer=customer,
+                tenant=tenant
             )
 
         old_components_price = old_package.template.price * ((package_change_date - start_date).days - 1)
@@ -195,13 +200,14 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         with freeze_time(start_date):
             old_package = self.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
+        tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
             new_template = self.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
-                tenant__service_project_link__project__customer=customer,
+                tenant=tenant,
             )
 
         old_components_price = old_package.template.price * ((package_change_date - start_date).days + 1)
@@ -222,14 +228,14 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
 
         with freeze_time(start_date):
             old_package = self.create_package(component_price=old_component_price)
-        customer = old_package.tenant.service_project_link.project.customer
+        tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
             new_template = self.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
-                tenant__service_project_link__project__customer=customer,
+                tenant=tenant,
             )
 
         old_components_price = old_package.template.price * ((package_change_date - start_date).days - 1)
@@ -268,4 +274,3 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         # assert
         self.assertEqual(models.Invoice.objects.count(), 1)
         self.assertEqual(Decimal(expected_price), models.Invoice.objects.first().price)
-
