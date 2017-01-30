@@ -61,7 +61,9 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def price(self):
-        return sum((item.price for item in self.openstack_items.iterator()))
+        package_items = list(self.openstack_items.all())
+        offering_items = list(self.offering_items.all())
+        return sum((item.price for item in package_items + offering_items))
 
     @property
     def due_date(self):
@@ -147,6 +149,19 @@ class Invoice(core_models.UuidMixin, models.Model):
             start=start,
             end=end)
 
+    def register_offering(self, offering, start=None):
+        if start is None:
+            start = timezone.now()
+
+        end = core_utils.month_end(start)
+        OfferingItem.objects.create(
+            project=offering.project,
+            daily_price=offering.price,
+            invoice=self,
+            start=start,
+            end=end
+        )
+
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
@@ -195,10 +210,31 @@ class OfferingItem(InvoiceItemMixin, models.Model):
     """ OfferingItem stores details for invoices about purchased custom offering item. """
     invoice = models.ForeignKey(Invoice, related_name='offering_items')
     offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
+    offering_details = JSONField(default={}, blank=True, help_text='Stores data about offering')
 
     @property
     def name(self):
-        return '%s (%s)' % (self.offering.project.name, self.offering.project.type_label)
+        if self.offering_details:
+            return '%s (%s)' % (self.offering_details['project_name'], self.offering_details['offering_type'])
+
+        return '%s (%s)' % (self.offering.project.name, self.offering.type)
+
+    def freeze(self, end=None, offering_deletion=False):
+        """
+        Performs following actions:
+            - Save tenant and package template names in "package_details"
+            - On package deletion set "end" field as "end" and
+              recalculate price based on the new "end" field.
+        """
+        self.offering_details['project_name'] = self.offering.project.name
+        self.offering_details['offering_type'] = self.offering.type
+        update_fields = ['offering_details']
+
+        if offering_deletion:
+            self.end = end or timezone.now()
+            update_fields.extend(['end'])
+
+        self.save(update_fields=update_fields)
 
     def __str__(self):
         return self.name

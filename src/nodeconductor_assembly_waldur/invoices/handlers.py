@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from nodeconductor_assembly_waldur.packages import models as package_models
+from nodeconductor_assembly_waldur.support import models as support_models
 
 from . import models, log
 
@@ -44,6 +45,44 @@ def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
         invoice__month=now.month,
     )
     item.freeze(end=now, package_deletion=True)
+
+
+def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
+    offering = instance
+    if not created:
+        return
+
+    now = timezone.now()
+    customer = instance.project.customer
+
+    with transaction.atomic():
+        invoice, created = models.Invoice.objects.get_or_create(
+            customer=customer,
+            month=now.month,
+            year=now.year,
+        )
+
+        if created:
+            offerings_to_register = support_models.Offering.filter(
+                project__customer=customer
+            ).distinct()
+        else:
+            offerings_to_register = [offering]
+
+        for offering in offerings_to_register:
+            invoice.register_offering(offering, start=now)
+
+
+def update_invoice_on_offering_deletion(sender, instance, **kwargs):
+    now = timezone.now()
+    item = models.OfferingItem.objects.get(
+        offering=instance,
+        invoice__customer=instance.project.customer,
+        invoice__state=models.Invoice.States.PENDING,
+        invoice__year=now.year,
+        invoice__month=now.month,
+    )
+    item.freeze(end=now, offering_deletion=True)
 
 
 def log_invoice_state_transition(sender, instance, created=False, **kwargs):
