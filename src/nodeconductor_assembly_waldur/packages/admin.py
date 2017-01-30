@@ -24,23 +24,19 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
         return '<label>%s GB</label>' % result
 
 
-class ReadonlyWidgetMixin(object):
-    def _format_value(self, value):
-        raise NotImplementedError()
-
-    def render_to_readonly(self, name, value, attrs=None):
-        return "<p>{0}</p>".format(self._format_value(value))
+def render_to_readonly(value):
+    return "<p>{0}</p>".format(value)
 
 
-class ReadonlyNumberWidget(ReadonlyWidgetMixin, forms.NumberInput):
+class ReadonlyNumberWidget(forms.NumberInput):
     def _format_value(self, value):
         return value
 
     def render(self, name, value, attrs=None):
-        return self.render_to_readonly(name, value, attrs)
+        return render_to_readonly(self._format_value(value))
 
 
-class PriceForMBinGBWidget(ReadonlyWidgetMixin, forms.NumberInput):
+class PriceForMBinGBWidget(forms.NumberInput):
     def __init__(self, attrs):
         self.readonly = attrs.pop('readonly', False)
         super(PriceForMBinGBWidget, self).__init__(attrs)
@@ -55,7 +51,7 @@ class PriceForMBinGBWidget(ReadonlyWidgetMixin, forms.NumberInput):
 
     def render(self, name, value, attrs=None):
         if self.readonly:
-            return self.render_to_readonly(name, value, attrs)
+            return render_to_readonly(self._format_value(value))
         else:
             return super(PriceForMBinGBWidget, self).render(name, value, attrs)
 
@@ -78,11 +74,7 @@ class PackageComponentForm(forms.ModelForm):
         if self.instance:
             self.fields['monthly_price'].initial = self.instance.monthly_price
             if self.instance.type in models.PackageTemplate.get_memory_types():
-                self.fields['price'] = forms.DecimalField(
-                    min_value=0,
-                    required=False,
-                    initial=0,
-                    widget=PriceForMBinGBWidget(attrs={'readonly': True}))
+                self.fields['price'].widget = PriceForMBinGBWidget(attrs={'readonly': True})
 
             if settings.DEBUG:
                 self.fields['price_per_day'].initial = self.instance.price
