@@ -155,7 +155,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
         end = core_utils.month_end(start)
         OfferingItem.objects.create(
-            project=offering.project,
+            offering=offering,
             daily_price=offering.price,
             invoice=self,
             start=start,

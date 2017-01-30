@@ -10,9 +10,9 @@ from freezegun import freeze_time
 from mock import Mock
 
 from nodeconductor.core import utils as core_utils
-from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
+from nodeconductor_assembly_waldur.support.tests import fixtures as support_fixtures
 
 from .. import factories, fixtures
 from ... import models, utils
@@ -79,10 +79,9 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         self.fixture = fixtures.InvoiceFixture()
 
     def test_existing_invoice_is_updated_on_openstack_package_creation(self):
-        invoice = factories.InvoiceFactory()
-        self.fixture.customer = invoice.customer
+        self.fixture.customer = self.fixture.invoice.customer
         package = self.fixture.openstack_package
-        self.assertTrue(invoice.openstack_items.filter(package=package).exists())
+        self.assertTrue(self.fixture.invoice.openstack_items.filter(package=package).exists())
 
     def test_new_invoice_is_created_on_openstack_package_creation(self):
         package = self.fixture.openstack_package
@@ -274,3 +273,30 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         # assert
         self.assertEqual(models.Invoice.objects.count(), 1)
         self.assertEqual(Decimal(expected_price), models.Invoice.objects.first().price)
+
+
+class AddNewOfferingDetailsToInvoiceTest(TestCase):
+
+    def setUp(self):
+        self.fixture = support_fixtures.OfferingFixture()
+
+    def test_invoice_is_created_on_offering_creation(self):
+        self.fixture.customer = self.fixture.issue.customer
+        offering = self.fixture.offering
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        invoice = models.Invoice.objects.first()
+        self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+
+    def test_existing_invoice_is_updated_on_offering_creation(self):
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        end_date = core_utils.month_end(start_date)
+        usage_days = utils.get_full_days(start_date, end_date)
+
+        with freeze_time(start_date):
+            invoice = factories.InvoiceFactory(customer=self.fixture.customer)
+            offering = self.fixture.offering
+
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+        expected_price = offering.price * usage_days
+        self.assertEqual(invoice.price, Decimal(expected_price))

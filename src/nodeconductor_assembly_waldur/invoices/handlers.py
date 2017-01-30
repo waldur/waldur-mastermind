@@ -63,7 +63,7 @@ def add_new_offering_details_to_invoice(sender, instance, created=False, **kwarg
         )
 
         if created:
-            offerings_to_register = support_models.Offering.filter(
+            offerings_to_register = support_models.Offering.objects.filter(
                 project__customer=customer
             ).distinct()
         else:
