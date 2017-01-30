@@ -204,6 +204,12 @@ class InvoiceItem(models.Model):
         full_days = utils.get_full_days(self.start, self.end)
         return full_days
 
+    def name(self):
+        raise NotImplementedError()
+
+    def __str__(self):
+        return self.name
+
 
 @python_2_unicode_compatible
 class OfferingItem(InvoiceItem):
@@ -235,9 +241,6 @@ class OfferingItem(InvoiceItem):
             update_fields.extend(['end'])
 
         self.save(update_fields=update_fields)
-
-    def __str__(self):
-        return self.name
 
 
 @python_2_unicode_compatible
@@ -290,9 +293,6 @@ class OpenStackItem(InvoiceItem):
     def extend_to_the_end_of_the_day(self):
         self.end = self.end.replace(hour=23, minute=59, second=59)
         self.save()
-
-    def __str__(self):
-        return self.name
 
 
 @python_2_unicode_compatible
