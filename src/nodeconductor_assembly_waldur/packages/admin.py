@@ -50,7 +50,7 @@ class PackageComponentForm(forms.ModelForm):
 
         price_min = 10 ** -models.PackageComponent.PRICE_DECIMAL_PLACES
         monthly_price_min = price_min * 30 * amount
-        if monthly_price < monthly_price_min:
+        if monthly_price < monthly_price_min and monthly_price != 0:
             raise forms.ValidationError('Monthly price for "%s" should be greater than %s' % (type, monthly_price_min))
 
         price_max = 10 ** (models.PackageComponent.PRICE_MAX_DIGITS - models.PackageComponent.PRICE_DECIMAL_PLACES)
