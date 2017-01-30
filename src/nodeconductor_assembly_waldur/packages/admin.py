@@ -1,6 +1,8 @@
 import collections
 
+from decimal import Decimal
 from django import forms
+from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
@@ -9,7 +11,6 @@ from nodeconductor_assembly_waldur.packages import models
 
 
 class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
-
     def value_from_datadict(self, data, files, name):
         value = super(GBtoMBWidget, self).value_from_datadict(data, files, name)
         value = int(value) * 1024
@@ -23,8 +24,45 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
         return '<label>%s GB</label>' % result
 
 
+class ReadonlyWidgetMixin(object):
+    def _format_value(self, value):
+        raise NotImplementedError()
+
+    def render_to_readonly(self, name, value, attrs=None):
+        return "<p>{0}</p>".format(self._format_value(value))
+
+
+class ReadonlyNumberWidget(ReadonlyWidgetMixin, forms.NumberInput):
+    def _format_value(self, value):
+        return value
+
+    def render(self, name, value, attrs=None):
+        return self.render_to_readonly(name, value, attrs)
+
+
+class PriceForMBinGBWidget(ReadonlyWidgetMixin, forms.NumberInput):
+    def __init__(self, attrs):
+        self.readonly = attrs.pop('readonly', False)
+        super(PriceForMBinGBWidget, self).__init__(attrs)
+
+    def value_from_datadict(self, data, files, name):
+        value = super(PriceForMBinGBWidget, self).value_from_datadict(data, files, name)
+        value = Decimal(value) / 1024
+        return value
+
+    def _format_value(self, value):
+        return Decimal(value) * 1024
+
+    def render(self, name, value, attrs=None):
+        if self.readonly:
+            return self.render_to_readonly(name, value, attrs)
+        else:
+            return super(PriceForMBinGBWidget, self).render(name, value, attrs)
+
+
 class PackageComponentForm(forms.ModelForm):
     monthly_price = forms.DecimalField(label="Price for 30 days", initial=0, required=True)
+    price = forms.DecimalField(initial=0, required=False, widget=ReadonlyNumberWidget())
 
     class Meta:
         model = models.PackageComponent
@@ -34,6 +72,12 @@ class PackageComponentForm(forms.ModelForm):
         super(PackageComponentForm, self).__init__(*args, **kwargs)
         if self.instance:
             self.fields['monthly_price'].initial = self.instance.monthly_price
+            if self.instance.type in models.PackageTemplate.get_memory_types():
+                self.fields['price'] = forms.DecimalField(
+                    min_value=0,
+                    required=False,
+                    initial=0,
+                    widget=PriceForMBinGBWidget(attrs={'readonly': True}))
 
     def clean(self):
         super(PackageComponentForm, self).clean()
@@ -43,7 +87,7 @@ class PackageComponentForm(forms.ModelForm):
         instance = getattr(self, 'instance', None)
         template = getattr(instance, 'template', None)
         if template and template.openstack_packages.exists() and (
-                    'monthly_price' in self.changed_data or 'amount' in self.changed_data):
+                        'monthly_price' in self.changed_data or 'amount' in self.changed_data):
             raise forms.ValidationError('Price cannot be changed for a template which has connected packages.')
 
         type = self.cleaned_data['type']
@@ -70,6 +114,18 @@ class PackageComponentForm(forms.ModelForm):
         if commit:
             package_component.save()
         return package_component
+
+
+class DebugPackageComponentForm(PackageComponentForm):
+    price_per_day = forms.DecimalField(label="Price per day for MB",
+                                       initial=0,
+                                       required=False,
+                                       widget=ReadonlyNumberWidget())
+
+    def __init__(self, *args, **kwargs):
+        super(DebugPackageComponentForm, self).__init__(*args, **kwargs)
+        if self.instance:
+            self.fields['price_per_day'].initial = self.instance.price
 
 
 class PackageComponentInlineFormset(BaseInlineFormSet):
@@ -112,12 +168,18 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
                 raise forms.ValidationError('%s component is required and cannot be deleted.' % t.capitalize())
 
 
+def get_package_component_form():
+    if settings.DEBUG:
+        return DebugPackageComponentForm
+    else:
+        return PackageComponentForm
+
+
 class PackageComponentInline(admin.TabularInline):
-    form = PackageComponentForm
+    form = get_package_component_form()
     formset = PackageComponentInlineFormset
     model = models.PackageComponent
     extra = 0
-    readonly_fields = ('price', )
 
     def get_extra(self, request, obj=None, **kwargs):
         if obj:
