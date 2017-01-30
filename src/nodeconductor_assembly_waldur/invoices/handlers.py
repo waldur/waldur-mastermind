@@ -75,14 +75,16 @@ def add_new_offering_details_to_invoice(sender, instance, created=False, **kwarg
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):
     now = timezone.now()
-    item = models.OfferingItem.objects.get(
+    item = models.OfferingItem.objects.filter(
         offering=instance,
         invoice__customer=instance.project.customer,
         invoice__state=models.Invoice.States.PENDING,
         invoice__year=now.year,
         invoice__month=now.month,
-    )
-    item.freeze(end=now, offering_deletion=True)
+    ).first()
+
+    if item:
+        item.freeze(end=now, offering_deletion=True)
 
 
 def log_invoice_state_transition(sender, instance, created=False, **kwargs):
