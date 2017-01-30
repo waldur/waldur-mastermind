@@ -40,7 +40,9 @@ class PackageComponentForm(forms.ModelForm):
         if 'monthly_price' not in self.cleaned_data or 'amount' not in self.cleaned_data:
             return
 
-        if self.instance.template.openstack_packages.first() and (
+        instance = getattr(self, 'instance', None)
+        template = getattr(instance, 'template', None)
+        if template and template.openstack_packages.exists() and (
                     'monthly_price' in self.changed_data or 'amount' in self.changed_data):
             raise forms.ValidationError('Price cannot be changed for a template which has connected packages.')
 
@@ -50,8 +52,9 @@ class PackageComponentForm(forms.ModelForm):
 
         price_min = 10 ** -models.PackageComponent.PRICE_DECIMAL_PLACES
         monthly_price_min = price_min * 30 * amount
-        if monthly_price < monthly_price_min:
-            raise forms.ValidationError('Monthly price for "%s" should be greater than %s' % (type, monthly_price_min))
+        if monthly_price < monthly_price_min and monthly_price != 0:
+            raise forms.ValidationError('Monthly price for "%s" should be greater than %s or equal to 0' % (
+                type, monthly_price_min))
 
         price_max = 10 ** (models.PackageComponent.PRICE_MAX_DIGITS - models.PackageComponent.PRICE_DECIMAL_PLACES)
         monthly_price_max = price_max * 30 * amount
