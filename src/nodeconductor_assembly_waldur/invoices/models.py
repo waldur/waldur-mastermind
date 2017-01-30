@@ -166,6 +166,7 @@ class Invoice(core_models.UuidMixin, models.Model):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
+@python_2_unicode_compatible
 class InvoiceItem(models.Model):
     """
     Mixin which identifies invoice item to be used for price calculation.
@@ -211,7 +212,6 @@ class InvoiceItem(models.Model):
         return self.name
 
 
-@python_2_unicode_compatible
 class OfferingItem(InvoiceItem):
     """ OfferingItem stores details for invoices about purchased custom offering item. """
     invoice = models.ForeignKey(Invoice, related_name='offering_items')
@@ -243,7 +243,6 @@ class OfferingItem(InvoiceItem):
         self.save(update_fields=update_fields)
 
 
-@python_2_unicode_compatible
 class OpenStackItem(InvoiceItem):
     """ OpenStackItem stores details for invoices about purchased OpenStack packages """
 
