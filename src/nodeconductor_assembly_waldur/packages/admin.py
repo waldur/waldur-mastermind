@@ -61,8 +61,13 @@ class PriceForMBinGBWidget(ReadonlyWidgetMixin, forms.NumberInput):
 
 
 class PackageComponentForm(forms.ModelForm):
-    monthly_price = forms.DecimalField(label="Price for 30 days", initial=0, required=True)
-    price = forms.DecimalField(initial=0, required=False, widget=ReadonlyNumberWidget())
+    monthly_price = forms.DecimalField(label='Price for 30 days', initial=0, required=True)
+    price = forms.DecimalField(initial=0, label='Price per unit per day', required=False, widget=ReadonlyNumberWidget())
+    if settings.DEBUG:
+        price_per_day = forms.DecimalField(label='Price per day for MB',
+                                           initial=0,
+                                           required=False,
+                                           widget=ReadonlyNumberWidget())
 
     class Meta:
         model = models.PackageComponent
@@ -78,6 +83,9 @@ class PackageComponentForm(forms.ModelForm):
                     required=False,
                     initial=0,
                     widget=PriceForMBinGBWidget(attrs={'readonly': True}))
+
+            if settings.DEBUG:
+                self.fields['price_per_day'].initial = self.instance.price
 
     def clean(self):
         super(PackageComponentForm, self).clean()
@@ -114,18 +122,6 @@ class PackageComponentForm(forms.ModelForm):
         if commit:
             package_component.save()
         return package_component
-
-
-class DebugPackageComponentForm(PackageComponentForm):
-    price_per_day = forms.DecimalField(label="Price per day for MB",
-                                       initial=0,
-                                       required=False,
-                                       widget=ReadonlyNumberWidget())
-
-    def __init__(self, *args, **kwargs):
-        super(DebugPackageComponentForm, self).__init__(*args, **kwargs)
-        if self.instance:
-            self.fields['price_per_day'].initial = self.instance.price
 
 
 class PackageComponentInlineFormset(BaseInlineFormSet):
@@ -168,15 +164,8 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
                 raise forms.ValidationError('%s component is required and cannot be deleted.' % t.capitalize())
 
 
-def get_package_component_form():
-    if settings.DEBUG:
-        return DebugPackageComponentForm
-    else:
-        return PackageComponentForm
-
-
 class PackageComponentInline(admin.TabularInline):
-    form = get_package_component_form()
+    form = PackageComponentForm
     formset = PackageComponentInlineFormset
     model = models.PackageComponent
     extra = 0
