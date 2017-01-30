@@ -17,6 +17,7 @@ from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models as package_models
+from nodeconductor_assembly_waldur.support import models as support_models
 from . import utils
 
 
@@ -150,14 +151,14 @@ class Invoice(core_models.UuidMixin, models.Model):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
-@python_2_unicode_compatible
-class OpenStackItem(models.Model):
-    """ OpenStackItem stores details for invoices about purchased OpenStack packages """
+class InvoiceItemMixin(models.Model):
+    """
+    Mixin which identifies invoice item to be used for price calculation.
+    """
 
-    invoice = models.ForeignKey(Invoice, related_name='openstack_items')
+    class Meta(object):
+        abstract = True
 
-    package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
-    package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
     daily_price = models.DecimalField(max_digits=22, decimal_places=7,
                                       validators=[MinValueValidator(Decimal('0'))],
                                       default=0,
@@ -166,13 +167,6 @@ class OpenStackItem(models.Model):
                                  help_text='Date and time when package usage has started.')
     end = models.DateTimeField(default=utils.get_current_month_end,
                                help_text='Date and time when package usage has ended.')
-
-    @property
-    def name(self):
-        if self.package:
-            return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
-
-        return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
 
     @property
     def tax(self):
@@ -194,6 +188,37 @@ class OpenStackItem(models.Model):
         """
         full_days = utils.get_full_days(self.start, self.end)
         return full_days
+
+
+@python_2_unicode_compatible
+class OfferingItem(InvoiceItemMixin, models.Model):
+    """ OfferingItem stores details for invoices about purchased custom offering item. """
+    invoice = models.ForeignKey(Invoice, related_name='offering_items')
+    offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
+
+    @property
+    def name(self):
+        return '%s (%s)' % (self.offering.project.name, self.offering.project.type_label)
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
+class OpenStackItem(InvoiceItemMixin, models.Model):
+    """ OpenStackItem stores details for invoices about purchased OpenStack packages """
+
+    invoice = models.ForeignKey(Invoice, related_name='openstack_items')
+
+    package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
+    package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
+
+    @property
+    def name(self):
+        if self.package:
+            return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
+
+        return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
 
     def freeze(self, end=None, package_deletion=False):
         """
