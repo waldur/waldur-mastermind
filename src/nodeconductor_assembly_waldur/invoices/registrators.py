@@ -44,7 +44,7 @@ class BaseRegistrator(object):
         """
         raise NotImplementedError()
 
-    def register_items(self, items, invoice, start=None):
+    def register_items(self, items, invoice, start):
         end = core_utils.month_end(start)
 
         with transaction.atomic():
