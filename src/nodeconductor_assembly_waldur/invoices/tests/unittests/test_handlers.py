@@ -282,6 +282,8 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
 
     def test_invoice_is_created_on_offering_creation(self):
         offering = self.fixture.offering
+        offering.state = offering.States.OK
+        offering.save()
         self.assertEqual(models.Invoice.objects.count(), 1)
         invoice = models.Invoice.objects.first()
         self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
@@ -294,6 +296,8 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
         with freeze_time(start_date):
             invoice = factories.InvoiceFactory(customer=self.fixture.customer)
             offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
 
         self.assertEqual(models.Invoice.objects.count(), 1)
         self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
@@ -312,6 +316,8 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
             invoice = models.Invoice.objects.first()
             components_price = invoice.price
             offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
             self.assertEqual(models.Invoice.objects.count(), 1)
 
         self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
