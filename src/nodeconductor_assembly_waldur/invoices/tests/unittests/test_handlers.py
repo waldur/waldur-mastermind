@@ -337,6 +337,8 @@ class UpdateInvoiceOnOfferingDeletionTest(TestCase):
 
         with freeze_time(start_date):
             offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
             self.assertEqual(models.Invoice.objects.count(), 1)
             invoice = models.Invoice.objects.first()
         with freeze_time(end_date):
