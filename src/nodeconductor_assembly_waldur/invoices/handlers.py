@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 from django.utils import timezone
 
+from nodeconductor_assembly_waldur.support import models as support_models
+
 from . import models, log, registrators
 
 
@@ -21,12 +23,10 @@ def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
 
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
     registrator = registrators.OfferingItemRegistrator()
-    # TODO [TM:1/31/17] check if state is OK
-
-    if not created:
-        return
-
-    registrator.register(instance, timezone.now())
+    state = instance.state
+    if state == support_models.Offering.States.OK \
+            and support_models.Offering.States.REQUESTED == instance.tracker.previous('state'):
+        registrator.register(instance, timezone.now())
 
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):
