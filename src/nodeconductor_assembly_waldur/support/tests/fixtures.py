@@ -14,10 +14,3 @@ class SupportFixture(structure_fixtures.ServiceFixture):
     @cached_property
     def offering(self):
         return factories.OfferingFactory(issue=self.issue)
-
-
-class OfferingFixture(SupportFixture):
-
-    @cached_property
-    def offering(self):
-        return factories.OfferingFactory(issue=self.issue)

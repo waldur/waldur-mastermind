@@ -278,7 +278,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
 class AddNewOfferingDetailsToInvoiceTest(TestCase):
 
     def setUp(self):
-        self.fixture = support_fixtures.OfferingFixture()
+        self.fixture = support_fixtures.SupportFixture()
 
     def test_invoice_is_created_on_offering_creation(self):
         offering = self.fixture.offering
@@ -322,7 +322,7 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
 class UpdateInvoiceOnOfferingDeletionTest(TestCase):
 
     def setUp(self):
-        self.fixture = support_fixtures.OfferingFixture()
+        self.fixture = support_fixtures.SupportFixture()
 
     def test_invoice_price_is_not_changed_after_a_while_if_offering_is_deleted(self):
         start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
