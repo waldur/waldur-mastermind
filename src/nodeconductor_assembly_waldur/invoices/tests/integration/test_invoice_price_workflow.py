@@ -69,7 +69,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         end_of_the_new_month = core_utils.month_end(beginning_of_the_new_month)
         expected_price = utils.get_full_days(beginning_of_the_new_month, end_of_the_new_month) * price_per_day
         with freeze_time(task_triggering_date):
-            tasks.create_monthly_invoices_for_packages()
+            tasks.create_monthly_invoices()
             self.assertEqual(models.Invoice.objects.count(), 2)
 
             invoice.refresh_from_db()

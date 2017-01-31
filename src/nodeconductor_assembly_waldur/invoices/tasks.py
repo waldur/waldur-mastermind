@@ -11,15 +11,9 @@ from . import models, registrators
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name='invoices.create_monthly_invoices_for_packages')
-def create_monthly_invoices_for_packages():
-    registrator = registrators.OpenStackItemRegistrator()
-    registrator.update_invoices()
-
-
-@shared_task(name='invoices.create_monthly_invoices_for_offerings')
-def create_monthly_invoices_for_offerings():
-    registrator = registrators.OfferingItemRestirator()
+@shared_task(name='invoices.create_monthly_invoices')
+def create_monthly_invoices():
+    registrator = registrators.InvoiceRegistrator()
     registrator.update_invoices()
 
 

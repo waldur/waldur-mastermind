@@ -83,11 +83,6 @@ class Invoice(core_models.UuidMixin, models.Model):
         if self.state != self.States.PENDING:
             raise IncorrectStateException('Invoice must be in pending state.')
 
-        items = self.openstack_items.select_related('package').all()
-        for item in items:
-            if item.package:
-                item.freeze()
-
         self.state = self.States.CREATED
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
@@ -148,7 +143,15 @@ class InvoiceItem(models.Model):
         full_days = utils.get_full_days(self.start, self.end)
         return full_days
 
+    def terminate(self, end=None):
+        self.freeze()
+        self.end = end or timezone.now()
+        self.save(update_fields=['end'])
+
     def name(self):
+        raise NotImplementedError()
+
+    def freeze(self):
         raise NotImplementedError()
 
     def __str__(self):
@@ -168,22 +171,14 @@ class OfferingItem(InvoiceItem):
 
         return '%s (%s)' % (self.offering.project.name, self.offering.type)
 
-    def freeze(self, end=None, deletion=False):
+    def freeze(self):
         """
-        Performs following actions:
-            - Save tenant and package template names in "package_details"
-            - On package deletion set "end" field as "end" and
-              recalculate price based on the new "end" field.
+        Saves offering type and project name in "package_details" if offering exists
         """
-        self.offering_details['project_name'] = self.offering.project.name
-        self.offering_details['offering_type'] = self.offering.type
-        update_fields = ['offering_details']
-
-        if deletion:
-            self.end = end or timezone.now()
-            update_fields.extend(['end'])
-
-        self.save(update_fields=update_fields)
+        if self.offering:
+            self.offering_details['project_name'] = self.offering.project.name
+            self.offering_details['offering_type'] = self.offering.type
+            self.save(update_fields=['offering_details'])
 
 
 class OpenStackItem(InvoiceItem):
@@ -201,22 +196,14 @@ class OpenStackItem(InvoiceItem):
 
         return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
 
-    def freeze(self, end=None, deletion=False):
+    def freeze(self):
         """
-        Performs following actions:
-            - Save tenant and package template names in "package_details"
-            - On package deletion set "end" field as "end" and
-              recalculate price based on the new "end" field.
+        Saves tenant and package template names in "package_details" if package exists
         """
-        self.package_details['tenant_name'] = self.package.tenant.name
-        self.package_details['template_name'] = self.package.template.name
-        update_fields = ['package_details']
-
-        if deletion:
-            self.end = end or timezone.now()
-            update_fields.extend(['end'])
-
-        self.save(update_fields=update_fields)
+        if self.package:
+            self.package_details['tenant_name'] = self.package.tenant.name
+            self.package_details['template_name'] = self.package.template.name
+            self.save(update_fields=['package_details'])
 
     def shift_backward(self, days=1):
         """

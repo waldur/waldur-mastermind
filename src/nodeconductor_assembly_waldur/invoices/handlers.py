@@ -20,7 +20,7 @@ def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
 
 
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
-    registrator = registrators.OfferingItemRestirator()
+    registrator = registrators.OfferingItemRegistrator()
     # TODO [TM:1/31/17] check if state is OK
 
     if not created:
@@ -30,7 +30,7 @@ def add_new_offering_details_to_invoice(sender, instance, created=False, **kwarg
 
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):
-    registrator = registrators.OfferingItemRestirator()
+    registrator = registrators.OfferingItemRegistrator()
     registrator.terminate(instance, timezone.now())
 
 
