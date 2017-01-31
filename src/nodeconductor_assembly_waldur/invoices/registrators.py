@@ -11,7 +11,6 @@ from . import models, utils
 
 
 class BaseRegistrator(object):
-
     def register(self, item, start=None):
         """
         Registers new item into existing invoice.
@@ -19,7 +18,6 @@ class BaseRegistrator(object):
         :param item: item to register
         :param start: invoice item start date.
         """
-
         if start is None:
             start = timezone.now()
 
@@ -83,7 +81,7 @@ class BaseRegistrator(object):
         if invoice_item:
             invoice_item.terminate(end=now)
 
-    def _find_invoice_item(self, item, now):
+    def _find_invoice_item(self, chargeable_item, now):
         """
         Looks for corresponding invoice item in the invoices by the given date.
         :param item: chargeable item to use for search of invoice item.
@@ -111,8 +109,8 @@ class BaseRegistrator(object):
 
 class OpenStackItemRegistrator(BaseRegistrator):
 
-    def _find_invoice_item(self, item, now):
-        package = item
+    def _find_invoice_item(self, chargeable_item, now):
+        package = chargeable_item
         result = models.OpenStackItem.objects.get(
             package=package,
             invoice__customer=self._get_customer(package),
@@ -199,10 +197,11 @@ class OfferingItemRegistrator(BaseRegistrator):
     def _get_customer(self, item):
         return item.project.customer
 
-    def _find_invoice_item(self, item, now):
+    def _find_invoice_item(self, chargeable_item, now):
+        offering = chargeable_item
         result = models.OfferingItem.objects.filter(
-            offering=item,
-            invoice__customer=item.project.customer,
+            offering=offering,
+            invoice__customer=offering.project.customer,
             invoice__state=models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
