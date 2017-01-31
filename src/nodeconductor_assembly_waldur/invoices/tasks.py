@@ -1,19 +1,11 @@
 import logging
 
-from datetime import date
-
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db import transaction
-from django.db.models import Q
 from django.template.loader import render_to_string
 
-from nodeconductor.core import utils as core_utils
-from nodeconductor.structure import models as structure_models
-from nodeconductor_assembly_waldur.packages import models as package_models
-
-from . import models
+from . import models, registrators
 
 
 logger = logging.getLogger(__name__)
@@ -21,38 +13,14 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name='invoices.create_monthly_invoices_for_packages')
 def create_monthly_invoices_for_packages():
-    """
-    This task performs following actions:
-        - For every customer change state of the invoices for previous months from "pending" to "billed"
-          and freeze their items.
-        - Create new invoice for every customer in current month if not created yet.
-    """
-    today = date.today()
+    registrator = registrators.OpenStackItemRegistrator()
+    registrator.update_invoices()
 
-    old_invoices = models.Invoice.objects.filter(
-        Q(state=models.Invoice.States.PENDING, year__lt=today.year) |
-        Q(state=models.Invoice.States.PENDING, year=today.year, month__lt=today.month)
-    )
-    for invoice in old_invoices:
-        invoice.set_created()
 
-    for customer in structure_models.Customer.objects.iterator():
-        packages_query = package_models.OpenStackPackage.objects.filter(
-            tenant__service_project_link__project__customer=customer).distinct()
-
-        if not packages_query.exists():
-            continue
-
-        with transaction.atomic():
-            invoice, created = models.Invoice.objects.get_or_create(
-                customer=customer,
-                month=today.month,
-                year=today.year,
-            )
-
-            if created:
-                for package in packages_query.iterator():
-                    invoice.register_package(package, start=core_utils.month_start(today))
+@shared_task(name='invoices.create_monthly_invoices_for_offerings')
+def create_monthly_invoices_for_offerings():
+    registrator = registrators.OfferingItemRestirator()
+    registrator.update_invoices()
 
 
 @shared_task(name='invoices.send_invoice_notification')
