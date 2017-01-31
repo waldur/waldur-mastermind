@@ -87,6 +87,12 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
 
+    def freeze(self):
+        for item in self.openstack_items.iterator():
+            item.freeze()
+        for item in self.offering_items.iterator():
+            item.freeze()
+
     def register_offering(self, offering, start=None):
         if start is None:
             start = timezone.now()

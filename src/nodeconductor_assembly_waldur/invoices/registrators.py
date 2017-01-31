@@ -64,22 +64,6 @@ class BaseRegistrator(object):
         """
         raise NotImplementedError()
 
-    def freeze_invoice(self, invoice):
-        """
-        Freezes all invoice items
-        :param invoice: instance to get items from.
-        """
-        for item in self._get_invoice_items(invoice).iterator():
-            item.freeze()
-
-    def _get_invoice_items(self, invoice):
-        """
-        Returns query of all related invoice items
-        :param invoice: invoice item to fetch query on.
-        :return: queryset
-        """
-        raise NotImplementedError()
-
 
 class OpenStackItemRegistrator(BaseRegistrator):
 
@@ -156,9 +140,6 @@ class OpenStackItemRegistrator(BaseRegistrator):
             start=start,
             end=end)
 
-    def _get_invoice_items(self, invoice):
-        return invoice.openstack_items
-
 
 class OfferingItemRegistrator(BaseRegistrator):
 
@@ -192,9 +173,6 @@ class OfferingItemRegistrator(BaseRegistrator):
             end=end
         )
         return result
-
-    def _get_invoice_items(self, invoice):
-        return invoice.offering_items
 
 
 class RegistrationManager(object):

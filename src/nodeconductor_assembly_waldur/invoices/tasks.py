@@ -31,10 +31,8 @@ def create_monthly_invoices():
         Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
     )
     for invoice in old_invoices:
-        with transaction.atomic():
-            invoice.set_created()
-            for registrator in registrators.RegistrationManager.all_registrators:
-                registrator.freeze_invoice(invoice)
+        invoice.set_created()
+        invoice.freeze()
 
     for customer in structure_models.Customer.objects.iterator():
         for registrator in registrators.RegistrationManager.all_registrators:
