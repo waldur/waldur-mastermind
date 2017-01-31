@@ -8,25 +8,24 @@ from . import models, log, registrators
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
-    registrator = registrators.OpenStackItemRegistrator()
-
     if not created:
         return
 
-    registrator.register(instance, timezone.now())
+    registrator = registrators.OpenStackItemRegistrator()
+    registrators.RegistrationManager.apply(registrator, instance, timezone.now())
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
     registrator = registrators.OpenStackItemRegistrator()
-    registrator.terminate(instance)
+    registrator.terminate(instance, timezone.now())
 
 
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
-    registrator = registrators.OfferingItemRegistrator()
     state = instance.state
     if state == support_models.Offering.States.OK \
             and support_models.Offering.States.REQUESTED == instance.tracker.previous('state'):
-        registrator.register(instance, timezone.now())
+        registrator = registrators.OfferingItemRegistrator()
+        registrators.RegistrationManager.apply(registrator, instance, timezone.now())
 
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):

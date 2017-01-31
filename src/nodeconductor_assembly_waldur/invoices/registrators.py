@@ -1,9 +1,7 @@
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
-from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.packages import models as packages_models
 from nodeconductor_assembly_waldur.support import models as support_models
 
@@ -11,31 +9,8 @@ from . import models, utils
 
 
 class BaseRegistrator(object):
-    def register(self, item, start=None):
-        """
-        Registers new item into existing invoice.
-        In the beginning of the month new invoice is created and all related items are registered.
-        :param item: item to register
-        :param start: invoice item start date.
-        """
-        if start is None:
-            start = timezone.now()
 
-        customer = self._get_customer(item)
-        invoice, created = models.Invoice.objects.get_or_create(
-            customer=customer,
-            month=start.month,
-            year=start.year,
-        )
-
-        if created:
-            items = self.get_chargeable_items(customer)
-        else:
-            items = [item]
-
-        self.register_items(items, invoice=invoice, start=start)
-
-    def _get_customer(self, item):
+    def get_customer(self, item):
         """
         Returns customer based on provided item.
         :param item: item to get customer from.
@@ -45,9 +20,8 @@ class BaseRegistrator(object):
     def register_items(self, items, invoice, start):
         end = core_utils.month_end(start)
 
-        with transaction.atomic():
-            for item in items:
-                self._register_item(invoice=invoice, item=item, start=start, end=end)
+        for item in items:
+            self._register_item(invoice=invoice, item=item, start=start, end=end)
 
     def get_chargeable_items(self, customer):
         """
@@ -113,14 +87,14 @@ class OpenStackItemRegistrator(BaseRegistrator):
         package = chargeable_item
         result = models.OpenStackItem.objects.get(
             package=package,
-            invoice__customer=self._get_customer(package),
+            invoice__customer=self.get_customer(package),
             invoice__state=models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
         )
         return result
 
-    def _get_customer(self, item):
+    def get_customer(self, item):
         return item.tenant.service_project_link.project.customer
 
     def get_chargeable_items(self, customer):
@@ -194,7 +168,7 @@ class OfferingItemRegistrator(BaseRegistrator):
         ).distinct()
         return result
 
-    def _get_customer(self, item):
+    def get_customer(self, item):
         return item.project.customer
 
     def _find_invoice_item(self, chargeable_item, now):
@@ -223,35 +197,31 @@ class OfferingItemRegistrator(BaseRegistrator):
         return invoice.offering_items
 
 
-class InvoiceRegistrator(object):
-    registrators = [OfferingItemRegistrator(), OpenStackItemRegistrator()]
+class RegistrationManager(object):
+    all_registrators = [OfferingItemRegistrator(), OpenStackItemRegistrator()]
 
-    def update_invoices(self):
+    @classmethod
+    def apply(cls, item_registrator, item, start=None):
         """
-        - For every customer change state of the invoices for previous months from "pending" to "billed"
-          and freeze their items.
-        - Create new invoice for every customer in current month if not created yet.
+        Registers new item into existing invoice.
+        In the beginning of the month new invoice is created and all related items are registered.
+        :param item: item to register
+        :param start: invoice item start date.
         """
-        date = timezone.now()
+        if start is None:
+            start = timezone.now()
 
-        old_invoices = models.Invoice.objects.filter(
-            Q(state=models.Invoice.States.PENDING, year__lt=date.year) |
-            Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
-        )
-        for invoice in old_invoices:
-            with transaction.atomic():
-                invoice.set_created()
-                for registrator in self.registrators:
-                    registrator.freeze_invoice(invoice)
+        customer = item_registrator.get_customer(item)
+        with transaction.atomic():
+            invoice, created = models.Invoice.objects.get_or_create(
+                customer=customer,
+                month=start.month,
+                year=start.year,
+            )
 
-        for customer in structure_models.Customer.objects.iterator():
-            for registrator in self.registrators:
-                items = registrator.get_chargeable_items(customer)
-                if items:
-                    invoice, created = models.Invoice.objects.get_or_create(
-                        customer=customer,
-                        month=date.month,
-                        year=date.year,
-                    )
-
-                    registrator.register_items(items, invoice=invoice, start=core_utils.month_start(date))
+            if created:
+                for registrator in cls.all_registrators:
+                    items = registrator.get_chargeable_items(customer)
+                    registrator.register_items(items, invoice, start)
+            else:
+                item_registrator.register_items([item], invoice, start)
