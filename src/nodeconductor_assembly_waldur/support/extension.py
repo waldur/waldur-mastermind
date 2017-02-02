@@ -25,14 +25,19 @@ class SupportExtension(NodeConductorExtension):
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
                 'summary': '{{issue.summary}}',
-                'description': """
-                    Description: {{issue.description}}
-
-                    Project Name: {{issue.project.name}}
-                    Organization Name: {{issue.customer.name}}
-                    Service Type: {{issue.resource.service_project_link.service.type}}
-                    Affected Resource Name: {{issue.resource}}
-                """,
+                'description': (
+                    'Description: {{issue.description}}\n'
+                    '{% if issue.project %}'
+                    'Project Name: {{issue.project.name}}\n'
+                    '{% endif %}'
+                    '{% if issue.customer %}'
+                    'Organization Name: {{issue.customer.name}}\n'
+                    '{% endif %}'
+                    '{% if issue.resource %}'
+                    'Service Type: {{issue.resource.service_project_link.service.type}}\n'
+                    '{% endif %}'
+                    'Affected Resource Name: {{issue.resource}}\n'
+                ),
             },
             'DEFAULT_OFFERING_TYPE': 'Service Request',
             'OFFERING': {
