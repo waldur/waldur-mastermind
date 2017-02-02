@@ -64,6 +64,12 @@ class BaseRegistrator(object):
         """
         raise NotImplementedError()
 
+    def has_chargable_items(self, customer):
+        """
+        Indicates whether customer has any item to be charged for.
+        """
+        raise NotImplementedError()
+
 
 class OpenStackItemRegistrator(BaseRegistrator):
 
@@ -86,6 +92,9 @@ class OpenStackItemRegistrator(BaseRegistrator):
             tenant__service_project_link__project__customer=customer,
         ).distinct()
         return result
+
+    def has_chargable_items(self, customer):
+        return self.get_chargeable_items(customer).exists()
 
     def _register_item(self, invoice, item, start, end):
         package = item
@@ -149,6 +158,9 @@ class OfferingItemRegistrator(BaseRegistrator):
         ).distinct()
         return result
 
+    def has_chargable_items(self, customer):
+        return self.get_chargeable_items(customer).exists()
+
     def get_customer(self, item):
         return item.project.customer
 
@@ -186,6 +198,25 @@ class RegistrationManager(object):
         return cls._registrators.values()
 
     @classmethod
+    def has_chargable_items(cls, customer):
+        return any(registrator.has_chargable_items(customer) for registrator in cls.get_registrators())
+
+    @classmethod
+    def get_or_create_invoice(cls, customer, date):
+        invoice, created = models.Invoice.objects.get_or_create(
+            customer=customer,
+            month=date.month,
+            year=date.year,
+        )
+
+        if created:
+            for registrator in cls.get_registrators():
+                items = registrator.get_chargeable_items(customer)
+                registrator.register_items(items, invoice, date)
+
+        return invoice, created
+
+    @classmethod
     def register(cls, item, now=None):
         """
         Registers new item into existing invoice.
@@ -200,21 +231,13 @@ class RegistrationManager(object):
         customer = item_registrator.get_customer(item)
 
         with transaction.atomic():
-            invoice, created = models.Invoice.objects.get_or_create(
-                customer=customer,
-                month=now.month,
-                year=now.year,
-            )
-
-            if created:
-                for registrator in cls.get_registrators():
-                    items = registrator.get_chargeable_items(customer)
-                    registrator.register_items(items, invoice, now)
-            else:
+            invoice, created = cls.get_or_create_invoice(customer, now)
+            if not created:
                 item_registrator.register_items([item], invoice, now)
 
     @classmethod
     def terminate(cls, item, now=None):
+        # TODO [TM:2/2/17] Add description.
         """
 
         :param item:
@@ -228,15 +251,5 @@ class RegistrationManager(object):
         customer = item_registrator.get_customer(item)
 
         with transaction.atomic():
-            invoice, created = models.Invoice.objects.get_or_create(
-                customer=customer,
-                month=now.month,
-                year=now.year,
-            )
-
-            if created:
-                for registrator in cls.get_registrators():
-                    items = registrator.get_chargeable_items(customer)
-                    registrator.register_items(items, invoice, now)
-
+            cls.get_or_create_invoice(customer, now)
             item_registrator.terminate(item, now)

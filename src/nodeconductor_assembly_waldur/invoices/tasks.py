@@ -35,17 +35,8 @@ def create_monthly_invoices():
         invoice.freeze()
 
     for customer in structure_models.Customer.objects.iterator():
-        for registrator in registrators.RegistrationManager.get_registrators():
-            items = registrator.get_chargeable_items(customer)
-            if items:
-                with transaction.atomic():
-                    invoice, created = models.Invoice.objects.get_or_create(
-                        customer=customer,
-                        month=date.month,
-                        year=date.year,
-                    )
-                    if created:
-                        registrator.register_items(items, invoice=invoice, start=core_utils.month_start(date))
+        if registrators.RegistrationManager.has_chargable_items(customer):
+            registrators.RegistrationManager.get_or_create_invoice(customer, core_utils.month_start(date))
 
 
 @shared_task(name='invoices.send_invoice_notification')
