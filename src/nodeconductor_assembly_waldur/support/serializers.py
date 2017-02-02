@@ -200,6 +200,15 @@ class WebHookReceiverSerializer(serializers.Serializer):
         UPDATED = 'jira:issue_updated'
         DELETED = 'jira:issue_deleted'
 
+    def validate(self, attrs):
+        if 'issue' not in self.initial_data:
+            raise serializers.ValidationError('"issue" is missing in request data. Cannot process issue.')
+
+        if 'webhookEvent' not in self.initial_data:
+            raise serializers.ValidationError('"webhookEvent" is missing in request data. Cannot find out even type')
+        
+        return attrs
+
     @transaction.atomic()
     def save(self, **kwargs):
         fields = self.initial_data['issue']['fields']

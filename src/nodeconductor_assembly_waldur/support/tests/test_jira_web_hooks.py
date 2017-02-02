@@ -201,3 +201,8 @@ class TestJiraWebHooks(APITestCase):
         issue.refresh_from_db()
         naive_issue_time = issue.first_response_sla.replace(tzinfo=None)
         self.assertEqual(naive_issue_time, expected_first_response_sla)
+
+    def test_web_hook_raises_400_error_if_request_is_invalid(self):
+        response = self.client.post(self.url, {})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
