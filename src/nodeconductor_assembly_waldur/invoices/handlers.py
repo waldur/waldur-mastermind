@@ -14,7 +14,7 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
     registrators.RegistrationManager.register(instance, timezone.now())
 
 
-def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
+def update_invoice_on_chargeable_item_deletion(sender, instance, **kwargs):
     registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
@@ -23,10 +23,6 @@ def add_new_offering_details_to_invoice(sender, instance, created=False, **kwarg
     if (state == support_models.Offering.States.OK
             and support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
         registrators.RegistrationManager.register(instance, timezone.now())
-
-
-def update_invoice_on_offering_deletion(sender, instance, **kwargs):
-    registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
 def log_invoice_state_transition(sender, instance, created=False, **kwargs):

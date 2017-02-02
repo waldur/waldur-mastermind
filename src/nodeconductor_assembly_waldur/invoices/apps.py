@@ -19,7 +19,7 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.pre_delete.connect(
-            handlers.update_invoice_on_openstack_package_deletion,
+            handlers.update_invoice_on_chargeable_item_deletion,
             sender=packages_models.OpenStackPackage,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_on_openstack_package_deletion',
         )
@@ -31,7 +31,7 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.pre_delete.connect(
-            handlers.update_invoice_on_offering_deletion,
+            handlers.update_invoice_on_chargeable_item_deletion,
             sender=support_models.Offering,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_on_offering_deletion',
         )
