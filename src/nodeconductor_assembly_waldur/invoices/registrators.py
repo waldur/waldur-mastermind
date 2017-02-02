@@ -69,13 +69,13 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
     def _find_invoice_item(self, chargeable_item, now):
         package = chargeable_item
-        result = models.OpenStackItem.objects.get(
+        result = models.OpenStackItem.objects.filter(
             package=package,
             invoice__customer=self.get_customer(package),
             invoice__state=models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
-        )
+        ).first()
         return result
 
     def get_customer(self, item):
