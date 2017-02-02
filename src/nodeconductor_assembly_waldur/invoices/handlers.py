@@ -20,8 +20,8 @@ def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
 
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
     state = instance.state
-    if state == support_models.Offering.States.OK \
-            and support_models.Offering.States.REQUESTED == instance.tracker.previous('state'):
+    if (state == support_models.Offering.States.OK
+            and support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
         registrators.RegistrationManager.register(instance, timezone.now())
 
 
