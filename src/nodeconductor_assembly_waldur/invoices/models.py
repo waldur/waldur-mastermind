@@ -103,7 +103,7 @@ class Invoice(core_models.UuidMixin, models.Model):
             daily_price=offering.price,
             invoice=self,
             start=start,
-            end=end
+            end=end,
         )
 
     def __str__(self):
