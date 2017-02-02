@@ -237,12 +237,10 @@ class RegistrationManager(object):
 
     @classmethod
     def terminate(cls, item, now=None):
-        # TODO [TM:2/2/17] Add description.
         """
-
-        :param item:
-        :param now:
-        :return:
+        Fires terminate on item.
+        :param item: item to terminate
+        :param now: time to set as end of item usage.
         """
         if now is None:
             now = timezone.now()
