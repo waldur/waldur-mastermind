@@ -5,6 +5,7 @@ import functools
 import json
 
 from django.conf import settings
+from django.template import Context, Template
 from django.utils import six
 from jira import JIRA, JIRAError, Comment
 from jira.utils import json_loads
@@ -59,8 +60,8 @@ class JiraBackend(SupportBackend):
         caller = issue.caller.full_name or issue.caller.username
         args = {
             'project': self.project_settings['key'],
-            'summary': issue.summary,
-            'description': issue.description,
+            'summary': self._render_template('summary', issue),
+            'description': self._render_template('description', issue),
             'issuetype': {'name': issue.type},
             self._get_field_id_by_name(self.issue_settings['caller_field']): caller,
         }
@@ -72,6 +73,11 @@ class JiraBackend(SupportBackend):
         if issue.priority:
             args['priority'] = {'name': issue.priority}
         return args
+
+    def _render_template(self, config_name, issue):
+        raw = self.issue_settings[config_name]
+        template = Template(raw)
+        return template.render(Context({'issue': issue}))
 
     @reraise_exceptions
     def create_issue(self, issue):
