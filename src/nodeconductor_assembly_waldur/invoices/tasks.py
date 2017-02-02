@@ -35,7 +35,7 @@ def create_monthly_invoices():
         invoice.freeze()
 
     for customer in structure_models.Customer.objects.iterator():
-        for registrator in registrators.RegistrationManager.all_registrators:
+        for registrator in registrators.RegistrationManager.get_registrators():
             items = registrator.get_chargeable_items(customer)
             if items:
                 with transaction.atomic():

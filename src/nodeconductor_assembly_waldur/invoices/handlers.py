@@ -11,26 +11,22 @@ def add_new_openstack_package_details_to_invoice(sender, instance, created=False
     if not created:
         return
 
-    registrator = registrators.OpenStackItemRegistrator()
-    registrators.RegistrationManager.apply(registrator, instance, timezone.now())
+    registrators.RegistrationManager.register(instance, timezone.now())
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
-    registrator = registrators.OpenStackItemRegistrator()
-    registrator.terminate(instance, timezone.now())
+    registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
     state = instance.state
     if state == support_models.Offering.States.OK \
             and support_models.Offering.States.REQUESTED == instance.tracker.previous('state'):
-        registrator = registrators.OfferingItemRegistrator()
-        registrators.RegistrationManager.apply(registrator, instance, timezone.now())
+        registrators.RegistrationManager.register(instance, timezone.now())
 
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):
-    registrator = registrators.OfferingItemRegistrator()
-    registrator.terminate(instance, timezone.now())
+    registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
 def log_invoice_state_transition(sender, instance, created=False, **kwargs):

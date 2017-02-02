@@ -346,3 +346,26 @@ class UpdateInvoiceOnOfferingDeletionTest(TestCase):
 
         expected_price = offering.price * usage_days
         self.assertEqual(invoice.price, Decimal(expected_price))
+
+    def test_invoice_is_created_in_new_month_when_single_item_is_terminated(self):
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        next_month = timezone.datetime(2014, 3, 2, tzinfo=pytz.UTC)
+
+        with freeze_time(start_date):
+            offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            invoice = models.Invoice.objects.first()
+            packages_factories.OpenStackPackageFactory(tenant__service_project_link__project__customer=offering.project.customer)
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            self.assertEqual(invoice.openstack_items.count(), 1)
+            self.assertEqual(invoice.offering_items.count(), 1)
+
+        with freeze_time(next_month):
+            offering.delete()
+            self.assertEqual(models.Invoice.objects.count(), 2, "New invoice has to be created in new month.")
+            new_invoice = models.Invoice.objects.exclude(pk=invoice.pk).first()
+            self.assertEqual(new_invoice.openstack_items.count(), 1)
+            self.assertEqual(new_invoice.offering_items.count(), 1)
+            self.assertEqual(new_invoice.offering_items.first().end, next_month)

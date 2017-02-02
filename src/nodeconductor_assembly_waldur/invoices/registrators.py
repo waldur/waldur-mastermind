@@ -176,30 +176,67 @@ class OfferingItemRegistrator(BaseRegistrator):
 
 
 class RegistrationManager(object):
-    all_registrators = [OfferingItemRegistrator(), OpenStackItemRegistrator()]
+    _registrators = {
+        packages_models.OpenStackPackage.__name__: OpenStackItemRegistrator(),
+        support_models.Offering.__name__: OfferingItemRegistrator()
+    }
 
     @classmethod
-    def apply(cls, item_registrator, item, start=None):
+    def get_registrators(cls):
+        return cls._registrators.values()
+
+    @classmethod
+    def register(cls, item, now=None):
         """
         Registers new item into existing invoice.
         In the beginning of the month new invoice is created and all related items are registered.
         :param item: item to register
         :param start: invoice item start date.
         """
-        if start is None:
-            start = timezone.now()
+        if now is None:
+            now = timezone.now()
 
+        item_registrator = cls._registrators[item.__class__.__name__]
         customer = item_registrator.get_customer(item)
+
         with transaction.atomic():
             invoice, created = models.Invoice.objects.get_or_create(
                 customer=customer,
-                month=start.month,
-                year=start.year,
+                month=now.month,
+                year=now.year,
             )
 
             if created:
-                for registrator in cls.all_registrators:
+                for registrator in cls.get_registrators():
                     items = registrator.get_chargeable_items(customer)
-                    registrator.register_items(items, invoice, start)
+                    registrator.register_items(items, invoice, now)
             else:
-                item_registrator.register_items([item], invoice, start)
+                item_registrator.register_items([item], invoice, now)
+
+    @classmethod
+    def terminate(cls, item, now=None):
+        """
+
+        :param item:
+        :param now:
+        :return:
+        """
+        if now is None:
+            now = timezone.now()
+
+        item_registrator = cls._registrators[item.__class__.__name__]
+        customer = item_registrator.get_customer(item)
+
+        with transaction.atomic():
+            invoice, created = models.Invoice.objects.get_or_create(
+                customer=customer,
+                month=now.month,
+                year=now.year,
+            )
+
+            if created:
+                for registrator in cls.get_registrators():
+                    items = registrator.get_chargeable_items(customer)
+                    registrator.register_items(items, invoice, now)
+
+            item_registrator.terminate(item, now)
