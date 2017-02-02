@@ -129,9 +129,8 @@ class WebHookReceiverView(views.APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return response.Response(status=status.HTTP_200_OK)
 
 
