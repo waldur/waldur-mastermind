@@ -311,33 +311,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
 
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
-    issue = serializers.HyperlinkedRelatedField(
-        view_name='support-issue-detail',
-        lookup_field='uuid',
-        queryset=models.Issue.objects.all(),
-        required=False,
-        allow_null=True,
-    )
-    project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail',
-        queryset=structure_models.Project.objects.all(),
-        lookup_field='uuid',
-        write_only=True,
-    )
-
-    class Meta(object):
-        model = models.Offering
-        fields = (
-            'url', 'uuid', 'name', 'description', 'type', 'type_label',
-            'issue', 'project', 'price', 'state', 'created', 'modified',
-        )
-        read_only_fields = ('type', 'type_label', 'issue', 'project', 'price', 'state')
-        extra_kwargs = dict(
-            url={'lookup_field': 'uuid'},
-        )
-
-
-class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
 
@@ -359,22 +332,13 @@ class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail',
-        queryset=structure_models.Project.objects.all(),
-        lookup_field='uuid',
-        write_only=True,
-    )
-    name = serializers.CharField(max_length=255, write_only=True)
-    description = serializers.CharField(required=False, max_length=255, write_only=True)
-    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_SUPPORT['OFFERING'].keys()],
-                                   allow_blank=True,
-                                   required=False)
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_SUPPORT['OFFERING'].keys()])
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'issue', 'price', 'created', 'modified')
-        read_only_fields = ('type', 'price', 'issue', 'created', 'modified')
+        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'type_label',
+                  'issue', 'price', 'created', 'modified')
+        read_only_fields = ('type_label', 'issue', 'price', 'state')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -386,7 +350,7 @@ class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
         return settings.WALDUR_SUPPORT['OFFERING'][self.type]
 
     def get_fields(self):
-        result = super(OfferingCreateSerializer, self).get_fields()
+        result = super(OfferingSerializer, self).get_fields()
         if hasattr(self, 'type'):
             for attr_name in self.configuration['order']:
                 attr_options = self.configuration['options'].get(attr_name, {})
@@ -399,7 +363,7 @@ class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
         if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERING']:
             raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
 
-        return super(OfferingCreateSerializer, self).run_validation(data)
+        return super(OfferingSerializer, self).run_validation(data)
 
     def _get_field_instance(self, attr_options):
         filed_type = attr_options.get('type', None)

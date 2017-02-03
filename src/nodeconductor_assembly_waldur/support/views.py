@@ -138,13 +138,8 @@ class OfferingViewSet(core_views.ActionsViewSet):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingSerializer
     lookup_field = 'uuid'
-    permission_classes = (
-        permissions.IsAuthenticated,
-        permissions.DjangoObjectPermissions
-    )
     metadata_class = structure_metadata.ActionsMetadata
     filter_backends = (
-        structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
@@ -160,8 +155,6 @@ class OfferingViewSet(core_views.ActionsViewSet):
         offering = serializer.save()
         backend.get_active_backend().create_issue(offering.issue)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    create_serializer_class = serializers.OfferingCreateSerializer
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
