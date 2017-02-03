@@ -432,8 +432,7 @@ class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
             project=issue.project,
             name=validated_data.get('name'),
             description=issue.description,
-            type=self.type,
-            type_label=type_label)
+            type=self.type)
 
         return offering
 

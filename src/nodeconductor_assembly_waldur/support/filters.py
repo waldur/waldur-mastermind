@@ -94,7 +94,6 @@ class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_type='icontains')
     description = django_filters.CharFilter(lookup_type='icontains')
     type = django_filters.CharFilter(lookup_type='icontains')
-    type_label = django_filters.CharFilter(lookup_type='icontains')
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
@@ -112,7 +111,6 @@ class OfferingFilter(django_filters.FilterSet):
             'name',
             'description',
             'type',
-            'type_label',
             'issue',
             'project',
             'state',
