@@ -15,4 +15,15 @@ class IssueEventLogger(EventLogger):
         }
 
 
+class OfferingEventLogger(EventLogger):
+    offering = models.Offering
+
+    class Meta:
+        event_types = ('offering_state_changed',)
+        event_groups = {
+            'support': event_types,
+        }
+
+
 event_logger.register('waldur_issue', IssueEventLogger)
+event_logger.register('waldur_offering', OfferingEventLogger)

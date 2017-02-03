@@ -10,6 +10,7 @@ class SupportConfig(AppConfig):
         from . import handlers
 
         Issue = self.get_model('Issue')
+        Offering = self.get_model('Offering')
 
         signals.post_save.connect(
             handlers.log_issue_save,
@@ -21,4 +22,10 @@ class SupportConfig(AppConfig):
             handlers.log_issue_delete,
             sender=Issue,
             dispatch_uid='nodeconductor_assembly_waldur.support.handlers.log_issue_delete',
+        )
+
+        signals.post_save.connect(
+            handlers.log_offering_state_changed,
+            sender=Offering,
+            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.log_offering_state_changed',
         )

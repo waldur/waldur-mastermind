@@ -8,6 +8,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
+from model_utils import FieldTracker
 
 from model_utils.models import TimeStampedModel
 
@@ -136,6 +137,8 @@ class Offering(core_models.UuidMixin,
                                 help_text='The price per unit of offering',
                                 verbose_name='Price per day')
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
+
+    tracker = FieldTracker()
 
     @property
     def type_label(self):
