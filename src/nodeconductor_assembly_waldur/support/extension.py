@@ -35,8 +35,8 @@ class SupportExtension(NodeConductorExtension):
                     '{% endif %}'
                     '{% if issue.resource %}'
                     'Service Type: {{issue.resource.service_project_link.service.type}}\n'
-                    '{% endif %}'
                     'Affected Resource Name: {{issue.resource}}\n'
+                    '{% endif %}'
                 ),
             },
             'DEFAULT_OFFERING_TYPE': 'Service Request',
