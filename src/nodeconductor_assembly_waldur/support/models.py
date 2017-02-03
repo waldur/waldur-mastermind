@@ -47,7 +47,8 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
     assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True,
                                  help_text='Help desk user who will implement the issue')
 
-    customer = models.ForeignKey(structure_models.Customer, related_name='issues', blank=True, null=True)
+    customer = models.ForeignKey(
+        structure_models.Customer, verbose_name='organization', related_name='issues', blank=True, null=True)
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)
 
     resource_content_type = models.ForeignKey(ContentType, null=True)
