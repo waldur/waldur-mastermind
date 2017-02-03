@@ -310,7 +310,22 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return support_user
 
 
-class OfferingSerializer(serializers.HyperlinkedModelSerializer):
+class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.Offering
+        fields = (
+            'url', 'uuid', 'type', 'type_label',
+            #'issue', 'project',
+            'price', 'state',
+        )
+        read_only_fields = ('type', 'type_label', 'issue', 'project', 'price', 'state')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid'},
+        )
+
+
+class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
 
@@ -357,7 +372,7 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
         return settings.WALDUR_SUPPORT['OFFERING'][self.type]
 
     def get_fields(self):
-        result = super(OfferingSerializer, self).get_fields()
+        result = super(OfferingCreateSerializer, self).get_fields()
         if hasattr(self, 'type'):
             for attr_name in self.configuration['order']:
                 attr_options = self.configuration['options'].get(attr_name, {})
@@ -370,7 +385,7 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
         if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERING']:
             raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
 
-        return super(OfferingSerializer, self).run_validation(data)
+        return super(OfferingCreateSerializer, self).run_validation(data)
 
     def _get_field_instance(self, attr_options):
         filed_type = attr_options.get('type', None)

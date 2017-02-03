@@ -108,10 +108,18 @@ class Comment(core_models.UuidMixin, TimeStampedModel):
         return self.description[:50]
 
 
+@python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
                TimeStampedModel):
+
+    class Meta:
+        ordering = ['-created']
+
+    class Permissions(object):
+        customer_path = 'customer'
+        project_path = 'project'
 
     class States(object):
         REQUESTED = 'requested'
@@ -129,3 +137,11 @@ class Offering(core_models.UuidMixin,
                                 help_text='The price per unit of offering',
                                 verbose_name='Price per day')
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
+
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-offering'
+
+    def __str__(self):
+        return '{}: {}'.format(self.type_label, self.state)

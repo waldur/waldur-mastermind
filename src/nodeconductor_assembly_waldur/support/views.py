@@ -151,6 +151,8 @@ class OfferingViewSet(core_views.ActionsViewSet):
         backend.get_active_backend().create_issue(offering.issue)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    create_serializer_class = serializers.OfferingCreateSerializer
+
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
             raise exceptions.ValidationError('Offering must be in requested state.')
