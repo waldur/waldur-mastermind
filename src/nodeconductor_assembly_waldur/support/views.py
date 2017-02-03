@@ -136,10 +136,19 @@ class WebHookReceiverView(views.APIView):
 
 class OfferingViewSet(core_views.ActionsViewSet):
     queryset = models.Offering.objects.all()
-    lookup_field = 'uuid'
     serializer_class = serializers.OfferingSerializer
-    unsafe_methods_permissions = [structure_permissions.is_staff]
+    lookup_field = 'uuid'
+    permission_classes = (
+        permissions.IsAuthenticated,
+        permissions.DjangoObjectPermissions
+    )
     metadata_class = structure_metadata.ActionsMetadata
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    filter_class = filters.OfferingFilter
+    unsafe_methods_permissions = [structure_permissions.is_staff]
 
     @decorators.list_route()
     def configured(self, request):
