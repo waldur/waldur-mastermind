@@ -5,7 +5,6 @@ import functools
 import json
 
 from django.conf import settings
-from django.template import Context, Template
 from django.utils import six
 from jira import JIRA, JIRAError, Comment
 from jira.utils import json_loads
@@ -74,15 +73,8 @@ class JiraBackend(SupportBackend):
             args['priority'] = {'name': issue.priority}
         return args
 
-    def _render_template(self, config_name, issue):
-        raw = self.issue_settings[config_name]
-        template = Template(raw)
-        return template.render(Context({'issue': issue}))
-
     @reraise_exceptions
     def create_issue(self, issue):
-        issue.description = self._render_template('description', issue)
-        issue.summary = self._render_template('summary', issue)
         backend_issue = self.manager.create_issue(**self._issue_to_dict(issue))
         if issue.assignee:
             self.manager.assign_issue(backend_issue.key, issue.assignee.backend_id)
