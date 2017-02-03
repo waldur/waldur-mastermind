@@ -5,6 +5,7 @@ from datetime import datetime
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.template import Context, Template
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
@@ -47,6 +48,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     is_reported_manually = serializers.BooleanField(
         initial=False, default=False, write_only=True,
         help_text='Set true if issue is created by regular user via portal.')
+    issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
 
     class Meta(object):
         model = models.Issue
@@ -148,7 +150,14 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         if project:
             validated_data['customer'] = project.customer
 
+        validated_data['description'] = self._render_template('description', validated_data)
+        validated_data['summary'] = self._render_template('summary', validated_data)
         return super(IssueSerializer, self).create(validated_data)
+
+    def _render_template(self, config_name, issue):
+        raw = self.issue_settings[config_name]
+        template = Template(raw)
+        return template.render(Context({'issue': issue}))
 
 
 class CommentSerializer(core_serializers.AugmentedSerializerMixin,
