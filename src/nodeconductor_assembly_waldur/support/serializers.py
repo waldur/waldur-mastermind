@@ -367,7 +367,9 @@ class OfferingCreateSerializer(serializers.HyperlinkedModelSerializer):
     )
     name = serializers.CharField(max_length=255, write_only=True)
     description = serializers.CharField(required=False, max_length=255, write_only=True)
-    type = serializers.CharField(max_length=255)
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_SUPPORT['OFFERING'].keys()],
+                                   allow_blank=True,
+                                   required=False)
 
     class Meta(object):
         model = models.Offering
