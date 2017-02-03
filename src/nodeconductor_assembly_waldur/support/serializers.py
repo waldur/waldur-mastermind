@@ -337,12 +337,17 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'type_label',
-                  'issue', 'price', 'created', 'modified')
+                  'issue', 'price', 'created', 'modified',
+                  'issue_name', 'issue_uuid', 'issue_status', 'project_name', 'project_uuid')
         read_only_fields = ('type_label', 'issue', 'price', 'state')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail', 'required': True},
+        )
+        related_paths = dict(
+            issue=('uuid', 'name', 'status'),
+            project=('uuid', 'name',),
         )
 
     @property
