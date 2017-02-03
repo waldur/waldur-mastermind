@@ -342,7 +342,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail', 'required': True},
         )
 
     @property
