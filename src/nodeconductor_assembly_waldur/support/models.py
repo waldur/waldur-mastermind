@@ -113,6 +113,7 @@ class Comment(core_models.UuidMixin, TimeStampedModel):
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
+               structure_models.StructureLoggableMixin,
                TimeStampedModel):
 
     class Meta:
@@ -140,9 +141,14 @@ class Offering(core_models.UuidMixin,
 
     tracker = FieldTracker()
 
+    def get_log_fields(self):
+        return super(Offering, self).get_log_fields() + ('state', )
+
     @property
     def type_label(self):
-        return settings.WALDUR_SUPPORT['OFFERING'][self.type]['label']
+        offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
+        type_settings = offerings.get(self.type, {})
+        return type_settings.get('label', None)
 
     @classmethod
     def get_url_name(cls):

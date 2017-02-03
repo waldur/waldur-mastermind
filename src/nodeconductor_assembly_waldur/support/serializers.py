@@ -312,7 +312,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
     """
-    Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
+    Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
 
     Each configured field get's converted to serializer field according to field type in the configuration.
 
@@ -332,7 +332,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_SUPPORT['OFFERING'].keys()])
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
 
     class Meta(object):
         model = models.Offering
@@ -347,7 +347,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
 
     @property
     def configuration(self):
-        return settings.WALDUR_SUPPORT['OFFERING'][self.type]
+        return settings.WALDUR_SUPPORT['OFFERINGS'][self.type]
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
@@ -360,7 +360,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
 
     def run_validation(self, data=None):
         self.type = data.get('type', None)
-        if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERING']:
+        if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERINGS']:
             raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
 
         return super(OfferingSerializer, self).run_validation(data)

@@ -26,7 +26,7 @@ class SupportExtension(NodeConductorExtension):
                 'sla_field': 'Time to first response',
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
-            'OFFERING': {
+            'OFFERINGS': {
                 'custom_vpc': {
                     'label': 'Custom VPC',
                     'order': ['storage', 'ram', 'cpu_count'],

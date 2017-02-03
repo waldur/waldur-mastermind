@@ -12,7 +12,7 @@ from .. import models
 class BaseOfferingTest(base.BaseTest):
     def setUp(self, **kwargs):
         super(BaseOfferingTest, self).setUp()
-        settings.WALDUR_SUPPORT['OFFERING'] = {
+        settings.WALDUR_SUPPORT['OFFERINGS'] = {
             'custom_vpc': {
                 'label': 'Custom VPC',
                 'order': ['storage', 'ram', 'cpu_count'],
@@ -127,7 +127,7 @@ class OfferingGetConfiguredTest(BaseOfferingTest):
         url = factories.OfferingFactory.get_list_action_url(action='configured')
         response = self.client.get(url)
         available_offerings = response.data
-        self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERING'])
+        self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
 
 
 class OfferingCreateTest(BaseOfferingTest):
@@ -162,7 +162,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(models.Offering.objects.count(), 1)
         offering = models.Offering.objects.first()
         self.assertIn(offering.type, 'custom_vpc')
-        self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERING'][expected_type]['label'])
+        self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERINGS'][expected_type]['label'])
 
     def test_offering_create_associates_hyperlinked_fields_with_issue(self):
         request_data = self._get_valid_request()
@@ -176,7 +176,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(issue.project.uuid, self.fixture.issue.project.uuid)
 
     def test_offering_create_sets_default_value_if_it_was_not_provided(self):
-        default_value = settings.WALDUR_SUPPORT['OFFERING']['custom_vpc']['options']['cpu_count']['default']
+        default_value = settings.WALDUR_SUPPORT['OFFERINGS']['custom_vpc']['options']['cpu_count']['default']
         request_data = self._get_valid_request()
         del request_data['cpu_count']
 
