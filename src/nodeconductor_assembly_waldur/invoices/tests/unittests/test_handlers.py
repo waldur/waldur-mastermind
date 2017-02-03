@@ -369,3 +369,49 @@ class UpdateInvoiceOnOfferingDeletionTest(TestCase):
             self.assertEqual(new_invoice.openstack_items.count(), 1)
             self.assertEqual(new_invoice.offering_items.count(), 1)
             self.assertEqual(new_invoice.offering_items.first().end, next_month)
+
+
+class UpdateInvoiceOnOfferingStateChange(TestCase):
+
+    def setUp(self):
+        self.fixture = support_fixtures.SupportFixture()
+        self.start_date = timezone.datetime(2014, 2, 7, tzinfo=pytz.UTC)
+
+        with freeze_time(self.start_date):
+            self.offering = self.fixture.offering
+            self.offering.state = self.offering.States.OK
+            self.offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            self.invoice = models.Invoice.objects.first()
+            self.offering.state = self.offering.States.REQUESTED
+            self.offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+
+    def test_offering_item_is_terminated_when_its_state_changes(self):
+        end_date = self.start_date + timezone.timedelta(days=2)
+        usage_days = utils.get_full_days(self.start_date, end_date)
+
+        with freeze_time(end_date):
+            self.offering.state = self.offering.States.TERMINATED
+            self.offering.save()
+
+        expected_price = self.offering.price * usage_days
+        self.assertEqual(self.invoice.price, Decimal(expected_price))
+        self.assertEqual(self.invoice.offering_items.first().end, end_date)
+
+    def test_offering_item_is_terminated_when_its_state_changes(self):
+        termination_date = self.start_date + timezone.timedelta(days=2)
+        deletion_date = termination_date + timezone.timedelta(days=2)
+        usage_days = utils.get_full_days(self.start_date, termination_date)
+
+        expected_price = self.offering.price * usage_days
+        with freeze_time(termination_date):
+            self.offering.state = self.offering.States.TERMINATED
+            self.offering.save()
+
+        with freeze_time(deletion_date):
+            self.offering.delete()
+
+        self.assertEqual(self.invoice.offering_items.first().end, termination_date)
+        self.assertEqual(self.invoice.price, Decimal(expected_price))
+
