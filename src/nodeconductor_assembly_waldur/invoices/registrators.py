@@ -189,8 +189,8 @@ class OfferingItemRegistrator(BaseRegistrator):
 
 class RegistrationManager(object):
     _registrators = {
-        packages_models.OpenStackPackage.__name__: OpenStackItemRegistrator(),
-        support_models.Offering.__name__: OfferingItemRegistrator()
+        packages_models.OpenStackPackage: OpenStackItemRegistrator(),
+        support_models.Offering: OfferingItemRegistrator()
     }
 
     @classmethod
@@ -227,7 +227,7 @@ class RegistrationManager(object):
         if now is None:
             now = timezone.now()
 
-        item_registrator = cls._registrators[item.__class__.__name__]
+        item_registrator = cls._registrators[item.__class__]
         customer = item_registrator.get_customer(item)
 
         with transaction.atomic():
@@ -245,7 +245,7 @@ class RegistrationManager(object):
         if now is None:
             now = timezone.now()
 
-        item_registrator = cls._registrators[item.__class__.__name__]
+        item_registrator = cls._registrators[item.__class__]
         customer = item_registrator.get_customer(item)
 
         with transaction.atomic():
