@@ -1,3 +1,23 @@
+"""
+Business logic of invoice item registration.
+
+Invoice price is calculated based on invoice item.
+In order to keep its price up to date each chargeable item has to be registered
+as an appropriate invoice item, for instance:
+ OpenStackPackage -> OpenStackItem
+ Offering -> OfferingItem
+
+If new chargeable item is added - next steps has to be done:
+- Create new invoice item and inherit it from InvoiceItem;
+- Create new registrator for new invoice item type.
+
+Registrator is responsible for 2 events:
+- Invoice item termination or 'terminate' action;
+- Invoice item registration or 'register' action;
+
+After new registrator is added a RegistrationManager has to be updated to be able to resolve it.
+"""
+
 from django.db import transaction
 from django.utils import timezone
 
