@@ -386,7 +386,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
             caller=self.context['request'].user,
             project=self.project,
             customer=self.project.customer,
-            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
+            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
             summary='Request for \'%s\'' % type_label,
             description=self._form_description(validated_data, validated_data.pop('description', None))
         )
