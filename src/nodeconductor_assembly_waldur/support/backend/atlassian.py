@@ -60,7 +60,7 @@ class JiraBackend(SupportBackend):
         caller = issue.caller.full_name or issue.caller.username
         args = {
             'project': self.project_settings['key'],
-            'summary': self._render_template('summary', issue),
+            'summary': issue.summary,
             'description': issue.description,
             'issuetype': {'name': issue.type},
             self._get_field_id_by_name(self.issue_settings['caller_field']): caller,
@@ -82,6 +82,7 @@ class JiraBackend(SupportBackend):
     @reraise_exceptions
     def create_issue(self, issue):
         issue.description = self._render_template('description', issue)
+        issue.summary = self._render_template('summary', issue)
         backend_issue = self.manager.create_issue(**self._issue_to_dict(issue))
         if issue.assignee:
             self.manager.assign_issue(backend_issue.key, issue.assignee.backend_id)
