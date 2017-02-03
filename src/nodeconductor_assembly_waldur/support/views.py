@@ -7,7 +7,7 @@ from rest_framework import viewsets, views, permissions, decorators, response, s
 
 from nodeconductor.core import views as core_views
 from nodeconductor.structure import (filters as structure_filters, models as structure_models,
-                                     permissions as structure_permissions)
+                                     permissions as structure_permissions, metadata as structure_metadata)
 
 from . import filters, models, serializers, backend
 
@@ -139,6 +139,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.OfferingSerializer
     unsafe_methods_permissions = [structure_permissions.is_staff]
+    metadata_class = structure_metadata.ActionsMetadata
 
     @decorators.list_route()
     def configured(self, request):
