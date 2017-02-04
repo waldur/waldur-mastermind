@@ -195,3 +195,33 @@ class OfferingCreateTest(BaseOfferingTest):
             'cpu_count': 2,
             'project': structure_factories.ProjectFactory.get_url(self.fixture.project)
         }
+
+
+class OfferingUpdateTest(BaseOfferingTest):
+    def setUp(self):
+        super(OfferingUpdateTest, self).setUp()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_it_is_possible_to_update_offering_name(self):
+        offering = self.fixture.offering
+        expected_name = 'New name'
+        url = factories.OfferingFactory.get_url(offering)
+
+        response = self.client.put(url, {'name': expected_name})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.name, expected_name)
+
+    def test_offering_description_cannot_be_updated(self):
+        offering = self.fixture.offering
+        expected_description = 'Old description'
+        offering.description = expected_description
+        offering.save()
+        url = factories.OfferingFactory.get_url(offering)
+
+        response = self.client.put(url, {'name': 'New name', 'description': expected_description})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        offering.refresh_from_db()
+        self.assertEqual(offering.description, expected_description)

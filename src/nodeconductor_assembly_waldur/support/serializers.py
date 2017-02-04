@@ -340,6 +340,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
                   'issue', 'price', 'created', 'modified',
                   'issue_name', 'issue_uuid', 'issue_status', 'project_name', 'project_uuid')
         read_only_fields = ('type_label', 'issue', 'price', 'state')
+        protected_fields = ('description', 'project')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -356,18 +357,19 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-        if hasattr(self, 'type'):
+
+        if self.context['request'].method == 'POST':
             for attr_name in self.configuration['order']:
                 attr_options = self.configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
+        elif self.context['request'].method == 'PUT':
+            result['type'].required = False
+            result['project'].required = False
 
         return result
 
     def run_validation(self, data=None):
         self.type = data.get('type', None)
-        if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERINGS']:
-            raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
-
         return super(OfferingSerializer, self).run_validation(data)
 
     def _get_field_instance(self, attr_options):
