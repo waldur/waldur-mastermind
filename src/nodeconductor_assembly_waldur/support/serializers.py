@@ -332,7 +332,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
+    offering_config = settings.WALDUR_SUPPORT['OFFERINGS']
+    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
 
     class Meta(object):
         model = models.Offering
@@ -351,16 +352,14 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
             project=('uuid', 'name',),
         )
 
-    @property
-    def configuration(self):
-        return settings.WALDUR_SUPPORT['OFFERINGS'][self.type]
-
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
 
         if self.context['request'].method == 'POST':
-            for attr_name in self.configuration['order']:
-                attr_options = self.configuration['options'].get(attr_name, {})
+            type = self.initial_data['type']
+            configuration = self.offering_config[type]
+            for attr_name in configuration['order']:
+                attr_options = configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
         elif self.context['request'].method == 'PUT':
             result['type'].required = False
@@ -368,9 +367,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
 
         return result
 
-    def run_validation(self, data=None):
-        self.type = data.get('type', None)
-        return super(OfferingSerializer, self).run_validation(data)
+    def validate_empty_values(self, data):
+        if self.context['request'].method == 'POST':
+            if 'type' not in data:
+                raise serializers.ValidationError({'type': 'This field is required'})
+        return super(OfferingSerializer, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):
         filed_type = attr_options.get('type', None)
@@ -388,7 +389,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
 
     def create(self, validated_data):
         self.project = validated_data.pop('project')
-        type_label = self.configuration.get('label', self.type)
+        self.type = validated_data.pop('type')
+        type_label = self.offering_config[self.type].get('label', self.type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
             project=self.project,
@@ -410,7 +412,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
     def _form_description(self, validated_data, appendix):
         result = []
         for key in validated_data:
-            label = self.configuration['options'].get(key, {})
+            label = self.offering_config[self.type]['options'].get(key, {})
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))
 
