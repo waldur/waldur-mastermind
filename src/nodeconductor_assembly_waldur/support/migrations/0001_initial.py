@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('resource_object_id', models.PositiveIntegerField(null=True)),
                 ('assignee', models.ForeignKey(related_name='assigned_issues', blank=True, to=settings.AUTH_USER_MODEL, null=True)),
                 ('creator', models.ForeignKey(related_name='created_issues', to=settings.AUTH_USER_MODEL)),
-                ('customer', models.ForeignKey(related_name='issues', blank=True, to='structure.Customer', null=True)),
+                ('customer', models.ForeignKey(verbose_name='organization', related_name='issues', blank=True, to='structure.Customer', null=True)),
                 ('project', models.ForeignKey(related_name='issues', blank=True, to='structure.Project', null=True)),
                 ('reporter', models.ForeignKey(related_name='reported_issues', to=settings.AUTH_USER_MODEL)),
                 ('resource_content_type', models.ForeignKey(to='contenttypes.ContentType', null=True)),

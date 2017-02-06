@@ -42,7 +42,7 @@ class Invoice(core_models.UuidMixin, models.Model):
                                              validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.PENDING)
-    customer = models.ForeignKey(structure_models.Customer, related_name='+')
+    customer = models.ForeignKey(structure_models.Customer, verbose_name='organization', related_name='+')
     tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     invoice_date = models.DateField(null=True, blank=True,
