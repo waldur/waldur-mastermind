@@ -376,10 +376,11 @@ class OfferingCreateSerializer(OfferingSerializer):
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-        if hasattr(self, 'initial_data'):
 
-            type = self.initial_data['type']
-        elif settings.DEBUG and len(self.offering_config.keys()) == 1:
+        initial_data = getattr(self, 'initial_data', None)
+        type = getattr(initial_data, 'type', None)
+
+        if not type and settings.DEBUG and len(self.offering_config.keys()) == 1:
             # get first type as default one for browseable API.
             type = self.offering_config.keys()[0]
 
