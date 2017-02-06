@@ -53,79 +53,6 @@ class BaseOfferingTest(base.BaseTest):
         }
 
 
-class OfferingCompleteTest(BaseOfferingTest):
-
-    def test_offering_is_in_ok_state_when_complete_is_called(self):
-        offering = factories.OfferingFactory()
-        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
-        expected_price = 10
-
-        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        request_data = {'price': expected_price}
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(url, request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, models.Offering.States.OK)
-        self.assertEqual(offering.price, expected_price)
-
-    def test_offering_cannot_be_completed_if_it_is_terminated(self):
-        offering = factories.OfferingFactory(state=models.Offering.States.TERMINATED)
-        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(url)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_offering_cannot_be_completed_without_price(self):
-        offering = factories.OfferingFactory()
-        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(url)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
-
-    def test_user_cannot_complete_offering(self):
-        offering = self.fixture.offering
-        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        request_data = {'price': 10}
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.post(url, request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
-
-    def test_staff_can_complete_offering(self):
-        offering = self.fixture.offering
-        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        request_data = {'price': 10}
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(url, request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, models.Offering.States.OK)
-
-
-class OfferingTerminateTest(BaseOfferingTest):
-
-    def test_offering_is_in_terminated_state_when_terminate_is_called(self):
-        offering = factories.OfferingFactory()
-        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
-
-        url = factories.OfferingFactory.get_url(offering=offering, action='terminate')
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, models.Offering.States.TERMINATED)
-
-
 @ddt
 class OfferingRetrieveTest(BaseOfferingTest):
 
@@ -154,16 +81,6 @@ class OfferingRetrieveTest(BaseOfferingTest):
         self.client.force_authenticate(owner)
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-
-class OfferingGetConfiguredTest(BaseOfferingTest):
-
-    def test_offering_view_returns_configured_offerings(self):
-        self.client.force_authenticate(self.fixture.user)
-        url = factories.OfferingFactory.get_list_action_url(action='configured')
-        response = self.client.get(url)
-        available_offerings = response.data
-        self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
 
 
 class OfferingCreateTest(BaseOfferingTest):
@@ -274,3 +191,86 @@ class OfferingUpdateTest(BaseOfferingTest):
 
         issue.refresh_from_db()
         self.assertEqual(issue.description, expected_description)
+
+
+class OfferingCompleteTest(BaseOfferingTest):
+
+    def test_offering_is_in_ok_state_when_complete_is_called(self):
+        offering = factories.OfferingFactory()
+        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+        expected_price = 10
+
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        request_data = {'price': expected_price}
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url, request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.OK)
+        self.assertEqual(offering.price, expected_price)
+
+    def test_offering_cannot_be_completed_if_it_is_terminated(self):
+        offering = factories.OfferingFactory(state=models.Offering.States.TERMINATED)
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_offering_cannot_be_completed_without_price(self):
+        offering = factories.OfferingFactory()
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+
+    def test_user_cannot_complete_offering(self):
+        offering = self.fixture.offering
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        request_data = {'price': 10}
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.post(url, request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+
+    def test_staff_can_complete_offering(self):
+        offering = self.fixture.offering
+        url = factories.OfferingFactory.get_url(offering=offering, action='complete')
+        request_data = {'price': 10}
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url, request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.OK)
+
+
+class OfferingTerminateTest(BaseOfferingTest):
+
+    def test_offering_is_in_terminated_state_when_terminate_is_called(self):
+        offering = factories.OfferingFactory()
+        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+
+        url = factories.OfferingFactory.get_url(offering=offering, action='terminate')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering.refresh_from_db()
+        self.assertEqual(offering.state, models.Offering.States.TERMINATED)
+
+
+class OfferingGetConfiguredTest(BaseOfferingTest):
+
+    def test_offering_view_returns_configured_offerings(self):
+        self.client.force_authenticate(self.fixture.user)
+        url = factories.OfferingFactory.get_list_action_url(action='configured')
+        response = self.client.get(url)
+        available_offerings = response.data
+        self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
