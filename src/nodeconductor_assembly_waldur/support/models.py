@@ -119,7 +119,7 @@ class Offering(core_models.UuidMixin,
         ordering = ['-created']
 
     class Permissions(object):
-        customer_path = 'customer'
+        customer_path = 'project__customer'
         project_path = 'project'
 
     class States(object):

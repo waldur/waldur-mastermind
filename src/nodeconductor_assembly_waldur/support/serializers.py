@@ -333,7 +333,6 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         )
 
     def get_filtered_field_names(self):
-        # TODO [TM:2/6/17] add a unit test.
         return 'project',
 
 

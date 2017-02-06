@@ -37,6 +37,20 @@ class BaseOfferingTest(base.BaseTest):
             },
         }
 
+    def _get_valid_request(self, project):
+        if project is None:
+            project = self.fixture.project
+
+        return {
+            'type': 'custom_vpc',
+            'name': 'Do not reboot it, just patch',
+            'description': 'We got Linux, and there\'s no doubt. Gonna fix',
+            'storage': 20,
+            'ram': 4,
+            'cpu_count': 2,
+            'project': structure_factories.ProjectFactory.get_url(project)
+        }
+
 
 class OfferingCompleteTest(BaseOfferingTest):
 
@@ -113,10 +127,13 @@ class OfferingTerminateTest(BaseOfferingTest):
 
 class OfferingGetTest(BaseOfferingTest):
 
+    def setUp(self, **kwargs):
+        super(OfferingGetTest, self).setUp(**kwargs)
+        self.url = factories.OfferingFactory.get_list_url()
+
     def test_user_can_see_list_of_offerings(self):
-        url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.user)
-        response = self.client.get(url)
+        response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
@@ -128,6 +145,22 @@ class OfferingGetConfiguredTest(BaseOfferingTest):
         response = self.client.get(url)
         available_offerings = response.data
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
+
+
+class OfferingPermissionsTest(BaseOfferingTest):
+
+    def setUp(self, **kwargs):
+        super(OfferingPermissionsTest, self).setUp(**kwargs)
+        self.url = factories.OfferingFactory.get_list_url()
+
+    def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
+        owner = self.fixture.owner
+        project = self.fixture.project
+        request_data = self._get_valid_request(project=project)
+        request_data['project'] = structure_factories.ProjectFactory.get_url()
+        self.client.force_authenticate(owner)
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class OfferingCreateTest(BaseOfferingTest):
@@ -148,7 +181,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 
-    def test_offering_create_creates_issue_with_valid_request(self):
+    def test_offering_create_creates_issue(self):
         request_data = self._get_valid_request()
 
         response = self.client.post(self.url, data=request_data)
@@ -196,17 +229,6 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
         self.assertIn(str(default_value), models.Issue.objects.first().description)
-
-    def _get_valid_request(self):
-        return {
-            'type': 'custom_vpc',
-            'name': 'Do not reboot it, just patch',
-            'description': 'We got Linux, and there\'s no doubt. Gonna fix',
-            'storage': 20,
-            'ram': 4,
-            'cpu_count': 2,
-            'project': structure_factories.ProjectFactory.get_url(self.fixture.project)
-        }
 
 
 class OfferingUpdateTest(BaseOfferingTest):
