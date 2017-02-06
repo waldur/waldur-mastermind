@@ -82,6 +82,9 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     def get_fields(self):
         fields = super(IssueSerializer, self).get_fields()
 
+        if 'view' not in self.context:  # On docs generation context does not contain "view".
+            return fields
+
         user = self.context['view'].request.user
         if not user.is_staff and not user.is_support:
             del fields['link']
@@ -215,7 +218,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         if 'webhookEvent' not in self.initial_data:
             raise serializers.ValidationError('"webhookEvent" is missing in request data. Cannot find out even type')
-        
+
         return attrs
 
     @transaction.atomic()
