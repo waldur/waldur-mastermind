@@ -130,7 +130,7 @@ class Offering(core_models.UuidMixin,
 
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
-    type = models.CharField(blank=True, max_length=255)
+    type = models.CharField(max_length=255)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
