@@ -313,6 +313,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
+    # TODO [TM:2/6/17] move type to
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), required=False)
 
     class Meta(object):
@@ -360,7 +361,6 @@ class OfferingCreateSerializer(OfferingSerializer):
     """
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
     description = serializers.CharField(required=False, help_text='Description to add to the issue.')
-    offering_config = settings.WALDUR_SUPPORT['OFFERINGS']
 
     class Meta(OfferingSerializer.Meta):
         fields = OfferingSerializer.Meta.fields + ('description',)
@@ -374,11 +374,14 @@ class OfferingCreateSerializer(OfferingSerializer):
                      'allow_null': False},
         )
 
+    def _get_offering_configuration(self, type):
+        return settings.WALDUR_SUPPORT['OFFERINGS'].get(type)
+
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
         if hasattr(self, 'initial_data'):
             type = self.initial_data['type']
-            configuration = self.offering_config[type]
+            configuration = self._get_offering_configuration(type)
             for attr_name in configuration['order']:
                 attr_options = configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
@@ -386,7 +389,8 @@ class OfferingCreateSerializer(OfferingSerializer):
         return result
 
     def _validate_type(self, type):
-        if type not in self.offering_config:
+        type = self._get_offering_configuration(type)
+        if type is None:
             raise serializers.ValidationError({'type': 'Type configuration could not be found.'})
 
     def validate_empty_values(self, data):
@@ -418,7 +422,7 @@ class OfferingCreateSerializer(OfferingSerializer):
     def create(self, validated_data):
         self.project = validated_data.pop('project')
         self.type = validated_data.pop('type')
-        type_label = self.offering_config[self.type].get('label', self.type)
+        type_label = self._get_offering_configuration(self.type).get('label', self.type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
             project=self.project,
@@ -439,7 +443,7 @@ class OfferingCreateSerializer(OfferingSerializer):
     def _form_description(self, validated_data, appendix):
         result = []
         for key in validated_data:
-            label = self.offering_config[self.type]['options'].get(key, {})
+            label = self._get_offering_configuration(self.type)['options'].get(key, {})
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))
 
