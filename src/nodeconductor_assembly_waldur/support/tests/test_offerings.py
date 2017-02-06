@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from ddt import ddt, data
 
 from django.conf import settings
 from rest_framework import status
@@ -125,16 +126,34 @@ class OfferingTerminateTest(BaseOfferingTest):
         self.assertEqual(offering.state, models.Offering.States.TERMINATED)
 
 
-class OfferingGetTest(BaseOfferingTest):
+@ddt
+class OfferingRetrieveTest(BaseOfferingTest):
 
     def setUp(self, **kwargs):
-        super(OfferingGetTest, self).setUp(**kwargs)
+        super(OfferingRetrieveTest, self).setUp(**kwargs)
         self.url = factories.OfferingFactory.get_list_url()
 
-    def test_user_can_see_list_of_offerings(self):
+    @data('staff', 'global_support', 'owner', 'admin', 'manager')
+    def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
+        offering = self.fixture.offering
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(offering.name, response)
+
+    def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
+        owner = self.fixture.owner
+        project = self.fixture.project
+        request_data = self._get_valid_request(project=project)
+        request_data['project'] = structure_factories.ProjectFactory.get_url()
+        self.client.force_authenticate(owner)
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class OfferingGetConfiguredTest(BaseOfferingTest):
@@ -147,29 +166,13 @@ class OfferingGetConfiguredTest(BaseOfferingTest):
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
 
 
-class OfferingPermissionsTest(BaseOfferingTest):
-
-    def setUp(self, **kwargs):
-        super(OfferingPermissionsTest, self).setUp(**kwargs)
-        self.url = factories.OfferingFactory.get_list_url()
-
-    def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
-        owner = self.fixture.owner
-        project = self.fixture.project
-        request_data = self._get_valid_request(project=project)
-        request_data['project'] = structure_factories.ProjectFactory.get_url()
-        self.client.force_authenticate(owner)
-        response = self.client.post(self.url, data=request_data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-
 class OfferingCreateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateTest, self).setUp()
         self.url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.staff)
 
-    def test_offering_create_raises_error_if_type_is_not_provided(self):
+    def test_error_is_raied_if_type_is_not_provided(self):
         request_data = self._get_valid_request()
         del request_data['type']
 
@@ -178,7 +181,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 
-    def test_offering_create_raises_error_if_type_is_invalid(self):
+    def test_error_is_raised_if_type_is_invalid(self):
         request_data = self._get_valid_request()
         request_data['type'] = 'invalid'
 
@@ -187,19 +190,19 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 
-    def test_offering_create_raises_error_if_data_is_not_provided(self):
+    def test_error_is_raised_if_data_is_not_provided(self):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 
-    def test_offering_create_creates_issue(self):
+    def test_issue_is_created(self):
         request_data = self._get_valid_request()
 
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
 
-    def test_offering_create_creates_issue_with_custom_description(self):
+    def test_issue_is_created_with_custom_description(self):
         expected_description = 'This is a description'
         request_data = self._get_valid_request()
         request_data['description'] = expected_description
@@ -209,7 +212,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(models.Issue.objects.count(), 1)
         self.assertIn(expected_description, models.Issue.objects.first().description)
 
-    def test_offering_create_fills_type_of_the_offering(self):
+    def test_offering_type_is_filled(self):
         expected_type = 'custom_vpc'
         request_data = self._get_valid_request()
 
@@ -220,7 +223,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertIn(offering.type, 'custom_vpc')
         self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERINGS'][expected_type]['label'])
 
-    def test_offering_create_associates_hyperlinked_fields_with_issue(self):
+    def test_project_is_associated_with_an_offering(self):
         request_data = self._get_valid_request()
 
         response = self.client.post(self.url, data=request_data)
@@ -231,7 +234,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertIsNotNone(issue.project)
         self.assertEqual(issue.project.uuid, self.fixture.issue.project.uuid)
 
-    def test_offering_create_sets_default_value_if_it_was_not_provided(self):
+    def test_default_value_is_set_if_it_is_not_provided(self):
         default_value = settings.WALDUR_SUPPORT['OFFERINGS']['custom_vpc']['options']['cpu_count']['default']
         request_data = self._get_valid_request()
         del request_data['cpu_count']

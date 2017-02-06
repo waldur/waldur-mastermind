@@ -140,6 +140,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     metadata_class = structure_metadata.ActionsMetadata
     filter_backends = (
+        structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
@@ -157,7 +158,9 @@ class OfferingViewSet(core_views.ActionsViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_serializer_class = serializers.OfferingCreateSerializer
-    create_permissions = [structure_permissions.is_owner, structure_permissions.is_manager]
+    create_permissions = [structure_permissions.is_owner,
+                          structure_permissions.is_manager,
+                          structure_permissions.is_administrator]
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:

@@ -376,15 +376,8 @@ class OfferingCreateSerializer(OfferingSerializer):
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-
-        initial_data = getattr(self, 'initial_data', None)
-        type = getattr(initial_data, 'type', None)
-
-        if not type and settings.DEBUG and len(self.offering_config.keys()) == 1:
-            # get first type as default one for browseable API.
-            type = self.offering_config.keys()[0]
-
-        if type:
+        if hasattr(self, 'initial_data'):
+            type = self.initial_data['type']
             configuration = self.offering_config[type]
             for attr_name in configuration['order']:
                 attr_options = configuration['options'].get(attr_name, {})
@@ -394,57 +387,52 @@ class OfferingCreateSerializer(OfferingSerializer):
 
     def _validate_type(self, type):
         if type not in self.offering_config:
-            raise serializers.ValidationError({'type': 'Type configuration could not be found'})
+            raise serializers.ValidationError({'type': 'Type configuration could not be found.'})
 
     def validate_empty_values(self, data):
         if 'type' not in data:
-            raise serializers.ValidationError({'type': 'This field is required'})
+            raise serializers.ValidationError({'type': 'This field is required.'})
         else:
             self._validate_type(data['type'])
 
         return super(OfferingSerializer, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):
-        filed_type = attr_options.get('type', None)
+        filed_type = attr_options.get('type')
         if filed_type is None or filed_type.lower() == 'string':
             field = serializers.CharField(max_length=255, write_only=True)
         elif filed_type.lower() == 'integer':
             field = serializers.IntegerField(write_only=True)
         else:
             raise NotImplementedError('Type "%s" can not be serialized.' % type)
-        default_value = attr_options.get('default', None)
+        default_value = attr_options.get('default')
         if default_value:
             field.default = default_value
             field.required = False
 
-        label = attr_options.get('label', None)
-        if label:
-            field.label = label
+        field.label = attr_options.get('label')
+        field.help_text = attr_options.get('help_text')
 
-        help_text = attr_options.get('help_text', None)
-        if help_text:
-            field.help_text = help_text
         return field
 
     def create(self, validated_data):
         self.project = validated_data.pop('project')
         self.type = validated_data.pop('type')
         type_label = self.offering_config[self.type].get('label', self.type)
-        with transaction.atomic():
-            issue = models.Issue.objects.create(
-                caller=self.context['request'].user,
-                project=self.project,
-                customer=self.project.customer,
-                type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
-                summary='Request for \'%s\'' % type_label,
-                description=self._form_description(validated_data, validated_data.pop('description', None))
-            )
+        issue = models.Issue.objects.create(
+            caller=self.context['request'].user,
+            project=self.project,
+            customer=self.project.customer,
+            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
+            summary='Request for \'%s\'' % type_label,
+            description=self._form_description(validated_data, validated_data.pop('description'))
+        )
 
-            offering = models.Offering.objects.create(
-                issue=issue,
-                project=issue.project,
-                name=validated_data.get('name'),
-                type=self.type)
+        offering = models.Offering.objects.create(
+            issue=issue,
+            project=issue.project,
+            name=validated_data.get('name'),
+            type=self.type)
 
         return offering
 
