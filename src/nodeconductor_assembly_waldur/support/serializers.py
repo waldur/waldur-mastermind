@@ -311,6 +311,27 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
 
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), required=False)
+
+    class Meta(object):
+        model = models.Offering
+        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'type_label',
+                  'issue', 'price', 'created', 'modified',
+                  'issue_name', 'issue_uuid', 'issue_status', 'project_name', 'project_uuid')
+        read_only_fields = ('type_label', 'issue', 'price', 'state')
+        protected_fields = ('description', 'project')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail', 'required': False},
+        )
+        related_paths = dict(
+            issue=('uuid', 'name', 'status'),
+            project=('uuid', 'name',),
+        )
+
+
+class OfferingCreateSerializer(OfferingSerializer):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
 
@@ -332,45 +353,34 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    offering_config = settings.WALDUR_SUPPORT['OFFERINGS']
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
+    offering_config = settings.WALDUR_SUPPORT['OFFERINGS']
 
-    class Meta(object):
-        model = models.Offering
-        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'type_label',
-                  'issue', 'price', 'created', 'modified',
-                  'issue_name', 'issue_uuid', 'issue_status', 'project_name', 'project_uuid')
-        read_only_fields = ('type_label', 'issue', 'price', 'state')
-        protected_fields = ('description', 'project')
+    class Meta(OfferingSerializer.Meta):
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'project-detail', 'required': True},
-        )
-        related_paths = dict(
-            issue=('uuid', 'name', 'status'),
-            project=('uuid', 'name',),
+            project={'lookup_field': 'uuid',
+                     'view_name': 'project-detail',
+                     'required': True,
+                     'allow_empty': False,
+                     'allow_null': False},
         )
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-
-        if self.context['request'].method == 'POST':
+        if hasattr(self, 'initial_data'):
             type = self.initial_data['type']
             configuration = self.offering_config[type]
             for attr_name in configuration['order']:
                 attr_options = configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
-        elif self.context['request'].method == 'PUT':
-            result['type'].required = False
-            result['project'].required = False
 
         return result
 
     def validate_empty_values(self, data):
-        if self.context['request'].method == 'POST':
-            if 'type' not in data:
-                raise serializers.ValidationError({'type': 'This field is required'})
+        if 'type' not in data:
+            raise serializers.ValidationError({'type': 'This field is required'})
         return super(OfferingSerializer, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):

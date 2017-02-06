@@ -139,9 +139,14 @@ class OfferingCreateTest(BaseOfferingTest):
     def test_offering_create_raises_error_if_type_is_not_provided(self):
         request_data = self._get_valid_request()
         del request_data['type']
-
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('type', response.data)
+
+    def test_offering_create_raises_error_if_data_is_not_provided(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('type', response.data)
 
     def test_offering_create_creates_issue_with_valid_request(self):
         request_data = self._get_valid_request()
