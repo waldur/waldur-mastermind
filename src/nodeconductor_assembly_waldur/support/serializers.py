@@ -8,7 +8,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
-from nodeconductor.structure import models as structure_models, SupportedServices
+from nodeconductor.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 
 from . import models
 
@@ -310,25 +310,31 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return support_user
 
 
-class OfferingSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                         core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), required=False)
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'type_label',
-                  'issue', 'price', 'created', 'modified',
-                  'issue_name', 'issue_uuid', 'issue_status', 'project_name', 'project_uuid')
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'type_label', 'price', 'created', 'modified',
+                  'issue', 'issue_name', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
+                  'project_name', 'project_uuid')
         read_only_fields = ('type_label', 'issue', 'price', 'state')
-        protected_fields = ('description', 'project')
+        protected_fields = ('project',)
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail', 'required': False},
         )
         related_paths = dict(
-            issue=('uuid', 'name', 'status'),
+            issue=('uuid', 'name', 'status', 'key', 'description'),
             project=('uuid', 'name',),
         )
+
+    def get_filtered_field_names(self):
+        # TODO [TM:2/6/17] add a unit test.
+        return 'project',
 
 
 class OfferingCreateSerializer(OfferingSerializer):
@@ -354,9 +360,11 @@ class OfferingCreateSerializer(OfferingSerializer):
         'description' - combined list of all other fields provided with the request;
     """
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
+    description = serializers.CharField(required=False)
     offering_config = settings.WALDUR_SUPPORT['OFFERINGS']
 
     class Meta(OfferingSerializer.Meta):
+        fields = OfferingSerializer.Meta.fields + ('description',)
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -379,6 +387,7 @@ class OfferingCreateSerializer(OfferingSerializer):
         return result
 
     def validate_empty_values(self, data):
+        # TODO [TM:2/6/17] add test check if type is registered.
         if 'type' not in data:
             raise serializers.ValidationError({'type': 'This field is required'})
         return super(OfferingSerializer, self).validate_empty_values(data)
@@ -401,21 +410,21 @@ class OfferingCreateSerializer(OfferingSerializer):
         self.project = validated_data.pop('project')
         self.type = validated_data.pop('type')
         type_label = self.offering_config[self.type].get('label', self.type)
-        issue = models.Issue.objects.create(
-            caller=self.context['request'].user,
-            project=self.project,
-            customer=self.project.customer,
-            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
-            summary='Request for \'%s\'' % type_label,
-            description=self._form_description(validated_data, validated_data.pop('description', None))
-        )
+        with transaction.atomic():
+            issue = models.Issue.objects.create(
+                caller=self.context['request'].user,
+                project=self.project,
+                customer=self.project.customer,
+                type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
+                summary='Request for \'%s\'' % type_label,
+                description=self._form_description(validated_data, validated_data.pop('description', None))
+            )
 
-        offering = models.Offering.objects.create(
-            issue=issue,
-            project=issue.project,
-            name=validated_data.get('name'),
-            description=issue.description,
-            type=self.type)
+            offering = models.Offering.objects.create(
+                issue=issue,
+                project=issue.project,
+                name=validated_data.get('name'),
+                type=self.type)
 
         return offering
 

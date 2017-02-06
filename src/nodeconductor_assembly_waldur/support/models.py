@@ -112,7 +112,6 @@ class Comment(core_models.UuidMixin, TimeStampedModel):
 @python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
-               core_models.DescribableMixin,
                structure_models.StructureLoggableMixin,
                TimeStampedModel):
 
@@ -135,7 +134,7 @@ class Offering(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                help_text='The price per unit',
+                                help_text='Price per day',
                                 verbose_name='Price per day')
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
 

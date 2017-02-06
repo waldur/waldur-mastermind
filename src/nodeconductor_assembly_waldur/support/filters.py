@@ -91,6 +91,9 @@ class SupportUserFilter(django_filters.FilterSet):
 
 
 class OfferingFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_type='icontains')
+    description = django_filters.CharFilter(lookup_type='icontains')
+    type = django_filters.CharFilter(lookup_type='icontains')
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
@@ -100,12 +103,7 @@ class OfferingFilter(django_filters.FilterSet):
         choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
     )
 
-    o = django_filters.OrderingFilter(fields=('created', 'modified', 'project_name', 'state'))
+    o = django_filters.OrderingFilter(fields=('created', 'modified', 'state'))
 
     class Meta(object):
         model = models.Offering
-        fields = [
-            'name',
-            'description',
-            'type',
-        ]

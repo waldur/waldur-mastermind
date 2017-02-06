@@ -143,6 +143,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
+    # TODO [TM:2/6/17] allow to owner and manager.
     unsafe_methods_permissions = [structure_permissions.is_staff]
 
     @decorators.list_route()

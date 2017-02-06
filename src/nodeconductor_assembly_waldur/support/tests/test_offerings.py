@@ -227,13 +227,14 @@ class OfferingUpdateTest(BaseOfferingTest):
 
     def test_offering_description_cannot_be_updated(self):
         offering = self.fixture.offering
+        issue = models.Issue.objects.first()
         expected_description = 'Old description'
-        offering.description = expected_description
-        offering.save()
+        issue.description = expected_description
+        issue.save()
         url = factories.OfferingFactory.get_url(offering)
 
         response = self.client.put(url, {'name': 'New name', 'description': expected_description})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        offering.refresh_from_db()
-        self.assertEqual(offering.description, expected_description)
+        issue.refresh_from_db()
+        self.assertEqual(issue.description, expected_description)

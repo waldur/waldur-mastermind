@@ -22,6 +22,10 @@ class Migration(migrations.Migration):
             model_name='offering',
             name='type_label',
         ),
+        migrations.RemoveField(
+            model_name='offering',
+            name='description',
+        ),
         migrations.AlterField(
             model_name='offering',
             name='type',
@@ -30,6 +34,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='offering',
             name='price',
-            field=models.DecimalField(decimal_places=7, default=0, max_digits=13, validators=[django.core.validators.MinValueValidator(Decimal('0'))], help_text='The price per unit', verbose_name='Price per day'),
+            field=models.DecimalField(decimal_places=7, default=0, max_digits=13, validators=[django.core.validators.MinValueValidator(Decimal('0'))], help_text='Price per day', verbose_name='Price per day'),
         ),
     ]
