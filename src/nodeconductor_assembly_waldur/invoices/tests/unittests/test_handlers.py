@@ -10,9 +10,9 @@ from freezegun import freeze_time
 from mock import Mock
 
 from nodeconductor.core import utils as core_utils
-from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
+from nodeconductor_assembly_waldur.support.tests import fixtures as support_fixtures
 
 from .. import factories, fixtures
 from ... import models, utils
@@ -79,10 +79,9 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         self.fixture = fixtures.InvoiceFixture()
 
     def test_existing_invoice_is_updated_on_openstack_package_creation(self):
-        invoice = factories.InvoiceFactory()
-        self.fixture.customer = invoice.customer
+        self.fixture.customer = self.fixture.invoice.customer
         package = self.fixture.openstack_package
-        self.assertTrue(invoice.openstack_items.filter(package=package).exists())
+        self.assertTrue(self.fixture.invoice.openstack_items.filter(package=package).exists())
 
     def test_new_invoice_is_created_on_openstack_package_creation(self):
         package = self.fixture.openstack_package
@@ -274,3 +273,145 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         # assert
         self.assertEqual(models.Invoice.objects.count(), 1)
         self.assertEqual(Decimal(expected_price), models.Invoice.objects.first().price)
+
+
+class AddNewOfferingDetailsToInvoiceTest(TestCase):
+
+    def setUp(self):
+        self.fixture = support_fixtures.SupportFixture()
+
+    def test_invoice_is_created_on_offering_creation(self):
+        offering = self.fixture.offering
+        offering.state = offering.States.OK
+        offering.save()
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        invoice = models.Invoice.objects.first()
+        self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+
+    def test_existing_invoice_is_updated_on_offering_creation(self):
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        end_date = core_utils.month_end(start_date)
+        usage_days = utils.get_full_days(start_date, end_date)
+
+        with freeze_time(start_date):
+            invoice = factories.InvoiceFactory(customer=self.fixture.customer)
+            offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
+
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+        expected_price = offering.price * usage_days
+        self.assertEqual(invoice.price, Decimal(expected_price))
+
+    def test_existing_invoice_is_update_on_offering_creation_if_it_has_package_item_for_same_customer(self):
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        end_date = core_utils.month_end(start_date)
+        usage_days = utils.get_full_days(start_date, end_date)
+
+        with freeze_time(start_date):
+            packages_factories.OpenStackPackageFactory(
+                tenant__service_project_link__project__customer=self.fixture.customer)
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            invoice = models.Invoice.objects.first()
+            components_price = invoice.price
+            offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+
+        self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+        expected_price = offering.price * usage_days + components_price
+        self.assertEqual(invoice.price, Decimal(expected_price))
+
+
+class UpdateInvoiceOnOfferingDeletionTest(TestCase):
+
+    def setUp(self):
+        self.fixture = support_fixtures.SupportFixture()
+
+    def test_invoice_price_is_not_changed_after_a_while_if_offering_is_deleted(self):
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        end_date = core_utils.month_end(start_date)
+        usage_days = utils.get_full_days(start_date, end_date)
+
+        with freeze_time(start_date):
+            offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            invoice = models.Invoice.objects.first()
+        with freeze_time(end_date):
+            offering.delete()
+
+        expected_price = offering.price * usage_days
+        self.assertEqual(invoice.price, Decimal(expected_price))
+
+    def test_invoice_is_created_in_new_month_when_single_item_is_terminated(self):
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        next_month = timezone.datetime(2014, 3, 2, tzinfo=pytz.UTC)
+
+        with freeze_time(start_date):
+            offering = self.fixture.offering
+            offering.state = offering.States.OK
+            offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            invoice = models.Invoice.objects.first()
+            packages_factories.OpenStackPackageFactory(tenant__service_project_link__project__customer=offering.project.customer)
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            self.assertEqual(invoice.openstack_items.count(), 1)
+            self.assertEqual(invoice.offering_items.count(), 1)
+
+        with freeze_time(next_month):
+            offering.delete()
+            self.assertEqual(models.Invoice.objects.count(), 2, "New invoice has to be created in new month.")
+            new_invoice = models.Invoice.objects.exclude(pk=invoice.pk).first()
+            self.assertEqual(new_invoice.openstack_items.count(), 1)
+            self.assertEqual(new_invoice.offering_items.count(), 1)
+            self.assertEqual(new_invoice.offering_items.first().end, next_month)
+
+
+class UpdateInvoiceOnOfferingStateChange(TestCase):
+
+    def setUp(self):
+        self.fixture = support_fixtures.SupportFixture()
+        self.start_date = timezone.datetime(2014, 2, 7, tzinfo=pytz.UTC)
+
+        with freeze_time(self.start_date):
+            self.offering = self.fixture.offering
+            self.offering.state = self.offering.States.OK
+            self.offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+            self.invoice = models.Invoice.objects.first()
+            self.offering.state = self.offering.States.REQUESTED
+            self.offering.save()
+            self.assertEqual(models.Invoice.objects.count(), 1)
+
+    def test_offering_item_is_terminated_when_its_state_changes(self):
+        end_date = self.start_date + timezone.timedelta(days=2)
+        usage_days = utils.get_full_days(self.start_date, end_date)
+
+        with freeze_time(end_date):
+            self.offering.state = self.offering.States.TERMINATED
+            self.offering.save()
+
+        expected_price = self.offering.price * usage_days
+        self.assertEqual(self.invoice.price, Decimal(expected_price))
+        self.assertEqual(self.invoice.offering_items.first().end, end_date)
+
+    def test_offering_item_is_terminated_when_its_state_changes(self):
+        termination_date = self.start_date + timezone.timedelta(days=2)
+        deletion_date = termination_date + timezone.timedelta(days=2)
+        usage_days = utils.get_full_days(self.start_date, termination_date)
+
+        expected_price = self.offering.price * usage_days
+        with freeze_time(termination_date):
+            self.offering.state = self.offering.States.TERMINATED
+            self.offering.save()
+
+        with freeze_time(deletion_date):
+            self.offering.delete()
+
+        self.assertEqual(self.invoice.offering_items.first().end, termination_date)
+        self.assertEqual(self.invoice.price, Decimal(expected_price))
+

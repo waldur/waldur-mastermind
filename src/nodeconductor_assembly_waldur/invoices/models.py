@@ -17,6 +17,7 @@ from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models as package_models
+from nodeconductor_assembly_waldur.support import models as support_models
 from . import utils
 
 
@@ -60,7 +61,9 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def price(self):
-        return sum((item.price for item in self.openstack_items.iterator()))
+        package_items = list(self.openstack_items.all())
+        offering_items = list(self.offering_items.all())
+        return sum((item.price for item in package_items + offering_items))
 
     @property
     def due_date(self):
@@ -80,84 +83,42 @@ class Invoice(core_models.UuidMixin, models.Model):
         if self.state != self.States.PENDING:
             raise IncorrectStateException('Invoice must be in pending state.')
 
-        # XXX: Consider refactoring when different types of packages will be exposed.
-        items = self.openstack_items.select_related('package').all()
-        for item in items:
-            if item.package:
-                item.freeze()
-
         self.state = self.States.CREATED
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
 
-    def register_package(self, package, start=None):
+    def freeze(self):
+        for item in self.openstack_items.iterator():
+            item.freeze()
+        for item in self.offering_items.iterator():
+            item.freeze()
+
+    def register_offering(self, offering, start=None):
         if start is None:
             start = timezone.now()
 
         end = core_utils.month_end(start)
-        overlapping_item = OpenStackItem.objects.filter(
-            invoice=self,
-            end__day=start.day,
-            package_details__contains=package.tenant.name,
-        ).order_by('-daily_price').first()
-
-        daily_price = package.template.price
-        if overlapping_item:
-            """
-            Notes:
-            |- date -| - used during the date
-            |- **** -| - used during the day
-            |- ---- -| - was requested to use in the current day but will be moved to next or previous one.
-            |-***?---| - was used for a half day and '?' stands for a conflict.
-
-            If there is an item that overlaps with current one as shown below:
-            |--03.01.2017-|-********-|-***?---|
-                                     |----?**-|-01.06.2017-|-******-|
-            we have to make next steps:
-            1) If item is more expensive -> use it for price calculation
-                and register new package starting from next day [-01.06.2017-]
-            |--03.01.2017-|-********-|-*****-|
-                                     |-------|-06.01.2017-|-******-|
-
-            2) If old package item is more expensive and it is the end of the month
-            extend package usage till the end of the day and set current package end date to start date,
-            so that usage days is 0 but it is still registered in the invoice.
-            |--29.01.2017-|-********-|-***31.01.2017***-|
-                                     |----31.01.2017----|
-
-            3) If item is cheaper do exactly the opposite and shift its end date to yesterday,
-            so new package will be registered today
-            |--03.01.2017-|-********-|-------|
-                                     |-*****-|-06.01.2017-|-******-|
-            """
-            if overlapping_item.daily_price > daily_price:
-                if overlapping_item.end.day == utils.get_current_month_end().day:
-                    overlapping_item.extend_to_the_end_of_the_day()
-                    end = start
-                else:
-                    start = start + timezone.timedelta(days=1)
-            else:
-                overlapping_item.shift_backward()
-
-        OpenStackItem.objects.create(
-            package=package,
-            daily_price=daily_price,
+        OfferingItem.objects.create(
+            offering=offering,
+            daily_price=offering.price,
             invoice=self,
             start=start,
-            end=end)
+            end=end,
+        )
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
 @python_2_unicode_compatible
-class OpenStackItem(models.Model):
-    """ OpenStackItem stores details for invoices about purchased OpenStack packages """
+class InvoiceItem(models.Model):
+    """
+    Mixin which identifies invoice item to be used for price calculation.
+    """
 
-    invoice = models.ForeignKey(Invoice, related_name='openstack_items')
+    class Meta(object):
+        abstract = True
 
-    package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
-    package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
     daily_price = models.DecimalField(max_digits=22, decimal_places=7,
                                       validators=[MinValueValidator(Decimal('0'))],
                                       default=0,
@@ -166,13 +127,6 @@ class OpenStackItem(models.Model):
                                  help_text='Date and time when package usage has started.')
     end = models.DateTimeField(default=utils.get_current_month_end,
                                help_text='Date and time when package usage has ended.')
-
-    @property
-    def name(self):
-        if self.package:
-            return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
-
-        return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
 
     @property
     def tax(self):
@@ -195,22 +149,67 @@ class OpenStackItem(models.Model):
         full_days = utils.get_full_days(self.start, self.end)
         return full_days
 
-    def freeze(self, end=None, package_deletion=False):
-        """
-        Performs following actions:
-            - Save tenant and package template names in "package_details"
-            - On package deletion set "end" field as "end" and
-              recalculate price based on the new "end" field.
-        """
-        self.package_details['tenant_name'] = self.package.tenant.name
-        self.package_details['template_name'] = self.package.template.name
-        update_fields = ['package_details']
+    def terminate(self, end=None):
+        self.freeze()
+        self.end = end or timezone.now()
+        self.save(update_fields=['end'])
 
-        if package_deletion:
-            self.end = end or timezone.now()
-            update_fields.extend(['end'])
+    def name(self):
+        raise NotImplementedError()
 
-        self.save(update_fields=update_fields)
+    def freeze(self):
+        raise NotImplementedError()
+
+    def __str__(self):
+        return self.name
+
+
+class OfferingItem(InvoiceItem):
+    """ OfferingItem stores details for invoices about purchased custom offering item. """
+    invoice = models.ForeignKey(Invoice, related_name='offering_items')
+    offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
+    offering_details = JSONField(default={}, blank=True, help_text='Stores data about offering')
+
+    @property
+    def name(self):
+        if self.offering_details:
+            return '%s (%s)' % (self.offering_details['project_name'], self.offering_details['offering_type'])
+
+        return '%s (%s)' % (self.offering.project.name, self.offering.type)
+
+    def freeze(self):
+        """
+        Saves offering type and project name in "package_details" if offering exists
+        """
+        if self.offering:
+            self.offering_details['project_name'] = self.offering.project.name
+            self.offering_details['offering_type'] = self.offering.type
+            self.save(update_fields=['offering_details'])
+
+
+class OpenStackItem(InvoiceItem):
+    """ OpenStackItem stores details for invoices about purchased OpenStack packages """
+
+    invoice = models.ForeignKey(Invoice, related_name='openstack_items')
+
+    package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
+    package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
+
+    @property
+    def name(self):
+        if self.package:
+            return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
+
+        return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
+
+    def freeze(self):
+        """
+        Saves tenant and package template names in "package_details" if package exists
+        """
+        if self.package:
+            self.package_details['tenant_name'] = self.package.tenant.name
+            self.package_details['template_name'] = self.package.template.name
+            self.save(update_fields=['package_details'])
 
     def shift_backward(self, days=1):
         """
@@ -229,9 +228,6 @@ class OpenStackItem(models.Model):
     def extend_to_the_end_of_the_day(self):
         self.end = self.end.replace(hour=23, minute=59, second=59)
         self.save()
-
-    def __str__(self):
-        return self.name
 
 
 @python_2_unicode_compatible
