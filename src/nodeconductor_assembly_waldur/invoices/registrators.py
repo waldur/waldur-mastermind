@@ -1,23 +1,17 @@
 """
 Business logic of invoice item registration.
 
-Invoice price is calculated based on invoice item.
-In order to keep its price up to date each chargeable item has to be registered
-as an appropriate invoice item, for instance:
- OpenStackPackage -> OpenStackItem
- Offering -> OfferingItem
+Glossary:
+ - item - invoice item. Part of the invoice that stores price for
+          some object that was bought by customer.
+ - source - invoice item source. Object that was bought by customer.
 
-If new chargeable item is added - next steps has to be done:
-- Create new invoice item and inherit it from InvoiceItem;
-- Create new registrator for new invoice item type.
+Example: Offering (source) ->  OfferingItem (item).
 
-Registrator is responsible for 2 events:
-- Invoice item termination or 'terminate' action;
-- Invoice item registration or 'register' action;
-
-After new registrator is added a RegistrationManager has to be updated to be able to resolve it.
+RegistrationManager represents the highest level of business logic and should be
+used for invoice items registration and termination.
+Registrators defines items creation and termination logic for each invoice item.
 """
-
 from django.db import transaction
 from django.utils import timezone
 
@@ -30,94 +24,78 @@ from . import models, utils
 
 class BaseRegistrator(object):
 
-    def get_customer(self, item):
+    def get_customer(self, source):
         """
-        Returns customer based on provided item.
+        Return customer based on provided item.
         :param item: item to get customer from.
         """
         raise NotImplementedError()
 
-    def register_items(self, items, invoice, start):
+    def register(self, sources, invoice, start):
+        """ For each source create invoice item and register it in invoice. """
         end = core_utils.month_end(start)
-
         for item in items:
-            self._register_item(invoice=invoice, item=item, start=start, end=end)
+            self._create_item(invoice=invoice, item=item, start=start, end=end)
 
-    def get_chargeable_items(self, customer):
-        """
-        Returns a list of items to charge customer for.
-        :param customer: customer to look for chargeable items, for instance open stack packages or offerings.
-        """
+    def get_sources(self, customer):
+        """ Return a list of invoice item sources to charge customer for. """
         raise NotImplementedError()
 
-    def _register_item(self, invoice, item, start, end):
-        """
-        Registers single chargeable item in the invoice.
-        :param invoice: invoice to register item in
-        :param item: item to register in the invoice
-        :param start: date when item usage has started
-        :param end: date when item usage has ended
-        :return: registered invoice item
-        """
+    def _create_item(self, source, invoice, start, end):
+        """ Register single chargeable item in the invoice. """
         raise NotImplementedError()
 
     def terminate(self, item, now=None):
         """
-        Freezes invoice item's usage.
+        Freeze invoice item's usage.
         :param item: chargeable item to use for search of invoice item.
         :param now: date of invoice with invoice items.
         """
         if not now:
             now = timezone.now()
 
-        invoice_item = self._find_invoice_item(item, now)
-        
-        if invoice_item:
-            invoice_item.terminate(end=now)
+        item = self._find_item(item, now)
+        if item:
+            item.terminate(end=now)
 
-    def _find_invoice_item(self, chargeable_item, now):
+    def _find_item(self, source, now):
         """
-        Looks for corresponding invoice item in the invoices by the given date.
+        Find item by source and date.
         :param item: chargeable item to use for search of invoice item.
         :param now: date of invoice with invoice items.
         :return: invoice item or None
         """
         raise NotImplementedError()
 
-    def has_chargable_items(self, customer):
-        """
-        Indicates whether customer has any item to be charged for.
-        """
+    def has_sources(self, customer):
+        """ Indicate whether customer has any invoice item source. """
         raise NotImplementedError()
 
 
 class OpenStackItemRegistrator(BaseRegistrator):
 
-    def _find_invoice_item(self, chargeable_item, now):
-        package = chargeable_item
+    def _find_item(self, source, now):
         result = models.OpenStackItem.objects.filter(
-            package=package,
-            invoice__customer=self.get_customer(package),
+            package=source,
+            invoice__customer=self.get_customer(source),
             invoice__state=models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
         ).first()
         return result
 
-    def get_customer(self, item):
+    def get_customer(self, source):
         return item.tenant.service_project_link.project.customer
 
-    def get_chargeable_items(self, customer):
-        result = packages_models.OpenStackPackage.objects.filter(
-            tenant__service_project_link__project__customer=customer,
-        ).distinct()
-        return result
+    def get_sources(self, customer):
+        return packages_models.OpenStackPackage.objects.filter(
+            tenant__service_project_link__project__customer=customer).distinct()
 
-    def has_chargable_items(self, customer):
-        return self.get_chargeable_items(customer).exists()
+    def has_sources(self, customer):
+        return self.get_sources(customer).exists()
 
-    def _register_item(self, invoice, item, start, end):
-        package = item
+    def _create_item(self, source, invoice, start, end):
+        package = source
         overlapping_item = models.OpenStackItem.objects.filter(
             invoice=invoice,
             end__day=start.day,
@@ -172,20 +150,17 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
 class OfferingItemRegistrator(BaseRegistrator):
 
-    def get_chargeable_items(self, customer):
-        result = support_models.Offering.objects.filter(
-            project__customer=customer
-        ).distinct()
-        return result
+    def get_sources(self, customer):
+        return support_models.Offering.objects.filter(project__customer=customer).distinct()
 
-    def has_chargable_items(self, customer):
-        return self.get_chargeable_items(customer).exists()
+    def has_sources(self, customer):
+        return self.get_sources(customer).exists()
 
-    def get_customer(self, item):
+    def get_customer(self, source):
         return item.project.customer
 
-    def _find_invoice_item(self, chargeable_item, now):
-        offering = chargeable_item
+    def _find_item(self, source, now):
+        offering = source
         result = models.OfferingItem.objects.filter(
             offering=offering,
             invoice__customer=offering.project.customer,
@@ -195,22 +170,23 @@ class OfferingItemRegistrator(BaseRegistrator):
         ).first()
         return result
 
-    def _register_item(self, invoice, item, start, end):
-        offering = item
+    def _create_item(self, source, invoice, start, end):
+        offering = source
         result = models.OfferingItem.objects.create(
             offering=offering,
             daily_price=offering.price,
             invoice=invoice,
             start=start,
-            end=end
+            end=end,
         )
         return result
 
 
 class RegistrationManager(object):
+    """ The highest interface for invoice item registration and termination. """
     _registrators = {
         packages_models.OpenStackPackage: OpenStackItemRegistrator(),
-        support_models.Offering: OfferingItemRegistrator()
+        support_models.Offering: OfferingItemRegistrator(),
     }
 
     @classmethod
@@ -218,8 +194,8 @@ class RegistrationManager(object):
         return cls._registrators.values()
 
     @classmethod
-    def has_chargable_items(cls, customer):
-        return any(registrator.has_chargable_items(customer) for registrator in cls.get_registrators())
+    def has_sources(cls, customer):
+        return any(registrator.has_sources(customer) for registrator in cls.get_registrators())
 
     @classmethod
     def get_or_create_invoice(cls, customer, date):
@@ -231,43 +207,42 @@ class RegistrationManager(object):
 
         if created:
             for registrator in cls.get_registrators():
-                items = registrator.get_chargeable_items(customer)
-                registrator.register_items(items, invoice, date)
+                sources = registrator.get_sources(customer)
+                registrator.register(sources, invoice, date)
 
         return invoice, created
 
     @classmethod
-    def register(cls, item, now=None):
+    def register(cls, source, now=None):
         """
-        Registers new item into existing invoice.
-        In the beginning of the month new invoice is created and all related items are registered.
-        :param item: item to register
-        :param start: invoice item start date.
+        Create new invoice item from source and register it into invoice.
+
+        If invoice does not exist new one will be created.
         """
         if now is None:
             now = timezone.now()
 
-        item_registrator = cls._registrators[item.__class__]
-        customer = item_registrator.get_customer(item)
+        registrator = cls._registrators[source.__class__]
+        customer = registrator.get_customer(source)
 
         with transaction.atomic():
             invoice, created = cls.get_or_create_invoice(customer, now)
             if not created:
-                item_registrator.register_items([item], invoice, now)
+                registrator.register([source], invoice, now)
 
     @classmethod
-    def terminate(cls, item, now=None):
+    def terminate(cls, source, now=None):
         """
-        Fires terminate on item.
-        :param item: item to terminate
+        Terminate invoice item that corresponds given source.
+
         :param now: time to set as end of item usage.
         """
         if now is None:
             now = timezone.now()
 
-        item_registrator = cls._registrators[item.__class__]
-        customer = item_registrator.get_customer(item)
+        registrator = cls._registrators[source.__class__]
+        customer = registrator.get_customer(source)
 
         with transaction.atomic():
             cls.get_or_create_invoice(customer, now)
-            item_registrator.terminate(item, now)
+            registrator.terminate(source, now)
