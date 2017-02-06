@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 from ddt import ddt, data
+import mock
 
 from django.conf import settings
 from rest_framework import status
@@ -160,6 +161,23 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
         self.assertIn(str(default_value), models.Issue.objects.first().description)
+
+    @mock.patch('nodeconductor_assembly_waldur.support.backend.get_active_backend')
+    def test_offering_is_not_created_if_backend_raises_error(self, get_active_backend_mock):
+        def _raise():
+            raise ValueError()
+
+        get_active_backend_mock.side_effect = _raise
+
+        request_data = self._get_valid_request()
+        self.assertEqual(models.Offering.objects.count(), 0)
+        self.assertEqual(models.Issue.objects.count(), 0)
+
+        with self.assertRaises(ValueError):
+            response = self.client.post(self.url, data=request_data)
+
+        self.assertEqual(models.Offering.objects.count(), 0)
+        self.assertEqual(models.Issue.objects.count(), 0)
 
 
 class OfferingUpdateTest(BaseOfferingTest):

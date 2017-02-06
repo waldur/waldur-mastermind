@@ -150,6 +150,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
     def configured(self, request):
         return response.Response(settings.WALDUR_SUPPORT['OFFERINGS'], status=status.HTTP_200_OK)
 
+    @transaction.atomic()
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
