@@ -313,8 +313,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    # TODO [TM:2/6/17] move type to
-    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), required=False)
+    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
 
     class Meta(object):
         model = models.Offering
@@ -322,7 +321,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                   'issue', 'issue_name', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid')
         read_only_fields = ('type_label', 'issue', 'price', 'state')
-        protected_fields = ('project',)
+        protected_fields = ('project', 'type')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},

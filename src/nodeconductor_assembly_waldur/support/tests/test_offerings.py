@@ -61,18 +61,21 @@ class OfferingRetrieveTest(BaseOfferingTest):
         super(OfferingRetrieveTest, self).setUp(**kwargs)
         self.url = factories.OfferingFactory.get_list_url()
 
-    @data('staff', 'global_support', 'owner', 'admin', 'manager')
+    @data('staff', 'global_support', 'owner')
     def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
+        offering = factories.OfferingFactory(issue__project__customer=self.fixture.customer)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(offering.uuid.hex, response.data[0][u'uuid'])
 
     def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
         offering = self.fixture.offering
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn(offering.name, response)
+        self.assertEqual(len(response.data), 0)
 
     def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
         owner = self.fixture.owner
@@ -90,7 +93,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.staff)
 
-    def test_error_is_raied_if_type_is_not_provided(self):
+    def test_error_is_raised_if_type_is_not_provided(self):
         request_data = self._get_valid_request()
         del request_data['type']
 

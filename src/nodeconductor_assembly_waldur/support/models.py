@@ -115,6 +115,7 @@ class Offering(core_models.UuidMixin,
                structure_models.StructureLoggableMixin,
                TimeStampedModel):
 
+    # TODO [TM:2/6/17] update offering admin page. Add more fields.
     class Meta:
         ordering = ['-created']
 
