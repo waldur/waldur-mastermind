@@ -37,7 +37,7 @@ class BaseOfferingTest(base.BaseTest):
             },
         }
 
-    def _get_valid_request(self, project):
+    def _get_valid_request(self, project=None):
         if project is None:
             project = self.fixture.project
 
@@ -160,7 +160,7 @@ class OfferingPermissionsTest(BaseOfferingTest):
         request_data['project'] = structure_factories.ProjectFactory.get_url()
         self.client.force_authenticate(owner)
         response = self.client.post(self.url, data=request_data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class OfferingCreateTest(BaseOfferingTest):
@@ -172,7 +172,18 @@ class OfferingCreateTest(BaseOfferingTest):
     def test_offering_create_raises_error_if_type_is_not_provided(self):
         request_data = self._get_valid_request()
         del request_data['type']
+
         response = self.client.post(self.url, data=request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('type', response.data)
+
+    def test_offering_create_raises_error_if_type_is_invalid(self):
+        request_data = self._get_valid_request()
+        request_data['type'] = 'invalid'
+
+        response = self.client.post(self.url, data=request_data)
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 

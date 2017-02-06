@@ -359,7 +359,7 @@ class OfferingCreateSerializer(OfferingSerializer):
         'description' - combined list of all other fields provided with the request;
     """
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
-    description = serializers.CharField(required=False)
+    description = serializers.CharField(required=False, help_text='Description to add to the issue.')
     offering_config = settings.WALDUR_SUPPORT['OFFERINGS']
 
     class Meta(OfferingSerializer.Meta):
@@ -377,7 +377,13 @@ class OfferingCreateSerializer(OfferingSerializer):
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
         if hasattr(self, 'initial_data'):
+
             type = self.initial_data['type']
+        elif settings.DEBUG and len(self.offering_config.keys()) == 1:
+            # get first type as default one for browseable API.
+            type = self.offering_config.keys()[0]
+
+        if type:
             configuration = self.offering_config[type]
             for attr_name in configuration['order']:
                 attr_options = configuration['options'].get(attr_name, {})
@@ -385,10 +391,16 @@ class OfferingCreateSerializer(OfferingSerializer):
 
         return result
 
+    def _validate_type(self, type):
+        if type not in self.offering_config:
+            raise serializers.ValidationError({'type': 'Type configuration could not be found'})
+
     def validate_empty_values(self, data):
-        # TODO [TM:2/6/17] add test check if type is registered.
         if 'type' not in data:
             raise serializers.ValidationError({'type': 'This field is required'})
+        else:
+            self._validate_type(data['type'])
+
         return super(OfferingSerializer, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):
@@ -403,6 +415,14 @@ class OfferingCreateSerializer(OfferingSerializer):
         if default_value:
             field.default = default_value
             field.required = False
+
+        label = attr_options.get('label', None)
+        if label:
+            field.label = label
+
+        help_text = attr_options.get('help_text', None)
+        if help_text:
+            field.help_text = help_text
         return field
 
     def create(self, validated_data):

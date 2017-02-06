@@ -143,8 +143,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
-    # TODO [TM:2/6/17] allow to owner and manager.
-    unsafe_methods_permissions = [structure_permissions.is_staff]
+    disabled_actions = ['delete']
 
     @decorators.list_route()
     def configured(self, request):
@@ -158,6 +157,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_serializer_class = serializers.OfferingCreateSerializer
+    create_permissions = [structure_permissions.is_owner, structure_permissions.is_manager]
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
@@ -171,6 +171,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
         return response.Response({'status': 'Offering is marked as completed.'}, status=status.HTTP_200_OK)
 
     complete_validators = [offering_is_in_requested_state]
+    complete_permissions = [structure_permissions.is_staff]
     complete_serializer_class = serializers.OfferingCompleteSerializer
 
     @decorators.detail_route(methods=['post'])
