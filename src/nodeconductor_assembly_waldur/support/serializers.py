@@ -345,7 +345,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         )
 
     def get_filtered_field_names(self):
-        return 'project',
+        return ('project',)
 
 
 class OfferingCreateSerializer(OfferingSerializer):
