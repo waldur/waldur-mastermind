@@ -139,10 +139,9 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERINGS'][expected_type]['label'])
 
     def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
-        owner = self.fixture.owner
         request_data = self._get_valid_request()
         request_data['project'] = structure_factories.ProjectFactory.get_url()
-        self.client.force_authenticate(owner)
+        self.client.force_authenticate(self.fixture.user)
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -181,7 +180,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(models.Issue.objects.count(), 0)
 
     @data('user')
-    def test_user_cannot_create_project_if_he_has_no_level_permissions(self, user):
+    def test_user_cannot_associate_new_offering_with_project_if_he_has_no_project_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         request_data = self._get_valid_request()
 
@@ -189,7 +188,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data('admin', 'manager', 'staff', 'global_support', 'owner')
-    def test_user_can_create_project_if_he_has_no_level_permissions(self, user):
+    def test_user_can_create_project_if_he_has_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         request_data = self._get_valid_request(self.fixture.project)
 
