@@ -73,7 +73,7 @@ class OfferingRetrieveTest(BaseOfferingTest):
         self.assertEqual(offering.uuid.hex, response.data[0][u'uuid'])
 
     def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
-        _ = self.fixture.offering
+        self.fixture.offering
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -188,7 +188,7 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data('admin', 'manager', 'staff', 'global_support', 'owner')
-    def test_user_can_create_project_if_he_has_level_permissions(self, user):
+    def test_user_can_create_offering_if_he_has_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         request_data = self._get_valid_request(self.fixture.project)
 
