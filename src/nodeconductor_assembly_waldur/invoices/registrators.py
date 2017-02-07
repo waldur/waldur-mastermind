@@ -25,17 +25,14 @@ from . import models, utils
 class BaseRegistrator(object):
 
     def get_customer(self, source):
-        """
-        Return customer based on provided item.
-        :param item: item to get customer from.
-        """
+        """ Return customer based on provided item. """
         raise NotImplementedError()
 
     def register(self, sources, invoice, start):
         """ For each source create invoice item and register it in invoice. """
         end = core_utils.month_end(start)
-        for item in items:
-            self._create_item(invoice=invoice, item=item, start=start, end=end)
+        for source in sources:
+            self._create_item(source, invoice, start=start, end=end)
 
     def get_sources(self, customer):
         """ Return a list of invoice item sources to charge customer for. """
@@ -85,7 +82,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         return result
 
     def get_customer(self, source):
-        return item.tenant.service_project_link.project.customer
+        return source.tenant.service_project_link.project.customer
 
     def get_sources(self, customer):
         return packages_models.OpenStackPackage.objects.filter(
@@ -157,7 +154,7 @@ class OfferingItemRegistrator(BaseRegistrator):
         return self.get_sources(customer).exists()
 
     def get_customer(self, source):
-        return item.project.customer
+        return source.project.customer
 
     def _find_item(self, source, now):
         offering = source

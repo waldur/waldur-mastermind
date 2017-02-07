@@ -35,7 +35,7 @@ def create_monthly_invoices():
         invoice.freeze()
 
     for customer in structure_models.Customer.objects.iterator():
-        if registrators.RegistrationManager.has_chargable_items(customer):
+        if registrators.RegistrationManager.has_sources(customer):
             registrators.RegistrationManager.get_or_create_invoice(customer, core_utils.month_start(date))
 
 
