@@ -185,3 +185,5 @@ class OfferingViewSet(core_views.ActionsViewSet):
         offering.save()
         return response.Response({'status': 'Offering is marked as terminated.'}, status=status.HTTP_200_OK)
 
+    terminate_permissions = [structure_permissions.is_staff]
+

@@ -277,19 +277,34 @@ class OfferingCompleteTest(BaseOfferingTest):
         self.assertEqual(offering.state, models.Offering.States.OK)
 
 
+@ddt
 class OfferingTerminateTest(BaseOfferingTest):
 
-    def test_offering_is_in_terminated_state_when_terminate_is_called(self):
-        offering = factories.OfferingFactory()
-        self.assertEqual(offering.state, models.Offering.States.REQUESTED)
+    def setUp(self, **kwargs):
+        super(OfferingTerminateTest, self).setUp(**kwargs)
 
-        url = factories.OfferingFactory.get_url(offering=offering, action='terminate')
+    def test_staff_can_terminate_offering(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(url)
+        self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
+        self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering, action='terminate')
+
+        response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, models.Offering.States.TERMINATED)
+        self.fixture.offering.refresh_from_db()
+        self.assertEqual(self.fixture.offering.state, models.Offering.States.TERMINATED)
+
+    @data('user', 'global_support', 'owner', 'admin', 'manager')
+    def test_user_cannot_terminate_offering(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
+        self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering, action='terminate')
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.fixture.offering.refresh_from_db()
+        self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
 
 
 class OfferingGetConfiguredTest(BaseOfferingTest):
