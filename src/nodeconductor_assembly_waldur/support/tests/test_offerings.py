@@ -167,17 +167,14 @@ class OfferingCreateTest(BaseOfferingTest):
 
     @mock.patch('nodeconductor_assembly_waldur.support.backend.get_active_backend')
     def test_offering_is_not_created_if_backend_raises_error(self, get_active_backend_mock):
-        def _raise():
-            raise ValueError()
-
-        get_active_backend_mock.side_effect = _raise
+        get_active_backend_mock.side_effect = ValueError()
 
         request_data = self._get_valid_request()
         self.assertEqual(models.Offering.objects.count(), 0)
         self.assertEqual(models.Issue.objects.count(), 0)
 
         with self.assertRaises(ValueError):
-            response = self.client.post(self.url, data=request_data)
+            self.client.post(self.url, data=request_data)
 
         self.assertEqual(models.Offering.objects.count(), 0)
         self.assertEqual(models.Issue.objects.count(), 0)
