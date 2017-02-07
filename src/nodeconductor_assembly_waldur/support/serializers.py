@@ -405,7 +405,7 @@ class OfferingCreateSerializer(OfferingSerializer):
             raise serializers.ValidationError({'type': 'Type configuration could not be found.'})
 
     def validate_empty_values(self, data):
-        if 'type' not in data:
+        if 'type' not in data or ('type' in data and data['type'] is None):
             raise serializers.ValidationError({'type': 'This field is required.'})
         else:
             self._validate_type(data['type'])

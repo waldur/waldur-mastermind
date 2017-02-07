@@ -96,6 +96,16 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('type', response.data)
 
+    def test_field_required_error_is_raised_if_type_is_empty(self):
+        request_data = self._get_valid_request()
+        request_data['type'] = None
+
+        response = self.client.post(self.url, data=request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('type', response.data)
+        self.assertEqual('This field is required.', response.data['type'])
+
     def test_error_is_raised_if_type_is_invalid(self):
         request_data = self._get_valid_request()
         request_data['type'] = 'invalid'
