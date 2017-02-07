@@ -330,7 +330,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'name', 'project', 'type', 'type_label', 'price', 'created', 'modified',
-                  'issue', 'issue_name', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
+                  'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid')
         read_only_fields = ('type_label', 'issue', 'price', 'state')
         protected_fields = ('project', 'type')
@@ -340,7 +340,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
         related_paths = dict(
-            issue=('uuid', 'name', 'status', 'key', 'description'),
+            issue=('uuid', 'name', 'status', 'key', 'description', 'link'),
             project=('uuid', 'name',),
         )
 
