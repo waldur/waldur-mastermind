@@ -64,7 +64,8 @@ class OfferingRetrieveTest(BaseOfferingTest):
     @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        offering = factories.OfferingFactory(issue__project__customer=self.fixture.customer, project=self.fixture.project)
+        offering = factories.OfferingFactory(issue__project__customer=self.fixture.customer,
+                                             project=self.fixture.project)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
