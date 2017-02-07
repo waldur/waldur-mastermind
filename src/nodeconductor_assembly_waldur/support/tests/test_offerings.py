@@ -3,6 +3,7 @@ from ddt import ddt, data
 import mock
 
 from django.conf import settings
+from nodeconductor_assembly_waldur.support.backend import SupportBackendError
 from rest_framework import status
 
 from nodeconductor.structure.tests import factories as structure_factories
@@ -78,15 +79,6 @@ class OfferingRetrieveTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-    def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
-        owner = self.fixture.owner
-        project = self.fixture.project
-        request_data = self._get_valid_request(project=project)
-        request_data['project'] = structure_factories.ProjectFactory.get_url()
-        self.client.force_authenticate(owner)
-        response = self.client.post(self.url, data=request_data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
 
 class OfferingCreateTest(BaseOfferingTest):
     def setUp(self):
@@ -145,14 +137,21 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertIn(offering.type, 'custom_vpc')
         self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERINGS'][expected_type]['label'])
 
-    def test_project_is_associated_with_an_offering(self):
+    def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
+        owner = self.fixture.owner
+        request_data = self._get_valid_request()
+        request_data['project'] = structure_factories.ProjectFactory.get_url()
+        self.client.force_authenticate(owner)
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_issue_project_is_associated_with_an_offering(self):
         request_data = self._get_valid_request()
 
         response = self.client.post(self.url, data=request_data)
+        
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         issue = models.Issue.objects.first()
-        self.assertIsNotNone(issue.customer)
-        self.assertEqual(issue.customer.uuid, self.fixture.issue.project.customer.uuid)
         self.assertIsNotNone(issue.project)
         self.assertEqual(issue.project.uuid, self.fixture.issue.project.uuid)
 
@@ -168,13 +167,13 @@ class OfferingCreateTest(BaseOfferingTest):
 
     @mock.patch('nodeconductor_assembly_waldur.support.backend.get_active_backend')
     def test_offering_is_not_created_if_backend_raises_error(self, get_active_backend_mock):
-        get_active_backend_mock.side_effect = ValueError()
+        get_active_backend_mock.side_effect = SupportBackendError()
 
         request_data = self._get_valid_request()
         self.assertEqual(models.Offering.objects.count(), 0)
         self.assertEqual(models.Issue.objects.count(), 0)
 
-        with self.assertRaises(ValueError):
+        with self.assertRaises(SupportBackendError):
             self.client.post(self.url, data=request_data)
 
         self.assertEqual(models.Offering.objects.count(), 0)
