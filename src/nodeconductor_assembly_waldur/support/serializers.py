@@ -325,7 +325,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'project-detail', 'required': False},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
         )
         related_paths = dict(
             issue=('uuid', 'name', 'status', 'key', 'description'),
