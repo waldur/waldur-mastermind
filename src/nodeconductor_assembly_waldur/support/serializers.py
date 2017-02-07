@@ -428,7 +428,7 @@ class OfferingCreateSerializer(OfferingSerializer):
             customer=self.project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
             summary='Request for \'%s\'' % type_label,
-            description=self._form_description(validated_data, validated_data.pop('description'))
+            description=self._form_description(validated_data, validated_data.pop('description', None))
         )
 
         offering = models.Offering.objects.create(
