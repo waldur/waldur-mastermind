@@ -61,17 +61,17 @@ class OfferingRetrieveTest(BaseOfferingTest):
         super(OfferingRetrieveTest, self).setUp(**kwargs)
         self.url = factories.OfferingFactory.get_list_url()
 
-    @data('staff', 'global_support', 'owner')
+    @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        offering = factories.OfferingFactory(issue__project__customer=self.fixture.customer)
+        offering = factories.OfferingFactory(issue__project__customer=self.fixture.customer, project=self.fixture.project)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(offering.uuid.hex, response.data[0][u'uuid'])
 
     def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
-        offering = self.fixture.offering
+        _ = self.fixture.offering
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
