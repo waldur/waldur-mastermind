@@ -80,6 +80,7 @@ class OfferingRetrieveTest(BaseOfferingTest):
         self.assertEqual(len(response.data), 0)
 
 
+@ddt
 class OfferingCreateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateTest, self).setUp()
@@ -178,6 +179,24 @@ class OfferingCreateTest(BaseOfferingTest):
 
         self.assertEqual(models.Offering.objects.count(), 0)
         self.assertEqual(models.Issue.objects.count(), 0)
+
+    @data('user')
+    def test_user_cannot_create_project_if_he_has_no_level_permissions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        request_data = self._get_valid_request()
+
+        response = self.client.post(self.url, request_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('admin', 'manager', 'staff', 'global_support', 'owner')
+    def test_user_can_create_project_if_he_has_no_level_permissions(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        request_data = self._get_valid_request(self.fixture.project)
+
+        response = self.client.post(self.url, request_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNotNone(response.data)
+        self.assertEqual(response.data['project_uuid'].hex, self.fixture.project.uuid.hex)
 
 
 class OfferingUpdateTest(BaseOfferingTest):
