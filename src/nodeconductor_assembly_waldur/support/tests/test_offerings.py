@@ -155,16 +155,6 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertIsNotNone(issue.project)
         self.assertEqual(issue.project.uuid, self.fixture.issue.project.uuid)
 
-    def test_default_value_is_set_if_it_is_not_provided(self):
-        default_value = settings.WALDUR_SUPPORT['OFFERINGS']['custom_vpc']['options']['cpu_count']['default']
-        request_data = self._get_valid_request()
-        del request_data['cpu_count']
-
-        response = self.client.post(self.url, data=request_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(models.Issue.objects.count(), 1)
-        self.assertIn(str(default_value), models.Issue.objects.first().description)
-
     @mock.patch('nodeconductor_assembly_waldur.support.backend.get_active_backend')
     def test_offering_is_not_created_if_backend_raises_error(self, get_active_backend_mock):
         get_active_backend_mock.side_effect = SupportBackendError()

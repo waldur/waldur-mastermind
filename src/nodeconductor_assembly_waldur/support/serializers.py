@@ -378,7 +378,7 @@ class OfferingCreateSerializer(OfferingSerializer):
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-        if hasattr(self, 'initial_data'):
+        if hasattr(self, 'initial_data') and hasattr(self, '_errors'):
             type = self.initial_data['type']
             configuration = self._get_offering_configuration(type)
             for attr_name in configuration['order']:
