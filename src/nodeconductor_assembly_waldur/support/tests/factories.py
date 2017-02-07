@@ -68,7 +68,8 @@ class OfferingFactory(factory.DjangoModelFactory):
         model = models.Offering
 
     issue = factory.SubFactory(IssueFactory)
-    price = fuzzy.FuzzyInteger(0, 10)
+    price = fuzzy.FuzzyInteger(1, 10)
+    project = factory.SelfAttribute('issue.project')
 
     @classmethod
     def get_url(cls, offering=None, action=None):
