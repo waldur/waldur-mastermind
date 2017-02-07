@@ -115,7 +115,6 @@ class Offering(core_models.UuidMixin,
                structure_models.StructureLoggableMixin,
                TimeStampedModel):
 
-    # TODO [TM:2/6/17] update offering admin page. Add more fields.
     class Meta:
         ordering = ['-created']
 
@@ -155,4 +154,4 @@ class Offering(core_models.UuidMixin,
         return 'support-offering'
 
     def __str__(self):
-        return '{}: {}'.format(self.type_label, self.state)
+        return '{}: {}'.format(self.type_label or self.name, self.state)
