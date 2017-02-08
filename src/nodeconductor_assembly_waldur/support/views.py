@@ -144,7 +144,7 @@ class OfferingViewSet(core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
-    disabled_actions = ['delete']
+    disabled_actions = ['destroy']
 
     @decorators.list_route()
     def configured(self, request):
