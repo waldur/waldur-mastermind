@@ -9,7 +9,7 @@ from django.template import Context, Template
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
-from nodeconductor.structure import models as structure_models, SupportedServices
+from nodeconductor.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 
 from . import models
 
@@ -322,9 +322,35 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return support_user
 
 
-class OfferingSerializer(serializers.HyperlinkedModelSerializer):
+class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                         core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
+    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+
+    class Meta(object):
+        model = models.Offering
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'type_label', 'price', 'created', 'modified',
+                  'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
+                  'project_name', 'project_uuid')
+        read_only_fields = ('type_label', 'issue', 'price', 'state')
+        protected_fields = ('project', 'type')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+        )
+        related_paths = dict(
+            issue=('uuid', 'name', 'status', 'key', 'description', 'link'),
+            project=('uuid', 'name',),
+        )
+
+    def get_filtered_field_names(self):
+        return ('project',)
+
+
+class OfferingCreateSerializer(OfferingSerializer):
     """
-    Serializer is built on top WALDUR_SUPPORT['OFFERING'] configuration.
+    Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
 
     Each configured field get's converted to serializer field according to field type in the configuration.
 
@@ -344,91 +370,98 @@ class OfferingSerializer(serializers.HyperlinkedModelSerializer):
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail',
-        queryset=structure_models.Project.objects.all(),
-        lookup_field='uuid',
-        write_only=True,
-    )
-    name = serializers.CharField(max_length=255, write_only=True)
-    description = serializers.CharField(required=False, max_length=255, write_only=True)
-    type = serializers.CharField(max_length=255)
+    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
+    description = serializers.CharField(required=False, help_text='Description to add to the issue.')
 
-    class Meta(object):
-        model = models.Offering
-        fields = ('url', 'uuid', 'name', 'description', 'project', 'type', 'issue', 'price', 'created', 'modified')
-        read_only_fields = ('type', 'price', 'issue', 'created', 'modified')
+    class Meta(OfferingSerializer.Meta):
+        fields = OfferingSerializer.Meta.fields + ('description',)
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            project={'lookup_field': 'uuid',
+                     'view_name': 'project-detail',
+                     'required': True,
+                     'allow_empty': False,
+                     'allow_null': False},
         )
 
-    @property
-    def configuration(self):
-        return settings.WALDUR_SUPPORT['OFFERING'][self.type]
+    def _get_offering_configuration(self, type):
+        return settings.WALDUR_SUPPORT['OFFERINGS'].get(type)
 
     def get_fields(self):
         result = super(OfferingSerializer, self).get_fields()
-        if hasattr(self, 'type'):
-            for attr_name in self.configuration['order']:
-                attr_options = self.configuration['options'].get(attr_name, {})
+        if hasattr(self, 'initial_data') and not hasattr(self, '_errors'):
+            type = self.initial_data['type']
+            configuration = self._get_offering_configuration(type)
+            for attr_name in configuration['order']:
+                attr_options = configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
 
         return result
 
-    def run_validation(self, data=None):
-        self.type = data.get('type', None)
-        if self.type and self.type not in settings.WALDUR_SUPPORT['OFFERING']:
-            raise serializers.ValidationError('Provided offering "%s" is not registered' % self.type)
+    def _validate_type(self, type):
+        type = self._get_offering_configuration(type)
+        if type is None:
+            raise serializers.ValidationError({'type': 'Type configuration could not be found.'})
 
-        return super(OfferingSerializer, self).run_validation(data)
+    def validate_empty_values(self, data):
+        if 'type' not in data or ('type' in data and data['type'] is None):
+            raise serializers.ValidationError({'type': 'This field is required.'})
+        else:
+            self._validate_type(data['type'])
+
+        return super(OfferingSerializer, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):
-        filed_type = attr_options.get('type', None)
+        filed_type = attr_options.get('type')
         if filed_type is None or filed_type.lower() == 'string':
             field = serializers.CharField(max_length=255, write_only=True)
         elif filed_type.lower() == 'integer':
             field = serializers.IntegerField(write_only=True)
         else:
             raise NotImplementedError('Type "%s" can not be serialized.' % type)
-        default_value = attr_options.get('default', None)
+        default_value = attr_options.get('default')
         if default_value:
             field.default = default_value
             field.required = False
+
+        field.label = attr_options.get('label')
+        field.help_text = attr_options.get('help_text')
+
         return field
 
     def create(self, validated_data):
-        self.project = validated_data.pop('project')
-        type_label = self.configuration.get('label', self.type)
+        project = validated_data['project']
+        type = validated_data['type']
+        offering_configuration = self._get_offering_configuration(type)
+        type_label = offering_configuration.get('label', type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
-            project=self.project,
-            customer=self.project.customer,
-            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_TYPE'],
+            project=project,
+            customer=project.customer,
+            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
             summary='Request for \'%s\'' % type_label,
-            description=self._form_description(validated_data, validated_data.pop('description', None))
+            description=self._form_description(offering_configuration, validated_data)
         )
 
         offering = models.Offering.objects.create(
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
-            description=issue.description,
-            type=self.type,
-            type_label=type_label)
+            type=type)
 
         return offering
 
-    def _form_description(self, validated_data, appendix):
+    def _form_description(self, configuration, validated_data):
         result = []
-        for key in validated_data:
-            label = self.configuration['options'].get(key, {})
+
+        for key in configuration['order']:
+            label = configuration['options'].get(key, {})
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))
 
-        if appendix:
-            result.append('\n %s' % appendix)
+        if validated_data['description']:
+            result.append('\n %s' % validated_data['description'])
 
         return '\n'.join(result)
 

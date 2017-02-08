@@ -39,8 +39,8 @@ class SupportExtension(NodeConductorExtension):
                     '{% endif %}'
                 ),
             },
-            'DEFAULT_OFFERING_TYPE': 'Service Request',
-            'OFFERING': {
+            'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
+            'OFFERINGS': {
                 'custom_vpc': {
                     'label': 'Custom VPC',
                     'order': ['storage', 'ram', 'cpu_count'],

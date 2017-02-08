@@ -20,4 +20,5 @@ PERMISSION_LOGICS = (
         any_permission=True,
     )),
     ('support.Comment', StaffPermissionLogic(any_permission=True)),
+    ('support.Offering', StaffPermissionLogic(any_permission=True)),
 )

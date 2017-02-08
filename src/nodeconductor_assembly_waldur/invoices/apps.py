@@ -1,15 +1,15 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
-from nodeconductor_assembly_waldur.packages import models as packages_models
-from nodeconductor_assembly_waldur.support import models as support_models
-
 
 class InvoiceConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.invoices'
     verbose_name = 'Waldur assembly Invoices'
 
     def ready(self):
+        from nodeconductor_assembly_waldur.support import models as support_models
+        from nodeconductor_assembly_waldur.packages import models as packages_models
+
         from . import handlers, models
 
         signals.post_save.connect(
