@@ -24,9 +24,23 @@ class SupportExtension(NodeConductorExtension):
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
+                'summary': '{{issue.summary}}',
+                'description': (
+                    'Description: {{issue.description}}\n'
+                    '{% if issue.project %}'
+                    'Project Name: {{issue.project.name}}\n'
+                    '{% endif %}'
+                    '{% if issue.customer %}'
+                    'Organization Name: {{issue.customer.name}}\n'
+                    '{% endif %}'
+                    '{% if issue.resource %}'
+                    'Service Type: {{issue.resource.service_project_link.service.type}}\n'
+                    'Affected Resource Name: {{issue.resource}}\n'
+                    '{% endif %}'
+                ),
             },
-            'DEFAULT_OFFERING_TYPE': 'Service Request',
-            'OFFERING': {
+            'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
+            'OFFERINGS': {
                 'custom_vpc': {
                     'label': 'Custom VPC',
                     'order': ['storage', 'ram', 'cpu_count'],

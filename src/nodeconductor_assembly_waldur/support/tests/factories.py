@@ -15,6 +15,10 @@ class SupportUserFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'user-%s' % n)
     user = factory.SubFactory(structure_factories.UserFactory)
 
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-user-list')
+
 
 class IssueFactory(factory.DjangoModelFactory):
     class Meta(object):
@@ -64,7 +68,8 @@ class OfferingFactory(factory.DjangoModelFactory):
         model = models.Offering
 
     issue = factory.SubFactory(IssueFactory)
-    price = fuzzy.FuzzyInteger(0, 10)
+    price = fuzzy.FuzzyInteger(1, 10)
+    project = factory.SelfAttribute('issue.project')
 
     @classmethod
     def get_url(cls, offering=None, action=None):

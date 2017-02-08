@@ -25,3 +25,15 @@ def log_issue_delete(sender, instance, **kwargs):
         event_context={
             'issue': instance,
         })
+
+
+def log_offering_state_changed(sender, instance, **kwargs):
+    state = instance.state
+    if state != instance.tracker.previous('state'):
+        event_logger.waldur_offering.info(
+            'Offering state has changed to {offering_state}',
+            event_type='offering_state_changed',
+            event_context={
+                'offering': instance,
+            }
+        )

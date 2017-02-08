@@ -1,14 +1,15 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
-from nodeconductor_assembly_waldur.packages import models as packages_models
-
 
 class InvoiceConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.invoices'
     verbose_name = 'Waldur assembly Invoices'
 
     def ready(self):
+        from nodeconductor_assembly_waldur.support import models as support_models
+        from nodeconductor_assembly_waldur.packages import models as packages_models
+
         from . import handlers, models
 
         signals.post_save.connect(
@@ -21,6 +22,18 @@ class InvoiceConfig(AppConfig):
             handlers.update_invoice_on_openstack_package_deletion,
             sender=packages_models.OpenStackPackage,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_on_openstack_package_deletion',
+        )
+
+        signals.post_save.connect(
+            handlers.add_new_offering_details_to_invoice,
+            sender=support_models.Offering,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.add_new_offering_details_to_invoice',
+        )
+
+        signals.pre_delete.connect(
+            handlers.update_invoice_on_offering_deletion,
+            sender=support_models.Offering,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_on_offering_deletion',
         )
 
         signals.pre_save.connect(

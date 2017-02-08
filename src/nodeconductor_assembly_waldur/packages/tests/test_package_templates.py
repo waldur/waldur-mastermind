@@ -8,13 +8,16 @@ from . import factories, fixtures
 class PackageTemplateListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.PackageFixture()
-        self.package_template = self.fixture.openstack_template
         self.url = factories.PackageTemplateFactory.get_list_url()
 
     @data('staff', 'owner', 'manager', 'admin', 'user')
     def test_user_can_list_package_templates(self, user):
+        package_template = self.fixture.openstack_template
+
+        url = factories.PackageTemplateFactory.get_list_url()
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
+
         self.assertEqual(len(response.data), 1)
 
 

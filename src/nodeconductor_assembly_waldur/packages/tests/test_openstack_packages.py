@@ -41,7 +41,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
     def get_valid_payload(self):
         spl = self.fixture.openstack_spl
-        spl_url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
+        spl_url = factories.OpenStackServiceProjectLinkFactory.get_url(spl)
         template = factories.PackageTemplateFactory(service_settings=spl.service.settings)
         return {
             'service_project_link': spl_url,
@@ -81,8 +81,26 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         package = models.OpenStackPackage.objects.get(uuid=response.data['uuid'])
         tenant, template = package.tenant, package.template
-        self.assertDictEqual(
-            tenant.extra_configuration, {'package_name': template.name, 'package_uuid': template.uuid.hex})
+        self.assertDictEqual(tenant.extra_configuration, {
+            'package_name': template.name,
+            'package_uuid': template.uuid.hex,
+            'package_category': template.get_category_display(),
+        })
+
+    def test_user_cannot_create_openstack_package_if_template_is_archived(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        spl = self.fixture.openstack_spl
+        spl_url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
+        template = factories.PackageTemplateFactory(archived=True,
+                                                    service_settings=spl.service.settings)
+        payload = {
+            'service_project_link': spl_url,
+            'name': 'test_package',
+            'template': factories.PackageTemplateFactory.get_url(template),
+        }
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @ddt
@@ -158,6 +176,17 @@ class OpenStackPackageExtendTest(test.APITransactionTestCase):
         payload = self.get_valid_payload()
         response = self.client.post(self.extend_url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_after_package_extension_tenant_is_updated(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.package.tenant.refresh_from_db()
+        self.assertDictEqual(self.package.tenant.extra_configuration, {
+            'package_name': self.new_template.name,
+            'package_uuid': self.new_template.uuid.hex,
+            'package_category': self.new_template.get_category_display(),
+        })
 
     # Helper methods
     def get_valid_payload(self, template=None, package=None):

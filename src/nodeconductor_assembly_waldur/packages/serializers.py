@@ -27,7 +27,7 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.PackageTemplate
         fields = (
             'url', 'uuid', 'name', 'description', 'service_settings',
-            'price', 'monthly_price', 'icon_url', 'components', 'category'
+            'price', 'monthly_price', 'icon_url', 'components', 'category', 'archived'
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -50,6 +50,15 @@ def _set_tenant_quotas(tenant, template):
         tenant.set_quota_limit(quota_name, components[component_type])
 
 
+def _set_tenant_extra_configuration(tenant, template):
+    tenant.extra_configuration = {
+        'package_name': template.name,
+        'package_uuid': template.uuid.hex,
+        'package_category': template.get_category_display(),
+    }
+    tenant.save()
+
+
 class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     template = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
@@ -67,7 +76,13 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             raise serializers.ValidationError('Only staff, owner or manager can order package.')
         return spl
 
-    validate_template = _check_template_service_settings
+    def validate_template(self, template):
+        template = _check_template_service_settings(self, template)
+
+        if template.archived:
+            raise serializers.ValidationError('New package cannot be created for archived template.')
+
+        return template
 
     def validate(self, attrs):
         """ Additionally check that template and service project link belong to the same service settings """
@@ -84,9 +99,10 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         """ Create tenant and service settings from it """
         template = validated_data.pop('template')
         tenant = super(OpenStackPackageCreateSerializer, self).create(validated_data)
-        tenant.extra_configuration = {'package_name': template.name, 'package_uuid': template.uuid.hex}
-        tenant.save()
+
         _set_tenant_quotas(tenant, template)
+        _set_tenant_extra_configuration(tenant, template)
+
         service_settings = self._create_service_settings(tenant)
         package = models.OpenStackPackage.objects.create(
             tenant=tenant,
@@ -194,8 +210,10 @@ class OpenStackPackageExtendSerializer(structure_serializers.PermissionFieldFilt
         package = validated_data['package']
         new_template = validated_data['template']
         service_settings = package.service_settings
+
         tenant = package.tenant
         _set_tenant_quotas(tenant, new_template)
+        _set_tenant_extra_configuration(tenant, new_template)
 
         package.delete()
         new_package = models.OpenStackPackage.objects.create(

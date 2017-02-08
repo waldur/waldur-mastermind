@@ -17,7 +17,7 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
             invoice = models.Invoice.objects.get(customer=fixture.customer)
 
             # Create monthly invoices
-            tasks.create_monthly_invoices_for_packages()
+            tasks.create_monthly_invoices()
 
             # Check that old invoices has changed the state
             invoice.refresh_from_db()
@@ -38,7 +38,7 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
             invoice2 = factories.InvoiceFactory()
 
         with freeze_time('2017-02-4 00:00:00'):
-            tasks.create_monthly_invoices_for_packages()
+            tasks.create_monthly_invoices()
             invoice1.refresh_from_db()
             self.assertEqual(invoice1.state, models.Invoice.States.CREATED,
                              'Invoice for previous year is not marked as CREATED')

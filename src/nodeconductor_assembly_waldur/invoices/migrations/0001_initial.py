@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 ('month', models.PositiveSmallIntegerField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_month, validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(12)])),
                 ('year', models.PositiveSmallIntegerField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_year)),
                 ('state', models.CharField(default='pending', max_length=7, choices=[('billed', 'Billed'), ('paid', 'Paid'), ('pending', 'Pending')])),
-                ('customer', models.ForeignKey(related_name='+', to='structure.Customer')),
+                ('customer', models.ForeignKey(verbose_name='organization', related_name='+', to='structure.Customer')),
             ],
         ),
         migrations.CreateModel(

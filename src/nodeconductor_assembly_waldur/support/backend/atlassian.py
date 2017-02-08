@@ -91,7 +91,7 @@ class JiraBackend(SupportBackend):
     def _get_first_sla_field(self, backend_issue):
         field_name = self._get_field_id_by_name(self.issue_settings['sla_field'])
         value = getattr(backend_issue.fields, field_name, None)
-        if value:
+        if value and hasattr(value, 'ongoingCycle'):
             epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
             if epoch_milliseconds:
                 return datetime.fromtimestamp(epoch_milliseconds / 1000.0)

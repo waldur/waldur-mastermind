@@ -8,6 +8,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
+from model_utils import FieldTracker
 
 from model_utils.models import TimeStampedModel
 
@@ -47,7 +48,8 @@ class Issue(core_models.UuidMixin, structure_models.StructureLoggableMixin, Time
     assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True,
                                  help_text='Help desk user who will implement the issue')
 
-    customer = models.ForeignKey(structure_models.Customer, related_name='issues', blank=True, null=True)
+    customer = models.ForeignKey(
+        structure_models.Customer, verbose_name='organization', related_name='issues', blank=True, null=True)
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)
 
     resource_content_type = models.ForeignKey(ContentType, null=True)
@@ -108,10 +110,18 @@ class Comment(core_models.UuidMixin, TimeStampedModel):
         return self.description[:50]
 
 
+@python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
-               core_models.DescribableMixin,
+               structure_models.StructureLoggableMixin,
                TimeStampedModel):
+
+    class Meta:
+        ordering = ['-created']
+
+    class Permissions(object):
+        customer_path = 'project__customer'
+        project_path = 'project'
 
     class States(object):
         REQUESTED = 'requested'
@@ -120,12 +130,29 @@ class Offering(core_models.UuidMixin,
 
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
-    type = models.CharField(blank=True, max_length=255)
-    type_label = models.CharField(blank=True, max_length=255)
+    type = models.CharField(max_length=255)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                help_text='The price per unit of offering',
+                                help_text='Price per day',
                                 verbose_name='Price per day')
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
+
+    tracker = FieldTracker()
+
+    def get_log_fields(self):
+        return super(Offering, self).get_log_fields() + ('state', )
+
+    @property
+    def type_label(self):
+        offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
+        type_settings = offerings.get(self.type, {})
+        return type_settings.get('label', None)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-offering'
+
+    def __str__(self):
+        return '{}: {}'.format(self.type_label or self.name, self.state)
