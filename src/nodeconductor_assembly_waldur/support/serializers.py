@@ -431,8 +431,8 @@ class OfferingCreateSerializer(OfferingSerializer):
         return field
 
     def create(self, validated_data):
-        project = validated_data.pop('project')
-        type = validated_data.pop('type')
+        project = validated_data['project']
+        type = validated_data['type']
         offering_configuration = self._get_offering_configuration(type)
         type_label = offering_configuration.get('label', type)
         issue = models.Issue.objects.create(
@@ -454,15 +454,14 @@ class OfferingCreateSerializer(OfferingSerializer):
 
     def _form_description(self, configuration, validated_data):
         result = []
-        appendix = validated_data.pop('description', None)
 
-        for key in validated_data:
+        for key in configuration['order']:
             label = configuration['options'].get(key, {})
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))
 
-        if appendix:
-            result.append('\n %s' % appendix)
+        if validated_data['description']:
+            result.append('\n %s' % validated_data['description'])
 
         return '\n'.join(result)
 
