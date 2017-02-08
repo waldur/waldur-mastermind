@@ -70,7 +70,7 @@ class OfferingRetrieveTest(BaseOfferingTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(offering.uuid.hex, response.data[0][u'uuid'])
+        self.assertEqual(offering.uuid.hex, response.data[0]['uuid'])
 
     def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
         self.fixture.offering
