@@ -431,30 +431,33 @@ class OfferingCreateSerializer(OfferingSerializer):
         return field
 
     def create(self, validated_data):
-        self.project = validated_data.pop('project')
-        self.type = validated_data.pop('type')
-        type_label = self._get_offering_configuration(self.type).get('label', self.type)
+        project = validated_data.pop('project')
+        type = validated_data.pop('type')
+        offering_configuration = self._get_offering_configuration(type)
+        type_label = offering_configuration.get('label', type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
-            project=self.project,
-            customer=self.project.customer,
+            project=project,
+            customer=project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
             summary='Request for \'%s\'' % type_label,
-            description=self._form_description(validated_data, validated_data.pop('description', None))
+            description=self._form_description(offering_configuration, validated_data)
         )
 
         offering = models.Offering.objects.create(
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
-            type=self.type)
+            type=type)
 
         return offering
 
-    def _form_description(self, validated_data, appendix):
+    def _form_description(self, configuration, validated_data):
         result = []
+        appendix = validated_data.pop('description', None)
+
         for key in validated_data:
-            label = self._get_offering_configuration(self.type)['options'].get(key, {})
+            label = configuration['options'].get(key, {})
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))
 
