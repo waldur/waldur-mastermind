@@ -326,10 +326,11 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+    state = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'type_label', 'price', 'created', 'modified',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'state', 'type_label', 'price', 'created', 'modified',
                   'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid')
         read_only_fields = ('type_label', 'issue', 'price', 'state')
