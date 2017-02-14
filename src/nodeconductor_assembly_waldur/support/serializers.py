@@ -461,7 +461,7 @@ class OfferingCreateSerializer(OfferingSerializer):
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))
 
-        if validated_data['description']:
+        if 'description' in validated_data:
             result.append('\n %s' % validated_data['description'])
 
         return '\n'.join(result)
