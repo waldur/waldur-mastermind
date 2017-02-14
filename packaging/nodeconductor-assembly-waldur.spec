@@ -34,7 +34,7 @@ rm -rf %{buildroot}
 %{__python} setup.py install -O1 --root=%{buildroot}
 
 install -d %{buildroot}%{_bindir}
-install usr/bin/%{name}-check %{buildroot}%{_bindir}
+install packaging/usr/bin/%{name}-check %{buildroot}%{_bindir}
 
 %clean
 rm -rf %{buildroot}
