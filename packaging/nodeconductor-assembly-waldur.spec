@@ -42,6 +42,7 @@ rm -rf %{buildroot}
 %files
 %defattr(-,root,root)
 %{python_sitelib}/*
+%{_bindir}/*
 
 %defattr(-,root,root)
 
