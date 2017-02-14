@@ -12,7 +12,7 @@ from nodeconductor_assembly_waldur.packages import models
 
 class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
     def value_from_datadict(self, data, files, name):
-        value = super(GBtoMBWidget, self).value_from_datadict(data, files, name)
+        value = super(GBtoMBWidget, self).value_from_datadict(data, files, name) or 0
         value = int(value) * 1024
         return value
 
@@ -42,7 +42,7 @@ class PriceForMBinGBWidget(forms.NumberInput):
         super(PriceForMBinGBWidget, self).__init__(attrs)
 
     def value_from_datadict(self, data, files, name):
-        value = super(PriceForMBinGBWidget, self).value_from_datadict(data, files, name)
+        value = super(PriceForMBinGBWidget, self).value_from_datadict(data, files, name) or 0
         value = Decimal(value) / 1024
         return value
 
