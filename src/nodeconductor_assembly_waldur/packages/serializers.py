@@ -123,6 +123,7 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             backend_url=admin_settings.backend_url,
             username=tenant.user_username,
             password=tenant.user_password,
+            domain=admin_settings.domain,
             options={
                 'availability_zone': tenant.availability_zone,
                 'tenant_id': tenant.backend_id,
