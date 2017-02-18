@@ -8,7 +8,7 @@ install_requires = [
     'nodeconductor_auth_openid>0.2.3',
     'nodeconductor_aws>0.2.1',
     'nodeconductor_digitalocean>0.2.0',
-    'nodeconductor_openstack>0.16.0',
+    'nodeconductor_openstack>0.18.0',
 ]
 
 test_requires = [
