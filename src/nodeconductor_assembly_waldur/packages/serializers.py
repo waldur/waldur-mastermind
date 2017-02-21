@@ -56,6 +56,8 @@ def _set_tenant_extra_configuration(tenant, template):
         'package_uuid': template.uuid.hex,
         'package_category': template.get_category_display(),
     }
+    for component in template.components.all():
+        tenant.extra_configuration[component.type] = component.amount
     tenant.save()
 
 
