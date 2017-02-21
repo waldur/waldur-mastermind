@@ -12,6 +12,7 @@ class OpenStackPackageLogger(EventLogger):
             'customers': event_types,
             'packages': event_types,
         }
+        nullable_fields = ('service_settings',)
 
 
 event_logger.register('openstack_package', OpenStackPackageLogger)

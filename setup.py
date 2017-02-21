@@ -5,10 +5,10 @@ install_requires = [
     'jira>=1.0.7',
     'nodeconductor>0.124.0',
     'nodeconductor_auth_social>0.2.1',
-    'nodeconductor_auth_openid>=0.2.2',
+    'nodeconductor_auth_openid>0.2.3',
     'nodeconductor_aws>0.2.1',
     'nodeconductor_digitalocean>0.2.0',
-    'nodeconductor_openstack>0.15.3',
+    'nodeconductor_openstack>0.18.0',
 ]
 
 test_requires = [
@@ -19,7 +19,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.2.3',
+    version='2.3.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',

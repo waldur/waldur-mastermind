@@ -1,4 +1,4 @@
-Dear Sir or Madam,
+Hello,
 
-Please follow the link below to view {{ customer }}'s invoice for {{ month }}/{{ year }}:
+Please follow the link below to see {{ customer }}'s accounting information for {{ month }}/{{ year }}:
 {{ link }}
