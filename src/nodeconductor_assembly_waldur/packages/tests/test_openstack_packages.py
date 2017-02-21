@@ -85,6 +85,9 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
             'package_name': template.name,
             'package_uuid': template.uuid.hex,
             'package_category': template.get_category_display(),
+            'cores': template.components.get(type='cores').amount,
+            'ram': template.components.get(type='ram').amount,
+            'storage': template.components.get(type='storage').amount,
         })
 
     def test_user_cannot_create_openstack_package_if_template_is_archived(self):
