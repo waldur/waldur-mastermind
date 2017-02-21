@@ -186,6 +186,9 @@ class OpenStackPackageExtendTest(test.APITransactionTestCase):
             'package_name': self.new_template.name,
             'package_uuid': self.new_template.uuid.hex,
             'package_category': self.new_template.get_category_display(),
+            'cores': self.new_template.components.get(type='cores').amount,
+            'ram': self.new_template.components.get(type='ram').amount,
+            'storage': self.new_template.components.get(type='storage').amount,
         })
 
     # Helper methods
