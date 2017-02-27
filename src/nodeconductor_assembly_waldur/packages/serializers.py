@@ -132,7 +132,6 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             },
         )
         service = openstack_tenant_models.OpenStackTenantService.objects.create(
-            name=tenant.name,
             settings=service_settings,
             customer=customer,
         )
