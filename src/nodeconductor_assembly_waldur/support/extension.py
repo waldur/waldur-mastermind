@@ -41,7 +41,7 @@ class SupportExtension(NodeConductorExtension):
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
             'OFFERINGS': {
-                # Uncomment for default offerings setup.
+                # An example of configuration for debugging purposes.
                 # 'custom_vpc': {
                 #     'label': 'Custom VPC',
                 #     'order': ['storage', 'ram', 'cpu_count'],
