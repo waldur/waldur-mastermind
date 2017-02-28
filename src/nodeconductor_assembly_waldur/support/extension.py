@@ -41,27 +41,28 @@ class SupportExtension(NodeConductorExtension):
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
             'OFFERINGS': {
-                'custom_vpc': {
-                    'label': 'Custom VPC',
-                    'order': ['storage', 'ram', 'cpu_count'],
-                    'options': {
-                        'storage': {
-                            'type': 'integer',
-                            'label': 'Max storage, GB',
-                            'help_text': 'VPC storage limit in GB.',
-                        },
-                        'ram': {
-                            'type': 'integer',
-                            'label': 'Max RAM, GB',
-                            'help_text': 'VPC RAM limit in GB.',
-                        },
-                        'cpu_count': {
-                            'type': 'integer',
-                            'label': 'Max vCPU',
-                            'help_text': 'VPC CPU count limit.',
-                        },
-                    },
-                },
+                # Uncomment for default offerings setup.
+                # 'custom_vpc': {
+                #     'label': 'Custom VPC',
+                #     'order': ['storage', 'ram', 'cpu_count'],
+                #     'options': {
+                #         'storage': {
+                #             'type': 'integer',
+                #             'label': 'Max storage, GB',
+                #             'help_text': 'VPC storage limit in GB.',
+                #         },
+                #         'ram': {
+                #             'type': 'integer',
+                #             'label': 'Max RAM, GB',
+                #             'help_text': 'VPC RAM limit in GB.',
+                #         },
+                #         'cpu_count': {
+                #             'type': 'integer',
+                #             'label': 'Max vCPU',
+                #             'help_text': 'VPC CPU count limit.',
+                #         },
+                #     },
+                # },
             },
         }
 
