@@ -56,6 +56,8 @@ def _set_tenant_extra_configuration(tenant, template):
         'package_uuid': template.uuid.hex,
         'package_category': template.get_category_display(),
     }
+    for component in template.components.all():
+        tenant.extra_configuration[component.type] = component.amount
     tenant.save()
 
 
@@ -130,7 +132,6 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             },
         )
         service = openstack_tenant_models.OpenStackTenantService.objects.create(
-            name=tenant.name,
             settings=service_settings,
             customer=customer,
         )
