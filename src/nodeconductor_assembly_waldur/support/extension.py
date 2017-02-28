@@ -42,6 +42,7 @@ class SupportExtension(NodeConductorExtension):
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
             'OFFERINGS': {
                 # An example of configuration for debugging purposes.
+                # Add it to settings file to enable Custom VPC offering
                 # 'custom_vpc': {
                 #     'label': 'Custom VPC',
                 #     'order': ['storage', 'ram', 'cpu_count'],
