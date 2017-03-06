@@ -22,20 +22,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--scheme',
-            dest='scheme', default='http',
-            choices=['http', 'https'],
-            help='Used for API endpoints status check. Default is http.',
-        )
-        parser.add_argument(
-            '--domain',
-            dest='domain', default='localhost',
-            help='Used for API endpoints status check. Default is localhost.',
-        )
-        parser.add_argument(
-            '--port',
-            dest='port', default='',
-            help='Used for API endpoints status check. Default is 80.',
+            '--base-url',
+            dest='base_url', default='http://localhost',
+            help='Used for API endpoints status check. Default is "http://localhost".',
         )
         parser.add_argument(
             '--skip-endpoints',
@@ -104,20 +93,16 @@ class Command(BaseCommand):
 
         if skip_endpoints:
             self.stderr.write('API endpoints check skipped due to erred services')
+            exit(1)
         elif options['skip_endpoints']:
             self.stdout.write('API endpoints check skipped')
         else:
-            host = '{scheme}://{domain}{port}'.format(
-                scheme=options['scheme'],
-                domain=options['domain'],
-                port=':' + options['port'] if options['port'] else ''
-            )
-            self._check_api_endpoints(host)
+            self._check_api_endpoints(options['base_url'])
 
         # return logging level back
         logging.disable(logging.NOTSET)
 
-    def _check_api_endpoints(self, host):
+    def _check_api_endpoints(self, base_url):
         self.stdout.write('\nChecking Waldur MasterMind API endpoints...')
         inspector = EndpointInspector()
         endpoints = inspector.get_api_endpoints()
@@ -130,7 +115,7 @@ class Command(BaseCommand):
             if method != 'GET' or '{pk}' in path or '{uuid}' in path:
                 continue
 
-            url = host + path
+            url = base_url + path
             self.stdout.write(' Checking %s endpoint...' % url, ending='')
             try:
                 response = requests.get(url, headers={'Authorization': 'Token %s' % token.key})
