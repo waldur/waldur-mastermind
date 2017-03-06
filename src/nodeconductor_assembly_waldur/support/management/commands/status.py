@@ -22,24 +22,20 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--base-url',
-            dest='base_url', default='http://localhost',
-            help='Used for API endpoints status check. Default is "http://localhost".',
-        )
-        parser.add_argument(
-            '--skip-endpoints',
-            action='store_true', default=False, dest='skip_endpoints',
-            help='API endpoints will not be checked with this flag.',
+            '--check-api-endpoints-at',
+            dest='base_url', default=None,
+            help='Runs API endpoints check at specified base URL (i.e. http://example.com). '
+                 'If this argument is not provided, check will be skipped.',
         )
 
     def handle(self, *args, **options):
         success_status = self.style.SUCCESS(' [OK]')
         error_status = self.style.ERROR(' [ERROR]')
         output_messages = {
-            'database': ' - Database connection',
-            'workers': ' - Celery worker(s)',
-            'redis': ' - Redis broker',
-            'elasticsearch': ' - ElasticSearch backend',
+            'database': ' - Database %(vendor)s connection',
+            'workers': ' - Task runners (Celery workers)',
+            'redis': ' - Queue and cache server (Redis) connection',
+            'elasticsearch': ' - Event store (Elasticsearch) connection',
         }
         padding = len(max(output_messages.values(), key=len))
         # If services checks didn't pass, skip API endpoints check
@@ -50,7 +46,8 @@ class Command(BaseCommand):
         self.stdout.write('Checking Waldur MasterMind services...')
 
         # Check database connectivity
-        self.stdout.write(output_messages['database'].ljust(padding), ending='')
+        db_vendor = connection.vendor.capitalize().replace('sql', 'SQL').replace('Sql', 'SQL')
+        self.stdout.write((output_messages['database'] % {'vendor': db_vendor}).ljust(padding), ending='')
         try:
             connection.cursor()
         except OperationalError:
@@ -79,7 +76,7 @@ class Command(BaseCommand):
             self.stdout.write(output_messages['redis'].ljust(padding) + celery_results['redis'])
 
         # Check ElasticSearch
-        self.stdout.write(output_messages['elasticsearch'].rjust(padding), ending='')
+        self.stdout.write(output_messages['elasticsearch'].ljust(padding), ending='')
         es_client = ElasticsearchClient()
         try:
             if es_client.client.ping():
@@ -94,7 +91,7 @@ class Command(BaseCommand):
         if skip_endpoints:
             self.stderr.write('API endpoints check skipped due to erred services')
             exit(1)
-        elif options['skip_endpoints']:
+        elif options['base_url'] is None:
             self.stdout.write('API endpoints check skipped')
         else:
             self._check_api_endpoints(options['base_url'])
