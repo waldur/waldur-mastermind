@@ -153,7 +153,7 @@ class ServiceDeskBackend(JiraBackend):
         url = self.manager._get_url('issue/{0}/comment'.format(issue))
         response = self.manager._session.post(url, data=json.dumps(data))
 
-        comment = Comment(self._options, self._session, raw=json_loads(response))
+        comment = Comment(self.manager._options, self.manager._session, raw=json_loads(response))
         return comment
 
     @reraise_exceptions
