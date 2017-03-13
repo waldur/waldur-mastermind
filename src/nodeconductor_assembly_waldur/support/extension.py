@@ -46,6 +46,9 @@ class SupportExtension(NodeConductorExtension):
                 # 'custom_vpc': {
                 #     'label': 'Custom VPC',
                 #     'order': ['storage', 'ram', 'cpu_count'],
+                #     'icon': 'fa-gear',
+                #     'category': 'Custom requests',
+                #     'description': 'Custom VPC example.',
                 #     'options': {
                 #         'storage': {
                 #             'type': 'integer',
