@@ -371,7 +371,6 @@ class OfferingCreateSerializer(OfferingSerializer):
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys(), allow_blank=False)
     description = serializers.CharField(required=False, help_text='Description to add to the issue.')
 
     class Meta(OfferingSerializer.Meta):
@@ -398,11 +397,15 @@ class OfferingCreateSerializer(OfferingSerializer):
                 attr_options = configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
 
+        # choises have to be added dynamically so that unit tests can mock offering configuration.
+        # otherwise it is always going to be a default set up.
+        result['type'] = serializers.ChoiceField(allow_blank=False, choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+
         return result
 
     def _validate_type(self, type):
-        type = self._get_offering_configuration(type)
-        if type is None:
+        offering_configuration = self._get_offering_configuration(type)
+        if offering_configuration is None:
             raise serializers.ValidationError({'type': 'Type configuration could not be found.'})
 
     def validate_empty_values(self, data):
