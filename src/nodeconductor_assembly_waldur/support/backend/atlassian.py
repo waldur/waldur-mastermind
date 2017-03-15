@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from datetime import datetime
 import functools
+from six.moves.html_parser import HTMLParser
 import json
 
 from django.conf import settings
@@ -57,10 +58,11 @@ class JiraBackend(SupportBackend):
     def _issue_to_dict(self, issue):
         """ Convert issue to dict that can be accepted by JIRA as input parameters """
         caller = issue.caller.full_name or issue.caller.username
+        parser = HTMLParser()
         args = {
             'project': self.project_settings['key'],
-            'summary': issue.summary,
-            'description': issue.description,
+            'summary': parser.unescape(issue.summary),
+            'description': parser.unescape(issue.description),
             'issuetype': {'name': issue.type},
             self._get_field_id_by_name(self.issue_settings['caller_field']): caller,
         }
@@ -153,7 +155,7 @@ class ServiceDeskBackend(JiraBackend):
         url = self.manager._get_url('issue/{0}/comment'.format(issue))
         response = self.manager._session.post(url, data=json.dumps(data))
 
-        comment = Comment(self._options, self._session, raw=json_loads(response))
+        comment = Comment(self.manager._options, self.manager._session, raw=json_loads(response))
         return comment
 
     @reraise_exceptions

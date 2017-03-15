@@ -24,7 +24,6 @@ class OpenStackFixture(ProjectFixture):
         return openstack_models.OpenStackService.objects.create(
             customer=self.customer,
             settings=self.openstack_service_settings,
-            name=self.openstack_service_settings.name
         )
 
     @cached_property

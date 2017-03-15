@@ -1,18 +1,18 @@
 Name: nodeconductor-assembly-waldur
 Summary: NodeConductor assembly for Waldur project
 Group: Development/Libraries
-Version: 2.3.0
+Version: 2.4.0
 Release: 1.el7
 License: MIT
 Url: http://nodeconductor.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor >= 0.120.0
-Requires: nodeconductor-auth-social > 0.2.1
-Requires: nodeconductor-auth-openid >= 0.2.2
-Requires: nodeconductor-aws > 0.1.4
-Requires: nodeconductor-digitalocean > 0.1.5
-Requires: nodeconductor-openstack >= 0.15.3
+Requires: nodeconductor > 0.126.0
+Requires: nodeconductor-auth-social >= 0.4.0
+Requires: nodeconductor-auth-openid >= 0.2.3
+Requires: nodeconductor-aws >= 0.2.1
+Requires: nodeconductor-digitalocean >= 0.4.0
+Requires: nodeconductor-openstack >= 0.20.0
 Requires: python-jira >= 1.0.7
 
 BuildArch: noarch
@@ -47,6 +47,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Wed Mar 15 2017 Jenkins <jenkins@opennodecloud.com> - 2.4.0-1.el7
+- New upstream release
+
 * Sat Feb 18 2017 Jenkins <jenkins@opennodecloud.com> - 2.3.0-1.el7
 - New upstream release
 
