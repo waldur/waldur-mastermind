@@ -7,12 +7,12 @@ License: MIT
 Url: http://nodeconductor.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor > 0.124.0
-Requires: nodeconductor-auth-social > 0.2.1
-Requires: nodeconductor-auth-openid >= 0.2.2
-Requires: nodeconductor-aws > 0.1.4
-Requires: nodeconductor-digitalocean > 0.1.5
-Requires: nodeconductor-openstack >= 0.15.3
+Requires: nodeconductor > 0.126.0
+Requires: nodeconductor-auth-social >= 0.4.0
+Requires: nodeconductor-auth-openid >= 0.2.3
+Requires: nodeconductor-aws >= 0.2.1
+Requires: nodeconductor-digitalocean >= 0.4.0
+Requires: nodeconductor-openstack >= 0.20.0
 Requires: python-jira >= 1.0.7
 
 BuildArch: noarch
