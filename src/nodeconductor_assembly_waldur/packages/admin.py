@@ -196,7 +196,9 @@ class PackageTemplateAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super(PackageTemplateAdmin, self).get_form(request, obj, **kwargs)
-        form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
+
+        if 'service_settings' in form.base_fields:
+            form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
         return form
 
 
