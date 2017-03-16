@@ -26,16 +26,22 @@ class SupportExtension(NodeConductorExtension):
                 'sla_field': 'Time to first response',
                 'summary': '{{issue.summary}}',
                 'description': (
-                    'Description: {{issue.description}}\n'
-                    '{% if issue.project %}'
-                    'Project Name: {{issue.project.name}}\n'
-                    '{% endif %}'
+                    '{{issue.description}}\n\n'
+                    '---\n'
+                    'Additional Info: \n'
                     '{% if issue.customer %}'
-                    'Organization Name: {{issue.customer.name}}\n'
+                    '- Organization: {{issue.customer.name}}\n'
+                    '{% endif %}'
+                    '{% if issue.project %}'
+                    '- Project: {{issue.project.name}}\n'
                     '{% endif %}'
                     '{% if issue.resource %}'
-                    'Service Type: {{issue.resource.service_project_link.service.type}}\n'
-                    'Affected Resource Name: {{issue.resource}}\n'
+                    '{% if issue.resource.service_project_link and issue.resource.service_project_link.service %}'
+                    '{% if issue.resource.service_project_link.service.type %}'
+                    '- Service type: {{issue.resource.service_project_link.service.type}}\n'
+                    '{% endif %}'
+                    '{% endif %}'
+                    '- Affected resource: {{issue.resource}}\n'
                     '{% endif %}'
                 ),
             },
