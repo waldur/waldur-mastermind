@@ -172,6 +172,7 @@ class PackageComponentInline(admin.TabularInline):
 
 
 class PackageTemplateAdmin(admin.ModelAdmin):
+    # WIKI: https://opennode.atlassian.net/wiki/display/WD/Shared+OpenStack+Provider+Management#SharedOpenStackProviderManagement-VPCPackagetemplatemanagement
     inlines = [PackageComponentInline]
     fields = ('name', 'category', 'description', 'archived', 'icon_url', 'service_settings')
     list_display = ('name', 'uuid', 'service_settings', 'price', 'archived', 'monthly_price', 'category')
