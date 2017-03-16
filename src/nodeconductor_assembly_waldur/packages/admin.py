@@ -7,6 +7,8 @@ from django.contrib import admin, messages
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 
+from nodeconductor.structure import models as structure_models
+
 from nodeconductor_assembly_waldur.packages import models
 
 
@@ -178,6 +180,7 @@ class PackageComponentInline(admin.TabularInline):
 
 
 class PackageTemplateAdmin(admin.ModelAdmin):
+    # WIKI: https://opennode.atlassian.net/wiki/display/WD/Shared+OpenStack+Provider+Management#SharedOpenStackProviderManagement-VPCPackagetemplatemanagement
     inlines = [PackageComponentInline]
     package_dependant_fields = ('name', 'category', 'service_settings')
     fields = package_dependant_fields + ('archived', 'icon_url', 'description')
@@ -197,6 +200,11 @@ class PackageTemplateAdmin(admin.ModelAdmin):
             message = 'Some fields cannot be changed as current template is being used by existing OpenStack packages.'
             messages.info(request, message)
         return super(PackageTemplateAdmin, self).changeform_view(request, object_id, form_url, extra_context)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super(PackageTemplateAdmin, self).get_form(request, obj, **kwargs)
+        form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
+        return form
 
 
 class OpenStackPackageAdmin(admin.ModelAdmin):
