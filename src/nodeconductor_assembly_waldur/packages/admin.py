@@ -194,13 +194,6 @@ class PackageTemplateAdmin(admin.ModelAdmin):
         else:
             return super(PackageTemplateAdmin, self).get_readonly_fields(request, obj)
 
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        template = self.get_object(request, object_id)
-        if template.is_read_only():
-            message = 'Some fields cannot be changed as current template is being used by existing OpenStack packages.'
-            messages.info(request, message)
-        return super(PackageTemplateAdmin, self).changeform_view(request, object_id, form_url, extra_context)
-
     def get_form(self, request, obj=None, **kwargs):
         form = super(PackageTemplateAdmin, self).get_form(request, obj, **kwargs)
         form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
