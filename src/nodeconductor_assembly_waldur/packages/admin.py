@@ -7,6 +7,8 @@ from django.contrib import admin
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 
+from nodeconductor.structure import models as structure_models
+
 from nodeconductor_assembly_waldur.packages import models
 
 
@@ -170,11 +172,17 @@ class PackageComponentInline(admin.TabularInline):
 
 
 class PackageTemplateAdmin(admin.ModelAdmin):
+    # WIKI: https://opennode.atlassian.net/wiki/display/WD/Shared+OpenStack+Provider+Management#SharedOpenStackProviderManagement-VPCPackagetemplatemanagement
     inlines = [PackageComponentInline]
     fields = ('name', 'category', 'description', 'archived', 'icon_url', 'service_settings')
     list_display = ('name', 'uuid', 'service_settings', 'price', 'archived', 'monthly_price', 'category')
     list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super(PackageTemplateAdmin, self).get_form(request, obj, **kwargs)
+        form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
+        return form
 
 
 class OpenStackPackageAdmin(admin.ModelAdmin):
