@@ -1,0 +1,14 @@
+{% extends "admin/change_form.html" %}
+
+{% block messages %}
+    {% if original.is_read_only %}
+    <ul class="messagelist">
+        <li class="warning">Some fields cannot be changed as current template is being used by existing OpenStack packages.</li>
+    </ul>
+    {% endif %}
+    {% if messages %}
+    <ul class="messagelist">{% for message in messages %}
+      <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+    {% endfor %}</ul>
+    {% endif %}
+{% endblock messages %}

@@ -77,6 +77,9 @@ class PackageTemplate(core_models.UuidMixin,
     def get_url_name(cls):
         return 'package-template'
 
+    def is_read_only(self):
+        return self.openstack_packages.exists()
+
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
 
