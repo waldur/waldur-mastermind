@@ -60,3 +60,47 @@ class CommentDeleteTest(base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Comment.objects.filter(id=self.comment.id).exists())
+
+
+@ddt
+class CommentRetrieveTest(base.BaseTest):
+
+    def setUp(self):
+        super(CommentRetrieveTest, self).setUp()
+        self.comment = self.fixture.comment
+        self.comment.is_public = True
+        self.comment.save()
+
+    @data('owner', 'admin', 'manager')
+    def test_user_can_get_a_public_comment_if_he_is_an_issue_caller_and_has_no_role_access(self, user):
+        user = getattr(self.fixture, user)
+        issue = self.fixture.issue
+        issue.caller = user
+        issue.customer = None
+        issue.project = None
+        issue.save()
+        # add some noise
+        factories.CommentFactory(issue=issue)
+        self.client.force_authenticate(user)
+
+        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue__uuid': issue.uuid})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.comment.uuid.hex)
+
+    @data('owner', 'admin', 'manager')
+    def test_a_public_comment_is_not_duplicated_if_user_is_an_issue_caller_and_has_access(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        issue = self.fixture.issue
+        issue.caller = user
+        issue.save()
+        # add some noise
+        factories.CommentFactory(issue=issue)
+
+        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue__uuid': issue.uuid})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.comment.uuid.hex)

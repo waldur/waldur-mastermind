@@ -12,5 +12,9 @@ class SupportFixture(structure_fixtures.ServiceFixture):
         return factories.IssueFactory(customer=self.customer, project=self.project)
 
     @cached_property
+    def comment(self):
+        return factories.CommentFactory(issue=self.issue)
+
+    @cached_property
     def offering(self):
         return factories.OfferingFactory(issue=self.issue)

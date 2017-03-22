@@ -49,6 +49,7 @@ class CommentFactory(factory.DjangoModelFactory):
     author = factory.SubFactory(SupportUserFactory)
     backend_id = factory.Sequence(lambda n: 'key_%s' % n)
     description = factory.Sequence(lambda n: 'Comment-description-%s' % n)
+    is_public = False
 
     @classmethod
     def get_url(cls, comment=None, action=None):
