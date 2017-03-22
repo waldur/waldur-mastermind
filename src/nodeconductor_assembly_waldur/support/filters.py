@@ -68,6 +68,14 @@ class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
                queryset.filter(caller=request.user).distinct()
 
 
+class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
+    def filter_queryset(self, request, queryset, view):
+        return super(CommentIssueCallerOrRoleFilterBackend, self).filter_queryset(request,
+                                                                                  queryset,
+                                                                                  view).distinct() | \
+               queryset.filter(issue__caller=request.user).distinct()
+
+
 class CommentFilter(django_filters.FilterSet):
     description = django_filters.CharFilter(lookup_type='icontains')
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
