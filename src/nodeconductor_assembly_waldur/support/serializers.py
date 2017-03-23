@@ -306,7 +306,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
             if comment.description != backend_comment['body']:
                 defaults.update(dict(description=backend_comment['body']))
-                comment.description = backend_comment['body']
 
             if service_desk:
                 is_public = self._get_comment_public_field_value(backend_comment)
