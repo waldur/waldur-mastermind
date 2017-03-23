@@ -72,6 +72,8 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         fields = openstack_serializers.TenantSerializer.Meta.fields + ('template',)
 
     def validate_service_project_link(self, spl):
+        spl = super(OpenStackPackageCreateSerializer, self).validate_service_project_link(spl)
+
         user = self.context['request'].user
         if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
                 not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
