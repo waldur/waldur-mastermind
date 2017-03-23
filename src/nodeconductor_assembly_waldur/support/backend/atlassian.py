@@ -160,9 +160,9 @@ class ServiceDeskBackend(JiraBackend):
 
     def expand_comments(self, issue_key):
         """
-        Returns list of comments expanded with the 'properties' attribute.
-        An attribute is taken from JIRA by adding 'expand' query parameter to issue GET URL.
-        Jira does not indicate internal status of comments.
+        Returns a list of comments expanded with the 'properties' attribute.
+        An attribute is taken from JIRA by adding an 'expand' query parameter to the issue GET URL.
+        A method is required as Jira does not indicate internal status of comments.
         More info: https://jira.atlassian.com/browse/JSD-1261.
         :param issue_key: issue key to get comments from.
         :return: list of Jira comments as dictionaries.
