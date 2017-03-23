@@ -149,7 +149,7 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
             openstack_models.Tenant.Quotas.storage: PackageComponent.Types.STORAGE,
         }
 
-    def get_usage(self):
+    def get_quota_usage(self):
         """
         Returns map:
         {
