@@ -1,6 +1,8 @@
 from ddt import ddt, data
 from rest_framework import status
 
+from nodeconductor.structure.tests import factories as structure_factories
+
 from . import factories, base
 from .. import models
 
@@ -100,6 +102,26 @@ class CommentRetrieveTest(base.BaseTest):
         factories.CommentFactory(issue=issue)
 
         response = self.client.get(factories.CommentFactory.get_list_url(), {'issue__uuid': issue.uuid})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.comment.uuid.hex)
+
+    @data('owner', 'admin', 'manager')
+    def test_user_with_access_to_issue_resource_can_filter_comments_by_resource(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        issue = self.fixture.issue
+        issue.resource = self.fixture.resource
+        issue.save()
+        issue_without_a_resource = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
+        factories.CommentFactory(issue=issue_without_a_resource, is_public=True)
+
+        payload = {
+            'resource': structure_factories.TestInstanceFactory.get_url(self.fixture.resource),
+        }
+
+        response = self.client.get(factories.CommentFactory.get_list_url(), payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)

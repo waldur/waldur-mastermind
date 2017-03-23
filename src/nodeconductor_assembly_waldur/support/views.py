@@ -77,6 +77,7 @@ class CommentViewSet(core_views.ActionsViewSet):
     filter_backends = (
         filters.CommentIssueCallerOrRoleFilterBackend,
         DjangoFilterBackend,
+        filters.CommentIssueResourceFilterBackend,
     )
     filter_class = filters.CommentFilter
     queryset = models.Comment.objects.all()
