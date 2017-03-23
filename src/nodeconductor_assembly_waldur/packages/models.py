@@ -149,6 +149,23 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
             openstack_models.Tenant.Quotas.storage: PackageComponent.Types.STORAGE,
         }
 
+    def get_quota_usage(self):
+        """
+        Returns map:
+        {
+            'ram': ram_quota.usage,
+            'cores': vcpu_quota.usage,
+            'storage': storage_quota.usage,
+        }
+        """
+        mapping = self.get_quota_to_component_mapping()
+        usage = {}
+        quotas = {quota.name: quota.usage for quota in self.tenant.quotas.all()}
+        for quota, component_type in mapping.items():
+            if quota.name in quotas:
+                usage[component_type] = quotas[quota.name]
+        return usage
+
     class Meta(object):
         verbose_name = _('OpenStack VPC package')
         verbose_name_plural = _('OpenStack VPC packages')

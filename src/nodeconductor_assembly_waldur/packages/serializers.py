@@ -164,7 +164,7 @@ class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class OpenStackPackageExtendSerializer(structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer):
+class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer):
     package = serializers.HyperlinkedRelatedField(
         view_name='openstack-package-detail',
         lookup_field='uuid',
@@ -203,13 +203,14 @@ class OpenStackPackageExtendSerializer(structure_serializers.PermissionFieldFilt
             raise serializers.ValidationError(
                 "New package template cannot be the same as package's current template.")
 
+        usage = package.get_quota_usage()
         old_components = {component.type: component.amount for component in package.template.components.all()}
         for component in new_template.components.all():
             if component.type not in old_components:
                 raise serializers.ValidationError(
                     "Template's components must be the same as package template's components")
-            if component.amount < old_components[component.type]:
-                msg = "Template's {0} component must be larger or equal to package template's current {0} component."
+            if component.type in usage and usage[component.type] > component.amount:
+                msg = "Current usage of {0} quota is greater than new template's {0} component."
                 raise serializers.ValidationError(msg.format(component.get_type_display()))
         return attrs
 
