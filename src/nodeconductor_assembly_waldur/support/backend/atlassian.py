@@ -158,6 +158,21 @@ class ServiceDeskBackend(JiraBackend):
         comment = Comment(self.manager._options, self.manager._session, raw=json_loads(response))
         return comment
 
+    def expand_comments(self, issue_key):
+        """
+        Returns list of comments expanded with the 'properties' attribute.
+        An attribute is taken from JIRA by adding 'expand' query parameter to issue GET URL.
+        Jira does not indicate internal status of comments.
+        More info: https://jira.atlassian.com/browse/JSD-1261.
+        :param issue_key: issue key to get comments from.
+        :return: list of Jira comments as dictionaries.
+        """
+        url = self.manager._get_url('issue/{0}/comment?expand=properties'.format(issue_key))
+        response = self.manager._session.get(url)
+
+        backend_comments = json.loads(response.text)['comments']
+        return backend_comments
+
     @reraise_exceptions
     def create_issue(self, issue):
         if not issue.caller.email:

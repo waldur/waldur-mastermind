@@ -10,8 +10,9 @@ from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import models as structure_models, SupportedServices, serializers as structure_serializers
+from nodeconductor_assembly_waldur.support.backend.atlassian import ServiceDeskBackend
 
-from . import models
+from . import models, backend
 
 User = get_user_model()
 
@@ -288,27 +289,60 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     @transaction.atomic()
     def _update_comments(self, issue, fields):
-        backend_comments = {c['id']: c for c in fields['comment']['comments']}
+        active_backend = backend.get_active_backend()
+        service_desk = isinstance(active_backend, ServiceDeskBackend)
+        if service_desk:
+            comments = active_backend.expand_comments(issue.key)
+            backend_comments = {c['id']: c for c in comments}
+        else:
+            backend_comments = {c['id']: c for c in fields['comment']['comments']}
+
         comments = {c.backend_id: c for c in issue.comments.all()}
 
         for exist_comment_id in set(backend_comments) & set(comments):
             backend_comment = backend_comments[exist_comment_id]
             comment = comments[exist_comment_id]
+            defaults = {}
+
             if comment.description != backend_comment['body']:
+                defaults.update(dict(description=backend_comment['body']))
                 comment.description = backend_comment['body']
-                comment.save()
+
+            if service_desk:
+                is_public = self._get_comment_public_field_value(backend_comment)
+                if is_public != comment.is_public:
+                    defaults.update(dict(is_public=is_public))
+
+            if defaults:
+                models.Comment.objects.filter(pk=comment.pk).update(**defaults)
 
         for new_comment_id in set(backend_comments) - set(comments):
             backend_comment = backend_comments[new_comment_id]
             author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment['author']['key'])
-            models.Comment.objects.create(
+            defaults = dict(
                 issue=issue,
                 author=author,
                 description=backend_comment['body'],
                 backend_id=backend_comment['id'],
             )
 
+            if service_desk:
+                defaults.update(dict(is_public=self._get_comment_public_field_value(backend_comment)))
+
+            models.Comment.objects.create(**defaults)
+
         models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comments)).delete()
+
+    def _get_comment_public_field_value(self, backend_comment):
+        is_public = True
+
+        properties = backend_comment.get('properties', {})
+        internal_property = [property for property in properties if property.get('key') == 'sd.public.comment']
+        if internal_property:
+            is_internal = internal_property[0].get('value', {}).get('internal', False)
+            is_public = not is_internal
+
+        return is_public
 
     def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
