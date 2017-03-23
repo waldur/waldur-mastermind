@@ -62,6 +62,12 @@ class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
         return 'resource'
 
 
+class CommentIssueResourceFilterBackend(IssueResourceFilterBackend):
+
+    content_type_field = 'issue__resource_content_type'
+    object_id_field = 'issue__resource_object_id'
+
+
 class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     def filter_queryset(self, request, queryset, view):
         return super(IssueCallerOrRoleFilterBackend, self).filter_queryset(request, queryset, view).distinct() | \
