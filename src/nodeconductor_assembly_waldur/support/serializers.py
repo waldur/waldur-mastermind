@@ -213,6 +213,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
         UPDATED = 'jira:issue_updated'
         DELETED = 'jira:issue_deleted'
 
+    PUBLIC_COMMENT_KEY = 'sd.public.comment'
+
     def validate(self, attrs):
         if 'issue' not in self.initial_data:
             raise serializers.ValidationError('"issue" is missing in request data. Cannot process issue.')
@@ -302,23 +304,25 @@ class WebHookReceiverSerializer(serializers.Serializer):
         for exist_comment_id in set(backend_comments) & set(comments):
             backend_comment = backend_comments[exist_comment_id]
             comment = comments[exist_comment_id]
-            defaults = {}
 
+            update_fields = []
             if comment.description != backend_comment['body']:
-                defaults.update(dict(description=backend_comment['body']))
+                comment.description = backend_comment['body']
+                update_fields.append('description')
 
             if service_desk:
                 is_public = self._get_comment_public_field_value(backend_comment)
                 if is_public != comment.is_public:
-                    defaults.update(dict(is_public=is_public))
+                    comment.is_public = is_public
+                    update_fields.append('is_public')
 
-            if defaults:
-                models.Comment.objects.filter(pk=comment.pk).update(**defaults)
+            if update_fields:
+                comment.save(update_fields=update_fields)
 
         for new_comment_id in set(backend_comments) - set(comments):
             backend_comment = backend_comments[new_comment_id]
             author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment['author']['key'])
-            defaults = dict(
+            new_comment = models.Comment(
                 issue=issue,
                 author=author,
                 description=backend_comment['body'],
@@ -326,22 +330,23 @@ class WebHookReceiverSerializer(serializers.Serializer):
             )
 
             if service_desk:
-                defaults.update(dict(is_public=self._get_comment_public_field_value(backend_comment)))
+                new_comment.is_public = self._get_comment_public_field_value(backend_comment)
 
-            models.Comment.objects.create(**defaults)
+            new_comment.save()
 
         models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comments)).delete()
 
     def _get_comment_public_field_value(self, backend_comment):
-        is_public = True
-
         properties = backend_comment.get('properties', {})
-        internal_property = [property for property in properties if property.get('key') == 'sd.public.comment']
-        if internal_property:
-            is_internal = internal_property[0].get('value', {}).get('internal', False)
-            is_public = not is_internal
 
-        return is_public
+        try:
+            internal_property = next(p for p in properties if p.get('key') == self.PUBLIC_COMMENT_KEY)
+        except StopIteration:
+            return True
+
+        is_internal = internal_property.get('value', {}).get('internal', False)
+
+        return not is_internal
 
     def _get_support_user_by_field_name(self, fields, field_name):
         support_user = None
