@@ -167,7 +167,7 @@ class ServiceDeskBackend(JiraBackend):
         :param issue_key: issue key to get comments from.
         :return: list of Jira comments as dictionaries.
         """
-        url = self.manager._get_url('issue/{0}/comment?expand=properties'.format(issue_key))
+        url = self.manager._get_url('issue/%s/comment?expand=properties' % issue_key)
         response = self.manager._session.get(url)
 
         backend_comments = json.loads(response.text)['comments']
