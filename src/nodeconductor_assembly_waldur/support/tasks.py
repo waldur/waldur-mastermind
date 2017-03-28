@@ -1,6 +1,17 @@
-from celery import Task
+import logging
+
+from smtplib import SMTPException
+
+from celery import Task, shared_task
+from django.conf import settings
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+
 
 from . import backend, models
+
+
+logger = logging.getLogger(__name__)
 
 
 class SupportUserPullTask(Task):
@@ -16,3 +27,33 @@ class SupportUserPullTask(Task):
                 user.name = backend_user.name
                 user.save()
         models.SupportUser.objects.exclude(backend_id__in=[u.backend_id for u in backend_users]).delete()
+
+
+@shared_task(name='nodeconductor_assembly_waldur.support.send_issue_updated_notification')
+def send_issue_updated_notification(issue):
+    subject = 'Your issue has been updated'
+    _send_issue_notification(issue, 'issue_updated', subject)
+
+
+@shared_task(name='nodeconductor_assembly_waldur.support.send_comment_added_notification')
+def send_comment_added_notification(issue):
+    subject = 'A new commend has been added to your issue'
+    _send_issue_notification(issue, 'new_comment_added', subject)
+
+
+def _send_issue_notification(issue, template, subject):
+    receiver = issue.caller
+
+    context = {
+        'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid)
+    }
+
+    text_message = render_to_string('notifications/%s.txt' % template, context)
+    html_message = render_to_string('notifications/%s.html' % template, context)
+
+    logger.debug('About to send an issue update notification to %s' % receiver.email)
+
+    try:
+        send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [receiver.email], html_message=html_message)
+    except SMTPException:
+        logger.warning('Failed to notify user about an issue update. Issue uuid: %s' % issue.uuid)

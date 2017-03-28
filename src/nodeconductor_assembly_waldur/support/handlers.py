@@ -1,5 +1,7 @@
 from .log import event_logger
 
+from . import tasks
+
 
 def log_issue_save(sender, instance, created=False, **kwargs):
     if created:
@@ -37,3 +39,20 @@ def log_offering_state_changed(sender, instance, **kwargs):
                 'offering': instance,
             }
         )
+
+
+def send_new_comment_added_notification(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    comment = instance
+
+    tasks.send_comment_added_notification.delay(comment.issue)
+
+
+def send_issue_updated_notification(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    issue = instance
+    tasks.send_issue_updated_notification.delay(issue)

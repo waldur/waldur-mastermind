@@ -76,6 +76,8 @@ class SupportExtension(NodeConductorExtension):
             },
         }
 
+        ISSUE_LINK_TEMPLATE = 'http://localhost:8001/#/support/issue/{uuid}'
+
     @staticmethod
     def django_app():
         return 'nodeconductor_assembly_waldur.support'

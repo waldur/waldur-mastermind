@@ -1,8 +1,9 @@
 from __future__ import unicode_literals
-from ddt import ddt, data
-import mock
 
+import mock
+from ddt import ddt, data
 from django.conf import settings
+
 from nodeconductor_assembly_waldur.support.backend import SupportBackendError
 from rest_framework import status
 
@@ -205,6 +206,10 @@ class OfferingUpdateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingUpdateTest, self).setUp()
         self.client.force_authenticate(self.fixture.staff)
+        settings.CELERY_ALWAYS_EAGER = True
+
+    def tearDown(self):
+        settings.CELERY_ALWAYS_EAGER = False
 
     def test_it_is_possible_to_update_offering_name(self):
         offering = self.fixture.offering

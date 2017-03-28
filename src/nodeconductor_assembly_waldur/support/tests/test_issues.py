@@ -1,6 +1,7 @@
 import json
 
 from ddt import ddt, data
+from django.conf import settings
 from rest_framework import status
 
 from nodeconductor.structure.tests import factories as structure_factories
@@ -85,6 +86,11 @@ class IssueCreateTest(base.BaseTest):
     def setUp(self):
         super(IssueCreateTest, self).setUp()
         self.url = factories.IssueFactory.get_list_url()
+        settings.CELERY_ALWAYS_EAGER = True
+
+    def tearDown(self):
+        super(IssueCreateTest, self).tearDown()
+        settings.CELERY_ALWAYS_EAGER = False
 
     @data('staff', 'global_support')
     def test_staff_or_support_can_create_issue_if_he_has_support_user(self, user):
@@ -220,6 +226,11 @@ class IssueUpdateTest(base.BaseTest):
         super(IssueUpdateTest, self).setUp()
         self.issue = factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
         self.url = factories.IssueFactory.get_url(self.issue)
+        settings.CELERY_ALWAYS_EAGER = True
+
+    def tearDown(self):
+        super(IssueUpdateTest, self).tearDown()
+        settings.CELERY_ALWAYS_EAGER = False
 
     @data('staff', 'global_support')
     def test_staff_or_support_can_edit_issue(self, user):
@@ -274,6 +285,14 @@ class IssueDeleteTest(base.BaseTest):
 
 @ddt
 class IssueCommentTest(base.BaseTest):
+
+    def setUp(self):
+        super(IssueCommentTest, self).setUp()
+        settings.CELERY_ALWAYS_EAGER = True
+
+    def tearDown(self):
+        super(IssueCommentTest, self).tearDown()
+        settings.CELERY_ALWAYS_EAGER = False
 
     @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_with_access_to_issue_can_comment(self, user):
