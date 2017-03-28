@@ -8,7 +8,7 @@ from django.db import transaction
 from django.template import Context, Template
 from rest_framework import serializers
 
-from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import serializers as core_serializers, utils as core_utils
 from nodeconductor.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 from nodeconductor_assembly_waldur.support.backend.atlassian import ServiceDeskBackend
 
@@ -243,35 +243,50 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue.delete()
 
     def _update_issue(self, issue, fields, link):
-        issue.resolution = fields['resolution'] or ''
-        issue.status = fields['issuetype']['name']
-        issue.link = link
-        issue.impact = self._get_impact_field(fields=fields)
-        issue.summary = fields['summary']
-        issue.priority = fields['priority']['name']
-        issue.description = fields['description']
-        issue.type = fields['issuetype']['name']
+        backend_issue = {
+            'resolution': fields['resolution'] or '',
+            'status': fields['issuetype']['name'],
+            'link': link,
+            'impact': self._get_impact_field(fields=fields),
+            'summary': fields['summary'],
+            'priority': fields['priority']['name'],
+            'description': fields['description'],
+            'type': fields['issuetype']['name'],
+        }
 
         custom_field_values = [fields[customfield] for customfield in fields if customfield.startswith('customfield')]
-        self._update_custom_fields(issue, custom_field_values)
+        backend_issue['first_response_sla'] = self._get_sla_field_value(issue, custom_field_values)
 
         assignee = self._get_support_user_by_field_name(field_name='assignee', fields=fields)
         if assignee:
-            issue.assignee = assignee
+            backend_issue['assignee'] = assignee
 
         reporter = self._get_support_user_by_field_name(field_name='reporter', fields=fields)
         if reporter:
-            issue.reporter = reporter
+            backend_issue['reporter'] = reporter
             if reporter.user:
-                issue.caller = reporter.user
+                backend_issue['caller'] = reporter.user
+
+        self._update_issue_from_fields(issue, backend_issue)
 
         if 'comment' in fields:
             self._update_comments(issue=issue, fields=fields)
 
-        issue.save()
         return issue
 
-    def _update_custom_fields(self, issue, custom_field_values):
+    def _update_issue_from_fields(self, issue, backend_issue):
+        updated = False
+
+        for field, backend_value in backend_issue.items():
+            current_value = getattr(issue, field)
+            if current_value != backend_value:
+                setattr(issue, field, backend_value)
+                updated = True
+
+        if updated:
+            issue.save()
+
+    def _get_sla_field_value(self, issue, custom_field_values):
         sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
 
         for field in custom_field_values:
@@ -282,7 +297,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     breach_time = ongoing_cycle.get('breachTime', {})
                     epoch_milliseconds = breach_time.get('epochMillis', None)
                     if epoch_milliseconds:
-                        issue.first_response_sla = datetime.fromtimestamp(epoch_milliseconds / 1000.0)
+                        return core_utils.timestamp_to_datetime(epoch_milliseconds / 1000.0)
+
+        return None
 
     def _get_impact_field(self, fields):
         issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})

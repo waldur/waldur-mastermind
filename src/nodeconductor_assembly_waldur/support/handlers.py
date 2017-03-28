@@ -46,7 +46,6 @@ def send_new_comment_added_notification(sender, instance, created=False, **kwarg
         return
 
     comment = instance
-
     tasks.send_comment_added_notification.delay(comment.issue)
 
 

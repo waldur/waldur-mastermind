@@ -2,8 +2,10 @@ import pkg_resources
 import json
 from datetime import datetime
 
+from django.core import mail
 from django.core.urlresolvers import reverse
 from django.conf import settings
+from django.template.loader import render_to_string
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -21,9 +23,9 @@ class TestJiraWebHooks(APITestCase):
         self.DELETED = 'jira:issue_deleted'
         jira_backend = 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend'
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
-        settings.CELERY_ALWAYS_EAGER = True
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         self.request_data = json.loads(jira_request)
+        settings.CELERY_ALWAYS_EAGER = True
 
     def tearDown(self):
         settings.CELERY_ALWAYS_EAGER = False
@@ -211,3 +213,32 @@ class TestJiraWebHooks(APITestCase):
         response = self.client.post(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(self):
+        fields = self.request_data['issue']['fields']
+        reporter = factories.SupportUserFactory(backend_id=fields['reporter']['key'])
+        assignee = factories.SupportUserFactory(backend_id=fields['assignee']['key'])
+        first_response_sla = fields['customfield_10006']['ongoingCycle']['breachTime']['epochMillis'] / 1000.0
+
+        factories.IssueFactory(
+            resolution=fields['resolution'] or '',
+            backend_id=self.request_data['issue']['key'],
+            status=fields['issuetype']['name'],
+            link=self.request_data['issue']['self'],
+            summary=fields['summary'],
+            priority=fields['priority']['name'],
+            description=fields['description'],
+            type=fields['issuetype']['name'],
+            assignee=assignee,
+            reporter=reporter,
+            caller=reporter.user,
+            first_response_sla=datetime.fromtimestamp(first_response_sla),
+        )
+
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        new_comment_added_subject = render_to_string('notifications/new_comment_added_subject.txt').strip()
+        # TODO [TM:3/28/17] Rename all plurals 'assertEquals' to singular.
+        self.assertEquals(mail.outbox[0].subject, new_comment_added_subject)

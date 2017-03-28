@@ -31,23 +31,22 @@ class SupportUserPullTask(Task):
 
 @shared_task(name='nodeconductor_assembly_waldur.support.send_issue_updated_notification')
 def send_issue_updated_notification(issue):
-    subject = 'Your issue has been updated'
-    _send_issue_notification(issue, 'issue_updated', subject)
+    _send_issue_notification(issue, 'issue_updated')
 
 
 @shared_task(name='nodeconductor_assembly_waldur.support.send_comment_added_notification')
 def send_comment_added_notification(issue):
-    subject = 'A new commend has been added to your issue'
-    _send_issue_notification(issue, 'new_comment_added', subject)
+    _send_issue_notification(issue, 'new_comment_added')
 
 
-def _send_issue_notification(issue, template, subject):
+def _send_issue_notification(issue, template):
     receiver = issue.caller
 
     context = {
         'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid)
     }
 
+    subject = render_to_string('notifications/%s_subject.txt' % template).strip()
     text_message = render_to_string('notifications/%s.txt' % template, context)
     html_message = render_to_string('notifications/%s.html' % template, context)
 
@@ -55,5 +54,6 @@ def _send_issue_notification(issue, template, subject):
 
     try:
         send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [receiver.email], html_message=html_message)
-    except SMTPException:
-        logger.warning('Failed to notify user about an issue update. Issue uuid: %s' % issue.uuid)
+    except SMTPException as e:
+        message = 'Failed to notify a user about an issue update. Issue uuid: %s. Error: %s' % (issue.uuid, e.message)
+        logger.warning(message)
