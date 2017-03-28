@@ -22,12 +22,12 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         issue.summary = 'new summary'
         issue.save()
 
-        self.assertEquals(len(mail.outbox), 1)
+        self.assertEqual(len(mail.outbox), 1)
 
     def test_email_notification_is_not_sent_on_issue_creation(self):
         factories.IssueFactory()
 
-        self.assertEquals(len(mail.outbox), 0)
+        self.assertEqual(len(mail.outbox), 0)
 
 
 class CommentCreatedHandlerTest(BaseHandlerTest):
@@ -35,14 +35,14 @@ class CommentCreatedHandlerTest(BaseHandlerTest):
     def test_email_is_sent_when_comment_is_created(self):
         factories.CommentFactory()
 
-        self.assertEquals(len(mail.outbox), 1)
+        self.assertEqual(len(mail.outbox), 1)
 
     def test_email_is_not_sent_when_comment_is_updated(self):
         comment = factories.CommentFactory()
-        self.assertEquals(len(mail.outbox), 1)
+        self.assertEqual(len(mail.outbox), 1)
 
         comment.description = 'new_description'
         comment.save()
 
-        self.assertEquals(len(mail.outbox), 1)
+        self.assertEqual(len(mail.outbox), 1)
 

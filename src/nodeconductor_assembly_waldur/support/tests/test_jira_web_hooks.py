@@ -49,7 +49,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.summary, expected_summary)
 
@@ -66,7 +66,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.assignee.id, assignee.id)
 
@@ -84,7 +84,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.reporter.id, reporter.id)
 
@@ -101,7 +101,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.comments.count(), expected_comments_count)
 
@@ -119,7 +119,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         issue_comment = issue.comments.first()
         self.assertIsNotNone(issue_comment)
@@ -139,7 +139,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.comments.count(), expected_comments_count)
 
@@ -156,7 +156,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.impact, impact_field_value)
 
@@ -173,7 +173,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(models.Issue.objects.count(), 0)
 
     def test_issue_update_callback_updates_issue_caller(self):
@@ -188,7 +188,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.caller.id, support_user.user.id)
 
@@ -204,7 +204,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         naive_issue_time = issue.first_response_sla.replace(tzinfo=None)
         self.assertEqual(naive_issue_time, expected_first_response_sla)
@@ -240,5 +240,4 @@ class TestJiraWebHooks(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
         new_comment_added_subject = render_to_string('notifications/new_comment_added_subject.txt').strip()
-        # TODO [TM:3/28/17] Rename all plurals 'assertEquals' to singular.
-        self.assertEquals(mail.outbox[0].subject, new_comment_added_subject)
+        self.assertEqual(mail.outbox[0].subject, new_comment_added_subject)
