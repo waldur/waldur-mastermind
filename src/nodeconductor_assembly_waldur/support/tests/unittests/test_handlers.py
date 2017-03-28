@@ -30,7 +30,7 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         self.assertEquals(len(mail.outbox), 0)
 
 
-class CommentCreatedHandlerTest(TestCase):
+class CommentCreatedHandlerTest(BaseHandlerTest):
 
     def test_email_is_sent_when_comment_is_created(self):
         factories.CommentFactory()
