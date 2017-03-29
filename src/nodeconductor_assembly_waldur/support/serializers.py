@@ -237,12 +237,17 @@ class WebHookReceiverSerializer(serializers.Serializer):
             except models.Issue.DoesNotExist:
                 pass
             else:
-                self._update_issue(issue=issue, fields=fields, link=link)
+                backend_issue = self._get_backend_issue(fields=fields, link=link)
+                self._update_issue(issue=issue, backend_issue=backend_issue)
+
+                if 'comment' in fields:
+                    self._update_comments(issue=issue, fields=fields)
+
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
 
-    def _update_issue(self, issue, fields, link):
+    def _get_backend_issue(self, fields, link):
         backend_issue = {
             'resolution': fields['resolution'] or '',
             'status': fields['issuetype']['name'],
@@ -255,7 +260,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         }
 
         custom_field_values = [fields[customfield] for customfield in fields if customfield.startswith('customfield')]
-        backend_issue['first_response_sla'] = self._get_sla_field_value(issue, custom_field_values)
+        backend_issue['first_response_sla'] = self._get_sla_field_value(custom_field_values)
 
         assignee = self._get_support_user_by_field_name(field_name='assignee', fields=fields)
         if assignee:
@@ -267,14 +272,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
             if reporter.user:
                 backend_issue['caller'] = reporter.user
 
-        self._update_issue_from_fields(issue, backend_issue)
+        return backend_issue
 
-        if 'comment' in fields:
-            self._update_comments(issue=issue, fields=fields)
-
-        return issue
-
-    def _update_issue_from_fields(self, issue, backend_issue):
+    def _update_issue(self, issue, backend_issue):
         updated = False
 
         for field, backend_value in backend_issue.items():
@@ -286,7 +286,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         if updated:
             issue.save()
 
-    def _get_sla_field_value(self, issue, custom_field_values):
+    def _get_sla_field_value(self, custom_field_values):
         sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
 
         for field in custom_field_values:
