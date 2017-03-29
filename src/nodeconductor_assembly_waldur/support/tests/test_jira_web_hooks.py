@@ -239,5 +239,5 @@ class TestJiraWebHooks(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
-        new_comment_added_subject = render_to_string('notifications/new_comment_added_subject.txt').strip()
+        new_comment_added_subject = render_to_string('support/notification_comment_added_subject.txt').strip()
         self.assertEqual(mail.outbox[0].subject, new_comment_added_subject)

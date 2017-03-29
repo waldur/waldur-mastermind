@@ -36,7 +36,7 @@ def send_issue_updated_notification(issue):
 
 @shared_task(name='nodeconductor_assembly_waldur.support.send_comment_added_notification')
 def send_comment_added_notification(issue):
-    _send_issue_notification(issue, 'new_comment_added')
+    _send_issue_notification(issue, 'comment_added')
 
 
 def _send_issue_notification(issue, template):
@@ -46,9 +46,9 @@ def _send_issue_notification(issue, template):
         'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid)
     }
 
-    subject = render_to_string('notifications/%s_subject.txt' % template).strip()
-    text_message = render_to_string('notifications/%s.txt' % template, context)
-    html_message = render_to_string('notifications/%s.html' % template, context)
+    subject = render_to_string('support/notification_%s_subject.txt' % template).strip()
+    text_message = render_to_string('support/notification_%s.txt' % template, context)
+    html_message = render_to_string('support/notification_%s.html' % template, context)
 
     logger.debug('About to send an issue update notification to %s' % receiver.email)
 
