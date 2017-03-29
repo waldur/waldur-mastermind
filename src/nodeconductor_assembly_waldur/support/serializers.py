@@ -241,7 +241,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 self._update_issue(issue=issue, backend_issue=backend_issue)
 
                 if 'comment' in fields:
-                    self._update_comments(issue=issue, fields=fields)
+                    backend_comments = self._get_backend_comments(issue, fields)
+                    self._update_comments(issue=issue, backend_comments=backend_comments)
 
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
@@ -306,16 +307,27 @@ class WebHookReceiverSerializer(serializers.Serializer):
         impact_field_name = issue_settings.get('impact_field', None)
         return fields.get(impact_field_name, '')
 
-    @transaction.atomic()
-    def _update_comments(self, issue, fields):
+    def _get_backend_comments(self, issue_key, fields):
+        """
+        Forms a key value pair of a backend comment id and a backend comment body.
+        :param issue_key: an issue key to look up for comments; 
+        :param fields: fields from issue in the response;
+        :return: a key value pair of a backend comment id and a backend comment body.
+        """
         active_backend = backend.get_active_backend()
-        service_desk = isinstance(active_backend, ServiceDeskBackend)
-        if service_desk:
+        if self._is_service_desk():
             comments = active_backend.expand_comments(issue.key)
             backend_comments = {c['id']: c for c in comments}
         else:
             backend_comments = {c['id']: c for c in fields['comment']['comments']}
 
+        return backend_comments
+
+    def _is_service_desk(self):
+        return isinstance(backend.get_active_backend(), ServiceDeskBackend)
+
+    @transaction.atomic()
+    def _update_comments(self, issue, backend_comments):
         comments = {c.backend_id: c for c in issue.comments.all()}
 
         for exist_comment_id in set(backend_comments) & set(comments):
@@ -327,7 +339,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 comment.description = backend_comment['body']
                 update_fields.append('description')
 
-            if service_desk:
+            if self._is_service_desk():
                 is_public = self._get_comment_public_field_value(backend_comment)
                 if is_public != comment.is_public:
                     comment.is_public = is_public
@@ -346,7 +358,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend_id=backend_comment['id'],
             )
 
-            if service_desk:
+            if self._is_service_desk():
                 new_comment.is_public = self._get_comment_public_field_value(backend_comment)
 
             new_comment.save()
