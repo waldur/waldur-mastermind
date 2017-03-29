@@ -1,7 +1,6 @@
 import json
 
 from ddt import ddt, data
-from django.conf import settings
 from rest_framework import status
 
 from nodeconductor.structure.tests import factories as structure_factories
