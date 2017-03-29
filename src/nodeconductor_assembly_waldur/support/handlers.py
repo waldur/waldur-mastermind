@@ -46,7 +46,7 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
         return
 
     comment = instance
-    tasks.send_comment_added_notification.delay(comment.issue)
+    tasks.send_comment_added_notification.delay(comment.issue.uuid)
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
@@ -54,4 +54,4 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
         return
 
     issue = instance
-    tasks.send_issue_updated_notification.delay(issue)
+    tasks.send_issue_updated_notification.delay(issue.uuid)
