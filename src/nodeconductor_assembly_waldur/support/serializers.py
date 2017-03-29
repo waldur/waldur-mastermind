@@ -8,7 +8,7 @@ from django.db import transaction
 from django.template import Context, Template
 from rest_framework import serializers
 
-from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import serializers as core_serializers, utils as core_utils
 from nodeconductor.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 from nodeconductor_assembly_waldur.support.backend.atlassian import ServiceDeskBackend
 
@@ -237,41 +237,68 @@ class WebHookReceiverSerializer(serializers.Serializer):
             except models.Issue.DoesNotExist:
                 pass
             else:
-                self._update_issue(issue=issue, fields=fields, link=link)
+                backend_issue = self._get_backend_issue(fields=fields, link=link)
+                self._update_issue(issue=issue, backend_issue=backend_issue)
+
+                if 'comment' in fields:
+                    backend_comments = self._get_backend_comments(issue.key, fields)
+                    self._update_comments(issue=issue, backend_comments=backend_comments)
+
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
 
-    def _update_issue(self, issue, fields, link):
-        issue.resolution = fields['resolution'] or ''
-        issue.status = fields['issuetype']['name']
-        issue.link = link
-        issue.impact = self._get_impact_field(fields=fields)
-        issue.summary = fields['summary']
-        issue.priority = fields['priority']['name']
-        issue.description = fields['description']
-        issue.type = fields['issuetype']['name']
+    def _get_backend_issue(self, fields, link):
+        """
+        Builds a dictionary of issue attributes and values read from a Jira response.
+        :param fields: issue fields in a response;
+        :param link: link to the issue in Jira system;
+        :return: a dictionary of issue attributes and values
+        """
+        backend_issue = {
+            'resolution': fields['resolution'] or '',
+            'status': fields['issuetype']['name'],
+            'link': link,
+            'impact': self._get_impact_field(fields=fields),
+            'summary': fields['summary'],
+            'priority': fields['priority']['name'],
+            'description': fields['description'],
+            'type': fields['issuetype']['name'],
+        }
 
         custom_field_values = [fields[customfield] for customfield in fields if customfield.startswith('customfield')]
-        self._update_custom_fields(issue, custom_field_values)
+        backend_issue['first_response_sla'] = self._get_sla_field_value(custom_field_values)
 
         assignee = self._get_support_user_by_field_name(field_name='assignee', fields=fields)
         if assignee:
-            issue.assignee = assignee
+            backend_issue['assignee'] = assignee
 
         reporter = self._get_support_user_by_field_name(field_name='reporter', fields=fields)
         if reporter:
-            issue.reporter = reporter
+            backend_issue['reporter'] = reporter
             if reporter.user:
-                issue.caller = reporter.user
+                backend_issue['caller'] = reporter.user
 
-        if 'comment' in fields:
-            self._update_comments(issue=issue, fields=fields)
+        return backend_issue
 
-        issue.save()
-        return issue
+    def _update_issue(self, issue, backend_issue):
+        """
+        Updates given issue from the backend issue if it has been changed.
+        :param issue: an issue to update
+        :param backend_issue: a set of parameters to be updated.
+        """
+        updated = False
 
-    def _update_custom_fields(self, issue, custom_field_values):
+        for field, backend_value in backend_issue.items():
+            current_value = getattr(issue, field)
+            if current_value != backend_value:
+                setattr(issue, field, backend_value)
+                updated = True
+
+        if updated:
+            issue.save()
+
+    def _get_sla_field_value(self, custom_field_values):
         sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
 
         for field in custom_field_values:
@@ -282,23 +309,39 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     breach_time = ongoing_cycle.get('breachTime', {})
                     epoch_milliseconds = breach_time.get('epochMillis', None)
                     if epoch_milliseconds:
-                        issue.first_response_sla = datetime.fromtimestamp(epoch_milliseconds / 1000.0)
+                        return core_utils.timestamp_to_datetime(epoch_milliseconds / 1000.0)
+
+        return None
 
     def _get_impact_field(self, fields):
         issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         impact_field_name = issue_settings.get('impact_field', None)
         return fields.get(impact_field_name, '')
 
-    @transaction.atomic()
-    def _update_comments(self, issue, fields):
+    def _get_backend_comments(self, issue_key, fields):
+        """
+        Forms a dictionary of a backend comments where an id is a key and a comment body is a value.
+        :param issue_key: an issue key to look up for comments; 
+        :param fields: fields from issue in the response;
+        :return: a dictionary of a backend comments with their ids as keys.
+        """
         active_backend = backend.get_active_backend()
-        service_desk = isinstance(active_backend, ServiceDeskBackend)
-        if service_desk:
-            comments = active_backend.expand_comments(issue.key)
+        if self._is_service_desk():
+            comments = active_backend.expand_comments(issue_key)
             backend_comments = {c['id']: c for c in comments}
         else:
             backend_comments = {c['id']: c for c in fields['comment']['comments']}
 
+        return backend_comments
+
+    def _is_service_desk(self):
+        """
+        :return: True if current Jira instance is ServiceDesk, otherwise False.
+        """
+        return isinstance(backend.get_active_backend(), ServiceDeskBackend)
+
+    @transaction.atomic()
+    def _update_comments(self, issue, backend_comments):
         comments = {c.backend_id: c for c in issue.comments.all()}
 
         for exist_comment_id in set(backend_comments) & set(comments):
@@ -310,7 +353,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 comment.description = backend_comment['body']
                 update_fields.append('description')
 
-            if service_desk:
+            if self._is_service_desk():
                 is_public = self._get_comment_public_field_value(backend_comment)
                 if is_public != comment.is_public:
                     comment.is_public = is_public
@@ -329,7 +372,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend_id=backend_comment['id'],
             )
 
-            if service_desk:
+            if self._is_service_desk():
                 new_comment.is_public = self._get_comment_public_field_value(backend_comment)
 
             new_comment.save()
