@@ -10,3 +10,7 @@ class BaseTest(test.APITransactionTestCase):
         support_backend = 'nodeconductor_assembly_waldur.support.backend.atlassian:SupportBackend'
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = support_backend
         self.fixture = fixtures.SupportFixture()
+        settings.CELERY_ALWAYS_EAGER = True
+
+    def tearDown(self):
+        settings.CELERY_ALWAYS_EAGER = False

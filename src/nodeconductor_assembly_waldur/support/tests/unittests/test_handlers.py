@@ -1,20 +1,9 @@
-from django.conf import settings
 from django.core import mail
-from django.test import TestCase
 
-from .. import factories
-
-
-class BaseHandlerTest(TestCase):
-
-    def setUp(self):
-        settings.CELERY_ALWAYS_EAGER = True
-
-    def tearDown(self):
-        settings.CELERY_ALWAYS_EAGER = False
+from .. import factories, base
 
 
-class IssueUpdatedHandlerTest(BaseHandlerTest):
+class IssueUpdatedHandlerTest(base.BaseTest):
 
     def test_email_notification_is_sent_when_issue_is_updated(self):
         issue = factories.IssueFactory()
@@ -30,7 +19,7 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class CommentCreatedHandlerTest(BaseHandlerTest):
+class CommentCreatedHandlerTest(base.BaseTest):
 
     def test_email_is_sent_when_comment_is_created(self):
         factories.CommentFactory()

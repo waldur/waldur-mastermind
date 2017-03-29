@@ -13,13 +13,8 @@ class CommentUpdateTest(base.BaseTest):
 
     def setUp(self):
         super(CommentUpdateTest, self).setUp()
-        settings.CELERY_ALWAYS_EAGER = True
         self.comment = factories.CommentFactory(issue=self.fixture.issue)
         self.url = factories.CommentFactory.get_url(self.comment)
-
-    def tearDown(self):
-        super(CommentUpdateTest, self).tearDown()
-        settings.CELERY_ALWAYS_EAGER = False
 
     def test_staff_can_edit_comment(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -49,13 +44,8 @@ class CommentDeleteTest(base.BaseTest):
 
     def setUp(self):
         super(CommentDeleteTest, self).setUp()
-        settings.CELERY_ALWAYS_EAGER = True
         self.comment = factories.CommentFactory(issue=self.fixture.issue)
         self.url = factories.CommentFactory.get_url(self.comment)
-
-    def tearDown(self):
-        super(CommentDeleteTest, self).tearDown()
-        settings.CELERY_ALWAYS_EAGER = False
 
     def test_staff_can_delete_comment(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -80,14 +70,9 @@ class CommentRetrieveTest(base.BaseTest):
 
     def setUp(self):
         super(CommentRetrieveTest, self).setUp()
-        settings.CELERY_ALWAYS_EAGER = True
         self.comment = self.fixture.comment
         self.comment.is_public = True
         self.comment.save()
-
-    def tearDown(self):
-        super(CommentRetrieveTest, self).tearDown()
-        settings.CELERY_ALWAYS_EAGER = False
 
     @data('owner', 'admin', 'manager')
     def test_user_can_get_a_public_comment_if_he_is_an_issue_caller_and_has_no_role_access(self, user):

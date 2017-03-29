@@ -206,10 +206,6 @@ class OfferingUpdateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingUpdateTest, self).setUp()
         self.client.force_authenticate(self.fixture.staff)
-        settings.CELERY_ALWAYS_EAGER = True
-
-    def tearDown(self):
-        settings.CELERY_ALWAYS_EAGER = False
 
     def test_it_is_possible_to_update_offering_name(self):
         offering = self.fixture.offering
