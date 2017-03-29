@@ -1,8 +1,8 @@
 from __future__ import unicode_literals
 
-import mock
 from ddt import ddt, data
 from django.conf import settings
+import mock
 
 from nodeconductor_assembly_waldur.support.backend import SupportBackendError
 from rest_framework import status
