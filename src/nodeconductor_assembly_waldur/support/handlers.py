@@ -1,5 +1,6 @@
-from .log import event_logger
+from nodeconductor.core import utils as core_utils
 
+from .log import event_logger
 from . import tasks
 
 
@@ -46,7 +47,7 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
         return
 
     comment = instance
-    tasks.send_comment_added_notification.delay(comment.issue.uuid)
+    tasks.send_comment_added_notification.delay(core_utils.serialize_instance(comment.issue))
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
@@ -54,4 +55,4 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
         return
 
     issue = instance
-    tasks.send_issue_updated_notification.delay(issue.uuid)
+    tasks.send_issue_updated_notification.delay(core_utils.serialize_instance(issue))

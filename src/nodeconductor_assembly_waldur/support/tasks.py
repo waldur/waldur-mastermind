@@ -7,6 +7,8 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
+from nodeconductor.core import utils as core_utils
+
 
 from . import backend, models
 
@@ -30,14 +32,14 @@ class SupportUserPullTask(Task):
 
 
 @shared_task(name='nodeconductor_assembly_waldur.support.send_issue_updated_notification')
-def send_issue_updated_notification(issue_uuid):
-    issue = models.Issue.objects.get(uuid=issue_uuid)
+def send_issue_updated_notification(serialized_issue):
+    issue = core_utils.deserialize_instance(serialized_issue)
     _send_issue_notification(issue, 'issue_updated')
 
 
 @shared_task(name='nodeconductor_assembly_waldur.support.send_comment_added_notification')
-def send_comment_added_notification(issue_uuid):
-    issue = models.Issue.objects.get(uuid=issue_uuid)
+def send_comment_added_notification(serialized_issue):
+    issue = core_utils.deserialize_instance(serialized_issue)
     _send_issue_notification(issue, 'comment_added')
 
 
