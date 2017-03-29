@@ -119,7 +119,7 @@ class CommentRetrieveTest(base.BaseTest):
         factories.CommentFactory(issue=issue_without_a_resource, is_public=True)
 
         payload = {
-            'resource': structure_factories.TestInstanceFactory.get_url(self.fixture.resource),
+            'resource': structure_factories.TestNewInstanceFactory.get_url(self.fixture.resource),
         }
 
         response = self.client.get(factories.CommentFactory.get_list_url(), payload)

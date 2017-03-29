@@ -160,7 +160,7 @@ class IssueCreateTest(base.BaseTest):
     def test_user_with_access_to_resource_can_create_resource_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
-            resource=structure_factories.TestInstanceFactory.get_url(self.fixture.resource),
+            resource=structure_factories.TestNewInstanceFactory.get_url(self.fixture.resource),
             is_reported_manually=True,
         )
 
@@ -173,7 +173,7 @@ class IssueCreateTest(base.BaseTest):
     def test_user_without_access_to_resource_cannot_create_resource_issue(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
-            resource=structure_factories.TestInstanceFactory.get_url(self.fixture.resource),
+            resource=structure_factories.TestNewInstanceFactory.get_url(self.fixture.resource),
             is_reported_manually=True,
         )
 
@@ -197,7 +197,7 @@ class IssueCreateTest(base.BaseTest):
         factories.SupportUserFactory(user=self.fixture.staff)
         self.client.force_authenticate(self.fixture.staff)
         payload = self._get_valid_payload(
-            resource=structure_factories.TestInstanceFactory.get_url(self.fixture.resource))
+            resource=structure_factories.TestNewInstanceFactory.get_url(self.fixture.resource))
 
         response = self.client.post(self.url, data=payload)
 
