@@ -241,7 +241,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 self._update_issue(issue=issue, backend_issue=backend_issue)
 
                 if 'comment' in fields:
-                    backend_comments = self._get_backend_comments(issue, fields)
+                    backend_comments = self._get_backend_comments(issue.key, fields)
                     self._update_comments(issue=issue, backend_comments=backend_comments)
 
         elif event_type == self.EventType.DELETED:
@@ -316,7 +316,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         """
         active_backend = backend.get_active_backend()
         if self._is_service_desk():
-            comments = active_backend.expand_comments(issue.key)
+            comments = active_backend.expand_comments(issue_key)
             backend_comments = {c['id']: c for c in comments}
         else:
             backend_comments = {c['id']: c for c in fields['comment']['comments']}
