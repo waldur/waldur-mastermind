@@ -249,6 +249,12 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue.delete()
 
     def _get_backend_issue(self, fields, link):
+        """
+        Builds a dictionary of issue attributes and values read from a Jira response.
+        :param fields: issue fields in a response;
+        :param link: link to the issue in Jira system;
+        :return: a dictionary of issue attributes and values
+        """
         backend_issue = {
             'resolution': fields['resolution'] or '',
             'status': fields['issuetype']['name'],
@@ -276,6 +282,11 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return backend_issue
 
     def _update_issue(self, issue, backend_issue):
+        """
+        Updates given issue from the backend issue if it has been changed.
+        :param issue: an issue to update
+        :param backend_issue: a set of parameters to be updated.
+        """
         updated = False
 
         for field, backend_value in backend_issue.items():
@@ -309,10 +320,10 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     def _get_backend_comments(self, issue_key, fields):
         """
-        Forms a key value pair of a backend comment id and a backend comment body.
+        Forms a dictionary of a backend comments where an id is a key and a comment body is a value.
         :param issue_key: an issue key to look up for comments; 
         :param fields: fields from issue in the response;
-        :return: a key value pair of a backend comment id and a backend comment body.
+        :return: a dictionary of a backend comments with their ids as keys.
         """
         active_backend = backend.get_active_backend()
         if self._is_service_desk():
@@ -324,6 +335,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
         return backend_comments
 
     def _is_service_desk(self):
+        """
+        :return: True if current Jira instance is ServiceDesk, otherwise False.
+        """
         return isinstance(backend.get_active_backend(), ServiceDeskBackend)
 
     @transaction.atomic()
