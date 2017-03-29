@@ -76,7 +76,7 @@ class SupportExtension(NodeConductorExtension):
             },
         }
 
-        ISSUE_LINK_TEMPLATE = 'https://www.example.com/#/support/issue/{uuid}'
+        ISSUE_LINK_TEMPLATE = 'https://www.example.com/#/support/issue/{uuid}/'
 
     @staticmethod
     def django_app():
