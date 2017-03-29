@@ -44,6 +44,12 @@ def send_comment_added_notification(serialized_issue):
 
 
 def _send_issue_notification(issue, template):
+    if settings.SUPPRESS_NOTIFICATION_EMAILS:
+        message = ('Issue notifications are suppressed. '
+                   'Please set SUPPRESS_NOTIFICATION_EMAILS to False to send notifications.')
+        logger.info(message)
+        return
+
     receiver = issue.caller
 
     context = {

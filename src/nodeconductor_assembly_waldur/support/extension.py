@@ -76,6 +76,7 @@ class SupportExtension(NodeConductorExtension):
             },
         }
 
+        SUPPRESS_NOTIFICATION_EMAILS = False
         ISSUE_LINK_TEMPLATE = 'https://www.example.com/#/support/issue/{uuid}/'
 
     @staticmethod
