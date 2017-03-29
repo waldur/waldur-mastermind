@@ -32,9 +32,9 @@ class SupportConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.send_new_comment_added_notification,
+            handlers.send_comment_added_notification,
             sender=Comment,
-            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.send_new_comment_added_notification'
+            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.send_comment_added_notification'
         )
 
         signals.post_save.connect(

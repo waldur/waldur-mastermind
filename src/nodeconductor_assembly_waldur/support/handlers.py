@@ -41,7 +41,7 @@ def log_offering_state_changed(sender, instance, **kwargs):
         )
 
 
-def send_new_comment_added_notification(sender, instance, created=False, **kwargs):
+def send_comment_added_notification(sender, instance, created=False, **kwargs):
     if not created:
         return
 
