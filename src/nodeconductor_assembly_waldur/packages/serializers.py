@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers
 
@@ -79,9 +80,14 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             pass
 
         user = self.context['request'].user
-        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
-                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
-            raise serializers.ValidationError('Only staff, owner or manager can order package.')
+        manager_can_create = settings.WALDUR_PACKAGES['MANAGER_CAN_CREATE_PACKAGES']
+        is_permitted = (
+            user.is_staff or
+            spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
+            (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
+        )
+        if not is_permitted:
+            raise serializers.ValidationError('You do not have permission to perform this action.')
         return spl
 
     def validate_template(self, template):
@@ -184,11 +190,18 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
     def validate_package(self, package):
         spl = package.tenant.service_project_link
         user = self.context['request'].user
-        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
-                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
-            raise serializers.ValidationError('Only staff, owner or manager can extend package.')
-        elif package.tenant.state != openstack_models.Tenant.States.OK:
-            raise serializers.ValidationError("Package's tenant must be in OK state.")
+
+        if package.tenant.state != openstack_models.Tenant.States.OK:
+            raise serializers.ValidationError('Package\'s tenant must be in OK state.')
+
+        manager_can_create = settings.WALDUR_PACKAGES['MANAGER_CAN_CREATE_PACKAGES']
+        is_permitted = (
+            user.is_staff or
+            spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
+            (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
+        )
+        if not is_permitted:
+            raise serializers.ValidationError('You do not have permission to perform this action.')
 
         return package
 

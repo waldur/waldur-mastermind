@@ -1,4 +1,5 @@
 from ddt import ddt, data
+from django.conf import settings
 from rest_framework import test, status
 from rest_framework.reverse import reverse
 
@@ -49,7 +50,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
             'template': factories.PackageTemplateFactory.get_url(template),
         }
 
-    @data('staff', 'owner', 'manager')
+    @data('staff', 'owner')
     def test_user_can_create_openstack_package(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -62,6 +63,16 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manager_can_create_openstack_package_with_permission_from_settings(self):
+        packages_settings = settings.WALDUR_PACKAGES.copy()
+        packages_settings['MANAGER_CAN_CREATE_PACKAGES'] = True
+        self.client.force_authenticate(user=self.fixture.manager)
+
+        with self.settings(WALDUR_PACKAGES=packages_settings):
+            response = self.client.post(self.url, data=self.get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_tenant_quotas_are_defined_by_template(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -115,7 +126,7 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         self.package = self.fixture.openstack_package
         self.new_template = factories.PackageTemplateFactory(service_settings=self.fixture.openstack_service_settings)
 
-    @data('staff', 'owner', 'manager')
+    @data('staff', 'owner')
     def test_can_extend_openstack_package(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.post(self.change_url, data=self.get_valid_payload())
@@ -126,6 +137,16 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manager_can_extend_openstack_package_with_permission_from_settings(self):
+        packages_settings = settings.WALDUR_PACKAGES.copy()
+        packages_settings['MANAGER_CAN_CREATE_PACKAGES'] = True
+        self.client.force_authenticate(user=self.fixture.manager)
+
+        with self.settings(WALDUR_PACKAGES=packages_settings):
+            response = self.client.post(self.change_url, data=self.get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_package_is_replaced_on_extend(self):
         self.client.force_authenticate(user=self.fixture.staff)
