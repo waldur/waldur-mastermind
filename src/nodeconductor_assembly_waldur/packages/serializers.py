@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
@@ -91,7 +92,7 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
 
         user = self.context['request'].user
         if not _has_access_to_package(user, spl):
-            raise serializers.ValidationError('You do not have permission to perform this action.')
+            raise serializers.ValidationError(_('You do not have permissions to create package for given project.'))
         return spl
 
     def validate_template(self, template):
@@ -199,7 +200,7 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
             raise serializers.ValidationError('Package\'s tenant must be in OK state.')
 
         if not _has_access_to_package(user, spl):
-            raise serializers.ValidationError('You do not have permission to perform this action.')
+            raise serializers.ValidationError(_('You do not have permissions to extend given package.'))
 
         return package
 
