@@ -62,6 +62,16 @@ def _set_tenant_extra_configuration(tenant, template):
     tenant.save()
 
 
+def _has_access_to_package(user, spl):
+    """ Staff and owner always have access to package. Manager - only if correspondent flag is enabled """
+    manager_can_create = settings.WALDUR_PACKAGES['MANAGER_CAN_CREATE_PACKAGES']
+    return (
+        user.is_staff or
+        spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
+        (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
+    )
+
+
 class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     template = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
@@ -80,13 +90,7 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
             pass
 
         user = self.context['request'].user
-        manager_can_create = settings.WALDUR_PACKAGES['MANAGER_CAN_CREATE_PACKAGES']
-        is_permitted = (
-            user.is_staff or
-            spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
-            (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
-        )
-        if not is_permitted:
+        if not _has_access_to_package(user, spl):
             raise serializers.ValidationError('You do not have permission to perform this action.')
         return spl
 
@@ -194,13 +198,7 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
         if package.tenant.state != openstack_models.Tenant.States.OK:
             raise serializers.ValidationError('Package\'s tenant must be in OK state.')
 
-        manager_can_create = settings.WALDUR_PACKAGES['MANAGER_CAN_CREATE_PACKAGES']
-        is_permitted = (
-            user.is_staff or
-            spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
-            (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
-        )
-        if not is_permitted:
+        if not _has_access_to_package(user, spl):
             raise serializers.ValidationError('You do not have permission to perform this action.')
 
         return package
