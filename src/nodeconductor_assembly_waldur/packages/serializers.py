@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
@@ -61,6 +63,16 @@ def _set_tenant_extra_configuration(tenant, template):
     tenant.save()
 
 
+def _has_access_to_package(user, spl):
+    """ Staff and owner always have access to package. Manager - only if correspondent flag is enabled """
+    manager_can_create = settings.NODECONDUCTOR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
+    return (
+        user.is_staff or
+        spl.service.customer.has_user(user, structure_models.CustomerRole.OWNER) or
+        (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
+    )
+
+
 class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     template = serializers.HyperlinkedRelatedField(
         lookup_field='uuid',
@@ -72,16 +84,13 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         fields = openstack_serializers.TenantSerializer.Meta.fields + ('template',)
 
     def validate_service_project_link(self, spl):
-        # call super method if parent has it.
-        try:
-            spl = super(OpenStackPackageCreateSerializer, self).validate_service_project_link(spl)
-        except AttributeError:
-            pass
+        # It should be possible for owner to create package but impossible to create a package directly.
+        # So we need to ignore tenant spl validation.
+        spl = super(openstack_serializers.TenantSerializer, self).validate_service_project_link(spl)
 
         user = self.context['request'].user
-        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
-                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
-            raise serializers.ValidationError('Only staff, owner or manager can order package.')
+        if not _has_access_to_package(user, spl):
+            raise serializers.ValidationError(_('You do not have permissions to create package for given project.'))
         return spl
 
     def validate_template(self, template):
@@ -184,11 +193,12 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
     def validate_package(self, package):
         spl = package.tenant.service_project_link
         user = self.context['request'].user
-        if (not user.is_staff and not spl.project.has_user(user, structure_models.ProjectRole.MANAGER) and
-                not spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER)):
-            raise serializers.ValidationError('Only staff, owner or manager can extend package.')
-        elif package.tenant.state != openstack_models.Tenant.States.OK:
-            raise serializers.ValidationError("Package's tenant must be in OK state.")
+
+        if package.tenant.state != openstack_models.Tenant.States.OK:
+            raise serializers.ValidationError('Package\'s tenant must be in OK state.')
+
+        if not _has_access_to_package(user, spl):
+            raise serializers.ValidationError(_('You do not have permissions to extend given package.'))
 
         return package
 
