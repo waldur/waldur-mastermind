@@ -4,10 +4,6 @@ from nodeconductor.core import NodeConductorExtension
 
 
 class PackagesExtension(NodeConductorExtension):
-    class Settings(object):
-        WALDUR_PACKAGES = {
-            'MANAGER_CAN_CREATE_PACKAGES': False,
-        }
 
     @staticmethod
     def django_app():

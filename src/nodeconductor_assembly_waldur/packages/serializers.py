@@ -65,10 +65,10 @@ def _set_tenant_extra_configuration(tenant, template):
 
 def _has_access_to_package(user, spl):
     """ Staff and owner always have access to package. Manager - only if correspondent flag is enabled """
-    manager_can_create = settings.WALDUR_PACKAGES['MANAGER_CAN_CREATE_PACKAGES']
+    manager_can_create = settings.NODECONDUCTOR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
     return (
         user.is_staff or
-        spl.project.customer.has_user(user, structure_models.CustomerRole.OWNER) or
+        spl.service.customer.has_user(user, structure_models.CustomerRole.OWNER) or
         (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
     )
 
@@ -84,11 +84,9 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         fields = openstack_serializers.TenantSerializer.Meta.fields + ('template',)
 
     def validate_service_project_link(self, spl):
-        # call super method if parent has it.
-        try:
-            spl = super(OpenStackPackageCreateSerializer, self).validate_service_project_link(spl)
-        except AttributeError:
-            pass
+        # It should be possible for owner to create package but impossible to create a package directly.
+        # So we need to ignore tenant spl validation.
+        spl = super(openstack_serializers.TenantSerializer, self).validate_service_project_link(spl)
 
         user = self.context['request'].user
         if not _has_access_to_package(user, spl):

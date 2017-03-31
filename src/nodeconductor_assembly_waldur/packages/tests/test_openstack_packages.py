@@ -65,11 +65,11 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_can_create_openstack_package_with_permission_from_settings(self):
-        packages_settings = settings.WALDUR_PACKAGES.copy()
-        packages_settings['MANAGER_CAN_CREATE_PACKAGES'] = True
+        openstack_settings = settings.NODECONDUCTOR_OPENSTACK.copy()
+        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
         self.client.force_authenticate(user=self.fixture.manager)
 
-        with self.settings(WALDUR_PACKAGES=packages_settings):
+        with self.settings(NODECONDUCTOR_OPENSTACK=openstack_settings):
             response = self.client.post(self.url, data=self.get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -78,6 +78,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.post(self.url, data=self.get_valid_payload())
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         package = models.OpenStackPackage.objects.get(uuid=response.data['uuid'])
         tenant, template = package.tenant, package.template
@@ -139,11 +140,11 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_can_extend_openstack_package_with_permission_from_settings(self):
-        packages_settings = settings.WALDUR_PACKAGES.copy()
-        packages_settings['MANAGER_CAN_CREATE_PACKAGES'] = True
+        openstack_settings = settings.NODECONDUCTOR_OPENSTACK.copy()
+        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
         self.client.force_authenticate(user=self.fixture.manager)
 
-        with self.settings(WALDUR_PACKAGES=packages_settings):
+        with self.settings(NODECONDUCTOR_OPENSTACK=openstack_settings):
             response = self.client.post(self.change_url, data=self.get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
