@@ -75,8 +75,9 @@ class CommentViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.CommentSerializer
     filter_backends = (
-        structure_filters.GenericRoleFilter,
+        filters.CommentIssueCallerOrRoleFilterBackend,
         DjangoFilterBackend,
+        filters.CommentIssueResourceFilterBackend,
     )
     filter_class = filters.CommentFilter
     queryset = models.Comment.objects.all()

@@ -1,4 +1,5 @@
 from ddt import ddt, data
+from django.conf import settings
 from rest_framework import test, status
 from rest_framework.reverse import reverse
 
@@ -49,7 +50,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
             'template': factories.PackageTemplateFactory.get_url(template),
         }
 
-    @data('staff', 'owner', 'manager')
+    @data('staff', 'owner')
     def test_user_can_create_openstack_package(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -63,10 +64,21 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_manager_can_create_openstack_package_with_permission_from_settings(self):
+        openstack_settings = settings.NODECONDUCTOR_OPENSTACK.copy()
+        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
+        self.client.force_authenticate(user=self.fixture.manager)
+
+        with self.settings(NODECONDUCTOR_OPENSTACK=openstack_settings):
+            response = self.client.post(self.url, data=self.get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_tenant_quotas_are_defined_by_template(self):
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.post(self.url, data=self.get_valid_payload())
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         package = models.OpenStackPackage.objects.get(uuid=response.data['uuid'])
         tenant, template = package.tenant, package.template
@@ -107,29 +119,39 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OpenStackPackageExtendTest(test.APITransactionTestCase):
-    extend_url = factories.OpenStackPackageFactory.get_list_url(action='extend')
+class OpenStackPackageChangeTest(test.APITransactionTestCase):
+    change_url = factories.OpenStackPackageFactory.get_list_url(action='change')
 
     def setUp(self):
         self.fixture = fixtures.PackageFixture()
         self.package = self.fixture.openstack_package
         self.new_template = factories.PackageTemplateFactory(service_settings=self.fixture.openstack_service_settings)
 
-    @data('staff', 'owner', 'manager')
+    @data('staff', 'owner')
     def test_can_extend_openstack_package(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     @data('admin', 'user')
     def test_cannot_extend_openstack_package(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manager_can_extend_openstack_package_with_permission_from_settings(self):
+        openstack_settings = settings.NODECONDUCTOR_OPENSTACK.copy()
+        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
+        self.client.force_authenticate(user=self.fixture.manager)
+
+        with self.settings(NODECONDUCTOR_OPENSTACK=openstack_settings):
+            response = self.client.post(self.change_url, data=self.get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_package_is_replaced_on_extend(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         old_package = models.OpenStackPackage.objects.filter(uuid=self.package.uuid)
@@ -143,7 +165,7 @@ class OpenStackPackageExtendTest(test.APITransactionTestCase):
         self.package.tenant.save(update_fields=['state'])
 
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['package'], ["Package's tenant must be in OK state."])
 
@@ -152,7 +174,7 @@ class OpenStackPackageExtendTest(test.APITransactionTestCase):
         self.new_template.service_settings.save(update_fields=['state'])
 
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['template'], ["Template's settings must be in OK state."])
 
@@ -160,29 +182,32 @@ class OpenStackPackageExtendTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.fixture.staff)
 
         payload = self.get_valid_payload(template=self.package.template)
-        response = self.client.post(self.extend_url, data=payload)
+        response = self.client.post(self.change_url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['non_field_errors'],
                          ["New package template cannot be the same as package's current template."])
 
     @data('ram', 'cores', 'storage')
-    def test_user_cannot_extend_package_with_smaller_template_component(self, component_type):
+    def test_user_cannot_decrease_package_if_tenant_usage_exceeds_new_limits(self, component_type):
+        self.set_usage_and_limit(component_type, usage=10, old_limit=20, new_limit=5)
+
         self.client.force_authenticate(user=self.fixture.staff)
-
-        old_component = self.package.template.components.get(type=component_type)
-        old_component.amount = 5
-        old_component.save(update_fields=['amount'])
-
-        new_component = self.new_template.components.get(type=component_type)
-        new_component.amount = 4
-        new_component.save(update_fields=['amount'])
         payload = self.get_valid_payload()
-        response = self.client.post(self.extend_url, data=payload)
+        response = self.client.post(self.change_url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('ram', 'cores', 'storage')
+    def test_user_can_decrease_package_if_tenant_usage_does_not_exceeds_new_limits(self, component_type):
+        self.set_usage_and_limit(component_type, usage=5, old_limit=20, new_limit=5)
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        payload = self.get_valid_payload()
+        response = self.client.post(self.change_url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_after_package_extension_tenant_is_updated(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(self.extend_url, data=self.get_valid_payload())
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.package.tenant.refresh_from_db()
         self.assertDictEqual(self.package.tenant.extra_configuration, {
@@ -193,6 +218,19 @@ class OpenStackPackageExtendTest(test.APITransactionTestCase):
             'ram': self.new_template.components.get(type='ram').amount,
             'storage': self.new_template.components.get(type='storage').amount,
         })
+
+    def set_usage_and_limit(self, component_type, usage, old_limit, new_limit):
+        mapping = models.OpenStackPackage.get_quota_to_component_mapping()
+        inv_map = {component_type: quota.name for quota, component_type in mapping.iteritems()}
+        self.package.tenant.set_quota_usage(quota_name=inv_map[component_type], usage=usage)
+
+        old_component = self.package.template.components.get(type=component_type)
+        old_component.amount = old_limit
+        old_component.save(update_fields=['amount'])
+
+        new_component = self.new_template.components.get(type=component_type)
+        new_component.amount = new_limit
+        new_component.save(update_fields=['amount'])
 
     # Helper methods
     def get_valid_payload(self, template=None, package=None):

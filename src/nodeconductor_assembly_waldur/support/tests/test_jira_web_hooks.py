@@ -1,9 +1,11 @@
-from datetime import datetime
 import pkg_resources
 import json
+from datetime import datetime
 
+from django.core import mail
 from django.core.urlresolvers import reverse
 from django.conf import settings
+from django.template.loader import render_to_string
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -19,9 +21,14 @@ class TestJiraWebHooks(APITestCase):
         self.CREATED = 'jira:issue_created'
         self.UPDATED = 'jira:issue_updated'
         self.DELETED = 'jira:issue_deleted'
-
+        jira_backend = 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend'
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         self.request_data = json.loads(jira_request)
+        settings.CELERY_ALWAYS_EAGER = True
+
+    def tearDown(self):
+        settings.CELERY_ALWAYS_EAGER = False
 
     def set_issue_and_support_user(self):
         backend_id = 'SNT-101'
@@ -42,7 +49,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.summary, expected_summary)
 
@@ -59,7 +66,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.assignee.id, assignee.id)
 
@@ -77,7 +84,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.reporter.id, reporter.id)
 
@@ -94,7 +101,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.comments.count(), expected_comments_count)
 
@@ -112,7 +119,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         issue_comment = issue.comments.first()
         self.assertIsNotNone(issue_comment)
@@ -132,7 +139,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.comments.count(), expected_comments_count)
 
@@ -149,7 +156,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.impact, impact_field_value)
 
@@ -166,7 +173,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(models.Issue.objects.count(), 0)
 
     def test_issue_update_callback_updates_issue_caller(self):
@@ -181,7 +188,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.caller.id, support_user.user.id)
 
@@ -197,7 +204,7 @@ class TestJiraWebHooks(APITestCase):
         # act
         response = self.client.post(self.url, self.request_data)
 
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         naive_issue_time = issue.first_response_sla.replace(tzinfo=None)
         self.assertEqual(naive_issue_time, expected_first_response_sla)
@@ -206,3 +213,31 @@ class TestJiraWebHooks(APITestCase):
         response = self.client.post(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(self):
+        fields = self.request_data['issue']['fields']
+        reporter = factories.SupportUserFactory(backend_id=fields['reporter']['key'])
+        assignee = factories.SupportUserFactory(backend_id=fields['assignee']['key'])
+        first_response_sla = fields['customfield_10006']['ongoingCycle']['breachTime']['epochMillis'] / 1000.0
+
+        factories.IssueFactory(
+            resolution=fields['resolution'] or '',
+            backend_id=self.request_data['issue']['key'],
+            status=fields['issuetype']['name'],
+            link=self.request_data['issue']['self'],
+            summary=fields['summary'],
+            priority=fields['priority']['name'],
+            description=fields['description'],
+            type=fields['issuetype']['name'],
+            assignee=assignee,
+            reporter=reporter,
+            caller=reporter.user,
+            first_response_sla=datetime.fromtimestamp(first_response_sla),
+        )
+
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        new_comment_added_subject = render_to_string('support/notification_comment_added_subject.txt').strip()
+        self.assertEqual(mail.outbox[0].subject, new_comment_added_subject)

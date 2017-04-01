@@ -36,7 +36,7 @@ class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
         return tasks.OpenStackPackageErrorTask().s(serialized_package)
 
 
-class OpenStackPackageExtendExecutor(core_executors.BaseExecutor):
+class OpenStackPackageChangeExecutor(core_executors.BaseExecutor):
 
     @classmethod
     def get_task_signature(cls, tenant, serialized_tenant):

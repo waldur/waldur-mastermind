@@ -40,14 +40,14 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
     create_serializer_class = serializers.OpenStackPackageCreateSerializer
 
     @list_route(methods=['post'])
-    def extend(self, request, **kwargs):
+    def change(self, request, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         new_package = serializer.save()
-        executors.OpenStackPackageExtendExecutor.execute(new_package.tenant)
+        executors.OpenStackPackageChangeExecutor.execute(new_package.tenant)
 
         return response.Response({'detail': 'OpenStack package extend has been scheduled'},
                                  status=status.HTTP_202_ACCEPTED)
 
-    extend_serializer_class = serializers.OpenStackPackageExtendSerializer
+    change_serializer_class = serializers.OpenStackPackageChangeSerializer

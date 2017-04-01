@@ -77,6 +77,9 @@ class PackageTemplate(core_models.UuidMixin,
     def get_url_name(cls):
         return 'package-template'
 
+    def is_read_only(self):
+        return self.openstack_packages.exists()
+
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
 
@@ -145,6 +148,23 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
             openstack_models.Tenant.Quotas.vcpu: PackageComponent.Types.CORES,
             openstack_models.Tenant.Quotas.storage: PackageComponent.Types.STORAGE,
         }
+
+    def get_quota_usage(self):
+        """
+        Returns map:
+        {
+            'ram': ram_quota.usage,
+            'cores': vcpu_quota.usage,
+            'storage': storage_quota.usage,
+        }
+        """
+        mapping = self.get_quota_to_component_mapping()
+        usage = {}
+        quotas = {quota.name: quota.usage for quota in self.tenant.quotas.all()}
+        for quota, component_type in mapping.items():
+            if quota.name in quotas:
+                usage[component_type] = quotas[quota.name]
+        return usage
 
     class Meta(object):
         verbose_name = _('OpenStack VPC package')

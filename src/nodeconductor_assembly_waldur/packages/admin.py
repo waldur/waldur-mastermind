@@ -3,9 +3,11 @@ import collections
 from decimal import Decimal
 from django import forms
 from django.conf import settings
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
+
+from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models
 
@@ -67,7 +69,8 @@ class PackageComponentForm(forms.ModelForm):
 
     class Meta:
         model = models.PackageComponent
-        fields = ('type', 'amount', 'monthly_price', 'price')
+        price_defining_fields = ('amount', 'monthly_price')
+        fields = ('type', 'price') + price_defining_fields
 
     def __init__(self, *args, **kwargs):
         super(PackageComponentForm, self).__init__(*args, **kwargs)
@@ -78,6 +81,10 @@ class PackageComponentForm(forms.ModelForm):
 
             if settings.DEBUG:
                 self.fields['price_per_day'].initial = self.instance.price
+
+            if hasattr(self.instance, 'template') and self.instance.template.openstack_packages.exists():
+                for field in (field for field in self.fields if field in self.Meta.price_defining_fields):
+                    self.fields[field].widget.attrs['readonly'] = True
 
     def clean(self):
         super(PackageComponentForm, self).clean()
@@ -130,7 +137,10 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
     def add_fields(self, form, index):
         super(PackageComponentInlineFormset, self).add_fields(form, index)
         if 'type' in form.initial and form.initial['type'] in models.PackageTemplate.get_memory_types():
-            form.fields['amount'] = forms.IntegerField(min_value=0, initial=0, widget=GBtoMBWidget())
+            is_readonly = self.instance and self.instance.is_read_only()
+            form.fields['amount'] = forms.IntegerField(min_value=0,
+                                                       initial=0,
+                                                       widget=GBtoMBWidget({'readonly': is_readonly}))
 
     def clean(self):
         super(PackageComponentInlineFormset, self).clean()
@@ -170,11 +180,26 @@ class PackageComponentInline(admin.TabularInline):
 
 
 class PackageTemplateAdmin(admin.ModelAdmin):
+    # WIKI: https://opennode.atlassian.net/wiki/display/WD/Shared+OpenStack+Provider+Management#SharedOpenStackProviderManagement-VPCPackagetemplatemanagement
     inlines = [PackageComponentInline]
-    fields = ('name', 'category', 'description', 'archived', 'icon_url', 'service_settings')
+    package_dependant_fields = ('name', 'category', 'service_settings')
+    fields = package_dependant_fields + ('archived', 'icon_url', 'description')
     list_display = ('name', 'uuid', 'service_settings', 'price', 'archived', 'monthly_price', 'category')
     list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.is_read_only():
+            return self.package_dependant_fields
+        else:
+            return super(PackageTemplateAdmin, self).get_readonly_fields(request, obj)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super(PackageTemplateAdmin, self).get_form(request, obj, **kwargs)
+
+        if 'service_settings' in form.base_fields:
+            form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
+        return form
 
 
 class OpenStackPackageAdmin(admin.ModelAdmin):
