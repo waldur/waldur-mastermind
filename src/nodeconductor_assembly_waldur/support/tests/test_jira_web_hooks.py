@@ -224,6 +224,20 @@ class TestJiraWebHooks(APITestCase):
         issue.refresh_from_db()
         self.assertEqual(expected_resolution, issue.resolution)
 
+    def test_resolution_is_empty_if_it_is_none(self):
+        # arrange
+        backend_id, issue, _ = self.set_issue_and_support_user()
+        self.request_data['issue']['fields']['resolution'] = None
+        self.request_data['issue']['key'] = backend_id
+        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual('', issue.resolution)
+
     def test_status_is_update_by_web_hook(self):
         # arrange
         backend_id, issue, _ = self.set_issue_and_support_user()

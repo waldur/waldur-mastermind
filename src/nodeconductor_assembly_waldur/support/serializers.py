@@ -243,12 +243,12 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue.delete()
 
     def _update_issue(self, issue, fields, link):
-        issue.resolution = fields.get('resolution', {}).get('name', '')
-        issue.status = fields.get('status', {}).get('name', '')
+        issue.resolution = self._get_field_name(fields, 'resolution')
+        issue.status = self._get_field_name(fields, 'status')
         issue.link = link
         issue.impact = self._get_impact_field(fields=fields)
         issue.summary = fields['summary']
-        issue.priority = fields['priority']['name']
+        issue.priority = self._get_field_name(fields, 'priority')
         issue.description = fields['description']
         issue.type = fields['issuetype']['name']
 
@@ -270,6 +270,10 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         issue.save()
         return issue
+
+    def _get_field_name(self, fields, field_name, default_value=''):
+        """ Returns 'name' attribute of the field or default_value if the value is None """
+        return default_value if not fields[field_name] else fields[field_name]['name']
 
     def _update_custom_fields(self, issue, custom_field_values):
         sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
