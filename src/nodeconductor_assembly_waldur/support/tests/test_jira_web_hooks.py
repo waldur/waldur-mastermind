@@ -209,13 +209,12 @@ class TestJiraWebHooks(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_resolution_is_populated(self):
+    def test_resolution_is_populated_from_jira_request(self):
         # arrange
         backend_id, issue, _ = self.set_issue_and_support_user()
         expected_resolution = 'Done'
         self.request_data['issue']['fields']['resolution']['name'] = expected_resolution
         self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
 
         # act
         response = self.client.post(self.url, self.request_data)
@@ -229,7 +228,6 @@ class TestJiraWebHooks(APITestCase):
         backend_id, issue, _ = self.set_issue_and_support_user()
         self.request_data['issue']['fields']['resolution'] = None
         self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
 
         # act
         response = self.client.post(self.url, self.request_data)
@@ -238,11 +236,10 @@ class TestJiraWebHooks(APITestCase):
         issue.refresh_from_db()
         self.assertEqual('', issue.resolution)
 
-    def test_status_is_update_by_web_hook(self):
+    def test_status_is_populated_from_jira_request(self):
         # arrange
         backend_id, issue, _ = self.set_issue_and_support_user()
         self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
         expected_status = 'To Do'
         self.request_data['issue']['fields']['status']['name'] = expected_status
 
