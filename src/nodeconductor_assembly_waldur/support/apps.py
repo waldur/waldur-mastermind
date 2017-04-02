@@ -11,6 +11,7 @@ class SupportConfig(AppConfig):
 
         Issue = self.get_model('Issue')
         Offering = self.get_model('Offering')
+        Comment = self.get_model('Comment')
 
         signals.post_save.connect(
             handlers.log_issue_save,
@@ -29,3 +30,16 @@ class SupportConfig(AppConfig):
             sender=Offering,
             dispatch_uid='nodeconductor_assembly_waldur.support.handlers.log_offering_state_changed',
         )
+
+        signals.post_save.connect(
+            handlers.send_comment_added_notification,
+            sender=Comment,
+            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.send_comment_added_notification'
+        )
+
+        signals.post_save.connect(
+            handlers.send_issue_updated_notification,
+            sender=Issue,
+            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.send_issue_updated_notification'
+        )
+

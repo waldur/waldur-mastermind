@@ -176,11 +176,11 @@
         "active": true,
         "avatarUrls": {
         },
-        "displayName": "test_user@gmail.com",
-        "emailAddress": "test_user@gmail.com",
-        "key": "test_user",
-        "name": "test_user",
-        "self": "http://localhost:8080/rest/api/2/user?username=test_user",
+        "displayName": "reporter_user@gmail.com",
+        "emailAddress": "reporter_user@gmail.com",
+        "key": "reporter_user",
+        "name": "reporter_user",
+        "self": "http://localhost:8080/rest/api/2/user?username=reporter_user",
         "timeZone": "America/New_York"
       },
       "resolution": {

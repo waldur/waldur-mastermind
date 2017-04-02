@@ -76,6 +76,9 @@ class SupportExtension(NodeConductorExtension):
             },
         }
 
+        SUPPRESS_NOTIFICATION_EMAILS = False
+        ISSUE_LINK_TEMPLATE = 'https://www.example.com/#/support/issue/{uuid}/'
+
     @staticmethod
     def django_app():
         return 'nodeconductor_assembly_waldur.support'

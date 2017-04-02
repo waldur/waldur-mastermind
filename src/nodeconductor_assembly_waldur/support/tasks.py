@@ -1,6 +1,19 @@
-from celery import Task
+import logging
+
+from smtplib import SMTPException
+
+from celery import Task, shared_task
+from django.conf import settings
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+
+from nodeconductor.core import utils as core_utils
+
 
 from . import backend, models
+
+
+logger = logging.getLogger(__name__)
 
 
 class SupportUserPullTask(Task):
@@ -16,3 +29,41 @@ class SupportUserPullTask(Task):
                 user.name = backend_user.name
                 user.save()
         models.SupportUser.objects.exclude(backend_id__in=[u.backend_id for u in backend_users]).delete()
+
+
+@shared_task(name='nodeconductor_assembly_waldur.support.send_issue_updated_notification')
+def send_issue_updated_notification(serialized_issue):
+    issue = core_utils.deserialize_instance(serialized_issue)
+    _send_issue_notification(issue, 'issue_updated')
+
+
+@shared_task(name='nodeconductor_assembly_waldur.support.send_comment_added_notification')
+def send_comment_added_notification(serialized_issue):
+    issue = core_utils.deserialize_instance(serialized_issue)
+    _send_issue_notification(issue, 'comment_added')
+
+
+def _send_issue_notification(issue, template):
+    if settings.SUPPRESS_NOTIFICATION_EMAILS:
+        message = ('Issue notifications are suppressed. '
+                   'Please set SUPPRESS_NOTIFICATION_EMAILS to False to send notifications.')
+        logger.info(message)
+        return
+
+    receiver = issue.caller
+
+    context = {
+        'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid)
+    }
+
+    subject = render_to_string('support/notification_%s_subject.txt' % template).strip()
+    text_message = render_to_string('support/notification_%s.txt' % template, context)
+    html_message = render_to_string('support/notification_%s.html' % template, context)
+
+    logger.debug('About to send an issue update notification to %s' % receiver.email)
+
+    try:
+        send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [receiver.email], html_message=html_message)
+    except SMTPException as e:
+        message = 'Failed to notify a user about an issue update. Issue uuid: %s. Error: %s' % (issue.uuid, e.message)
+        logger.warning(message)
