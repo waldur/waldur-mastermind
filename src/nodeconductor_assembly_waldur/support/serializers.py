@@ -244,7 +244,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     def _update_issue(self, issue, fields, link):
         issue.resolution = fields.get('resolution', {}).get('name', '')
-        issue.status = fields['issuetype']['name']
+        issue.status = fields.get('status', {}).get('name', '')
         issue.link = link
         issue.impact = self._get_impact_field(fields=fields)
         issue.summary = fields['summary']
