@@ -256,12 +256,12 @@ class WebHookReceiverSerializer(serializers.Serializer):
         :return: a dictionary of issue attributes and values
         """
         backend_issue = {
-            'resolution': fields['resolution'] or '',
-            'status': fields['issuetype']['name'],
+            'resolution': self._get_field_name(fields, 'resolution'),
+            'status': self._get_field_name(fields, 'status'),
             'link': link,
             'impact': self._get_impact_field(fields=fields),
             'summary': fields['summary'],
-            'priority': fields['priority']['name'],
+            'priority': self._get_field_name(fields, 'priority'),
             'description': fields['description'],
             'type': fields['issuetype']['name'],
         }
@@ -297,6 +297,10 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         if updated:
             issue.save()
+
+    def _get_field_name(self, fields, field_name, default_value=''):
+        """ Returns 'name' attribute of the field or default_value if the value is None """
+        return default_value if not fields[field_name] else fields[field_name]['name']
 
     def _get_sla_field_value(self, custom_field_values):
         sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
