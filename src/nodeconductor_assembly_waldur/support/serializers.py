@@ -243,7 +243,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue.delete()
 
     def _update_issue(self, issue, fields, link):
-        issue.resolution = fields['resolution'] or ''
+        issue.resolution = fields.get('resolution', {}).get('name', '')
         issue.status = fields['issuetype']['name']
         issue.link = link
         issue.impact = self._get_impact_field(fields=fields)

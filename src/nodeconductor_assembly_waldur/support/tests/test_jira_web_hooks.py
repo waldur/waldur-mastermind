@@ -208,3 +208,19 @@ class TestJiraWebHooks(APITestCase):
         response = self.client.post(self.url, {})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_resolution_is_populated(self):
+        # arrange
+        backend_id, issue, _ = self.set_issue_and_support_user()
+        expected_resolution = 'Done'
+        self.request_data['issue']['fields']['resolution']['name'] = expected_resolution
+        self.request_data['issue']['key'] = backend_id
+        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual(expected_resolution, issue.resolution)
+
