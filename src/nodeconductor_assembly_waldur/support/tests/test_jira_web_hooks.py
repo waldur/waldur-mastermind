@@ -214,6 +214,47 @@ class TestJiraWebHooks(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_resolution_is_populated_from_jira_request(self):
+        # arrange
+        backend_id, issue, _ = self.set_issue_and_support_user()
+        expected_resolution = 'Done'
+        self.request_data['issue']['fields']['resolution']['name'] = expected_resolution
+        self.request_data['issue']['key'] = backend_id
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual(expected_resolution, issue.resolution)
+
+    def test_resolution_is_empty_if_it_is_none(self):
+        # arrange
+        backend_id, issue, _ = self.set_issue_and_support_user()
+        self.request_data['issue']['fields']['resolution'] = None
+        self.request_data['issue']['key'] = backend_id
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual('', issue.resolution)
+
+    def test_status_is_populated_from_jira_request(self):
+        # arrange
+        backend_id, issue, _ = self.set_issue_and_support_user()
+        self.request_data['issue']['key'] = backend_id
+        expected_status = 'To Do'
+        self.request_data['issue']['fields']['status']['name'] = expected_status
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual(expected_status, issue.status)
+
     def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(self):
         fields = self.request_data['issue']['fields']
         reporter = factories.SupportUserFactory(backend_id=fields['reporter']['key'])
@@ -221,9 +262,9 @@ class TestJiraWebHooks(APITestCase):
         first_response_sla = fields['customfield_10006']['ongoingCycle']['breachTime']['epochMillis'] / 1000.0
 
         factories.IssueFactory(
-            resolution=fields['resolution'] or '',
+            resolution=fields['resolution']['name'],
             backend_id=self.request_data['issue']['key'],
-            status=fields['issuetype']['name'],
+            status=fields['status']['name'],
             link=self.request_data['issue']['self'],
             summary=fields['summary'],
             priority=fields['priority']['name'],

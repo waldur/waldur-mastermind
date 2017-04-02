@@ -183,7 +183,12 @@
         "self": "http://localhost:8080/rest/api/2/user?username=reporter_user",
         "timeZone": "America/New_York"
       },
-      "resolution": null,
+      "resolution": {
+        "self": "https://localhost:8080/api/2/resolution/10000",
+        "id": "10000",
+        "name": "Done",
+        "description": "Work has been completed on this issue."
+      },
       "resolutiondate": null,
       "status": {
         "description": "",
