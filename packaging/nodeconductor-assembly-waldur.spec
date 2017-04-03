@@ -1,7 +1,7 @@
 Name: nodeconductor-assembly-waldur
 Summary: NodeConductor assembly for Waldur project
 Group: Development/Libraries
-Version: 2.4.3
+Version: 2.4.4
 Release: 1.el7
 License: MIT
 Url: http://nodeconductor.com
@@ -47,6 +47,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Mon Apr 3 2017 Jenkins <jenkins@opennodecloud.com> - 2.4.4-1.el7
+- New upstream release
+
 * Sun Apr 2 2017 Jenkins <jenkins@opennodecloud.com> - 2.4.3-1.el7
 - New upstream release
 
