@@ -41,13 +41,18 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
 class CommentCreatedHandlerTest(BaseHandlerTest):
 
-    def test_email_is_sent_when_comment_is_created(self):
-        factories.CommentFactory()
+    def test_email_is_sent_when_public_comment_is_created(self):
+        factories.CommentFactory(is_public=True)
 
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_email_is_not_sent_when_comment_is_updated(self):
-        comment = factories.CommentFactory()
+    def test_email_is_not_sent_for_private_comment(self):
+        factories.CommentFactory()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_email_is_not_sent_when_public_comment_is_updated(self):
+        comment = factories.CommentFactory(is_public=True)
         self.assertEqual(len(mail.outbox), 1)
 
         comment.description = 'new_description'
@@ -57,6 +62,6 @@ class CommentCreatedHandlerTest(BaseHandlerTest):
 
     def test_email_is_not_set_if_feature_is_suppressed(self):
         with self.settings(SUPPRESS_NOTIFICATION_EMAILS=True):
-            factories.CommentFactory()
+            factories.CommentFactory(is_public=True)
 
             self.assertEqual(len(mail.outbox), 0)
