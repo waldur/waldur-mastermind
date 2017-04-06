@@ -7,7 +7,7 @@ License: MIT
 Url: http://nodeconductor.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor >= 0.130.0
+Requires: nodeconductor > 0.131.0
 Requires: nodeconductor-auth-social >= 0.4.0
 Requires: nodeconductor-auth-openid >= 0.4.1
 Requires: nodeconductor-aws >= 0.4.2
