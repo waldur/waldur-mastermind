@@ -1,6 +1,7 @@
 from ddt import ddt, data
 from rest_framework import status
 
+from nodeconductor_assembly_waldur.support.tests.base import override_support_settings
 from . import factories, base
 
 
@@ -29,3 +30,9 @@ class SupportUserRetreiveTest(base.BaseTest):
     def test_anonymouse_user_can_not_retreive_support_users(self):
         response = self.client.get(factories.SupportUserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_support_settings(ENABLED=False)
+    def test_user_can_not_retreive_support_users_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.SupportUserFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
