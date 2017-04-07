@@ -6,7 +6,7 @@ install_requires = [
     'nodeconductor>=0.130.0',
     'nodeconductor_auth_social>=0.4.0',
     'nodeconductor_auth_openid>=0.4.1',
-    'nodeconductor_aws>=0.4.2',
+    'nodeconductor_aws>=0.4.3',
     'nodeconductor_digitalocean>=0.4.1',
     'nodeconductor_openstack>0.21.0',
 ]

@@ -10,7 +10,7 @@ Source0: %{name}-%{version}.tar.gz
 Requires: nodeconductor >= 0.130.0
 Requires: nodeconductor-auth-social >= 0.4.0
 Requires: nodeconductor-auth-openid >= 0.4.1
-Requires: nodeconductor-aws >= 0.4.2
+Requires: nodeconductor-aws >= 0.4.3
 Requires: nodeconductor-digitalocean >= 0.4.1
 Requires: nodeconductor-openstack > 0.21.0
 Requires: python-jira >= 1.0.7
