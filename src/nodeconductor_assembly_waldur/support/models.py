@@ -67,10 +67,11 @@ class Issue(core_models.UuidMixin,
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Issue, cls).get_backend_fields() + ('summary', 'description', 'impact', 'backend_id', 'type',
-                                                         'key', 'link', 'description', 'status', 'resolution',
-                                                         'priority', 'caller', 'reporter', 'assignee', 'customer',
-                                                         'project', 'resource', 'first_response_sla')
+        return super(Issue, cls).get_backend_fields() + ('backend_id', 'key', 'type', 'link',
+                                                         'summary', 'description', 'deadline', 'impact',
+                                                         'status', 'resolution', 'priority',
+                                                         'caller', 'reporter', 'assignee', 'customer', 'project',
+                                                         'resource', 'first_response_sla')
 
     def get_log_fields(self):
         return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'caller', 'customer', 'project', 'resource')

@@ -10,7 +10,7 @@ class OfferingAdmin(admin.ModelAdmin):
 
 
 class IssueAdmin(structure_admin.BackendModelAdmin):
-    exclude = ('deadline', 'resource_content_type', 'resource_object_id')
+    exclude = ('resource_content_type', 'resource_object_id')
 
 
 admin.site.register(models.Offering, OfferingAdmin)
