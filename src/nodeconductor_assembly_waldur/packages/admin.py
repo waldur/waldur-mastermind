@@ -7,7 +7,7 @@ from django.contrib import admin
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 
-from nodeconductor.core.admin import ReadonlyTextWidget, render_to_readonly
+from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.packages import models
 
@@ -41,19 +41,20 @@ class PriceForMBinGBWidget(forms.NumberInput):
 
     def render(self, name, value, attrs=None):
         if self.readonly:
-            return render_to_readonly(self._format_value(value))
+            return core_admin.render_to_readonly(self._format_value(value))
         else:
             return super(PriceForMBinGBWidget, self).render(name, value, attrs)
 
 
 class PackageComponentForm(forms.ModelForm):
     monthly_price = forms.DecimalField(label='Price for 30 days', initial=0, required=True)
-    price = forms.DecimalField(initial=0, label='Price per unit per day', required=False, widget=ReadonlyTextWidget())
+    price = forms.DecimalField(initial=0, label='Price per unit per day', required=False,
+                               widget=core_admin.ReadonlyTextWidget())
     if settings.DEBUG:
         price_per_day = forms.DecimalField(label='Price per day for MB',
                                            initial=0,
                                            required=False,
-                                           widget=ReadonlyTextWidget())
+                                           widget=core_admin.ReadonlyTextWidget())
 
     class Meta:
         model = models.PackageComponent
