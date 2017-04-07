@@ -12,7 +12,21 @@ from nodeconductor.structure import (filters as structure_filters, models as str
 from . import filters, models, serializers, backend
 
 
-class IssueViewSet(core_views.ActionsViewSet):
+class ExtensionDisabled(exceptions.APIException):
+    status_code = status.HTTP_424_FAILED_DEPENDENCY
+    default_detail = 'Support extension is disabled.'
+
+
+class CheckExtensionMixin(object):
+    """ Raise exception if support extension is disabled """
+
+    def initial(self, request, *args, **kwargs):
+        if not settings.WALDUR_SUPPORT['ENABLED']:
+            raise ExtensionDisabled()
+        return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
+
+
+class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Issue.objects.all()
     lookup_field = 'uuid'
     filter_backends = (
@@ -71,7 +85,7 @@ class IssueViewSet(core_views.ActionsViewSet):
     comment_permissions = [_comment_permission]
 
 
-class CommentViewSet(core_views.ActionsViewSet):
+class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.CommentSerializer
     filter_backends = (
@@ -114,7 +128,7 @@ class IsStaffOrSupportUser(permissions.BasePermission):
         return request.user.is_staff or request.user.is_support
 
 
-class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
+class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.SupportUser.objects.all()
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated, IsStaffOrSupportUser,)
@@ -123,7 +137,7 @@ class SupportUserViewSet(viewsets.ReadOnlyModelViewSet):
     filter_class = filters.SupportUserFilter
 
 
-class WebHookReceiverView(views.APIView):
+class WebHookReceiverView(CheckExtensionMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebHookReceiverSerializer
@@ -135,7 +149,7 @@ class WebHookReceiverView(views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
-class OfferingViewSet(core_views.ActionsViewSet):
+class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingSerializer
     lookup_field = 'uuid'
