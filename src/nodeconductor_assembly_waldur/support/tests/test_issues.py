@@ -4,6 +4,7 @@ from ddt import ddt, data
 from rest_framework import status
 
 from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor_assembly_waldur.support.tests.base import override_support_settings
 
 from . import factories, base
 from .. import models
@@ -77,6 +78,13 @@ class IssueRetreiveTest(base.BaseTest):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('link', response.data)
+
+    @override_support_settings(ENABLED=False)
+    def test_user_can_not_see_a_list_of_issues_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.user)
+        url = factories.IssueFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
 
 @ddt
@@ -204,6 +212,12 @@ class IssueCreateTest(base.BaseTest):
         self.assertEqual(issue.project, self.fixture.resource.service_project_link.project)
         self.assertEqual(issue.customer, self.fixture.resource.service_project_link.project.customer)
 
+    @override_support_settings(ENABLED=False)
+    def test_user_can_not_create_issue_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, data=self._get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+
     def _get_valid_payload(self, **additional):
         payload = {
             'summary': 'test_issue',
@@ -241,6 +255,13 @@ class IssueUpdateTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(models.Issue.objects.filter(summary=payload['summary']).exists())
 
+    @override_support_settings(ENABLED=False)
+    def test_staff_can_not_update_issue_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self._get_valid_payload()
+        response = self.client.patch(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+
     def _get_valid_payload(self):
         return {'summary': 'edited_summary'}
 
@@ -271,6 +292,12 @@ class IssueDeleteTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Issue.objects.filter(id=self.issue.id).exists())
 
+    @override_support_settings(ENABLED=False)
+    def test_user_can_not_delete_issue_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+
 
 @ddt
 class IssueCommentTest(base.BaseTest):
@@ -296,6 +323,15 @@ class IssueCommentTest(base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(models.Comment.objects.filter(issue=issue, description=payload['description']))
+
+    @override_support_settings(ENABLED=False)
+    def test_user_can_not_comment_issue_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        issue = factories.IssueFactory(customer=self.fixture.customer)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(factories.IssueFactory.get_url(issue, action='comment'), data=payload)
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
     def _get_valid_payload(self):
         return {'description': 'Comment description'}
