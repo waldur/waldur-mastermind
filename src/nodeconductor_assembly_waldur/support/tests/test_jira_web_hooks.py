@@ -125,6 +125,27 @@ class TestJiraWebHooks(APITestCase):
         self.assertIsNotNone(issue_comment)
         self.assertEqual(issue_comment.description, expected_comment_body)
 
+    def test_webhook_cleans_up_user_info_and_does_not_update_comment_if_it_is_not_changed(self):
+        # arrange
+        backend_id, issue, _ = self.set_issue_and_support_user()
+        comment = factories.CommentFactory(issue=issue)
+        expected_comment_body = comment.description
+        jira_comment_body = '[Luke Skywalker 19BBY-TA-T16]: %s' % expected_comment_body
+
+        self.request_data['issue']['key'] = issue.backend_id
+        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
+        self.request_data['issue']['fields']['comment']['comments'][0]['id'] = comment.backend_id
+        self.request_data['issue']['fields']['comment']['comments'][0]['body'] = jira_comment_body
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        issue_comment = issue.comments.first()
+        self.assertIsNotNone(issue_comment)
+        self.assertEqual(issue_comment.description, expected_comment_body)
+
     def test_issue_update_callback_creates_deletes_two_comments(self):
         # arrange
         backend_id, issue, _ = self.set_issue_and_support_user()
