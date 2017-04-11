@@ -111,17 +111,17 @@ class JiraBackend(SupportBackend):
 
     def _prepare_comment_message(self, comment):
         """
-        Prepends user full name to the commend description to display comment author on Jira
+        Prepends user info to the comment description to display comment author in JIRA.
+        User info format - '[user.full_name user.civil_number]: '.
         """
         return '[%s %s]: %s' % (comment.author.user.full_name, comment.author.user.civil_number, comment.description)
 
-    def extract_comment_message(self, commend_body):
+    def extract_comment_message(self, comment_body):
         """
-        Extracts comment message from Jira comment which contains author full name in its body.
-        User full name format - '[\w+]: '.
+        Extracts comment message from JIRA comment which contains user's info in its body.
         """
-        match = re.search('^(\[.*?\]\:\s)', commend_body)
-        return commend_body.replace(match.group(0), '') if match else commend_body
+        match = re.search('^(\[.*?\]\:\s)', comment_body)
+        return comment_body.replace(match.group(0), '') if match else comment_body
 
     @reraise_exceptions
     def create_comment(self, comment):
