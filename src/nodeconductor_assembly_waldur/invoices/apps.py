@@ -4,7 +4,7 @@ from django.db.models import signals
 
 class InvoiceConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.invoices'
-    verbose_name = 'Waldur assembly Invoices'
+    verbose_name = 'Waldur Invoices'
 
     def ready(self):
         from nodeconductor_assembly_waldur.support import models as support_models
