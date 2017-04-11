@@ -114,7 +114,7 @@ class JiraBackend(SupportBackend):
         Prepends user info to the comment description to display comment author in JIRA.
         User info format - '[user.full_name user.civil_number]: '.
         """
-        return '[%s %s]: %s' % (comment.author.user.full_name,
+        return '[%s %s]: %s' % (comment.author.user.full_name or comment.author.user.username,
                                 comment.author.user.civil_number or '',
                                 comment.description)
 
