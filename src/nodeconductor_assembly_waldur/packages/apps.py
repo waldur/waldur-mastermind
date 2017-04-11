@@ -4,7 +4,7 @@ from django.db.models import signals
 
 class PackageConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.packages'
-    verbose_name = 'Waldur assembly VPC packages'
+    verbose_name = 'VPC packages'
 
     def ready(self):
         OpenStackPackage = self.get_model('OpenStackPackage')

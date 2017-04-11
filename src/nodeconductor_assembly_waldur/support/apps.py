@@ -4,7 +4,7 @@ from django.db.models import signals
 
 class SupportConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.support'
-    verbose_name = 'Waldur assembly support'
+    verbose_name = 'HelpDesk'
 
     def ready(self):
         from . import handlers
