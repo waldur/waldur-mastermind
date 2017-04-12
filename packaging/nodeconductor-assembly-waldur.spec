@@ -9,10 +9,10 @@ Source0: %{name}-%{version}.tar.gz
 
 Requires: nodeconductor >= 0.134.0
 Requires: nodeconductor-auth-social >= 0.5.0
-Requires: nodeconductor-auth-openid >= 0.4.3
-Requires: nodeconductor-aws >= 0.5.0
-Requires: nodeconductor-digitalocean >= 0.5.0
-Requires: nodeconductor-openstack >= 0.23.0
+Requires: nodeconductor-auth-openid >= 0.5.0
+Requires: nodeconductor-aws >= 0.5.1
+Requires: nodeconductor-digitalocean >= 0.5.1
+Requires: nodeconductor-openstack >= 0.23.1
 Requires: python-jira >= 1.0.7
 
 BuildArch: noarch
