@@ -3,12 +3,12 @@ from setuptools import setup, find_packages
 
 install_requires = [
     'jira>=1.0.7',
-    'nodeconductor>=0.133.0',
+    'nodeconductor>=0.134.0',
     'nodeconductor_auth_social>=0.5.0',
-    'nodeconductor_auth_openid>=0.4.3',
-    'nodeconductor_aws>=0.5.0',
-    'nodeconductor_digitalocean>=0.5.0',
-    'nodeconductor_openstack>=0.23.0',
+    'nodeconductor_auth_openid>=0.5.0',
+    'nodeconductor_aws>=0.5.1',
+    'nodeconductor_digitalocean>=0.5.1',
+    'nodeconductor_openstack>=0.23.1',
 ]
 
 test_requires = [
