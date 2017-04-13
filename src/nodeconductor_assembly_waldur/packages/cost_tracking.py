@@ -1,0 +1,31 @@
+from nodeconductor.cost_tracking import CostTrackingStrategy, ConsumableItem, CostTrackingRegister
+from nodeconductor_openstack.openstack import models as openstack_models
+
+from . import models
+
+
+class TenantStrategy(CostTrackingStrategy):
+    resource_class = openstack_models.Tenant
+
+    class Types(object):
+        PACKAGE_TEMPLATE = 'PackageTemplate'
+
+    @classmethod
+    def get_consumable_items(cls):
+        for package_template in models.PackageTemplate.objects.all():
+            yield ConsumableItem(
+                item_type=cls.Types.PACKAGE_TEMPLATE,
+                key=package_template.name,
+                default_price=package_template.price / 24)  # default price per hour
+
+    @classmethod
+    def get_configuration(cls, tenant):
+        configuration = {}
+        if tenant.state != tenant.States.ERRED:
+            configuration = {
+                ConsumableItem(item_type=cls.Types.PACKAGE_TEMPLATE, key=tenant.extra_configuration['package_name']): 1,
+            }
+        return configuration
+
+
+CostTrackingRegister.register_strategy(TenantStrategy)
