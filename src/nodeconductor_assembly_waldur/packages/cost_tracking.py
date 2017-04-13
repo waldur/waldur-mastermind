@@ -1,7 +1,12 @@
+import logging
+
 from nodeconductor.cost_tracking import CostTrackingStrategy, ConsumableItem, CostTrackingRegister
 from nodeconductor_openstack.openstack import models as openstack_models
 
 from . import models
+
+
+logger = logging.getLogger(__name__)
 
 
 class TenantStrategy(CostTrackingStrategy):
@@ -22,9 +27,14 @@ class TenantStrategy(CostTrackingStrategy):
     def get_configuration(cls, tenant):
         configuration = {}
         if tenant.state != tenant.States.ERRED:
-            configuration = {
-                ConsumableItem(item_type=cls.Types.PACKAGE_TEMPLATE, key=tenant.extra_configuration['package_name']): 1,
-            }
+            if 'package_name' not in tenant.extra_configuration:
+                logger.warning(
+                    'Package name is not defined in configuration of tenant %s, (PK: %s)', tenant.name, tenant.pk)
+            else:
+                package_name = tenant.extra_configuration['package_name']
+                configuration = {
+                    ConsumableItem(item_type=cls.Types.PACKAGE_TEMPLATE, key=package_name): 1,
+                }
         return configuration
 
 
