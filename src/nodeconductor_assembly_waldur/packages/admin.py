@@ -3,12 +3,12 @@ import collections
 from decimal import Decimal
 from django import forms
 from django.conf import settings
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 
+from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import models as structure_models
-
 from nodeconductor_assembly_waldur.packages import models
 
 
@@ -26,18 +26,6 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
         return '<label>%s GB</label>' % result
 
 
-def render_to_readonly(value):
-    return "<p>{0}</p>".format(value)
-
-
-class ReadonlyNumberWidget(forms.NumberInput):
-    def _format_value(self, value):
-        return value
-
-    def render(self, name, value, attrs=None):
-        return render_to_readonly(self._format_value(value))
-
-
 class PriceForMBinGBWidget(forms.NumberInput):
     def __init__(self, attrs):
         self.readonly = attrs.pop('readonly', False)
@@ -53,19 +41,20 @@ class PriceForMBinGBWidget(forms.NumberInput):
 
     def render(self, name, value, attrs=None):
         if self.readonly:
-            return render_to_readonly(self._format_value(value))
+            return core_admin.render_to_readonly(self._format_value(value))
         else:
             return super(PriceForMBinGBWidget, self).render(name, value, attrs)
 
 
 class PackageComponentForm(forms.ModelForm):
     monthly_price = forms.DecimalField(label='Price for 30 days', initial=0, required=True)
-    price = forms.DecimalField(initial=0, label='Price per unit per day', required=False, widget=ReadonlyNumberWidget())
+    price = forms.DecimalField(initial=0, label='Price per unit per day', required=False,
+                               widget=core_admin.ReadonlyTextWidget())
     if settings.DEBUG:
         price_per_day = forms.DecimalField(label='Price per day for MB',
                                            initial=0,
                                            required=False,
-                                           widget=ReadonlyNumberWidget())
+                                           widget=core_admin.ReadonlyTextWidget())
 
     class Meta:
         model = models.PackageComponent

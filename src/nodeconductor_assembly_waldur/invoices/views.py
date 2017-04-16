@@ -41,7 +41,6 @@ class PaymentDetailsViewSet(viewsets.ModelViewSet):
     queryset = models.PaymentDetails.objects.order_by('customer')
     serializer_class = serializers.PaymentDetailsSerializer
     lookup_field = 'uuid'
-    permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly,
-                          permissions.DjangoObjectPermissions)
+    permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.PaymentDetailsFilter

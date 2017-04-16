@@ -8,6 +8,7 @@ from nodeconductor_assembly_waldur.support.backend import SupportBackendError
 from rest_framework import status
 
 from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor_assembly_waldur.support.tests.base import override_support_settings
 
 from . import base, factories
 from .. import models
@@ -127,6 +128,12 @@ class OfferingCreateTest(BaseOfferingTest):
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
+
+    @override_support_settings(ENABLED=False)
+    def test_user_can_not_create_issue_if_support_extension_is_disabled(self):
+        request_data = self._get_valid_request()
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
     def test_issue_is_created_with_custom_description(self):
         expected_description = 'This is a description'

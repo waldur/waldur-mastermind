@@ -17,6 +17,7 @@ class PackageTemplateFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.PackageTemplate
+        fields = ['archived']
 
 
 class OpenStackPackageFilter(django_filters.FilterSet):

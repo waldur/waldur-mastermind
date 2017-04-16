@@ -8,6 +8,7 @@ from nodeconductor.core import NodeConductorExtension
 class SupportExtension(NodeConductorExtension):
     class Settings(object):
         WALDUR_SUPPORT = {
+            'ENABLED': True,
             'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
             'CREDENTIALS': {
                 'server': 'http://example.com/',

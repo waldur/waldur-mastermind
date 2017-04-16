@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from datetime import datetime
 import functools
+import re
 from six.moves.html_parser import HTMLParser
 import json
 
@@ -109,7 +110,20 @@ class JiraBackend(SupportBackend):
         backend_issue.delete()
 
     def _prepare_comment_message(self, comment):
-        return comment.description
+        """
+        Prepends user info to the comment description to display comment author in JIRA.
+        User info format - '[user.full_name user.civil_number]: '.
+        """
+        return '[%s %s]: %s' % (comment.author.user.full_name or comment.author.user.username,
+                                comment.author.user.civil_number or '',
+                                comment.description)
+
+    def extract_comment_message(self, comment_body):
+        """
+        Extracts comment message from JIRA comment which contains user's info in its body.
+        """
+        match = re.search('^(\[.*?\]\:\s)', comment_body)
+        return comment_body.replace(match.group(0), '') if match else comment_body
 
     @reraise_exceptions
     def create_comment(self, comment):
