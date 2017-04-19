@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from django.conf import settings
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
 from nodeconductor.core import views as core_views
@@ -14,7 +15,7 @@ from . import filters, models, serializers, backend
 
 class ExtensionDisabled(exceptions.APIException):
     status_code = status.HTTP_424_FAILED_DEPENDENCY
-    default_detail = 'Support extension is disabled.'
+    default_detail = _('Support extension is disabled.')
 
 
 class CheckExtensionMixin(object):
@@ -180,14 +181,14 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
-            raise exceptions.ValidationError('Offering must be in requested state.')
+            raise exceptions.ValidationError(_('Offering must be in requested state.'))
 
     @decorators.detail_route(methods=['post'])
     def complete(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return response.Response({'status': 'Offering is marked as completed.'}, status=status.HTTP_200_OK)
+        return response.Response({'status': _('Offering is marked as completed.')}, status=status.HTTP_200_OK)
 
     complete_validators = [offering_is_in_requested_state]
     complete_permissions = [structure_permissions.is_staff]
@@ -198,7 +199,6 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         offering = self.get_object()
         offering.state = models.Offering.States.TERMINATED
         offering.save()
-        return response.Response({'status': 'Offering is marked as terminated.'}, status=status.HTTP_200_OK)
+        return response.Response({'status': _('Offering is marked as terminated.')}, status=status.HTTP_200_OK)
 
     terminate_permissions = [structure_permissions.is_staff]
-
