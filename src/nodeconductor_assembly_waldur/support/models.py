@@ -33,7 +33,7 @@ class Issue(core_models.UuidMixin,
     backend_id = models.CharField(max_length=255, blank=True)
     key = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=255)
-    link = models.URLField(max_length=255, help_text='Link to issue in support system.', blank=True)
+    link = models.URLField(max_length=255, help_text=_('Link to issue in support system.'), blank=True)
 
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -45,14 +45,14 @@ class Issue(core_models.UuidMixin,
     priority = models.CharField(max_length=255, blank=True)
 
     caller = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='created_issues',
-                               help_text='Waldur user who has reported the issue.')
+                               help_text=_('Waldur user who has reported the issue.'))
     reporter = models.ForeignKey('SupportUser', related_name='reported_issues', blank=True, null=True,
-                                 help_text='Help desk user who have created the issue that is reported by caller.')
+                                 help_text=_('Help desk user who have created the issue that is reported by caller.'))
     assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True,
-                                 help_text='Help desk user who will implement the issue')
+                                 help_text=_('Help desk user who will implement the issue'))
 
     customer = models.ForeignKey(
-        structure_models.Customer, verbose_name='organization', related_name='issues', blank=True, null=True)
+        structure_models.Customer, verbose_name=_('organization'), related_name='issues', blank=True, null=True)
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)
 
     resource_content_type = models.ForeignKey(ContentType, null=True)
@@ -150,8 +150,8 @@ class Offering(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                help_text='Price per day',
-                                verbose_name='Price per day')
+                                help_text=_('Price per day'),
+                                verbose_name=_('Price per day'))
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
 
     tracker = FieldTracker()

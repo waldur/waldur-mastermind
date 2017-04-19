@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from nodeconductor.core import serializers as core_serializers
 
@@ -57,12 +58,12 @@ class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class InvoiceNotificationSerializer(serializers.Serializer):
-    link_template = serializers.URLField(help_text='The template must include {uuid} parameter '
-                                                   'e.g. http://example.com/invoice/{uuid}')
+    link_template = serializers.URLField(help_text=_('The template must include {uuid} parameter '
+                                                     'e.g. http://example.com/invoice/{uuid}'))
 
     def validate_link_template(self, link_template):
         if '{uuid}' not in link_template:
-            raise serializers.ValidationError("Link template must include '{uuid}' parameter.")
+            raise serializers.ValidationError(_("Link template must include '{uuid}' parameter."))
 
         return link_template
 

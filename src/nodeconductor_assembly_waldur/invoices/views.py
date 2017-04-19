@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import permissions, status, viewsets, exceptions
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
@@ -18,7 +19,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     def _is_invoice_created(invoice):
         if invoice.state != models.Invoice.States.CREATED:
-            raise exceptions.ValidationError('Notification only for the created invoice can be sent.')
+            raise exceptions.ValidationError(_('Notification only for the created invoice can be sent.'))
 
     @detail_route(methods=['post'])
     def send_notification(self, request, uuid=None):
@@ -29,7 +30,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         link_template = serializer.validated_data.get('link_template')
         tasks.send_invoice_notification.delay(invoice.uuid.hex, link_template)
 
-        return Response({'detail': "Invoice notification sending has been successfully scheduled."},
+        return Response({'detail': _('Invoice notification sending has been successfully scheduled.')},
                         status=status.HTTP_200_OK)
 
     send_notification_serializer_class = serializers.InvoiceNotificationSerializer
