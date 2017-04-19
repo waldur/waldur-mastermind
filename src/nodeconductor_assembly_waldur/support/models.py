@@ -61,6 +61,8 @@ class Issue(core_models.UuidMixin,
 
     first_response_sla = models.DateTimeField(blank=True, null=True)
 
+    tracker = FieldTracker()
+
     @classmethod
     def get_url_name(cls):
         return 'support-issue'

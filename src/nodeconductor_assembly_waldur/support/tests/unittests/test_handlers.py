@@ -38,6 +38,23 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
             self.assertEqual(len(mail.outbox), 0)
 
+    def test_email_notification_is_not_sent_if_assignee_changes(self):
+        issue = factories.IssueFactory()
+
+        issue.assignee = factories.SupportUserFactory()
+        issue.save()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_email_notification_is_sent_if_assignee_was_changed_with_status(self):
+        issue = factories.IssueFactory()
+
+        issue.assignee = factories.SupportUserFactory()
+        issue.status = 'new_status'
+        issue.save()
+
+        self.assertEqual(len(mail.outbox), 1)
+
 
 class CommentCreatedHandlerTest(BaseHandlerTest):
 
