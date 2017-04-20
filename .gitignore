@@ -4,6 +4,7 @@
 *.egg
 *.egg-info
 *.pyc
+*.mo
 db.sqlite3
 
 /.idea
