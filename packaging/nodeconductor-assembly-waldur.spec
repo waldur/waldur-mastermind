@@ -4,7 +4,7 @@ Group: Development/Libraries
 Version: 2.4.5
 Release: 1.el7
 License: MIT
-Url: http://nodeconductor.com
+Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: nodeconductor >= 0.135.0
