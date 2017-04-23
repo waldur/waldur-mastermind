@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, permissions, response, status
 from rest_framework.decorators import list_route
 
@@ -47,7 +48,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         new_package = serializer.save()
         executors.OpenStackPackageChangeExecutor.execute(new_package.tenant)
 
-        return response.Response({'detail': 'OpenStack package extend has been scheduled'},
+        return response.Response({'detail': _('OpenStack package extend has been scheduled')},
                                  status=status.HTTP_202_ACCEPTED)
 
     change_serializer_class = serializers.OpenStackPackageChangeSerializer

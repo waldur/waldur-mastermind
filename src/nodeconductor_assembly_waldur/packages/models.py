@@ -21,7 +21,7 @@ class PackageTemplate(core_models.UuidMixin,
     # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
-    archived = models.BooleanField(default=False, help_text='Forbids creation of new packages.')
+    archived = models.BooleanField(default=False, help_text=_('Forbids creation of new packages.'))
 
     class Categories(object):
         SMALL = 'small'
@@ -29,7 +29,7 @@ class PackageTemplate(core_models.UuidMixin,
         LARGE = 'large'
         TRIAL = 'trial'
 
-        CHOICES = ((SMALL, 'Small'), (MEDIUM, 'Medium'), (LARGE, 'Large'), (TRIAL, 'Trial'))
+        CHOICES = ((SMALL, _('Small')), (MEDIUM, _('Medium')), (LARGE, _('Large')), (TRIAL, _('Trial')))
 
     category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
 
@@ -64,13 +64,14 @@ class PackageTemplate(core_models.UuidMixin,
         openstack_type = openstack_apps.OpenStackConfig.service_name
 
         if not hasattr(self, 'service_settings'):
-            raise ValidationError({'service_settings': 'Please select service settings.'})
+            raise ValidationError({'service_settings': _('Please select service settings.')})
         if not self.service_settings.shared:
-            raise ValidationError({'service_settings': 'PackageTemplate can be created only for shared settings.'})
+            raise ValidationError({'service_settings': _('PackageTemplate can be created only for shared settings.')})
         if self.service_settings.type == openstack_type and not self.service_settings.options.get('is_admin', True):
-            raise ValidationError({'service_settings': 'Service settings should support tenant creation.'})
+            raise ValidationError({'service_settings': _('Service settings should support tenant creation.')})
         if 'external_network_id' not in self.service_settings.options:
-            raise ValidationError({'service_settings': 'external_network_id has to be defined for service settings.'})
+            raise ValidationError(
+                {'service_settings': _('external_network_id has to be defined for service settings.')})
         return self
 
     @classmethod
@@ -103,7 +104,7 @@ class PackageComponent(models.Model):
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0, max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                verbose_name='Price per unit per day')
+                                verbose_name=_('Price per unit per day'))
     template = models.ForeignKey(PackageTemplate, related_name='components')
 
     def __str__(self):
@@ -128,7 +129,7 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
         project_path = 'tenant__service_project_link__project'
 
     template = models.ForeignKey(PackageTemplate, related_name='openstack_packages',
-                                 help_text='Tenant will be created based on this template.',
+                                 help_text=_('Tenant will be created based on this template.'),
                                  on_delete=models.PROTECT)
     tenant = models.ForeignKey(openstack_models.Tenant, related_name='+')
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+', null=True,

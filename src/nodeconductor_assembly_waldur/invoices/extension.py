@@ -5,6 +5,7 @@ from nodeconductor.core import NodeConductorExtension
 
 class InvoicesExtension(NodeConductorExtension):
     class Settings:
+        # wiki: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration
         INVOICES = {
             'ISSUER_DETAILS': {
                 'company': 'OpenNode',

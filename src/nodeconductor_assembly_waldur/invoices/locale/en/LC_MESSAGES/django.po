@@ -1,0 +1,90 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-04-20 16:14+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: models.py:40
+msgid "Pending"
+msgstr ""
+
+#: models.py:40
+msgid "Created"
+msgstr ""
+
+#: models.py:40
+msgid "Paid"
+msgstr ""
+
+#: models.py:40
+msgid "Canceled"
+msgstr ""
+
+#: models.py:46
+msgid "organization"
+msgstr ""
+
+#: models.py:50
+msgid "Date then invoice moved from state pending to created."
+msgstr ""
+
+#: models.py:84
+msgid "Invoice must be in pending state."
+msgstr ""
+
+#: models.py:125
+msgid "Price per day."
+msgstr ""
+
+#: models.py:127
+msgid "Date and time when package usage has started."
+msgstr ""
+
+#: models.py:129
+msgid "Date and time when package usage has ended."
+msgstr ""
+
+#: models.py:171
+msgid "Stores data about offering"
+msgstr ""
+
+#: models.py:196
+msgid "Stores data about package"
+msgstr ""
+
+#: models.py:241 models.py:242
+msgid "Payment details"
+msgstr ""
+
+#: serializers.py:61
+#, python-brace-format
+msgid ""
+"The template must include {uuid} parameter e.g. http://example.com/invoice/"
+"{uuid}"
+msgstr ""
+
+#: serializers.py:66
+#, python-brace-format
+msgid "Link template must include '{uuid}' parameter."
+msgstr ""
+
+#: views.py:22
+msgid "Notification only for the created invoice can be sent."
+msgstr ""
+
+#: views.py:33
+msgid "Invoice notification sending has been successfully scheduled."
+msgstr ""

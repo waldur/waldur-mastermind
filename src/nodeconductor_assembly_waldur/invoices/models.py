@@ -37,17 +37,17 @@ class Invoice(core_models.UuidMixin, models.Model):
         PAID = 'paid'
         CANCELED = 'canceled'
 
-        CHOICES = ((PENDING, 'Pending'), (CREATED, 'Created'), (PAID, 'Paid'), (CANCELED, 'Canceled'))
+        CHOICES = ((PENDING, _('Pending')), (CREATED, _('Created')), (PAID, _('Paid')), (CANCELED, _('Canceled')))
 
     month = models.PositiveSmallIntegerField(default=utils.get_current_month,
                                              validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.PENDING)
-    customer = models.ForeignKey(structure_models.Customer, verbose_name='organization', related_name='+')
+    customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'), related_name='+')
     tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     invoice_date = models.DateField(null=True, blank=True,
-                                    help_text='Date then invoice moved from state pending to created.')
+                                    help_text=_('Date then invoice moved from state pending to created.'))
 
     tracker = FieldTracker()
 
@@ -81,7 +81,7 @@ class Invoice(core_models.UuidMixin, models.Model):
             - Change state from pending to billed
         """
         if self.state != self.States.PENDING:
-            raise IncorrectStateException('Invoice must be in pending state.')
+            raise IncorrectStateException(_('Invoice must be in pending state.'))
 
         self.state = self.States.CREATED
         self.invoice_date = timezone.now().date()
@@ -122,11 +122,11 @@ class InvoiceItem(models.Model):
     daily_price = models.DecimalField(max_digits=22, decimal_places=7,
                                       validators=[MinValueValidator(Decimal('0'))],
                                       default=0,
-                                      help_text='Price per day.')
+                                      help_text=_('Price per day.'))
     start = models.DateTimeField(default=utils.get_current_month_start,
-                                 help_text='Date and time when package usage has started.')
+                                 help_text=_('Date and time when package usage has started.'))
     end = models.DateTimeField(default=utils.get_current_month_end,
-                               help_text='Date and time when package usage has ended.')
+                               help_text=_('Date and time when package usage has ended.'))
 
     @property
     def tax(self):
@@ -168,7 +168,7 @@ class OfferingItem(InvoiceItem):
     """ OfferingItem stores details for invoices about purchased custom offering item. """
     invoice = models.ForeignKey(Invoice, related_name='offering_items')
     offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
-    offering_details = JSONField(default={}, blank=True, help_text='Stores data about offering')
+    offering_details = JSONField(default={}, blank=True, help_text=_('Stores data about offering'))
 
     @property
     def name(self):
@@ -193,7 +193,7 @@ class OpenStackItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='openstack_items')
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
-    package_details = JSONField(default={}, blank=True, help_text='Stores data about package')
+    package_details = JSONField(default={}, blank=True, help_text=_('Stores data about package'))
 
     @property
     def name(self):

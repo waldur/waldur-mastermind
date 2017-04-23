@@ -1,11 +1,10 @@
 from __future__ import unicode_literals
 
-from datetime import datetime
-
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.template import Context, Template
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers, utils as core_utils
@@ -48,7 +47,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         default=settings.WALDUR_SUPPORT['ISSUE']['types'][0])
     is_reported_manually = serializers.BooleanField(
         initial=False, default=False, write_only=True,
-        help_text='Set true if issue is created by regular user via portal.')
+        help_text=_('Set true if issue is created by regular user via portal.'))
     issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
 
     class Meta(object):
@@ -103,14 +102,14 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             attrs['caller'] = self.context['request'].user
             if attrs.get('assignee'):
                 raise serializers.ValidationError(
-                    {'assignee': 'Assignee cannot be defined if issue is reported manually.'})
+                    {'assignee': _('Assignee cannot be defined if issue is reported manually.')})
         else:
             if not attrs.get('caller'):
-                raise serializers.ValidationError({'caller': 'This field is required.'})
+                raise serializers.ValidationError({'caller': _('This field is required.')})
             reporter = models.SupportUser.objects.filter(user=self.context['request'].user).first()
             if not reporter:
                 raise serializers.ValidationError(
-                    'You cannot report issues because your help desk account is not connected to profile.')
+                    _('You cannot report issues because your help desk account is not connected to profile.'))
             attrs['reporter'] = reporter
         return attrs
 
@@ -124,7 +123,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                 user.is_support or
                 customer.has_user(user, structure_models.CustomerRole.OWNER)):
             return customer
-        raise serializers.ValidationError('Only customer owner, staff or support can report customer issues.')
+        raise serializers.ValidationError(_('Only customer owner, staff or support can report customer issues.'))
 
     def validate_project(self, project):
         if not project:
@@ -138,7 +137,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                 project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)):
             return project
         raise serializers.ValidationError(
-            'Only customer owner, project manager, project admin, staff or support can report such issue.')
+            _('Only customer owner, project manager, project admin, staff or support can report such issue.'))
 
     def validate_resource(self, resource):
         if resource:
@@ -217,10 +216,10 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if 'issue' not in self.initial_data:
-            raise serializers.ValidationError('"issue" is missing in request data. Cannot process issue.')
+            raise serializers.ValidationError(_('"issue" is missing in request data. Cannot process issue.'))
 
         if 'webhookEvent' not in self.initial_data:
-            raise serializers.ValidationError('"webhookEvent" is missing in request data. Cannot find out even type')
+            raise serializers.ValidationError(_('"webhookEvent" is missing in request data. Cannot find out even type'))
 
         return attrs
 
@@ -459,7 +458,7 @@ class OfferingCreateSerializer(OfferingSerializer):
         'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
         'description' - combined list of all other fields provided with the request;
     """
-    description = serializers.CharField(required=False, help_text='Description to add to the issue.')
+    description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
 
     class Meta(OfferingSerializer.Meta):
         fields = OfferingSerializer.Meta.fields + ('description',)
@@ -494,11 +493,11 @@ class OfferingCreateSerializer(OfferingSerializer):
     def _validate_type(self, type):
         offering_configuration = self._get_offering_configuration(type)
         if offering_configuration is None:
-            raise serializers.ValidationError({'type': 'Type configuration could not be found.'})
+            raise serializers.ValidationError({'type': _('Type configuration could not be found.')})
 
     def validate_empty_values(self, data):
         if 'type' not in data or ('type' in data and data['type'] is None):
-            raise serializers.ValidationError({'type': 'This field is required.'})
+            raise serializers.ValidationError({'type': _('This field is required.')})
         else:
             self._validate_type(data['type'])
 

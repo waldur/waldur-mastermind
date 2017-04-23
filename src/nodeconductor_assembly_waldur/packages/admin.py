@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
+from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import models as structure_models
@@ -47,11 +48,11 @@ class PriceForMBinGBWidget(forms.NumberInput):
 
 
 class PackageComponentForm(forms.ModelForm):
-    monthly_price = forms.DecimalField(label='Price for 30 days', initial=0, required=True)
-    price = forms.DecimalField(initial=0, label='Price per unit per day', required=False,
+    monthly_price = forms.DecimalField(label=_('Price for 30 days'), initial=0, required=True)
+    price = forms.DecimalField(initial=0, label=_('Price per unit per day'), required=False,
                                widget=core_admin.ReadonlyTextWidget())
     if settings.DEBUG:
-        price_per_day = forms.DecimalField(label='Price per day for MB',
+        price_per_day = forms.DecimalField(label=_('Price per day for MB'),
                                            initial=0,
                                            required=False,
                                            widget=core_admin.ReadonlyTextWidget())
@@ -84,7 +85,7 @@ class PackageComponentForm(forms.ModelForm):
         template = getattr(instance, 'template', None)
         if template and template.openstack_packages.exists() and (
                         'monthly_price' in self.changed_data or 'amount' in self.changed_data):
-            raise forms.ValidationError('Price cannot be changed for a template which has connected packages.')
+            raise forms.ValidationError(_('Price cannot be changed for a template which has connected packages.'))
 
         type = self.cleaned_data['type']
         monthly_price = self.cleaned_data['monthly_price']
@@ -93,13 +94,18 @@ class PackageComponentForm(forms.ModelForm):
         price_min = 10 ** -models.PackageComponent.PRICE_DECIMAL_PLACES
         monthly_price_min = price_min * 30 * amount
         if monthly_price < monthly_price_min and monthly_price != 0:
-            raise forms.ValidationError('Monthly price for "%s" should be greater than %s or equal to 0' % (
-                type, monthly_price_min))
+            raise forms.ValidationError(_('Monthly price for "%(type)s" should be greater than %(min)s or equal to 0') % {
+                'type': type,
+                'min': monthly_price_min,
+            })
 
         price_max = 10 ** (models.PackageComponent.PRICE_MAX_DIGITS - models.PackageComponent.PRICE_DECIMAL_PLACES)
         monthly_price_max = price_max * 30 * amount
         if monthly_price > monthly_price_max:
-            raise forms.ValidationError('Monthly price for "%s" should be lower than %s' % (type, monthly_price_max))
+            raise forms.ValidationError(_('Monthly price for "%(type)s" should be lower than %(max)s') % {
+                'type': type,
+                'max': monthly_price_max
+            })
 
     def save(self, commit=True):
         monthly_price = self.cleaned_data.get('monthly_price', None)
@@ -146,13 +152,13 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
             filled.append(comp['type'])
         duplicates = [item for item, count in collections.Counter(filled).items() if count > 1]
         if duplicates:
-            raise forms.ValidationError('One or more items are duplicated: %s' % ', '.join(duplicates))
+            raise forms.ValidationError(_('One or more items are duplicated: %s') % ', '.join(duplicates))
 
         for t in models.PackageTemplate.get_required_component_types():
             if t not in filled:
-                raise forms.ValidationError('%s component must be specified.' % t.capitalize())
+                raise forms.ValidationError(_('%s component must be specified.') % t.capitalize())
             elif t in marked_for_delete:
-                raise forms.ValidationError('%s component is required and cannot be deleted.' % t.capitalize())
+                raise forms.ValidationError(_('%s component is required and cannot be deleted.') % t.capitalize())
 
 
 class PackageComponentInline(admin.TabularInline):

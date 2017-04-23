@@ -1,7 +1,7 @@
 from nodeconductor.core import utils as core_utils
 
 from .log import event_logger
-from . import tasks
+from . import tasks, models
 
 
 def log_issue_save(sender, instance, created=False, **kwargs):
@@ -52,7 +52,7 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
-    if created:
+    if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'}:
         return
 
     issue = instance
