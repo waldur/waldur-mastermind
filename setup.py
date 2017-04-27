@@ -9,6 +9,7 @@ install_requires = [
     'nodeconductor_aws>=0.6.0',
     'nodeconductor_digitalocean>=0.6.0',
     'nodeconductor_openstack>=0.24.0',
+    'nodeconductor_saml2>=0.3.3',
 ]
 
 test_requires = [
