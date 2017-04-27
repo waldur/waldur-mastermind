@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 
+# defusedxml is required by djangosaml2
 install_requires = [
+    'defusedxml==0.4.1',
     'jira>=1.0.7',
     'nodeconductor>=0.135.0',
     'nodeconductor_auth_social>=0.6.0',
