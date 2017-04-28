@@ -4,6 +4,7 @@ from setuptools import setup, find_packages
 # defusedxml is required by djangosaml2
 install_requires = [
     'defusedxml==0.4.1',
+    'influxdb>=4.1.0',
     'jira>=1.0.7',
     'nodeconductor>=0.135.0',
     'nodeconductor_auth_social>=0.6.0',
@@ -40,6 +41,7 @@ setup(
             'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
             'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
             'waldur_support = nodeconductor_assembly_waldur.support.extension:SupportExtension',
+            'waldur_analytics = nodeconductor_assembly_waldur.analytics.extension:AnalyticsExtension',
         ),
     },
     include_package_data=True,
