@@ -1,5 +1,3 @@
-from django.db.models import Count
-
 from nodeconductor_openstack.openstack.models import Tenant
 from nodeconductor_openstack.openstack_tenant.models import Instance
 
@@ -22,15 +20,41 @@ def get_tenants():
 
 
 def get_instances():
+    states = count_instances_by_state(Instance.objects.all())
+
     points = []
-    for item in Instance.objects.values('runtime_state').annotate(count=Count('runtime_state')):
+    for state, count in states.items():
         points.append({
             'measurement': 'openstack_instance_runtime_state',
             'tags': {
-                'runtime_state': item['runtime_state'],
+                'state': state,
             },
             'fields': {
-                'count': item['count'],
+                'count': count,
             }
         })
     return points
+
+
+def count_instances_by_state(instances):
+    erred = 0
+    online = 0
+    offline = 0
+    provisioning = 0
+
+    for instance in instances.values('state', 'runtime_state'):
+        if instance['state'] == Instance.States.ERRED:
+            erred += 1
+        elif instance['state'] != Instance.States.OK:
+            provisioning += 1
+        elif instance['runtime_state'] == Instance.get_online_state():
+            online += 1
+        elif instance['runtime_state'] == Instance.get_offline_state():
+            offline += 1
+
+    return {
+        'erred': erred,
+        'online': online,
+        'offline': offline,
+        'provisioning': provisioning,
+    }
