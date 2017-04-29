@@ -15,6 +15,7 @@ Requires: nodeconductor-digitalocean >= 0.6.0
 Requires: nodeconductor-openstack >= 0.24.0
 Requires: nodeconductor-saml2 >= 0.3.3
 Requires: python2-defusedxml == 0.4.1
+Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
 
 BuildArch: noarch
