@@ -1,21 +1,15 @@
 from celery import shared_task
-from django.conf import settings
-from influxdb import InfluxDBClient
 
-from . import openstack
-
-
-def get_influxdb_client():
-    options = settings.WALDUR_ANALYTICS['INFLUXDB']
-    return InfluxDBClient(**options)
+from . import cost_tracking, openstack, utils
 
 
 @shared_task(name='analytics.push_points')
 def push_points():
-    if not settings.WALDUR_ANALYTICS['ENABLED']:
+    client = utils.get_influxdb_client()
+    if not client:
         return
-    client = get_influxdb_client()
     points = []
     points.extend(openstack.get_tenants())
     points.extend(openstack.get_instances())
-    client.write_points(points)
+    points.extend(cost_tracking.get_total_cost())
+    utils.write_points(client, points)
