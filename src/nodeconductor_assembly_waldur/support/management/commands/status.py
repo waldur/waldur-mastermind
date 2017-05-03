@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.schemas import EndpointInspector
 
-from nodeconductor.logging.elasticsearch_client import ElasticsearchClient
+from nodeconductor.logging.elasticsearch_client import ElasticsearchClient, ElasticsearchClientError
 from nodeconductor.server.celery import app as celery_app
 
 User = get_user_model()
@@ -77,14 +77,14 @@ class Command(BaseCommand):
 
         # Check ElasticSearch
         self.stdout.write(output_messages['elasticsearch'].ljust(padding), ending='')
-        es_client = ElasticsearchClient()
         try:
+            es_client = ElasticsearchClient()
             if es_client.client.ping():
                 self.stdout.write(success_status)
             else:
                 skip_endpoints = True
                 self.stdout.write(error_status)
-        except ElasticsearchException:
+        except (ElasticsearchException, ElasticsearchClientError):
             skip_endpoints = True
             self.stdout.write(error_status)
 

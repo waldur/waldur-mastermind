@@ -7,7 +7,7 @@ License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor >= 0.135.0
+Requires: nodeconductor > 0.135.0
 Requires: nodeconductor-auth-social >= 0.6.0
 Requires: nodeconductor-auth-openid >= 0.6.0
 Requires: nodeconductor-aws >= 0.6.0
