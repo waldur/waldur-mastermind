@@ -57,4 +57,5 @@ def count_instances_by_state(instances):
         'online': online,
         'offline': offline,
         'provisioning': provisioning,
+        'total': erred + online + offline + provisioning
     }
