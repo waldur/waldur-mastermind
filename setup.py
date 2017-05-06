@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 
+# defusedxml is required by djangosaml2
 install_requires = [
+    'defusedxml==0.4.1',
+    'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>=0.135.0',
+    'nodeconductor>=0.137.0',
     'nodeconductor_auth_social>=0.6.0',
     'nodeconductor_auth_openid>=0.6.0',
     'nodeconductor_aws>=0.6.0',
     'nodeconductor_digitalocean>=0.6.0',
-    'nodeconductor_openstack>=0.24.0',
+    'nodeconductor_openstack>=0.25.0',
+    'nodeconductor_saml2>=0.3.3',
 ]
 
 test_requires = [
@@ -19,7 +23,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.5.0',
+    version='2.5.2',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://nodeconductor.com',
@@ -37,6 +41,7 @@ setup(
             'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
             'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
             'waldur_support = nodeconductor_assembly_waldur.support.extension:SupportExtension',
+            'waldur_analytics = nodeconductor_assembly_waldur.analytics.extension:AnalyticsExtension',
         ),
     },
     include_package_data=True,

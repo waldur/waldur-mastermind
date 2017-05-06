@@ -1,3 +1,4 @@
 include *.md *.rst
 recursive-include src/nodeconductor_assembly_waldur/invoices/templates *.html *.txt
+recursive-include src/nodeconductor_assembly_waldur/packages/templates *.html *.txt
 recursive-include src/nodeconductor_assembly_waldur/support/templates *.html *.txt

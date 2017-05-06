@@ -21,6 +21,9 @@ class SupportUserPullTask(Task):
     name = 'support.SupportUserPullTask'
 
     def run(self):
+        if not settings.WALDUR_SUPPORT['ENABLED']:
+            return
+
         backend_users = backend.get_active_backend().get_users()
         for backend_user in backend_users:
             user, created = models.SupportUser.objects.get_or_create(
@@ -44,6 +47,9 @@ def send_comment_added_notification(serialized_issue):
 
 
 def _send_issue_notification(issue, template):
+    if not settings.WALDUR_SUPPORT['ENABLED']:
+        return
+
     if settings.SUPPRESS_NOTIFICATION_EMAILS:
         message = ('Issue notifications are suppressed. '
                    'Please set SUPPRESS_NOTIFICATION_EMAILS to False to send notifications.')
