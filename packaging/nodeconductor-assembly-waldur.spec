@@ -1,5 +1,5 @@
 Name: nodeconductor-assembly-waldur
-Summary: NodeConductor assembly for Waldur project
+Summary: Waldur MasterMind
 Group: Development/Libraries
 Version: 2.5.0
 Release: 1.el7
@@ -7,12 +7,12 @@ License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor > 0.135.0
+Requires: nodeconductor >= 0.137.0
 Requires: nodeconductor-auth-social >= 0.6.0
 Requires: nodeconductor-auth-openid >= 0.6.0
 Requires: nodeconductor-aws >= 0.6.0
 Requires: nodeconductor-digitalocean >= 0.6.0
-Requires: nodeconductor-openstack >= 0.24.0
+Requires: nodeconductor-openstack >= 0.25.0
 Requires: nodeconductor-saml2 >= 0.3.3
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
