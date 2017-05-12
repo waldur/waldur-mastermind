@@ -11,6 +11,7 @@ class BaseTest(test.APITransactionTestCase):
 
     def setUp(self):
         support_backend = 'nodeconductor_assembly_waldur.support.backend.atlassian:SupportBackend'
+        settings.WALDUR_SUPPORT['ENABLED'] = True
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = support_backend
         self.fixture = fixtures.SupportFixture()
 
