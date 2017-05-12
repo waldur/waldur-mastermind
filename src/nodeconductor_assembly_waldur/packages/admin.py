@@ -10,7 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import models as structure_models
-from nodeconductor_assembly_waldur.packages import models
+from nodeconductor_assembly_waldur.packages import models, utils
 
 
 class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
@@ -195,6 +195,10 @@ class PackageTemplateAdmin(admin.ModelAdmin):
         if 'service_settings' in form.base_fields:
             form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
         return form
+
+    def save_related(self, request, form, formsets, change):
+        super(PackageTemplateAdmin, self).save_related(request, form, formsets, change)
+        utils.sync_price_list_item(form.instance)
 
 
 class OpenStackPackageAdmin(admin.ModelAdmin):
