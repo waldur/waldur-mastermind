@@ -12,7 +12,7 @@ Requires: nodeconductor-auth-social >= 0.6.0
 Requires: nodeconductor-auth-openid >= 0.6.0
 Requires: nodeconductor-aws >= 0.7.0
 Requires: nodeconductor-digitalocean >= 0.6.0
-Requires: nodeconductor-openstack >= 0.25.0
+Requires: nodeconductor-openstack >= 0.26.0
 Requires: nodeconductor-saml2 >= 0.3.3
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0

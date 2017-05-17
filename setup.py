@@ -11,7 +11,7 @@ install_requires = [
     'nodeconductor_auth_openid>=0.6.0',
     'nodeconductor_aws>=0.7.0',
     'nodeconductor_digitalocean>=0.6.0',
-    'nodeconductor_openstack>=0.25.0',
+    'nodeconductor_openstack>=0.26.0',
     'nodeconductor_saml2>=0.3.3',
 ]
 
