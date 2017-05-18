@@ -3,6 +3,8 @@ import json
 from datetime import datetime
 
 from django.core import mail
+
+# XXX: Django 1.10 deprecation, import from django.urls
 from django.core.urlresolvers import reverse
 from django.conf import settings
 from django.template.loader import render_to_string

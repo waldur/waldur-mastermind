@@ -19,9 +19,11 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
         value = int(value) * 1024
         return value
 
+    # XXX: Django 1.10 deprecation, replace with format_value.
     def _format_value(self, value):
         return int(value) / 1024
 
+    # XXX: Django 1.11 deprecation, renderer argument must be passed.
     def render(self, name, value, attrs=None):
         result = super(GBtoMBWidget, self).render(name, value, attrs)
         return '<label>%s GB</label>' % result
@@ -37,9 +39,11 @@ class PriceForMBinGBWidget(forms.NumberInput):
         value = Decimal(value) / 1024
         return value
 
+    # XXX: Django 1.10 deprecation, replace with format_value.
     def _format_value(self, value):
         return Decimal(value) * 1024
 
+    # XXX: Django 1.11 deprecation, renderer argument must be passed.
     def render(self, name, value, attrs=None):
         if self.readonly:
             return core_admin.render_to_readonly(self._format_value(value))
