@@ -19,6 +19,7 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
         value = int(value) * 1024
         return value
 
+    # XXX: Django 1.10 deprecation, replace with format_value.
     def _format_value(self, value):
         return int(value) / 1024
 
@@ -37,6 +38,7 @@ class PriceForMBinGBWidget(forms.NumberInput):
         value = Decimal(value) / 1024
         return value
 
+    # XXX: Django 1.10 deprecation, replace with format_value.
     def _format_value(self, value):
         return Decimal(value) * 1024
 
