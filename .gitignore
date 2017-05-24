@@ -1,0 +1,16 @@
+/dist
+/build
+/venv
+*.egg
+*.egg-info
+*.pyc
+
+/.idea
+/.project
+/.pydevproject
+/.settings
+/.sublime
+
+# Editor artifacts
+# vim
+*.sw*
