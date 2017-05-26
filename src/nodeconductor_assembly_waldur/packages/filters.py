@@ -21,13 +21,15 @@ class PackageTemplateFilter(django_filters.FilterSet):
 
 
 class OpenStackPackageFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_expr='icontains')
+    name = django_filters.CharFilter(name='tenant__name', lookup_expr='icontains')
     customer = core_filters.URLFilter(
         view_name='customer-detail', name='tenant__service_project_link__project__customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='tenant__service_project_link__project__customer__uuid')
     project = core_filters.URLFilter(
         view_name='project-detail', name='tenant__service_project_link__project__uuid')
     project_uuid = django_filters.UUIDFilter(name='tenant__service_project_link__project__uuid')
+    template = core_filters.URLFilter(view_name='package-template-detail', name='template__uuid')
+    template_uuid = django_filters.UUIDFilter(name='template__uuid')
     tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', name='tenant__uuid')
     tenant_uuid = django_filters.UUIDFilter(name='tenant__uuid')
     service_settings = core_filters.URLFilter(
@@ -36,4 +38,4 @@ class OpenStackPackageFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.OpenStackPackage
-        fields = ('template', 'tenant', 'service_settings')
+        fields = '__all__'

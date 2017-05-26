@@ -1,8 +1,30 @@
+from __future__ import unicode_literals
+
+from django import forms
 from django.contrib import admin
+from django.contrib.auth import get_user_model
 
 from nodeconductor.structure import admin as structure_admin
 
 from . import models
+
+
+User = get_user_model()
+
+
+class UserChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, user):
+        return '{} - {}'.format(user.full_name, user.username)
+
+
+class SupportUserAdminForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(SupportUserAdminForm, self).__init__(*args, **kwargs)
+        self.fields['user'] = UserChoiceField(queryset=User.objects.all().order_by('full_name'))
+
+
+class SupportUserAdmin(admin.ModelAdmin):
+    form = SupportUserAdminForm
 
 
 class OfferingAdmin(admin.ModelAdmin):
@@ -16,4 +38,4 @@ class IssueAdmin(structure_admin.BackendModelAdmin):
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
-admin.site.register(models.SupportUser, admin.ModelAdmin)
+admin.site.register(models.SupportUser, SupportUserAdmin)
