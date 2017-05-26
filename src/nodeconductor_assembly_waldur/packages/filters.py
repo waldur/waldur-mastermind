@@ -6,7 +6,7 @@ from . import models
 
 
 class PackageTemplateFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_type='icontains')
+    name = django_filters.CharFilter(lookup_expr='icontains')
     service_settings = core_filters.URLFilter(
         view_name='servicesettings-detail', name='service_settings__uuid')
     service_settings_uuid = django_filters.UUIDFilter(name='service_settings__uuid')
@@ -21,7 +21,7 @@ class PackageTemplateFilter(django_filters.FilterSet):
 
 
 class OpenStackPackageFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_type='icontains')
+    name = django_filters.CharFilter(lookup_expr='icontains')
     customer = core_filters.URLFilter(
         view_name='customer-detail', name='tenant__service_project_link__project__customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='tenant__service_project_link__project__customer__uuid')
@@ -36,3 +36,4 @@ class OpenStackPackageFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.OpenStackPackage
+        fields = ('template', 'tenant', 'service_settings')
