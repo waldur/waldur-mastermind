@@ -8,7 +8,7 @@ from . import models
 
 
 class IssueFilter(django_filters.FilterSet):
-    summary = django_filters.CharFilter(lookup_type='icontains')
+    summary = django_filters.CharFilter(lookup_expr='icontains')
 
     customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
@@ -16,13 +16,13 @@ class IssueFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
 
-    reporter_name = django_filters.CharFilter(lookup_type='icontains', name='reporter__name')
+    reporter_name = django_filters.CharFilter(lookup_expr='icontains', name='reporter__name')
     reporter = core_filters.URLFilter(view_name='support-user-detail', name='reporter__uuid')
 
-    caller_full_name = django_filters.CharFilter(lookup_type='icontains', name='caller__full_name')
+    caller_full_name = django_filters.CharFilter(lookup_expr='icontains', name='caller__full_name')
     caller = core_filters.URLFilter(view_name='user-detail', name='caller__uuid')
 
-    assignee_name = django_filters.CharFilter(lookup_type='icontains', name='assignee__name')
+    assignee_name = django_filters.CharFilter(lookup_expr='icontains', name='assignee__name')
     assignee = core_filters.URLFilter(view_name='support-user-detail', name='assignee__uuid')
 
     o = django_filters.OrderingFilter(
@@ -83,10 +83,10 @@ class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter)
 
 
 class CommentFilter(django_filters.FilterSet):
-    description = django_filters.CharFilter(lookup_type='icontains')
+    description = django_filters.CharFilter(lookup_expr='icontains')
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
-    author_name = django_filters.CharFilter(lookup_type='icontains', name='author__name')
+    author_name = django_filters.CharFilter(lookup_expr='icontains', name='author__name')
     author_user = core_filters.URLFilter(view_name='user-detail', name='author__user__uuid')
 
     o = django_filters.OrderingFilter(fields=('created', 'modified'))
@@ -99,15 +99,16 @@ class CommentFilter(django_filters.FilterSet):
 
 
 class SupportUserFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_type='icontains')
+    name = django_filters.CharFilter(lookup_expr='icontains')
 
     class Meta(object):
         model = models.SupportUser
+        fields = ('name', 'user', 'backend_id')
 
 
 class OfferingFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_type='icontains')
-    description = django_filters.CharFilter(lookup_type='icontains')
+    name = django_filters.CharFilter(lookup_expr='icontains')
+    description = django_filters.CharFilter(lookup_expr='icontains')
     type = django_filters.ChoiceFilter(choices=[(item, item) for item in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
@@ -122,3 +123,4 @@ class OfferingFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.Offering
+        fields = ('name', 'description', 'type', 'issue', 'issue_uuid', 'project', 'project_uuid', 'state')
