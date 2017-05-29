@@ -3,166 +3,168 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url
 
 DOCUMENTATION = '''
-    ---
-    module: waldur_os_add_instance
-    short_description: Create OpenStack instance
-    version_added: "0.1"
-    description:
-        - Create OpenStack instance
-    options:
-        waldur_url:
-            description:
-                - fully qualified url to the Waldur.
-            required: True
-        access_token:
-            description:
-                - access_token which has permissions to create OpenStack instances.
-            required: True
-        name:
-            description:
-                - name of the new OpenStack instance.
-            required: True
-        provider:
-            description:
-                - name or uuid of the instance provider.
-            required: True
-        project:
-            description:
-                - name or uuid of the project to add instance to.
-            required: True
-        flavor:
-            description:
-                - name or uuid of the flavor to use.
-            required: True
-        image:
-            description:
-                - name or uuid of the image to use.
-            required: True
-        system_volume_size:
-            description:
-                - size of the system volume in GBs.
-            required: True
-        security_groups:
-            description:
-                - list of uuids or names of security groups to apply to newly created instance.
-            required: False
-            default: default
-        networks:
-            description:
-                - list of networks an instance has to be attached to.
-                    consists of 2 parameters:
-                        subnet:
-                            description:
-                                - uuid or name of the subnet to use.
-                            required: True
-                        floating_ip:
-                            description:
-                                uuid or address of the existing floating ip to use.
-                                Not assigned if not specified.
-                                Use `auto` to allocate new floating ip or reuse available one.
-                            required: True
-            required: only if `subnet` and `floating_ip` are not provided
-        subnet:
-            description:
-                - uuid or name of the subnet to use.
-            required:
-                - If a `networks` parameter is not provided.
-        floating_ip:
-            description:
-                - uuid or address of the existing floating ip to use.
-                  Not assigned if not specified.
-                  Use `auto` to allocate new floating ip or reuse available one.
-            required:
-                - If a `networks` parameter is not provided.
-        data_volume_size:
-            description:
-                - size of the data volume in GB.
-            required: False
-            default: volume is not created.
-        ssh_key:
-            description:
-                - name or uuid of the ssh key to attach to newly created instance.
-            required: False
-        user_data:
-            description:
-                - Additional data that will be added to instance on provisioning.
-            required: False
-        wait:
-            description:
-                - Boolean value that defines whether client has to wait until instance provisioning
-                 is finished.
-            required: False
-            default: True
-        timeout:
-            description:
-                - A maximum amount of seconds to wait until instance provisioning is finished.
-            required: False
-            default: 60 * 10
-        interval:
-            description:
-                - An interval of instance state polling.
-            required: False
-            default: 20
+--- 
+module: waldur_os_add_instance
+short_description: "Create OpenStack instance"
+version_added: "0.1"
+description: 
+  - "Create an OpenStack instance"
+options: 
+  access_token: 
+    description: 
+      - "An access token which has permissions to create an OpenStack instances."
+    required: true
+  api_url: 
+    description: 
+      - "Fully qualified url to the Waldur."
+    required: true
+  data_volume_size: 
+    default: "volume is not created."
+    description: 
+      - "The size of the data volume in GB."
+    required: false
+  flavor: 
+    description: 
+      - "The name or id of the flavor to use."
+    required: true
+  floating_ip: 
+    description: 
+      - "An id or address of the existing floating IP to use. 
+      Not assigned if not specified. Use `auto` to allocate new floating IP or reuse available one."
+    required: 
+      - "If a `networks` parameter is not provided."
+  image: 
+    description: 
+      - "The name or id of the image to use."
+    required: true
+  interval: 
+    default: 20
+    description: 
+      - "An interval of the instance state polling."
+    required: false
+  name: 
+    description: 
+      - "The name of the new OpenStack instance."
+    required: true
+  networks: 
+    description: 
+      - "A list of networks an instance has to be attached to."
+    floating_ip: 
+      description: 
+        - "An id or address of the existing floating IP to use. Not assigned if not specified. 
+        Use `auto` to allocate new floating IP or reuse available one."
+      required: true
+    required: "Only if `subnet` and `floating_ip` are not provided"
+    subnet: 
+      description: 
+        - "The name or id of the subnet to use."
+      required: true
+  project: 
+    description: 
+      - "The name or id of the project to add an instance to."
+    required: true
+  provider: 
+    description: 
+      - "The name or id of the instance provider."
+    required: true
+  security_groups: 
+    default: default
+    description: 
+      - "A list of ids or names of security groups to apply to the newly created instance."
+    required: false
+  ssh_key: 
+    description: 
+      - "The name or id of the SSH key to attach to the newly created instance."
+    required: false
+  subnet: 
+    description: 
+      - "The name or id of the subnet to use."
+    required: 
+      - "If a `networks` parameter is not provided."
+  system_volume_size: 
+    description: 
+      - "The size of the system volume in GBs."
+    required: true
+  timeout: 
+    default: "60 * 10"
+    description: 
+      - "The maximum amount of seconds to wait until the instance provisioning is finished."
+    required: false
+  user_data: 
+    description: 
+      - "An additional data that will be added to the instance on provisioning."
+    required: false
+  wait: 
+    default: true
+    description: 
+      - "A boolean value that defines whether client has to wait until the instance 
+      provisioning is finished."
+    required: false
+
     requirements:
         - "python = 2.7"
         - "requests"
     '''
 
 EXAMPLES = '''
-- hosts: localhost
-  tasks:
-    - name: Provision warehouse instance
-      waldur_os_add_instance: 
-        name: Warehouse instance #1
-        provider: VPC #1
-        project: OpenStack Project
-        networks:
-          -
-            subnet: vpc-1-tm-sub-net
-            floating_ip: auto
-          -
-            subnet: vpc-1-tm-sub-net-2
-            floating_ip: 192.101.13.124
-        security_groups:
-            - web
-        flavor: m1.micro
-        image: Ubuntu14.04
-        system_volume_size: 10
-        data_volume_size: 100
-        ssh_key: ssh1.pub
-        waldur_url: https://waldur.com:8000
-        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        
-    - name: Provision build instance
-      waldur_os_add_instance: 
-        name: Build instance #2
-        provider: VPC #1
-        project: OpenStack Project
-        subnet: vpc-1-tm-sub-net-2
+- 
+  name: "Provision a warehouse instance"
+  waldur_os_add_instance: 
+    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+    api_url: "https://waldur.example.com:8000"
+    data_volume_size: 100
+    flavor: m1.micro
+    image: "Ubuntu 14.04"
+    name: "Warehouse instance"
+    networks: 
+      - 
         floating_ip: auto
-        flavor: m1.micro
-        image: CentOs7
-        system_volume_size: 40
-        ssh_key: ssh1.pub
-        waldur_url: https://waldur.com:8000
-        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        user_data: This instance does not need a data volume
-        
-    - name: Trigger master instance
-      waldur_os_add_instance: 
-        name: Build instance #3
-        provider: VPC #1
-        project: OpenStack Project
+        subnet: vpc-1-tm-sub-net
+      - 
+        floating_ip: "192.101.13.124"
         subnet: vpc-1-tm-sub-net-2
-        floating_ip: auto
-        flavor: m1.micro
-        image: CentOs7
-        system_volume_size: 40
-        ssh_key: ssh1.pub
-        waldur_url: https://waldur.com:8000
-        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        wait: False
-        user_data: No need to wait until provisioning is done.
+    project: "OpenStack Project"
+    provider: VPC
+    security_groups: 
+      - web
+        
+- 
+  name: "Provision build instance"
+  waldur_os_add_instance: 
+    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+    api_url: "https://waldur.example.com:8000"
+    flavor: m1.micro
+    floating_ip: auto
+    image: "CentOS 7"
+    name: "Build instance"
+    project: "OpenStack Project"
+    provider: VPC
+    ssh_key: ssh1.pub
+    subnet: vpc-1-tm-sub-net-2
+    system_volume_size: 40
+    user_data: |-
+        #cloud-config
+        chpasswd:
+          list: |
+            ubuntu:{{ default_password }}
+          expire: False
+        
+- 
+  name: "Trigger master instance"
+  waldur_os_add_instance: 
+    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+    api_url: "https://waldur.example.com:8000"
+    flavor: m1.micro
+    floating_ip: auto
+    image: "CentOS 7"
+    name: "Build instance"
+    project: "OpenStack Project"
+    provider: VPC
+    ssh_key: ssh1.pub
+    subnet: vpc-1-tm-sub-net-2
+    system_volume_size: 40
+    wait: false
+
     '''
 
 from collections import namedtuple
@@ -201,13 +203,13 @@ class WaldurClient(object):
     def _build_url(self, endpoint):
         return requests.compat.urljoin(self.host, 'api/%s/' % endpoint)
 
-    def _raise_request_failed(self, response):
+    def _parse_error(self, response):
         try:
             reason = response.json()
         except ValueError as error:
             reason = error.message
         details = 'Status: %s. Reason: %s.' % (response.status_code, reason)
-        raise WaldurClientException('Server refuses to communicate. %s' % details)
+        return 'Server refuses to communicate. %s' % details
 
     def _query_resource(self, endpoint, query_params):
         url = self._build_url(endpoint)
@@ -217,11 +219,12 @@ class WaldurClient(object):
             raise WaldurClientException(error.message)
 
         if response.status_code >= 400:
-            self._raise_request_failed(response)
+            error = self._parse_error(response)
+            raise WaldurClientException(error)
 
         result = response.json()
         if len(result) > 1:
-            message = 'Ambiguous reference to resource. Query: %s' % query_params
+            message = 'Ambiguous reference to resource %s. Query: %s' % (endpoint, query_params)
             raise WaldurClientException(message)
 
         return result[0] if result else None
@@ -267,9 +270,28 @@ class WaldurClient(object):
             raise WaldurClientException(error.message)
 
         if response.status_code != 201:
-            self._raise_request_failed(response)
+            error = self._parse_error(response)
+            raise WaldurClientException(error)
 
         return response.json()
+
+    def _get_provider(self, identifier):
+        return self._get_resource(self.Endpoints.Provider, identifier)
+
+    def _get_project(self, identifier):
+        return self._get_resource(self.Endpoints.Project, identifier)
+
+    def _get_flavor(self, identifier):
+        return self._get_resource(self.Endpoints.Flavor, identifier)
+
+    def _get_image(self, identifier):
+        return self._get_resource(self.Endpoints.Image, identifier)
+
+    def _get_floating_ip(self, address):
+        return self._get_resource(self.Endpoints.FloatingIP, {'address': address})
+
+    def _get_subnet(self, identifier):
+        return self._get_resource(self.Endpoints.Subnet, identifier)
 
     def _networks_to_payload(self, networks):
         """
@@ -289,15 +311,14 @@ class WaldurClient(object):
         for item in networks:
             if 'subnet' not in item:
                 raise WaldurClientException('Wrong networks format. subnet key is required.')
-            subnet_resource = self._get_resource(self.Endpoints.Subnet, item['subnet'])
+            subnet_resource = self._get_subnet(item['subnet'])
             subnet = {'subnet': subnet_resource['url']}
             subnets.append(subnet)
             address = item.get('floating_ip')
             if address:
                 ip = subnet.copy()
                 if address != 'auto':
-                    query = {'address': address}
-                    floating_ip_resource = self._get_resource(self.Endpoints.FloatingIP, query)
+                    floating_ip_resource = self._get_floating_ip(address)
                     ip.update({'url': floating_ip_resource['url']})
                 floating_ips.append(ip)
 
@@ -305,7 +326,10 @@ class WaldurClient(object):
 
     def _is_resource_ready(self, endpoint, uuid):
         resource = self._query_resource_by_uuid(endpoint, uuid)
-        return resource in self.resource_stable_states
+        return resource['state'] in self.resource_stable_states
+
+    def _create_instance(self, payload):
+        return self._create_resource(self.Endpoints.Instance, payload)
 
     def create_instance(
             self,
@@ -342,13 +366,13 @@ class WaldurClient(object):
         :param user_data: additional data that will be added to the instance
         :return: an instance as a dictionary.
         """
-        provider = self._get_resource(self.Endpoints.Provider, provider)
-        project = self._get_resource(self.Endpoints.Project, project)
+        provider = self._get_provider(provider)
+        project = self._get_project(project)
         service_project_link = self._get_service_project_link(
             provider_uuid=provider['uuid'],
             project_uuid=project['uuid'])
-        flavor = self._get_resource(self.Endpoints.Flavor, flavor)
-        image = self._get_resource(self.Endpoints.Image, image)
+        flavor = self._get_flavor(flavor)
+        image = self._get_image(image)
         subnets, floating_ips = self._networks_to_payload(networks)
 
         payload = {
@@ -375,7 +399,7 @@ class WaldurClient(object):
             ssh_key = self._get_resource(self.Endpoints.SshKey, ssh_key)
             payload.update({'ssh_public_key': ssh_key['url']})
 
-        instance = self._create_resource(self.Endpoints.Instance, payload)
+        instance = self._create_instance(payload)
 
         if wait:
             ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
@@ -394,7 +418,7 @@ class WaldurClient(object):
 
 def main():
     fields = {
-        'waldur_url': {'required': True, 'type': 'str'},
+        'api_url': {'required': True, 'type': 'str'},
         'access_token': {'required': True, 'type': 'str'},
         'name': {'required': True, 'type': 'str'},
         'provider': {'required': True, 'type': 'str'},
@@ -422,7 +446,7 @@ def main():
         required_one_of=required_one_of,
         mutually_exclusive=mutually_exclusive)
 
-    client = WaldurClient(module.params['waldur_url'], module.params['access_token'])
+    client = WaldurClient(module.params['api_url'], module.params['access_token'])
     networks = module.params.get('networks', {
         'subnet': module.params['subnet'],
         'floating_ip': module.params['floating_ip']
