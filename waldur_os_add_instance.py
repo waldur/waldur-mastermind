@@ -166,7 +166,6 @@ EXAMPLES = '''
 
     '''
 
-from collections import namedtuple
 from uuid import UUID
 import json
 import requests
