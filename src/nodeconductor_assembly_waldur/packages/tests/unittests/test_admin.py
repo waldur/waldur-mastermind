@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
-# XXX: Django 1.10 deprecation, import from django.urls
-from django.core.urlresolvers import reverse
 from django.test import TestCase
+from django.urls import reverse
 
 from nodeconductor.cost_tracking.models import DefaultPriceListItem
 
