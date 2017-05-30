@@ -1,4 +1,4 @@
-Name: waldur_client
+Name: python-waldur-client
 Summary: Waldur Client for OpenStack infrastructure management.
 Group: Development/Libraries
 Version: 0.0.1

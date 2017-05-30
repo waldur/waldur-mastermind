@@ -8,7 +8,7 @@ install_requires = [
 
 
 setup(
-    name='waldur_client',
+    name='python-waldur-client',
     version='0.0.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
