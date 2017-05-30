@@ -1,6 +1,6 @@
 import unittest
 import responses
-from waldur_os_add_instance import WaldurClient, WaldurClientException
+from waldur_client import WaldurClient, WaldurClientException
 
 
 class TestWaldurClient(unittest.TestCase):
