@@ -106,7 +106,6 @@ options:
     '''
 
 EXAMPLES = '''
-- 
   name: Provision a warehouse instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
@@ -127,7 +126,6 @@ EXAMPLES = '''
     security_groups: 
       - web
         
-- 
   name: Provision build instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
@@ -148,7 +146,6 @@ EXAMPLES = '''
             ubuntu:{{ default_password }}
           expire: False
         
-- 
   name: Trigger master instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
@@ -163,7 +160,6 @@ EXAMPLES = '''
     subnet: vpc-1-tm-sub-net-2
     system_volume_size: 40
     wait: false
-
     '''
 
 
