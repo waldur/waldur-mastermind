@@ -1,5 +1,5 @@
 Name: python-waldur-client
-Summary: Waldur Client for OpenStack infrastructure management.
+Summary: Python bindings to the Waldur API.
 Group: Development/Libraries
 Version: 0.0.1
 Release: 1.el7
@@ -15,7 +15,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: python-setuptools
 
 %description
-Waldur Client for OpenStack infrastructure management.
+Python bindings to the Waldur API.
 
 %prep
 %setup -q -n %{name}-%{version}

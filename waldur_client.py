@@ -1,10 +1,30 @@
-from uuid import UUID
 import json
-import requests
 import time
+from uuid import UUID
+import requests
 
 
 class WaldurClientException(Exception):
+    pass
+
+
+class ObjectDoesNotExist(WaldurClientException):
+    """The requested object does not exist"""
+    pass
+
+
+class MultipleObjectsReturned(WaldurClientException):
+    """The query returned multiple objects when only one was expected."""
+    pass
+
+
+class ValidationError(WaldurClientException):
+    """An error while validating data."""
+    pass
+
+
+class TimeoutError(WaldurClientException):
+    """Thrown when a command does not complete in enough time."""
     pass
 
 
@@ -53,22 +73,25 @@ class WaldurClient(object):
             raise WaldurClientException(error)
 
         result = response.json()
-        if len(result) > 1:
-            message = 'Ambiguous reference to resource %s. Query: %s' % (endpoint, query_params)
-            raise WaldurClientException(message)
+        if not result:
+            message = 'Endpoint: %s. Query: %s' % (endpoint, query_params)
+            raise ObjectDoesNotExist(message)
 
-        return result[0] if result else None
+        if len(result) > 1:
+            message = 'Endpoint: %s. Query: %s' % (endpoint, query_params)
+            raise MultipleObjectsReturned(message)
+
+        return result[0]
 
     def _get_resource(self, endpoint, value, query_params=None):
         """
-        Returns resource received from sending a GET request to provided resource endpoint.
-        Raises WaldurClientException 
-            if response could not be received
-            or it's status is bigger than 400.
+        Get resource by UUID, name or query parameters.
+
         :param endpoint: WaldurClient.Endpoint attribute.
-        :param value: name or uuid of the resource
-        :param query_params: parameters to use to search for resource instead of value.
+        :param value: name or uuid of the resource.
+        :param query_params: parameters used to search for resource.
         :return: a resource as a dictionary.
+        :raises: WaldurClientException if resource could not be received or response failed.
         """
         try:
             uuid = UUID(value)
@@ -125,22 +148,19 @@ class WaldurClient(object):
 
     def _networks_to_payload(self, networks):
         """
-        Parse networks into waldur accepted format. Input should be 
-        :param networks: networks info in the following format:
+        Serialize networks. Input should be in the following format:
             {
                 subnet: name or uuid
                 floating_ip: auto or address or empty
             }
-        :return: a tuple, 
-                where first argument is subnets 
-                and second is floating_ips 
+        :return: a tuple, where first argument is subnets and second is floating_ips.
         """
         subnets = []
         floating_ips = []
 
         for item in networks:
             if 'subnet' not in item:
-                raise WaldurClientException('Wrong networks format. subnet key is required.')
+                raise ValidationError('Wrong networks format. subnet key is required.')
             subnet_resource = self._get_subnet(item['subnet'])
             subnet = {'subnet': subnet_resource['url']}
             subnets.append(subnet)
@@ -157,9 +177,6 @@ class WaldurClient(object):
     def _is_resource_ready(self, endpoint, uuid):
         resource = self._query_resource_by_uuid(endpoint, uuid)
         return resource['state'] in self.resource_stable_states
-
-    def _create_instance(self, payload):
-        return self._create_resource(self.Endpoints.Instance, payload)
 
     def create_instance(
             self,
@@ -179,21 +196,22 @@ class WaldurClient(object):
             user_data=None):
         """
         Creates OpenStack instance from passed parameters.
-        :param name: name of the instance
-        :param provider: uuid or name of the provider to use 
-        :param project: uuid or name of the project to add the instance
-        :param networks: a list of networks to add instance to 
-        :param flavor: uuid or name of the flavor to use
-        :param image: uuid or name of the image to use
-        :param system_volume_size: size of the system volume in GB
-        :param interval: interval of instance state polling in seconds
-        :param timeout: a maximum amount of time to wait for instance provisioning
-        :param wait: defines whether the client has to wait for instance provisioning
-        :param ssh_key: uuid or name of the ssh key to add to the instance
-        :param data_volume_size: size of the data volume in GB. 
+
+        :param name: name of the instance.
+        :param provider: uuid or name of the provider to use.
+        :param project: uuid or name of the project to add the instance.
+        :param networks: a list of networks to attach instance to.
+        :param flavor: uuid or name of the flavor to use.
+        :param image: uuid or name of the image to use.
+        :param system_volume_size: size of the system volume in GB.
+        :param interval: interval of instance state polling in seconds.
+        :param timeout: a maximum amount of time to wait for instance provisioning.
+        :param wait: defines whether the client has to wait for instance provisioning.
+        :param ssh_key: uuid or name of the ssh key to add to the instance.
+        :param data_volume_size: size of the data volume in GB.
             No data volume is going to be created if empty.
-        :param security_groups: list of security groups to add to the instance
-        :param user_data: additional data that will be added to the instance
+        :param security_groups: list of security groups to add to the instance.
+        :param user_data: additional data that will be added to the instance.
         :return: an instance as a dictionary.
         """
         provider = self._get_provider(provider)
@@ -229,7 +247,7 @@ class WaldurClient(object):
             ssh_key = self._get_resource(self.Endpoints.SshKey, ssh_key)
             payload.update({'ssh_public_key': ssh_key['url']})
 
-        instance = self._create_instance(payload)
+        instance = self._create_resource(self.Endpoints.Instance, payload)
 
         if wait:
             ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
@@ -241,6 +259,6 @@ class WaldurClient(object):
                 if waited >= interval:
                     error = 'Instance "%s" has not changed state to stable' % instance['url']
                     message = '%s. Seconds passed: %s' % (error, timeout)
-                    raise WaldurClientException(message)
+                    raise TimeoutError(message)
 
         return instance

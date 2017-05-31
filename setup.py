@@ -3,7 +3,7 @@
 from setuptools import setup
 
 install_requires = [
-    'requests>=2.6.0,!=2.12.2,!=2.13.0',
+    'requests>=2.6.0',
 ]
 
 tests_requires = [
@@ -16,9 +16,9 @@ setup(
     version='0.0.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
-    url='http://nodeconductor.com',
+    url='http://waldur.com',
     license='MIT',
-    description='Waldur Client for OpenStack infrastructure management.',
+    description='Python bindings to the Waldur API.',
     long_description=open('README.rst').read(),
     py_modules=['waldur_client'],
     install_requires=install_requires,

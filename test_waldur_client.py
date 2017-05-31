@@ -1,5 +1,7 @@
 import unittest
+
 import responses
+
 from waldur_client import WaldurClient, WaldurClientException
 
 
