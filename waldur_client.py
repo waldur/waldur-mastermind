@@ -79,11 +79,11 @@ class WaldurClient(object):
 
         result = response.json()
         if not result:
-            message = 'Endpoint: %s. Query: %s' % (endpoint, query_params)
+            message = 'Result is empty. Endpoint: %s. Query: %s' % (endpoint, query_params)
             raise ObjectDoesNotExist(message)
 
         if len(result) > 1:
-            message = 'Endpoint: %s. Query: %s' % (endpoint, query_params)
+            message = 'Ambiguous result. Endpoint: %s. Query: %s' % (endpoint, query_params)
             raise MultipleObjectsReturned(message)
 
         return result[0]
@@ -201,10 +201,10 @@ class WaldurClient(object):
 
         return subnets, floating_ips
 
-    def _get_tenant_security_group(self, settings_uuid, name):
+    def _get_tenant_security_group(self, tenant_uuid, name):
         query = {
             'name': name,
-            'settings_uuid': settings_uuid,
+            'tenant_uuid': tenant_uuid,
         }
         return self._query_resource(self.Endpoints.TenantSecurityGroup, query)
 
@@ -218,29 +218,35 @@ class WaldurClient(object):
     def _get_tenant(self, name):
         return self._get_resource(self.Endpoints.Tenant, name)
 
-    def create_security_group(self, cloud, name, description, rules):
+    def create_security_group(self, cloud, name, rules, description=None):
         cloud = self._get_tenant(cloud)
         payload = {
             'name': name,
-            'description': description,
             'rules': rules
         }
+        if description:
+            payload.update({'description': description})
+
         action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, cloud['uuid'])
         return self._create_resource(action_url, payload)
 
-    def update_security_group(self, security_group, name, description):
+    def update_security_group_description(self, security_group, description):
         payload = {
-            'name': name,
+            'name': security_group['name'],
             'description': description,
         }
-        return self._update_resource(
-            self.Endpoints.TenantSecurityGroup,
-            security_group['uuid'],
-            payload)
+        uuid = security_group['uuid']
+        return self._update_resource(self.Endpoints.TenantSecurityGroup, uuid, payload)
 
     def get_security_group(self, cloud, name):
-        cloud = self._get_provider(cloud)
-        return self._get_tenant_security_group(settings_uuid=cloud['settings_uuid'], name=name)
+        cloud = self._get_tenant(cloud)
+        security_group = None
+        try:
+            security_group = self._get_tenant_security_group(tenant_uuid=cloud['uuid'], name=name)
+        except ObjectDoesNotExist:
+            pass
+
+        return security_group
 
     def delete_security_group(self, uuid):
         return self._delete_resource(self.Endpoints.TenantSecurityGroup, uuid)
