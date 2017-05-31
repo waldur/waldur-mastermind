@@ -42,6 +42,8 @@ class WaldurClient(object):
         ServiceProjectLink = 'openstacktenant-service-project-link'
         Instance = 'openstacktenant-instances'
         SshKey = 'keys'
+        Tenant = 'openstack-tenants'
+        TenantSecurityGroup = 'openstack-security-groups'
 
     def __init__(self, host, token):
         self.host = host
@@ -52,6 +54,9 @@ class WaldurClient(object):
 
     def _build_url(self, endpoint):
         return requests.compat.urljoin(self.host, 'api/%s/' % endpoint)
+
+    def _build_resource_url(self, endpoint, uuid):
+        return self._build_url('%s/%s' % (endpoint, uuid))
 
     def _parse_error(self, response):
         try:
@@ -83,37 +88,29 @@ class WaldurClient(object):
 
         return result[0]
 
-    def _get_resource(self, endpoint, value, query_params=None):
-        """
-        Get resource by UUID, name or query parameters.
-
-        :param endpoint: WaldurClient.Endpoint attribute.
-        :param value: name or uuid of the resource.
-        :param query_params: parameters used to search for resource.
-        :return: a resource as a dictionary.
-        :raises: WaldurClientException if resource could not be received or response failed.
-        """
-        try:
-            uuid = UUID(value)
-        except ValueError:
-            if query_params:
-                resource = self._query_resource(endpoint, query_params)
-            else:
-                resource = self._query_resource_by_name(endpoint, value)
-        else:
-            resource = self._query_resource_by_uuid(endpoint, uuid)
-
-        return resource
-
     def _query_resource_by_uuid(self, endpoint, value):
         return self._query_resource(endpoint, {'uuid': value})
 
     def _query_resource_by_name(self, endpoint, value):
         return self._query_resource(endpoint, {'name': value})
 
-    def _get_service_project_link(self, provider_uuid, project_uuid):
-        query = {'project_uuid': project_uuid, 'service_uuid': provider_uuid}
-        return self._query_resource(self.Endpoints.ServiceProjectLink, query)
+    def _get_resource(self, endpoint, value):
+        """
+        Get resource by UUID, name or query parameters.
+
+        :param endpoint: WaldurClient.Endpoint attribute.
+        :param value: name or uuid of the resource
+        :return: a resource as a dictionary.
+        :raises: WaldurClientException if resource could not be received or response failed.
+        """
+        try:
+            uuid = UUID(value)
+        except ValueError:
+            resource = self._query_resource_by_name(endpoint, value)
+        else:
+            resource = self._query_resource_by_uuid(endpoint, uuid)
+
+        return resource
 
     def _create_resource(self, endpoint, payload=None):
         url = self._build_url(endpoint)
@@ -128,6 +125,36 @@ class WaldurClient(object):
 
         return response.json()
 
+    def _update_resource(self, endpoint, uuid, payload):
+        url = self._build_resource_url(endpoint, uuid)
+        try:
+            response = requests.put(url, data=json.dumps(payload), headers=self.headers)
+        except requests.exceptions.RequestException as error:
+            raise WaldurClientException(error.message)
+
+        if response.status_code != 200:
+            error = self._parse_error(response)
+            raise WaldurClientException(error)
+
+        return response.json()
+
+    def _delete_resource(self, endpoint, uuid):
+        url = self._build_resource_url(endpoint, uuid)
+        try:
+            response = requests.delete(url, headers=self.headers)
+        except requests.exceptions.RequestException as error:
+            raise WaldurClientException(error.message)
+
+        if response.status_code not in (204, 202):
+            error = self._parse_error(response)
+            raise WaldurClientException(error)
+
+        return response.json()
+
+    def _get_service_project_link(self, provider_uuid, project_uuid):
+        query = {'project_uuid': project_uuid, 'service_uuid': provider_uuid}
+        return self._query_resource(self.Endpoints.ServiceProjectLink, query)
+
     def _get_provider(self, identifier):
         return self._get_resource(self.Endpoints.Provider, identifier)
 
@@ -141,7 +168,7 @@ class WaldurClient(object):
         return self._get_resource(self.Endpoints.Image, identifier)
 
     def _get_floating_ip(self, address):
-        return self._get_resource(self.Endpoints.FloatingIP, {'address': address})
+        return self._query_resource(self.Endpoints.FloatingIP, {'address': address})
 
     def _get_subnet(self, identifier):
         return self._get_resource(self.Endpoints.Subnet, identifier)
@@ -174,9 +201,49 @@ class WaldurClient(object):
 
         return subnets, floating_ips
 
+    def _get_tenant_security_group(self, settings_uuid, name):
+        query = {
+            'name': name,
+            'settings_uuid': settings_uuid,
+        }
+        return self._query_resource(self.Endpoints.TenantSecurityGroup, query)
+
     def _is_resource_ready(self, endpoint, uuid):
         resource = self._query_resource_by_uuid(endpoint, uuid)
         return resource['state'] in self.resource_stable_states
+
+    def _create_instance(self, payload):
+        return self._create_resource(self.Endpoints.Instance, payload)
+
+    def _get_tenant(self, name):
+        return self._get_resource(self.Endpoints.Tenant, name)
+
+    def create_security_group(self, cloud, name, description, rules):
+        cloud = self._get_tenant(cloud)
+        payload = {
+            'name': name,
+            'description': description,
+            'rules': rules
+        }
+        action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, cloud['uuid'])
+        return self._create_resource(action_url, payload)
+
+    def update_security_group(self, security_group, name, description):
+        payload = {
+            'name': name,
+            'description': description,
+        }
+        return self._update_resource(
+            self.Endpoints.TenantSecurityGroup,
+            security_group['uuid'],
+            payload)
+
+    def get_security_group(self, cloud, name):
+        cloud = self._get_provider(cloud)
+        return self._get_tenant_security_group(settings_uuid=cloud['settings_uuid'], name=name)
+
+    def delete_security_group(self, uuid):
+        return self._delete_resource(self.Endpoints.TenantSecurityGroup, uuid)
 
     def create_instance(
             self,
@@ -247,7 +314,7 @@ class WaldurClient(object):
             ssh_key = self._get_resource(self.Endpoints.SshKey, ssh_key)
             payload.update({'ssh_public_key': ssh_key['url']})
 
-        instance = self._create_resource(self.Endpoints.Instance, payload)
+        instance = self._create_instance(payload)
 
         if wait:
             ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
