@@ -137,24 +137,18 @@ EXAMPLES = '''
 '''
 
 
-def security_group_changed(security_group, name, description):
-    return security_group['name'] != name or security_group['description'] != description
-
-
 def send_request_to_waldur(client, module):
     has_changed = False
     name = module.params['name']
-    security_group = client.get_security_group(
-        cloud=module.params['cloud'],
-        name=name)
+    security_group = client.get_security_group(cloud=module.params['cloud'], name=name)
     present = module.params['state'] == 'present'
     if security_group:
-        if present and security_group_changed(security_group, name, module.params['description']):
-            client.update_security_group(
-                security_group=security_group,
-                name=module.params['name'],
-                description=module.params['description'])
-            has_changed = True
+        if present:
+            if security_group['description'] != module.params.get('description'):
+                client.update_security_group_description(
+                    security_group,
+                    description=module.params.get('description'))
+                has_changed = True
         else:
             client.delete_security_group(security_group['uuid'])
             has_changed = True
@@ -168,7 +162,7 @@ def send_request_to_waldur(client, module):
         client.create_security_group(
             cloud=module.params['cloud'],
             name=module.params['name'],
-            description=module.params['description'],
+            description=module.params.get('description'),
             rules=rules)
         has_changed = True
 
