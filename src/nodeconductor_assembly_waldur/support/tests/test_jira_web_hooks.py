@@ -3,9 +3,10 @@ import json
 from datetime import datetime
 
 from django.core import mail
-from django.core.urlresolvers import reverse
+
 from django.conf import settings
 from django.template.loader import render_to_string
+from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -22,6 +23,7 @@ class TestJiraWebHooks(APITestCase):
         self.UPDATED = 'jira:issue_updated'
         self.DELETED = 'jira:issue_deleted'
         jira_backend = 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend'
+        settings.WALDUR_SUPPORT['ENABLED'] = True
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
         jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
         self.request_data = json.loads(jira_request)

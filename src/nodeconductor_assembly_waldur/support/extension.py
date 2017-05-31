@@ -9,7 +9,7 @@ class SupportExtension(NodeConductorExtension):
     class Settings(object):
         WALDUR_SUPPORT = {
             # wiki for global options: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration
-            'ENABLED': True,
+            'ENABLED': False,
             # wiki for JIRA-specific options:
             # https://opennode.atlassian.net/wiki/display/WD/JIRA+Service+Desk+configuration
             'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',

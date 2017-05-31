@@ -9,9 +9,11 @@ class BaseHandlerTest(TestCase):
 
     def setUp(self):
         settings.CELERY_ALWAYS_EAGER = True
+        settings.WALDUR_SUPPORT['ENABLED'] = True
 
     def tearDown(self):
         settings.CELERY_ALWAYS_EAGER = False
+        settings.WALDUR_SUPPORT['ENABLED'] = False
 
 
 class IssueUpdatedHandlerTest(BaseHandlerTest):

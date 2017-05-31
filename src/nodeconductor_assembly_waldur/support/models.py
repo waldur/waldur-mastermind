@@ -76,7 +76,8 @@ class Issue(core_models.UuidMixin,
                                                          'resource', 'first_response_sla')
 
     def get_log_fields(self):
-        return ('uuid', 'type', 'key', 'status', 'summary', 'reporter', 'caller', 'customer', 'project', 'resource')
+        return ('uuid', 'type', 'key', 'status', 'link', 'summary',
+                'reporter', 'caller', 'customer', 'project', 'resource')
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)

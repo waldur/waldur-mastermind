@@ -10,7 +10,7 @@ from . import filters, models, serializers, executors
 
 
 class PackageTemplateViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.PackageTemplate.objects.all()
+    queryset = models.PackageTemplate.objects.all().order_by('name')
     serializer_class = serializers.PackageTemplateSerializer
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)

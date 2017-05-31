@@ -21,3 +21,4 @@ class PaymentDetailsFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.PaymentDetails
+        fields = '__all__'

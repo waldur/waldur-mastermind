@@ -9,7 +9,7 @@ class AnalyticsExtension(NodeConductorExtension):
     class Settings:
         # See also: http://influxdb-python.readthedocs.io/en/latest/api-documentation.html#influxdbclient
         WALDUR_ANALYTICS = {
-            'ENABLED': True,
+            'ENABLED': False,
             'INFLUXDB': {
                 'host': 'localhost',
                 'port': 8086,

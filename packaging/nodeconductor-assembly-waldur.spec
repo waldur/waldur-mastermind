@@ -1,18 +1,19 @@
 Name: nodeconductor-assembly-waldur
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.5.2
+Version: 2.5.3
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor >= 0.137.0
+Requires: nodeconductor > 0.138.0
 Requires: nodeconductor-auth-social >= 0.6.0
-Requires: nodeconductor-auth-openid >= 0.6.0
-Requires: nodeconductor-aws >= 0.6.0
-Requires: nodeconductor-digitalocean >= 0.6.0
-Requires: nodeconductor-openstack >= 0.25.0
+Requires: nodeconductor-auth-openid > 0.6.0
+Requires: nodeconductor-aws > 0.7.0
+Requires: nodeconductor-cost-planning > 0.3.1
+Requires: nodeconductor-digitalocean > 0.6.0
+Requires: nodeconductor-openstack > 0.26.0
 Requires: nodeconductor-saml2 >= 0.3.3
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
@@ -50,6 +51,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Wed May 31 2017 Jenkins <jenkins@opennodecloud.com> - 2.5.3-1.el7
+- New upstream release
+
 * Sat May 6 2017 Jenkins <jenkins@opennodecloud.com> - 2.5.2-1.el7
 - New upstream release
 

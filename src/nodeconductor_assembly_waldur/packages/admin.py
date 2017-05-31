@@ -10,7 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import models as structure_models
-from nodeconductor_assembly_waldur.packages import models
+from nodeconductor_assembly_waldur.packages import models, utils
 
 
 class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
@@ -19,10 +19,10 @@ class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
         value = int(value) * 1024
         return value
 
-    def _format_value(self, value):
+    def format_value(self, value):
         return int(value) / 1024
 
-    def render(self, name, value, attrs=None):
+    def render(self, name, value, attrs=None, renderer=None):
         result = super(GBtoMBWidget, self).render(name, value, attrs)
         return '<label>%s GB</label>' % result
 
@@ -37,10 +37,10 @@ class PriceForMBinGBWidget(forms.NumberInput):
         value = Decimal(value) / 1024
         return value
 
-    def _format_value(self, value):
+    def format_value(self, value):
         return Decimal(value) * 1024
 
-    def render(self, name, value, attrs=None):
+    def render(self, name, value, attrs=None, renderer=None):
         if self.readonly:
             return core_admin.render_to_readonly(self._format_value(value))
         else:
@@ -195,6 +195,10 @@ class PackageTemplateAdmin(admin.ModelAdmin):
         if 'service_settings' in form.base_fields:
             form.base_fields['service_settings'].queryset = structure_models.ServiceSettings.objects.filter(shared=True)
         return form
+
+    def save_related(self, request, form, formsets, change):
+        super(PackageTemplateAdmin, self).save_related(request, form, formsets, change)
+        utils.sync_price_list_item(form.instance)
 
 
 class OpenStackPackageAdmin(admin.ModelAdmin):
