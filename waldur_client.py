@@ -55,8 +55,9 @@ class WaldurClient(object):
     def _build_url(self, endpoint):
         return requests.compat.urljoin(self.host, 'api/%s/' % endpoint)
 
-    def _build_resource_url(self, endpoint, uuid):
-        return self._build_url('%s/%s' % (endpoint, uuid))
+    def _build_resource_url(self, endpoint, uuid, action=None):
+        resource_url = self._build_url('/'.join([endpoint, uuid]))
+        return ''.join([resource_url, action]) if action else resource_url
 
     def _parse_error(self, response):
         try:
@@ -112,14 +113,14 @@ class WaldurClient(object):
 
         return resource
 
-    def _create_resource(self, endpoint, payload=None):
+    def _create_resource(self, endpoint, payload=None, valid_state=201):
         url = self._build_url(endpoint)
         try:
             response = requests.post(url, data=json.dumps(payload), headers=self.headers)
         except requests.exceptions.RequestException as error:
             raise WaldurClientException(error.message)
 
-        if response.status_code != 201:
+        if response.status_code != valid_state:
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
@@ -250,6 +251,23 @@ class WaldurClient(object):
 
     def delete_security_group(self, uuid):
         return self._delete_resource(self.Endpoints.TenantSecurityGroup, uuid)
+
+    def _get_instance(self, instance):
+        return self._get_resource(self.Endpoints.Instance, instance)
+
+    def assign_floating_ips(self, instance, floating_ips):
+        instance = self._get_instance(instance)
+        payload = {
+            'floating_ips': [],
+        }
+        for ip in floating_ips:
+            payload['floating_ips'].append({
+                'url': self._get_floating_ip(ip['address'])['url'],
+                'subnet': self._get_subnet(ip['subnet'])['url'],
+            })
+
+        endpoint = '%s/%s/update_floating_ips' % (self.Endpoints.Instance, instance['uuid'])
+        return self._create_resource(endpoint, payload, valid_state=202)
 
     def create_instance(
             self,
