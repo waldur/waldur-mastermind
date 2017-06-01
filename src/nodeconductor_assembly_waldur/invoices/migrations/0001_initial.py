@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 
 from django.db import migrations, models
 import nodeconductor.core.fields
-import jsonfield.fields
 from decimal import Decimal
 import django.db.models.deletion
 import django.core.validators
@@ -33,7 +32,7 @@ class Migration(migrations.Migration):
             name='OpenStackItem',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('package_details', jsonfield.fields.JSONField(default={}, help_text='Stores data about package', blank=True)),
+                ('package_details', nodeconductor.core.fields.JSONField(default={}, help_text='Stores data about package', blank=True)),
                 ('price', models.DecimalField(help_text='Price is calculated on a monthly basis.', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
                 ('start', models.DateTimeField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_month_start, help_text='Date and time when package usage has started.')),
                 ('end', models.DateTimeField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_month_end, help_text='Date and time when package usage has ended.')),
