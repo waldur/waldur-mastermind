@@ -1,31 +1,33 @@
 #!/usr/bin/python
-from ansible.module_utils.basic import AnsibleModule
+# has to be a full import due to ansible 2.0 compatibility
+from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
 --- 
 module: waldur_os_security_group
-short_description: "Add/Update/Remove OpenStack cloud security group"
+short_description: Add/Update/Remove OpenStack tenant security group
 version_added: "0.1"
 description: 
-  - "Add/Update/Remove OpenStack cloud security group"
+  - "Add/Update/Remove OpenStack tenant security group"
 requirements:
   - "python = 2.7"
   - "requests"
+  - "python-waldur-client"
 options: 
   access_token: 
     description: 
-      - An access token which has permissions to create an OpenStack instances.
+      - An access token which has permissions to create a security group.
     required: true
   api_url: 
     description: 
-      - Fully qualified url to the Waldur.
+      - Fully qualified URL to the Waldur.
     required: true
   cidr: 
     description: 
-      - A cidr the security group rule is applied to.
+      - A CIDR the security group rule is applied to.
     required: if 'rules' are not provided.
-  cloud: 
+  tenant: 
     description: 
       - The name of the tenant to create a security group for.
     required: false
@@ -46,25 +48,10 @@ options:
       required: true
     required: if 'rules' are not provided.
   rules: 
-    cidr: 
-      description: 
-        - A cidr the security group rule is applied to.
-      required: true
     description: 
-      - A list of security group rules to be applied to the security group.
-    from_port: 
-      description: 
-        - The lowest port value the security group rule is applied to.
-      required: true
-    protocol: 
-      description: 
-        - A protocol the security group rule is applied to.
-      required: true
-    required: Only if 'from_ip', 'to_ip', 'cidr', 'protocol' are not provided
-    to_port: 
-      description: 
-        - The highest port value the security group rule is applied to.
-      required: true
+      - A list of security group rules to be applied to the security group. 
+      A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
+    required: if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
   state: 
     choices: 
       - present
@@ -79,58 +66,58 @@ options:
 '''
 
 EXAMPLES = '''
-  Create security group
+  # Create security group
 
   waldur_os_security_group: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
     api_url: https://waldur.example.com:8000
-    cloud: VPC #1
-    description: first and last TCP quartiles
+    tenant: VPC #1
+    description: http and https ports group
     rules: 
       - 
-        from_port: 20
-        to_port: 60
-        cidr: 192.168.63.24/24
+        from_port: 80
+        to_port: 80
+        cidr: 0.0.0.0/0
         protocol: tcp
       - 
-        from_port: 70
-        to_port: 80
-        cidr: 192.168.63.24/24
+        from_port: 443
+        to_port: 443
+        cidr: 0.0.0.0/0
         protocol: tcp
     state: present
     name: classic
 
 
-  Remove previous security group
+ # Remove previous security group
 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
     api_url: https://waldur.example.com:8000
-    cloud: VPC #1
+    tenant: VPC #1
     rules: 
       - 
-        from_port: 20
-        to_port: 60
-        cidr: 192.168.63.24/24
+        from_port: 80
+        to_port: 80
+        cidr: 0.0.0.0/0
         protocol: tcp
       - 
-        from_port: 70
-        to_port: 80
-        cidr: 192.168.63.24/24
+        from_port: 443
+        to_port: 443
+        cidr: 0.0.0.0/0
         protocol: tcp
     state: absent
     name: classic
 
 
- Create security group with 1 security rule
+ # Create security group with 1 security rule
 
   waldur_os_security_group: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
     api_url: https://waldur.example.com:8000
-    cloud: VPC #1
-    description: first and last TCP quartiles
-    from_port: 70
+    tenant: VPC #1
+    description: http and https ports group
+    from_port: 80
     to_port: 80
-    cidr: 192.168.63.24/24
+    cidr: 0.0.0.0/0
     protocol: tcp
     state: present
     name: classic
@@ -140,7 +127,7 @@ EXAMPLES = '''
 def send_request_to_waldur(client, module):
     has_changed = False
     name = module.params['name']
-    security_group = client.get_security_group(cloud=module.params['cloud'], name=name)
+    security_group = client.get_security_group(tenant=module.params['tenant'], name=name)
     present = module.params['state'] == 'present'
     if security_group:
         if present:
@@ -160,7 +147,7 @@ def send_request_to_waldur(client, module):
             'protocol': module.params['protocol'],
         }])
         client.create_security_group(
-            cloud=module.params['cloud'],
+            tenant=module.params['tenant'],
             name=module.params['name'],
             description=module.params.get('description'),
             rules=rules)
@@ -181,7 +168,7 @@ def main():
         'protocol': {'type': 'str', 'choices': ['tcp', 'udp', 'icmp']},
         'state': {'default': 'present', 'choices': ['absent', 'present']},
         'name': {'required': True, 'type': 'str'},
-        'cloud': {'required': True, 'type': 'str'},
+        'tenant': {'required': True, 'type': 'str'},
     }
     required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
     mutually_exclusive = [['from_port', 'rules'],

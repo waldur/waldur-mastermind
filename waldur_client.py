@@ -218,8 +218,8 @@ class WaldurClient(object):
     def _get_tenant(self, name):
         return self._get_resource(self.Endpoints.Tenant, name)
 
-    def create_security_group(self, cloud, name, rules, description=None):
-        cloud = self._get_tenant(cloud)
+    def create_security_group(self, tenant, name, rules, description=None):
+        tenant = self._get_tenant(tenant)
         payload = {
             'name': name,
             'rules': rules
@@ -227,7 +227,7 @@ class WaldurClient(object):
         if description:
             payload.update({'description': description})
 
-        action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, cloud['uuid'])
+        action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, tenant['uuid'])
         return self._create_resource(action_url, payload)
 
     def update_security_group_description(self, security_group, description):
@@ -238,11 +238,11 @@ class WaldurClient(object):
         uuid = security_group['uuid']
         return self._update_resource(self.Endpoints.TenantSecurityGroup, uuid, payload)
 
-    def get_security_group(self, cloud, name):
-        cloud = self._get_tenant(cloud)
+    def get_security_group(self, tenant, name):
+        tenant = self._get_tenant(tenant)
         security_group = None
         try:
-            security_group = self._get_tenant_security_group(tenant_uuid=cloud['uuid'], name=name)
+            security_group = self._get_tenant_security_group(tenant_uuid=tenant['uuid'], name=name)
         except ObjectDoesNotExist:
             pass
 

@@ -1,17 +1,19 @@
 #!/usr/bin/python
-from ansible.module_utils.basic import AnsibleModule
+# has to be a full import due to ansible 2.0 compatibility
+from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
 --- 
 module: waldur_os_add_instance
-short_description: "Create OpenStack instance"
-version_added: "0.1"
+short_description: Create OpenStack instance
+version_added: 0.1
 description: 
-  - "Create an OpenStack instance"
+  - Create an OpenStack instance
 requirements:
-  - "python = 2.7"
-  - "requests"
+  - python = 2.7
+  - requests
+  - python-waldur-client
 options: 
   access_token: 
     description: 
@@ -51,17 +53,8 @@ options:
     required: true
   networks: 
     description: 
-      - A list of networks an instance has to be attached to.
-    floating_ip: 
-      description: 
-        - An id or address of the existing floating IP to use. Not assigned if not specified. 
-        Use `auto` to allocate new floating IP or reuse available one.
-      required: true
-    required: Only if `subnet` and `floating_ip` are not provided
-    subnet: 
-      description: 
-        - The name or id of the subnet to use.
-      required: true
+      - A list of networks an instance has to be attached to. 
+      A network object consists of 'floating_ip' and 'subnet' fields.
   project: 
     description: 
       - The name or id of the project to add an instance to.

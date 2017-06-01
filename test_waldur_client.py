@@ -99,10 +99,13 @@ class TestWaldurClient(unittest.TestCase):
     def test_waldur_client_sends_request_with_passed_parameters(self):
         self.setUpInstanceCreationResponses()
 
-        client = WaldurClient(self.params.pop('api_url'), self.params.pop('access_token'))
+        access_token = self.params.pop('access_token')
+        client = WaldurClient(self.params.pop('api_url'), access_token)
         instance = client.create_instance(**self.params)
 
         self.assertTrue(instance['name'], self.params['name'])
+        self.assertEqual('token %s' % access_token,
+                         responses.calls[0].request.headers['Authorization'])
 
     @responses.activate
     def test_waldur_client_raises_error_if_networks_do_no_have_a_subnet(self):
@@ -114,7 +117,7 @@ class TestWaldurClient(unittest.TestCase):
         self.assertRaises(WaldurClientException, client.create_instance, **self.params)
 
     @responses.activate
-    def test_waldur_client_returns_security_group_by_cloud_name_and_sg_name(self):
+    def test_waldur_client_returns_security_group_by_tenant_name_and_security_group_name(self):
         security_group = dict(name='security_group')
         params = dict(name=security_group['name'], tenant_uuid=self.tenant['uuid'])
         get_url = self._get_url('openstack-security-groups', params)
@@ -125,9 +128,6 @@ class TestWaldurClient(unittest.TestCase):
         response = client.get_security_group(self.tenant['name'], security_group['name'])
 
         self.assertEqual(response['name'], security_group['name'])
-        self.assertEqual(
-            'token %s' % self.params['access_token'],
-            responses.calls[0].request.headers['Authorization'])
 
     @responses.activate
     def test_waldur_client_creates_security_group_with_passed_parameters(self):
@@ -147,14 +147,11 @@ class TestWaldurClient(unittest.TestCase):
 
         client = WaldurClient(self.params['api_url'], self.params['access_token'])
         response = client.create_security_group(
-            cloud=self.tenant['name'],
+            tenant=self.tenant['name'],
             name=security_group['name'],
             rules=security_group['rules'])
 
         self.assertEqual(security_group['name'], response['name'])
-        self.assertEqual(
-            'token %s' % self.params['access_token'],
-            responses.calls[0].request.headers['Authorization'])
 
 
 if __name__ == '__main__':
