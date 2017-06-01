@@ -41,28 +41,32 @@ options:
 '''
 
 EXAMPLES = '''
-  # Assign floating IPs
+- name: assign multipe floating IPs
+  hosts: localhost
+  tasks:
+    - name: assign single floating IP
+      waldur_os_floating_ip: 
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000
+        instance: VM #1
+        floating_ips:
+            - 
+              address: 10.30.201.18
+              subnet: vpc-1-tm-sub-net
+            -
+              address: 10.30.201.177
+              subnet: vpc-2-tm-sub-net
 
-  waldur_os_floating_ip: 
-    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
-    instance: VM #1
-    floating_ips:
-        - 
-          address: 10.30.201.18
-          subnet: vpc-1-tm-sub-net
-        -
-          address: 10.30.201.177
-          subnet: vpc-2-tm-sub-net
-          
-  # Assign single floating IP
-
-  waldur_os_floating_ip: 
-    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
-    instance: VM #3
-    address: 10.30.201.19
-    subnet: vpc-3-tm-sub-net
+- name: assign floating ip
+  hosts: localhost
+  tasks:
+    - name: assign single floating IP
+      waldur_os_floating_ip: 
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000
+        instance: VM #3
+        address: 10.30.201.19
+        subnet: vpc-3-tm-sub-net
 '''
 
 

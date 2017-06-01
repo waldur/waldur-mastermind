@@ -66,61 +66,66 @@ options:
 '''
 
 EXAMPLES = '''
-  # Create security group
+- name: add security group
+  hosts: localhost
+  tasks:
+    - name: create security group
+      waldur_os_security_group: 
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000
+        tenant: VPC #1
+        description: http and https ports group
+        rules: 
+          - 
+            from_port: 80
+            to_port: 80
+            cidr: 0.0.0.0/0
+            protocol: tcp
+          - 
+            from_port: 443
+            to_port: 443
+            cidr: 0.0.0.0/0
+            protocol: tcp
+        state: present
+        name: classic
 
-  waldur_os_security_group: 
-    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
-    tenant: VPC #1
-    description: http and https ports group
-    rules: 
-      - 
+- name: remove security group
+  hosts: localhost
+  tasks:
+    - name: remove previous security group
+      waldur_os_security_group: 
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000
+        tenant: VPC #1
+        rules: 
+          - 
+            from_port: 80
+            to_port: 80
+            cidr: 0.0.0.0/0
+            protocol: tcp
+          - 
+            from_port: 443
+            to_port: 443
+            cidr: 0.0.0.0/0
+            protocol: tcp
+        state: absent
+        name: classic
+
+- name: add security group
+  hosts: localhost
+  tasks:
+    - name: create security group with 1 security rule
+      waldur_os_security_group: 
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000
+        tenant: VPC #1
+        description: http and https ports group
         from_port: 80
         to_port: 80
         cidr: 0.0.0.0/0
         protocol: tcp
-      - 
-        from_port: 443
-        to_port: 443
-        cidr: 0.0.0.0/0
-        protocol: tcp
-    state: present
-    name: classic
-
-
- # Remove previous security group
-
-    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
-    tenant: VPC #1
-    rules: 
-      - 
-        from_port: 80
-        to_port: 80
-        cidr: 0.0.0.0/0
-        protocol: tcp
-      - 
-        from_port: 443
-        to_port: 443
-        cidr: 0.0.0.0/0
-        protocol: tcp
-    state: absent
-    name: classic
-
-
- # Create security group with 1 security rule
-
-  waldur_os_security_group: 
-    access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
-    tenant: VPC #1
-    description: http and https ports group
-    from_port: 80
-    to_port: 80
-    cidr: 0.0.0.0/0
-    protocol: tcp
-    state: present
-    name: classic
+        state: present
+        name: classic
 '''
 
 
