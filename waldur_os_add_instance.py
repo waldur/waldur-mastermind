@@ -187,10 +187,10 @@ def main():
         mutually_exclusive=mutually_exclusive)
 
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
-    networks = module.params.get('networks', {
+    networks = module.params.get('networks') or [{
         'subnet': module.params['subnet'],
         'floating_ip': module.params['floating_ip']
-        })
+        }]
     try:
         instance = client.create_instance(
             name=module.params['name'],

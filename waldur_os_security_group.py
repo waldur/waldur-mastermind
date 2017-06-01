@@ -140,12 +140,12 @@ def send_request_to_waldur(client, module):
             client.delete_security_group(security_group['uuid'])
             has_changed = True
     elif present:
-        rules = module.params.get('rules', [{
+        rules = module.params.get('rules') or [{
             'from_port': module.params['from_port'],
             'to_port': module.params['to_port'],
             'cidr': module.params['cidr'],
             'protocol': module.params['protocol'],
-        }])
+        }]
         client.create_security_group(
             tenant=module.params['tenant'],
             name=module.params['name'],
