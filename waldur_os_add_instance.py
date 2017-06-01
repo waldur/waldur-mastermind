@@ -177,9 +177,9 @@ def main():
         'timeout': {'default': 60 * 10, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'}
     }
-    required_together = [['wait', 'timeout'], ['subnet', 'floating_ip']]
+    required_together = [['wait', 'timeout']]
     mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks']]
-    required_one_of = [['subnet', 'networks'], ['floating_ip', 'networks']]
+    required_one_of = [['subnet', 'networks']]
     module = AnsibleModule(
         argument_spec=fields,
         required_together=required_together,
@@ -189,7 +189,7 @@ def main():
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
     networks = module.params.get('networks') or [{
         'subnet': module.params['subnet'],
-        'floating_ip': module.params['floating_ip']
+        'floating_ip': module.get('floating_ip')
         }]
     try:
         instance = client.create_instance(
