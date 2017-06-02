@@ -20,7 +20,8 @@ options:
   address:
     description:
       - an IP address of the floating IP to be assigned to the instance.
-    required: if 'floating_ips' are not provided.
+    required: 
+      - if 'floating_ips' are not provided.
   api_url:
     description:
       - Fully qualified url to the Waldur.
@@ -29,11 +30,13 @@ options:
     description:
       - A list of floating IPs to be assigned to the instance.
         A floating ip consists of 'subnet' and 'address'.
-    required: if 'floating_ips' are not provided.
+    required: 
+      - if 'floating_ips' are not provided.
   subnet:
     description:
       - A subnet to be assigned to the instance.
-    required: if 'floating_ips' are not provided.
+    required: 
+      - if 'floating_ips' are not provided.
   instance:
     description:
       - The name of the virtual machine to assign floating IPs to.

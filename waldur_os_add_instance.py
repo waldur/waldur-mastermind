@@ -24,9 +24,8 @@ options:
       - Fully qualified url to the Waldur.
     required: true
   data_volume_size:
-    default: volume is not created.
     description:
-      - The size of the data volume in GB.
+      - The size of the data volume in GB. Data volume is not created if value is empty.
     required: false
   flavor:
     description:
@@ -54,6 +53,8 @@ options:
     description:
       - A list of networks an instance has to be attached to.
         A network object consists of 'floating_ip' and 'subnet' fields.
+      required:
+        - if neither 'floating_ip' nor 'subnet' provided.
   project:
     description:
       - The name or id of the project to add an instance to.

@@ -7,7 +7,7 @@ DOCUMENTATION = '''
 ---
 module: waldur_os_security_group
 short_description: Add/Update/Remove OpenStack tenant security group
-version_added: "0.1"
+version_added: 0.1
 description:
   - "Add/Update/Remove OpenStack tenant security group"
 requirements:
@@ -26,7 +26,8 @@ options:
   cidr:
     description:
       - A CIDR the security group rule is applied to.
-    required: if 'rules' are not provided.
+    required: 
+      - if 'rules' are not provided.
   tenant:
     description:
       - The name of the tenant to create a security group for.
@@ -46,16 +47,18 @@ options:
   protocol:
     description:
       - A protocol the security group rule is applied to.
+    required: 
+      - if 'rules' are not provided.
   name:
     description:
       - The name of the security group.
     required: true
-  required: if 'rules' are not provided.
   rules:
     description:
       - A list of security group rules to be applied to the security group.
         A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
-    required: if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
+    required: 
+      - if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
   state:
     choices:
       - present
@@ -66,7 +69,8 @@ options:
   to_port:
     description:
       - The highest port value the security group rule is applied to.
-    required: if 'rules' are not provided.
+    required: 
+      - if 'rules' are not provided.
   timeout: 
     default: 600
     description: 
