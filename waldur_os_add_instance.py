@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# has to be a full import due to ansible 2.0 compatibility
+# has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
@@ -96,7 +96,7 @@ options:
       - A boolean value that defines whether client has to wait until the instance 
       provisioning is finished.
     required: false
-    '''
+'''
 
 EXAMPLES = '''
   name: Provision a warehouse instance
@@ -151,7 +151,7 @@ EXAMPLES = '''
     subnet: vpc-1-tm-sub-net-2
     system_volume_size: 40
     wait: false
-    '''
+'''
 
 
 def main():
@@ -187,7 +187,7 @@ def main():
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
     networks = module.params.get('networks') or [{
         'subnet': module.params['subnet'],
-        'floating_ip': module.get('floating_ip')
+        'floating_ip': module.params.get('floating_ip')
         }]
     try:
         instance = client.create_instance(

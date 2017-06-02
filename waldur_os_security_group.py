@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# has to be a full import due to ansible 2.0 compatibility
+# has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
@@ -189,8 +189,8 @@ def main():
         has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as e:
         module.fail_json(msg=e.message)
-
-    module.exit_json(has_changed=has_changed)
+    else:
+        module.exit_json(has_changed=has_changed)
 
 
 if __name__ == '__main__':
