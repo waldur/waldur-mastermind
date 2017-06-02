@@ -50,11 +50,9 @@ EXAMPLES = '''
         api_url: https://waldur.example.com:8000
         instance: VM #1
         floating_ips:
-            - 
-              address: 10.30.201.18
+            - address: 10.30.201.18
               subnet: vpc-1-tm-sub-net
-            -
-              address: 10.30.201.177
+            - address: 10.30.201.177
               subnet: vpc-2-tm-sub-net
 
 - name: assign floating ip
