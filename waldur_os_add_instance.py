@@ -105,17 +105,15 @@ EXAMPLES = '''
     - name: add instance
       waldur_os_add_instance: 
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        api_url: https://waldur.example.com:8000
+        api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
         flavor: m1.micro
         image: Ubuntu 16.04 x86_64
         name: Warehouse instance
         networks: 
-          - 
-            floating_ip: auto
+          - floating_ip: auto
             subnet: vpc-1-tm-sub-net
-          - 
-            floating_ip: 192.101.13.124
+          - floating_ip: 192.101.13.124
             subnet: vpc-1-tm-sub-net-2
         project: OpenStack Project
         provider: VPC
@@ -128,7 +126,7 @@ EXAMPLES = '''
     - name: add instance
       waldur_os_add_instance: 
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        api_url: https://waldur.example.com:8000
+        api_url: https://waldur.example.com:8000/api
         flavor: m1.micro
         floating_ip: auto
         image: CentOS 7 x86_64
@@ -151,7 +149,7 @@ EXAMPLES = '''
     - name: add instannce
       waldur_os_add_instance: 
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        api_url: https://waldur.example.com:8000
+        api_url: https://waldur.example.com:8000/api
         flavor: m1.micro
         floating_ip: auto
         image: CentOS 7 x86_64
@@ -186,9 +184,9 @@ def main():
         'timeout': {'default': 60 * 10, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'}
     }
-    required_together = [['wait', 'timeout'], ['subnet', 'floating_ip']]
+    required_together = [['wait', 'timeout']]
     mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks']]
-    required_one_of = [['subnet', 'networks'], ['floating_ip', 'networks']]
+    required_one_of = [['subnet', 'networks']]
     module = AnsibleModule(
         argument_spec=fields,
         required_together=required_together,
@@ -198,7 +196,7 @@ def main():
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
     networks = module.params.get('networks') or [{
         'subnet': module.params['subnet'],
-        'floating_ip': module.params['floating_ip']
+        'floating_ip': module.get('floating_ip')
         }]
     try:
         instance = client.create_instance(
