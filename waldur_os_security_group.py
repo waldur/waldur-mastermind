@@ -76,13 +76,11 @@ EXAMPLES = '''
         tenant: VPC #1
         description: http and https ports group
         rules: 
-          - 
-            from_port: 80
+          - from_port: 80
             to_port: 80
             cidr: 0.0.0.0/0
             protocol: tcp
-          - 
-            from_port: 443
+          - from_port: 443
             to_port: 443
             cidr: 0.0.0.0/0
             protocol: tcp
@@ -98,13 +96,11 @@ EXAMPLES = '''
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         rules: 
-          - 
-            from_port: 80
+          - from_port: 80
             to_port: 80
             cidr: 0.0.0.0/0
             protocol: tcp
-          - 
-            from_port: 443
+          - from_port: 443
             to_port: 443
             cidr: 0.0.0.0/0
             protocol: tcp
@@ -119,7 +115,7 @@ EXAMPLES = '''
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
-        description: http and https ports group
+        description: http only
         from_port: 80
         to_port: 80
         cidr: 0.0.0.0/0

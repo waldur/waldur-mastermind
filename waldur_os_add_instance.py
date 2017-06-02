@@ -108,11 +108,9 @@ EXAMPLES = '''
     image: Ubuntu 14.04
     name: Warehouse instance
     networks: 
-      - 
-        floating_ip: auto
+      - floating_ip: auto
         subnet: vpc-1-tm-sub-net
-      - 
-        floating_ip: 192.101.13.124
+      - floating_ip: 192.101.13.124
         subnet: vpc-1-tm-sub-net-2
     project: OpenStack Project
     provider: VPC
