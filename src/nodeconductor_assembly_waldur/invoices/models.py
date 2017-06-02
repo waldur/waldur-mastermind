@@ -9,9 +9,9 @@ from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
-from jsonfield import JSONField
 from model_utils import FieldTracker
 
+from nodeconductor.core.fields import JSONField
 from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
