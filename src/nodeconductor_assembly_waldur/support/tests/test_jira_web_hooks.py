@@ -38,6 +38,19 @@ class TestJiraWebHooks(APITestCase):
         support_user = factories.SupportUserFactory(backend_id='support')
         return backend_id, issue, support_user
 
+    def test_issue_update_callback_does_not_update_issue_link(self):
+        backend_id = 'WAL-101'
+        permalink = 'https://example.atlassian.net/browse/WAL-101'
+        issue = factories.IssueFactory(backend_id=backend_id, link=permalink)
+        self.request_data['issue']['key'] = backend_id
+
+        # act
+        response = self.client.post(self.url, self.request_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        self.assertEqual(issue.link, permalink)
+
     def test_issue_update_callback_updates_issue_summary(self):
         # arrange
         expected_summary = 'Happy New Year'
