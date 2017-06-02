@@ -1,17 +1,19 @@
 #!/usr/bin/python
-from ansible.module_utils.basic import AnsibleModule
+# has to be a full import due to ansible 2.0 compatibility
+from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
 --- 
 module: waldur_os_add_instance
-short_description: "Create OpenStack instance"
-version_added: "0.1"
+short_description: Create OpenStack instance
+version_added: 0.1
 description: 
-  - "Create an OpenStack instance"
+  - Create an OpenStack instance
 requirements:
-  - "python = 2.7"
-  - "requests"
+  - python = 2.7
+  - requests
+  - python-waldur-client
 options: 
   access_token: 
     description: 
@@ -51,17 +53,8 @@ options:
     required: true
   networks: 
     description: 
-      - A list of networks an instance has to be attached to.
-    floating_ip: 
-      description: 
-        - An id or address of the existing floating IP to use. Not assigned if not specified. 
-        Use `auto` to allocate new floating IP or reuse available one.
-      required: true
-    required: Only if `subnet` and `floating_ip` are not provided
-    subnet: 
-      description: 
-        - The name or id of the subnet to use.
-      required: true
+      - A list of networks an instance has to be attached to. 
+      A network object consists of 'floating_ip' and 'subnet' fields.
   project: 
     description: 
       - The name or id of the project to add an instance to.
@@ -109,17 +102,15 @@ EXAMPLES = '''
   name: Provision a warehouse instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
+    api_url: https://waldur.example.com:8000/api
     data_volume_size: 100
     flavor: m1.micro
     image: Ubuntu 14.04
     name: Warehouse instance
     networks: 
-      - 
-        floating_ip: auto
+      - floating_ip: auto
         subnet: vpc-1-tm-sub-net
-      - 
-        floating_ip: 192.101.13.124
+      - floating_ip: 192.101.13.124
         subnet: vpc-1-tm-sub-net-2
     project: OpenStack Project
     provider: VPC
@@ -129,7 +120,7 @@ EXAMPLES = '''
   name: Provision build instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
+    api_url: https://waldur.example.com:8000/api
     flavor: m1.micro
     floating_ip: auto
     image: CentOS 7
@@ -149,7 +140,7 @@ EXAMPLES = '''
   name: Trigger master instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
+    api_url: https://waldur.example.com:8000/api
     flavor: m1.micro
     floating_ip: auto
     image: CentOS 7
@@ -184,9 +175,9 @@ def main():
         'timeout': {'default': 60 * 10, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'}
     }
-    required_together = [['wait', 'timeout'], ['subnet', 'floating_ip']]
+    required_together = [['wait', 'timeout']]
     mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks']]
-    required_one_of = [['subnet', 'networks'], ['floating_ip', 'networks']]
+    required_one_of = [['subnet', 'networks']]
     module = AnsibleModule(
         argument_spec=fields,
         required_together=required_together,
@@ -194,10 +185,10 @@ def main():
         mutually_exclusive=mutually_exclusive)
 
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
-    networks = module.params.get('networks', {
+    networks = module.params.get('networks') or [{
         'subnet': module.params['subnet'],
-        'floating_ip': module.params['floating_ip']
-        })
+        'floating_ip': module.get('floating_ip')
+        }]
     try:
         instance = client.create_instance(
             name=module.params['name'],
