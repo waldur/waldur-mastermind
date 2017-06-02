@@ -1,130 +1,130 @@
 #!/usr/bin/python
-# has to be a full import due to ansible 2.0 compatibility
+# has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
---- 
+---
 module: waldur_os_add_instance
 short_description: Create OpenStack instance
 version_added: 0.1
-description: 
+description:
   - Create an OpenStack instance
 requirements:
   - python = 2.7
   - requests
   - python-waldur-client
-options: 
-  access_token: 
-    description: 
+options:
+  access_token:
+    description:
       - An access token which has permissions to create an OpenStack instances.
     required: true
-  api_url: 
-    description: 
+  api_url:
+    description:
       - Fully qualified url to the Waldur.
     required: true
-  data_volume_size: 
+  data_volume_size:
     default: volume is not created.
-    description: 
+    description:
       - The size of the data volume in GB.
     required: false
-  flavor: 
-    description: 
+  flavor:
+    description:
       - The name or id of the flavor to use.
     required: true
-  floating_ip: 
-    description: 
-      - An id or address of the existing floating IP to use. 
-      Not assigned if not specified. Use `auto` to allocate new floating IP or reuse available one.
-    required: 
+  floating_ip:
+    description:
+      - An id or address of the existing floating IP to use.
+        Not assigned if not specified. Use `auto` to allocate new floating IP or reuse available one.
+    required:
       - If a `networks` parameter is not provided.
-  image: 
-    description: 
+  image:
+    description:
       - The name or id of the image to use.
     required: true
-  interval: 
+  interval:
     default: 20
-    description: 
+    description:
       - An interval of the instance state polling.
     required: false
-  name: 
-    description: 
+  name:
+    description:
       - The name of the new OpenStack instance.
     required: true
-  networks: 
-    description: 
-      - A list of networks an instance has to be attached to. 
-      A network object consists of 'floating_ip' and 'subnet' fields.
-  project: 
-    description: 
+  networks:
+    description:
+      - A list of networks an instance has to be attached to.
+        A network object consists of 'floating_ip' and 'subnet' fields.
+  project:
+    description:
       - The name or id of the project to add an instance to.
     required: true
-  provider: 
-    description: 
+  provider:
+    description:
       - The name or id of the instance provider.
     required: true
-  security_groups: 
+  security_groups:
     default: default
-    description: 
+    description:
       - A list of ids or names of security groups to apply to the newly created instance.
     required: false
-  ssh_key: 
-    description: 
+  ssh_key:
+    description:
       - The name or id of the SSH key to attach to the newly created instance.
     required: false
-  subnet: 
-    description: 
+  subnet:
+    description:
       - The name or id of the subnet to use.
-    required: 
+    required:
       - If a `networks` parameter is not provided.
-  system_volume_size: 
-    description: 
+  system_volume_size:
+    description:
       - The size of the system volume in GBs.
     required: true
-  timeout: 
+  timeout:
     default: "60 * 10"
-    description: 
+    description:
       - The maximum amount of seconds to wait until the instance provisioning is finished.
     required: false
-  user_data: 
-    description: 
+  user_data:
+    description:
       - An additional data that will be added to the instance on provisioning.
     required: false
-  wait: 
+  wait:
     default: true
-    description: 
-      - A boolean value that defines whether client has to wait until the instance 
-      provisioning is finished.
+    description:
+      - A boolean value that defines whether client has to wait until the instance
+        provisioning is finished.
     required: false
-    '''
+'''
 
 EXAMPLES = '''
 - name: provision a warehouse instance
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_add_instance: 
+      waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
         flavor: m1.micro
         image: Ubuntu 16.04 x86_64
         name: Warehouse instance
-        networks: 
+        networks:
           - floating_ip: auto
             subnet: vpc-1-tm-sub-net
           - floating_ip: 192.101.13.124
             subnet: vpc-1-tm-sub-net-2
         project: OpenStack Project
         provider: VPC
-        security_groups: 
+        security_groups:
           - web
-        
+
 - name: provision build instance
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_add_instance: 
+      waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         flavor: m1.micro
@@ -142,12 +142,12 @@ EXAMPLES = '''
               list: |
                 ubuntu:{{ default_password }}
               expire: False
-        
+
 - name: Trigger master instance
   hosts: localhost
   tasks:
     - name: add instannce
-      waldur_os_add_instance: 
+      waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         flavor: m1.micro
@@ -160,7 +160,7 @@ EXAMPLES = '''
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
         wait: false
-    '''
+'''
 
 
 def main():
@@ -196,8 +196,8 @@ def main():
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
     networks = module.params.get('networks') or [{
         'subnet': module.params['subnet'],
-        'floating_ip': module.get('floating_ip')
-        }]
+        'floating_ip': module.params.get('floating_ip')
+    }]
     try:
         instance = client.create_instance(
             name=module.params['name'],

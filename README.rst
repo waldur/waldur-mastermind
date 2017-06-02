@@ -1,4 +1,4 @@
-This repository contains collection of Ansible module sto allow provisioning and
+This repository contains collection of Ansible modules to allow provisioning and
 management of infrastructure under Waldur through Ansible playbooks.
 
 Supported functionality
