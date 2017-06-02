@@ -45,15 +45,24 @@ class WaldurClient(object):
         Tenant = 'openstack-tenants'
         TenantSecurityGroup = 'openstack-security-groups'
 
-    def __init__(self, host, token):
-        self.host = host
+    def __init__(self, api_url, access_token):
+        """
+        Initializes a Waldur client
+        :param api_url: a fully qualified URL to the Waldur API. Example: https://waldur.example.com:8000/api
+        :param access_token: an access token to be used to communicate with the API.
+        """
+
+        self.api_url = self._ensure_trailing_slash(api_url)
         self.headers = {
-            'Authorization': 'token %s' % token,
+            'Authorization': 'token %s' % access_token,
             'Content-Type': 'application/json',
         }
 
+    def _ensure_trailing_slash(self, url):
+        return url if url[-1] == '/' else '%s/' % url
+
     def _build_url(self, endpoint):
-        return requests.compat.urljoin(self.host, 'api/%s/' % endpoint)
+        return requests.compat.urljoin(self.api_url, self._ensure_trailing_slash(endpoint))
 
     def _build_resource_url(self, endpoint, uuid):
         return self._build_url('%s/%s' % (endpoint, uuid))
@@ -115,7 +124,7 @@ class WaldurClient(object):
     def _create_resource(self, endpoint, payload=None):
         url = self._build_url(endpoint)
         try:
-            response = requests.post(url, data=json.dumps(payload), headers=self.headers)
+            response = requests.post(url, json=payload, headers=self.headers)
         except requests.exceptions.RequestException as error:
             raise WaldurClientException(error.message)
 

@@ -102,7 +102,7 @@ EXAMPLES = '''
   name: Provision a warehouse instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
+    api_url: https://waldur.example.com:8000/api
     data_volume_size: 100
     flavor: m1.micro
     image: Ubuntu 14.04
@@ -122,7 +122,7 @@ EXAMPLES = '''
   name: Provision build instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
+    api_url: https://waldur.example.com:8000/api
     flavor: m1.micro
     floating_ip: auto
     image: CentOS 7
@@ -142,7 +142,7 @@ EXAMPLES = '''
   name: Trigger master instance
   waldur_os_add_instance: 
     access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    api_url: https://waldur.example.com:8000
+    api_url: https://waldur.example.com:8000/api
     flavor: m1.micro
     floating_ip: auto
     image: CentOS 7

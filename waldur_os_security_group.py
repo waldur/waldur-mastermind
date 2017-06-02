@@ -72,7 +72,7 @@ EXAMPLES = '''
     - name: create security group
       waldur_os_security_group: 
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        api_url: https://waldur.example.com:8000
+        api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         description: http and https ports group
         rules: 
@@ -95,7 +95,7 @@ EXAMPLES = '''
     - name: remove previous security group
       waldur_os_security_group: 
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        api_url: https://waldur.example.com:8000
+        api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         rules: 
           - 
@@ -117,7 +117,7 @@ EXAMPLES = '''
     - name: create security group with 1 security rule
       waldur_os_security_group: 
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-        api_url: https://waldur.example.com:8000
+        api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         description: http and https ports group
         from_port: 80

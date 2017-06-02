@@ -16,7 +16,7 @@ class TestWaldurClient(unittest.TestCase):
     def setUp(self):
         self.params = {
             'name': 'instance',
-            'api_url': 'http://example.com',
+            'api_url': 'http://example.com:8000/api',
             'access_token': 'token',
             'provider': 'provider',
             'project': 'project',
@@ -49,7 +49,7 @@ class TestWaldurClient(unittest.TestCase):
         }
 
     def setUpInstanceCreationResponses(self):
-        post_url = '%s/api/openstacktenant-instances/' % self.params['api_url']
+        post_url = '%s/openstacktenant-instances/' % self.params['api_url']
         mapping = {
             'provider': 'openstacktenant',
             'project': 'projects',
@@ -74,7 +74,7 @@ class TestWaldurClient(unittest.TestCase):
         responses.add(responses.GET, status_url, json=[self.instance])
 
     def _get_url(self, endpoint, params=None):
-        url = '%(url)s/api/%(endpoint)s/'
+        url = '%(url)s/%(endpoint)s/'
         url = url % {
             'url': self.params['api_url'],
             'endpoint': endpoint,
