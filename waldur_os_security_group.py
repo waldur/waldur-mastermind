@@ -1,70 +1,70 @@
 #!/usr/bin/python
-# has to be a full import due to ansible 2.0 compatibility
+# has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
---- 
+---
 module: waldur_os_security_group
 short_description: Add/Update/Remove OpenStack tenant security group
 version_added: "0.1"
-description: 
+description:
   - "Add/Update/Remove OpenStack tenant security group"
 requirements:
   - "python = 2.7"
   - "requests"
   - "python-waldur-client"
-options: 
-  access_token: 
-    description: 
+options:
+  access_token:
+    description:
       - An access token which has permissions to create a security group.
     required: true
-  api_url: 
-    description: 
+  api_url:
+    description:
       - Fully qualified URL to the Waldur.
     required: true
-  cidr: 
-    description: 
+  cidr:
+    description:
       - A CIDR the security group rule is applied to.
     required: if 'rules' are not provided.
-  tenant: 
-    description: 
+  tenant:
+    description:
       - The name of the tenant to create a security group for.
     required: false
-  description: 
-    description: 
+  description:
+    description:
       - A description of the security group.
     required: true
-  from_port: 
-    description: 
+  from_port:
+    description:
       - The lowest port value the security group rule is applied to.
     required: if 'rules' are not provided.
   interval: 
     default: 20
     description: 
       - An interval of the security group state polling.
-  protocol: 
-    description: 
+  protocol:
+    description:
       - A protocol the security group rule is applied to.
-    name: 
-      description: 
-        - The name of the security group.
-      required: true
-    required: if 'rules' are not provided.
-  rules: 
-    description: 
-      - A list of security group rules to be applied to the security group. 
-      A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
+  name:
+    description:
+      - The name of the security group.
+    required: true
+  required: if 'rules' are not provided.
+  rules:
+    description:
+      - A list of security group rules to be applied to the security group.
+        A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
     required: if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
-  state: 
-    choices: 
+  state:
+    choices:
       - present
       - absent
     default: present
-    description: 
+    description:
       - Should the resource be present or absent.
-  to_port: 
-    description: 
+  to_port:
+    description:
       - The highest port value the security group rule is applied to.
     required: if 'rules' are not provided.
   timeout: 
@@ -82,12 +82,12 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: create security group
-      waldur_os_security_group: 
+      waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         description: http and https ports group
-        rules: 
+        rules:
           - from_port: 80
             to_port: 80
             cidr: 0.0.0.0/0
@@ -103,11 +103,11 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: remove previous security group
-      waldur_os_security_group: 
+      waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
-        rules: 
+        rules:
           - from_port: 80
             to_port: 80
             cidr: 0.0.0.0/0
@@ -123,7 +123,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: create security group with 1 security rule
-      waldur_os_security_group: 
+      waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
@@ -207,8 +207,8 @@ def main():
         has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as e:
         module.fail_json(msg=e.message)
-
-    module.exit_json(has_changed=has_changed)
+    else:
+        module.exit_json(has_changed=has_changed)
 
 
 if __name__ == '__main__':

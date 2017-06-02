@@ -4,7 +4,7 @@ from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
---- 
+---
 module: waldur_os_floating_ip
 short_description: Assign floating IPs
 version_added: 0.1
@@ -12,30 +12,30 @@ requirements:
   - "python = 2.7"
   - "requests"
   - "python-waldur-client"
-options: 
-  access_token: 
-    description: 
+options:
+  access_token:
+    description:
       - An access token which has permissions to create an OpenStack instances.
     required: true
-  address: 
-    description: 
+  address:
+    description:
       - an IP address of the floating IP to be assigned to the instance.
     required: if 'floating_ips' are not provided.
-  api_url: 
-    description: 
+  api_url:
+    description:
       - Fully qualified url to the Waldur.
     required: true
-  floating_ips: 
-    description: 
-      - A list of floating IPs to be assigned to the instance. 
-      A floating ip consists of 'subnet' and 'address'.
+  floating_ips:
+    description:
+      - A list of floating IPs to be assigned to the instance.
+        A floating ip consists of 'subnet' and 'address'.
     required: if 'floating_ips' are not provided.
-  subnet: 
-    description: 
+  subnet:
+    description:
       - A subnet to be assigned to the instance.
     required: if 'floating_ips' are not provided.
-  instance: 
-    description: 
+  instance:
+    description:
       - The name of the virtual machine to assign floating IPs to.
     required: True
   interval: 
@@ -57,7 +57,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: assign single floating IP
-      waldur_os_floating_ip: 
+      waldur_os_floating_ip:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000
         instance: VM #1
@@ -71,7 +71,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: assign single floating IP
-      waldur_os_floating_ip: 
+      waldur_os_floating_ip:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000
         instance: VM #3
