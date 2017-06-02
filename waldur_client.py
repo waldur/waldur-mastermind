@@ -281,7 +281,7 @@ class WaldurClient(object):
     def _get_instance(self, instance):
         return self._get_resource(self.Endpoints.Instance, instance)
 
-    def assign_floating_ips(self, instance, floating_ips):
+    def assign_floating_ips(self, instance, floating_ips, wait=None, interval=20, timeout=600):
         instance = self._get_instance(instance)
         payload = {
             'floating_ips': [],
@@ -293,7 +293,12 @@ class WaldurClient(object):
             })
 
         endpoint = '%s/%s/update_floating_ips' % (self.Endpoints.Instance, instance['uuid'])
-        return self._create_resource(endpoint, payload, valid_state=202)
+        response = self._create_resource(endpoint, payload, valid_state=202)
+
+        if wait:
+            self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
+
+        return response
 
     def create_instance(
             self,

@@ -38,10 +38,22 @@ options:
     description: 
       - The name of the virtual machine to assign floating IPs to.
     required: True
+  interval: 
+    default: 20
+    description: 
+      - An interval of the instance state polling.
+  timeout: 
+    default: 600
+    description: 
+      - The maximum amount of seconds to wait until the floating IP is assigned to instance.
+  wait: 
+    default: true
+    description: 
+      - A boolean value that defines whether client has to wait until the floating IP is assigned to instance.
 '''
 
 EXAMPLES = '''
-- name: assign multipe floating IPs
+- name: assign multiple floating IPs
   hosts: localhost
   tasks:
     - name: assign single floating IP
@@ -76,6 +88,9 @@ def main():
         'floating_ips': {'type': 'list'},
         'address': {'type': 'str'},
         'subnet': {'type': 'str'},
+        'wait': {'default': True, 'type': 'bool'},
+        'timeout': {'default': 600, 'type': 'int'},
+        'interval': {'default': 20, 'type': 'int'},
     }
     required_together = [['address', 'subnet']]
     mutually_exclusive = [['floating_ips', 'subnet'],
@@ -95,7 +110,13 @@ def main():
     instance = module.params['instance']
 
     try:
-        response = client.assign_floating_ips(instance=instance, floating_ips=floating_ips)
+        response = client.assign_floating_ips(
+            instance=instance,
+            floating_ips=floating_ips,
+            wait=module.params['wait'],
+            timeout=module.params['timeout'],
+            interval=module.params['interval'],
+        )
     except WaldurClientException as e:
         module.fail_json(msg=e.message)
     else:
