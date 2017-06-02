@@ -227,7 +227,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def save(self, **kwargs):
         fields = self.initial_data['issue']['fields']
         backend_id = self.initial_data['issue']['key']
-        link = self.initial_data['issue']['self']
 
         event_type = self.initial_data['webhookEvent']
         if event_type == self.EventType.UPDATED:
@@ -236,7 +235,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
             except models.Issue.DoesNotExist:
                 pass
             else:
-                backend_issue = self._get_backend_issue(fields=fields, link=link)
+                backend_issue = self._get_backend_issue(fields=fields)
                 self._update_issue(issue=issue, backend_issue=backend_issue)
 
                 if 'comment' in fields:
@@ -247,17 +246,15 @@ class WebHookReceiverSerializer(serializers.Serializer):
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
 
-    def _get_backend_issue(self, fields, link):
+    def _get_backend_issue(self, fields):
         """
-        Builds a dictionary of issue attributes and values read from a Jira response.
+        Builds a dictionary of issue attributes and values read from a JIRA response.
         :param fields: issue fields in a response;
-        :param link: link to the issue in Jira system;
         :return: a dictionary of issue attributes and values
         """
         backend_issue = {
             'resolution': self._get_field_name(fields, 'resolution'),
             'status': self._get_field_name(fields, 'status'),
-            'link': link,
             'impact': self._get_impact_field(fields=fields),
             'summary': fields['summary'],
             'priority': self._get_field_name(fields, 'priority'),
@@ -339,7 +336,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     def _is_service_desk(self):
         """
-        :return: True if current Jira instance is ServiceDesk, otherwise False.
+        :return: True if current JIRA instance is ServiceDesk, otherwise False.
         """
         return isinstance(backend.get_active_backend(), ServiceDeskBackend)
 
