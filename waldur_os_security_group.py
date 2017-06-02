@@ -39,6 +39,10 @@ options:
     description: 
       - The lowest port value the security group rule is applied to.
     required: if 'rules' are not provided.
+  interval: 
+    default: 20
+    description: 
+      - An interval of the security group state polling.
   protocol: 
     description: 
       - A protocol the security group rule is applied to.
@@ -63,6 +67,14 @@ options:
     description: 
       - The highest port value the security group rule is applied to.
     required: if 'rules' are not provided.
+  timeout: 
+    default: 600
+    description: 
+      - The maximum amount of seconds to wait until the security group provisioning is finished.
+  wait: 
+    default: true
+    description: 
+      - A boolean value that defines whether client has to wait until the security group is provisioned.
 '''
 
 EXAMPLES = '''
@@ -151,7 +163,10 @@ def send_request_to_waldur(client, module):
             tenant=module.params['tenant'],
             name=module.params['name'],
             description=module.params.get('description'),
-            rules=rules)
+            rules=rules,
+            wait=module.params['wait'],
+            interval=module.params['interval'],
+            timeout=module.params['timeout'])
         has_changed = True
 
     return has_changed
@@ -170,6 +185,9 @@ def main():
         'state': {'default': 'present', 'choices': ['absent', 'present']},
         'name': {'required': True, 'type': 'str'},
         'tenant': {'required': True, 'type': 'str'},
+        'wait': {'default': True, 'type': 'bool'},
+        'timeout': {'default': 600, 'type': 'int'},
+        'interval': {'default': 20, 'type': 'int'},
     }
     required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
     mutually_exclusive = [['from_port', 'rules'],

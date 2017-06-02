@@ -46,7 +46,6 @@ options:
     default: 20
     description: 
       - An interval of the instance state polling.
-    required: false
   name: 
     description: 
       - The name of the new OpenStack instance.
@@ -82,10 +81,9 @@ options:
       - The size of the system volume in GBs.
     required: true
   timeout: 
-    default: "60 * 10"
+    default: 600
     description: 
       - The maximum amount of seconds to wait until the instance provisioning is finished.
-    required: false
   user_data: 
     description: 
       - An additional data that will be added to the instance on provisioning.
@@ -95,7 +93,6 @@ options:
     description: 
       - A boolean value that defines whether client has to wait until the instance 
       provisioning is finished.
-    required: false
     '''
 
 EXAMPLES = '''
@@ -181,7 +178,7 @@ def main():
         'ssh_key': {'type': 'str'},
         'user_data': {'type': 'str'},
         'wait': {'default': True, 'type': 'bool'},
-        'timeout': {'default': 60 * 10, 'type': 'int'},
+        'timeout': {'default': 600, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'}
     }
     required_together = [['wait', 'timeout']]

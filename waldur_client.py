@@ -228,7 +228,19 @@ class WaldurClient(object):
     def _get_tenant(self, name):
         return self._get_resource(self.Endpoints.Tenant, name)
 
-    def create_security_group(self, tenant, name, rules, description=None):
+    def _wait_for_resource(self, endpoint, uuid, interval, timeout):
+        ready = self._is_resource_ready(endpoint, uuid)
+        waited = 0
+        while not ready:
+            time.sleep(interval)
+            ready = self._is_resource_ready(endpoint, uuid)
+            waited += interval
+            if waited >= timeout:
+                error = 'Resource "%s" with id "%s" has not changed state to stable.' % (endpoint, uuid)
+                message = '%s. Seconds passed: %s' % (error, timeout)
+                raise TimeoutError(message)
+
+    def create_security_group(self, tenant, name, rules, description=None, wait=None, interval=10, timeout=600):
         tenant = self._get_tenant(tenant)
         payload = {
             'name': name,
@@ -238,7 +250,12 @@ class WaldurClient(object):
             payload.update({'description': description})
 
         action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, tenant['uuid'])
-        return self._create_resource(action_url, payload)
+        resource = self._create_resource(action_url, payload)
+
+        if wait:
+            self._wait_for_resource(self.Endpoints.TenantSecurityGroup, resource['uuid'], interval, timeout)
+
+        return resource
 
     def update_security_group_description(self, security_group, description):
         payload = {
@@ -288,7 +305,7 @@ class WaldurClient(object):
             image,
             system_volume_size,
             interval=10,
-            timeout=60,
+            timeout=600,
             wait=None,
             ssh_key=None,
             data_volume_size=None,
@@ -350,15 +367,6 @@ class WaldurClient(object):
         instance = self._create_instance(payload)
 
         if wait:
-            ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
-            waited = 0
-            while not ready:
-                time.sleep(interval)
-                ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
-                waited += interval
-                if waited >= interval:
-                    error = 'Instance "%s" has not changed state to stable' % instance['url']
-                    message = '%s. Seconds passed: %s' % (error, timeout)
-                    raise TimeoutError(message)
+            self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
 
         return instance
