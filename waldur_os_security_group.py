@@ -26,8 +26,8 @@ options:
   cidr:
     description:
       - A CIDR the security group rule is applied to.
-    required: 
-      - if 'rules' are not provided.
+    required:
+      - If 'rules' are not provided.
   tenant:
     description:
       - The name of the tenant to create a security group for.
@@ -39,16 +39,17 @@ options:
   from_port:
     description:
       - The lowest port value the security group rule is applied to.
-    required: if 'rules' are not provided.
-  interval: 
+    required:
+      - If 'rules' are not provided.
+  interval:
     default: 20
-    description: 
+    description:
       - An interval of the security group state polling.
   protocol:
     description:
       - A protocol the security group rule is applied to.
-    required: 
-      - if 'rules' are not provided.
+    required:
+      - If 'rules' are not provided.
   name:
     description:
       - The name of the security group.
@@ -57,8 +58,8 @@ options:
     description:
       - A list of security group rules to be applied to the security group.
         A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
-    required: 
-      - if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
+    required:
+      - If 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
   state:
     choices:
       - present
@@ -69,15 +70,15 @@ options:
   to_port:
     description:
       - The highest port value the security group rule is applied to.
-    required: 
-      - if 'rules' are not provided.
-  timeout: 
+    required:
+      - If 'rules' are not provided.
+  timeout:
     default: 600
-    description: 
+    description:
       - The maximum amount of seconds to wait until the security group provisioning is finished.
-  wait: 
+  wait:
     default: true
-    description: 
+    description:
       - A boolean value that defines whether client has to wait until the security group is provisioned.
 '''
 

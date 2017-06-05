@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# has to be a full import due to ansible 2.0 compatibility
+# has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
@@ -20,7 +20,7 @@ options:
   address:
     description:
       - an IP address of the floating IP to be assigned to the instance.
-    required: 
+    required:
       - if 'floating_ips' are not provided.
   api_url:
     description:
@@ -29,29 +29,29 @@ options:
   floating_ips:
     description:
       - A list of floating IPs to be assigned to the instance.
-        A floating ip consists of 'subnet' and 'address'.
-    required: 
+        A floating IP consists of 'subnet' and 'address'.
+    required:
       - if 'floating_ips' are not provided.
   subnet:
     description:
       - A subnet to be assigned to the instance.
-    required: 
+    required:
       - if 'floating_ips' are not provided.
   instance:
     description:
       - The name of the virtual machine to assign floating IPs to.
     required: True
-  interval: 
+  interval:
     default: 20
-    description: 
+    description:
       - An interval of the instance state polling.
-  timeout: 
+  timeout:
     default: 600
-    description: 
+    description:
       - The maximum amount of seconds to wait until the floating IP is assigned to instance.
-  wait: 
+  wait:
     default: true
-    description: 
+    description:
       - A boolean value that defines whether client has to wait until the floating IP is assigned to instance.
 '''
 
@@ -70,7 +70,7 @@ EXAMPLES = '''
             - address: 10.30.201.177
               subnet: vpc-2-tm-sub-net
 
-- name: assign floating ip
+- name: assign floating IP
   hosts: localhost
   tasks:
     - name: assign single floating IP

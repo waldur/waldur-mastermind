@@ -54,7 +54,7 @@ options:
       - A list of networks an instance has to be attached to.
         A network object consists of 'floating_ip' and 'subnet' fields.
       required:
-        - if neither 'floating_ip' nor 'subnet' provided.
+        - If neither 'floating_ip' nor 'subnet' provided.
   project:
     description:
       - The name or id of the project to add an instance to.
@@ -81,18 +81,18 @@ options:
     description:
       - The size of the system volume in GBs.
     required: true
-  timeout: 
+  timeout:
     default: 600
-    description: 
+    description:
       - The maximum amount of seconds to wait until the instance provisioning is finished.
-  user_data: 
-    description: 
+  user_data:
+    description:
       - An additional data that will be added to the instance on provisioning.
     required: false
   wait:
     default: true
-    description: 
-      - A boolean value that defines whether client has to wait until the instance 
+    description:
+      - A boolean value that defines whether client has to wait until the instance
       provisioning is finished.
 '''
 
@@ -144,7 +144,7 @@ EXAMPLES = '''
 - name: Trigger master instance
   hosts: localhost
   tasks:
-    - name: add instannce
+    - name: add instance
       waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
