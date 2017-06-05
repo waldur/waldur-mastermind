@@ -4,65 +4,82 @@ from ansible.module_utils.basic import *
 from waldur_client import WaldurClient, WaldurClientException
 
 DOCUMENTATION = '''
---- 
+---
 module: waldur_os_security_group
 short_description: Add/Update/Remove OpenStack tenant security group
-version_added: "0.1"
-description: 
+version_added: 0.1
+description:
   - "Add/Update/Remove OpenStack tenant security group"
 requirements:
   - "python = 2.7"
   - "requests"
   - "python-waldur-client"
-options: 
-  access_token: 
-    description: 
+options:
+  access_token:
+    description:
       - An access token which has permissions to create a security group.
     required: true
-  api_url: 
-    description: 
+  api_url:
+    description:
       - Fully qualified URL to the Waldur.
     required: true
-  cidr: 
-    description: 
+  cidr:
+    description:
       - A CIDR the security group rule is applied to.
-    required: if 'rules' are not provided.
-  tenant: 
-    description: 
+    required:
+      - If 'rules' are not provided.
+  tenant:
+    description:
       - The name of the tenant to create a security group for.
     required: false
-  description: 
-    description: 
+  description:
+    description:
       - A description of the security group.
     required: true
-  from_port: 
-    description: 
+  from_port:
+    description:
       - The lowest port value the security group rule is applied to.
-    required: if 'rules' are not provided.
-  protocol: 
-    description: 
+    required:
+      - If 'rules' are not provided.
+  interval:
+    default: 20
+    description:
+      - An interval of the security group state polling.
+  protocol:
+    description:
       - A protocol the security group rule is applied to.
-    name: 
-      description: 
-        - The name of the security group.
-      required: true
-    required: if 'rules' are not provided.
-  rules: 
-    description: 
-      - A list of security group rules to be applied to the security group. 
-      A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
-    required: if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
-  state: 
-    choices: 
+    required:
+      - If 'rules' are not provided.
+  name:
+    description:
+      - The name of the security group.
+    required: true
+  rules:
+    description:
+      - A list of security group rules to be applied to the security group.
+        A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
+    required:
+      - If 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
+  state:
+    choices:
       - present
       - absent
     default: present
-    description: 
+    description:
       - Should the resource be present or absent.
-  to_port: 
-    description: 
+  to_port:
+    description:
       - The highest port value the security group rule is applied to.
-    required: if 'rules' are not provided.
+    required:
+      - If 'rules' are not provided.
+  timeout:
+    default: 600
+    description:
+      - The maximum amount of seconds to wait until the security group provisioning is finished.
+  wait:
+    default: true
+    description:
+      - A boolean value that defines whether client has to wait until the security group is provisioned.
 '''
 
 EXAMPLES = '''
@@ -70,12 +87,12 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: create security group
-      waldur_os_security_group: 
+      waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
         description: http and https ports group
-        rules: 
+        rules:
           - from_port: 80
             to_port: 80
             cidr: 0.0.0.0/0
@@ -91,11 +108,11 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: remove previous security group
-      waldur_os_security_group: 
+      waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
-        rules: 
+        rules:
           - from_port: 80
             to_port: 80
             cidr: 0.0.0.0/0
@@ -111,7 +128,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: create security group with 1 security rule
-      waldur_os_security_group: 
+      waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         tenant: VPC #1
@@ -151,7 +168,10 @@ def send_request_to_waldur(client, module):
             tenant=module.params['tenant'],
             name=module.params['name'],
             description=module.params.get('description'),
-            rules=rules)
+            rules=rules,
+            wait=module.params['wait'],
+            interval=module.params['interval'],
+            timeout=module.params['timeout'])
         has_changed = True
 
     return has_changed
@@ -170,6 +190,9 @@ def main():
         'state': {'default': 'present', 'choices': ['absent', 'present']},
         'name': {'required': True, 'type': 'str'},
         'tenant': {'required': True, 'type': 'str'},
+        'wait': {'default': True, 'type': 'bool'},
+        'timeout': {'default': 600, 'type': 'int'},
+        'interval': {'default': 20, 'type': 'int'},
     }
     required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
     mutually_exclusive = [['from_port', 'rules'],

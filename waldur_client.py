@@ -64,8 +64,9 @@ class WaldurClient(object):
     def _build_url(self, endpoint):
         return requests.compat.urljoin(self.api_url, self._ensure_trailing_slash(endpoint))
 
-    def _build_resource_url(self, endpoint, uuid):
-        return self._build_url('%s/%s' % (endpoint, uuid))
+    def _build_resource_url(self, endpoint, uuid, action=None):
+        resource_url = self._build_url('/'.join([endpoint, uuid]))
+        return ''.join([resource_url, action]) if action else resource_url
 
     def _parse_error(self, response):
         try:
@@ -121,14 +122,14 @@ class WaldurClient(object):
 
         return resource
 
-    def _create_resource(self, endpoint, payload=None):
+    def _create_resource(self, endpoint, payload=None, valid_state=201):
         url = self._build_url(endpoint)
         try:
             response = requests.post(url, json=payload, headers=self.headers)
         except requests.exceptions.RequestException as error:
             raise WaldurClientException(error.message)
 
-        if response.status_code != 201:
+        if response.status_code != valid_state:
             error = self._parse_error(response)
             raise WaldurClientException(error)
 
@@ -227,7 +228,19 @@ class WaldurClient(object):
     def _get_tenant(self, name):
         return self._get_resource(self.Endpoints.Tenant, name)
 
-    def create_security_group(self, tenant, name, rules, description=None):
+    def _wait_for_resource(self, endpoint, uuid, interval, timeout):
+        ready = self._is_resource_ready(endpoint, uuid)
+        waited = 0
+        while not ready:
+            time.sleep(interval)
+            ready = self._is_resource_ready(endpoint, uuid)
+            waited += interval
+            if waited >= timeout:
+                error = 'Resource "%s" with id "%s" has not changed state to stable.' % (endpoint, uuid)
+                message = '%s. Seconds passed: %s' % (error, timeout)
+                raise TimeoutError(message)
+
+    def create_security_group(self, tenant, name, rules, description=None, wait=None, interval=10, timeout=600):
         tenant = self._get_tenant(tenant)
         payload = {
             'name': name,
@@ -237,7 +250,12 @@ class WaldurClient(object):
             payload.update({'description': description})
 
         action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, tenant['uuid'])
-        return self._create_resource(action_url, payload)
+        resource = self._create_resource(action_url, payload)
+
+        if wait:
+            self._wait_for_resource(self.Endpoints.TenantSecurityGroup, resource['uuid'], interval, timeout)
+
+        return resource
 
     def update_security_group_description(self, security_group, description):
         payload = {
@@ -260,6 +278,28 @@ class WaldurClient(object):
     def delete_security_group(self, uuid):
         return self._delete_resource(self.Endpoints.TenantSecurityGroup, uuid)
 
+    def _get_instance(self, instance):
+        return self._get_resource(self.Endpoints.Instance, instance)
+
+    def assign_floating_ips(self, instance, floating_ips, wait=None, interval=20, timeout=600):
+        instance = self._get_instance(instance)
+        payload = {
+            'floating_ips': [],
+        }
+        for ip in floating_ips:
+            payload['floating_ips'].append({
+                'url': self._get_floating_ip(ip['address'])['url'],
+                'subnet': self._get_subnet(ip['subnet'])['url'],
+            })
+
+        endpoint = '%s/%s/update_floating_ips' % (self.Endpoints.Instance, instance['uuid'])
+        response = self._create_resource(endpoint, payload, valid_state=202)
+
+        if wait:
+            self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
+
+        return response
+
     def create_instance(
             self,
             name,
@@ -270,7 +310,7 @@ class WaldurClient(object):
             image,
             system_volume_size,
             interval=10,
-            timeout=60,
+            timeout=600,
             wait=None,
             ssh_key=None,
             data_volume_size=None,
@@ -332,15 +372,6 @@ class WaldurClient(object):
         instance = self._create_instance(payload)
 
         if wait:
-            ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
-            waited = 0
-            while not ready:
-                time.sleep(interval)
-                ready = self._is_resource_ready(self.Endpoints.Instance, instance['uuid'])
-                waited += interval
-                if waited >= interval:
-                    error = 'Instance "%s" has not changed state to stable' % instance['url']
-                    message = '%s. Seconds passed: %s' % (error, timeout)
-                    raise TimeoutError(message)
+            self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
 
         return instance
