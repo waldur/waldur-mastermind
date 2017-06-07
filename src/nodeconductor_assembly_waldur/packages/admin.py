@@ -178,7 +178,7 @@ class PackageTemplateAdmin(admin.ModelAdmin):
     # WIKI: https://opennode.atlassian.net/wiki/display/WD/Shared+OpenStack+Provider+Management#SharedOpenStackProviderManagement-VPCPackagetemplatemanagement
     inlines = [PackageComponentInline]
     package_dependant_fields = ('name', 'category', 'service_settings')
-    fields = package_dependant_fields + ('archived', 'icon_url', 'description')
+    fields = package_dependant_fields + ('archived', 'icon_url', 'description', 'product_code')
     list_display = ('name', 'uuid', 'service_settings', 'price', 'archived', 'monthly_price', 'category')
     list_filter = ('service_settings',)
     search_fields = ('name', 'uuid')
