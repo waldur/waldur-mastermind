@@ -1,20 +1,20 @@
 Name: nodeconductor-assembly-waldur
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.5.4
+Version: 2.5.5
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: nodeconductor > 0.139.0
-Requires: nodeconductor-auth-social >= 0.6.0
-Requires: nodeconductor-auth-openid > 0.6.0
+Requires: nodeconductor > 0.140.1
+Requires: nodeconductor-auth-social > 0.6.1
+Requires: nodeconductor-auth-openid > 0.7.0
 Requires: nodeconductor-aws > 0.8.0
 Requires: nodeconductor-cost-planning > 0.3.1
 Requires: nodeconductor-digitalocean > 0.6.0
-Requires: nodeconductor-openstack > 0.27.0
-Requires: nodeconductor-saml2 >= 0.3.3
+Requires: nodeconductor-openstack > 0.28.0
+Requires: nodeconductor-saml2 > 0.3.3
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
@@ -25,7 +25,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildRequires: python-setuptools
 
 %description
-NodeConductor assembly for Waldur project.
+Waldur MasterMind is a hybrid cloud orchestrator.
 
 %prep
 %setup -q -n %{name}-%{version}
@@ -51,6 +51,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Fri Jun 9 2017 Jenkins <jenkins@opennodecloud.com> - 2.5.5-1.el7
+- New upstream release
+
 * Fri Jun 2 2017 Jenkins <jenkins@opennodecloud.com> - 2.5.4-1.el7
 - New upstream release
 

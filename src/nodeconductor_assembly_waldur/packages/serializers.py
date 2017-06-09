@@ -29,7 +29,7 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.PackageTemplate
         fields = (
             'url', 'uuid', 'name', 'description', 'service_settings',
-            'price', 'monthly_price', 'icon_url', 'components', 'category', 'archived'
+            'price', 'monthly_price', 'icon_url', 'components', 'category', 'archived', 'product_code',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

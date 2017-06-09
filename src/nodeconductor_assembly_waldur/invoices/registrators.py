@@ -100,6 +100,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         ).order_by('-daily_price').first()
 
         daily_price = package.template.price
+        product_code = package.template.product_code
         if overlapping_item:
             """
             Notes:
@@ -140,6 +141,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         models.OpenStackItem.objects.create(
             package=package,
             daily_price=daily_price,
+            product_code=product_code,
             invoice=invoice,
             start=start,
             end=end)
@@ -172,6 +174,7 @@ class OfferingItemRegistrator(BaseRegistrator):
         result = models.OfferingItem.objects.create(
             offering=offering,
             daily_price=offering.price,
+            product_code=offering.product_code,
             invoice=invoice,
             start=start,
             end=end,

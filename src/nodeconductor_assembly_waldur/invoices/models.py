@@ -18,7 +18,7 @@ from nodeconductor.structure import models as structure_models
 
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.support import models as support_models
-from . import utils
+from . import utils, mixins
 
 
 @python_2_unicode_compatible
@@ -111,7 +111,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class InvoiceItem(models.Model):
+class InvoiceItem(mixins.ProductCodeMixin):
     """
     Mixin which identifies invoice item to be used for price calculation.
     """

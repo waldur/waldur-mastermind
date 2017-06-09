@@ -11,12 +11,16 @@ from django.utils.translation import ugettext_lazy as _
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
+from nodeconductor_assembly_waldur.invoices import mixins as invoices_mixins
+
+from .utils import quantize_price
 
 
 @python_2_unicode_compatible
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
-                      core_models.UiDescribableMixin):
+                      invoices_mixins.ProductCodeMixin,
+                      core_models.UiDescribableMixin,):
     # We do not define permissions for PackageTemplate because we are planning
     # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
@@ -39,15 +43,22 @@ class PackageTemplate(core_models.UuidMixin,
 
     @property
     def price(self):
-        """ Price for whole template for one day """
-        return self.components.aggregate(total=models.Sum(
+        """
+        Price for whole template for one day.
+        :rtype: Decimal
+        """
+        price = self.components.aggregate(total=models.Sum(
             models.F('price') * models.F('amount'),
             output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
+        return quantize_price(price)
 
     @property
     def monthly_price(self):
-        """ Price for one template for 30 days """
-        return round(self.price * 30, 2)
+        """
+        Price for one template for 30 days.
+        :rtype: Decimal
+        """
+        return self.price * 30
 
     @staticmethod
     def get_required_component_types():
