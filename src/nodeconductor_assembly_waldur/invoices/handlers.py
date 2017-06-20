@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from django.db.models import Q
 from django.utils import timezone
 
 from nodeconductor_assembly_waldur.support import models as support_models
@@ -88,7 +89,8 @@ def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
     if not project.tracker.has_changed('name'):
         return
 
+    query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
     for model in models.InvoiceItem.get_all_models():
-        for item in model.objects.filter(project=project).only('pk'):
+        for item in model.objects.filter(query).only('pk'):
             item.project_name = project.name
             item.save(update_fields=['project_name'])

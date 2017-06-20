@@ -89,12 +89,23 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         self.fixture.project.save()
         self.check_invoice_item()
 
-    def check_invoice_item(self):
+    def test_invoice_item_updated_for_pending_invoice_only(self):
+        self.invoice.state = models.Invoice.States.CANCELED
+        self.invoice.save()
+        old_name = self.fixture.project.name
+        self.fixture.project.name = 'New name'
+        self.fixture.project.save()
+        self.check_invoice_item(old_name)
+
+    def check_invoice_item(self, project_name=None):
+        if project_name is None:
+            project_name = self.fixture.project.name
+
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.get(factories.InvoiceFactory.get_url(self.invoice))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         item = response.data['openstack_items'][0]
-        self.assertEqual(item['project_name'], self.fixture.project.name)
+        self.assertEqual(item['project_name'], project_name)
         self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
