@@ -9,7 +9,8 @@ from . import models
 
 class OpenStackItemInline(admin.TabularInline):
     model = models.OpenStackItem
-    readonly_fields = ('name', 'package', 'package_details', 'price', 'start', 'end', 'product_code')
+    readonly_fields = ('name', 'package', 'package_details', 'price', 'start', 'end',
+                       'product_code', 'article_code')
 
     def has_add_permission(self, request, obj=None):
         return False
