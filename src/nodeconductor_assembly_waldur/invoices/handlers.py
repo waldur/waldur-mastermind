@@ -72,3 +72,23 @@ def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
     payment_details = models.PaymentDetails.objects.filter(customer=instance.customer)
     if payment_details.exists():
         instance.tax_percent = payment_details.first().default_tax_percent
+
+
+def set_project_name_on_invoice_item_creation(sender, instance, created=False, **kwargs):
+    if created:
+        item = instance
+        item.project_name = item.project.name
+        item.project_uuid = item.project.uuid.hex
+        item.save(update_fields=('project_name', 'project_uuid'))
+
+
+def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
+    project = instance
+
+    if not project.tracker.has_changed('name'):
+        return
+
+    for model in models.InvoiceItem.get_all_models():
+        for item in model.objects.filter(project=project).only('pk'):
+            item.project_name = project.name
+            item.save(update_fields=['project_name'])

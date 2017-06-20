@@ -68,3 +68,33 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
             'link_template': 'http://example.com/invoice/{uuid}',
         }
 
+
+class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.invoice = self.fixture.invoice
+        self.package = self.fixture.openstack_package
+
+    def test_project_name_and_uuid_is_rendered_for_invoice_item(self):
+        self.check_invoice_item()
+
+    def test_when_project_is_deleted_invoice_item_is_present(self):
+        self.fixture.openstack_tenant.delete()
+        self.fixture.project.delete()
+        self.check_invoice_item()
+
+    def test_when_project_is_updated_invoice_item_is_synced(self):
+        self.fixture.project.name = 'New name'
+        self.fixture.project.save()
+        self.check_invoice_item()
+
+    def check_invoice_item(self):
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.get(factories.InvoiceFactory.get_url(self.invoice))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        item = response.data['openstack_items'][0]
+        self.assertEqual(item['project_name'], self.fixture.project.name)
+        self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)

@@ -7,6 +7,7 @@ class InvoiceConfig(AppConfig):
     verbose_name = 'Invoices'
 
     def ready(self):
+        from nodeconductor.structure import models as structure_models
         from nodeconductor_assembly_waldur.support import models as support_models
         from nodeconductor_assembly_waldur.packages import models as packages_models
 
@@ -46,4 +47,18 @@ class InvoiceConfig(AppConfig):
             handlers.log_invoice_state_transition,
             sender=models.Invoice,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.log_invoice_state_transition',
+        )
+
+        for index, model in enumerate(models.InvoiceItem.get_all_models()):
+            signals.post_save.connect(
+                handlers.set_project_name_on_invoice_item_creation,
+                sender=model,
+                dispatch_uid='nodeconductor_assembly_waldur.invoices.'
+                             'set_project_name_on_invoice_item_creation_%s_%s' % (index, model.__class__),
+            )
+
+        signals.post_save.connect(
+            handlers.update_invoice_item_on_project_name_update,
+            sender=structure_models.Project,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_item_on_project_name_update',
         )
