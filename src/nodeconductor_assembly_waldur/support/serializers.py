@@ -416,8 +416,8 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         model = models.Offering
         fields = ('url', 'uuid', 'name', 'project', 'type', 'state', 'type_label', 'price', 'created', 'modified',
                   'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
-                  'project_name', 'project_uuid', 'product_code')
-        read_only_fields = ('type_label', 'issue', 'price', 'state', 'product_code')
+                  'project_name', 'project_uuid', 'product_code', 'article_code')
+        read_only_fields = ('type_label', 'issue', 'price', 'state', 'product_code', 'article_code')
         protected_fields = ('project', 'type')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},

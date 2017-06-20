@@ -11,6 +11,10 @@ class Migration(migrations.Migration):
         ('invoices', '0010_add_product_code'),
     ]
 
+    replaces = [
+        ('invoices', '0011_auto_20170618_1659'),
+    ]
+
     operations = [
         migrations.AddField(
             model_name='offeringitem',
