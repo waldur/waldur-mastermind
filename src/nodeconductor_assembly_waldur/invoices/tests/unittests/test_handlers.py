@@ -2,12 +2,12 @@ import datetime
 
 from decimal import Decimal
 
-import pytz
 from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 from mock import Mock
+import pytz
 
 from nodeconductor.core import utils as core_utils
 from nodeconductor_assembly_waldur.packages import models as package_models
@@ -388,18 +388,6 @@ class UpdateInvoiceOnOfferingStateChange(TestCase):
             self.assertEqual(models.Invoice.objects.count(), 1)
 
     def test_offering_item_is_terminated_when_its_state_changes(self):
-        end_date = self.start_date + timezone.timedelta(days=2)
-        usage_days = utils.get_full_days(self.start_date, end_date)
-
-        with freeze_time(end_date):
-            self.offering.state = self.offering.States.TERMINATED
-            self.offering.save()
-
-        expected_price = self.offering.price * usage_days
-        self.assertEqual(self.invoice.price, Decimal(expected_price))
-        self.assertEqual(self.invoice.offering_items.first().end, end_date)
-
-    def test_offering_item_is_terminated_when_its_state_changes(self):
         termination_date = self.start_date + timezone.timedelta(days=2)
         deletion_date = termination_date + timezone.timedelta(days=2)
         usage_days = utils.get_full_days(self.start_date, termination_date)
@@ -414,4 +402,3 @@ class UpdateInvoiceOnOfferingStateChange(TestCase):
 
         self.assertEqual(self.invoice.offering_items.first().end, termination_date)
         self.assertEqual(self.invoice.price, Decimal(expected_price))
-

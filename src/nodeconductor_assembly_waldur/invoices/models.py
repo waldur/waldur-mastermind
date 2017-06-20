@@ -3,15 +3,17 @@ from __future__ import unicode_literals
 import datetime
 from decimal import Decimal
 
+from django.apps import apps
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from nodeconductor.core.fields import JSONField
+from nodeconductor.core.fields import JSONField, UUIDField
 from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
@@ -127,6 +129,16 @@ class InvoiceItem(mixins.ProductCodeMixin):
                                  help_text=_('Date and time when package usage has started.'))
     end = models.DateTimeField(default=utils.get_current_month_end,
                                help_text=_('Date and time when package usage has ended.'))
+
+    # Project name and UUID should be stored separately because project is not available after removal
+    project = models.ForeignKey(structure_models.Project, on_delete=models.SET_NULL, null=True)
+    project_name = models.CharField(max_length=150, blank=True)
+    project_uuid = models.CharField(max_length=32, blank=True)
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def get_all_models(cls):
+        return [model for model in apps.get_models() if issubclass(model, cls)]
 
     @property
     def tax(self):
