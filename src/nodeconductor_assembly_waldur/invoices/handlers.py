@@ -1,11 +1,12 @@
 from __future__ import unicode_literals
 
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
 from nodeconductor_assembly_waldur.support import models as support_models
 
-from . import models, log, registrators
+from . import tasks, models, log, registrators
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
@@ -94,3 +95,11 @@ def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
         for item in model.objects.filter(query).only('pk'):
             item.project_name = project.name
             item.save(update_fields=['project_name'])
+
+
+def send_invoice_report(sender, instance, created=False, **kwargs):
+    if not settings.INVOICES['INVOICE_REPORTING']['ENABLE']:
+        return
+    invoice = instance
+    if invoice.tracker.has_changed('state') and invoice.state == models.Invoice.States.CREATED:
+        tasks.send_invoice_report(invoice)

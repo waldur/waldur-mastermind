@@ -62,3 +62,9 @@ class InvoiceConfig(AppConfig):
             sender=structure_models.Project,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_item_on_project_name_update',
         )
+
+        signals.post_save.connect(
+            handlers.send_invoice_report,
+            sender=models.Invoice,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.send_invoice_report',
+        )

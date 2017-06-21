@@ -36,6 +36,12 @@ class InvoiceAdmin(admin.ModelAdmin):
 class PaymentDetailsInline(admin.StackedInline):
     model = models.PaymentDetails
 
+    def get_readonly_fields(self, request, obj=None):
+        fields = super(PaymentDetailsInline, self).get_readonly_fields(request, obj)
+        if obj and obj.payment_details.is_billable():
+            fields += ('accounting_start_date',)
+        return fields
+
 
 class PaymentDetailsAdminForm(ModelForm):
     def __init__(self, *args, **kwargs):
@@ -45,6 +51,12 @@ class PaymentDetailsAdminForm(ModelForm):
 
 class PaymentDetailsAdmin(admin.ModelAdmin):
     form = PaymentDetailsAdminForm
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super(PaymentDetailsAdmin, self).get_readonly_fields(request, obj)
+        if obj and obj.is_billable():
+            fields += ('accounting_start_date',)
+        return fields
 
 
 structure_admin.CustomerAdmin.inlines += [PaymentDetailsInline]

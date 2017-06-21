@@ -2,6 +2,7 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor_assembly_waldur.packages.utils import quantize_price
 
 from . import models
 
@@ -82,10 +83,76 @@ class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
         fields = (
             'url', 'uuid', 'customer', 'company', 'type', 'address',
             'country', 'email', 'postal', 'phone', 'bank', 'account',
-            'default_tax_percent',
+            'default_tax_percent', 'accounting_start_date', 'is_billable',
         )
         protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
         }
+
+    def get_fields(self):
+        fields = super(PaymentDetailsSerializer, self).get_fields()
+        if isinstance(self.instance, models.PaymentDetails):
+            fields['accounting_start_date'].read_only = self.instance.is_billable()
+        return fields
+
+
+class OpenStackItemReportSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.ReadOnlyField(source='invoice.number')
+    invoice_uuid = serializers.ReadOnlyField(source='invoice.uuid')
+    invoice_year = serializers.ReadOnlyField(source='invoice.year')
+    invoice_month = serializers.ReadOnlyField(source='invoice.month')
+    invoice_date = serializers.ReadOnlyField(source='invoice.invoice_date')
+    due_date = serializers.ReadOnlyField(source='invoice.due_date')
+    customer_uuid = serializers.ReadOnlyField(source='invoice.customer.uuid')
+    customer_name = serializers.ReadOnlyField(source='invoice.customer.name')
+
+    class Meta(object):
+        model = models.OpenStackItem
+        fields = (
+            'customer_uuid', 'customer_name',
+            'project_uuid', 'project_name',
+            'invoice_uuid', 'invoice_number',
+            'invoice_year', 'invoice_month',
+            'invoice_date', 'due_date',
+            'invoice_price', 'invoice_tax', 'invoice_total',
+            'name', 'article_code', 'product_code',
+            'price', 'tax', 'total', 'daily_price',
+            'start', 'end', 'usage_days',
+        )
+        decimal_fields = (
+            'price', 'tax', 'total', 'daily_price',
+            'invoice_price', 'invoice_tax', 'invoice_total'
+        )
+        decimal_fields_extra_kwargs = {
+            'invoice_price': {
+                'source': 'invoice.price',
+            },
+            'invoice_tax': {
+                'source': 'invoice.tax',
+            },
+            'invoice_total': {
+                'source': 'invoice.total',
+            },
+        }
+
+    def build_field(self, field_name, info, model_class, nested_depth):
+        if field_name in self.Meta.decimal_fields:
+            field_class = serializers.DecimalField
+            field_kwargs = dict(
+                max_digits=20,
+                decimal_places=2,
+                coerce_to_string=True,
+            )
+            default_kwargs = self.Meta.decimal_fields_extra_kwargs.get(field_name)
+            if default_kwargs:
+                field_kwargs.update(default_kwargs)
+            return field_class, field_kwargs
+
+        return super(OpenStackItemReportSerializer, self).build_field(field_name, info, model_class, nested_depth)
+
+    def get_extra_kwargs(self):
+        extra_kwargs = super(OpenStackItemReportSerializer, self).get_extra_kwargs()
+        extra_kwargs.update(settings.INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS'])
+        return extra_kwargs
