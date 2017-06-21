@@ -9,6 +9,8 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('invoices', '0010_add_product_code'),
+        ('support', '0009_offering_article_code'),
+        ('packages', '0013_packagetemplate_article_code'),
     ]
 
     replaces = [

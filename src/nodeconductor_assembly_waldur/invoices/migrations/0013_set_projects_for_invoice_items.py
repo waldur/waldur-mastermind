@@ -16,8 +16,8 @@ def set_invoice_item_project(apps, schema_editor):
         item.save(update_fields=['project_name', 'project_uuid'])
 
     for item in OfferingItem.objects.all().exclude(offering__isnull=True):
-        item.project_name = item.offering.name
-        item.project_uuid = item.offering.uuid.hex
+        item.project_name = item.offering.project.name
+        item.project_uuid = item.offering.project.uuid.hex
         item.save(update_fields=['project_name', 'project_uuid'])
 
 
