@@ -6,7 +6,7 @@ from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from mock import Mock
+from mock import Mock, mock
 import pytz
 
 from nodeconductor.core import utils as core_utils
@@ -402,3 +402,20 @@ class UpdateInvoiceOnOfferingStateChange(TestCase):
 
         self.assertEqual(self.invoice.offering_items.first().end, termination_date)
         self.assertEqual(self.invoice.price, Decimal(expected_price))
+
+
+@mock.patch('invoices.tasks.send_invoice_report')
+class SendReportOnInvoiceStateChange(TestCase):
+
+    def test_report_is_sent_if_invoice_state_changed_to_created(self, mocked_task):
+        fixture = fixtures.InvoiceFixture()
+        invoice = fixture.invoice
+        invoice.set_created()
+        mocked_task.delay.assert_called_once_with(invoice.uuid.hex)
+
+    def test_report_is_not_sent_if_invoice_state_changed_to_cancelled(self, mocked_task):
+        fixture = fixtures.InvoiceFixture()
+        invoice = fixture.invoice
+        invoice.state = models.Invoice.States.CANCELED
+        invoice.save()
+        self.assertFalse(mocked_task.delay.called)

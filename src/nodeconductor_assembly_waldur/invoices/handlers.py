@@ -102,4 +102,4 @@ def send_invoice_report(sender, instance, created=False, **kwargs):
         return
     invoice = instance
     if invoice.tracker.has_changed('state') and invoice.state == models.Invoice.States.CREATED:
-        tasks.send_invoice_report(invoice)
+        tasks.send_invoice_report.delay(invoice.uuid.hex)
