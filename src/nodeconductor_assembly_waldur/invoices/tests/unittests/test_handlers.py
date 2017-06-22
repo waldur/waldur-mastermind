@@ -6,10 +6,11 @@ from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from mock import Mock
+from mock import Mock, mock
 import pytz
 
 from nodeconductor.core import utils as core_utils
+from nodeconductor_assembly_waldur.invoices.tests.utils import override_invoices_settings
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
 from nodeconductor_assembly_waldur.support.tests import fixtures as support_fixtures
@@ -402,3 +403,29 @@ class UpdateInvoiceOnOfferingStateChange(TestCase):
 
         self.assertEqual(self.invoice.offering_items.first().end, termination_date)
         self.assertEqual(self.invoice.price, Decimal(expected_price))
+
+
+@mock.patch('nodeconductor_assembly_waldur.invoices.tasks.send_invoice_report')
+class SendReportOnInvoiceStateChange(TestCase):
+
+    @override_invoices_settings(INVOICE_REPORTING={'ENABLE': True})
+    def test_report_is_sent_if_invoice_state_changed_to_created(self, mocked_task):
+        fixture = fixtures.InvoiceFixture()
+        invoice = fixture.invoice
+        invoice.set_created()
+        mocked_task.delay.assert_called_once_with(invoice.uuid.hex)
+
+    @override_invoices_settings(INVOICE_REPORTING={'ENABLE': True})
+    def test_report_is_not_sent_if_invoice_state_changed_to_cancelled(self, mocked_task):
+        fixture = fixtures.InvoiceFixture()
+        invoice = fixture.invoice
+        invoice.state = models.Invoice.States.CANCELED
+        invoice.save()
+        self.assertFalse(mocked_task.delay.called)
+
+    @override_invoices_settings(INVOICE_REPORTING={'ENABLE': False})
+    def test_report_is_not_sent_if_feature_is_disabled(self, mocked_task):
+        fixture = fixtures.InvoiceFixture()
+        invoice = fixture.invoice
+        invoice.set_created()
+        self.assertFalse(mocked_task.delay.called)

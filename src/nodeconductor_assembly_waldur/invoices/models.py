@@ -13,7 +13,7 @@ from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from nodeconductor.core.fields import JSONField, UUIDField
+from nodeconductor.core.fields import JSONField
 from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
@@ -254,6 +254,7 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
         verbose_name_plural = _('Payment details')
 
     customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
+    accounting_start_date = models.DateTimeField(_('Start date of accounting'), default=timezone.now)
     company = models.CharField(blank=True, max_length=150)
     type = models.CharField(blank=True, max_length=150)
     address = models.CharField(blank=True, max_length=300)
@@ -269,6 +270,9 @@ class PaymentDetails(core_models.UuidMixin, models.Model):
     @classmethod
     def get_url_name(cls):
         return 'payment-details'
+
+    def is_billable(self):
+        return timezone.now() >= self.accounting_start_date
 
     def __str__(self):
         return 'PaymentDetails for %s' % self.customer
