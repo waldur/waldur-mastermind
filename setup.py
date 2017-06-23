@@ -6,14 +6,14 @@ install_requires = [
     'defusedxml==0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>0.140.1',
+    'nodeconductor>0.141.1',
     'nodeconductor_auth_social>0.6.1',
-    'nodeconductor_auth_openid>0.7.0',
+    'nodeconductor_auth_openid>0.8.0',
     'nodeconductor_aws>0.8.0',
     'nodeconductor_cost_planning>0.3.1',
     'nodeconductor_digitalocean>0.6.0',
-    'nodeconductor_openstack>0.28.0',
-    'nodeconductor_saml2>0.3.3',
+    'nodeconductor_openstack>0.29.0',
+    'nodeconductor_saml2>0.6.1',
 ]
 
 test_requires = [
@@ -24,7 +24,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.5.5',
+    version='2.6.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

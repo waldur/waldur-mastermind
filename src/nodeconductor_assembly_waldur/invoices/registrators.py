@@ -16,6 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
+from nodeconductor.structure.permissions import _get_project
 from nodeconductor_assembly_waldur.packages import models as packages_models
 from nodeconductor_assembly_waldur.support import models as support_models
 
@@ -101,6 +102,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
         daily_price = package.template.price
         product_code = package.template.product_code
+        article_code = package.template.article_code
         if overlapping_item:
             """
             Notes:
@@ -140,8 +142,10 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
         models.OpenStackItem.objects.create(
             package=package,
+            project=_get_project(package),
             daily_price=daily_price,
             product_code=product_code,
+            article_code=article_code,
             invoice=invoice,
             start=start,
             end=end)
@@ -173,8 +177,10 @@ class OfferingItemRegistrator(BaseRegistrator):
         offering = source
         result = models.OfferingItem.objects.create(
             offering=offering,
+            project=offering.project,
             daily_price=offering.price,
             product_code=offering.product_code,
+            article_code=offering.article_code,
             invoice=invoice,
             start=start,
             end=end,

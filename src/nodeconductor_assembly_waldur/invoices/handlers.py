@@ -1,10 +1,12 @@
 from __future__ import unicode_literals
 
+from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from nodeconductor_assembly_waldur.support import models as support_models
 
-from . import models, log, registrators
+from . import tasks, models, log, registrators
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
@@ -72,3 +74,32 @@ def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
     payment_details = models.PaymentDetails.objects.filter(customer=instance.customer)
     if payment_details.exists():
         instance.tax_percent = payment_details.first().default_tax_percent
+
+
+def set_project_name_on_invoice_item_creation(sender, instance, created=False, **kwargs):
+    if created:
+        item = instance
+        item.project_name = item.project.name
+        item.project_uuid = item.project.uuid.hex
+        item.save(update_fields=('project_name', 'project_uuid'))
+
+
+def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
+    project = instance
+
+    if not project.tracker.has_changed('name'):
+        return
+
+    query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
+    for model in models.InvoiceItem.get_all_models():
+        for item in model.objects.filter(query).only('pk'):
+            item.project_name = project.name
+            item.save(update_fields=['project_name'])
+
+
+def send_invoice_report(sender, instance, created=False, **kwargs):
+    if not settings.INVOICES['INVOICE_REPORTING']['ENABLE']:
+        return
+    invoice = instance
+    if invoice.tracker.has_changed('state') and invoice.state == models.Invoice.States.CREATED:
+        tasks.send_invoice_report.delay(invoice.uuid.hex)

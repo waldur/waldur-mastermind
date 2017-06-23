@@ -26,6 +26,23 @@ class InvoicesExtension(NodeConductorExtension):
                 'Public company',
                 'Government owned company',
             ),
+            'ENABLE_ACCOUNTING_START_DATE': False,
+            'INVOICE_REPORTING': {
+                'ENABLE': False,
+                'SERIALIZER': 'nodeconductor_assembly_waldur.invoices.serializers.OpenStackItemReportSerializer',
+                'EMAIL': 'accounting@waldur.example.com',
+                'CSV_PARAMS': {
+                    'delimiter': str(';'),
+                },
+                'SERIALIZER_EXTRA_KWARGS': {
+                    'start': {
+                        'format': '%d.%m.%Y',
+                    },
+                    'end': {
+                        'format': '%d.%m.%Y',
+                    }
+                },
+            },
         }
 
     @staticmethod
