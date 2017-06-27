@@ -216,11 +216,13 @@ class OpenStackItem(InvoiceItem):
 
     def freeze(self):
         """
-        Saves tenant and package template names in "package_details" if package exists
+        Saves tenant and package template names and uuids in "package_details" if package exists
         """
         if self.package:
             self.package_details['tenant_name'] = self.package.tenant.name
+            self.package_details['tenant_uuid'] = self.package.tenant.uuid.hex
             self.package_details['template_name'] = self.package.template.name
+            self.package_details['template_uuid'] = self.package.template.uuid.hex
             self.save(update_fields=['package_details'])
 
     def shift_backward(self, days=1):

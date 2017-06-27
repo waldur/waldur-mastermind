@@ -10,15 +10,45 @@ from . import models
 class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
+    tenant_name = serializers.SerializerMethodField()
+    tenant_uuid = serializers.SerializerMethodField()
+    template_name = serializers.SerializerMethodField()
+    template_uuid = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.OpenStackItem
         fields = ('package', 'name', 'price', 'tax', 'total',
                   'daily_price', 'start', 'end', 'usage_days', 'product_code', 'article_code',
-                  'project_name', 'project_uuid')
+                  'project_name', 'project_uuid',
+                  'tenant_name', 'tenant_uuid',
+                  'template_name', 'template_uuid')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
         }
+
+    def get_tenant_name(self, item):
+        if item.package:
+            return item.package.tenant.name
+        else:
+            return item.package_details.get('tenant_name')
+
+    def get_tenant_uuid(self, item):
+        if item.package:
+            return item.package.tenant.uuid.hex
+        else:
+            return item.package_details.get('tenant_uuid')
+
+    def get_template_name(self, item):
+        if item.package:
+            return item.package.template.name
+        else:
+            return item.package_details.get('template_name')
+
+    def get_template_uuid(self, item):
+        if item.package:
+            return item.package.template.uuid.hex
+        else:
+            return item.package_details.get('template_uuid')
 
 
 class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
