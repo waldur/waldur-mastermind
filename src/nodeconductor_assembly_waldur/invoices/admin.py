@@ -38,7 +38,7 @@ class PaymentDetailsInline(admin.StackedInline):
 
     def get_readonly_fields(self, request, obj=None):
         fields = super(PaymentDetailsInline, self).get_readonly_fields(request, obj)
-        if obj and obj.payment_details.is_billable():
+        if obj and hasattr(obj, 'payment_details') and obj.payment_details.is_billable():
             fields += ('accounting_start_date',)
         return fields
 
