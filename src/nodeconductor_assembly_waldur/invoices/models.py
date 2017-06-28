@@ -211,9 +211,9 @@ class OpenStackItem(InvoiceItem):
     def name(self):
         template_category = self.get_template_category()
         if template_category:
-            return '%s (%s / %s)' % (self.get_template_name(), template_category, self.get_template_name())
+            return '%s (%s / %s)' % (self.get_tenant_name(), template_category, self.get_template_name())
         else:
-            return '%s (%s)' % (self.get_template_name(), self.get_template_name())
+            return '%s (%s)' % (self.get_tenant_name(), self.get_template_name())
 
     def freeze(self):
         """

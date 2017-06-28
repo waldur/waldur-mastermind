@@ -30,7 +30,11 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
         package.delete()
 
         invoice = models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
-        expected_name = '%s (%s)' % (package.tenant.name, package.template.name)
+        expected_name = '%s (%s / %s)' % (
+            package.tenant.name,
+            package.template.get_category_display(),
+            package.template.name,
+        )
         item = invoice.openstack_items.first()
         self.assertEqual(item.name, expected_name)
 
