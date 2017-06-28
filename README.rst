@@ -2,7 +2,7 @@ Waldur MasterMind
 =================
 
 Waldur MasterMind is part of the Waldur suite - https://waldur.com - for managing of hybrid cloud resources.
-It is used to control both internal enterprise IT resources and for selling cloud services to the public. 
+It is used to control both internal enterprise IT resources and for selling cloud services to the public.
 
 License
 -------

@@ -7,7 +7,7 @@
 
 tests_passed=true
 
-for i in nodeconductor-celery nodeconductor-celerybeat nodeconductor-uwsgi; do
+for i in waldur-celery waldur-celerybeat waldur-uwsgi; do
     echo "[+] Checking if $i service is enabled..."
     if systemctl is-enabled "$i" > /dev/null; then
         echo "[+] Checking if $i service is running..."
