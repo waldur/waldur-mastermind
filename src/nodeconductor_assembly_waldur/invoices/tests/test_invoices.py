@@ -128,6 +128,7 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
         self.assertEqual(item['tenant_uuid'], self.package.tenant.uuid.hex)
         self.assertEqual(item['template_name'], self.package.template.name)
         self.assertEqual(item['template_uuid'], self.package.template.uuid.hex)
+        self.assertEqual(item['template_category'], self.package.template.get_category_display())
 
     def test_details_are_rendered_if_package_exists(self):
         self.check_output()
