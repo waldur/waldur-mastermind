@@ -5,9 +5,7 @@ from nodeconductor.core import NodeConductorExtension
 
 class ExpertsExtension(NodeConductorExtension):
     class Settings:
-        WALDUR_EXPERTS = {
-            'IS_ACTIVE': False
-        }
+        pass
 
     @staticmethod
     def django_app():
