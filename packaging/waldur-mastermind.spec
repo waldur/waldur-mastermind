@@ -1,7 +1,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.6.0
+Version: 2.6.1
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -55,5 +55,8 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Fri Jun 30 2017 Jenkins <jenkins@opennodecloud.com> - 2.6.1-1.el7
+- New upstream release
+
 * Wed Jun 28 2017 Juri Hudolejev <juri@opennodecloud.com> - 2.6.0-1.el7
 - Rename package to Waldur MasterMind
