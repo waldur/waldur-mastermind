@@ -44,6 +44,7 @@ setup(
             'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
             'waldur_support = nodeconductor_assembly_waldur.support.extension:SupportExtension',
             'waldur_analytics = nodeconductor_assembly_waldur.analytics.extension:AnalyticsExtension',
+            'waldur_experts = nodeconductor_assembly_waldur.experts.extension:ExpertsExtension',
         ),
     },
     include_package_data=True,
