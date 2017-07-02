@@ -8,13 +8,13 @@ Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: waldur-core > 0.141.1
-Requires: nodeconductor-auth-social > 0.6.1
-Requires: nodeconductor-auth-openid > 0.8.0
-Requires: nodeconductor-aws > 0.8.0
-Requires: nodeconductor-cost-planning > 0.3.1
-Requires: nodeconductor-digitalocean > 0.6.0
-Requires: nodeconductor-openstack > 0.29.0
-Requires: nodeconductor-saml2 > 0.6.1
+Requires: nodeconductor-auth-social >= 0.7.1
+Requires: nodeconductor-auth-openid >= 0.8.2
+Requires: nodeconductor-aws >= 0.9.1
+Requires: nodeconductor-cost-planning >= 0.4.1
+Requires: nodeconductor-digitalocean >= 0.8.1
+Requires: nodeconductor-openstack >= 0.30.1
+Requires: nodeconductor-saml2 >= 0.7.1
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
