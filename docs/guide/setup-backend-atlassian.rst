@@ -53,7 +53,7 @@ NodeConductor Settings configuration
 Web hook installation
 ^^^^^^^^^^^^^^^^^^^^^
 
-It's possible to track updates of JIRA issues and apply them to NodeConductor immediately.
+It's possible to track updates of JIRA issues and apply them to Waldur immediately.
 
 An instruction of JIRA configuration can be found at
 https://developer.atlassian.com/jiradev/jira-apis/webhooks

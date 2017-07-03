@@ -14,7 +14,7 @@ Requires: nodeconductor-aws >= 0.9.1
 Requires: nodeconductor-cost-planning >= 0.4.1
 Requires: nodeconductor-digitalocean >= 0.8.1
 Requires: nodeconductor-openstack >= 0.30.1
-Requires: nodeconductor-saml2 >= 0.7.1
+Requires: nodeconductor-saml2 >= 0.7.2
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7

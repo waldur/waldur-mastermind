@@ -1,15 +1,15 @@
 Installation
 ------------
 
-* `Install NodeConductor <http://nodeconductor.readthedocs.org/en/latest/guide/intro.html#installation-from-source>`_
+* `Install Waldur Core <http://nodeconductor.readthedocs.org/en/latest/guide/intro.html#installation-from-source>`_
 
-* Clone NodeConductor Assembly Waldur repository
+* Clone Waldur MasterMind repository
 
   .. code-block:: bash
 
     git clone https://github.com/opennode/nodeconductor-assembly-waldur.git
 
-* Install NodeConductor Assembly Waldur into NodeConductor virtual environment
+* Install Waldur MasterMind into virtual environment
 
   .. code-block:: bash
 

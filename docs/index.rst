@@ -1,5 +1,5 @@
-Welcome to NodeConductor Assembly Waldur plugin's documentation!
-================================================================
+Welcome to Waldur MasterMind plugin's documentation!
+====================================================
 
 Plugin for interaction and management of Atlassian JIRA.
 

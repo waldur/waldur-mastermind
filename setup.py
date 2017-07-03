@@ -13,7 +13,7 @@ install_requires = [
     'nodeconductor_cost_planning>=0.4.1',
     'nodeconductor_digitalocean>=0.8.1',
     'nodeconductor_openstack>=0.30.1',
-    'nodeconductor_saml2>=0.7.1',
+    'nodeconductor_saml2>=0.7.2',
 ]
 
 test_requires = [
