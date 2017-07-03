@@ -6,14 +6,14 @@ install_requires = [
     'defusedxml==0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>0.141.1',
-    'nodeconductor_auth_social>0.6.1',
-    'nodeconductor_auth_openid>0.8.0',
-    'nodeconductor_aws>0.8.0',
-    'nodeconductor_cost_planning>0.3.1',
-    'nodeconductor_digitalocean>0.6.0',
-    'nodeconductor_openstack>0.29.0',
-    'nodeconductor_saml2>0.6.1',
+    'nodeconductor>=0.142.2',
+    'nodeconductor_auth_social>=0.7.2',
+    'nodeconductor_auth_openid>=0.8.3',
+    'nodeconductor_aws>=0.9.2',
+    'nodeconductor_cost_planning>=0.4.2',
+    'nodeconductor_digitalocean>=0.8.2',
+    'nodeconductor_openstack>=0.30.2',
+    'nodeconductor_saml2>=0.7.3',
 ]
 
 test_requires = [
@@ -24,7 +24,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.6.1',
+    version='2.6.2',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -44,6 +44,7 @@ setup(
             'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
             'waldur_support = nodeconductor_assembly_waldur.support.extension:SupportExtension',
             'waldur_analytics = nodeconductor_assembly_waldur.analytics.extension:AnalyticsExtension',
+            'waldur_experts = nodeconductor_assembly_waldur.experts.extension:ExpertsExtension',
         ),
     },
     include_package_data=True,

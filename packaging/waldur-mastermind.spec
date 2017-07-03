@@ -1,25 +1,25 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.6.1
+Version: 2.6.2
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: waldur-core > 0.141.1
-Requires: nodeconductor-auth-social > 0.6.1
-Requires: nodeconductor-auth-openid > 0.8.0
-Requires: nodeconductor-aws > 0.8.0
-Requires: nodeconductor-cost-planning > 0.3.1
-Requires: nodeconductor-digitalocean > 0.6.0
-Requires: nodeconductor-openstack > 0.29.0
-Requires: nodeconductor-saml2 > 0.6.1
+Requires: waldur-core >= 0.142.2
+Requires: waldur-auth-openid >= 0.8.3
+Requires: waldur-auth-social >= 0.7.2
+Requires: waldur-auth-saml2 >= 0.7.3
+Requires: waldur-aws >= 0.9.2
+Requires: waldur-cost-planning >= 0.4.2
+Requires: waldur-digitalocean >= 0.8.2
+Requires: waldur-openstack >= 0.30.2
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
 
-Provides: nodeconductor-assembly-waldur
+Obsoletes: nodeconductor-assembly-waldur
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
@@ -55,6 +55,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Mon Jul 3 2017 Jenkins <jenkins@opennodecloud.com> - 2.6.2-1.el7
+- New upstream release
+
 * Fri Jun 30 2017 Jenkins <jenkins@opennodecloud.com> - 2.6.1-1.el7
 - New upstream release
 
