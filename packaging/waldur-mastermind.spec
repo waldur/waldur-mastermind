@@ -19,7 +19,7 @@ Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
 
-Obsoletes: nodeconductor-assembly-waldur
+Provides: nodeconductor-assembly-waldur
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
