@@ -20,7 +20,7 @@ class ExpertOrganizationSerializer(core_serializers.AugmentedSerializerMixin,
         }
         protected_fields = ('customer',)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            'url': {'lookup_field': 'uuid', 'view_name': 'expert-provider-detail'},
             'customer': {'lookup_field': 'uuid'},
         }
 
@@ -32,3 +32,13 @@ class ExpertOrganizationSerializer(core_serializers.AugmentedSerializerMixin,
 
         structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
         return attrs
+
+
+class ExpertRequestSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.ExpertRequest
+        fields = ('url', 'uuid', 'created', 'project')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
+            'project': {'lookup_field': 'uuid'},
+        }

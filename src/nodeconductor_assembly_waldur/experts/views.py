@@ -14,4 +14,13 @@ class ExpertProviderViewSet(viewsets.ModelViewSet):
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.ExportProviderFilter
+    filter_class = filters.ExpertProviderFilter
+
+
+class ExpertRequestViewSet(viewsets.ModelViewSet):
+    queryset = models.ExpertRequest.objects.all()
+    serializer_class = serializers.ExpertRequestSerializer
+    lookup_field = 'uuid'
+    permission_classes = (permissions.IsAuthenticated,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_class = filters.ExpertRequestFilter
