@@ -6,7 +6,7 @@ install_requires = [
     'defusedxml==0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>0.141.1',
+    'nodeconductor>=0.142.1',
     'nodeconductor_auth_social>=0.7.1',
     'nodeconductor_auth_openid>=0.8.2',
     'nodeconductor_aws>=0.9.1',
