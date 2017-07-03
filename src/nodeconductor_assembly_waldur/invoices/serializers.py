@@ -10,15 +10,23 @@ from . import models
 class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
+    tenant_name = serializers.ReadOnlyField(source='get_tenant_name')
+    tenant_uuid = serializers.ReadOnlyField(source='get_tenant_uuid')
+    template_name = serializers.ReadOnlyField(source='get_template_name')
+    template_uuid = serializers.ReadOnlyField(source='get_template_uuid')
+    template_category = serializers.ReadOnlyField(source='get_template_category')
 
     class Meta(object):
         model = models.OpenStackItem
         fields = ('package', 'name', 'price', 'tax', 'total',
                   'daily_price', 'start', 'end', 'usage_days', 'product_code', 'article_code',
-                  'project_name', 'project_uuid')
+                  'project_name', 'project_uuid',
+                  'tenant_name', 'tenant_uuid',
+                  'template_name', 'template_uuid', 'template_category')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
         }
+
 
 
 class InvoiceSerializer(serializers.HyperlinkedModelSerializer):

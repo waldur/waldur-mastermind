@@ -1,6 +1,9 @@
 from ddt import ddt, data
 from rest_framework import test, status
 
+from nodeconductor_assembly_waldur.invoices import models, serializers
+from nodeconductor_assembly_waldur.packages.tests import fixtures as packages_fixtures
+
 from . import factories, fixtures
 from .. import models
 
@@ -109,3 +112,28 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         item = response.data['openstack_items'][0]
         self.assertEqual(item['project_name'], project_name)
         self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
+
+
+class OpenStackInvoiceItemTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = packages_fixtures.PackageFixture()
+        self.package = self.fixture.openstack_package
+        self.item = models.OpenStackItem.objects.get(package=self.package)
+
+    def check_output(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
+        item = response.data['openstack_items'][0]
+        self.assertEqual(item['tenant_name'], self.package.tenant.name)
+        self.assertEqual(item['tenant_uuid'], self.package.tenant.uuid.hex)
+        self.assertEqual(item['template_name'], self.package.template.name)
+        self.assertEqual(item['template_uuid'], self.package.template.uuid.hex)
+        self.assertEqual(item['template_category'], self.package.template.get_category_display())
+
+    def test_details_are_rendered_if_package_exists(self):
+        self.check_output()
+
+    def test_details_are_rendered_if_package_has_been_deleted(self):
+        self.package.delete()
+        self.item.refresh_from_db()
+        self.check_output()

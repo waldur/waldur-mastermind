@@ -209,18 +209,22 @@ class OpenStackItem(InvoiceItem):
 
     @property
     def name(self):
-        if self.package:
-            return '%s (%s)' % (self.package.tenant.name, self.package.template.name)
-
-        return '%s (%s)' % (self.package_details.get('tenant_name'), self.package_details.get('template_name'))
+        template_category = self.get_template_category()
+        if template_category:
+            return '%s (%s / %s)' % (self.get_tenant_name(), template_category, self.get_template_name())
+        else:
+            return '%s (%s)' % (self.get_tenant_name(), self.get_template_name())
 
     def freeze(self):
         """
-        Saves tenant and package template names in "package_details" if package exists
+        Saves tenant and package template names and uuids in "package_details" if package exists
         """
         if self.package:
             self.package_details['tenant_name'] = self.package.tenant.name
+            self.package_details['tenant_uuid'] = self.package.tenant.uuid.hex
             self.package_details['template_name'] = self.package.template.name
+            self.package_details['template_uuid'] = self.package.template.uuid.hex
+            self.package_details['template_category'] = self.package.template.category
             self.save(update_fields=['package_details'])
 
     def shift_backward(self, days=1):
@@ -240,6 +244,41 @@ class OpenStackItem(InvoiceItem):
     def extend_to_the_end_of_the_day(self):
         self.end = self.end.replace(hour=23, minute=59, second=59)
         self.save()
+
+    def get_tenant_name(self):
+        if self.package:
+            return self.package.tenant.name
+        else:
+            return self.package_details.get('tenant_name')
+
+    def get_tenant_uuid(self):
+        if self.package:
+            return self.package.tenant.uuid.hex
+        else:
+            return self.package_details.get('tenant_uuid')
+
+    def get_template_name(self):
+        if self.package:
+            return self.package.template.name
+        else:
+            return self.package_details.get('template_name')
+
+    def get_template_uuid(self):
+        if self.package:
+            return self.package.template.uuid.hex
+        else:
+            return self.package_details.get('template_uuid')
+
+    def get_template_category(self):
+        if self.package:
+            return self.package.template.get_category_display()
+        else:
+            template_category = self.package_details.get('template_category')
+            if template_category:
+                categories = dict(package_models.PackageTemplate.Categories.CHOICES)
+                template_category = categories[template_category]
+
+            return template_category
 
 
 @python_2_unicode_compatible
