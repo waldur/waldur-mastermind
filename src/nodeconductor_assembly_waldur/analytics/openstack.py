@@ -3,6 +3,8 @@ from nodeconductor_openstack.openstack_tenant.models import Instance
 
 
 def get_tenants():
+    if not Tenant.objects.exists():
+        return []
     points = []
     tenants = Tenant.objects.all()
     quota_names = Tenant.get_quotas_names()
