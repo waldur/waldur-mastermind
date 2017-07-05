@@ -2,11 +2,13 @@ from rest_framework import test, status
 
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
+from nodeconductor_assembly_waldur.support.tests.base import override_offerings
 
 from .. import models
 from . import factories
 
 
+@override_offerings()
 class ExpertRequestTest(test.APITransactionTestCase):
     def setUp(self):
         self.project_fixture = structure_fixtures.ProjectFixture()
@@ -36,29 +38,20 @@ class ExpertRequestTest(test.APITransactionTestCase):
 
     def test_expert_request_could_be_created_by_customer_owner(self):
         self.client.force_authenticate(self.customer_owner)
-        url = factories.ExpertRequestFactory.get_list_url()
-        response = self.client.post(url, {
-            'project': structure_factories.ProjectFactory.get_url(self.project)
-        })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        response = self.create_expert_request()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(models.ExpertRequest.objects.filter(project=self.project).exists())
 
     def test_expert_request_could_not_be_created_by_project_manager(self):
         self.client.force_authenticate(self.project_manager)
-        url = factories.ExpertRequestFactory.get_list_url()
-        response = self.client.post(url, {
-            'project': structure_factories.ProjectFactory.get_url(self.project)
-        })
+        response = self.create_expert_request()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(models.ExpertRequest.objects.filter(project=self.project).exists())
 
     def test_expert_request_could_be_created_for_project_without_active_request(self):
         self.expert_request = factories.ExpertRequestFactory(project=self.project)
         self.client.force_authenticate(self.customer_owner)
-        url = factories.ExpertRequestFactory.get_list_url()
-        response = self.client.post(url, {
-            'project': structure_factories.ProjectFactory.get_url(self.project)
-        })
+        response = self.create_expert_request()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.ExpertRequest.objects.filter(project=self.project).exists())
 
@@ -66,9 +59,16 @@ class ExpertRequestTest(test.APITransactionTestCase):
         self.expert_request = factories.ExpertRequestFactory(
             project=self.project, state=models.ExpertRequest.States.ACTIVE)
         self.client.force_authenticate(self.customer_owner)
-        url = factories.ExpertRequestFactory.get_list_url()
-        response = self.client.post(url, {
-            'project': structure_factories.ProjectFactory.get_url(self.project)
-        })
+        response = self.create_expert_request()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(models.ExpertRequest.objects.filter(project=self.project).exists())
+
+    def create_expert_request(self):
+        url = factories.ExpertRequestFactory.get_list_url()
+        return self.client.post(url, {
+            'project': structure_factories.ProjectFactory.get_url(self.project),
+            'type': 'custom_vpc',
+            'name': 'Expert request for custom VPC',
+            'ram': 1024,
+            'storage': 10240,
+        })

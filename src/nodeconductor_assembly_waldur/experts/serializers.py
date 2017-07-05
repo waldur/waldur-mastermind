@@ -1,9 +1,10 @@
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import permissions as structure_permissions
-
+from nodeconductor_assembly_waldur.support import serializers as support_serializers
 from . import models
 
 
@@ -34,13 +35,25 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class ExpertRequestSerializer(serializers.HyperlinkedModelSerializer):
+class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
+                              core_serializers.AugmentedSerializerMixin,
+                              serializers.HyperlinkedModelSerializer):
+    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+    state = serializers.ReadOnlyField(source='get_state_display')
+    description = serializers.CharField(required=False)
+
     class Meta(object):
         model = models.ExpertRequest
-        fields = ('url', 'uuid', 'created', 'project')
+        fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description',
+                  'project', 'project_name', 'project_uuid', 'created', 'modified')
+        read_only_fields = ('type_label', 'price', 'state')
+        protected_fields = ('project', 'type')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
-            'project': {'lookup_field': 'uuid'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
+        }
+        related_paths = {
+            'project': ('uuid', 'name'),
         }
 
     def validate_project(self, project):
@@ -52,3 +65,17 @@ class ExpertRequestSerializer(serializers.HyperlinkedModelSerializer):
         ).exists():
             raise serializers.ValidationError(_('Active expert request for current project already exists.'))
         return project
+
+    def create(self, validated_data):
+        project = validated_data['project']
+        type = validated_data['type']
+
+        configuration = self._get_configuration(type)
+        description = self._form_description(configuration, validated_data)
+
+        return models.ExpertRequest.objects.create(
+            project=project,
+            name=validated_data.get('name'),
+            type=type,
+            description=description,
+        )
