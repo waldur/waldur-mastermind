@@ -19,6 +19,10 @@ class ExpertProvider(core_models.UuidMixin,
     def __str__(self):
         return str(self.customer)
 
+    @classmethod
+    def get_url_name(cls):
+        return 'expert-provider'
+
 
 class ExpertRequest(core_models.UuidMixin, structure_models.TimeStampedModel):
     class States(object):

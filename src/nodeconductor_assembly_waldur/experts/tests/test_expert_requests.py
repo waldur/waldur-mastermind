@@ -52,7 +52,7 @@ class ExpertRequestTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(models.ExpertRequest.objects.filter(project=self.project).exists())
 
-    def test_expert_request_could_be_created_for_project_without_expert_team(self):
+    def test_expert_request_could_be_created_for_project_without_active_request(self):
         self.expert_request = factories.ExpertRequestFactory(project=self.project)
         self.client.force_authenticate(self.customer_owner)
         url = factories.ExpertRequestFactory.get_list_url()
@@ -62,7 +62,7 @@ class ExpertRequestTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.ExpertRequest.objects.filter(project=self.project).exists())
 
-    def test_expert_request_could_not_be_created_for_project_with_active_expert_team(self):
+    def test_expert_request_could_not_be_created_for_project_with_active_request(self):
         self.expert_request = factories.ExpertRequestFactory(
             project=self.project, state=models.ExpertRequest.States.ACTIVE)
         self.client.force_authenticate(self.customer_owner)

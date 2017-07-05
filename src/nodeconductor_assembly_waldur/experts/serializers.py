@@ -7,8 +7,8 @@ from nodeconductor.structure import permissions as structure_permissions
 from . import models
 
 
-class ExpertOrganizationSerializer(core_serializers.AugmentedSerializerMixin,
-                                   serializers.HyperlinkedModelSerializer):
+class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
+                               serializers.HyperlinkedModelSerializer):
     agree_with_policy = serializers.BooleanField(write_only=True, required=False)
 
     class Meta(object):
@@ -28,7 +28,7 @@ class ExpertOrganizationSerializer(core_serializers.AugmentedSerializerMixin,
         agree_with_policy = attrs.pop('agree_with_policy', False)
         if not agree_with_policy:
             raise serializers.ValidationError(
-                {'agree_with_policy': _('User must agree with policies to register organization')})
+                {'agree_with_policy': _('User must agree with policies to register organization.')})
 
         structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
         return attrs
@@ -42,3 +42,13 @@ class ExpertRequestSerializer(serializers.HyperlinkedModelSerializer):
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
             'project': {'lookup_field': 'uuid'},
         }
+
+    def validate_project(self, project):
+        request = self.context['request']
+        structure_permissions.is_owner(request, None, project.customer)
+        if models.ExpertRequest.objects.filter(
+            state=models.ExpertRequest.States.ACTIVE,
+            project=project
+        ).exists():
+            raise serializers.ValidationError(_('Active expert request for current project already exists.'))
+        return project
