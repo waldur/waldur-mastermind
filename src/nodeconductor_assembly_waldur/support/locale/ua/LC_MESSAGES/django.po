@@ -1,0 +1,108 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-07-06 12:04+0000\n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: ua\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: models.py:37
+msgid "Link to issue in support system."
+msgstr ""
+
+#: models.py:49
+msgid "Waldur user who has reported the issue."
+msgstr ""
+
+#: models.py:51
+msgid "Help desk user who have created the issue that is reported by caller."
+msgstr ""
+
+#: models.py:53
+msgid "Help desk user who will implement the issue"
+msgstr ""
+
+#: models.py:56
+msgid "organization"
+msgstr ""
+
+#: models.py:151
+msgid "Requested"
+msgstr ""
+
+#: models.py:151
+msgid "OK"
+msgstr ""
+
+#: models.py:151
+msgid "Terminated"
+msgstr ""
+
+#: models.py:158 models.py:159
+msgid "Price per day"
+msgstr ""
+
+#: serializers.py:50
+msgid "Set true if issue is created by regular user via portal."
+msgstr ""
+
+#: serializers.py:105
+msgid "Assignee cannot be defined if issue is reported manually."
+msgstr ""
+
+#: serializers.py:108 serializers.py:497
+msgid "This field is required."
+msgstr ""
+
+#: serializers.py:112
+msgid ""
+"You cannot report issues because your help desk account is not connected to "
+"profile."
+msgstr ""
+
+#: serializers.py:126
+msgid "Only customer owner, staff or support can report customer issues."
+msgstr ""
+
+#: serializers.py:140
+msgid ""
+"Only customer owner, project manager, project admin, staff or support can "
+"report such issue."
+msgstr ""
+
+#: serializers.py:219
+msgid "\"issue\" is missing in request data. Cannot process issue."
+msgstr ""
+
+#: serializers.py:222
+msgid "\"webhookEvent\" is missing in request data. Cannot find out even type"
+msgstr ""
+
+#: serializers.py:458
+msgid "Description to add to the issue."
+msgstr ""
+
+#: serializers.py:493
+msgid "Type configuration could not be found."
+msgstr ""
+
+#: views.py:18
+msgid "Support extension is disabled."
+msgstr ""
+
+#: views.py:184
+msgid "Offering must be in requested state."
+msgstr ""
+
+#: views.py:191
+msgid "Offering is marked as completed."
+msgstr ""
+
+#: views.py:202
+msgid "Offering is marked as terminated."
+msgstr ""
