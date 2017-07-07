@@ -433,7 +433,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         return ('project',)
 
 
-class OfferingCreateSerializer(OfferingSerializer):
+class ConfigurableSerializerMixin(object):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
 
@@ -447,58 +447,42 @@ class OfferingCreateSerializer(OfferingSerializer):
     Default values:
         if 'default' key is present in option field configuration it is going to be used in serializer unless
         the value itself has been provided in the create request.
-
-    Each offering corresponds to the single issue which has next values:
-        'project' - a hyperlinked field which must be provided with every request;
-        'customer' - customer is extracted from the provided project;
-        'caller' - a user who sent a request is considered to be a 'caller' of the issue;
-        'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
-        'description' - combined list of all other fields provided with the request;
     """
-    description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
 
-    class Meta(OfferingSerializer.Meta):
-        fields = OfferingSerializer.Meta.fields + ('description',)
-        extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
-            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
-            project={'lookup_field': 'uuid',
-                     'view_name': 'project-detail',
-                     'required': True,
-                     'allow_empty': False,
-                     'allow_null': False},
-        )
-
-    def _get_offering_configuration(self, type):
+    def _get_configuration(self, type):
         return settings.WALDUR_SUPPORT['OFFERINGS'].get(type)
 
     def get_fields(self):
-        result = super(OfferingSerializer, self).get_fields()
+        result = super(ConfigurableSerializerMixin, self).get_fields()
         if hasattr(self, 'initial_data') and not hasattr(self, '_errors'):
             type = self.initial_data['type']
-            configuration = self._get_offering_configuration(type)
+            configuration = self._get_configuration(type)
             for attr_name in configuration['order']:
                 attr_options = configuration['options'].get(attr_name, {})
                 result[attr_name] = self._get_field_instance(attr_options)
 
-        # choises have to be added dynamically so that unit tests can mock offering configuration.
+        # choices have to be added dynamically so that unit tests can mock offering configuration.
         # otherwise it is always going to be a default set up.
         result['type'] = serializers.ChoiceField(allow_blank=False, choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
 
         return result
 
     def _validate_type(self, type):
-        offering_configuration = self._get_offering_configuration(type)
+        offering_configuration = self._get_configuration(type)
         if offering_configuration is None:
-            raise serializers.ValidationError({'type': _('Type configuration could not be found.')})
+            raise serializers.ValidationError({
+                'type': _('Type configuration could not be found.')
+            })
 
     def validate_empty_values(self, data):
         if 'type' not in data or ('type' in data and data['type'] is None):
-            raise serializers.ValidationError({'type': _('This field is required.')})
+            raise serializers.ValidationError({
+                'type': _('This field is required.')
+            })
         else:
             self._validate_type(data['type'])
 
-        return super(OfferingSerializer, self).validate_empty_values(data)
+        return super(ConfigurableSerializerMixin, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):
         filed_type = attr_options.get('type')
@@ -518,10 +502,47 @@ class OfferingCreateSerializer(OfferingSerializer):
 
         return field
 
+    def _form_description(self, configuration, validated_data):
+        result = []
+
+        for key in configuration['order']:
+            label = configuration['options'].get(key, {})
+            label_value = label.get('label', key)
+            result.append('%s: \'%s\'' % (label_value, validated_data[key]))
+
+        if 'description' in validated_data:
+            result.append('\n %s' % validated_data['description'])
+
+        return '\n'.join(result)
+
+
+class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
+    description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
+
+    class Meta(OfferingSerializer.Meta):
+        fields = OfferingSerializer.Meta.fields + ('description',)
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            project={'lookup_field': 'uuid',
+                     'view_name': 'project-detail',
+                     'required': True,
+                     'allow_empty': False,
+                     'allow_null': False},
+        )
+
     def create(self, validated_data):
+        """
+        Each offering corresponds to the single issue which has next values:
+            'project' - a hyperlinked field which must be provided with every request;
+            'customer' - customer is extracted from the provided project;
+            'caller' - a user who sent a request is considered to be a 'caller' of the issue;
+            'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
+            'description' - combined list of all other fields provided with the request;
+        """
         project = validated_data['project']
         type = validated_data['type']
-        offering_configuration = self._get_offering_configuration(type)
+        offering_configuration = self._get_configuration(type)
         type_label = offering_configuration.get('label', type)
         issue = models.Issue.objects.create(
             caller=self.context['request'].user,
@@ -539,19 +560,6 @@ class OfferingCreateSerializer(OfferingSerializer):
             type=type)
 
         return offering
-
-    def _form_description(self, configuration, validated_data):
-        result = []
-
-        for key in configuration['order']:
-            label = configuration['options'].get(key, {})
-            label_value = label.get('label', key)
-            result.append('%s: \'%s\'' % (label_value, validated_data[key]))
-
-        if 'description' in validated_data:
-            result.append('\n %s' % validated_data['description'])
-
-        return '\n'.join(result)
 
 
 class OfferingCompleteSerializer(serializers.Serializer):

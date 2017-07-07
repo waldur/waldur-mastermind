@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-04-20 16:14+0300\n"
+"POT-Creation-Date: 2017-07-07 10:58+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,66 +18,70 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: models.py:40
+#: models.py:42
 msgid "Pending"
 msgstr ""
 
-#: models.py:40
+#: models.py:42
 msgid "Created"
 msgstr ""
 
-#: models.py:40
+#: models.py:42
 msgid "Paid"
 msgstr ""
 
-#: models.py:40
+#: models.py:42
 msgid "Canceled"
 msgstr ""
 
-#: models.py:46
+#: models.py:48
 msgid "organization"
 msgstr ""
 
-#: models.py:50
+#: models.py:52
 msgid "Date then invoice moved from state pending to created."
 msgstr ""
 
-#: models.py:84
+#: models.py:86
 msgid "Invoice must be in pending state."
 msgstr ""
 
-#: models.py:125
+#: models.py:127
 msgid "Price per day."
 msgstr ""
 
-#: models.py:127
+#: models.py:129
 msgid "Date and time when package usage has started."
 msgstr ""
 
-#: models.py:129
+#: models.py:131
 msgid "Date and time when package usage has ended."
 msgstr ""
 
-#: models.py:171
+#: models.py:183
 msgid "Stores data about offering"
 msgstr ""
 
-#: models.py:196
+#: models.py:208
 msgid "Stores data about package"
 msgstr ""
 
-#: models.py:241 models.py:242
+#: models.py:292 models.py:293
 msgid "Payment details"
 msgstr ""
 
-#: serializers.py:61
+#: models.py:296
+msgid "Start date of accounting"
+msgstr ""
+
+#: serializers.py:72
 #, python-brace-format
 msgid ""
 "The template must include {uuid} parameter e.g. http://example.com/invoice/"
 "{uuid}"
 msgstr ""
 
-#: serializers.py:66
+#: serializers.py:77
 #, python-brace-format
 msgid "Link template must include '{uuid}' parameter."
 msgstr ""
