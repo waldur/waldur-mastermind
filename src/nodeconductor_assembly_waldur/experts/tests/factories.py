@@ -44,3 +44,23 @@ class ExpertRequestFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('expert-request-list')
         return url if action is None else url + action + '/'
+
+
+class ExpertBidFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.ExpertBid
+
+    request = factory.SubFactory(ExpertRequestFactory)
+    team = factory.SubFactory(structure_factories.ProjectFactory)
+
+    @classmethod
+    def get_url(cls, expert_bid=None, action=None):
+        if expert_bid is None:
+            expert_bid = ExpertBidFactory()
+        url = 'http://testserver' + reverse('expert-bid-detail', kwargs={'uuid': expert_bid.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('expert-bid-list')
+        return url if action is None else url + action + '/'

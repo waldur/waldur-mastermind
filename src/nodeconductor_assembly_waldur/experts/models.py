@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
+from decimal import Decimal
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
@@ -67,3 +69,11 @@ class ExpertRequest(core_models.UuidMixin,
         offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
         type_settings = offerings.get(self.type, {})
         return type_settings.get('label', None)
+
+
+class ExpertBid(core_models.UuidMixin):
+    request = models.ForeignKey(ExpertRequest, on_delete=models.CASCADE)
+    team = models.ForeignKey(structure_models.Project)
+    price = models.DecimalField(max_digits=22, decimal_places=7,
+                                validators=[MinValueValidator(Decimal('0'))],
+                                default=0)
