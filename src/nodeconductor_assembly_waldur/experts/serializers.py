@@ -67,6 +67,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
         return project
 
     def create(self, validated_data):
+        request = self.context['request']
         project = validated_data['project']
         type = validated_data['type']
 
@@ -74,6 +75,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
         description = self._form_description(configuration, validated_data)
 
         return models.ExpertRequest.objects.create(
+            user=request.user,
             project=project,
             name=validated_data.get('name'),
             type=type,

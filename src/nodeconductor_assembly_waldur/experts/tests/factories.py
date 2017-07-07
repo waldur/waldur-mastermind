@@ -30,6 +30,9 @@ class ExpertRequestFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.ExpertRequest
 
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    user = factory.SubFactory(structure_factories.UserFactory)
+
     @classmethod
     def get_url(cls, expert_request=None, action=None):
         if expert_request is None:

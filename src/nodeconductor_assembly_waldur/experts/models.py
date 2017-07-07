@@ -46,6 +46,7 @@ class ExpertRequest(core_models.UuidMixin,
             (FINISHED, _('Finished'))
         )
 
+    user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
@@ -55,7 +56,7 @@ class ExpertRequest(core_models.UuidMixin,
         ordering = ['-created']
 
     def get_log_fields(self):
-        return super(ExpertRequest, self).get_log_fields() + ('state', 'project')
+        return super(ExpertRequest, self).get_log_fields() + ('state', 'project', 'user')
 
     @classmethod
     def get_url_name(cls):
