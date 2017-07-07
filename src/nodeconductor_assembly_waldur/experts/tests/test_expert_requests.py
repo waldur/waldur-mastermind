@@ -1,3 +1,4 @@
+import mock
 from rest_framework import test, status
 
 from nodeconductor.structure.tests import factories as structure_factories
@@ -62,6 +63,21 @@ class ExpertRequestTest(test.APITransactionTestCase):
         response = self.create_expert_request()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(models.ExpertRequest.objects.filter(project=self.project).exists())
+
+    def test_expert_request_could_not_be_created_for_project_with_active_request(self):
+        with mock.patch('logging.LoggerAdapter.info') as mocked_info:
+            expert_request = factories.ExpertRequestFactory()
+            template = 'User {user_username} with full name {user_full_name} has created ' \
+                       'request for experts under {customer_name} / {project_name}.'
+            context = {
+                'user_username': expert_request.user.username,
+                'user_full_name': expert_request.user.full_name,
+                'customer_name': expert_request.project.customer.name,
+                'project_name': expert_request.project.name,
+            }
+            expected_message = template.format(**context)
+            actual_message = mocked_info.call_args_list[-1][0][0]
+            self.assertEqual(expected_message, actual_message)
 
     def create_expert_request(self):
         url = factories.ExpertRequestFactory.get_list_url()
