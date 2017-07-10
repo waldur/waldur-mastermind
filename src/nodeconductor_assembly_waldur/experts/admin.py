@@ -5,9 +5,9 @@ from django.contrib import admin
 from . import models
 
 
-class ExpertProvider(admin.ModelAdmin):
+class ExpertProviderAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'customer', 'created')
     readonly_fields = ('customer', 'created')
 
 
-admin.site.register(models.ExpertProvider, ExpertProvider)
+admin.site.register(models.ExpertProvider, ExpertProviderAdmin)

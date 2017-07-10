@@ -83,12 +83,19 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
         )
 
 
-class ExpertBidSerializer(serializers.HyperlinkedModelSerializer):
+class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
+                          serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.ExpertBid
         fields = (
-            'url', 'uuid', 'team', 'request',
+            'url', 'uuid', 'created', 'modified',
+            'team', 'team_uuid', 'team_name',
+            'request', 'request_uuid', 'request_name',
         )
+        related_paths = {
+            'team': ('uuid', 'name'),
+            'request': ('uuid', 'name'),
+        }
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-bid-detail'},
             'request': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},

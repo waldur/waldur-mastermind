@@ -10,6 +10,7 @@ from model_utils import FieldTracker
 
 from nodeconductor.structure import models as structure_models
 from nodeconductor.core import models as core_models
+from . import managers
 
 
 @python_2_unicode_compatible
@@ -28,6 +29,7 @@ class ExpertProvider(core_models.UuidMixin,
         return 'expert-provider'
 
 
+@python_2_unicode_compatible
 class ExpertRequest(core_models.UuidMixin,
                     core_models.NameMixin,
                     core_models.DescribableMixin,
@@ -53,6 +55,7 @@ class ExpertRequest(core_models.UuidMixin,
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
     tracker = FieldTracker()
+    objects = managers.ExpertRequestManager()
 
     class Meta:
         ordering = ['-created']
@@ -70,10 +73,26 @@ class ExpertRequest(core_models.UuidMixin,
         type_settings = offerings.get(self.type, {})
         return type_settings.get('label', None)
 
+    def __str__(self):
+        return '{} / {}'.format(self.project.name, self.project.customer.name)
 
-class ExpertBid(core_models.UuidMixin):
+
+class ExpertBid(core_models.UuidMixin,
+                structure_models.StructureLoggableMixin,
+                structure_models.TimeStampedModel):
     request = models.ForeignKey(ExpertRequest, on_delete=models.CASCADE)
     team = models.ForeignKey(structure_models.Project)
     price = models.DecimalField(max_digits=22, decimal_places=7,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 default=0)
+    objects = managers.ExpertBidManager()
+
+    class Meta:
+        ordering = ['-created']
+
+    def get_log_fields(self):
+        return super(ExpertBid, self).get_log_fields() + ('request', 'team', 'price')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'expert-bid'

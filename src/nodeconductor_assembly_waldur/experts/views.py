@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
-from django.db.models import Q
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -44,12 +43,7 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         qs = super(ExpertRequestViewSet, self).get_queryset()
 
         if not is_expert_manager(self.request.user):
-            qs = qs.filter(
-                project__customer__permissions__is_active=True,
-                project__customer__permissions__user=self.request.user,
-                project__customer__permissions__role=structure_models.CustomerRole.OWNER,
-            )
-
+            qs = qs.filtered_for_user(self.request.user)
         return qs
 
     @decorators.list_route()
@@ -72,20 +66,4 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     create_permissions = [is_expert_manager]
 
     def get_queryset(self):
-        qs = super(ExpertBidViewSet, self).get_queryset()
-
-        expert_manager_query = Q(
-            team__customer__permissions__is_active=True,
-            team__customer__permissions__user=self.request.user,
-            team__customer__permissions__role=structure_models.CustomerRole.OWNER,
-        )
-        request_customer_query = Q(
-            request__project__customer__permissions__is_active=True,
-            request__project__customer__permissions__user=self.request.user,
-            request__project__customer__permissions__role=structure_models.CustomerRole.OWNER,
-        )
-
-        if not self.request.user.is_staff:
-            qs = qs.filter(expert_manager_query | request_customer_query)
-
-        return qs
+        return super(ExpertBidViewSet, self).get_queryset().filtered_for_user(self.request.user)

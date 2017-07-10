@@ -10,6 +10,7 @@ class ExpertsConfig(AppConfig):
 
     def ready(self):
         ExpertRequest = self.get_model('ExpertRequest')
+        ExpertBid = self.get_model('ExpertBid')
 
         from . import handlers
 
@@ -17,4 +18,10 @@ class ExpertsConfig(AppConfig):
             handlers.log_expert_request_creation,
             sender=ExpertRequest,
             dispatch_uid='nodeconductor_assembly_waldur.experts.log_expert_request_creation',
+        )
+
+        signals.post_save.connect(
+            handlers.log_expert_bid_creation,
+            sender=ExpertBid,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.log_expert_bid_creation',
         )

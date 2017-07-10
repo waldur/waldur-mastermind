@@ -12,3 +12,15 @@ def log_expert_request_creation(sender, instance, created=False, **kwargs):
         event_context={
             'expert_request': instance,
         })
+
+
+def log_expert_bid_creation(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    event_logger.waldur_expert_bid.info(
+        'Bid for request {request_name} has been created.',
+        event_type='expert_bid_created',
+        event_context={
+            'expert_bid': instance,
+        })
