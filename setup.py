@@ -14,6 +14,7 @@ install_requires = [
     'nodeconductor_digitalocean>=0.8.2',
     'nodeconductor_openstack>=0.30.2',
     'nodeconductor_saml2>=0.7.3',
+    'waldur_freeipa>=0.2.1',
 ]
 
 test_requires = [
