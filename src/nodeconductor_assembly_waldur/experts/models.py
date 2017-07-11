@@ -50,7 +50,8 @@ class ExpertRequest(core_models.UuidMixin,
             (FINISHED, _('Finished'))
         )
 
-    user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
+    user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
+                             help_text=_('The user which has created this request.'))
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
@@ -80,6 +81,8 @@ class ExpertRequest(core_models.UuidMixin,
 class ExpertBid(core_models.UuidMixin,
                 structure_models.StructureLoggableMixin,
                 structure_models.TimeStampedModel):
+    user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
+                             help_text=_('The user which has created this bid.'))
     request = models.ForeignKey(ExpertRequest, on_delete=models.CASCADE)
     team = models.ForeignKey(structure_models.Project)
     price = models.DecimalField(max_digits=22, decimal_places=7,
@@ -91,7 +94,7 @@ class ExpertBid(core_models.UuidMixin,
         ordering = ['-created']
 
     def get_log_fields(self):
-        return super(ExpertBid, self).get_log_fields() + ('request', 'team', 'price')
+        return super(ExpertBid, self).get_log_fields() + ('request', 'user', 'price')
 
     @classmethod
     def get_url_name(cls):

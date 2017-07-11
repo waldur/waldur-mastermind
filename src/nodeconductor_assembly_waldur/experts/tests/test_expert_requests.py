@@ -64,7 +64,7 @@ class ExpertRequestTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(models.ExpertRequest.objects.filter(project=self.project).exists())
 
-    def test_expert_request_could_not_be_created_for_project_with_active_request(self):
+    def test_when_expert_request_is_created_event_is_emitted(self):
         with mock.patch('logging.LoggerAdapter.info') as mocked_info:
             expert_request = factories.ExpertRequestFactory()
             template = 'User {user_username} with full name {user_full_name} has created ' \

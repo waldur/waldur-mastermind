@@ -52,6 +52,7 @@ class ExpertBidFactory(factory.DjangoModelFactory):
 
     request = factory.SubFactory(ExpertRequestFactory)
     team = factory.SubFactory(structure_factories.ProjectFactory)
+    user = factory.SubFactory(structure_factories.UserFactory)
 
     @classmethod
     def get_url(cls, expert_bid=None, action=None):

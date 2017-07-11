@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-07-07 10:59+0300\n"
+"POT-Creation-Date: 2017-07-11 10:49+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,28 +18,36 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: models.py:19
+#: models.py:22
 msgid "Expert providers"
 msgstr ""
 
-#: models.py:42
+#: models.py:46
 msgid "Requested"
 msgstr ""
 
-#: models.py:43
+#: models.py:47
 msgid "Responded"
 msgstr ""
 
-#: models.py:44
+#: models.py:48
 msgid "Active"
 msgstr ""
 
-#: models.py:45
+#: models.py:49
 msgid "Cancelled"
 msgstr ""
 
-#: models.py:46
+#: models.py:50
 msgid "Finished"
+msgstr ""
+
+#: models.py:54
+msgid "The user which has created this request."
+msgstr ""
+
+#: models.py:85
+msgid "The user which has created this bid."
 msgstr ""
 
 #: serializers.py:32

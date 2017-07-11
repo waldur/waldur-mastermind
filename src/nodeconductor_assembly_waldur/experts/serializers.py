@@ -101,3 +101,8 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
             'request': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
             'team': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
         }
+
+    def create(self, validated_data):
+        request = self.context['request']
+        validated_data['user'] = request.user
+        return super(ExpertBidSerializer, self).create(validated_data)

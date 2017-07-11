@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('state', models.CharField(choices=[('requested', 'Requested'), ('responded', 'Responded'), ('active', 'Active'), ('cancelled', 'Cancelled'), ('finished', 'Finished')], default='requested', max_length=30)),
                 ('type', models.CharField(max_length=255)),
                 ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.Project')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to=settings.AUTH_USER_MODEL)),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to=settings.AUTH_USER_MODEL, help_text='The user which has created this request.')),
             ],
             options={
                 'ordering': ['-created'],
