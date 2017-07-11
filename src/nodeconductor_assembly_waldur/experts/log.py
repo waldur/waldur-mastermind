@@ -13,4 +13,15 @@ class ExpertRequestEventLogger(EventLogger):
         }
 
 
+class ExpertBidEventLogger(EventLogger):
+    expert_bid = models.ExpertBid
+
+    class Meta:
+        event_types = ('expert_bid_created',)
+        event_groups = {
+            'experts': event_types,
+        }
+
+
 event_logger.register('waldur_expert_request', ExpertRequestEventLogger)
+event_logger.register('waldur_expert_bid', ExpertBidEventLogger)
