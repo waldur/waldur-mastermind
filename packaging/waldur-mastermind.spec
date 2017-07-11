@@ -14,6 +14,7 @@ Requires: waldur-auth-saml2 >= 0.7.3
 Requires: waldur-aws >= 0.9.2
 Requires: waldur-cost-planning >= 0.4.2
 Requires: waldur-digitalocean >= 0.8.2
+Requires: waldur-freeipa >= 0.2.1
 Requires: waldur-openstack >= 0.30.2
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
