@@ -24,8 +24,8 @@ class ExpertRequestFilter(django_filters.FilterSet):
 
 
 class ExpertBidFilter(django_filters.FilterSet):
-    expert_request = core_filters.URLFilter(view_name='expert-request-detail', name='expert__uuid')
-    expert_request_uuid = django_filters.UUIDFilter(name='expert__uuid')
+    request = core_filters.URLFilter(view_name='expert-request-detail', name='request__uuid')
+    request_uuid = django_filters.UUIDFilter(name='request__uuid')
 
     class Meta(object):
         model = models.ExpertBid
