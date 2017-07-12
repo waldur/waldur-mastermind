@@ -5,7 +5,9 @@ from nodeconductor.core import NodeConductorExtension
 
 class ExpertsExtension(NodeConductorExtension):
     class Settings:
-        pass
+        WALDUR_EXPERTS = {
+            'REQUEST_LINK_TEMPLATE': 'https://www.example.com/#/experts/{uuid}/'
+        }
 
     @staticmethod
     def django_app():

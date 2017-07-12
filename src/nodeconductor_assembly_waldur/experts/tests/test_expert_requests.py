@@ -21,6 +21,12 @@ class ExpertRequestTest(test.APITransactionTestCase):
         self.expert_provider = factories.ExpertProviderFactory(customer=self.expert_fixture.customer)
         self.expert_manager = self.expert_fixture.owner
 
+        self.backend_patcher = mock.patch('nodeconductor_assembly_waldur.support.backend.get_active_backend')
+        self.backend_patcher.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
     def test_expert_requests_are_visible_to_any_expert_manager(self):
         self.client.force_authenticate(self.expert_manager)
         self.expert_request = factories.ExpertRequestFactory(project=self.project)
