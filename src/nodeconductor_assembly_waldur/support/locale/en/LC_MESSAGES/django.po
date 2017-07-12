@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-04-20 16:17+0300\n"
+"POT-Creation-Date: 2017-07-07 10:58+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,39 +17,39 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: models.py:36
+#: models.py:37
 msgid "Link to issue in support system."
 msgstr ""
 
-#: models.py:48
+#: models.py:49
 msgid "Waldur user who has reported the issue."
 msgstr ""
 
-#: models.py:50
+#: models.py:51
 msgid "Help desk user who have created the issue that is reported by caller."
 msgstr ""
 
-#: models.py:52
+#: models.py:53
 msgid "Help desk user who will implement the issue"
 msgstr ""
 
-#: models.py:55
+#: models.py:56
 msgid "organization"
 msgstr ""
 
-#: models.py:148
+#: models.py:151
 msgid "Requested"
 msgstr ""
 
-#: models.py:148
+#: models.py:151
 msgid "OK"
 msgstr ""
 
-#: models.py:148
+#: models.py:151
 msgid "Terminated"
 msgstr ""
 
-#: models.py:155 models.py:156
+#: models.py:158 models.py:159
 msgid "Price per day"
 msgstr ""
 
@@ -61,7 +61,7 @@ msgstr ""
 msgid "Assignee cannot be defined if issue is reported manually."
 msgstr ""
 
-#: serializers.py:108 serializers.py:500
+#: serializers.py:108 serializers.py:480
 msgid "This field is required."
 msgstr ""
 
@@ -89,12 +89,12 @@ msgstr ""
 msgid "\"webhookEvent\" is missing in request data. Cannot find out even type"
 msgstr ""
 
-#: serializers.py:461
-msgid "Description to add to the issue."
+#: serializers.py:474
+msgid "Type configuration could not be found."
 msgstr ""
 
-#: serializers.py:496
-msgid "Type configuration could not be found."
+#: serializers.py:520
+msgid "Description to add to the issue."
 msgstr ""
 
 #: views.py:18

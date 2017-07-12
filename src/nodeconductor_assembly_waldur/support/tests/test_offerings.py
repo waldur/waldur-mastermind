@@ -8,40 +8,14 @@ from nodeconductor_assembly_waldur.support.backend import SupportBackendError
 from rest_framework import status
 
 from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor_assembly_waldur.support.tests.base import override_support_settings
+from nodeconductor_assembly_waldur.support.tests.base import override_support_settings, override_offerings
 
 from . import base, factories
 from .. import models
 
 
+@override_offerings()
 class BaseOfferingTest(base.BaseTest):
-    def setUp(self, **kwargs):
-        super(BaseOfferingTest, self).setUp()
-        settings.WALDUR_SUPPORT['OFFERINGS'] = {
-            'custom_vpc': {
-                'label': 'Custom VPC',
-                'order': ['storage', 'ram', 'cpu_count'],
-                'options': {
-                    'storage': {
-                        'type': 'integer',
-                        'label': 'Max storage, GB',
-                        'help_text': 'VPC storage limit in GB.',
-                    },
-                    'ram': {
-                        'type': 'integer',
-                        'label': 'Max RAM, GB',
-                        'help_text': 'VPC RAM limit in GB.',
-                    },
-                    'cpu_count': {
-                        'default': 93,
-                        'type': 'integer',
-                        'label': 'Max vCPU',
-                        'help_text': 'VPC CPU count limit.',
-                    },
-                },
-            },
-        }
-
     def _get_valid_request(self, project=None):
         if project is None:
             project = self.fixture.project

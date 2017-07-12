@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-04-20 16:17+0300\n"
+"POT-Creation-Date: 2017-07-07 10:58+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -22,7 +22,7 @@ msgstr ""
 msgid "Price for 30 days"
 msgstr ""
 
-#: admin.py:52 models.py:107
+#: admin.py:52 models.py:118
 msgid "Price per unit per day"
 msgstr ""
 
@@ -60,107 +60,107 @@ msgstr ""
 msgid "%s component is required and cannot be deleted."
 msgstr ""
 
-#: models.py:24
+#: models.py:28
 msgid "Forbids creation of new packages."
 msgstr ""
 
-#: models.py:32
+#: models.py:36
 msgid "Small"
 msgstr ""
 
-#: models.py:32
+#: models.py:36
 msgid "Medium"
 msgstr ""
 
-#: models.py:32
+#: models.py:36
 msgid "Large"
 msgstr ""
 
-#: models.py:32
+#: models.py:36
 msgid "Trial"
 msgstr ""
 
-#: models.py:37
+#: models.py:41
 msgid "VPC package template"
 msgstr ""
 
-#: models.py:38
+#: models.py:42
 msgid "VPC package templates"
 msgstr ""
 
-#: models.py:67
+#: models.py:78
 msgid "Please select service settings."
 msgstr ""
 
-#: models.py:69
+#: models.py:80
 msgid "PackageTemplate can be created only for shared settings."
 msgstr ""
 
-#: models.py:71
+#: models.py:82
 msgid "Service settings should support tenant creation."
 msgstr ""
 
-#: models.py:74
+#: models.py:85
 msgid "external_network_id has to be defined for service settings."
 msgstr ""
 
-#: models.py:132
+#: models.py:143
 msgid "Tenant will be created based on this template."
 msgstr ""
 
-#: models.py:171
+#: models.py:182
 msgid "OpenStack VPC package"
 msgstr ""
 
-#: models.py:172
+#: models.py:183
 msgid "OpenStack VPC packages"
 msgstr ""
 
-#: serializers.py:43
+#: serializers.py:44
 msgid "Template should be related to OpenStack service settings."
 msgstr ""
 
-#: serializers.py:45
+#: serializers.py:46
 msgid "Template's settings must be in OK state."
 msgstr ""
 
-#: serializers.py:93
+#: serializers.py:94
 msgid "You do not have permissions to create package for given project."
 msgstr ""
 
-#: serializers.py:100
+#: serializers.py:101
 msgid "New package cannot be created for archived template."
 msgstr ""
 
-#: serializers.py:111
+#: serializers.py:112
 msgid ""
 "Template and service project link should be connected to the same service "
 "settings."
 msgstr ""
 
-#: serializers.py:198
+#: serializers.py:199
 msgid "Package's tenant must be in OK state."
 msgstr ""
 
-#: serializers.py:201
+#: serializers.py:202
 msgid "You do not have permissions to extend given package."
 msgstr ""
 
-#: serializers.py:210
+#: serializers.py:211
 msgid ""
 "Template and package's tenant should be connected to the same service "
 "settings."
 msgstr ""
 
-#: serializers.py:214
+#: serializers.py:215
 msgid "New package template cannot be the same as package's current template."
 msgstr ""
 
-#: serializers.py:221
+#: serializers.py:222
 msgid "Template's components must be the same as package template's components"
 msgstr ""
 
-#: serializers.py:223
+#: serializers.py:224
 #, python-brace-format
 msgid ""
 "Current usage of {0} quota is greater than new template's {0} component."
