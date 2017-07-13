@@ -88,7 +88,7 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.ExpertBid
         fields = (
-            'url', 'uuid', 'created', 'modified',
+            'url', 'uuid', 'created', 'modified', 'price',
             'team', 'team_uuid', 'team_name',
             'request', 'request_uuid', 'request_name',
         )
