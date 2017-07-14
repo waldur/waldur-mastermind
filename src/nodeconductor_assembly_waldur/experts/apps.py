@@ -21,6 +21,12 @@ class ExpertsConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.log_expert_request_state_changed,
+            sender=ExpertRequest,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.log_expert_request_state_changed',
+        )
+
+        signals.post_save.connect(
             handlers.log_expert_bid_creation,
             sender=ExpertBid,
             dispatch_uid='nodeconductor_assembly_waldur.experts.log_expert_bid_creation',

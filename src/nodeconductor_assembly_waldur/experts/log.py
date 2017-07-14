@@ -7,7 +7,10 @@ class ExpertRequestEventLogger(EventLogger):
     expert_request = models.ExpertRequest
 
     class Meta:
-        event_types = ('expert_request_created',)
+        event_types = (
+            'expert_request_created',
+            'expert_request_activated',
+        )
         event_groups = {
             'experts': event_types,
         }

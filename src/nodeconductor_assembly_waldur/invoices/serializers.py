@@ -28,7 +28,6 @@ class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-
 class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)

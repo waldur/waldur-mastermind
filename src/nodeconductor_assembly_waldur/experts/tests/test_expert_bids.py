@@ -3,11 +3,15 @@ from rest_framework import test, status
 
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
+from nodeconductor.structure import models as structure_models
+from nodeconductor.users import models as user_models
 
+from .. import models
 from . import factories
 
 
-class ExpertBidTest(test.APITransactionTestCase):
+class ExpertBidBaseTest(test.APITransactionTestCase):
+
     def setUp(self):
         self.expert_fixture = structure_fixtures.ProjectFixture()
         self.expert_manager = self.expert_fixture.owner
@@ -16,6 +20,9 @@ class ExpertBidTest(test.APITransactionTestCase):
         self.project_fixture = structure_fixtures.ProjectFixture()
         self.project = self.project_fixture.project
         self.expert_request = factories.ExpertRequestFactory(project=self.project)
+
+
+class ExpertBidCreateTest(ExpertBidBaseTest):
 
     def test_expert_manager_can_create_expert_bid(self):
         self.client.force_authenticate(self.expert_manager)
@@ -26,6 +33,14 @@ class ExpertBidTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.project_fixture.manager)
         response = self.create_expert_bid()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_bid_can_be_created_for_pending_request_only(self):
+        self.expert_request.state = models.ExpertRequest.States.ACTIVE
+        self.expert_request.save()
+        self.client.force_authenticate(self.expert_manager)
+        response = self.create_expert_bid()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('request', response.data)
 
     def test_other_expert_manager_can_not_see_expert_bid(self):
         expert_bid = factories.ExpertBidFactory(request=self.expert_request, team=self.project)
@@ -59,3 +74,112 @@ class ExpertBidTest(test.APITransactionTestCase):
             'team': structure_factories.ProjectFactory.get_url(self.project),
             'price': 100.00,
         })
+
+
+class ExpertBidAcceptTest(ExpertBidBaseTest):
+
+    def setUp(self):
+        super(ExpertBidAcceptTest, self).setUp()
+        self.team = self.expert_fixture.project
+        self.expert_bid = factories.ExpertBidFactory(request=self.expert_request, team=self.team)
+
+    def test_staff_can_accept_bid(self):
+        self.client.force_authenticate(self.project_fixture.staff)
+        response = self.accept_bid()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_customer_owner_can_accept_bid(self):
+        self.client.force_authenticate(self.project_fixture.owner)
+        response = self.accept_bid()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_project_manager_can_not_accept_bid(self):
+        self.client.force_authenticate(self.project_fixture.manager)
+        response = self.accept_bid()
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def test_customer_owner_can_not_accept_bid_if_request_is_not_pending(self):
+        self.expert_request.state = models.ExpertRequest.States.ACTIVE
+        self.expert_request.save()
+        self.client.force_authenticate(self.project_fixture.owner)
+        response = self.accept_bid()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_when_bid_accepted_request_becomes_active(self):
+        self.client.force_authenticate(self.project_fixture.owner)
+        response = self.accept_bid()
+        self.expert_request.refresh_from_db()
+        self.assertEqual(self.expert_request.state, models.ExpertRequest.States.ACTIVE)
+
+    def test_when_bid_accepted_event_is_emitted(self):
+        self.client.force_authenticate(self.project_fixture.owner)
+        with mock.patch('logging.LoggerAdapter.info') as mocked_info:
+            response = self.accept_bid()
+            template = 'Request {expert_request_name} has been activated.'
+            context = {
+                'expert_request_name': self.expert_bid.request.name,
+            }
+            expected_message = template.format(**context)
+            actual_message = mocked_info.call_args_list[-1][0][0]
+            self.assertEqual(expected_message, actual_message)
+
+    def test_when_bid_accepted_invitations_for_expert_team_members_are_created(self):
+        # Arrange
+        expert_users = structure_factories.UserFactory.create_batch(3)
+        for user in expert_users:
+            self.team.add_user(user, structure_models.ProjectRole.ADMINISTRATOR)
+
+        # Act
+        self.client.force_authenticate(self.project_fixture.owner)
+        self.accept_bid()
+
+        # Assert
+        invitations = self.get_invitations(expert_users)
+        self.assertEqual(len(invitations), len(expert_users))
+
+    @mock.patch('nodeconductor.users.tasks.send_invitation')
+    def test_when_bid_accepted_invitations_for_expert_team_members_are_created(self, mocked_task):
+        # Arrange
+        expert_users = structure_factories.UserFactory.create_batch(3)
+        for user in expert_users:
+            self.team.add_user(user, structure_models.ProjectRole.ADMINISTRATOR)
+
+        # Act
+        self.client.force_authenticate(self.project_fixture.owner)
+        self.accept_bid()
+
+        # Assert
+        invitations = self.get_invitations(expert_users)
+        self.assertEqual(len(invitations), len(expert_users))
+
+        calls = [
+            mock.call(invitation.uuid.hex, self.project_fixture.owner.full_name)
+            for invitation in invitations
+        ]
+        mocked_task.delay.assert_has_calls(calls)
+
+    @mock.patch('nodeconductor_assembly_waldur.experts.tasks.send_contract')
+    def test_when_bid_accepted_notification_emails_for_customer_owners_are_sent(self, mocked_task):
+        self.client.force_authenticate(self.project_fixture.owner)
+        self.accept_bid()
+        mocked_task.delay.assert_called_once_with(
+            self.expert_request.uuid.hex, self.project_fixture.owner.email)
+
+    def test_when_bid_accepted_contract_is_created(self):
+        self.client.force_authenticate(self.project_fixture.owner)
+        self.accept_bid()
+        self.expert_request.refresh_from_db()
+        self.assertIsNotNone(self.expert_request.contract)
+
+    def get_invitations(self, users):
+        return user_models.Invitation.objects.filter(
+            project=self.project,
+            customer=self.project.customer,
+            created_by=self.project_fixture.owner,
+            email__in=[user.email for user in users],
+            project_role=structure_models.ProjectRole.ADMINISTRATOR,
+        )
+
+    def accept_bid(self):
+        url = factories.ExpertBidFactory.get_url(self.expert_bid, 'accept')
+        return self.client.post(url)

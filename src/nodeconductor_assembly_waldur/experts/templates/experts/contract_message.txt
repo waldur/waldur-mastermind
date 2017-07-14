@@ -1,0 +1,4 @@
+Hello!
+
+The contract for expert request under {{ customer_name }} / {{ project_name }} has been created.
+Please go to {{ request.link }} to see it.
