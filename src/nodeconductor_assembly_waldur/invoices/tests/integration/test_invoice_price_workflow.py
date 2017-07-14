@@ -7,8 +7,11 @@ from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
 from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor_assembly_waldur.common import mixins as common_mixins
 from nodeconductor_assembly_waldur.packages.tests import fixtures as package_fixtures, factories as packages_factories
 from nodeconductor_assembly_waldur.packages import models as package_models
+from nodeconductor_assembly_waldur.support.tests import factories as support_factories
+from nodeconductor_assembly_waldur.support import models as support_models
 
 from ... import models, tasks, utils
 
@@ -39,7 +42,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
 
     def test_new_invoice_is_created_in_new_month_after_half_month_of_usage(self):
         """
-        Tests that invoices are created and updated accordingle to the current state of customer's package.
+        Tests that invoices are created and updated according to the current state of customer's package.
         Steps:
             - Test that invoice has been created;
             - Check price of it in the end of the month;
@@ -110,7 +113,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
                 tenant__service_project_link__project__customer=customer)
         invoice = models.Invoice.objects.get(customer=customer)
         cheap_item = invoice.openstack_items.get(package=cheap_package)
-        self.assertEqual(cheap_item.daily_price, cheap_package_template.price)
+        self.assertEqual(cheap_item.unit_price, cheap_package_template.price)
         self.assertEqual(cheap_item.usage_days, full_days)
 
         # later at the same day he switched to the expensive one
@@ -119,7 +122,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             expensive_package = packages_factories.OpenStackPackageFactory(
                 template=expensive_package_template, tenant=cheap_package.tenant)
         expensive_item = invoice.openstack_items.get(package=expensive_package)
-        self.assertEqual(expensive_item.daily_price, expensive_package_template.price)
+        self.assertEqual(expensive_item.unit_price, expensive_package_template.price)
         self.assertEqual(expensive_item.usage_days, full_days)
         # cheap item price should become 0, because it was replaced by expensive one
         cheap_item.refresh_from_db()
@@ -142,3 +145,80 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         cheap_item.refresh_from_db()
         self.assertEqual(cheap_item.usage_days, 0)
         self.assertEqual(cheap_item.price, 0)
+
+    def test_invoice_item_with_daily_price(self):
+        start_date = timezone.datetime(2017, 7, 14)
+        end_date = timezone.datetime(2017, 7, 31, 23, 59, 59)
+        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_DAY)
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        expected_price = utils.get_full_days(start_date, end_date) * offering.unit_price
+        offering_item = models.OfferingItem.objects.get(offering=offering)
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_monthly_price(self):
+        start_date = timezone.datetime(2017, 7, 20)
+        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_MONTH)
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        expected_price = offering.unit_price
+        offering_item = models.OfferingItem.objects.get(offering=offering)
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
+        start_date = timezone.datetime(2017, 7, 14)
+        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        expected_price = offering.unit_price * 2
+        offering_item = models.OfferingItem.objects.get(offering=offering)
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_start_in_second_half(self):
+        start_date = timezone.datetime(2017, 7, 16)
+        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        expected_price = offering.unit_price
+        offering_item = models.OfferingItem.objects.get(offering=offering)
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_end_in_first_half(self):
+        start_date = timezone.datetime(2017, 7, 10)
+        end_date = timezone.datetime(2017, 7, 14)
+        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        with freeze_time(end_date):
+            offering.state = support_models.Offering.States.TERMINATED
+            offering.save(update_fields=['state'])
+
+        expected_price = offering.unit_price
+        offering_item = models.OfferingItem.objects.get(offering=offering)
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_half_monthly_price_with_end_in_second_half(self):
+        start_date = timezone.datetime(2017, 7, 10)
+        end_date = timezone.datetime(2017, 7, 20)
+        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
+        with freeze_time(start_date):
+            offering.state = support_models.Offering.States.OK
+            offering.save(update_fields=['state'])
+
+        with freeze_time(end_date):
+            offering.state = support_models.Offering.States.TERMINATED
+            offering.save(update_fields=['state'])
+
+        expected_price = offering.unit_price * 2
+        offering_item = models.OfferingItem.objects.get(offering=offering)
+        self.assertEqual(offering_item.price, expected_price)

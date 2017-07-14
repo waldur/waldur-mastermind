@@ -28,7 +28,9 @@ class SupportUserAdmin(admin.ModelAdmin):
 
 
 class OfferingAdmin(admin.ModelAdmin):
-    list_display = ('type', 'name', 'price', 'state')
+    list_display = ('type', 'name', 'unit_price', 'unit', 'state')
+    fields = ('name', 'unit_price', 'unit', 'type', 'issue',
+              'project', 'state', 'product_code', 'article_code')
 
 
 class IssueAdmin(structure_admin.BackendModelAdmin):

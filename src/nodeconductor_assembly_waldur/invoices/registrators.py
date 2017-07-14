@@ -59,7 +59,7 @@ class BaseRegistrator(object):
     def _find_item(self, source, now):
         """
         Find item by source and date.
-        :param item: chargeable item to use for search of invoice item.
+        :param source: object that was bought by customer.
         :param now: date of invoice with invoice items.
         :return: invoice item or None
         """
@@ -98,7 +98,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
             invoice=invoice,
             end__day=start.day,
             package_details__contains=package.tenant.name,
-        ).order_by('-daily_price').first()
+        ).order_by('-unit_price').first()
 
         daily_price = package.template.price
         product_code = package.template.product_code
@@ -113,10 +113,10 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
             If there is an item that overlaps with current one as shown below:
             |--03.01.2017-|-********-|-***?---|
-                                     |----?**-|-01.06.2017-|-******-|
+                                     |----?**-|-06.01.2017-|-******-|
             we have to make next steps:
             1) If item is more expensive -> use it for price calculation
-                and register new package starting from next day [-01.06.2017-]
+                and register new package starting from next day [-06.01.2017-]
             |--03.01.2017-|-********-|-*****-|
                                      |-------|-06.01.2017-|-******-|
 
@@ -131,7 +131,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
             |--03.01.2017-|-********-|-------|
                                      |-*****-|-06.01.2017-|-******-|
             """
-            if overlapping_item.daily_price > daily_price:
+            if overlapping_item.unit_price > daily_price:
                 if overlapping_item.end.day == utils.get_current_month_end().day:
                     overlapping_item.extend_to_the_end_of_the_day()
                     end = start
@@ -143,7 +143,8 @@ class OpenStackItemRegistrator(BaseRegistrator):
         models.OpenStackItem.objects.create(
             package=package,
             project=_get_project(package),
-            daily_price=daily_price,
+            unit_price=daily_price,
+            unit=models.OpenStackItem.Units.PER_DAY,
             product_code=product_code,
             article_code=article_code,
             invoice=invoice,
@@ -178,7 +179,8 @@ class OfferingItemRegistrator(BaseRegistrator):
         result = models.OfferingItem.objects.create(
             offering=offering,
             project=offering.project,
-            daily_price=offering.price,
+            unit_price=offering.unit_price,
+            unit=offering.unit,
             product_code=offering.product_code,
             article_code=offering.article_code,
             invoice=invoice,

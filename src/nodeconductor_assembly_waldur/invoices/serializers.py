@@ -2,29 +2,45 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from nodeconductor.core import serializers as core_serializers
-from nodeconductor_assembly_waldur.packages.utils import quantize_price
 
 from . import models
 
 
-class OpenStackItemSerializer(serializers.HyperlinkedModelSerializer):
+class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
+
+    class Meta(object):
+        model = models.InvoiceItem
+        fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit',
+                  'start', 'end', 'usage_days', 'product_code',
+                  'article_code', 'project_name', 'project_uuid',)
+
+
+class OpenStackItemSerializer(InvoiceItemSerializer):
     tenant_name = serializers.ReadOnlyField(source='get_tenant_name')
     tenant_uuid = serializers.ReadOnlyField(source='get_tenant_uuid')
     template_name = serializers.ReadOnlyField(source='get_template_name')
     template_uuid = serializers.ReadOnlyField(source='get_template_uuid')
     template_category = serializers.ReadOnlyField(source='get_template_category')
 
-    class Meta(object):
+    class Meta(InvoiceItemSerializer.Meta):
         model = models.OpenStackItem
-        fields = ('package', 'name', 'price', 'tax', 'total',
-                  'daily_price', 'start', 'end', 'usage_days', 'product_code', 'article_code',
-                  'project_name', 'project_uuid',
-                  'tenant_name', 'tenant_uuid',
-                  'template_name', 'template_uuid', 'template_category')
+        fields = InvoiceItemSerializer.Meta.fields + ('package', 'tenant_name', 'tenant_uuid',
+                                                      'template_name', 'template_uuid', 'template_category')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
+        }
+
+
+class OfferingItemSerializer(InvoiceItemSerializer):
+    offering_type = serializers.ReadOnlyField(source='get_offering_type')
+
+    class Meta(InvoiceItemSerializer.Meta):
+        model = models.OfferingItem
+        fields = InvoiceItemSerializer.Meta.fields + ('offering', 'offering_type')
+        extra_kwargs = {
+            'offering': {'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
         }
 
 
@@ -33,6 +49,7 @@ class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
     openstack_items = OpenStackItemSerializer(many=True)
+    offering_items = OfferingItemSerializer(many=True)
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
@@ -40,8 +57,8 @@ class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Invoice
         fields = (
-            'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total', 'openstack_items', 'state', 'year', 'month',
-            'issuer_details', 'customer_details', 'invoice_date', 'due_date',
+            'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total', 'openstack_items', 'offering_items',
+            'state', 'year', 'month', 'issuer_details', 'customer_details', 'invoice_date', 'due_date',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -125,11 +142,11 @@ class OpenStackItemReportSerializer(serializers.ModelSerializer):
             'invoice_date', 'due_date',
             'invoice_price', 'invoice_tax', 'invoice_total',
             'name', 'article_code', 'product_code',
-            'price', 'tax', 'total', 'daily_price',
+            'price', 'tax', 'total', 'unit_price', 'unit',
             'start', 'end', 'usage_days',
         )
         decimal_fields = (
-            'price', 'tax', 'total', 'daily_price',
+            'price', 'tax', 'total', 'unit_price',
             'invoice_price', 'invoice_tax', 'invoice_total'
         )
         decimal_fields_extra_kwargs = {

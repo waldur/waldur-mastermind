@@ -222,14 +222,14 @@ class OfferingCompleteTest(BaseOfferingTest):
         expected_price = 10
 
         url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        request_data = {'price': expected_price}
+        request_data = {'unit_price': expected_price}
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url, request_data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         offering.refresh_from_db()
         self.assertEqual(offering.state, models.Offering.States.OK)
-        self.assertEqual(offering.price, expected_price)
+        self.assertEqual(offering.unit_price, expected_price)
 
     def test_offering_cannot_be_completed_if_it_is_terminated(self):
         offering = factories.OfferingFactory(state=models.Offering.States.TERMINATED)
@@ -252,7 +252,7 @@ class OfferingCompleteTest(BaseOfferingTest):
     def test_user_cannot_complete_offering(self):
         offering = self.fixture.offering
         url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        request_data = {'price': 10}
+        request_data = {'unit_price': 10}
         self.client.force_authenticate(self.fixture.user)
         response = self.client.post(url, request_data)
 
@@ -263,7 +263,7 @@ class OfferingCompleteTest(BaseOfferingTest):
     def test_staff_can_complete_offering(self):
         offering = self.fixture.offering
         url = factories.OfferingFactory.get_url(offering=offering, action='complete')
-        request_data = {'price': 10}
+        request_data = {'unit_price': 10}
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(url, request_data)
 
