@@ -41,13 +41,13 @@ class ExpertRequest(core_models.UuidMixin,
         PENDING = 'pending'
         ACTIVE = 'active'
         CANCELLED = 'cancelled'
-        FINISHED = 'finished'
+        COMPLETED = 'completed'
 
         CHOICES = (
             (PENDING, _('Pending')),
             (ACTIVE, _('Active')),
             (CANCELLED, _('Cancelled')),
-            (FINISHED, _('Finished'))
+            (COMPLETED, _('Completed'))
         )
 
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
@@ -81,6 +81,10 @@ class ExpertRequest(core_models.UuidMixin,
 
     def __str__(self):
         return '{} / {}'.format(self.project.name, self.project.customer.name)
+
+    def revoke_team_permissions(self):
+        for permission in self.contract.team.permissions.all():
+            permission.revoke()
 
 
 class PriceMixin(models.Model):

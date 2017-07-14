@@ -64,6 +64,32 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         support_backend.get_active_backend().create_issue(expert_request.issue)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic()
+    @decorators.detail_route(methods=['post'])
+    def cancel(self, request, *args, **kwargs):
+        expert_request = self.get_object()
+        expert_request.state = models.ExpertRequest.States.CANCELLED
+        expert_request.revoke_team_permissions()
+        return response.Response({'status': _('Expert request has been cancelled.')}, status=status.HTTP_200_OK)
+
+    @transaction.atomic()
+    @decorators.detail_route(methods=['post'])
+    def complete(self, request, *args, **kwargs):
+        expert_request = self.get_object()
+        expert_request.state = models.ExpertRequest.States.COMPLETED
+        expert_request.revoke_team_permissions()
+        return response.Response({'status': _('Expert request has been completed.')}, status=status.HTTP_200_OK)
+
+    def is_active_request(request, view, obj=None):
+        if obj and obj.request.state != models.ExpertRequest.States.ACTIVE:
+            raise exceptions.ValidationError(_('Expert request should be in active state.'))
+
+    def has_contract(request, view, obj=None):
+        if obj and not obj.request.contract:
+            raise exceptions.ValidationError(_('Expert request should have related contract.'))
+
+    cancel_permissions = complete_permissions = [is_active_request, has_contract]
+
 
 class ExpertBidViewSet(core_views.ActionsViewSet):
     queryset = models.ExpertBid.objects.all()

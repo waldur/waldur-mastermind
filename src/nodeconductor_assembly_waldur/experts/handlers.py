@@ -19,10 +19,27 @@ def log_expert_request_state_changed(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if instance.tracker.has_changed('state') and instance.state == models.ExpertRequest.States.ACTIVE:
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state == models.ExpertRequest.States.ACTIVE:
         event_logger.waldur_expert_request.info(
-            'Request {expert_request_name} has been activated.',
+            'Expert request {expert_request_name} has been activated.',
             event_type='expert_request_activated',
+            event_context={
+                'expert_request': instance,
+            })
+    elif instance.state == models.ExpertRequest.States.CANCELLED:
+        event_logger.waldur_expert_request.info(
+            'Expert request {expert_request_name} has been cancelled.',
+            event_type='expert_request_cancelled',
+            event_context={
+                'expert_request': instance,
+            })
+    elif instance.state == models.ExpertRequest.States.FINISHED:
+        event_logger.waldur_expert_request.info(
+            'Expert request {expert_request_name} has been completed.',
+            event_type='expert_request_completed',
             event_context={
                 'expert_request': instance,
             })
