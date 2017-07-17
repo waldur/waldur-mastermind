@@ -36,7 +36,7 @@ def log_expert_request_state_changed(sender, instance, created=False, **kwargs):
             event_context={
                 'expert_request': instance,
             })
-    elif instance.state == models.ExpertRequest.States.FINISHED:
+    elif instance.state == models.ExpertRequest.States.COMPLETED:
         event_logger.waldur_expert_request.info(
             'Expert request {expert_request_name} has been completed.',
             event_type='expert_request_completed',

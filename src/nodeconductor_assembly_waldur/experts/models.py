@@ -84,7 +84,7 @@ class ExpertRequest(core_models.UuidMixin,
 
     def revoke_team_permissions(self):
         for permission in self.contract.team.permissions.all():
-            permission.revoke()
+            self.project.remove_user(permission.user)
 
 
 class PriceMixin(models.Model):
