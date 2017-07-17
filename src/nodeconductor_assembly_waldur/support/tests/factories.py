@@ -68,7 +68,7 @@ class OfferingFactory(factory.DjangoModelFactory):
         model = models.Offering
 
     issue = factory.SubFactory(IssueFactory)
-    price = fuzzy.FuzzyInteger(1, 10)
+    unit_price = fuzzy.FuzzyInteger(1, 10)
     project = factory.SelfAttribute('issue.project')
 
     @classmethod

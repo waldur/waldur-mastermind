@@ -414,10 +414,11 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'state', 'type_label', 'price', 'created', 'modified',
-                  'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'state', 'type_label', 'unit_price',
+                  'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
+                  'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid', 'product_code', 'article_code')
-        read_only_fields = ('type_label', 'issue', 'price', 'state', 'product_code', 'article_code')
+        read_only_fields = ('type_label', 'issue', 'unit_price', 'unit', 'state', 'product_code', 'article_code')
         protected_fields = ('project', 'type')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
@@ -563,10 +564,12 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
 
 
 class OfferingCompleteSerializer(serializers.Serializer):
-    price = serializers.DecimalField(max_digits=13, decimal_places=7)
+    unit_price = serializers.DecimalField(max_digits=13, decimal_places=7)
+    unit = serializers.ChoiceField(choices=models.Offering.Units.CHOICES, default=models.Offering.Units.PER_DAY)
 
     def update(self, instance, validated_data):
-        instance.price = validated_data['price']
+        instance.unit_price = validated_data['unit_price']
+        instance.unit = validated_data['unit']
         instance.state = models.Offering.States.OK
-        instance.save(update_fields=['state', 'price'])
+        instance.save(update_fields=['state', 'unit_price', 'unit'])
         return instance

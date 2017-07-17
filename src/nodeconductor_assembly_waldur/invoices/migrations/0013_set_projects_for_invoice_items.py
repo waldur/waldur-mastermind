@@ -7,7 +7,8 @@ from nodeconductor.structure.permissions import _get_project
 
 
 def set_invoice_item_project(apps, schema_editor):
-    from nodeconductor_assembly_waldur.invoices.models import OpenStackItem, OfferingItem
+    OpenStackItem = apps.get_model('invoices', 'OpenStackItem')
+    OfferingItem = apps.get_model('invoices', 'OfferingItem')
 
     for item in OpenStackItem.objects.all().exclude(package__isnull=True):
         project = _get_project(item.package)

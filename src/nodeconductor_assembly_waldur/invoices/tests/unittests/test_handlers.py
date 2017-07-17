@@ -306,7 +306,7 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
 
         self.assertEqual(models.Invoice.objects.count(), 1)
         self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
-        expected_price = offering.price * usage_days
+        expected_price = offering.unit_price * usage_days
         self.assertEqual(invoice.price, Decimal(expected_price))
 
     def test_existing_invoice_is_update_on_offering_creation_if_it_has_package_item_for_same_customer(self):
@@ -326,7 +326,7 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
             self.assertEqual(models.Invoice.objects.count(), 1)
 
         self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
-        expected_price = offering.price * usage_days + components_price
+        expected_price = offering.unit_price * usage_days + components_price
         self.assertEqual(invoice.price, Decimal(expected_price))
 
 
@@ -349,7 +349,7 @@ class UpdateInvoiceOnOfferingDeletionTest(TestCase):
         with freeze_time(end_date):
             offering.delete()
 
-        expected_price = offering.price * usage_days
+        expected_price = offering.unit_price * usage_days
         self.assertEqual(invoice.price, Decimal(expected_price))
 
     def test_invoice_is_created_in_new_month_when_single_item_is_terminated(self):
@@ -393,11 +393,14 @@ class UpdateInvoiceOnOfferingStateChange(TestCase):
             self.assertEqual(models.Invoice.objects.count(), 1)
 
     def test_offering_item_is_terminated_when_its_state_changes(self):
+        self.offering.state = self.offering.States.OK
+        self.offering.save()
+
         termination_date = self.start_date + timezone.timedelta(days=2)
         deletion_date = termination_date + timezone.timedelta(days=2)
         usage_days = utils.get_full_days(self.start_date, termination_date)
 
-        expected_price = self.offering.price * usage_days
+        expected_price = self.offering.unit_price * usage_days
         with freeze_time(termination_date):
             self.offering.state = self.offering.States.TERMINATED
             self.offering.save()

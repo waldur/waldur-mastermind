@@ -1,10 +1,8 @@
 from __future__ import unicode_literals
-from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -14,6 +12,7 @@ from model_utils.models import TimeStampedModel
 
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
+from nodeconductor_assembly_waldur.common import mixins as common_mixins
 from nodeconductor_assembly_waldur.invoices import mixins as invoices_mixins
 
 from . import managers
@@ -133,6 +132,7 @@ class Comment(core_models.UuidMixin, core_models.BackendModelMixin, TimeStampedM
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                invoices_mixins.ProductCodeMixin,
+               common_mixins.UnitPriceMixin,
                structure_models.StructureLoggableMixin,
                TimeStampedModel):
 
@@ -153,10 +153,6 @@ class Offering(core_models.UuidMixin,
     type = models.CharField(max_length=255)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
-    price = models.DecimalField(default=0, max_digits=13, decimal_places=7,
-                                validators=[MinValueValidator(Decimal('0'))],
-                                help_text=_('Price per day'),
-                                verbose_name=_('Price per day'))
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
 
     tracker = FieldTracker()
