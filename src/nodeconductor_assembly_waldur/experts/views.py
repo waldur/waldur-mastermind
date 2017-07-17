@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
@@ -63,6 +64,49 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         expert_request = serializer.save()
         support_backend.get_active_backend().create_issue(expert_request.issue)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @transaction.atomic()
+    @decorators.detail_route(methods=['post'])
+    def cancel(self, request, *args, **kwargs):
+        expert_request = self.get_object()
+        expert_request.state = models.ExpertRequest.States.CANCELLED
+        expert_request.save(update_fields=['state'])
+        expert_request.revoke_team_permissions()
+        return response.Response({'status': _('Expert request has been cancelled.')}, status=status.HTTP_200_OK)
+
+    @transaction.atomic()
+    @decorators.detail_route(methods=['post'])
+    def complete(self, request, *args, **kwargs):
+        expert_request = self.get_object()
+        expert_request.state = models.ExpertRequest.States.COMPLETED
+        expert_request.save(update_fields=['state'])
+        expert_request.revoke_team_permissions()
+        return response.Response({'status': _('Expert request has been completed.')}, status=status.HTTP_200_OK)
+
+    def is_active_request(request, view, obj=None):
+        expert_request = obj
+
+        if not expert_request:
+            return
+
+        if expert_request.state != models.ExpertRequest.States.ACTIVE:
+            raise exceptions.ValidationError(_('Expert request should be in active state.'))
+
+        try:
+            expert_request.contract
+        except django_exceptions.ObjectDoesNotExist:
+            raise exceptions.ValidationError(_('Expert request should have related contract.'))
+
+    def is_owner(request, view, obj=None):
+        expert_request = obj
+
+        if not expert_request:
+            return
+
+        if not structure_permissions._has_owner_access(request.user, expert_request.project.customer):
+            raise exceptions.PermissionDenied()
+
+    cancel_permissions = complete_permissions = [is_owner, is_active_request]
 
 
 class ExpertBidViewSet(core_views.ActionsViewSet):

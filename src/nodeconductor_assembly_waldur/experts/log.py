@@ -10,6 +10,8 @@ class ExpertRequestEventLogger(EventLogger):
         event_types = (
             'expert_request_created',
             'expert_request_activated',
+            'expert_request_cancelled',
+            'expert_request_completed',
         )
         event_groups = {
             'experts': event_types,

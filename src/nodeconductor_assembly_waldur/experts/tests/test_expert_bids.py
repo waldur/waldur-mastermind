@@ -115,7 +115,7 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
         self.client.force_authenticate(self.project_fixture.owner)
         with mock.patch('logging.LoggerAdapter.info') as mocked_info:
             response = self.accept_bid()
-            template = 'Request {expert_request_name} has been activated.'
+            template = 'Expert request {expert_request_name} has been activated.'
             context = {
                 'expert_request_name': self.expert_bid.request.name,
             }
