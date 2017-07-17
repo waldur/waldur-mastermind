@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import datetime
-from decimal import Decimal
 
 from django.apps import apps
 from django.conf import settings
@@ -18,6 +17,7 @@ from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
+from nodeconductor_assembly_waldur.common.mixins import UnitPriceMixin
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.support import models as support_models
 from . import utils, mixins
@@ -102,7 +102,8 @@ class Invoice(core_models.UuidMixin, models.Model):
         end = core_utils.month_end(start)
         OfferingItem.objects.create(
             offering=offering,
-            daily_price=offering.price,
+            unit_price=offering.unit_price,
+            unit=offering.unit,
             invoice=self,
             start=start,
             end=end,
@@ -113,7 +114,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class InvoiceItem(mixins.ProductCodeMixin):
+class InvoiceItem(mixins.ProductCodeMixin, UnitPriceMixin):
     """
     Mixin which identifies invoice item to be used for price calculation.
     """
@@ -121,14 +122,10 @@ class InvoiceItem(mixins.ProductCodeMixin):
     class Meta(object):
         abstract = True
 
-    daily_price = models.DecimalField(max_digits=22, decimal_places=7,
-                                      validators=[MinValueValidator(Decimal('0'))],
-                                      default=0,
-                                      help_text=_('Price per day.'))
     start = models.DateTimeField(default=utils.get_current_month_start,
-                                 help_text=_('Date and time when package usage has started.'))
+                                 help_text=_('Date and time when item usage has started.'))
     end = models.DateTimeField(default=utils.get_current_month_end,
-                               help_text=_('Date and time when package usage has ended.'))
+                               help_text=_('Date and time when item usage has ended.'))
 
     # Project name and UUID should be stored separately because project is not available after removal
     project = models.ForeignKey(structure_models.Project, on_delete=models.SET_NULL, null=True)
@@ -150,7 +147,15 @@ class InvoiceItem(mixins.ProductCodeMixin):
 
     @property
     def price(self):
-        return self.daily_price * self.usage_days
+        if self.unit == self.Units.PER_DAY:
+            return self.unit_price * self.usage_days
+        elif self.unit == self.Units.PER_HALF_MONTH:
+            if self.start.day >= 15 or self.end.day <= 15:
+                return self.unit_price
+            else:
+                return self.unit_price * 2
+
+        return self.unit_price
 
     @property
     def usage_days(self):
@@ -185,7 +190,7 @@ class OfferingItem(InvoiceItem):
     @property
     def name(self):
         if self.offering_details:
-            return '%s (%s)' % (self.offering_details['project_name'], self.offering_details['offering_type'])
+            return '%s (%s)' % (self.project_name, self.offering_details['offering_type'])
 
         return '%s (%s)' % (self.offering.project.name, self.offering.type)
 
@@ -194,9 +199,14 @@ class OfferingItem(InvoiceItem):
         Saves offering type and project name in "package_details" if offering exists
         """
         if self.offering:
-            self.offering_details['project_name'] = self.offering.project.name
             self.offering_details['offering_type'] = self.offering.type
             self.save(update_fields=['offering_details'])
+
+    def get_offering_type(self):
+        if self.offering:
+            return self.offering.type
+        else:
+            return self.offering_details.get('offering_type')
 
 
 class OpenStackItem(InvoiceItem):

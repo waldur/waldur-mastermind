@@ -7,10 +7,11 @@ from nodeconductor.structure import admin as structure_admin
 from . import models
 
 
-class OpenStackItemInline(admin.TabularInline):
-    model = models.OpenStackItem
-    readonly_fields = ('name', 'package', 'package_details', 'price', 'start', 'end',
-                       'product_code', 'article_code')
+class InvoiceItemInline(admin.TabularInline):
+    model = models.InvoiceItem
+    readonly_fields = ('name', 'price', 'unit_price', 'unit', 'start', 'end',
+                       'project_name', 'project_uuid', 'product_code', 'article_code')
+    exclude = ('project',)
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -19,8 +20,18 @@ class OpenStackItemInline(admin.TabularInline):
         return False
 
 
+class OpenStackItemInline(InvoiceItemInline):
+    model = models.OpenStackItem
+    readonly_fields = InvoiceItemInline.readonly_fields + ('package', 'package_details')
+
+
+class OfferingItemInline(InvoiceItemInline):
+    model = models.OfferingItem
+    readonly_fields = InvoiceItemInline.readonly_fields + ('offering', 'offering_details')
+
+
 class InvoiceAdmin(admin.ModelAdmin):
-    inlines = [OpenStackItemInline]
+    inlines = [OpenStackItemInline, OfferingItemInline]
     readonly_fields = ('customer', 'state', 'total', 'year', 'month')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
