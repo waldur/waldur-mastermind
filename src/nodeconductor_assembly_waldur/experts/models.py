@@ -82,10 +82,6 @@ class ExpertRequest(core_models.UuidMixin,
     def __str__(self):
         return '{} / {}'.format(self.project.name, self.project.customer.name)
 
-    def revoke_team_permissions(self):
-        for permission in self.contract.team.permissions.filter(is_active=True):
-            self.project.remove_user(permission.user)
-
 
 class PriceMixin(models.Model):
     class Meta(object):
