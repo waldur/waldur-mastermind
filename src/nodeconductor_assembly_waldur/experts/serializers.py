@@ -151,4 +151,4 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
     def get_team_members(self, request):
         user_ids = request.team.permissions.filter(is_active=True).values_list('user_id')
         users = core_models.User.objects.filter(pk__in=user_ids)
-        return users.values('username', 'email', 'full_name')
+        return users.values('username', 'email', 'full_name', 'uuid')
