@@ -2,6 +2,7 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
+from nodeconductor.core import models as core_models
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import permissions as structure_permissions
 from nodeconductor_assembly_waldur.support import models as support_models
@@ -117,11 +118,14 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
 
 class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
                           serializers.HyperlinkedModelSerializer):
+
+    team_members = serializers.SerializerMethodField(source='get_team_members')
+
     class Meta(object):
         model = models.ExpertBid
         fields = (
             'url', 'uuid', 'created', 'modified', 'price', 'description',
-            'team', 'team_uuid', 'team_name',
+            'team', 'team_uuid', 'team_name', 'team_members',
             'request', 'request_uuid', 'request_name',
         )
         related_paths = {
@@ -143,3 +147,8 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
         request = self.context['request']
         validated_data['user'] = request.user
         return super(ExpertBidSerializer, self).create(validated_data)
+
+    def get_team_members(self, request):
+        user_ids = request.team.permissions.filter(is_active=True).values_list('user_id')
+        users = core_models.User.objects.filter(pk__in=user_ids)
+        return users.values('username', 'email', 'full_name')

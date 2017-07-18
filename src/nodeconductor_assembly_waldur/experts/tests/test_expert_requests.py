@@ -4,6 +4,8 @@ from rest_framework import test, status
 from nodeconductor.structure import models as structure_models
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
+from nodeconductor.users import models as user_models
+from nodeconductor.users.tests import factories as user_factories
 from nodeconductor_assembly_waldur.support.tests.base import override_offerings
 
 from .. import models
@@ -166,6 +168,27 @@ class ExpertRequestCancelTest(ExpertRequestActionsTest):
 
         # Assert
         self.assertFalse(self.expert_request.project.has_user(expert))
+
+    def test_when_expert_request_is_cancelled_pending_invitations_are_cancelled(self):
+        # Arrange
+        expert = structure_factories.UserFactory()
+        self.expert_team.add_user(expert, structure_models.ProjectRole.ADMINISTRATOR)
+        user_factories.ProjectInvitationFactory(
+            email=expert.email,
+            project=self.expert_request.project,
+            project_role=structure_models.ProjectRole.ADMINISTRATOR,
+        )
+
+        # Act
+        self.client.force_authenticate(self.staff)
+        response = self.cancel_expert_request()
+
+        # Assert
+        pending_invitations = user_models.Invitation.objects.filter(state=user_models.Invitation.State.PENDING)
+        self.assertFalse(pending_invitations.exists())
+
+        cancelled_invitations = user_models.Invitation.objects.filter(state=user_models.Invitation.State.CANCELED)
+        self.assertEqual(cancelled_invitations.count(), 1)
 
     def cancel_expert_request(self):
         url = factories.ExpertRequestFactory.get_url(self.expert_request, 'cancel')
