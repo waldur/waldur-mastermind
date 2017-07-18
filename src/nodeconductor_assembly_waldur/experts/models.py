@@ -83,7 +83,7 @@ class ExpertRequest(core_models.UuidMixin,
         return '{} / {}'.format(self.project.name, self.project.customer.name)
 
     def revoke_team_permissions(self):
-        for permission in self.contract.team.permissions.all():
+        for permission in self.contract.team.permissions.filter(is_active=True):
             self.project.remove_user(permission.user)
 
 

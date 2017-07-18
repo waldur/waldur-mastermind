@@ -113,7 +113,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     queryset = models.ExpertBid.objects.all()
     serializer_class = serializers.ExpertBidSerializer
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (DjangoFilterBackend,)
     filter_class = filters.ExpertBidFilter
     disabled_actions = ['destroy', 'update']
 
