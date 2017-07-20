@@ -558,7 +558,10 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
-            type=type)
+            type=type,
+            product_code=offering_configuration.get('product_code', ''),
+            article_code=offering_configuration.get('article_code', ''),
+        )
 
         return offering
 
