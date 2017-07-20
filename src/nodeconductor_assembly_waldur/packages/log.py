@@ -11,6 +11,7 @@ class OpenStackPackageLogger(EventLogger):
         event_groups = {
             'customers': event_types,
             'packages': event_types,
+            'debug_only': event_types
         }
         nullable_fields = ('service_settings',)
 
