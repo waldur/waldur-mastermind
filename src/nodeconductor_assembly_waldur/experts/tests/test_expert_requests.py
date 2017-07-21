@@ -137,6 +137,14 @@ class ExpertRequestCancelTest(ExpertRequestActionsTest):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_pending_expert_request_can_be_cancelled(self):
+        self.expert_request.state = models.ExpertRequest.States.PENDING
+        self.expert_request.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.cancel_expert_request()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_when_expert_request_is_cancelled_its_state_is_changed(self):
         self.client.force_authenticate(self.staff)
 

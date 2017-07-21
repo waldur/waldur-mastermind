@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-07-11 10:49+0300\n"
+"POT-Creation-Date: 2017-07-21 10:12+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,16 +17,12 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: models.py:22
+#: models.py:24
 msgid "Expert providers"
 msgstr ""
 
-#: models.py:46
-msgid "Requested"
-msgstr ""
-
 #: models.py:47
-msgid "Responded"
+msgid "Pending"
 msgstr ""
 
 #: models.py:48
@@ -38,21 +34,41 @@ msgid "Cancelled"
 msgstr ""
 
 #: models.py:50
-msgid "Finished"
+msgid "Completed"
 msgstr ""
 
 #: models.py:54
 msgid "The user which has created this request."
 msgstr ""
 
-#: models.py:85
+#: models.py:101
 msgid "The user which has created this bid."
 msgstr ""
 
-#: serializers.py:32
+#: serializers.py:35
 msgid "User must agree with policies to register organization."
 msgstr ""
 
-#: serializers.py:66
+#: serializers.py:88
 msgid "Active expert request for current project already exists."
+msgstr ""
+
+#: serializers.py:143 views.py:184
+msgid "Expert request should be in pending state."
+msgstr ""
+
+#: views.py:109
+msgid "Expert request has been cancelled."
+msgstr ""
+
+#: views.py:118
+msgid "Expert request has been completed."
+msgstr ""
+
+#: views.py:127
+msgid "Expert request should be in active or pending state."
+msgstr ""
+
+#: views.py:180
+msgid "Expert bid has been accepted."
 msgstr ""
