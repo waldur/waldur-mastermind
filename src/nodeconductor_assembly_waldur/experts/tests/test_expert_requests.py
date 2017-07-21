@@ -140,6 +140,7 @@ class ExpertRequestCancelTest(ExpertRequestActionsTest):
     def test_pending_expert_request_can_be_cancelled(self):
         self.expert_request.state = models.ExpertRequest.States.PENDING
         self.expert_request.save()
+        self.expert_contract.delete()
 
         self.client.force_authenticate(self.staff)
         response = self.cancel_expert_request()

@@ -54,7 +54,7 @@ def cancel_team_invitations(team, project):
 
 
 def revoke_request_permissions(expert_request):
-    if not expert_request.contract:
+    if not hasattr(expert_request, 'contract'):
         return
     team = expert_request.contract.team
     project = expert_request.project
