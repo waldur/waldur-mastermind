@@ -53,7 +53,11 @@ def cancel_team_invitations(team, project):
         invitation.cancel()
 
 
-def revoke_team_permissions(team, project):
+def revoke_request_permissions(expert_request):
+    if not expert_request.contract:
+        return
+    team = expert_request.contract.team
+    project = expert_request.project
     for permission in team.permissions.filter(is_active=True):
         project.remove_user(permission.user)
     cancel_team_invitations(team, project)
@@ -101,7 +105,7 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         expert_request = self.get_object()
         expert_request.state = models.ExpertRequest.States.CANCELLED
         expert_request.save(update_fields=['state'])
-        revoke_team_permissions(expert_request.contract.team, expert_request.project)
+        revoke_request_permissions(expert_request)
         return response.Response({'status': _('Expert request has been cancelled.')}, status=status.HTTP_200_OK)
 
     @transaction.atomic()
@@ -110,22 +114,17 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         expert_request = self.get_object()
         expert_request.state = models.ExpertRequest.States.COMPLETED
         expert_request.save(update_fields=['state'])
-        revoke_team_permissions(expert_request.contract.team, expert_request.project)
+        revoke_request_permissions(expert_request)
         return response.Response({'status': _('Expert request has been completed.')}, status=status.HTTP_200_OK)
 
-    def is_active_request(request, view, obj=None):
+    def is_valid_request(request, view, obj=None):
         expert_request = obj
 
         if not expert_request:
             return
 
-        if expert_request.state != models.ExpertRequest.States.ACTIVE:
-            raise exceptions.ValidationError(_('Expert request should be in active state.'))
-
-        try:
-            expert_request.contract
-        except django_exceptions.ObjectDoesNotExist:
-            raise exceptions.ValidationError(_('Expert request should have related contract.'))
+        if expert_request.state not in (models.ExpertRequest.States.ACTIVE, models.ExpertRequest.States.PENDING):
+            raise exceptions.ValidationError(_('Expert request should be in active or pending state.'))
 
     def is_owner(request, view, obj=None):
         expert_request = obj
@@ -136,7 +135,7 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         if not structure_permissions._has_owner_access(request.user, expert_request.project.customer):
             raise exceptions.PermissionDenied()
 
-    cancel_permissions = complete_permissions = [is_owner, is_active_request]
+    cancel_permissions = complete_permissions = [is_owner, is_valid_request]
 
 
 class ExpertBidViewSet(core_views.ActionsViewSet):
