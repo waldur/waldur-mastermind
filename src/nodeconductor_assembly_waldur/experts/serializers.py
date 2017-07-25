@@ -60,11 +60,21 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     description = serializers.CharField(required=False)
     contract = ExpertContractSerializer(required=False, read_only=True)
+    customer = serializers.HyperlinkedRelatedField(
+        source='project.customer',
+        view_name='customer-detail',
+        read_only=True,
+        lookup_field='uuid'
+    )
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
 
     class Meta(object):
         model = models.ExpertRequest
         fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description',
-                  'project', 'project_name', 'project_uuid', 'created', 'modified', 'contract',
+                  'customer', 'customer_name', 'customer_uuid',
+                  'project', 'project_name', 'project_uuid',
+                  'created', 'modified', 'contract',
                   'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',)
         read_only_fields = ('type_label', 'price', 'state', 'issue')
         protected_fields = ('project', 'type')
