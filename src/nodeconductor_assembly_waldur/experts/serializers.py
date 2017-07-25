@@ -4,7 +4,9 @@ from rest_framework import exceptions, serializers
 
 from nodeconductor.core import models as core_models
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import signals as core_signals
 from nodeconductor.structure import permissions as structure_permissions
+from nodeconductor.structure import serializers as structure_serializers
 from nodeconductor_assembly_waldur.support import models as support_models
 from nodeconductor_assembly_waldur.support import serializers as support_serializers
 
@@ -162,3 +164,15 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
         user_ids = request.team.permissions.filter(is_active=True).values_list('user_id')
         users = core_models.User.objects.filter(pk__in=user_ids)
         return users.values('username', 'email', 'full_name', 'uuid')
+
+
+def get_is_expert_provider(serializer, customer):
+    return models.ExpertProvider.objects.filter(customer=customer).exists()
+
+
+def add_expert_provider(sender, fields, **kwargs):
+    fields['is_expert_provider'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_expert_provider', get_is_expert_provider)
+
+
+core_signals.pre_serializer_fields.connect(add_expert_provider, sender=structure_serializers.CustomerSerializer)
