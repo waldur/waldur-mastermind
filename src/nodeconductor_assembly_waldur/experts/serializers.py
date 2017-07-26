@@ -4,7 +4,9 @@ from rest_framework import exceptions, serializers
 
 from nodeconductor.core import models as core_models
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import signals as core_signals
 from nodeconductor.structure import permissions as structure_permissions
+from nodeconductor.structure import serializers as structure_serializers
 from nodeconductor_assembly_waldur.support import models as support_models
 from nodeconductor_assembly_waldur.support import serializers as support_serializers
 
@@ -60,11 +62,21 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     description = serializers.CharField(required=False)
     contract = ExpertContractSerializer(required=False, read_only=True)
+    customer = serializers.HyperlinkedRelatedField(
+        source='project.customer',
+        view_name='customer-detail',
+        read_only=True,
+        lookup_field='uuid'
+    )
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
 
     class Meta(object):
         model = models.ExpertRequest
         fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description',
-                  'project', 'project_name', 'project_uuid', 'created', 'modified', 'contract',
+                  'customer', 'customer_name', 'customer_uuid',
+                  'project', 'project_name', 'project_uuid',
+                  'created', 'modified', 'contract',
                   'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',)
         read_only_fields = ('type_label', 'price', 'state', 'issue')
         protected_fields = ('project', 'type')
@@ -143,6 +155,11 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
             raise exceptions.ValidationError(_('Expert request should be in pending state.'))
         return request
 
+    def validate_team(self, team):
+        if not team.permissions.filter(is_active=True).exists():
+            raise exceptions.ValidationError(_('Expert team should have at least one member.'))
+        return team
+
     def create(self, validated_data):
         request = self.context['request']
         validated_data['user'] = request.user
@@ -152,3 +169,23 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
         user_ids = request.team.permissions.filter(is_active=True).values_list('user_id')
         users = core_models.User.objects.filter(pk__in=user_ids)
         return users.values('username', 'email', 'full_name', 'uuid')
+
+
+def get_is_expert_provider(serializer, scope):
+    customer = structure_permissions._get_customer(scope)
+    return models.ExpertProvider.objects.filter(customer=customer).exists()
+
+
+def add_expert_provider(sender, fields, **kwargs):
+    fields['is_expert_provider'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_expert_provider', get_is_expert_provider)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_expert_provider,
+)
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerPermissionSerializer,
+    receiver=add_expert_provider,
+)

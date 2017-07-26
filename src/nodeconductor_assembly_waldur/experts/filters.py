@@ -21,7 +21,7 @@ class ExpertRequestFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.ExpertRequest
-        fields = []
+        fields = ['state']
 
 
 class ExpertBidFilter(django_filters.FilterSet):

@@ -20,6 +20,7 @@ class ExpertBidBaseTest(test.APITransactionTestCase):
         self.project_fixture = structure_fixtures.ProjectFixture()
         self.project = self.project_fixture.project
         self.expert_request = factories.ExpertRequestFactory(project=self.project)
+        self.expert = self.project_fixture.admin
 
 
 class ExpertBidListTest(ExpertBidBaseTest):
@@ -74,6 +75,12 @@ class ExpertBidCreateTest(ExpertBidBaseTest):
         response = self.create_expert_bid()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('request', response.data)
+
+    def test_team_should_have_at_least_one_member(self):
+        self.project.remove_user(self.expert)
+        self.client.force_authenticate(self.expert_manager)
+        response = self.create_expert_bid()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_when_expert_bid_is_created_event_is_emitted(self):
         with mock.patch('logging.LoggerAdapter.info') as mocked_info:
