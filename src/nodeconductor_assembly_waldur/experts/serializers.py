@@ -155,6 +155,11 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
             raise exceptions.ValidationError(_('Expert request should be in pending state.'))
         return request
 
+    def validate_team(self, team):
+        if not team.permissions.filter(is_active=True).exists():
+            raise exceptions.ValidationError(_('Expert team should have at least one member.'))
+        return team
+
     def create(self, validated_data):
         request = self.context['request']
         validated_data['user'] = request.user
