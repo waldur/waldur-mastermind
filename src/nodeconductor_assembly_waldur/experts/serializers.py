@@ -166,7 +166,8 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
         return users.values('username', 'email', 'full_name', 'uuid')
 
 
-def get_is_expert_provider(serializer, customer):
+def get_is_expert_provider(serializer, scope):
+    customer = structure_permissions._get_customer(scope)
     return models.ExpertProvider.objects.filter(customer=customer).exists()
 
 
@@ -175,4 +176,11 @@ def add_expert_provider(sender, fields, **kwargs):
     setattr(sender, 'get_is_expert_provider', get_is_expert_provider)
 
 
-core_signals.pre_serializer_fields.connect(add_expert_provider, sender=structure_serializers.CustomerSerializer)
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_expert_provider,
+)
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerPermissionSerializer,
+    receiver=add_expert_provider,
+)
