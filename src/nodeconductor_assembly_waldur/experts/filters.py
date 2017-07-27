@@ -18,6 +18,15 @@ class ExpertRequestFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    o = django_filters.OrderingFilter(fields=(
+        'name',
+        'type',
+        'state',
+        'customer_name',
+        'project_name',
+        'created',
+        'modified',
+    ))
 
     class Meta(object):
         model = models.ExpertRequest
