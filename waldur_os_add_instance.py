@@ -215,7 +215,7 @@ def main():
     except WaldurClientException as error:
         module.fail_json(msg=error.message)
     else:
-        module.exit_json(meta=instance['url'])
+        module.exit_json(instance=instance)
 
 
 if __name__ == '__main__':

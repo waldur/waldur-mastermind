@@ -4,6 +4,14 @@ from uuid import UUID
 import requests
 
 
+def is_uuid(value):
+    try:
+        UUID(value)
+        return True
+    except ValueError:
+        return False
+
+
 class WaldurClientException(Exception):
     pass
 
@@ -29,7 +37,7 @@ class TimeoutError(WaldurClientException):
 
 
 class WaldurClient(object):
-    resource_stable_states = ['OK', 'ERRED']
+    resource_stable_states = ['OK', 'Erred']
 
     class Endpoints(object):
         Provider = 'openstacktenant'
@@ -113,14 +121,10 @@ class WaldurClient(object):
         :return: a resource as a dictionary.
         :raises: WaldurClientException if resource could not be received or response failed.
         """
-        try:
-            uuid = UUID(value)
-        except ValueError:
-            resource = self._query_resource_by_name(endpoint, value)
+        if is_uuid(value):
+            return self._query_resource_by_uuid(endpoint, value)
         else:
-            resource = self._query_resource_by_uuid(endpoint, uuid)
-
-        return resource
+            return self._query_resource_by_name(endpoint, value)
 
     def _create_resource(self, endpoint, payload=None, valid_state=201):
         url = self._build_url(endpoint)
@@ -171,11 +175,22 @@ class WaldurClient(object):
     def _get_project(self, identifier):
         return self._get_resource(self.Endpoints.Project, identifier)
 
-    def _get_flavor(self, identifier):
-        return self._get_resource(self.Endpoints.Flavor, identifier)
+    def _get_property(self, endpoint, identifier, settings_uuid):
+        query = {'settings_uuid': settings_uuid}
+        if is_uuid(identifier):
+            query['uuid'] = identifier
+        else:
+            query['name_exact'] = identifier
+        return self._query_resource(endpoint, query)
 
-    def _get_image(self, identifier):
-        return self._get_resource(self.Endpoints.Image, identifier)
+    def _get_flavor(self, identifier, settings_uuid):
+        return self._get_property(self.Endpoints.Flavor, identifier, settings_uuid)
+
+    def _get_image(self, identifier, settings_uuid):
+        return self._get_property(self.Endpoints.Image, identifier, settings_uuid)
+
+    def _get_security_group(self, identifier, settings_uuid):
+        return self._get_property(self.Endpoints.SecurityGroup, identifier, settings_uuid)
 
     def _get_floating_ip(self, address):
         return self._query_resource(self.Endpoints.FloatingIP, {'address': address})
@@ -337,12 +352,13 @@ class WaldurClient(object):
         :return: an instance as a dictionary.
         """
         provider = self._get_provider(provider)
+        settings_uuid = provider['settings_uuid']
         project = self._get_project(project)
         service_project_link = self._get_service_project_link(
             provider_uuid=provider['uuid'],
             project_uuid=project['uuid'])
-        flavor = self._get_flavor(flavor)
-        image = self._get_image(image)
+        flavor = self._get_flavor(flavor, settings_uuid)
+        image = self._get_image(image, settings_uuid)
         subnets, floating_ips = self._networks_to_payload(networks)
 
         payload = {
@@ -358,7 +374,7 @@ class WaldurClient(object):
         if security_groups:
             payload['security_groups'] = []
             for group in security_groups:
-                security_group = self._get_resource(self.Endpoints.SecurityGroup, group)
+                security_group = self._get_security_group(group, settings_uuid)
                 payload['security_groups'].append({'url': security_group['url']})
 
         if data_volume_size:
@@ -375,3 +391,10 @@ class WaldurClient(object):
             self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
 
         return instance
+
+    def get_instance(self, name, project):
+        if is_uuid(name):
+            return self._query_resource_by_uuid(self.Endpoints.Instance, name)
+        else:
+            query = {'project_name': project, 'name': name}
+            return self._query_resource(self.Endpoints.Instance, query)
