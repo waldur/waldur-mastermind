@@ -183,6 +183,39 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(response.data['project_uuid'].hex, self.fixture.project.uuid.hex)
 
 
+@override_support_settings(OFFERINGS={
+    'security_package': {
+        'label': 'Custom security package',
+        'article_code': 'WALDUR-SECURITY',
+        'product_code': 'PACK-001',
+        'order': ['vm_count'],
+        'options': {
+            'vm_count': {
+                'type': 'integer',
+                'label': 'Virtual machines count',
+            },
+        },
+    },
+})
+class OfferingCreateProductTest(BaseOfferingTest):
+    def setUp(self):
+        super(OfferingCreateProductTest, self).setUp()
+        self.url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_product_code_is_copied_from_configuration_to_offering(self):
+        valid_request = {
+            'type': 'security_package',
+            'name': 'Security package request',
+            'vm_count': 1000,
+            'project': structure_factories.ProjectFactory.get_url(self.fixture.project)
+        }
+        response = self.client.post(self.url, valid_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['article_code'], 'WALDUR-SECURITY')
+        self.assertEqual(response.data['product_code'], 'PACK-001')
+
+
 class OfferingUpdateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingUpdateTest, self).setUp()

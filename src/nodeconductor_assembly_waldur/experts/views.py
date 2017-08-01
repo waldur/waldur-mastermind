@@ -18,15 +18,6 @@ from nodeconductor_assembly_waldur.support import backend as support_backend
 from . import serializers, models, filters, tasks
 
 
-class ExpertProviderViewSet(viewsets.ModelViewSet):
-    queryset = models.ExpertProvider.objects.all()
-    serializer_class = serializers.ExpertProviderSerializer
-    lookup_field = 'uuid'
-    permission_classes = (permissions.IsAuthenticated,)
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.ExpertProviderFilter
-
-
 def is_expert_manager(user):
     if user.is_staff:
         return True
@@ -36,6 +27,49 @@ def is_expert_manager(user):
         customer__permissions__user=user,
         customer__permissions__role=structure_models.CustomerRole.OWNER,
     ).exists()
+
+
+def create_team_invitations(team, project, current_user):
+    for permission in team.permissions.filter(is_active=True):
+        invitation = user_models.Invitation.objects.create(
+            created_by=current_user,
+            email=permission.user.email,
+            customer=project.customer,
+            project=project,
+            project_role=structure_models.ProjectRole.ADMINISTRATOR,
+        )
+        user_tasks.send_invitation.delay(invitation.uuid.hex, current_user.full_name or current_user.username)
+
+
+def cancel_team_invitations(team, project):
+    user_emails = [permission.user.email for permission in team.permissions.filter(is_active=True)]
+    invitations = user_models.Invitation.objects.filter(
+        email__in=user_emails,
+        project=project,
+        project_role=structure_models.ProjectRole.ADMINISTRATOR,
+        state=user_models.Invitation.State.PENDING,
+    )
+    for invitation in invitations:
+        invitation.cancel()
+
+
+def revoke_request_permissions(expert_request):
+    if not hasattr(expert_request, 'contract'):
+        return
+    team = expert_request.contract.team
+    project = expert_request.project
+    for permission in team.permissions.filter(is_active=True):
+        project.remove_user(permission.user)
+    cancel_team_invitations(team, project)
+
+
+class ExpertProviderViewSet(viewsets.ModelViewSet):
+    queryset = models.ExpertProvider.objects.all()
+    serializer_class = serializers.ExpertProviderSerializer
+    lookup_field = 'uuid'
+    permission_classes = (permissions.IsAuthenticated,)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_class = filters.ExpertProviderFilter
 
 
 class ExpertRequestViewSet(core_views.ActionsViewSet):
@@ -71,7 +105,7 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         expert_request = self.get_object()
         expert_request.state = models.ExpertRequest.States.CANCELLED
         expert_request.save(update_fields=['state'])
-        expert_request.revoke_team_permissions()
+        revoke_request_permissions(expert_request)
         return response.Response({'status': _('Expert request has been cancelled.')}, status=status.HTTP_200_OK)
 
     @transaction.atomic()
@@ -80,22 +114,17 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         expert_request = self.get_object()
         expert_request.state = models.ExpertRequest.States.COMPLETED
         expert_request.save(update_fields=['state'])
-        expert_request.revoke_team_permissions()
+        revoke_request_permissions(expert_request)
         return response.Response({'status': _('Expert request has been completed.')}, status=status.HTTP_200_OK)
 
-    def is_active_request(request, view, obj=None):
+    def is_valid_request(request, view, obj=None):
         expert_request = obj
 
         if not expert_request:
             return
 
-        if expert_request.state != models.ExpertRequest.States.ACTIVE:
-            raise exceptions.ValidationError(_('Expert request should be in active state.'))
-
-        try:
-            expert_request.contract
-        except django_exceptions.ObjectDoesNotExist:
-            raise exceptions.ValidationError(_('Expert request should have related contract.'))
+        if expert_request.state not in (models.ExpertRequest.States.ACTIVE, models.ExpertRequest.States.PENDING):
+            raise exceptions.ValidationError(_('Expert request should be in active or pending state.'))
 
     def is_owner(request, view, obj=None):
         expert_request = obj
@@ -106,14 +135,14 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         if not structure_permissions._has_owner_access(request.user, expert_request.project.customer):
             raise exceptions.PermissionDenied()
 
-    cancel_permissions = complete_permissions = [is_owner, is_active_request]
+    cancel_permissions = complete_permissions = [is_owner, is_valid_request]
 
 
 class ExpertBidViewSet(core_views.ActionsViewSet):
     queryset = models.ExpertBid.objects.all()
     serializer_class = serializers.ExpertBidSerializer
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (DjangoFilterBackend,)
     filter_class = filters.ExpertBidFilter
     disabled_actions = ['destroy', 'update']
 
@@ -143,15 +172,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
             description=expert_bid.description,
         )
 
-        for permission in expert_bid.team.permissions.filter(is_active=True):
-            invitation = user_models.Invitation.objects.create(
-                created_by=current_user,
-                email=permission.user.email,
-                customer=expert_request.project.customer,
-                project=expert_request.project,
-                project_role=structure_models.ProjectRole.ADMINISTRATOR,
-            )
-            user_tasks.send_invitation.delay(invitation.uuid.hex, current_user.full_name or current_user.username)
+        create_team_invitations(expert_bid.team, expert_request.project, current_user)
 
         for permission in expert_request.project.customer.permissions.all():
             tasks.send_contract.delay(expert_request.uuid.hex, permission.user.email)
