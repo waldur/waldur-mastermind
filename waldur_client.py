@@ -396,5 +396,5 @@ class WaldurClient(object):
         if is_uuid(name):
             return self._query_resource_by_uuid(self.Endpoints.Instance, name)
         else:
-            query = {'project_name': project, 'name': name}
+            query = {'project_name': project, 'name_exact': name}
             return self._query_resource(self.Endpoints.Instance, query)
