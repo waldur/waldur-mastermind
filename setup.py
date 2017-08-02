@@ -23,6 +23,7 @@ setup(
     py_modules=['waldur_client'],
     install_requires=install_requires,
     tests_require=tests_requires,
+    test_suite='test_waldur_client',
     classifiers=[
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
