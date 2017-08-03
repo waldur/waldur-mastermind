@@ -37,5 +37,4 @@ Pass parameters to an Ansible playbook
 --------------------------------------
 .. code-block:: bash
 
-    ansible-playbook -m waldur_os_add_instance -e "access_token=token name=Instance Name api_url=https://waldur.example.com:8000"
-
+    ANSIBLE_LIBRARY=/usr/share/ansible-waldur/ ansible -m waldur_os_get_instance -a "api_url=https://waldur.example.com/api/ access_token=9036194e1ac54cada3248a8c6b203bf7 name=instance-name project='Project name'" localhost
