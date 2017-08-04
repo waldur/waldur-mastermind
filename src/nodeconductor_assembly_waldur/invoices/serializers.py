@@ -122,7 +122,7 @@ class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
         return fields
 
 
-class OpenStackItemReportSerializer(serializers.ModelSerializer):
+class InvoiceItemReportSerializer(serializers.ModelSerializer):
     invoice_number = serializers.ReadOnlyField(source='invoice.number')
     invoice_uuid = serializers.ReadOnlyField(source='invoice.uuid')
     invoice_year = serializers.ReadOnlyField(source='invoice.year')
@@ -174,9 +174,19 @@ class OpenStackItemReportSerializer(serializers.ModelSerializer):
                 field_kwargs.update(default_kwargs)
             return field_class, field_kwargs
 
-        return super(OpenStackItemReportSerializer, self).build_field(field_name, info, model_class, nested_depth)
+        return super(InvoiceItemReportSerializer, self).build_field(field_name, info, model_class, nested_depth)
 
     def get_extra_kwargs(self):
-        extra_kwargs = super(OpenStackItemReportSerializer, self).get_extra_kwargs()
+        extra_kwargs = super(InvoiceItemReportSerializer, self).get_extra_kwargs()
         extra_kwargs.update(settings.INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS'])
         return extra_kwargs
+
+
+class OpenStackItemReportSerializer(InvoiceItemReportSerializer):
+    class Meta(InvoiceItemReportSerializer.Meta):
+        model = models.OpenStackItem
+
+
+class OfferingItemReportSerializer(InvoiceItemReportSerializer):
+    class Meta(InvoiceItemReportSerializer.Meta):
+        model = models.OfferingItem

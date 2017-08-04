@@ -4,6 +4,7 @@ from rest_framework.reverse import reverse
 
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
+from nodeconductor_assembly_waldur.support.tests import factories as support_factories
 
 from .. import models
 
@@ -48,6 +49,15 @@ class OpenStackItemFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.OpenStackItem
 
-    price = 0
     invoice = factory.SubFactory(InvoiceFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
     package = factory.SubFactory(packages_factories.OpenStackPackageFactory)
+
+
+class OfferingItemFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OfferingItem
+
+    invoice = factory.SubFactory(InvoiceFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    offering = factory.SubFactory(support_factories.OfferingFactory)
