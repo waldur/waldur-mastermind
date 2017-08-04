@@ -29,7 +29,6 @@ class InvoicesExtension(NodeConductorExtension):
             'ENABLE_ACCOUNTING_START_DATE': False,
             'INVOICE_REPORTING': {
                 'ENABLE': False,
-                'SERIALIZER': 'nodeconductor_assembly_waldur.invoices.serializers.OpenStackItemReportSerializer',
                 'EMAIL': 'accounting@waldur.example.com',
                 'CSV_PARAMS': {
                     'delimiter': str(';'),
