@@ -96,4 +96,4 @@ def format_invoice_csv(invoice):
     writer = UnicodeDictWriter(stream, fieldnames=serializer_class.Meta.fields, **csv_params)
     writer.writeheader()
     writer.writerows(serializer.data)
-    return stream.getvalue()
+    return stream.getvalue().decode('utf-8')
