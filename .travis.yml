@@ -17,4 +17,4 @@ deploy:
   on:
     tags: true
     distributions: sdist bdist_wheel
-    repo: opennode/nodeconductor-assembly-waldur
+    repo: opennode/waldur-mastermind
