@@ -7,13 +7,12 @@ from django.core.mail import send_mail
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
-from django.utils.module_loading import import_string
 
 from nodeconductor.core import utils as core_utils
 from nodeconductor.core.csv import UnicodeDictWriter
 from nodeconductor.structure import models as structure_models
 
-from . import models, registrators
+from . import models, registrators, serializers
 
 
 logger = logging.getLogger(__name__)
@@ -89,11 +88,17 @@ def send_invoice_report(invoice_uuid):
 
 def format_invoice_csv(invoice):
     csv_params = settings.INVOICES['INVOICE_REPORTING']['CSV_PARAMS']
-    serializer_class = import_string(settings.INVOICES['INVOICE_REPORTING']['SERIALIZER'])
-    items = invoice.openstack_items.all().select_related('invoice__customer')
-    serializer = serializer_class(items, many=True)
+    fields = serializers.InvoiceItemReportSerializer.Meta.fields
     stream = cStringIO.StringIO()
-    writer = UnicodeDictWriter(stream, fieldnames=serializer_class.Meta.fields, **csv_params)
+    writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
     writer.writeheader()
-    writer.writerows(serializer.data)
-    return stream.getvalue()
+
+    openstack_items = invoice.openstack_items.all().select_related('invoice__customer')
+    openstack_serializer = serializers.OpenStackItemReportSerializer(openstack_items, many=True)
+    writer.writerows(openstack_serializer.data)
+
+    offering_items = invoice.offering_items.all().select_related('invoice__customer')
+    offering_serializer = serializers.OfferingItemReportSerializer(offering_items, many=True)
+    writer.writerows(offering_serializer.data)
+
+    return stream.getvalue().decode('utf-8')
