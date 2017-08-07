@@ -13,7 +13,7 @@ tests_requires = [
 
 setup(
     name='python-waldur-client',
-    version='0.0.1',
+    version='0.2.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -23,6 +23,7 @@ setup(
     py_modules=['waldur_client'],
     install_requires=install_requires,
     tests_require=tests_requires,
+    test_suite='test_waldur_client',
     classifiers=[
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',

@@ -51,7 +51,6 @@ class TestWaldurClient(unittest.TestCase):
     def setUpInstanceCreationResponses(self):
         post_url = '%s/openstacktenant-instances/' % self.params['api_url']
         mapping = {
-            'provider': 'openstacktenant',
             'project': 'projects',
             'flavor': 'openstacktenant-flavors',
             'image': 'openstacktenant-images',
@@ -62,6 +61,11 @@ class TestWaldurClient(unittest.TestCase):
         for name in mapping:
             obj = self._get_object(name)
             responses.add(responses.GET, self._get_url(mapping[name]), json=[obj])
+
+        provider = self._get_object('provider')
+        provider['settings_uuid'] = 'settings_uuid'
+        responses.add(responses.GET, self._get_url('openstacktenant'),
+                      json=[provider])
 
         service_project_link = self._get_object('service_project_link')
         responses.add(responses.GET, self._get_url('openstacktenant-service-project-link'),
