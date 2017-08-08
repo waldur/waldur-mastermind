@@ -86,6 +86,8 @@ class WaldurClient(object):
 
     def _query_resource(self, endpoint, query_params):
         url = self._build_url(endpoint)
+        if 'uuid' in query_params:
+            url += query_params.pop('uuid') + '/'
         try:
             response = requests.get(url, params=query_params, headers=self.headers)
         except requests.exceptions.RequestException as error:
@@ -100,8 +102,11 @@ class WaldurClient(object):
             message = 'Result is empty. Endpoint: %s. Query: %s' % (endpoint, query_params)
             raise ObjectDoesNotExist(message)
 
+        if isinstance(result, dict):
+            return result
+
         if len(result) > 1:
-            message = 'Ambiguous result. Endpoint: %s. Query: %s' % (endpoint, query_params)
+            message = 'Ambiguous result. Endpoint: %s. Query: %s' % (url, query_params)
             raise MultipleObjectsReturned(message)
 
         return result[0]
