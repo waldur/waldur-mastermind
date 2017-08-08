@@ -6,11 +6,11 @@
 #
 FROM centos:7
 
-ADD . /mnt/git
+ADD . /mnt/src
 
 RUN \
   yum --assumeyes install epel-release ;\
   yum --assumeyes update ;\
   yum --assumeyes install gcc python-devel python2-pip ;\
   yum clean all ;\
-  pip install --editable /mnt/git ;\
+  pip install --editable /mnt/src ;\
