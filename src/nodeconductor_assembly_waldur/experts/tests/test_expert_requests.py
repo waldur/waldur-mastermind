@@ -228,3 +228,24 @@ class ExpertRequestCompleteTest(ExpertRequestActionsTest):
     def complete_expert_request(self):
         url = factories.ExpertRequestFactory.get_url(self.expert_request, 'complete')
         return self.client.post(url)
+
+
+class CountersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.expert_request = factories.ExpertRequestFactory(project=self.fixture.project)
+
+    def test_project_counter_has_experts(self):
+        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
+        self.client.force_authenticate(self.fixture.owner)
+        self.assert_has_experts(url, 1)
+
+    def test_customer_counter_has_experts(self):
+        url = structure_factories.CustomerFactory.get_url(self.fixture.customer, action='counters')
+        self.client.force_authenticate(self.fixture.owner)
+        self.assert_has_experts(url, 1)
+
+    def assert_has_experts(self, url, count):
+        response = self.client.get(url, {'fields': ['experts']})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {'experts': count})
