@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
-from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
@@ -11,6 +10,7 @@ from nodeconductor.core import views as core_views
 from nodeconductor.structure import filters as structure_filters
 from nodeconductor.structure import models as structure_models
 from nodeconductor.structure import permissions as structure_permissions
+from nodeconductor.structure import views as structure_views
 from nodeconductor.users import models as user_models
 from nodeconductor.users import tasks as user_tasks
 from nodeconductor_assembly_waldur.support import backend as support_backend
@@ -184,3 +184,15 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
             raise exceptions.ValidationError(_('Expert request should be in pending state.'))
 
     accept_permissions = [structure_permissions.is_owner, is_pending_request]
+
+
+def get_project_experts_count(project):
+    return models.ExpertRequest.objects.filter(project=project).count()
+
+
+def get_customer_experts_count(customer):
+    return models.ExpertRequest.objects.count()
+
+
+structure_views.ProjectCountersView.register_counter('experts', get_project_experts_count)
+structure_views.CustomerCountersView.register_counter('experts', get_customer_experts_count)
