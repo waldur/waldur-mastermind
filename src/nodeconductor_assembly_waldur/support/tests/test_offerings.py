@@ -5,9 +5,10 @@ from django.conf import settings
 import mock
 
 from nodeconductor_assembly_waldur.support.backend import SupportBackendError
-from rest_framework import status
+from rest_framework import status, test
 
 from nodeconductor.structure.tests import factories as structure_factories
+from nodeconductor.structure.tests import fixtures as structure_fixtures
 from nodeconductor_assembly_waldur.support.tests.base import override_support_settings, override_offerings
 
 from . import base, factories
@@ -343,3 +344,18 @@ class OfferingGetConfiguredTest(BaseOfferingTest):
         response = self.client.get(url)
         available_offerings = response.data
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
+
+
+class CountersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.expert_request = factories.OfferingFactory(project=self.fixture.project)
+
+    def test_project_counter_has_experts(self):
+        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.get(url, {'fields': ['offerings']})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {'offerings': 1})
