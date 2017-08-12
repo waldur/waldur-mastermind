@@ -188,7 +188,8 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
 
 
 def get_project_experts_count(project):
-    query = Q(project=project, state=models.ExpertRequest.States.ACTIVE)
+    valid_states = (models.ExpertRequest.States.ACTIVE, models.ExpertRequest.States.PENDING)
+    query = Q(project=project, state__in=valid_states)
     return models.ExpertRequest.objects.filter(query).count()
 
 

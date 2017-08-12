@@ -235,6 +235,11 @@ class CountersTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.expert_request = factories.ExpertRequestFactory(project=self.fixture.project)
 
+    def test_pending_request_are_counted_for_project(self):
+        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
+        self.client.force_authenticate(self.fixture.owner)
+        self.assert_has_experts(url, 1)
+
     def test_active_request_are_counted_for_project(self):
         self.expert_request.state = models.ExpertRequest.States.ACTIVE
         self.expert_request.save()
