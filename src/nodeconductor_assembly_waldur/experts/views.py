@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
@@ -187,11 +188,14 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
 
 
 def get_project_experts_count(project):
-    return models.ExpertRequest.objects.filter(project=project).count()
+    query = Q(project=project, state=models.ExpertRequest.States.ACTIVE)
+    return models.ExpertRequest.objects.filter(query).count()
 
 
 def get_customer_experts_count(customer):
-    return models.ExpertRequest.objects.count()
+    query = Q(state=models.ExpertRequest.States.PENDING) |\
+            Q(state=models.ExpertRequest.States.ACTIVE, contract__team__customer=customer)
+    return models.ExpertRequest.objects.filter(query).count()
 
 
 structure_views.ProjectCountersView.register_counter('experts', get_project_experts_count)
