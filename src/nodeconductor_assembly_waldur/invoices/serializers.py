@@ -44,7 +44,8 @@ class OfferingItemSerializer(InvoiceItemSerializer):
         }
 
 
-class InvoiceSerializer(serializers.HyperlinkedModelSerializer):
+class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
+                        serializers.HyperlinkedModelSerializer):
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
