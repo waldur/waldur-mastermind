@@ -1,0 +1,19 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Enable package repositories
+  package: name={{ item }}
+  with_items:
+    - https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm
+
+- name: Install packages
+  package: name={{ item }}
+  with_items:
+    - postgresql96-server
+
+- name: Set up PostgreSQL server
+  command: /usr/pgsql-9.6/bin/postgresql96-setup initdb
+    creates=/var/lib/pgsql/9.6/data/pg_hba.conf
+
+- name: Enable and start PostgreSQL server
+  service: name=postgresql-9.6 state=started enabled=yes

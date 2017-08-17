@@ -1,0 +1,7 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Install and configure PostgreSQL 9.6 server
+  hosts: localhost
+  roles:
+    - postgresql_server
