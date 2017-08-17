@@ -63,23 +63,65 @@
         user: centos
 
 
-- name: Install and configure PostgreSQL 9.6 server
+- name: Install and configure Wordpress
   hosts: created_vm_instances
   tasks:
     - name: Enable package repositories
       package:
-        name: https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm
+        name: epel-release
 
     - name: Install packages
       package:
-        name: postgresql96-server
+        name: "{{ item }}"
+      with_items:
+        - mariadb-server
+        - MySQL-python
+        - wordpress
 
-    - name: Set up PostgreSQL server
-      command: /usr/pgsql-9.6/bin/postgresql96-setup initdb
-        creates=/var/lib/pgsql/9.6/data/pg_hba.conf
+    - name: Configure Apache HTTPd
+      lineinfile:
+        backrefs: yes
+        line: "    Require all granted"
+        path: /etc/httpd/conf.d/wordpress.conf
+        regexp: "^    Require local$"
+      notify: httpd_restart
+
+    - name: Configure Wordpress
+      lineinfile:
+        backrefs: yes
+        line: "{{ item.replace }}"
+        path: /etc/wordpress/wp-config.php
+        regexp: "{{ item.match }}"
+      with_items:
+        - match: "database_name_here"
+          replace: "define('DB_NAME', 'wordpress');"
+        - match: "password_here"
+          replace: "define('DB_PASSWORD', 'wordpress');"
+        - match: "username_here"
+          replace: "define('DB_USER', 'wordpress');"
 
     - name: Enable and start services
       service:
         enabled: yes
-        name: postgresql-9.6
+        name: "{{ item }}"
         state: started
+      with_items:
+        - mariadb
+        - httpd
+
+    - name: Create Wordpress database
+      mysql_db:
+        name: wordpress
+
+    - name: Create Wordpress database user
+      mysql_user:
+        name: wordpress
+        password: wordpress
+        priv: wordpress.*:ALL
+
+
+  handlers:
+    - name: httpd_restart
+      service:
+        name: httpd
+        state: restarted
