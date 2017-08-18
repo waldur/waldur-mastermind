@@ -63,61 +63,35 @@
         user: centos
 
 
-- name: Install and configure Wordpress
+- name: Install and configure ownCloud
   hosts: created_vm_instances
   tasks:
     - name: Enable package repositories
-      package:
-        name: epel-release
+      get_url:
+        dest: /etc/yum.repos.d/ce:stable.repo
+        mode: 0644
+        url: http://download.owncloud.org/download/repositories/stable/CentOS_7/ce:stable.repo
+
+    - name: Add ownCloud package repository keys
+      rpm_key:
+        key: https://download.owncloud.org/download/repositories/stable/CentOS_7/repodata/repomd.xml.key
 
     - name: Install packages
       package:
-        name: "{{ item }}"
-      with_items:
-        - mariadb-server
-        - MySQL-python
-        - wordpress
+        name: owncloud
 
     - name: Configure Apache HTTPd
-      lineinfile:
-        backrefs: yes
-        line: "    Require all granted"
-        path: /etc/httpd/conf.d/wordpress.conf
-        regexp: "^    Require local$"
+      copy:
+        dest: /etc/httpd/conf.d/owncloud.conf
+        remote_src: yes
+        src: /usr/share/lib/owncloud-files-9.1.6/owncloud-config-apache.conf.default
       notify: httpd_restart
-
-    - name: Configure Wordpress
-      lineinfile:
-        backrefs: yes
-        line: "{{ item.replace }}"
-        path: /etc/wordpress/wp-config.php
-        regexp: "{{ item.match }}"
-      with_items:
-        - match: "database_name_here"
-          replace: "define('DB_NAME', 'wordpress');"
-        - match: "password_here"
-          replace: "define('DB_PASSWORD', 'wordpress');"
-        - match: "username_here"
-          replace: "define('DB_USER', 'wordpress');"
 
     - name: Enable and start services
       service:
         enabled: yes
-        name: "{{ item }}"
+        name: httpd
         state: started
-      with_items:
-        - mariadb
-        - httpd
-
-    - name: Create Wordpress database
-      mysql_db:
-        name: wordpress
-
-    - name: Create Wordpress database user
-      mysql_user:
-        name: wordpress
-        password: wordpress
-        priv: wordpress.*:ALL
 
   handlers:
     - name: httpd_restart
