@@ -16,7 +16,11 @@
         name: Waldur
         project: "{{ project_uuid }}"
         provider: "{{ provider_uuid }}"
-        security_groups: ['default', 'ping', 'ssh']
+        security_groups:
+          - default
+          - ping
+          - ssh
+          - web
         ssh_key: "{{ public_key_uuid }}"
         subnet: "{{ subnet_uuid }}"
         system_volume_size: 30
@@ -63,7 +67,7 @@
         user: centos
 
 
-- name: Install and configure Wordpress
+- name: Install and configure WordPress
   hosts: created_vm_instances
   tasks:
     - name: Enable package repositories
@@ -86,7 +90,7 @@
         regexp: "^    Require local$"
       notify: httpd_restart
 
-    - name: Configure Wordpress
+    - name: Configure WordPress
       lineinfile:
         backrefs: yes
         line: "{{ item.replace }}"
@@ -109,11 +113,11 @@
         - mariadb
         - httpd
 
-    - name: Create Wordpress database
+    - name: Create WordPress database
       mysql_db:
         name: wordpress
 
-    - name: Create Wordpress database user
+    - name: Create WordPress database user
       mysql_user:
         name: wordpress
         password: wordpress

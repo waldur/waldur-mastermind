@@ -16,7 +16,11 @@
         name: Waldur
         project: "{{ project_uuid }}"
         provider: "{{ provider_uuid }}"
-        security_groups: ['default', 'ping', 'ssh']
+        security_groups:
+          - default
+          - ping
+          - ssh
+          - web
         ssh_key: "{{ public_key_uuid }}"
         subnet: "{{ subnet_uuid }}"
         system_volume_size: 30
