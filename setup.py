@@ -12,7 +12,7 @@ install_requires = [
     'nodeconductor_aws>=0.9.3',
     'nodeconductor_cost_planning>=0.4.2',
     'nodeconductor_digitalocean>=0.8.3',
-    'nodeconductor_openstack>=0.33.0',
+    'nodeconductor_openstack>0.33.2',
     'nodeconductor_saml2>=0.7.3',
     'waldur_freeipa>=0.2.2',
 ]

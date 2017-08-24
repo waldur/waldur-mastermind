@@ -117,45 +117,20 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         """ Create tenant and service settings from it """
         template = validated_data.pop('template')
         tenant = super(OpenStackPackageCreateSerializer, self).create(validated_data)
-
         _set_tenant_quotas(tenant, template)
         _set_tenant_extra_configuration(tenant, template)
 
-        service_settings = self._create_service_settings(tenant)
+        # service settings are created on tenant creation
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant,
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
+        )
         package = models.OpenStackPackage.objects.create(
             tenant=tenant,
             template=template,
             service_settings=service_settings,
         )
         return package
-
-    def _create_service_settings(self, tenant):
-        """ Create service settings from tenant and connect them to tenant project. """
-        admin_settings = tenant.service_project_link.service.settings
-        customer = tenant.service_project_link.project.customer
-        service_settings = structure_models.ServiceSettings.objects.create(
-            name=tenant.name,
-            scope=tenant,
-            customer=customer,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
-            backend_url=admin_settings.backend_url,
-            username=tenant.user_username,
-            password=tenant.user_password,
-            domain=admin_settings.domain,
-            options={
-                'availability_zone': tenant.availability_zone,
-                'tenant_id': tenant.backend_id,
-            },
-        )
-        service = openstack_tenant_models.OpenStackTenantService.objects.create(
-            settings=service_settings,
-            customer=customer,
-        )
-        openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.create(
-            service=service,
-            project=tenant.service_project_link.project,
-        )
-        return service_settings
 
 
 class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
@@ -243,3 +218,52 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
         )
 
         return new_package
+
+
+class OpenStackPackageAssignSerializer(serializers.Serializer):
+    template = serializers.HyperlinkedRelatedField(
+        view_name='package-template-detail',
+        lookup_field='uuid',
+        write_only=True,
+        queryset=models.PackageTemplate.objects.all()
+    )
+    tenant = serializers.HyperlinkedRelatedField(
+        view_name='openstack-tenant-detail',
+        lookup_field='uuid',
+        write_only=True,
+        queryset=openstack_models.Tenant.objects.all(),
+    )
+
+    def validate_template(self, template):
+        template = _check_template_service_settings(self, template)
+
+        if template.archived:
+            raise serializers.ValidationError(_('Package cannot be assigned for archived template.'))
+
+        return template
+
+    def validate(self, attrs):
+        attrs = super(OpenStackPackageAssignSerializer, self).validate(attrs)
+        spl = attrs['tenant'].service_project_link
+        template = attrs['template']
+        if spl.service.settings != template.service_settings:
+            raise serializers.ValidationError(
+                _('Template and service project link should be connected to the same service settings.'))
+
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        tenant = validated_data['tenant']
+        template = validated_data['template']
+        _set_tenant_quotas(tenant, template)
+        _set_tenant_extra_configuration(tenant, template)
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant,
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
+        )
+        return models.OpenStackPackage.objects.create(
+            tenant=tenant,
+            template=template,
+            service_settings=service_settings,
+        )

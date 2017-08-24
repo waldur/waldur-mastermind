@@ -4,7 +4,7 @@ from rest_framework import viewsets, permissions, response, status
 from rest_framework.decorators import list_route
 
 from nodeconductor.core import views as core_views
-from nodeconductor.structure import filters as structure_filters
+from nodeconductor.structure import filters as structure_filters, permissions as structure_permissions
 
 from . import filters, models, serializers, executors
 
@@ -52,3 +52,13 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
                                  status=status.HTTP_202_ACCEPTED)
 
     change_serializer_class = serializers.OpenStackPackageChangeSerializer
+
+    @list_route(methods=['post'])
+    def assign(self, request, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response({'detail': _('OpenStack package has been assigned')}, status=status.HTTP_200_OK)
+
+    assign_serializer_class = serializers.OpenStackPackageAssignSerializer
+    assign_permissions = [structure_permissions.is_staff]
