@@ -7,8 +7,12 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
 from nodeconductor.core import views as core_views
-from nodeconductor.structure import (filters as structure_filters, models as structure_models,
-                                     permissions as structure_permissions, metadata as structure_metadata)
+from nodeconductor.structure import filters as structure_filters
+from nodeconductor.structure import metadata as structure_metadata
+from nodeconductor.structure import models as structure_models
+from nodeconductor.structure import permissions as structure_permissions
+from nodeconductor.structure import views as structure_views
+
 
 from . import filters, models, serializers, backend
 
@@ -202,3 +206,9 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return response.Response({'status': _('Offering is marked as terminated.')}, status=status.HTTP_200_OK)
 
     terminate_permissions = [structure_permissions.is_staff]
+
+
+def get_project_offerings_count(project):
+    return models.Offering.objects.filter(project=project).count()
+
+structure_views.ProjectCountersView.register_counter('offerings', get_project_offerings_count)

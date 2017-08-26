@@ -4,7 +4,8 @@ from rest_framework import test, status
 from rest_framework.reverse import reverse
 
 from nodeconductor.structure import models as structure_models
-from nodeconductor_openstack.openstack import models as openstack_models
+from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
+from nodeconductor_openstack.openstack.tests import factories as openstack_factories
 
 from . import factories, fixtures
 from .. import models
@@ -238,3 +239,44 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
             'template': factories.PackageTemplateFactory.get_url(template or self.new_template),
             'package': factories.OpenStackPackageFactory.get_url(package or self.package),
         }
+
+
+@ddt
+class OpenStackPackageAssignTest(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.fixture = fixtures.PackageFixture()
+        self.url = factories.OpenStackPackageFactory.get_list_url('assign')
+        self.tenant = self.fixture.openstack_tenant
+        self.template = factories.PackageTemplateFactory(service_settings=self.fixture.openstack_service_settings)
+
+    def test_package_can_be_assigned_to_new_tenant(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            'tenant': openstack_factories.TenantFactory.get_url(self.tenant),
+            'template': factories.PackageTemplateFactory.get_url(self.template)
+        }
+        self.assertFalse(models.OpenStackPackage.objects.filter(
+            template=self.template,
+            tenant=self.fixture.openstack_tenant,
+        ).exists())
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(models.OpenStackPackage.objects.filter(
+            template=self.template,
+            tenant=self.fixture.openstack_tenant,
+        ).exists())
+
+    @data('owner', 'admin', 'manager')
+    def test_user_cannot_assign_package(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = {
+            'tenant': openstack_factories.TenantFactory.get_url(self.tenant),
+            'template': factories.PackageTemplateFactory.get_url(self.template)
+        }
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEquals(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -1,8 +1,8 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
-from django.core import exceptions as django_exceptions
 from django.db import transaction
+from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,6 +11,7 @@ from nodeconductor.core import views as core_views
 from nodeconductor.structure import filters as structure_filters
 from nodeconductor.structure import models as structure_models
 from nodeconductor.structure import permissions as structure_permissions
+from nodeconductor.structure import views as structure_views
 from nodeconductor.users import models as user_models
 from nodeconductor.users import tasks as user_tasks
 from nodeconductor_assembly_waldur.support import backend as support_backend
@@ -184,3 +185,19 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
             raise exceptions.ValidationError(_('Expert request should be in pending state.'))
 
     accept_permissions = [structure_permissions.is_owner, is_pending_request]
+
+
+def get_project_experts_count(project):
+    valid_states = (models.ExpertRequest.States.ACTIVE, models.ExpertRequest.States.PENDING)
+    query = Q(project=project, state__in=valid_states)
+    return models.ExpertRequest.objects.filter(query).count()
+
+
+def get_customer_experts_count(customer):
+    query = Q(state=models.ExpertRequest.States.PENDING) |\
+            Q(state=models.ExpertRequest.States.ACTIVE, contract__team__customer=customer)
+    return models.ExpertRequest.objects.filter(query).count()
+
+
+structure_views.ProjectCountersView.register_counter('experts', get_project_experts_count)
+structure_views.CustomerCountersView.register_counter('experts', get_customer_experts_count)
