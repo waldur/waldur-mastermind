@@ -7,7 +7,7 @@ License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: waldur-core >= 0.145.4
+Requires: waldur-core >= 0.146.0
 Requires: waldur-auth-openid >= 0.8.3
 Requires: waldur-auth-social >= 0.7.2
 Requires: waldur-auth-saml2 >= 0.7.3
@@ -15,7 +15,7 @@ Requires: waldur-aws >= 0.9.3
 Requires: waldur-cost-planning >= 0.4.2
 Requires: waldur-digitalocean >= 0.8.3
 Requires: waldur-freeipa >= 0.2.2
-Requires: waldur-openstack > 0.33.2
+Requires: waldur-openstack >= 0.34.0
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
