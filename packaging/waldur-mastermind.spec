@@ -19,6 +19,7 @@ Requires: waldur-openstack >= 0.34.0
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
+Requires: waldur-azure >= 0.3.0
 
 Obsoletes: nodeconductor-assembly-waldur
 
