@@ -15,6 +15,7 @@ install_requires = [
     'nodeconductor_openstack>=0.34.2',
     'nodeconductor_saml2>=0.7.3',
     'waldur_freeipa>=0.2.2',
+    'nodeconductor_azure>=0.3.0',
 ]
 
 test_requires = [
