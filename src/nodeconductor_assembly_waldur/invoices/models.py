@@ -63,9 +63,11 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def price(self):
-        package_items = list(self.openstack_items.all())
-        offering_items = list(self.offering_items.all())
-        return sum((item.price for item in package_items + offering_items))
+        return sum((item.price for item in self.items))
+
+    @property
+    def items(self):
+        return list(self.openstack_items.all()) + list(self.offering_items.all())
 
     @property
     def due_date(self):

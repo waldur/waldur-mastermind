@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 
+from nodeconductor.cost_tracking import signals as cost_signals
 from nodeconductor_assembly_waldur.support import models as support_models
 
 from . import tasks, models, log, registrators
@@ -103,3 +104,17 @@ def send_invoice_report(sender, instance, created=False, **kwargs):
     invoice = instance
     if invoice.tracker.has_changed('state') and invoice.state == models.Invoice.States.CREATED:
         tasks.send_invoice_report.delay(invoice.uuid.hex)
+
+
+def emit_invoice_created_event(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    state = instance.state
+    if state != models.Invoice.States.CREATED or state == instance.tracker.previous('state'):
+        return
+
+    if state == models.Invoice.States.CREATED:
+        cost_signals.invoice_created.send(sender=models.Invoice,
+                                          invoice=instance,
+                                          issuer_details=settings.INVOICES['ISSUER_DETAILS'])

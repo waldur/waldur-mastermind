@@ -2,6 +2,7 @@ import datetime
 
 from decimal import Decimal
 
+from django.conf import settings
 from django.db.models.signals import pre_delete
 from django.test import TestCase
 from django.utils import timezone
@@ -436,3 +437,16 @@ class SendReportOnInvoiceStateChange(TestCase):
         invoice = fixture.invoice
         invoice.set_created()
         self.assertFalse(mocked_task.delay.called)
+
+
+class EmitInvoiceCreatedOnStateChange(TestCase):
+
+    @mock.patch('nodeconductor.cost_tracking.signals.invoice_created')
+    def test_invoice_created_signal_is_emitted_on_monthly_invoice_creation(self, invoice_created_mock):
+        fixture = fixtures.InvoiceFixture()
+        invoice = fixture.invoice
+        invoice.set_created()
+
+        new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.CREATED)
+        invoice_created_mock.send.assert_called_once_with(invoice=new_invoice, sender=models.Invoice,
+                                                          issuer_details=settings.INVOICES['ISSUER_DETAILS'])

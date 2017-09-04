@@ -13,10 +13,14 @@ class InvoicesExtension(NodeConductorExtension):
                 'country': 'Estonia',
                 'email': 'info@opennodecloud.com',
                 'postal': '80041',
-                'phone': '(+372) 555-55-55',
+                'phone': {
+                    'country_code': '372',
+                    'national_number': '5555555',
+                },
                 'bank': 'Estonian Bank',
                 'account': '123456789',
                 'vat_code': 'EE123456789',
+                'country_code': 'EE',
             },
             # How many days are given to pay for created invoice
             'PAYMENT_INTERVAL': 30,

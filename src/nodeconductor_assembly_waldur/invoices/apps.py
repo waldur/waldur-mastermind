@@ -49,6 +49,12 @@ class InvoiceConfig(AppConfig):
             dispatch_uid='nodeconductor_assembly_waldur.invoices.log_invoice_state_transition',
         )
 
+        signals.post_save.connect(
+            handlers.emit_invoice_created_event,
+            sender=models.Invoice,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.emit_invoice_created_event',
+        )
+
         for index, model in enumerate(models.InvoiceItem.get_all_models()):
             signals.post_save.connect(
                 handlers.set_project_name_on_invoice_item_creation,
