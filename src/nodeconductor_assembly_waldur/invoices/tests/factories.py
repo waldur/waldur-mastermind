@@ -1,6 +1,7 @@
 import factory
 
 from rest_framework.reverse import reverse
+from django.utils import timezone
 
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor_assembly_waldur.packages.tests import factories as packages_factories
@@ -14,6 +15,7 @@ class InvoiceFactory(factory.DjangoModelFactory):
         model = models.Invoice
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
+    invoice_date = factory.fuzzy.FuzzyDateTime(start_dt=timezone.now())
 
     @classmethod
     def get_url(cls, invoice=None, action=None):
