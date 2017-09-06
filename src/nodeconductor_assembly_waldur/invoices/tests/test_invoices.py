@@ -1,7 +1,6 @@
 from ddt import ddt, data
 from rest_framework import test, status
 
-from nodeconductor_assembly_waldur.invoices import models, serializers
 from nodeconductor_assembly_waldur.packages.tests import fixtures as packages_fixtures
 
 from . import factories, fixtures
