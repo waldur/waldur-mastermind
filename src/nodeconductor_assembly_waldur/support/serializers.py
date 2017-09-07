@@ -16,6 +16,16 @@ from . import models, backend
 User = get_user_model()
 
 
+def render_issue_template(config_name, issue):
+    issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+    if not issue_settings:
+        return ''
+
+    raw = issue_settings[config_name]
+    template = Template(raw)
+    return template.render(Context({'issue': issue}))
+
+
 class IssueSerializer(core_serializers.AugmentedSerializerMixin,
                       serializers.HyperlinkedModelSerializer):
     resource = core_serializers.GenericRelatedField(
@@ -48,7 +58,6 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
     is_reported_manually = serializers.BooleanField(
         initial=False, default=False, write_only=True,
         help_text=_('Set true if issue is created by regular user via portal.'))
-    issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
 
     class Meta(object):
         model = models.Issue
@@ -153,8 +162,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         if project:
             validated_data['customer'] = project.customer
 
-        validated_data['description'] = self._render_template('description', validated_data)
-        validated_data['summary'] = self._render_template('summary', validated_data)
+        validated_data['description'] = render_issue_template('description', validated_data)
+        validated_data['summary'] = render_issue_template('summary', validated_data)
         return super(IssueSerializer, self).create(validated_data)
 
     def _render_template(self, config_name, issue):
@@ -321,7 +330,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def _get_backend_comments(self, issue_key, fields):
         """
         Forms a dictionary of a backend comments where an id is a key and a comment body is a value.
-        :param issue_key: an issue key to look up for comments; 
+        :param issue_key: an issue key to look up for comments;
         :param fields: fields from issue in the response;
         :return: a dictionary of a backend comments with their ids as keys.
         """
@@ -545,14 +554,16 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
         type = validated_data['type']
         offering_configuration = self._get_configuration(type)
         type_label = offering_configuration.get('label', type)
-        issue = models.Issue.objects.create(
+        issue_details = dict(
             caller=self.context['request'].user,
             project=project,
             customer=project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
             summary='Request for \'%s\'' % type_label,
-            description=self._form_description(offering_configuration, validated_data)
-        )
+            description=self._form_description(offering_configuration, validated_data))
+        issue_details['summary'] = render_issue_template('summary', issue_details)
+        issue_details['description'] = render_issue_template('description', issue_details)
+        issue = models.Issue.objects.create(**issue_details)
 
         offering = models.Offering.objects.create(
             issue=issue,
