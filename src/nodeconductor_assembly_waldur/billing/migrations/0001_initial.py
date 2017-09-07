@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('threshold', models.FloatField(default=0, validators=[django.core.validators.MinValueValidator(0)])),
                 ('object_id', models.PositiveIntegerField(null=True)),
                 ('total', models.FloatField(default=0, help_text='Predicted price for scope for current month.')),
-                ('limit', models.FloatField(default=-1, help_text='How many funds object can consume in current month.-1 means no limit.')),
+                ('limit', models.FloatField(default=-1, help_text='Price limit of a scope object in current month. -1 means no limit.')),
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType')),
             ],
             options={
