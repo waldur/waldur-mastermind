@@ -188,6 +188,7 @@ class OfferingItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='offering_items')
     offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
     offering_details = JSONField(default={}, blank=True, help_text=_('Stores data about offering'))
+    tracker = FieldTracker()
 
     @property
     def name(self):
@@ -218,6 +219,7 @@ class OpenStackItem(InvoiceItem):
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
     package_details = JSONField(default={}, blank=True, help_text=_('Stores data about package'))
+    tracker = FieldTracker()
 
     @property
     def name(self):

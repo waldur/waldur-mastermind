@@ -25,7 +25,7 @@ class PriceEstimateViewSet(core_views.ActionsViewSet):
 
     def is_owner_or_staff(request, view, obj=None):
         if not obj:
-            return
+            return False
         if request.user.is_staff:
             return True
 

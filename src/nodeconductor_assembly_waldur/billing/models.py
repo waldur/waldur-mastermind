@@ -24,7 +24,7 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
     tracker = FieldTracker()
 
     total = models.FloatField(default=0, help_text=_('Predicted price for scope for current month.'))
-    limit = models.FloatField(default=-1, help_text=_('How many funds object can consume in current month.'
+    limit = models.FloatField(default=-1, help_text=_('Price limit of a scope object in current month. '
                                                       '-1 means no limit.'))
 
     def is_over_threshold(self):  # For AlertThresholdMixin

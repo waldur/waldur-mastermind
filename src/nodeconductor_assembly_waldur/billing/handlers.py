@@ -20,6 +20,11 @@ def delete_stale_price_estimate(sender, instance, **kwargs):
 
 
 def process_invoice_item(sender, instance, created=False, **kwargs):
+    if (not created and
+            not instance.tracker.has_changed('unit_price') and
+            not instance.tracker.has_changed('start') and
+            not instance.tracker.has_changed('end')):
+        return
     with transaction.atomic():
         for scope in [instance.project, instance.project.customer]:
             estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
