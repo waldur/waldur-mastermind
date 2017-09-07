@@ -106,24 +106,24 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
         type = validated_data['type']
 
         configuration = self._get_configuration(type)
-        description = self._form_description(configuration, validated_data)
-
         type_label = configuration.get('label', type)
-        issue = support_models.Issue.objects.create(
+        issue_details = dict(
             caller=request.user,
             project=project,
             customer=project.customer,
             type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
-            summary='Request for \'%s\'' % type_label,
-            description=description,
-        )
+            description=self._form_description(configuration, validated_data),
+            summary='Request for \'%s\'' % type_label)
+        issue_details['summary'] = support_serializers.render_issue_template('summary', issue_details)
+        issue_details['description'] = support_serializers.render_issue_template('description', issue_details)
+        issue = support_models.Issue.objects.create(**issue_details)
 
         return models.ExpertRequest.objects.create(
             user=request.user,
             project=project,
             name=validated_data.get('name'),
             type=type,
-            description=description,
+            description=issue_details['description'],
             issue=issue,
         )
 
