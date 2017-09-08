@@ -77,10 +77,13 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         return estimates.aggregate(Sum('limit'))['limit__sum'] or 0
 
 
-class NestedPriceEstimateSerializer(serializers.ModelSerializer):
+class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.PriceEstimate
-        fields = ('threshold', 'total', 'limit')
+        fields = ('url', 'threshold', 'total', 'limit')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'billing-price-estimate-detail'},
+        }
 
 
 def get_price_estimate(serializer, scope):
