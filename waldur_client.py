@@ -260,7 +260,28 @@ class WaldurClient(object):
                 message = '%s. Seconds passed: %s' % (error, timeout)
                 raise TimeoutError(message)
 
-    def create_security_group(self, tenant, name, rules, description=None, wait=None, interval=10, timeout=600):
+    def create_security_group(self,
+                              tenant,
+                              name,
+                              rules,
+                              description=None,
+                              tags=None,
+                              wait=None,
+                              interval=10,
+                              timeout=600):
+        """
+        Creates OpenStack security group via Waldur API from passed parameters.
+
+        :param tenant: uuid or name of the tenant to use.
+        :param name: name of the security group.
+        :param rules: list of security groups to add the instance.
+        :param description: security group description text.
+        :param tags: list of tags to add to the instance.
+        :param wait: defines whether the client has to wait for instance provisioning.
+        :param interval: interval of instance state polling in seconds.
+        :param timeout: a maximum amount of time to wait for instance provisioning.
+        :return: security group as a dictionary.
+        """
         tenant = self._get_tenant(tenant)
         payload = {
             'name': name,
@@ -268,6 +289,8 @@ class WaldurClient(object):
         }
         if description:
             payload.update({'description': description})
+        if tags:
+            payload.update({'tags': tags})
 
         action_url = '%s/%s/create_security_group' % (self.Endpoints.Tenant, tenant['uuid'])
         resource = self._create_resource(action_url, payload)
@@ -335,6 +358,7 @@ class WaldurClient(object):
             ssh_key=None,
             data_volume_size=None,
             security_groups=None,
+            tags=None,
             user_data=None):
         """
         Creates OpenStack instance from passed parameters.
@@ -353,6 +377,7 @@ class WaldurClient(object):
         :param data_volume_size: size of the data volume in GB.
             No data volume is going to be created if empty.
         :param security_groups: list of security groups to add to the instance.
+        :param tags: list of tags to add to the instance.
         :param user_data: additional data that will be added to the instance.
         :return: an instance as a dictionary.
         """
@@ -389,6 +414,8 @@ class WaldurClient(object):
         if ssh_key:
             ssh_key = self._get_resource(self.Endpoints.SshKey, ssh_key)
             payload.update({'ssh_public_key': ssh_key['url']})
+        if tags:
+            payload.update({'tags': tags})
 
         instance = self._create_instance(payload)
 
