@@ -23,6 +23,7 @@
         ssh_key: "{{ public_key_uuid }}"
         subnet: "{{ subnet_uuid }}"
         system_volume_size: 30
+        tags: "{{ tags }}"
         wait: true
       register: vm_instance
 
