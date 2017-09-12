@@ -274,12 +274,12 @@ class WaldurClient(object):
 
         :param tenant: uuid or name of the tenant to use.
         :param name: name of the security group.
-        :param rules: list of security groups to add the instance.
-        :param description: security group description text.
-        :param tags: list of tags to add to the instance.
-        :param wait: defines whether the client has to wait for instance provisioning.
-        :param interval: interval of instance state polling in seconds.
-        :param timeout: a maximum amount of time to wait for instance provisioning.
+        :param rules: list of rules to add the security group.
+        :param description: arbitrary text.
+        :param tags: list of tags to add to the security group.
+        :param wait: defines whether the client has to wait for security group provisioning.
+        :param interval: interval of security group state polling in seconds.
+        :param timeout: a maximum amount of time to wait for security group provisioning.
         :return: security group as a dictionary.
         """
         tenant = self._get_tenant(tenant)
