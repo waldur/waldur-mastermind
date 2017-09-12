@@ -175,7 +175,7 @@ def send_request_to_waldur(client, module):
             name=module.params['name'],
             description=module.params.get('description'),
             rules=rules,
-            tags=module.params['tags'],
+            tags=module.params.get('tags'),
             wait=module.params['wait'],
             interval=module.params['interval'],
             timeout=module.params['timeout'])

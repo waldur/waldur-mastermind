@@ -219,7 +219,7 @@ def main():
             interval=module.params['interval'],
             timeout=module.params['timeout'],
             user_data=module.params['user_data'],
-            tags=module.params['tags'],
+            tags=module.params.get('tags'),
         )
     except WaldurClientException as error:
         module.fail_json(msg=error.message)
