@@ -12,7 +12,9 @@ class SlurmPackage(common_mixins.ProductCodeMixin, models.Model):
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
-    service_settings = models.OneToOneField(structure_models.ServiceSettings, related_name='+')
+    service_settings = models.OneToOneField(structure_models.ServiceSettings,
+                                            related_name='+',
+                                            limit_choices_to={'type': 'SLURM'})
 
     cpu_price = models.DecimalField(default=0,
                                     verbose_name=_('Price for CPU hour'),
