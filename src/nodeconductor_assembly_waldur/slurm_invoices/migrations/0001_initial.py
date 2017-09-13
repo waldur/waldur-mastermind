@@ -30,6 +30,8 @@ class Migration(migrations.Migration):
             ],
             options={
                 'abstract': False,
-            },
+                'verbose_name': 'SLURM package',
+                'verbose_name_plural': 'SLURM packages',
+            }
         ),
     ]
