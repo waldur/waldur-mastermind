@@ -11,15 +11,15 @@ from django.utils.translation import ugettext_lazy as _
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
-from nodeconductor_assembly_waldur.invoices import mixins as invoices_mixins
+from nodeconductor_assembly_waldur.common import mixins as common_mixins
 
-from .utils import quantize_price
+from nodeconductor_assembly_waldur.common.utils import quantize_price
 
 
 @python_2_unicode_compatible
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
-                      invoices_mixins.ProductCodeMixin,
+                      common_mixins.ProductCodeMixin,
                       core_models.UiDescribableMixin,):
     # We do not define permissions for PackageTemplate because we are planning
     # to use them with shared service settings only - it means that

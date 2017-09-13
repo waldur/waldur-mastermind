@@ -16,9 +16,25 @@ class UnitPriceMixin(models.Model):
         PER_MONTH = 'month'
         PER_HALF_MONTH = 'half_month'
         PER_DAY = 'day'
+        PER_USAGE = 'usage'
 
-        CHOICES = ((PER_MONTH, _('Per month')), (PER_HALF_MONTH, _('Per half month')), (PER_DAY, _('Per day')))
+        CHOICES = (
+            (PER_MONTH, _('Per month')),
+            (PER_HALF_MONTH, _('Per half month')),
+            (PER_DAY, _('Per day')),
+            (PER_USAGE, _('Per usage')),
+        )
 
     unit_price = models.DecimalField(default=0, max_digits=22, decimal_places=7,
                                      validators=[MinValueValidator(Decimal('0'))])
     unit = models.CharField(default=Units.PER_DAY, max_length=30, choices=Units.CHOICES)
+
+
+class ProductCodeMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    # technical code used by accounting software
+    product_code = models.CharField(max_length=30, blank=True)
+    # article code is used for encoding product category in accounting software
+    article_code = models.CharField(max_length=30, blank=True)
