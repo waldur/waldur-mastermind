@@ -9,6 +9,10 @@ from nodeconductor_assembly_waldur.common import mixins as common_mixins
 
 
 class SlurmPackage(common_mixins.ProductCodeMixin, models.Model):
+    class Meta(object):
+        verbose_name = _('SLURM package')
+        verbose_name_plural = _('SLURM packages')
+
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
