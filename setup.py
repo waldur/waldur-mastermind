@@ -6,7 +6,7 @@ install_requires = [
     'defusedxml==0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>=0.146.2',
+    'nodeconductor>=0.146.3',
     'nodeconductor_auth_social>=0.7.2',
     'nodeconductor_auth_openid>=0.8.3',
     'nodeconductor_aws>=0.10.0',
@@ -16,7 +16,7 @@ install_requires = [
     'nodeconductor_openstack>=0.34.2',
     'nodeconductor_saml2>=0.7.3',
     'waldur_freeipa>=0.2.2',
-    'waldur_slurm>=0.1.1',
+    'waldur_slurm>=0.1.2',
 ]
 
 test_requires = [
