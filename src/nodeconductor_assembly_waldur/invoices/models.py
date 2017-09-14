@@ -200,6 +200,7 @@ class GenericInvoiceItem(InvoiceItem):
     objects = managers.GenericInvoiceItemManager()
     tracker = FieldTracker()
 
+    @property
     def name(self):
         if self.details:
             return self.details['name']
