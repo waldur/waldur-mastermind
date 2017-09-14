@@ -101,4 +101,8 @@ def format_invoice_csv(invoice):
     offering_serializer = serializers.OfferingItemReportSerializer(offering_items, many=True)
     writer.writerows(offering_serializer.data)
 
+    generic_items = invoice.generic_items.all().select_related('invoice__customer')
+    generic_serializer = serializers.GenericItemReportSerializer(generic_items, many=True)
+    writer.writerows(generic_serializer.data)
+
     return stream.getvalue().decode('utf-8')

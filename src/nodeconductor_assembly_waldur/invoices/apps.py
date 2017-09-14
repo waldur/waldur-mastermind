@@ -8,10 +8,22 @@ class InvoiceConfig(AppConfig):
 
     def ready(self):
         from nodeconductor.structure import models as structure_models
-        from nodeconductor_assembly_waldur.support import models as support_models
+        from nodeconductor_assembly_waldur.invoices.plugins import offering_registrator
+        from nodeconductor_assembly_waldur.invoices.plugins import openstack_registrator
         from nodeconductor_assembly_waldur.packages import models as packages_models
+        from nodeconductor_assembly_waldur.support import models as support_models
 
-        from . import handlers, models
+        from . import handlers, models, registrators
+
+        registrators.RegistrationManager.add_registrator(
+            support_models.Offering,
+            offering_registrator.OfferingItemRegistrator
+        )
+
+        registrators.RegistrationManager.add_registrator(
+            packages_models.OpenStackPackage,
+            openstack_registrator.OpenStackItemRegistrator
+        )
 
         signals.post_save.connect(
             handlers.add_new_openstack_package_details_to_invoice,

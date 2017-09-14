@@ -4,6 +4,8 @@ import datetime
 
 from django.apps import apps
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
@@ -17,10 +19,10 @@ from nodeconductor.core import models as core_models, utils as core_utils
 from nodeconductor.core.exceptions import IncorrectStateException
 from nodeconductor.structure import models as structure_models
 
-from nodeconductor_assembly_waldur.common.mixins import UnitPriceMixin
+from nodeconductor_assembly_waldur.common import mixins as common_mixins
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.support import models as support_models
-from . import utils, mixins
+from . import managers, utils, registrators
 
 
 @python_2_unicode_compatible
@@ -67,7 +69,9 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def items(self):
-        return list(self.openstack_items.all()) + list(self.offering_items.all())
+        return list(self.openstack_items.all()) +\
+               list(self.offering_items.all()) +\
+               list(self.generic_items.all())
 
     @property
     def due_date(self):
@@ -116,7 +120,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class InvoiceItem(mixins.ProductCodeMixin, UnitPriceMixin):
+class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
     Mixin which identifies invoice item to be used for price calculation.
     """
@@ -149,7 +153,9 @@ class InvoiceItem(mixins.ProductCodeMixin, UnitPriceMixin):
 
     @property
     def price(self):
-        if self.unit == self.Units.PER_DAY:
+        if self.unit == self.Units.PER_USAGE:
+            return self.unit_price
+        elif self.unit == self.Units.PER_DAY:
             return self.unit_price * self.usage_days
         elif self.unit == self.Units.PER_HALF_MONTH:
             if self.start.day >= 15 or self.end.day <= 15:
@@ -181,6 +187,29 @@ class InvoiceItem(mixins.ProductCodeMixin, UnitPriceMixin):
 
     def __str__(self):
         return self.name
+
+
+class GenericInvoiceItem(InvoiceItem):
+    invoice = models.ForeignKey(Invoice, related_name='generic_items')
+    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+
+    scope = GenericForeignKey('content_type', 'object_id')
+    details = JSONField(default={}, blank=True, help_text=_('Stores data about scope'))
+
+    objects = managers.GenericInvoiceItemManager()
+    tracker = FieldTracker()
+
+    def name(self):
+        if self.details:
+            return self.details['name']
+        return registrators.RegistrationManager.get_name(self.scope)
+
+    def freeze(self):
+        if self.scope:
+            self.details = registrators.RegistrationManager.get_details(self.scope)
+            self.details['name'] = registrators.RegistrationManager.get_name(self.scope)
+            self.save(update_fields=['details'])
 
 
 class OfferingItem(InvoiceItem):

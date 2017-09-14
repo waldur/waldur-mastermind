@@ -1,5 +1,3 @@
-from decimal import Decimal, ROUND_UP
-
 from django.contrib.contenttypes.models import ContentType
 
 from nodeconductor.cost_tracking import ConsumableItem
@@ -25,11 +23,3 @@ def sync_price_list_item(package_template):
         resource_content_type=resource_content_type,
         consumable_item=consumable_item,
     )
-
-
-def quantize_price(value):
-    """
-    Returns value rounded to 2 places after the decimal point.
-    :rtype: Decimal
-    """
-    return value.quantize(Decimal('0.01'), rounding=ROUND_UP)

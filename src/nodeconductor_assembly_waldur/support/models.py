@@ -13,7 +13,6 @@ from model_utils.models import TimeStampedModel
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.common import mixins as common_mixins
-from nodeconductor_assembly_waldur.invoices import mixins as invoices_mixins
 
 from . import managers
 
@@ -131,7 +130,7 @@ class Comment(core_models.UuidMixin, core_models.BackendModelMixin, TimeStampedM
 @python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
-               invoices_mixins.ProductCodeMixin,
+               common_mixins.ProductCodeMixin,
                common_mixins.UnitPriceMixin,
                structure_models.StructureLoggableMixin,
                TimeStampedModel):
