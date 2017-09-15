@@ -18,7 +18,7 @@ install_requires = [
     'waldur_ansible>=0.1.0',
     'waldur_freeipa>=0.2.2',
     'waldur_paypal>=0.6.0',
-    'waldur_slurm>=0.1.2',
+    'waldur_slurm>=0.1.3',
 ]
 
 test_requires = [

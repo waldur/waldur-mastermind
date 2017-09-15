@@ -19,7 +19,7 @@ Requires: waldur-digitalocean >= 0.8.3
 Requires: waldur-freeipa >= 0.2.2
 Requires: waldur-openstack >= 0.34.0
 Requires: waldur-paypal >= 0.6.0
-Requires: waldur-slurm >= 0.1.2
+Requires: waldur-slurm >= 0.1.3
 Requires: python2-defusedxml == 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
