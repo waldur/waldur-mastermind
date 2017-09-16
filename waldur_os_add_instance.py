@@ -89,6 +89,10 @@ options:
     description:
       - An additional data that will be added to the instance on provisioning.
     required: false
+  tags:
+    description:
+      - List of tags that will be added to the instance on provisioning.
+    required: false
   wait:
     default: true
     description:
@@ -157,6 +161,8 @@ EXAMPLES = '''
         ssh_key: ssh1.pub
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
+        tags:
+            - ansible_application_id
         wait: false
 '''
 
@@ -178,6 +184,7 @@ def main():
         'data_volume_size': {'type': 'int'},
         'ssh_key': {'type': 'str'},
         'user_data': {'type': 'str'},
+        'tags': {'type': 'list'},
         'wait': {'default': True, 'type': 'bool'},
         'timeout': {'default': 600, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'}
@@ -211,7 +218,9 @@ def main():
             wait=module.params['wait'],
             interval=module.params['interval'],
             timeout=module.params['timeout'],
-            user_data=module.params['user_data'])
+            user_data=module.params['user_data'],
+            tags=module.params.get('tags'),
+        )
     except WaldurClientException as error:
         module.fail_json(msg=error.message)
     else:

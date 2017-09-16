@@ -72,6 +72,10 @@ options:
       - The highest port value the security group rule is applied to.
     required:
       - If 'rules' are not provided.
+  tags:
+    description:
+      - List of tags that will be added to the security group on provisioning.
+    required: false
   timeout:
     default: 600
     description:
@@ -139,6 +143,8 @@ EXAMPLES = '''
         protocol: tcp
         state: present
         name: classic-web
+        tags:
+            - ansible_application_id
 '''
 
 
@@ -169,6 +175,7 @@ def send_request_to_waldur(client, module):
             name=module.params['name'],
             description=module.params.get('description'),
             rules=rules,
+            tags=module.params.get('tags'),
             wait=module.params['wait'],
             interval=module.params['interval'],
             timeout=module.params['timeout'])
@@ -190,6 +197,7 @@ def main():
         'state': {'default': 'present', 'choices': ['absent', 'present']},
         'name': {'required': True, 'type': 'str'},
         'tenant': {'required': True, 'type': 'str'},
+        'tags': {'type': 'list'},
         'wait': {'default': True, 'type': 'bool'},
         'timeout': {'default': 600, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'},
