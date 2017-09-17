@@ -12,13 +12,13 @@ tests_requires = [
 
 
 setup(
-    name='python-waldur-client',
+    name='ansible-waldur-module',
     version='0.3.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
-    url='http://waldur.com',
+    url='https://waldur.com',
     license='MIT',
-    description='Python bindings to the Waldur API.',
+    description='Ansible module for the Waldur API.',
     long_description=open('README.rst').read(),
     py_modules=['waldur_client'],
     install_requires=install_requires,

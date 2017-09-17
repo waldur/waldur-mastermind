@@ -1,0 +1,17 @@
+language: python
+python:
+- '2.7'
+install:
+- pip install --upgrade -e .
+- python setup.py install
+script:
+- python setup.py test
+deploy:
+  provider: pypi
+  user: opennode
+  password:
+    secure: LJ2N6Id1NC7JuS/BtIcu95d9l+/hReK96RxkQLv+hTayLKC7A/DiACW7F8G5Ksl35EESpRivarIHrIL4VhMJDIlKKlSLYZR+qoIjVOs7wqp2ffCI83A0/3wvkYY+R5XxTe38PBunnxAZmcSuEZUXiR4OgFlh9ed3X9eO/OmLlkfNkf7XephckKSONCW3ApK9pia6poBFPRdVKNeq/n3rQtEXxGnjMpwSYyDbRcfDNG6Oq7ejG0cJv2pHnSAZMgmJk6f/Frq2tXlLWeqqib0b9RBFqMChJr0e/IJBccSn8qxPU7SLstr7vz7dz7gG2tylWgfNMp8Gp7X32JZhokDVK8FaodGpx572JvtXeu1htF7URe77xAjYrQPzMQqmJwRzdBsFEGXSaraS6IKOFXekz3o6L4gyUifcfyEmQsxQjc9LnShkmkG4VBGvanY17Dds+CNkc2AKI3h3qOJf/8NEqV9c+ZELxXdIEjZlHsxzh2cz/ThhGh/GakJgZ80Zd+D0JxHBPMPKxmzRzyf96Tr0ChUZp2eBwHyzEzovKgoGlRCCJs8E257RJWcsNy9sbGO1Z7ecVn8M7sg/YfFthX/+hufih0bhy4055RJ6i39viht4FUzwviDhmqucKHXdqvmPZ21HMFKU5vCBl5IlD6ABohEdLJ0nttP41Qmt2zYzl5Q=
+  on:
+    tags: true
+    distributions: sdist bdist_wheel
+    repo: opennode/ansible-waldur-module
