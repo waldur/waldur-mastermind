@@ -7,7 +7,7 @@ License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: ansible-waldur-module >= 0.3.0
+Requires: ansible-waldur-module >= 0.3.3
 Requires: waldur-core >= 0.146.4
 Requires: waldur-ansible >= 0.2.0
 Requires: waldur-auth-openid >= 0.8.4
