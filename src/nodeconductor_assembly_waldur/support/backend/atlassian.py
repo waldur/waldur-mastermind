@@ -13,6 +13,7 @@ from jira.utils import json_loads
 
 from nodeconductor_assembly_waldur.support import models
 from nodeconductor_assembly_waldur.support.backend import SupportBackendError, SupportBackend
+from nodeconductor_assembly_waldur.support.log import event_logger
 
 
 class JiraBackendError(SupportBackendError):
@@ -89,6 +90,14 @@ class JiraBackend(SupportBackend):
         issue.priority = backend_issue.fields.priority.name
         issue.first_response_sla = self._get_first_sla_field(backend_issue)
         issue.save()
+
+        event_logger.waldur_issue.info(
+            'Issue {issue_key} has been created.',
+            event_type='issue_creation_succeeded',
+            event_context={
+                'issue': issue,
+            })
+
         return backend_issue
 
     def _get_first_sla_field(self, backend_issue):

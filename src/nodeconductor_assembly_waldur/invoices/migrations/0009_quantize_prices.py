@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 from django.db import migrations
 
-from nodeconductor_assembly_waldur.packages.utils import quantize_price
+from nodeconductor_assembly_waldur.common.utils import quantize_price
 
 
 class Migration(migrations.Migration):

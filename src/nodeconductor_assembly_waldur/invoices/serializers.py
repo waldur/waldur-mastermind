@@ -44,6 +44,11 @@ class OfferingItemSerializer(InvoiceItemSerializer):
         }
 
 
+class GenericItemSerializer(InvoiceItemSerializer):
+    class Meta(InvoiceItemSerializer.Meta):
+        model = models.GenericInvoiceItem
+
+
 class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
                         serializers.HyperlinkedModelSerializer):
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
@@ -51,6 +56,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
     openstack_items = OpenStackItemSerializer(many=True)
     offering_items = OfferingItemSerializer(many=True)
+    generic_items = GenericItemSerializer(many=True)
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
@@ -58,8 +64,9 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     class Meta(object):
         model = models.Invoice
         fields = (
-            'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total', 'openstack_items', 'offering_items',
+            'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
             'state', 'year', 'month', 'issuer_details', 'customer_details', 'invoice_date', 'due_date',
+            'openstack_items', 'offering_items', 'generic_items',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -191,3 +198,8 @@ class OpenStackItemReportSerializer(InvoiceItemReportSerializer):
 class OfferingItemReportSerializer(InvoiceItemReportSerializer):
     class Meta(InvoiceItemReportSerializer.Meta):
         model = models.OfferingItem
+
+
+class GenericItemReportSerializer(InvoiceItemReportSerializer):
+    class Meta(InvoiceItemReportSerializer.Meta):
+        model = models.GenericInvoiceItem
