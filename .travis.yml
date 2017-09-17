@@ -4,8 +4,6 @@ python:
 install:
 - pip install --upgrade -e .
 - python setup.py install
-script:
-- python setup.py test
 deploy:
   provider: pypi
   user: opennode
