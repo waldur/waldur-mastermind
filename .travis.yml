@@ -4,6 +4,8 @@ python:
 install:
 - pip install --upgrade -e .
 - python setup.py install
+script:
+- echo "Tests skipped"
 deploy:
   provider: pypi
   user: opennode
