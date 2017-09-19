@@ -4,7 +4,7 @@ from django.db.models import signals
 
 class SlurmInvoicesConfig(AppConfig):
     name = 'nodeconductor_assembly_waldur.slurm_invoices'
-    verbose_name = 'SLURM invoices'
+    verbose_name = 'Batch packages'
 
     def ready(self):
         from nodeconductor_assembly_waldur.invoices import registrators
