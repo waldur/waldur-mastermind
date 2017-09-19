@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 # defusedxml is required by djangosaml2
 install_requires = [
-    'defusedxml==0.4.1',
+    'defusedxml>=0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'nodeconductor>=0.146.4',
@@ -13,8 +13,8 @@ install_requires = [
     'nodeconductor_azure>=0.3.0',
     'nodeconductor_cost_planning>=0.5.0',
     'nodeconductor_digitalocean>=0.8.4',
-    'nodeconductor_openstack>=0.35.0',
-    'nodeconductor_saml2>=0.7.3',
+    'nodeconductor_openstack>=0.35.1',
+    'nodeconductor_saml2>=0.8.0',
     'ansible-waldur-module>=0.3.3',
     'waldur_ansible>=0.2.0',
     'waldur_freeipa>=0.2.2',

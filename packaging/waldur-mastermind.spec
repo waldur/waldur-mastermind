@@ -12,16 +12,16 @@ Requires: waldur-core >= 0.146.4
 Requires: waldur-ansible >= 0.2.0
 Requires: waldur-auth-openid >= 0.8.4
 Requires: waldur-auth-social >= 0.7.3
-Requires: waldur-auth-saml2 >= 0.7.3
+Requires: waldur-auth-saml2 >= 0.8.0
 Requires: waldur-aws >= 0.10.0
 Requires: waldur-azure >= 0.3.0
 Requires: waldur-cost-planning >= 0.5.0
 Requires: waldur-digitalocean >= 0.8.4
 Requires: waldur-freeipa >= 0.2.2
-Requires: waldur-openstack >= 0.35.0
+Requires: waldur-openstack >= 0.35.1
 Requires: waldur-paypal >= 0.6.0
 Requires: waldur-slurm >= 0.1.3
-Requires: python2-defusedxml == 0.4.1
+Requires: python2-defusedxml >= 0.4.1
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
 
