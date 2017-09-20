@@ -2,7 +2,6 @@ from ddt import ddt, data
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from nodeconductor.core.tests.helpers import override_nodeconductor_settings
 from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
 from nodeconductor_assembly_waldur.packages.tests import fixtures as packages_fixtures
@@ -99,7 +98,7 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time('2017-01-01 00:00:00')
-class PriceEstimateLimitValidationTest(test.APITransactionTestCase):
+class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
     """
     If total cost of project and resource exceeds cost limit provision is disabled.
     """
@@ -127,7 +126,7 @@ class PriceEstimateLimitValidationTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time('2017-01-01 00:00:00')
-class PriceEstimateLimitValidationTest(test.APITransactionTestCase):
+class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()
         self.package = self.fixture.openstack_package
@@ -171,14 +170,14 @@ class PriceEstimateLimitTest(test.APITransactionTestCase):
     def setUp(self):
         super(PriceEstimateLimitTest, self).setUp()
         self.fixture = structure_fixtures.ProjectFixture()
+
         self.project_estimate = models.PriceEstimate.objects.get(scope=self.fixture.project)
         self.project_estimate_url = factories.PriceEstimateFactory.get_url(self.project_estimate)
 
         self.customer_estimate = models.PriceEstimate.objects.get(scope=self.fixture.customer)
         self.customer_estimate_url = factories.PriceEstimateFactory.get_url(self.customer_estimate)
 
-    @override_nodeconductor_settings(OWNER_CAN_MODIFY_COST_LIMIT=True)
-    def test_user_can_update_limit_if_it_is_allowed_by_configuration(self):
+    def test_owner_can_update_project_limit(self):
         self.client.force_authenticate(self.fixture.owner)
         new_limit = 10
 
@@ -188,27 +187,25 @@ class PriceEstimateLimitTest(test.APITransactionTestCase):
         self.project_estimate.refresh_from_db()
         self.assertEqual(self.project_estimate.limit, new_limit)
 
-    @override_nodeconductor_settings(OWNER_CAN_MODIFY_COST_LIMIT=False)
-    def test_owner_cannot_update_limit_if_it_is_not_allowed_by_configuration(self):
+    def test_owner_cannot_update_customer_limit(self):
         self.client.force_authenticate(self.fixture.owner)
         new_limit = 10
 
-        response = self.client.put(self.project_estimate_url, {'limit': new_limit})
+        response = self.client.put(self.customer_estimate_url, {'limit': new_limit})
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.project_estimate.refresh_from_db()
-        self.assertNotEqual(self.project_estimate.limit, new_limit)
+        self.customer_estimate.refresh_from_db()
+        self.assertNotEqual(self.customer_estimate.limit, new_limit)
 
-    @override_nodeconductor_settings(OWNER_CAN_MODIFY_COST_LIMIT=False)
-    def test_staff_can_update_limit_even_if_it_is_not_allowed_by_configuration(self):
+    def test_staff_can_update_customer_limit(self):
         self.client.force_authenticate(self.fixture.staff)
         new_limit = 10
 
-        response = self.client.put(self.project_estimate_url, {'limit': new_limit})
+        response = self.client.put(self.customer_estimate_url, {'limit': new_limit})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.project_estimate.refresh_from_db()
-        self.assertEqual(self.project_estimate.limit, new_limit)
+        self.customer_estimate.refresh_from_db()
+        self.assertEqual(self.customer_estimate.limit, new_limit)
 
     def test_it_is_not_possible_to_set_project_limit_larger_than_organization_limit(self):
         self.client.force_authenticate(self.fixture.staff)
