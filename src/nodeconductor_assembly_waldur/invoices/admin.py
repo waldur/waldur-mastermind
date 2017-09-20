@@ -2,22 +2,17 @@ from django.conf import settings
 from django.contrib import admin
 from django.forms import ModelForm, ChoiceField
 
+from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import admin as structure_admin
 
 from . import models
 
 
-class InvoiceItemInline(admin.TabularInline):
+class InvoiceItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
     model = models.InvoiceItem
     readonly_fields = ('name', 'price', 'unit_price', 'unit', 'start', 'end',
                        'project_name', 'project_uuid', 'product_code', 'article_code')
     exclude = ('project',)
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 class OpenStackItemInline(InvoiceItemInline):
@@ -30,18 +25,12 @@ class OfferingItemInline(InvoiceItemInline):
     readonly_fields = InvoiceItemInline.readonly_fields + ('offering', 'offering_details')
 
 
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(core_admin.UpdateOnlyModelAdmin, admin.ModelAdmin):
     inlines = [OpenStackItemInline, OfferingItemInline]
     readonly_fields = ('customer', 'state', 'total', 'year', 'month')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer', 'uuid')
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 class PaymentDetailsInline(admin.StackedInline):

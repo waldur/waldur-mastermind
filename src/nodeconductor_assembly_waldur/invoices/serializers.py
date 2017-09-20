@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor.structure import SupportedServices
 
 from . import models
 
@@ -44,9 +46,20 @@ class OfferingItemSerializer(InvoiceItemSerializer):
 
 
 class GenericItemSerializer(InvoiceItemSerializer):
+    scope_type = serializers.SerializerMethodField()
+    scope_uuid = serializers.SerializerMethodField()
+
     class Meta(InvoiceItemSerializer.Meta):
         model = models.GenericInvoiceItem
-        fields = InvoiceItemSerializer.Meta.fields + ('quantity',)
+        fields = InvoiceItemSerializer.Meta.fields + ('quantity', 'scope_type', 'scope_uuid')
+
+    def get_scope_type(self, item):
+        return SupportedServices.get_name_for_model(item.content_type.model_class())
+
+    def get_scope_uuid(self, item):
+        if hasattr(item, 'scope'):
+            return item.scope.uuid.hex
+        return item.details['scope_uuid']
 
 
 class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,

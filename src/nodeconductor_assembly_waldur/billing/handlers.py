@@ -1,10 +1,10 @@
 import logging
+
 from django.db import transaction
 
 from nodeconductor.structure import models as structure_models
-from nodeconductor.cost_tracking import log
-from . import models
 
+from . import log, models
 
 logger = logging.getLogger(__name__)
 
