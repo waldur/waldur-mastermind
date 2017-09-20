@@ -36,7 +36,6 @@ class Migration(migrations.Migration):
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType')),
                 ('invoice', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='generic_items', to='invoices.Invoice')),
                 ('project', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='structure.Project')),
-                ('quantity', models.PositiveIntegerField(default=0)),
             ],
             options={
                 'abstract': False,
