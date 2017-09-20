@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import copy
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -460,7 +462,7 @@ class ConfigurableSerializerMixin(object):
     """
 
     def _get_configuration(self, type):
-        return settings.WALDUR_SUPPORT['OFFERINGS'].get(type)
+        return copy.deepcopy(settings.WALDUR_SUPPORT['OFFERINGS'].get(type))
 
     def get_fields(self):
         result = super(ConfigurableSerializerMixin, self).get_fields()
@@ -495,18 +497,20 @@ class ConfigurableSerializerMixin(object):
         return super(ConfigurableSerializerMixin, self).validate_empty_values(data)
 
     def _get_field_instance(self, attr_options):
-        filed_type = attr_options.get('type')
-        if filed_type is None or filed_type.lower() == 'string':
+        field_type = attr_options.get('type', '').lower()
+
+        if field_type == 'string':
             field = serializers.CharField(max_length=255, write_only=True)
-        elif filed_type.lower() == 'integer':
+        elif field_type == 'integer':
             field = serializers.IntegerField(write_only=True)
         else:
-            raise NotImplementedError('Type "%s" can not be serialized.' % type)
+            field = serializers.CharField(write_only=True)
+
         default_value = attr_options.get('default')
         if default_value:
             field.default = default_value
-            field.required = False
 
+        field.required = attr_options.get('required', False)
         field.label = attr_options.get('label')
         field.help_text = attr_options.get('help_text')
 
@@ -516,6 +520,9 @@ class ConfigurableSerializerMixin(object):
         result = []
 
         for key in configuration['order']:
+            if key not in validated_data:
+                continue
+
             label = configuration['options'].get(key, {})
             label_value = label.get('label', key)
             result.append('%s: \'%s\'' % (label_value, validated_data[key]))

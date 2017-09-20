@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('unit_price', models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
-                ('unit', models.CharField(choices=[(b'month', 'Per month'), (b'half_month', 'Per half month'), (b'day', 'Per day'), (b'usage', 'Per usage')], default=b'day', max_length=30)),
+                ('unit', models.CharField(choices=[(b'month', 'Per month'), (b'half_month', 'Per half month'), (b'day', 'Per day'), (b'quantity', 'Quantity')], default=b'day', max_length=30)),
                 ('product_code', models.CharField(blank=True, max_length=30)),
                 ('article_code', models.CharField(blank=True, max_length=30)),
                 ('start', models.DateTimeField(default=nodeconductor_assembly_waldur.invoices.utils.get_current_month_start, help_text='Date and time when item usage has started.')),
@@ -36,6 +36,7 @@ class Migration(migrations.Migration):
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType')),
                 ('invoice', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='generic_items', to='invoices.Invoice')),
                 ('project', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='structure.Project')),
+                ('quantity', models.PositiveIntegerField(default=0)),
             ],
             options={
                 'abstract': False,

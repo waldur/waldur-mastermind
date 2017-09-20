@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import datetime
+import itertools
 
 from django.apps import apps
 from django.conf import settings
@@ -22,6 +23,7 @@ from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.common import mixins as common_mixins
 from nodeconductor_assembly_waldur.packages import models as package_models
 from nodeconductor_assembly_waldur.support import models as support_models
+
 from . import managers, utils, registrators
 
 
@@ -69,9 +71,9 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def items(self):
-        return list(self.openstack_items.all()) +\
-               list(self.offering_items.all()) +\
-               list(self.generic_items.all())
+        return itertools.chain(self.openstack_items.all(),
+                               self.offering_items.all(),
+                               self.generic_items.all())
 
     @property
     def due_date(self):
@@ -96,9 +98,7 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.save(update_fields=['state', 'invoice_date'])
 
     def freeze(self):
-        for item in self.openstack_items.iterator():
-            item.freeze()
-        for item in self.offering_items.iterator():
+        for item in self.items:
             item.freeze()
 
     def register_offering(self, offering, start=None):
@@ -153,8 +153,8 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
 
     @property
     def price(self):
-        if self.unit == self.Units.PER_USAGE:
-            return self.unit_price
+        if self.unit == self.Units.QUANTITY:
+            return self.unit_price * self.quantity
         elif self.unit == self.Units.PER_DAY:
             return self.unit_price * self.usage_days
         elif self.unit == self.Units.PER_HALF_MONTH:
@@ -193,6 +193,7 @@ class GenericInvoiceItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='generic_items')
     content_type = models.ForeignKey(ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
+    quantity = models.PositiveIntegerField(default=0)
 
     scope = GenericForeignKey('content_type', 'object_id')
     details = JSONField(default={}, blank=True, help_text=_('Stores data about scope'))

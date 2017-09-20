@@ -10,4 +10,10 @@ class ExpertProviderAdmin(admin.ModelAdmin):
     readonly_fields = ('customer', 'created')
 
 
+class ExpertRequestAdmin(admin.ModelAdmin):
+    list_display = ('uuid', 'project', 'state', 'created')
+    readonly_fields = ('project', 'created')
+
+
 admin.site.register(models.ExpertProvider, ExpertProviderAdmin)
+admin.site.register(models.ExpertRequest, ExpertRequestAdmin)
