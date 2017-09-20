@@ -77,6 +77,9 @@ class TestWaldurClient(unittest.TestCase):
         status_url = self._get_url('openstacktenant-instances')
         responses.add(responses.GET, status_url, json=[self.instance])
 
+        instance_url = '%s/openstacktenant-instances/%s/' % (self.params['api_url'], self.instance['uuid'])
+        responses.add(responses.GET, instance_url, json=self.instance)
+
     def _get_url(self, endpoint, params=None):
         url = '%(url)s/%(endpoint)s/'
         url = url % {
