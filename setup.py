@@ -18,7 +18,7 @@ install_requires = [
     'ansible-waldur-module>=0.3.3',
     'waldur_ansible>=0.2.0',
     'waldur_freeipa>=0.2.2',
-    'waldur_paypal>=0.6.0',
+    'waldur_paypal>=0.6.1',
     'waldur_slurm>=0.1.3',
 ]
 

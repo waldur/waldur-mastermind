@@ -1,3 +1,7 @@
+from django.utils import timezone
+
+from nodeconductor_assembly_waldur.invoices import registrators as invoices_registrators
+
 from .log import event_logger
 from . import models
 
@@ -56,3 +60,21 @@ def log_expert_bid_creation(sender, instance, created=False, **kwargs):
         event_context={
             'expert_bid': instance,
         })
+
+
+def add_completed_expert_request_to_invoice(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    state = instance.state
+    if state != models.ExpertRequest.States.COMPLETED or state == instance.tracker.previous('state'):
+        return
+
+    if not instance.issue or not hasattr(instance, 'contract'):
+        return
+
+    invoices_registrators.RegistrationManager.register(instance, timezone.now())
+
+
+def terminate_invoice_when_expert_request_deleted(sender, instance, **kwargs):
+    invoices_registrators.RegistrationManager.terminate(instance, timezone.now())

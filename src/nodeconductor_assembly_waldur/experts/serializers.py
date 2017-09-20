@@ -1,3 +1,5 @@
+import itertools
+
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
@@ -71,15 +73,27 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
 
+    def _get_configuration(self, type):
+        offering_config = super(ExpertRequestSerializer, self)._get_configuration(type)
+        contract_config = settings.WALDUR_EXPERTS.get('CONTRACT')
+        if contract_config:
+            configured_options = [tab.get('options', {}) for tab in contract_config.get('options').values()]
+            options_order = [tab.get('order', []) for tab in contract_config.get('options').values()]
+            offering_config['order'] = offering_config['order'] + list(itertools.chain(*options_order))
+            [offering_config['options'].update(options) for options in configured_options]
+
+        return offering_config
+
     class Meta(object):
         model = models.ExpertRequest
         fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description',
                   'customer', 'customer_name', 'customer_uuid',
                   'project', 'project_name', 'project_uuid',
-                  'created', 'modified', 'contract',
+                  'created', 'modified', 'contract', 'recurring_billing',
+                  'objectives', 'milestones', 'contract_methodology', 'out_of_scope', 'common_tos',
                   'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',)
-        read_only_fields = ('type_label', 'price', 'state', 'issue')
-        protected_fields = ('project', 'type')
+        read_only_fields = ('type_label', 'price', 'state', 'issue', 'recurring_billing')
+        protected_fields = ('project', 'type', 'common_tos')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
@@ -123,8 +137,14 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
             project=project,
             name=validated_data.get('name'),
             type=type,
+            recurring_billing=configuration.get('recurring_billing', False),
             description=issue_details['description'],
             issue=issue,
+            objectives=validated_data.get('objectives', ''),
+            milestones=validated_data.get('milestones', ''),
+            contract_methodology=validated_data.get('contract_methodology', ''),
+            out_of_scope=validated_data.get('out_of_scope', ''),
+            common_tos=validated_data.get('common_tos', ''),
         )
 
 
@@ -132,6 +152,9 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
                           serializers.HyperlinkedModelSerializer):
 
     team_members = serializers.SerializerMethodField(source='get_team_members')
+    customer_uuid = serializers.ReadOnlyField(source='team.customer.uuid')
+    customer_name = serializers.ReadOnlyField(source='team.customer.name')
+    customer_email = serializers.ReadOnlyField(source='team.customer.email')
 
     class Meta(object):
         model = models.ExpertBid
@@ -139,6 +162,7 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
             'url', 'uuid', 'created', 'modified', 'price', 'description',
             'team', 'team_uuid', 'team_name', 'team_members',
             'request', 'request_uuid', 'request_name',
+            'customer_uuid', 'customer_name', 'customer_email',
         )
         related_paths = {
             'team': ('uuid', 'name'),
@@ -158,7 +182,17 @@ class ExpertBidSerializer(core_serializers.AugmentedSerializerMixin,
     def validate_team(self, team):
         if not team.permissions.filter(is_active=True).exists():
             raise exceptions.ValidationError(_('Expert team should have at least one member.'))
+
         return team
+
+    def validate(self, attrs):
+        team = attrs['team']
+        request = attrs['request']
+
+        if models.ExpertBid.objects.filter(request=request, team__customer=team.customer).exists():
+            raise exceptions.ValidationError({'team': _('There is a bid from this customer already.')})
+
+        return attrs
 
     def create(self, validated_data):
         request = self.context['request']

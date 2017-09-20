@@ -16,13 +16,13 @@ class UnitPriceMixin(models.Model):
         PER_MONTH = 'month'
         PER_HALF_MONTH = 'half_month'
         PER_DAY = 'day'
-        PER_USAGE = 'usage'
+        QUANTITY = 'quantity'
 
         CHOICES = (
             (PER_MONTH, _('Per month')),
             (PER_HALF_MONTH, _('Per half month')),
             (PER_DAY, _('Per day')),
-            (PER_USAGE, _('Per usage')),
+            (QUANTITY, _('Quantity')),
         )
 
     unit_price = models.DecimalField(default=0, max_digits=22, decimal_places=7,

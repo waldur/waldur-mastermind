@@ -22,7 +22,7 @@ class TestReportFormatter(TestCase):
                           'invoice_uuid;invoice_number;invoice_year;invoice_month;' \
                           'invoice_date;due_date;invoice_price;invoice_tax;' \
                           'invoice_total;name;article_code;product_code;' \
-                          'price;tax;total;unit_price;unit;start;end;usage_days'
+                          'price;tax;total;unit_price;unit;start;end'
         self.assertEqual(lines[0], expected_header)
 
     def test_offering_items_are_serialized(self):

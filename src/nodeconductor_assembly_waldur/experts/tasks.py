@@ -22,7 +22,7 @@ def send_contract(request_uuid, email):
         project_name=request.project.name,
     )
 
-    subject = render_to_string('experts/contract_subject.txt', context)
+    subject = render_to_string('experts/contract_subject.txt', context).strip()
     text_message = render_to_string('experts/contract_message.txt', context)
     html_message = render_to_string('experts/contract_message.html', context)
 

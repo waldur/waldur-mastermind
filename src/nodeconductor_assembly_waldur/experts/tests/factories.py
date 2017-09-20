@@ -65,3 +65,11 @@ class ExpertBidFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('expert-bid-list')
         return url if action is None else url + action + '/'
+
+
+class ExpertContractFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.ExpertContract
+
+    request = factory.SubFactory(ExpertRequestFactory)
+    team = factory.SubFactory(structure_factories.ProjectFactory)

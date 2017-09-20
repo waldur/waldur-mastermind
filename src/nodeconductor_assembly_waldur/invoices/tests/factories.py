@@ -63,3 +63,11 @@ class OfferingItemFactory(factory.DjangoModelFactory):
     invoice = factory.SubFactory(InvoiceFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     offering = factory.SubFactory(support_factories.OfferingFactory)
+
+
+class GenericInvoiceItemFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.GenericInvoiceItem
+
+    invoice = factory.SubFactory(InvoiceFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)

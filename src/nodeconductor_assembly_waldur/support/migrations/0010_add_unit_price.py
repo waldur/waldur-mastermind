@@ -18,8 +18,8 @@ class Migration(migrations.Migration):
             model_name='offering',
             name='unit',
             field=models.CharField(
-                choices=[(b'month', 'Per month'), (b'half_month', 'Per half month'), (b'day', 'Per day'), (b'usage', 'Per usage')],
-                default=b'day', max_length=30),
+                choices=[(b'month', 'Per month'), (b'half_month', 'Per half month'), (b'day', 'Per day'),
+                         (b'quantity', 'Quantity')], default=b'day', max_length=30),
         ),
         migrations.AddField(
             model_name='offering',

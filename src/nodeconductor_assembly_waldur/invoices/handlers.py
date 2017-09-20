@@ -33,10 +33,10 @@ def update_invoice_on_offering_deletion(sender, instance, **kwargs):
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
     state = instance.state
     if (state == support_models.Offering.States.OK
-        and support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
+            and support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
         registrators.RegistrationManager.register(instance, timezone.now())
     if (state == support_models.Offering.States.TERMINATED
-        and support_models.Offering.States.OK == instance.tracker.previous('state')):
+            and support_models.Offering.States.OK == instance.tracker.previous('state')):
         registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
@@ -114,7 +114,7 @@ def emit_invoice_created_event(sender, instance, created=False, **kwargs):
     if state != models.Invoice.States.CREATED or state == instance.tracker.previous('state'):
         return
 
-    if state == models.Invoice.States.CREATED:
-        cost_signals.invoice_created.send(sender=models.Invoice,
-                                          invoice=instance,
-                                          issuer_details=settings.INVOICES['ISSUER_DETAILS'])
+    cost_signals.invoice_created.send(sender=models.Invoice,
+                                      invoice=instance,
+                                      issuer_details=settings.INVOICES['ISSUER_DETAILS'])
+

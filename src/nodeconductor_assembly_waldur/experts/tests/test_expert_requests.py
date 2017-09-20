@@ -1,4 +1,8 @@
+import copy
+
 import mock
+from django.conf import settings
+from django.test import override_settings
 from rest_framework import test, status
 
 from nodeconductor.structure import models as structure_models
@@ -12,6 +16,16 @@ from .. import models
 from . import factories
 
 
+def override_experts_contract(contract_config=None):
+    if not contract_config:
+        contract_config = {}
+
+    contract_settings = copy.deepcopy(settings.WALDUR_EXPERTS)
+    contract_settings.update(CONTRACT=contract_config)
+    return override_settings(WALDUR_EXPERTS=contract_settings)
+
+
+@override_experts_contract()
 @override_offerings()
 class ExpertRequestCreateTest(test.APITransactionTestCase):
     def setUp(self):
@@ -45,6 +59,31 @@ class ExpertRequestCreateTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(0, len(response.data))
+
+    @override_experts_contract(
+        {
+            'order': ['objectives', 'milestones', 'terms-and-conditions'],
+            'options': {
+                'objectives': {
+                    'order': ['objectives'],
+                    'label': 'Objectives',
+                    'description': 'Contract objectives.',
+                    'options': {
+                        'objectives': {
+                            'type': 'string',
+                            'label': 'Objectives',
+                            'required': True,
+                            'default': 'This is an objective.',
+                        }
+                    }
+                }
+            }
+        })
+    def test_expert_request_cannot_be_created_if_it_has_a_missing_required_contract_field(self):
+        self.client.force_authenticate(self.customer_owner)
+        response = self.create_expert_request()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
 
     def test_expert_request_could_be_created_by_customer_owner(self):
         self.client.force_authenticate(self.customer_owner)
