@@ -4,14 +4,22 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from django.utils.translation import ugettext_lazy as _
 
+from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.common import mixins as common_mixins
 
 
-class SlurmPackage(common_mixins.ProductCodeMixin, models.Model):
+class SlurmPackage(common_mixins.ProductCodeMixin,
+                   core_models.UuidMixin,
+                   core_models.NameMixin,
+                   models.Model):
+
     class Meta(object):
         verbose_name = _('SLURM package')
         verbose_name_plural = _('SLURM packages')
+
+    class Permissions(object):
+        customer_path = 'service_settings__customer'
 
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10

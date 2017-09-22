@@ -10,5 +10,10 @@ class SlurmInvoicesExtension(NodeConductorExtension):
         return 'nodeconductor_assembly_waldur.slurm_invoices'
 
     @staticmethod
+    def rest_urls():
+        from .urls import register_in
+        return register_in
+
+    @staticmethod
     def is_assembly():
         return True
