@@ -92,7 +92,7 @@ class ExpertRequest(core_models.UuidMixin,
 
     @property
     def type_label(self):
-        offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
+        offerings = settings.WALDUR_SUPPORT.get('CONTRACT', {}).get('offerings', {})
         type_settings = offerings.get(self.type, {})
         return type_settings.get('label', None)
 

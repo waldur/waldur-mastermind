@@ -10,23 +10,70 @@ from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
 from nodeconductor.users import models as user_models
 from nodeconductor.users.tests import factories as user_factories
-from nodeconductor_assembly_waldur.support.tests.base import override_offerings
 
 from .. import models
 from . import factories
 
 
-def override_experts_contract(contract_config=None):
-    if not contract_config:
-        contract_config = {}
+def override_experts_contract(contract=None):
+    default_contract = {
+        'offerings': {
+            'custom_vpc_experts': {
+                'label': 'Custom VPC',
+                'order': ['storage', 'ram', 'cpu_count'],
+                'category': 'Experts',
+                'description': 'Custom VPC example.',
+                'summary': '<div>super long long long long long long <b>summary</b></div>',
+                'price': 100,
+                'recurring_billing': False,  # False if billing is project based, True if monthly occuring.
+                'options': {
+                    'storage': {
+                        'type': 'integer',
+                        'label': 'Max storage, GB',
+                        'help_text': 'VPC storage limit in GB.',
+                    },
+                    'ram': {
+                        'type': 'integer',
+                        'label': 'Max RAM, GB',
+                        'help_text': 'VPC RAM limit in GB.',
+                    },
+                    'cpu_count': {
+                        'type': 'integer',
+                        'label': 'Max vCPU',
+                        'help_text': 'VPC CPU count limit.',
+                    },
+                },
+            },
+        },
+        'order': ['objectives'],
+        'options': {
+            'objectives': {
+                'order': ['objectives', 'price'],
+                'label': 'Objectives',
+                'description': 'Contract objectives.',
+                'options': {
+                    'objectives': {
+                        'type': 'text',
+                        'label': 'Objectives',
+                        'default': 'This is an objective.',
+                    },
+                }
+            },
+        }
+    }
 
-    contract_settings = copy.deepcopy(settings.WALDUR_EXPERTS)
-    contract_settings.update(CONTRACT=contract_config)
-    return override_settings(WALDUR_EXPERTS=contract_settings)
+    if contract is None:
+        contract = default_contract
+
+    if 'offerings' not in contract:
+        contract['offerings'] = default_contract['offerings']
+
+    experts_settings = copy.deepcopy(settings.WALDUR_EXPERTS)
+    experts_settings.update(CONTRACT=contract)
+    return override_settings(WALDUR_EXPERTS=experts_settings)
 
 
 @override_experts_contract()
-@override_offerings()
 class ExpertRequestCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.project_fixture = structure_fixtures.ProjectFixture()
@@ -131,7 +178,7 @@ class ExpertRequestCreateTest(test.APITransactionTestCase):
         url = factories.ExpertRequestFactory.get_list_url()
         return self.client.post(url, {
             'project': structure_factories.ProjectFactory.get_url(self.project),
-            'type': 'custom_vpc',
+            'type': 'custom_vpc_experts',
             'name': 'Expert request for custom VPC',
             'ram': 1024,
             'storage': 10240,
