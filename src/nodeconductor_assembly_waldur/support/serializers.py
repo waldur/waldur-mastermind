@@ -461,8 +461,11 @@ class ConfigurableSerializerMixin(object):
         the value itself has been provided in the create request.
     """
 
+    def _get_offerings_configuration(self):
+        return copy.deepcopy(settings.WALDUR_SUPPORT['OFFERINGS'])
+
     def _get_configuration(self, type):
-        return copy.deepcopy(settings.WALDUR_SUPPORT['OFFERINGS'].get(type))
+        return self._get_offerings_configuration().get(type)
 
     def get_fields(self):
         result = super(ConfigurableSerializerMixin, self).get_fields()
@@ -475,7 +478,7 @@ class ConfigurableSerializerMixin(object):
 
         # choices have to be added dynamically so that unit tests can mock offering configuration.
         # otherwise it is always going to be a default set up.
-        result['type'] = serializers.ChoiceField(allow_blank=False, choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+        result['type'] = serializers.ChoiceField(allow_blank=False, choices=self._get_offerings_configuration().keys())
 
         return result
 

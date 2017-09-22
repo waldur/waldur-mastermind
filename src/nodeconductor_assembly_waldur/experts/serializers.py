@@ -1,3 +1,4 @@
+import copy
 import itertools
 
 from django.conf import settings
@@ -60,7 +61,7 @@ class ExpertContractSerializer(core_serializers.AugmentedSerializerMixin,
 class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
                               core_serializers.AugmentedSerializerMixin,
                               serializers.HyperlinkedModelSerializer):
-    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+    type = serializers.ChoiceField(choices=settings.WALDUR_EXPERTS['CONTRACT']['offerings'].keys())
     state = serializers.ReadOnlyField(source='get_state_display')
     description = serializers.CharField(required=False)
     contract = ExpertContractSerializer(required=False, read_only=True)
@@ -73,14 +74,16 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
 
+    def _get_offerings_configuration(self):
+        return copy.deepcopy(settings.WALDUR_EXPERTS['CONTRACT']['offerings'])
+
     def _get_configuration(self, type):
-        offering_config = super(ExpertRequestSerializer, self)._get_configuration(type)
-        contract_config = settings.WALDUR_EXPERTS.get('CONTRACT')
-        if contract_config:
-            configured_options = [tab.get('options', {}) for tab in contract_config.get('options').values()]
-            options_order = [tab.get('order', []) for tab in contract_config.get('options').values()]
-            offering_config['order'] = offering_config['order'] + list(itertools.chain(*options_order))
-            [offering_config['options'].update(options) for options in configured_options]
+        contract_config = copy.deepcopy(settings.WALDUR_EXPERTS['CONTRACT'])
+        offering_config = contract_config['offerings'].get(type)
+        configured_options = [tab.get('options', {}) for tab in contract_config.get('options').values()]
+        options_order = [tab.get('order', []) for tab in contract_config.get('options').values()]
+        offering_config['order'] = offering_config['order'] + list(itertools.chain(*options_order))
+        [offering_config['options'].update(options) for options in configured_options]
 
         return offering_config
 
