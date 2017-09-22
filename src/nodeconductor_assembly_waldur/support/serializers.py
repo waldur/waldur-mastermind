@@ -269,7 +269,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
             'impact': self._get_impact_field(fields=fields),
             'summary': fields['summary'],
             'priority': self._get_field_name(fields, 'priority'),
-            'description': fields['description'],
+            'description': fields['description'] or '',
             'type': fields['issuetype']['name'],
         }
 
