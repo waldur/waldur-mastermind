@@ -2,7 +2,6 @@ from ddt import ddt, data
 from decimal import Decimal
 from rest_framework import test, status
 
-from .. import models
 from . import factories, fixtures
 
 
