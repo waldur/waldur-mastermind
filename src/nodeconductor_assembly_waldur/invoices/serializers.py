@@ -1,9 +1,12 @@
+import datetime
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import utils as core_utils
 from nodeconductor.structure import SupportedServices
+from nodeconductor_assembly_waldur.common.utils import quantize_price
 
 from . import models
 
@@ -220,3 +223,75 @@ class GenericItemReportSerializer(InvoiceItemReportSerializer):
     class Meta(InvoiceItemReportSerializer.Meta):
         model = models.GenericInvoiceItem
         fields = InvoiceItemReportSerializer.Meta.fields + ('quantity',)
+
+
+# SAF is accounting soft from Estonia: www.sysdec.ee/safsaf.htm
+class SAFReportSerializer(serializers.Serializer):
+    KUUPAEV = serializers.SerializerMethodField(method_name='get_last_day_of_month')
+    VORMKUUP = serializers.SerializerMethodField(method_name='get_invoice_date')
+    MAKSEAEG = serializers.SerializerMethodField(method_name='get_due_date')
+    YKSUS = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
+    PARTNER = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
+    ARTIKKEL = serializers.ReadOnlyField(source='article_code')
+    KOGUS = serializers.SerializerMethodField(method_name='get_quantity')
+    SUMMA = serializers.SerializerMethodField(method_name='get_total')
+    RMAKSUSUM = serializers.SerializerMethodField(method_name='get_tax')
+    RMAKSULIPP = serializers.SerializerMethodField(method_name='get_vat')
+    ARTPROJEKT = serializers.SerializerMethodField(method_name='get_project')
+    ARTNIMI = serializers.ReadOnlyField(source='name')
+    VALI = serializers.SerializerMethodField(method_name='get_empty_field')
+    U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
+    H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
+
+    class Meta(object):
+        fields = ('KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
+                  'ARTIKKEL', 'KOGUS', 'SUMMA', 'RMAKSUSUM', 'RMAKSULIPP',
+                  'ARTPROJEKT', 'ARTNIMI', 'VALI', 'U_KONEDEARV', 'H_PERIOOD')
+
+    def format_date(self, date):
+        if date:
+            return date.strftime('%d.%m.%Y')
+        return ''
+
+    def get_first_day(self, invoice_item):
+        year = invoice_item.invoice.year
+        month = invoice_item.invoice.month
+        return datetime.date(year=year, month=month, day=1)
+
+    def get_last_day_of_month(self, invoice_item):
+        first_day = self.get_first_day(invoice_item)
+        last_day = core_utils.month_end(first_day)
+        return self.format_date(last_day)
+
+    def get_invoice_date(self, invoice_item):
+        date = invoice_item.invoice.invoice_date
+        return self.format_date(date)
+
+    def get_due_date(self, invoice_item):
+        date = invoice_item.invoice.due_date
+        return self.format_date(date)
+
+    def get_quantity(self, invoice_item):
+        if hasattr(invoice_item, 'quantity'):
+            return invoice_item.quantity
+        return invoice_item.usage_days
+
+    def get_total(self, invoice_item):
+        return quantize_price(invoice_item.total)
+
+    def get_tax(self, invoice_item):
+        return quantize_price(invoice_item.tax)
+
+    def get_project(self, invoice_item):
+        return settings.INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['ARTPROJEKT']
+
+    def get_vat(self, invoice_item):
+        return settings.INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
+
+    def get_empty_field(self, invoice_item):
+        return ''
+
+    def get_covered_period(self, invoice_item):
+        first_day = self.get_first_day(invoice_item)
+        last_day = core_utils.month_end(first_day)
+        return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))

@@ -37,6 +37,7 @@ class InvoicesExtension(NodeConductorExtension):
                 'CSV_PARAMS': {
                     'delimiter': str(';'),
                 },
+                'USE_SAF': False,
                 'SERIALIZER_EXTRA_KWARGS': {
                     'start': {
                         'format': '%d.%m.%Y',
@@ -45,6 +46,10 @@ class InvoicesExtension(NodeConductorExtension):
                         'format': '%d.%m.%Y',
                     }
                 },
+                'SAF_PARAMS': {
+                    'RMAKSULIPP': '20%',
+                    'ARTPROJEKT': 'PROJEKT',
+                }
             },
         }
 
