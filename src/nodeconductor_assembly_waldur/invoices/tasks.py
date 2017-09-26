@@ -88,6 +88,17 @@ def send_invoice_report(invoice_uuid):
 
 def format_invoice_csv(invoice):
     csv_params = settings.INVOICES['INVOICE_REPORTING']['CSV_PARAMS']
+
+    if settings.INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
+        fields = serializers.SAFReportSerializer.Meta.fields
+        stream = cStringIO.StringIO()
+        writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
+        writer.writeheader()
+
+        serializer = serializers.SAFReportSerializer(invoice.items, many=True)
+        writer.writerows(serializer.data)
+        return stream.getvalue().decode('utf-8')
+
     fields = serializers.InvoiceItemReportSerializer.Meta.fields
     stream = cStringIO.StringIO()
     writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)

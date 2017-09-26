@@ -65,22 +65,6 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
 
 class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
 
-    def create_package_template(self, component_price=10, component_amount=1):
-        template = packages_factories.PackageTemplateFactory()
-        template.components.update(
-            price=component_price,
-            amount=component_amount,
-        )
-        return template
-
-    def create_package(self, component_price, tenant=None):
-        template = self.create_package_template(component_price=component_price)
-        if not tenant:
-            tenant = packages_factories.TenantFactory()
-
-        package = packages_factories.OpenStackPackageFactory(template=template, tenant=tenant)
-        return package
-
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -118,12 +102,12 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         end_of_the_month = core_utils.month_end(package_change_date)
 
         with freeze_time(start_date):
-            old_package = self.create_package(component_price=old_component_price)
+            old_package = fixtures.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
-            new_template = self.create_package_template(component_price=new_component_price)
+            new_template = fixtures.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
                 tenant__service_project_link__project__customer=customer,
@@ -145,13 +129,13 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         end_of_the_month = core_utils.month_end(package_change_date)
 
         with freeze_time(start_date):
-            old_package = self.create_package(component_price=old_component_price)
+            old_package = fixtures.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
-            new_template = self.create_package_template(component_price=new_component_price)
+            new_template = fixtures.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
                 tenant=tenant,
@@ -174,13 +158,13 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         end_of_the_month = core_utils.month_end(package_change_date)
 
         with freeze_time(start_date):
-            old_package = self.create_package(component_price=old_component_price)
+            old_package = fixtures.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
-            new_template = self.create_package_template(component_price=new_component_price)
+            new_template = fixtures.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
                 tenant=tenant
@@ -203,13 +187,13 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         end_of_the_month = core_utils.month_end(package_change_date)
 
         with freeze_time(start_date):
-            old_package = self.create_package(component_price=old_component_price)
+            old_package = fixtures.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
-            new_template = self.create_package_template(component_price=new_component_price)
+            new_template = fixtures.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
                 tenant=tenant,
@@ -232,12 +216,12 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         end_of_the_month = core_utils.month_end(package_change_date)
 
         with freeze_time(start_date):
-            old_package = self.create_package(component_price=old_component_price)
+            old_package = fixtures.create_package(component_price=old_component_price)
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
             old_package.delete()
-            new_template = self.create_package_template(component_price=new_component_price)
+            new_template = fixtures.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
                 tenant=tenant,
@@ -260,12 +244,12 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         end_of_the_month = core_utils.month_end(package_change_date)
 
         with freeze_time(start_date):
-            old_package = self.create_package(component_price=old_component_price)
+            old_package = fixtures.create_package(component_price=old_component_price)
         customer = old_package.tenant.service_project_link.project.customer
 
         with freeze_time(package_change_date):
             old_package.delete()
-            new_template = self.create_package_template(component_price=new_component_price)
+            new_template = fixtures.create_package_template(component_price=new_component_price)
             new_package = packages_factories.OpenStackPackageFactory(
                 template=new_template,
                 tenant__service_project_link__project__customer=customer,
