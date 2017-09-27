@@ -35,6 +35,8 @@ def update_invoice_item_on_allocation_usage_update(sender, instance, created=Fal
         return
 
     invoice_item = registrators.RegistrationManager.get_item(allocation)
+    if not invoice_item:
+        return
     registrator = registrators.RegistrationManager.get_registrator(allocation)
     package = registrator.get_package(allocation)
     if package:

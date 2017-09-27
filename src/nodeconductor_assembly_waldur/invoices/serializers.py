@@ -1,7 +1,12 @@
+import datetime
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import utils as core_utils
+from nodeconductor.structure import SupportedServices
+from nodeconductor_assembly_waldur.common.utils import quantize_price
 
 from . import models
 
@@ -13,8 +18,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.InvoiceItem
         fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit',
-                  'start', 'end', 'usage_days', 'product_code',
-                  'article_code', 'project_name', 'project_uuid',)
+                  'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid')
 
 
 class OpenStackItemSerializer(InvoiceItemSerializer):
@@ -26,7 +30,7 @@ class OpenStackItemSerializer(InvoiceItemSerializer):
 
     class Meta(InvoiceItemSerializer.Meta):
         model = models.OpenStackItem
-        fields = InvoiceItemSerializer.Meta.fields + ('package', 'tenant_name', 'tenant_uuid',
+        fields = InvoiceItemSerializer.Meta.fields + ('package', 'tenant_name', 'tenant_uuid', 'usage_days',
                                                       'template_name', 'template_uuid', 'template_category')
         extra_kwargs = {
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
@@ -38,15 +42,27 @@ class OfferingItemSerializer(InvoiceItemSerializer):
 
     class Meta(InvoiceItemSerializer.Meta):
         model = models.OfferingItem
-        fields = InvoiceItemSerializer.Meta.fields + ('offering', 'offering_type')
+        fields = InvoiceItemSerializer.Meta.fields + ('offering', 'offering_type', 'usage_days')
         extra_kwargs = {
             'offering': {'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
         }
 
 
 class GenericItemSerializer(InvoiceItemSerializer):
+    scope_type = serializers.SerializerMethodField()
+    scope_uuid = serializers.SerializerMethodField()
+
     class Meta(InvoiceItemSerializer.Meta):
         model = models.GenericInvoiceItem
+        fields = InvoiceItemSerializer.Meta.fields + ('quantity', 'scope_type', 'scope_uuid')
+
+    def get_scope_type(self, item):
+        return SupportedServices.get_name_for_model(item.content_type.model_class())
+
+    def get_scope_uuid(self, item):
+        if hasattr(item, 'scope'):
+            return item.scope.uuid.hex
+        return item.details['scope_uuid']
 
 
 class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
@@ -65,7 +81,8 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         model = models.Invoice
         fields = (
             'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
-            'state', 'year', 'month', 'issuer_details', 'customer_details', 'invoice_date', 'due_date',
+            'state', 'year', 'month', 'issuer_details', 'invoice_date', 'due_date',
+            'customer', 'customer_details',
             'openstack_items', 'offering_items', 'generic_items',
         )
         extra_kwargs = {
@@ -151,7 +168,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
             'invoice_price', 'invoice_tax', 'invoice_total',
             'name', 'article_code', 'product_code',
             'price', 'tax', 'total', 'unit_price', 'unit',
-            'start', 'end', 'usage_days',
+            'start', 'end',
         )
         decimal_fields = (
             'price', 'tax', 'total', 'unit_price',
@@ -193,13 +210,88 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
 class OpenStackItemReportSerializer(InvoiceItemReportSerializer):
     class Meta(InvoiceItemReportSerializer.Meta):
         model = models.OpenStackItem
+        fields = InvoiceItemReportSerializer.Meta.fields + ('usage_days',)
 
 
 class OfferingItemReportSerializer(InvoiceItemReportSerializer):
     class Meta(InvoiceItemReportSerializer.Meta):
         model = models.OfferingItem
+        fields = InvoiceItemReportSerializer.Meta.fields + ('usage_days',)
 
 
 class GenericItemReportSerializer(InvoiceItemReportSerializer):
     class Meta(InvoiceItemReportSerializer.Meta):
         model = models.GenericInvoiceItem
+        fields = InvoiceItemReportSerializer.Meta.fields + ('quantity',)
+
+
+# SAF is accounting soft from Estonia: www.sysdec.ee/safsaf.htm
+class SAFReportSerializer(serializers.Serializer):
+    KUUPAEV = serializers.SerializerMethodField(method_name='get_last_day_of_month')
+    VORMKUUP = serializers.SerializerMethodField(method_name='get_invoice_date')
+    MAKSEAEG = serializers.SerializerMethodField(method_name='get_due_date')
+    YKSUS = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
+    PARTNER = serializers.ReadOnlyField(source='invoice.customer.agreement_number')
+    ARTIKKEL = serializers.ReadOnlyField(source='article_code')
+    KOGUS = serializers.SerializerMethodField(method_name='get_quantity')
+    SUMMA = serializers.SerializerMethodField(method_name='get_total')
+    RMAKSUSUM = serializers.SerializerMethodField(method_name='get_tax')
+    RMAKSULIPP = serializers.SerializerMethodField(method_name='get_vat')
+    ARTPROJEKT = serializers.SerializerMethodField(method_name='get_project')
+    ARTNIMI = serializers.ReadOnlyField(source='name')
+    VALI = serializers.SerializerMethodField(method_name='get_empty_field')
+    U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
+    H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
+
+    class Meta(object):
+        fields = ('KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
+                  'ARTIKKEL', 'KOGUS', 'SUMMA', 'RMAKSUSUM', 'RMAKSULIPP',
+                  'ARTPROJEKT', 'ARTNIMI', 'VALI', 'U_KONEDEARV', 'H_PERIOOD')
+
+    def format_date(self, date):
+        if date:
+            return date.strftime('%d.%m.%Y')
+        return ''
+
+    def get_first_day(self, invoice_item):
+        year = invoice_item.invoice.year
+        month = invoice_item.invoice.month
+        return datetime.date(year=year, month=month, day=1)
+
+    def get_last_day_of_month(self, invoice_item):
+        first_day = self.get_first_day(invoice_item)
+        last_day = core_utils.month_end(first_day)
+        return self.format_date(last_day)
+
+    def get_invoice_date(self, invoice_item):
+        date = invoice_item.invoice.invoice_date
+        return self.format_date(date)
+
+    def get_due_date(self, invoice_item):
+        date = invoice_item.invoice.due_date
+        return self.format_date(date)
+
+    def get_quantity(self, invoice_item):
+        if hasattr(invoice_item, 'quantity'):
+            return invoice_item.quantity
+        return invoice_item.usage_days
+
+    def get_total(self, invoice_item):
+        return quantize_price(invoice_item.total)
+
+    def get_tax(self, invoice_item):
+        return quantize_price(invoice_item.tax)
+
+    def get_project(self, invoice_item):
+        return settings.INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['ARTPROJEKT']
+
+    def get_vat(self, invoice_item):
+        return settings.INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
+
+    def get_empty_field(self, invoice_item):
+        return ''
+
+    def get_covered_period(self, invoice_item):
+        first_day = self.get_first_day(invoice_item)
+        last_day = core_utils.month_end(first_day)
+        return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))

@@ -57,30 +57,62 @@ class ExpertBidListTest(ExpertBidBaseTest):
 
 
 class ExpertBidCreateTest(ExpertBidBaseTest):
+    action_url = factories.ExpertBidFactory.get_list_url()
 
     def test_expert_manager_can_create_expert_bid(self):
         self.client.force_authenticate(self.expert_manager)
-        response = self.create_expert_bid()
+
+        response = self.client.post(self.action_url, self._get_payload())
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_project_manager_can_not_create_expert_bid(self):
         self.client.force_authenticate(self.project_fixture.manager)
-        response = self.create_expert_bid()
+
+        response = self.client.post(self.action_url, self._get_payload())
+
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_bid_can_be_created_for_pending_request_only(self):
         self.expert_request.state = models.ExpertRequest.States.ACTIVE
         self.expert_request.save()
         self.client.force_authenticate(self.expert_manager)
-        response = self.create_expert_bid()
+
+        response = self.client.post(self.action_url, self._get_payload())
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('request', response.data)
 
     def test_team_should_have_at_least_one_member(self):
         self.project.remove_user(self.expert)
         self.client.force_authenticate(self.expert_manager)
-        response = self.create_expert_bid()
+
+        response = self.client.post(self.action_url, self._get_payload())
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_organization_cannot_submit_bid_second_time_for_the_same_request(self):
+        self.client.force_authenticate(self.expert_manager)
+
+        response = self.client.post(self.action_url, self._get_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        second_project = structure_factories.ProjectFactory(customer=self.project.customer)
+        second_project.add_user(structure_factories.UserFactory(), structure_models.CustomerRole.OWNER)
+        response = self.client.post(self.action_url, self._get_payload(second_project))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_organization_can_submit_second_bid_for_second_request(self):
+        self.client.force_authenticate(self.expert_manager)
+
+        response = self.client.post(self.action_url, self._get_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        second_project = structure_factories.ProjectFactory(customer=self.project.customer)
+        second_project.add_user(structure_factories.UserFactory(), structure_models.CustomerRole.OWNER)
+        second_request = factories.ExpertRequestFactory(project=self.project)
+        response = self.client.post(self.action_url, self._get_payload(second_project, second_request))
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_when_expert_bid_is_created_event_is_emitted(self):
         with mock.patch('logging.LoggerAdapter.info') as mocked_info:
@@ -98,13 +130,15 @@ class ExpertBidCreateTest(ExpertBidBaseTest):
             actual_message = mocked_info.call_args_list[-1][0][0]
             self.assertEqual(expected_message, actual_message)
 
-    def create_expert_bid(self):
-        url = factories.ExpertBidFactory.get_list_url()
-        return self.client.post(url, {
-            'request': factories.ExpertRequestFactory.get_url(self.expert_request),
-            'team': structure_factories.ProjectFactory.get_url(self.project),
+    def _get_payload(self, project=None, request=None):
+        if not project:
+            project = self.project
+
+        return {
+            'request': factories.ExpertRequestFactory.get_url(request or self.expert_request),
+            'team': structure_factories.ProjectFactory.get_url(project),
             'price': 100.00,
-        })
+        }
 
 
 class ExpertBidAcceptTest(ExpertBidBaseTest):

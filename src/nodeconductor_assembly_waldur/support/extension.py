@@ -63,16 +63,19 @@ class SupportExtension(NodeConductorExtension):
                 #         'storage': {
                 #             'type': 'integer',
                 #             'label': 'Max storage, GB',
+                #             'required': True,
                 #             'help_text': 'VPC storage limit in GB.',
                 #         },
                 #         'ram': {
                 #             'type': 'integer',
                 #             'label': 'Max RAM, GB',
+                #             'required': True,
                 #             'help_text': 'VPC RAM limit in GB.',
                 #         },
                 #         'cpu_count': {
                 #             'type': 'integer',
                 #             'label': 'Max vCPU',
+                #             'required': True,
                 #             'help_text': 'VPC CPU count limit.',
                 #         },
                 #     },

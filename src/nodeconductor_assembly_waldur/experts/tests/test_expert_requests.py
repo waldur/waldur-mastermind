@@ -1,4 +1,8 @@
+import copy
+
 import mock
+from django.conf import settings
+from django.test import override_settings
 from rest_framework import test, status
 
 from nodeconductor.structure import models as structure_models
@@ -6,13 +10,70 @@ from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
 from nodeconductor.users import models as user_models
 from nodeconductor.users.tests import factories as user_factories
-from nodeconductor_assembly_waldur.support.tests.base import override_offerings
 
 from .. import models
 from . import factories
 
 
-@override_offerings()
+def override_experts_contract(contract=None):
+    default_contract = {
+        'offerings': {
+            'custom_vpc_experts': {
+                'label': 'Custom VPC',
+                'order': ['storage', 'ram', 'cpu_count'],
+                'category': 'Experts',
+                'description': 'Custom VPC example.',
+                'summary': '<div>super long long long long long long <b>summary</b></div>',
+                'price': 100,
+                'recurring_billing': False,  # False if billing is project based, True if monthly occuring.
+                'options': {
+                    'storage': {
+                        'type': 'integer',
+                        'label': 'Max storage, GB',
+                        'help_text': 'VPC storage limit in GB.',
+                    },
+                    'ram': {
+                        'type': 'integer',
+                        'label': 'Max RAM, GB',
+                        'help_text': 'VPC RAM limit in GB.',
+                    },
+                    'cpu_count': {
+                        'type': 'integer',
+                        'label': 'Max vCPU',
+                        'help_text': 'VPC CPU count limit.',
+                    },
+                },
+            },
+        },
+        'order': ['objectives'],
+        'options': {
+            'objectives': {
+                'order': ['objectives', 'price'],
+                'label': 'Objectives',
+                'description': 'Contract objectives.',
+                'options': {
+                    'objectives': {
+                        'type': 'text',
+                        'label': 'Objectives',
+                        'default': 'This is an objective.',
+                    },
+                }
+            },
+        }
+    }
+
+    if contract is None:
+        contract = default_contract
+
+    if 'offerings' not in contract:
+        contract['offerings'] = default_contract['offerings']
+
+    experts_settings = copy.deepcopy(settings.WALDUR_EXPERTS)
+    experts_settings.update(CONTRACT=contract)
+    return override_settings(WALDUR_EXPERTS=experts_settings)
+
+
+@override_experts_contract()
 class ExpertRequestCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.project_fixture = structure_fixtures.ProjectFixture()
@@ -45,6 +106,31 @@ class ExpertRequestCreateTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(0, len(response.data))
+
+    @override_experts_contract(
+        {
+            'order': ['objectives', 'milestones', 'terms-and-conditions'],
+            'options': {
+                'objectives': {
+                    'order': ['objectives'],
+                    'label': 'Objectives',
+                    'description': 'Contract objectives.',
+                    'options': {
+                        'objectives': {
+                            'type': 'string',
+                            'label': 'Objectives',
+                            'required': True,
+                            'default': 'This is an objective.',
+                        }
+                    }
+                }
+            }
+        })
+    def test_expert_request_cannot_be_created_if_it_has_a_missing_required_contract_field(self):
+        self.client.force_authenticate(self.customer_owner)
+        response = self.create_expert_request()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
 
     def test_expert_request_could_be_created_by_customer_owner(self):
         self.client.force_authenticate(self.customer_owner)
@@ -92,7 +178,7 @@ class ExpertRequestCreateTest(test.APITransactionTestCase):
         url = factories.ExpertRequestFactory.get_list_url()
         return self.client.post(url, {
             'project': structure_factories.ProjectFactory.get_url(self.project),
-            'type': 'custom_vpc',
+            'type': 'custom_vpc_experts',
             'name': 'Expert request for custom VPC',
             'ram': 1024,
             'storage': 10240,

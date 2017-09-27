@@ -11,6 +11,7 @@ from model_utils import FieldTracker
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.support import models as support_models
+from nodeconductor_assembly_waldur.common import mixins as common_mixins
 
 from . import managers
 
@@ -31,10 +32,21 @@ class ExpertProvider(core_models.UuidMixin,
         return 'expert-provider'
 
 
+class PriceMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    price = models.DecimalField(max_digits=22, decimal_places=7,
+                                validators=[MinValueValidator(Decimal('0'))],
+                                default=0)
+
+
 @python_2_unicode_compatible
 class ExpertRequest(core_models.UuidMixin,
                     core_models.NameMixin,
                     core_models.DescribableMixin,
+                    PriceMixin,
+                    common_mixins.ProductCodeMixin,
                     structure_models.StructureLoggableMixin,
                     structure_models.TimeStampedModel):
     class States(object):
@@ -56,6 +68,15 @@ class ExpertRequest(core_models.UuidMixin,
     state = models.CharField(default=States.PENDING, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
     issue = models.ForeignKey(support_models.Issue, null=True, on_delete=models.SET_NULL)
+    recurring_billing = models.BooleanField(
+        default=False, help_text=_('Defines whether expert request has to be billed every month or only once'))
+    objectives = models.TextField(blank=True)
+    milestones = models.TextField(blank=True)
+    contract_methodology = models.TextField(blank=True)
+    out_of_scope = models.TextField(
+        blank=True, help_text=_('Elements that are explicitly excluded from the contract'))
+    common_tos = models.TextField(blank=True)
+
     tracker = FieldTracker()
     objects = managers.ExpertRequestManager()
 
@@ -71,7 +92,7 @@ class ExpertRequest(core_models.UuidMixin,
 
     @property
     def type_label(self):
-        offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
+        offerings = settings.WALDUR_SUPPORT.get('CONTRACT', {}).get('offerings', {})
         type_settings = offerings.get(self.type, {})
         return type_settings.get('label', None)
 
@@ -81,15 +102,6 @@ class ExpertRequest(core_models.UuidMixin,
 
     def __str__(self):
         return '{} / {}'.format(self.project.name, self.project.customer.name)
-
-
-class PriceMixin(models.Model):
-    class Meta(object):
-        abstract = True
-
-    price = models.DecimalField(max_digits=22, decimal_places=7,
-                                validators=[MinValueValidator(Decimal('0'))],
-                                default=0)
 
 
 class ExpertBid(core_models.UuidMixin,
@@ -120,7 +132,7 @@ class ExpertBid(core_models.UuidMixin,
 
 class ExpertContract(PriceMixin, core_models.DescribableMixin, structure_models.TimeStampedModel):
     request = models.OneToOneField(ExpertRequest, on_delete=models.CASCADE, related_name='contract')
-    team = models.ForeignKey(structure_models.Project, related_name='+')
+    team = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.PROTECT)
 
     class Meta:
         ordering = ['-created']
