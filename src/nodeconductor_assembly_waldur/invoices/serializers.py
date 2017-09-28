@@ -60,7 +60,7 @@ class GenericItemSerializer(InvoiceItemSerializer):
         return SupportedServices.get_name_for_model(item.content_type.model_class())
 
     def get_scope_uuid(self, item):
-        if hasattr(item, 'scope'):
+        if item.scope:
             return item.scope.uuid.hex
         return item.details['scope_uuid']
 

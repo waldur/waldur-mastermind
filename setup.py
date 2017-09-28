@@ -14,12 +14,12 @@ install_requires = [
     'nodeconductor_azure>=0.3.0',
     'nodeconductor_cost_planning>=0.5.0',
     'nodeconductor_digitalocean>=0.9.0',
-    'nodeconductor_openstack>=0.36.0',
+    'nodeconductor_openstack>=0.36.1',
     'nodeconductor_saml2>=0.8.1',
     'waldur_ansible>=0.2.0',
     'waldur_freeipa>=0.2.2',
     'waldur_paypal>=0.6.1',
-    'waldur_slurm>=0.2.0',
+    'waldur_slurm>=0.2.1',
 ]
 
 test_requires = [
@@ -30,7 +30,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.7.2',
+    version='2.7.3',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

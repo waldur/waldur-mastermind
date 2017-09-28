@@ -93,7 +93,7 @@ class ExpertRequestCreateTest(test.APITransactionTestCase):
 
     def test_expert_requests_are_visible_to_any_expert_manager(self):
         self.client.force_authenticate(self.expert_manager)
-        self.expert_request = factories.ExpertRequestFactory(project=self.project)
+        self.expert_request = factories.ExpertRequestFactory(type='custom_vpc_experts', project=self.project)
         url = factories.ExpertRequestFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
