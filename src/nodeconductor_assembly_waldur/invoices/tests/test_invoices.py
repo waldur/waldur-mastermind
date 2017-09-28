@@ -2,6 +2,8 @@ from ddt import ddt, data
 from rest_framework import test, status
 
 from nodeconductor_assembly_waldur.packages.tests import fixtures as packages_fixtures
+from nodeconductor_assembly_waldur.slurm_invoices.tests import factories as slurm_factories
+from waldur_slurm.tests import fixtures as slurm_fixtures
 
 from . import factories, fixtures
 from .. import models
@@ -134,5 +136,31 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
 
     def test_details_are_rendered_if_package_has_been_deleted(self):
         self.package.delete()
+        self.item.refresh_from_db()
+        self.check_output()
+
+
+class GenericInvoiceItemTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = slurm_fixtures.SlurmFixture()
+        self.package = slurm_factories.SlurmPackageFactory(service_settings=self.fixture.service.settings)
+        self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
+        self.scope = self.fixture.allocation
+        self.item = models.GenericInvoiceItem.objects.filter(scope=self.scope).get()
+
+    def check_output(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
+
+        item = response.data['generic_items'][0]
+        self.assertEqual(item['scope_type'], 'SLURM.Allocation')
+        self.assertEqual(item['scope_uuid'], self.scope.uuid.hex)
+        self.assertEqual(item['name'], self.scope.name)
+
+    def test_details_are_rendered_if_scope_exists(self):
+        self.check_output()
+
+    def test_details_are_rendered_if_scope_has_been_deleted(self):
+        self.scope.delete()
         self.item.refresh_from_db()
         self.check_output()

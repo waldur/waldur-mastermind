@@ -211,6 +211,7 @@ class GenericInvoiceItem(InvoiceItem):
         if self.scope:
             self.details = registrators.RegistrationManager.get_details(self.scope)
             self.details['name'] = registrators.RegistrationManager.get_name(self.scope)
+            self.details['scope_uuid'] = self.scope.uuid.hex
             self.save(update_fields=['details'])
 
 
