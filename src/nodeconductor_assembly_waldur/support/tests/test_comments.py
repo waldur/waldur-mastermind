@@ -101,7 +101,7 @@ class CommentRetrieveTest(base.BaseTest):
         # add some noise
         factories.CommentFactory(issue=issue)
 
-        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue__uuid': issue.uuid})
+        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue_uuid': issue.uuid})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -126,3 +126,17 @@ class CommentRetrieveTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.comment.uuid.hex)
+
+    def test_user_can_get_comment_if_he_is_the_author(self):
+        comment = factories.CommentFactory(issue=self.fixture.issue)
+        comment.author.user = self.fixture.owner
+        comment.author.save()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(factories.CommentFactory.get_list_url(), {
+            'issue_uuid': self.fixture.issue.uuid.hex
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        self.assertTrue(comment.uuid.hex in [comment['uuid'] for comment in response.data])

@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
@@ -119,7 +120,8 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         queryset = super(CommentViewSet, self).get_queryset()
 
         if not self.request.user.is_staff:
-            queryset = queryset.filter(is_public=True)
+            subquery = Q(is_public=True) | Q(author__user=self.request.user)
+            queryset = queryset.filter(subquery)
 
         return queryset
 
