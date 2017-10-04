@@ -4,8 +4,10 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
+from nodeconductor.core import signals as core_signals
 from nodeconductor.core import utils as core_utils
 from nodeconductor.structure import SupportedServices
+from nodeconductor.structure import serializers as structure_serializers
 from nodeconductor_assembly_waldur.common.utils import quantize_price
 
 from . import models
@@ -295,3 +297,20 @@ class SAFReportSerializer(serializers.Serializer):
         first_day = self.get_first_day(invoice_item)
         last_day = core_utils.month_end(first_day)
         return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))
+
+
+def get_accounting_start_date(serializer, scope):
+    if not hasattr(scope, 'payment_details'):
+        return None
+    return scope.payment_details.accounting_start_date
+
+
+def add_accounting_start_date(sender, fields, **kwargs):
+    fields['accounting_start_date'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_accounting_start_date', get_accounting_start_date)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_accounting_start_date,
+)
