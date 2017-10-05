@@ -196,7 +196,9 @@ def main():
         argument_spec=fields,
         required_together=required_together,
         required_one_of=required_one_of,
-        mutually_exclusive=mutually_exclusive)
+        mutually_exclusive=mutually_exclusive,
+        supports_check_mode=True,
+    )
 
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
     networks = module.params.get('networks') or [{
@@ -220,6 +222,7 @@ def main():
             timeout=module.params['timeout'],
             user_data=module.params['user_data'],
             tags=module.params.get('tags'),
+            check_mode=module.check_mode,
         )
     except WaldurClientException as error:
         module.fail_json(msg=error.message)
