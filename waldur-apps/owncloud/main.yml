@@ -31,6 +31,7 @@
     - name: Set instance facts
       set_fact:
         public_ip: "{{ vm_instance.instance.external_ips.0 }}"
+      when: not ansible_check_mode
 
     - name: Add instance to dynamic inventory
       add_host:
@@ -38,6 +39,7 @@
         ansible_ssh_user: centos
         groups: created_vm_instances
         hostname: "{{ public_ip }}"
+      when: not ansible_check_mode
 
     - name: Get SSH public key data
       uri:
@@ -45,16 +47,19 @@
           Authorization: "Token {{ access_token }}"
         url: "{{ api_url }}keys/{{ user_key_uuid }}/"
       register: key_data
+      when: not ansible_check_mode
 
     - name: Set SSH public key fact
       set_fact:
         public_key: "{{ key_data.json.public_key }}"
+      when: not ansible_check_mode
 
     - name: Wait for instance to respond to SSH
       wait_for:
         delay: 10
         host: "{{ public_ip }}"
         port: 22
+      when: not ansible_check_mode
 
 
 - name: Add SSH public key to instance authorized keys
