@@ -359,7 +359,8 @@ class WaldurClient(object):
             data_volume_size=None,
             security_groups=None,
             tags=None,
-            user_data=None):
+            user_data=None,
+            check_mode=False):
         """
         Creates OpenStack instance from passed parameters.
 
@@ -416,6 +417,10 @@ class WaldurClient(object):
             payload.update({'ssh_public_key': ssh_key['url']})
         if tags:
             payload.update({'tags': tags})
+
+        if check_mode:
+            payload['WALDUR_CHECK_MODE'] = True
+            return payload
 
         instance = self._create_instance(payload)
 
