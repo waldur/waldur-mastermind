@@ -74,6 +74,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     type_label = serializers.SerializerMethodField()
+    extra = serializers.JSONField(read_only=True)
 
     def get_type_label(self, instance):
         return self._get_configuration(instance.type).get('label', instance.type)
@@ -93,13 +94,13 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
 
     class Meta(object):
         model = models.ExpertRequest
-        fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description',
+        fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description', 'extra',
                   'customer', 'customer_name', 'customer_uuid',
                   'project', 'project_name', 'project_uuid',
                   'created', 'modified', 'contract', 'recurring_billing',
                   'objectives', 'milestones', 'contract_methodology', 'out_of_scope', 'common_tos',
                   'issue', 'issue_name', 'issue_link', 'issue_key', 'issue_description', 'issue_uuid', 'issue_status',)
-        read_only_fields = ('price', 'state', 'issue', 'recurring_billing')
+        read_only_fields = ('price', 'state', 'issue', 'recurring_billing', 'extra')
         protected_fields = ('project', 'type', 'common_tos')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
@@ -146,6 +147,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
             type=type,
             recurring_billing=configuration.get('recurring_billing', False),
             description=issue_details['description'],
+            extra=self._get_extra(configuration, validated_data),
             issue=issue,
             objectives=validated_data.get('objectives', ''),
             milestones=validated_data.get('milestones', ''),

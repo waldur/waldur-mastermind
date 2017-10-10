@@ -154,7 +154,8 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     create_permissions = [is_expert_manager]
 
     def get_queryset(self):
-        return super(ExpertBidViewSet, self).get_queryset().filtered_for_user(self.request.user)
+        return super(ExpertBidViewSet, self).get_queryset()\
+            .filtered_for_user(self.request.user).distinct()
 
     @decorators.detail_route(methods=['post'])
     @transaction.atomic()

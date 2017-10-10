@@ -8,6 +8,7 @@ from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from model_utils import FieldTracker
 
+from nodeconductor.core import fields as core_fields
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.support import models as support_models
@@ -67,6 +68,7 @@ class ExpertRequest(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
     state = models.CharField(default=States.PENDING, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
+    extra = core_fields.JSONField(default={})
     issue = models.ForeignKey(support_models.Issue, null=True, on_delete=models.SET_NULL)
     recurring_billing = models.BooleanField(
         default=False, help_text=_('Defines whether expert request has to be billed every month or only once'))

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 # defusedxml is required by djangosaml2
 install_requires = [
-    'ansible-waldur-module>=0.3.4',
+    'ansible-waldur-module>=0.4.0',
     'defusedxml>=0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
@@ -14,9 +14,9 @@ install_requires = [
     'nodeconductor_azure>=0.3.0',
     'nodeconductor_cost_planning>=0.5.0',
     'nodeconductor_digitalocean>=0.9.0',
-    'nodeconductor_openstack>=0.37.1',
+    'nodeconductor_openstack>=0.37.2',
     'nodeconductor_saml2>=0.8.1',
-    'waldur_ansible>=0.2.0',
+    'waldur_ansible>=0.3.0',
     'waldur_freeipa>=0.2.2',
     'waldur_paypal>=0.6.2',
     'waldur_slurm>=0.2.5',
@@ -30,7 +30,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.7.6',
+    version='2.7.7',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

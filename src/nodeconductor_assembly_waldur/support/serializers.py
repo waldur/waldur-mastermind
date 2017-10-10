@@ -535,6 +535,16 @@ class ConfigurableSerializerMixin(object):
 
         return '\n'.join(result)
 
+    def _get_extra(self, configuration, validated_data):
+        result = {
+            key: validated_data[key]
+            for key in configuration['order']
+            if key in validated_data
+        }
+        if 'description' in validated_data:
+            result['description'] = validated_data['description']
+        return result
+
 
 class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
     description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
