@@ -145,7 +145,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
     filter_class = filters.ExpertBidFilter
-    disabled_actions = ['destroy', 'update']
+    disabled_actions = ['update']
 
     def is_expert_manager(request, view, obj=None):
         if not is_expert_manager(request.user):
@@ -186,6 +186,16 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
             raise exceptions.ValidationError(_('Expert request should be in pending state.'))
 
     accept_permissions = [structure_permissions.is_owner, is_pending_request]
+
+    def can_delete_bid(request, view, obj=None):
+        if not obj:
+            return
+        if request.user.is_staff:
+            return
+        if not structure_permissions._has_owner_access(request.user, obj.team.customer):
+            raise exceptions.PermissionDenied()
+
+    destroy_permissions = [is_pending_request, can_delete_bid]
 
 
 def get_project_experts_count(project):
