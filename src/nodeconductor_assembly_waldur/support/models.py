@@ -171,3 +171,13 @@ class Offering(core_models.UuidMixin,
 
     def __str__(self):
         return '{}: {}'.format(self.type_label or self.name, self.state)
+
+    @classmethod
+    def get_scope_type(cls):
+        return 'Support.Offering'
+
+    def _get_log_context(self, entity_name):
+        context = super(Offering, self)._get_log_context(entity_name)
+        context['resource_type'] = self.get_scope_type()
+        context['resource_uuid'] = self.uuid.hex
+        return context

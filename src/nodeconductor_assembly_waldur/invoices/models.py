@@ -231,11 +231,18 @@ class OfferingItem(InvoiceItem):
 
     def freeze(self):
         """
-        Saves offering type and project name in "package_details" if offering exists
+        Saves offering type and project name in "offering_details" if offering exists
         """
         if self.offering:
             self.offering_details['offering_type'] = self.offering.type
+            self.offering_details['offering_uuid'] = self.offering.uuid.hex
             self.save(update_fields=['offering_details'])
+
+    def get_offering_uuid(self):
+        if self.offering:
+            return self.offering.uuid.hex
+        else:
+            return self.offering_details.get('offering_uuid')
 
     def get_offering_type(self):
         if self.offering:
