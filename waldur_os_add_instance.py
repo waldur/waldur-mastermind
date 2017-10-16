@@ -189,12 +189,10 @@ def main():
         'timeout': {'default': 600, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'}
     }
-    required_together = [['wait', 'timeout']]
     mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks']]
     required_one_of = [['subnet', 'networks']]
     module = AnsibleModule(
         argument_spec=fields,
-        required_together=required_together,
         required_one_of=required_one_of,
         mutually_exclusive=mutually_exclusive,
         supports_check_mode=True,

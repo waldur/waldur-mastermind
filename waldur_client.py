@@ -266,7 +266,7 @@ class WaldurClient(object):
                               rules,
                               description=None,
                               tags=None,
-                              wait=None,
+                              wait=True,
                               interval=10,
                               timeout=600):
         """
@@ -324,7 +324,7 @@ class WaldurClient(object):
     def _get_instance(self, instance):
         return self._get_resource(self.Endpoints.Instance, instance)
 
-    def assign_floating_ips(self, instance, floating_ips, wait=None, interval=20, timeout=600):
+    def assign_floating_ips(self, instance, floating_ips, wait=True, interval=20, timeout=600):
         instance = self._get_instance(instance)
         payload = {
             'floating_ips': [],
@@ -354,7 +354,7 @@ class WaldurClient(object):
             system_volume_size,
             interval=10,
             timeout=600,
-            wait=None,
+            wait=True,
             ssh_key=None,
             data_volume_size=None,
             security_groups=None,
