@@ -12,7 +12,7 @@
         data_volume_size: 1
         flavor: m1.xsmall
         floating_ip: auto
-        image: centos7-docker-1707
+        image: centos7-minimal-1707
         name: Wordpress on Waldur
         project: "{{ project_uuid }}"
         provider: "{{ provider_uuid }}"
