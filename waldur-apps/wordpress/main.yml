@@ -10,10 +10,10 @@
         access_token: "{{ access_token }}"
         api_url: "{{ api_url }}"
         data_volume_size: 1
-        flavor: m1.little
+        flavor: m1.xsmall
         floating_ip: auto
-        image: CentOS
-        name: Waldur
+        image: centos7-minimal-1707
+        name: Wordpress on Waldur
         project: "{{ project_uuid }}"
         provider: "{{ provider_uuid }}"
         security_groups:
@@ -23,7 +23,7 @@
           - web
         ssh_key: "{{ public_key_uuid }}"
         subnet: "{{ subnet_uuid }}"
-        system_volume_size: 30
+        system_volume_size: 10
         tags: "{{ tags }}"
         wait: true
       register: vm_instance
@@ -75,6 +75,7 @@
 
 - name: Install and configure WordPress
   hosts: created_vm_instances
+  become: yes
   tasks:
     - name: Enable package repositories
       package:

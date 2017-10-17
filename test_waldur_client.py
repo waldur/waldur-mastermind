@@ -141,6 +141,8 @@ class TestWaldurClient(unittest.TestCase):
         action_name = 'create_security_group'
         security_group = {
             'name': 'secure group',
+            'uuid': '59e46d029a79473779915a22',
+            'state': 'OK',
             'rules': [{
                 'to_port': 10,
                 'from_port': 20,
@@ -151,6 +153,9 @@ class TestWaldurClient(unittest.TestCase):
         responses.add(responses.GET, self._get_url('openstack-tenants'), json=[self.tenant])
         post_url = self._get_subresource_url('openstack-tenants', self.tenant['uuid'], action_name)
         responses.add(responses.POST, post_url, json=security_group, status=201)
+
+        instance_url = '%s/openstack-security-groups/%s/' % (self.params['api_url'], security_group['uuid'])
+        responses.add(responses.GET, instance_url, json=security_group, status=201)
 
         client = WaldurClient(self.params['api_url'], self.params['access_token'])
         response = client.create_security_group(
