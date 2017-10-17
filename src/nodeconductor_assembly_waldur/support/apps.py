@@ -26,6 +26,18 @@ class SupportConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.log_offering_created,
+            sender=Offering,
+            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.log_offering_created',
+        )
+
+        signals.pre_delete.connect(
+            handlers.log_offering_deleted,
+            sender=Offering,
+            dispatch_uid='nodeconductor_assembly_waldur.support.handlers.log_offering_deleted',
+        )
+
+        signals.post_save.connect(
             handlers.log_offering_state_changed,
             sender=Offering,
             dispatch_uid='nodeconductor_assembly_waldur.support.handlers.log_offering_state_changed',

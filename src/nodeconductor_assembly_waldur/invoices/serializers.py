@@ -9,6 +9,8 @@ from nodeconductor.core import utils as core_utils
 from nodeconductor.structure import SupportedServices
 from nodeconductor.structure import serializers as structure_serializers
 from nodeconductor_assembly_waldur.common.utils import quantize_price
+from nodeconductor_openstack.openstack import models as openstack_models
+from nodeconductor_assembly_waldur.support import models as support_models
 
 from . import models
 
@@ -17,10 +19,22 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
 
+    scope_type = serializers.SerializerMethodField()
+    scope_uuid = serializers.SerializerMethodField()
+
     class Meta(object):
         model = models.InvoiceItem
         fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit',
-                  'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid')
+                  'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid',
+                  'scope_type', 'scope_uuid',)
+
+    def get_scope_type(self, item):
+        # It should be implemented by inherited class
+        return
+
+    def get_scope_uuid(self, item):
+        # It should be implemented by inherited class
+        return
 
 
 class OpenStackItemSerializer(InvoiceItemSerializer):
@@ -38,6 +52,12 @@ class OpenStackItemSerializer(InvoiceItemSerializer):
             'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
         }
 
+    def get_scope_type(self, item):
+        return SupportedServices.get_name_for_model(openstack_models.Tenant)
+
+    def get_scope_uuid(self, item):
+        return item.get_tenant_uuid()
+
 
 class OfferingItemSerializer(InvoiceItemSerializer):
     offering_type = serializers.ReadOnlyField(source='get_offering_type')
@@ -49,14 +69,18 @@ class OfferingItemSerializer(InvoiceItemSerializer):
             'offering': {'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
         }
 
+    def get_scope_type(self, item):
+        return support_models.Offering.get_scope_type()
+
+    def get_scope_uuid(self, item):
+        return item.get_offering_uuid()
+
 
 class GenericItemSerializer(InvoiceItemSerializer):
-    scope_type = serializers.SerializerMethodField()
-    scope_uuid = serializers.SerializerMethodField()
 
     class Meta(InvoiceItemSerializer.Meta):
         model = models.GenericInvoiceItem
-        fields = InvoiceItemSerializer.Meta.fields + ('quantity', 'scope_type', 'scope_uuid')
+        fields = InvoiceItemSerializer.Meta.fields + ('quantity',)
 
     def get_scope_type(self, item):
         return SupportedServices.get_name_for_model(item.content_type.model_class())

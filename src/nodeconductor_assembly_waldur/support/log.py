@@ -19,7 +19,11 @@ class OfferingEventLogger(EventLogger):
     offering = models.Offering
 
     class Meta:
-        event_types = ('offering_state_changed',)
+        event_types = (
+            'offering_created',
+            'offering_deleted',
+            'offering_state_changed',
+        )
         event_groups = {
             'support': event_types,
         }

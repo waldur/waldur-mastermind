@@ -25,6 +25,25 @@ def log_issue_delete(sender, instance, **kwargs):
         })
 
 
+def log_offering_created(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.waldur_offering.info(
+            'Offering {offering_name} has been created.',
+            event_type='offering_created',
+            event_context={
+                'offering': instance,
+            })
+
+
+def log_offering_deleted(sender, instance, **kwargs):
+    event_logger.waldur_offering.info(
+        'Offering {offering_name} has been deleted.',
+        event_type='offering_deleted',
+        event_context={
+            'offering': instance,
+        })
+
+
 def log_offering_state_changed(sender, instance, **kwargs):
     state = instance.state
     if state != instance.tracker.previous('state'):

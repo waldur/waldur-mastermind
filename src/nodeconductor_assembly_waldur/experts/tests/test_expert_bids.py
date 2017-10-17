@@ -1,3 +1,4 @@
+from ddt import ddt, data
 import mock
 from rest_framework import test, status
 
@@ -248,3 +249,37 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
     def accept_bid(self):
         url = factories.ExpertBidFactory.get_url(self.expert_bid, 'accept')
         return self.client.post(url)
+
+
+@ddt
+class ExpertBidDeleteTest(ExpertBidBaseTest):
+
+    def setUp(self):
+        super(ExpertBidDeleteTest, self).setUp()
+        self.team = self.expert_fixture.project
+        self.expert_bid = factories.ExpertBidFactory(request=self.expert_request, team=self.team)
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_delete_bid_for_pending_request(self, username):
+        response = self.delete_bid(username)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_not_delete_bid_for_active_request(self, username):
+        self.expert_request.state = models.ExpertRequest.States.ACTIVE
+        self.expert_request.save()
+
+        response = self.delete_bid(username)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('user', 'manager')
+    def test_unauthorized_user_can_not_delete_bid(self, username):
+        response = self.delete_bid(username)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def delete_bid(self, username):
+        user = getattr(self.expert_fixture, username)
+        self.client.force_authenticate(user)
+
+        url = factories.ExpertBidFactory.get_url(self.expert_bid)
+        return self.client.delete(url)
