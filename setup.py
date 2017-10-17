@@ -30,7 +30,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.7.7',
+    version='2.7.8',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

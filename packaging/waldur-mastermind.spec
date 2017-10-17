@@ -1,7 +1,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.7.7
+Version: 2.7.8
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -61,6 +61,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Tue Oct 17 2017 Jenkins <jenkins@opennodecloud.com> - 2.7.8-1.el7
+- New upstream release
+
 * Tue Oct 10 2017 Jenkins <jenkins@opennodecloud.com> - 2.7.7-1.el7
 - New upstream release
 
