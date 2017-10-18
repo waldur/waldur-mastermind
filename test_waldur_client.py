@@ -41,6 +41,7 @@ class TestWaldurClient(unittest.TestCase):
             'name': self.params['name'],
             'url': 'url_instance',
             'state': 'OK',
+            'external_ips': ['142.124.1.50'],
         }
 
         self.tenant = {

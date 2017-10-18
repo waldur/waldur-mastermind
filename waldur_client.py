@@ -260,6 +260,22 @@ class WaldurClient(object):
                 message = '%s. Seconds passed: %s' % (error, timeout)
                 raise TimeoutError(message)
 
+    def _wait_for_external_ip(self, uuid, interval, timeout):
+        ready = self._instance_has_external_ip(uuid)
+        waited = 0
+        while not ready:
+            time.sleep(interval)
+            ready = self._instance_has_external_ip(uuid)
+            waited += interval
+            if waited >= timeout:
+                error = 'Resource "%s" with id "%s" has not got external IP.' % uuid
+                message = '%s. Seconds passed: %s' % (error, timeout)
+                raise TimeoutError(message)
+
+    def _instance_has_external_ip(self, uuid):
+        resource = self._query_resource_by_uuid(self.Endpoints.Instance, uuid)
+        return len(resource['external_ips']) > 0
+
     def create_security_group(self,
                               tenant,
                               name,
@@ -426,6 +442,7 @@ class WaldurClient(object):
 
         if wait:
             self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
+            self._wait_for_external_ip(instance['uuid'], interval, timeout)
 
         return instance
 
