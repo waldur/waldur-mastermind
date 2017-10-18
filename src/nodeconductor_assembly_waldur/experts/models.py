@@ -45,7 +45,6 @@ class PriceMixin(models.Model):
 @python_2_unicode_compatible
 class ExpertRequest(core_models.UuidMixin,
                     core_models.NameMixin,
-                    core_models.DescribableMixin,
                     PriceMixin,
                     common_mixins.ProductCodeMixin,
                     structure_models.StructureLoggableMixin,
@@ -63,6 +62,7 @@ class ExpertRequest(core_models.UuidMixin,
             (COMPLETED, _('Completed'))
         )
 
+    description = models.TextField(blank=True)
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
                              help_text=_('The user which has created this request.'))
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
