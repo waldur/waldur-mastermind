@@ -7,7 +7,7 @@ from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import serializers as structure_serializers, models as structure_models
 from nodeconductor_openstack.openstack import (
     apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
-from nodeconductor_openstack.openstack_tenant import models as openstack_tenant_models, apps as openstack_tenant_apps
+from nodeconductor_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import models
 

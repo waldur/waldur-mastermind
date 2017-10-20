@@ -53,6 +53,7 @@ setup(
             'waldur_experts = nodeconductor_assembly_waldur.experts.extension:ExpertsExtension',
             'waldur_billing = nodeconductor_assembly_waldur.billing.extension:BillingExtension',
             'waldur_slurm_invoices = nodeconductor_assembly_waldur.slurm_invoices.extension:SlurmInvoicesExtension',
+            'waldur_ansible_estimator = nodeconductor_assembly_waldur.ansible_estimator.extension:AnsibleEstimatorExtension',
         ),
     },
     include_package_data=True,
