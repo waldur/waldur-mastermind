@@ -1,0 +1,1 @@
+default_app_config = 'nodeconductor_assembly_waldur.ansible_estimator.apps.AnsibleEstimatorConfig'
