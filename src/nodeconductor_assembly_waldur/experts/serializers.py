@@ -63,7 +63,6 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
                               serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_EXPERTS['CONTRACT']['offerings'].keys())
     state = serializers.ReadOnlyField(source='get_state_display')
-    description = serializers.CharField(required=False)
     contract = ExpertContractSerializer(required=False, read_only=True)
     customer = serializers.HyperlinkedRelatedField(
         source='project.customer',
@@ -106,6 +105,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
             'issue': {'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            'description': {'write_only': True, 'required': False},
         }
         related_paths = {
             'project': ('uuid', 'name'),

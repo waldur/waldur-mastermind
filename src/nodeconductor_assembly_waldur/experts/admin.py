@@ -19,8 +19,10 @@ class ExpertRequestModel(ModelForm):
 
 
 class ExpertRequestAdmin(admin.ModelAdmin):
-    list_display = ('uuid', 'project', 'state', 'created')
+    list_display = ('name', 'project', 'state', 'created')
     readonly_fields = ('project', 'created')
+    list_filter = ('state', 'created')
+    search_fields = ('name', 'uuid')
     form = ExpertRequestModel
 
 
