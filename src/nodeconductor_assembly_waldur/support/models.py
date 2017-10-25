@@ -14,7 +14,7 @@ from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
 from nodeconductor_assembly_waldur.common import mixins as common_mixins
 
-from . import managers
+from . import backend, managers
 
 
 @python_2_unicode_compatible
@@ -155,6 +155,9 @@ class Offering(core_models.UuidMixin,
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
 
     tracker = FieldTracker()
+
+    def get_backend(self):
+        backend.get_active_backend()
 
     def get_log_fields(self):
         return super(Offering, self).get_log_fields() + ('state', )

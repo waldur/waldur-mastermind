@@ -356,3 +356,30 @@ class CountersTest(test.APITransactionTestCase):
         response = self.client.get(url, {'fields': ['experts']})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {'experts': count})
+
+
+class ExpertRequestProjectCacheTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.expert_request = factories.ExpertRequestFactory(project=self.fixture.project)
+
+    def test_cache_is_populated_when_request_is_created(self):
+        self.assertEqual(self.expert_request.project_name, self.expert_request.project.name)
+        self.assertEqual(self.expert_request.project_uuid, self.expert_request.project.uuid.hex)
+        self.assertEqual(self.expert_request.customer, self.expert_request.project.customer)
+
+    def test_cache_is_updated_when_project_is_renamed(self):
+        self.expert_request.project.name = 'NEW PROJECT NAME'
+        self.expert_request.project.save(update_fields=['name'])
+
+        self.expert_request.refresh_from_db()
+        self.assertEqual(self.expert_request.project_name, self.expert_request.project.name)
+
+    def test_request_is_not_removed_when_project_is_removed(self):
+        self.expert_request.project.delete()
+        self.assertTrue(models.ExpertRequest.objects.filter(id=self.expert_request.id))
+
+    def test_request_is_removed_when_customer_is_removed(self):
+        self.expert_request.project.delete()
+        self.expert_request.customer.delete()
+        self.assertFalse(models.ExpertRequest.objects.filter(id=self.expert_request.id))
