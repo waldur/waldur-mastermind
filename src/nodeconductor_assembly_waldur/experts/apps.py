@@ -9,11 +9,13 @@ class ExpertsConfig(AppConfig):
     verbose_name = 'Experts'
 
     def ready(self):
+        from nodeconductor.structure import models as structure_models
         from nodeconductor_assembly_waldur.invoices import registrators as invoices_registrators
         from . import handlers, registrators
 
         ExpertRequest = self.get_model('ExpertRequest')
         ExpertBid = self.get_model('ExpertBid')
+        ExpertContract = self.get_model('ExpertContract')
 
         invoices_registrators.RegistrationManager.add_registrator(
             ExpertRequest,
@@ -48,4 +50,32 @@ class ExpertsConfig(AppConfig):
             handlers.log_expert_bid_creation,
             sender=ExpertBid,
             dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.log_expert_bid_creation',
+        )
+
+        signals.post_save.connect(
+            handlers.set_project_name_on_expert_request_creation,
+            sender=ExpertRequest,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+                         'set_project_name_on_expert_request_creation',
+        )
+
+        signals.post_save.connect(
+            handlers.update_expert_request_on_project_name_update,
+            sender=structure_models.Project,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+                         'update_expert_request_on_project_name_update',
+        )
+
+        signals.post_save.connect(
+            handlers.set_team_name_on_expert_contract_creation,
+            sender=ExpertContract,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+                         'set_team_name_on_expert_contract_creation',
+        )
+
+        signals.post_save.connect(
+            handlers.update_expert_contract_on_project_name_update,
+            sender=structure_models.Project,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+                         'update_expert_contract_on_project_name_update',
         )

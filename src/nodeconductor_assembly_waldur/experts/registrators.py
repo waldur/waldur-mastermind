@@ -17,7 +17,7 @@ class ExpertRequestRegistrator(registrators.BaseRegistrator):
         return self.get_sources(customer).exists()
 
     def get_customer(self, source):
-        return source.project.customer
+        return source.customer
 
     def _find_item(self, source, now):
         expert_request = source

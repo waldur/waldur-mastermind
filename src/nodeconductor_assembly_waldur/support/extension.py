@@ -113,3 +113,8 @@ class SupportExtension(NodeConductorExtension):
                 'args': (),
             },
         }
+
+    @staticmethod
+    def get_cleanup_executor():
+        from nodeconductor_assembly_waldur.support.executors import SupportCleanupExecutor
+        return SupportCleanupExecutor
