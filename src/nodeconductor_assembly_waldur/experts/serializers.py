@@ -35,6 +35,7 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate(self, attrs):
+        # We do not need to check ToS acceptance if provider is already created.
         if self.instance:
             structure_permissions.is_owner(self.context['request'], None, self.instance.customer)
             return attrs
