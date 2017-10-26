@@ -79,3 +79,10 @@ class ExpertsConfig(AppConfig):
             dispatch_uid='nodeconductor_assembly_waldur.experts.'
                          'update_expert_contract_on_project_name_update',
         )
+
+        signals.post_save.connect(
+            handlers.notify_expert_providers_about_new_request,
+            sender=ExpertRequest,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'notify_expert_providers_about_new_request',
+        )

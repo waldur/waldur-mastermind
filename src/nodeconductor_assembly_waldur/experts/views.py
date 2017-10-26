@@ -175,9 +175,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
         )
 
         create_team_invitations(expert_bid.team, expert_request.project, current_user)
-
-        for permission in expert_request.project.customer.permissions.all():
-            tasks.send_contract.delay(expert_request.uuid.hex, permission.user.email)
+        tasks.send_accepted_request.delay(expert_request.uuid.hex)
 
         return response.Response({'status': _('Expert bid has been accepted.')}, status=status.HTTP_200_OK)
 

@@ -3,7 +3,7 @@ from django.utils import timezone
 from nodeconductor_assembly_waldur.invoices import registrators as invoices_registrators
 
 from .log import event_logger
-from . import models
+from . import models, tasks
 
 
 def log_expert_request_creation(sender, instance, created=False, **kwargs):
@@ -108,3 +108,8 @@ def update_expert_contract_on_project_name_update(sender, instance, **kwargs):
     project = instance
     if project.tracker.has_changed('name'):
         models.ExpertContract.objects.filter(team=project).update(team_name=project.name)
+
+
+def notify_expert_providers_about_new_request(sender, instance, created=False, **kwargs):
+    if created:
+        tasks.send_new_request.delay(instance.uuid.hex)
