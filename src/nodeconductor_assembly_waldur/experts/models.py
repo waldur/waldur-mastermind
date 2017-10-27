@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.db import models
@@ -21,6 +22,7 @@ from . import managers
 class ExpertProvider(core_models.UuidMixin,
                      structure_models.TimeStampedModel):
     customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
+    enable_notifications = models.BooleanField(default=True)
 
     class Meta(object):
         verbose_name = _('Expert providers')
@@ -31,6 +33,19 @@ class ExpertProvider(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'expert-provider'
+
+    @classmethod
+    def get_expert_managers(cls):
+        """
+        Returns queryset for all organization owners of expert providers.
+        """
+        enabled_providers = cls.objects.filter(enable_notifications=True)
+        customers = list(enabled_providers.values_list('customer', flat=True))
+        return get_user_model().objects.filter(
+            customerpermission__customer__in=customers,
+            customerpermission__is_active=True,
+            customerpermission__role=structure_models.CustomerRole.OWNER,
+        )
 
 
 class PriceMixin(models.Model):
@@ -107,6 +122,10 @@ class ExpertRequest(core_models.UuidMixin,
     @property
     def link(self):
         return settings.WALDUR_EXPERTS['REQUEST_LINK_TEMPLATE'].format(uuid=self.uuid.hex)
+
+    @property
+    def planned_budget(self):
+        return self.extra.get('price')
 
     def __str__(self):
         return '{} / {}'.format(self.project.name, self.project.customer.name)

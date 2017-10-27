@@ -22,7 +22,8 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.ExpertProvider
-        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'agree_with_policy')
+        fields = ('url', 'uuid', 'created', 'customer', 'customer_name',
+                  'agree_with_policy', 'enable_notifications')
         read_only_fields = ('url', 'uuid', 'created')
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
@@ -34,6 +35,11 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate(self, attrs):
+        # We do not need to check ToS acceptance if provider is already created.
+        if self.instance:
+            structure_permissions.is_owner(self.context['request'], None, self.instance.customer)
+            return attrs
+
         agree_with_policy = attrs.pop('agree_with_policy', False)
         if not agree_with_policy:
             raise serializers.ValidationError(
