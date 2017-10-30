@@ -7,6 +7,7 @@ class InvoiceConfig(AppConfig):
     verbose_name = 'Invoices'
 
     def ready(self):
+        from nodeconductor.core import signals as core_signals
         from nodeconductor.structure import models as structure_models
         from nodeconductor_assembly_waldur.invoices.plugins import offering_registrator
         from nodeconductor_assembly_waldur.invoices.plugins import openstack_registrator
@@ -85,4 +86,10 @@ class InvoiceConfig(AppConfig):
             handlers.send_invoice_report,
             sender=models.Invoice,
             dispatch_uid='nodeconductor_assembly_waldur.invoices.send_invoice_report',
+        )
+
+        core_signals.pre_delete_validate.connect(
+            handlers.prevent_deletion_of_customer_with_invoice,
+            sender=structure_models.Customer,
+            dispatch_uid='nodeconductor_assembly_waldur.invoices.prevent_deletion_of_customer_with_invoice',
         )
