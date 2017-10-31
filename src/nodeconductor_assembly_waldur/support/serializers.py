@@ -184,10 +184,12 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
         read_only=True,
     )
 
+    author_uuid = serializers.ReadOnlyField(source='author.user.uuid')
+
     class Meta(object):
         model = models.Comment
         fields = ('url', 'uuid', 'issue', 'issue_key', 'description', 'is_public',
-                  'author_name', 'author_user', 'backend_id', 'created')
+                  'author_name', 'author_uuid', 'author_user', 'backend_id', 'created')
         read_only_fields = ('issue', 'backend_id',)
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
