@@ -123,6 +123,20 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
 
     @decorators.detail_route()
     def users(self, request, uuid=None):
+        """
+        Returns dict, where key is user UUID, and value is list of roles: staff, support, owner, expert.
+
+        1. If user is an owner of organization that has issued current expert request -> owner.
+        2. If user is from an organization that has submitted a bid -> expert.
+        3. If user is staff/support -> staff, support.
+
+        For example:
+        {
+            "0b02d56ebb0d4c6cb00a0728b5d9f349": ["owner"],
+            "77020e89a4c54b189d0b27a2a863824f": ["expert"],
+            "3d8ddca6c44a4cbda9a49e7c7cc1099b": ["staff", "support"]
+        }
+        """
         expert_request = self.get_object()
         roles = collections.defaultdict(list)
 
