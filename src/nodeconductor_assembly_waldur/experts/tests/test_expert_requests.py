@@ -10,9 +10,10 @@ from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor.structure.tests import fixtures as structure_fixtures
 from nodeconductor.users import models as user_models
 from nodeconductor.users.tests import factories as user_factories
+from nodeconductor_assembly_waldur.support.tests import factories as support_factories
 
 from .. import models
-from . import factories
+from . import factories, fixtures
 
 
 def override_experts_contract(contract=None):
@@ -383,3 +384,46 @@ class ExpertRequestProjectCacheTest(test.APITransactionTestCase):
         self.expert_request.project.delete()
         self.expert_request.customer.delete()
         self.assertFalse(models.ExpertRequest.objects.filter(id=self.expert_request.id))
+
+
+class ExpertRequestUsersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.expert_fixture = fixtures.ExpertsFixture()
+        self.expert_request = self.expert_fixture.expert_request
+
+    def test_empty(self):
+        url = factories.ExpertRequestFactory.get_url(self.expert_request, 'users')
+        self.client.force_login(self.expert_fixture.staff)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {})
+
+    def test_staff(self):
+        self.assert_has_role(self.expert_fixture.staff, 'staff')
+
+    def test_support(self):
+        self.assert_has_role(self.expert_fixture.global_support, 'support')
+
+    def test_owner(self):
+        self.assert_has_role(self.expert_fixture.owner, 'owner')
+
+    def test_expert(self):
+        fixture = fixtures.ExpertsFixture()
+        factories.ExpertBidFactory(request=self.expert_request, team=fixture.project)
+
+        expert = fixture.manager
+        support_factories.CommentFactory(issue=self.expert_request.issue, author__user=expert)
+
+        self.assert_has_role(expert, 'expert')
+
+    def assert_has_role(self, user, role):
+        support_factories.CommentFactory(issue=self.expert_request.issue,
+                                         author__user=user)
+
+        url = factories.ExpertRequestFactory.get_url(self.expert_request, 'users')
+        self.client.force_login(self.expert_fixture.staff)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(role in response.data[user.uuid.hex])
