@@ -62,7 +62,7 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
     if not created or not comment.is_public:
         return
 
-    tasks.send_comment_added_notification.delay(core_utils.serialize_instance(comment.issue))
+    tasks.send_comment_added_notification.delay(core_utils.serialize_instance(comment))
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
