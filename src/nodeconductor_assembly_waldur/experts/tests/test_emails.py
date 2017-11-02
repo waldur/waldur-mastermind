@@ -51,3 +51,25 @@ class NewExpertRequestMailTest(test.APITransactionTestCase):
 
         message = send_mail_mock.call_args[1]['html_message']
         self.assertTrue('Example Waldur Site' in message)
+
+
+@mock.patch('nodeconductor_assembly_waldur.experts.tasks.send_mail')
+class NewExpertBidMailTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ExpertsFixture()
+        self.bid = self.fixture.bid
+
+    def test_when_new_expert_request_is_sent_to_customer_owners(self, send_mail_mock):
+        owner = self.fixture.owner
+        tasks.send_new_bid(self.bid.uuid.hex)
+        send_mail_mock.assert_called_once()
+
+    def test_email_is_not_sent_if_there_are_owners(self, send_mail_mock):
+        tasks.send_new_bid(self.bid.uuid.hex)
+        self.assertEqual(send_mail_mock.call_count, 0)
+
+    def test_expert_organization_name_is_rendered_in_text_message(self, send_mail_mock):
+        owner = self.fixture.owner
+        tasks.send_new_bid(self.bid.uuid.hex)
+        message = send_mail_mock.call_args[0][1]
+        self.assertTrue(self.bid.team.customer.name in message)

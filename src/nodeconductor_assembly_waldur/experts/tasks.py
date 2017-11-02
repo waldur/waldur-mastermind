@@ -23,6 +23,17 @@ def send_new_request(request_uuid):
     send_request_mail('new_request', request, users)
 
 
+@shared_task(name='nodeconductor_assembly_waldur.experts.send_new_bid')
+def send_new_bid(bid_uuid):
+    """
+    Send email notification about new bid.
+    """
+
+    bid = models.ExpertBid.objects.get(uuid=bid_uuid)
+    users = bid.request.customer.get_owners()
+    send_request_mail('new_bid', bid.request, users, extra_context={'bid': bid})
+
+
 @shared_task(name='nodeconductor_assembly_waldur.experts.send_accepted_request')
 def send_accepted_request(request_uuid):
     """
@@ -34,7 +45,7 @@ def send_accepted_request(request_uuid):
     send_request_mail('contract', request, users)
 
 
-def send_request_mail(event_type, request, users):
+def send_request_mail(event_type, request, users, extra_context=None):
     """
     Shorthand to send email notification about expert request event.
     """
@@ -48,6 +59,8 @@ def send_request_mail(event_type, request, users):
         currency_name=settings.WALDUR_EXPERTS['CURRENCY_NAME'],
         site_name=settings.WALDUR_EXPERTS['SITE_NAME'],
     )
+    if extra_context:
+        context.update(extra_context)
 
     logger.debug('About to send expert request {request_name} to {recipient_list}.'.format(
         request_name=request.name,
