@@ -25,58 +25,70 @@ class ExpertsConfig(AppConfig):
         signals.post_save.connect(
             handlers.add_completed_expert_request_to_invoice,
             sender=ExpertRequest,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.add_completed_expert_request_to_invoice',
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'add_completed_expert_request_to_invoice',
         )
 
         signals.pre_delete.connect(
             handlers.terminate_invoice_when_expert_request_deleted,
             sender=ExpertRequest,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.terminate_invoice_when_expert_request_deleted',
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'terminate_invoice_when_expert_request_deleted',
         )
 
         signals.post_save.connect(
             handlers.log_expert_request_creation,
             sender=ExpertRequest,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.log_expert_request_creation',
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'log_expert_request_creation',
         )
 
         signals.post_save.connect(
             handlers.log_expert_request_state_changed,
             sender=ExpertRequest,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.log_expert_request_state_changed',
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'log_expert_request_state_changed',
         )
 
         signals.post_save.connect(
             handlers.log_expert_bid_creation,
             sender=ExpertBid,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.log_expert_bid_creation',
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'log_expert_bid_creation',
+        )
+
+        signals.post_save.connect(
+            handlers.notify_customer_owners_about_new_bid,
+            sender=ExpertBid,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'notify_customer_owners_about_new_bid',
         )
 
         signals.post_save.connect(
             handlers.set_project_name_on_expert_request_creation,
             sender=ExpertRequest,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
                          'set_project_name_on_expert_request_creation',
         )
 
         signals.post_save.connect(
             handlers.update_expert_request_on_project_name_update,
             sender=structure_models.Project,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
                          'update_expert_request_on_project_name_update',
         )
 
         signals.post_save.connect(
             handlers.set_team_name_on_expert_contract_creation,
             sender=ExpertContract,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
                          'set_team_name_on_expert_contract_creation',
         )
 
         signals.post_save.connect(
             handlers.update_expert_contract_on_project_name_update,
             sender=structure_models.Project,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.'
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
                          'update_expert_contract_on_project_name_update',
         )
 

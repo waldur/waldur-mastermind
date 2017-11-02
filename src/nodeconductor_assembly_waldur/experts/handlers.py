@@ -113,3 +113,8 @@ def update_expert_contract_on_project_name_update(sender, instance, **kwargs):
 def notify_expert_providers_about_new_request(sender, instance, created=False, **kwargs):
     if created:
         tasks.send_new_request.delay(instance.uuid.hex)
+
+
+def notify_customer_owners_about_new_bid(sender, instance, created=False, **kwargs):
+    if created:
+        tasks.send_new_bid.delay(instance.uuid.hex)

@@ -13,10 +13,13 @@ class ExpertsFixture(structure_fixtures.ServiceFixture):
         return factories.ExpertContractFactory(team=self.project, request=self.expert_request)
 
     @cached_property
-    def expert_request(self):
-        expert_request = factories.ExpertRequestFactory(
-            project=self.project,
-            issue=support_factories.IssueFactory(customer=self.customer, project=self.project),
-            user=self.user)
-        return expert_request
+    def issue(self):
+        return support_factories.IssueFactory(customer=self.customer, project=self.project)
 
+    @cached_property
+    def expert_request(self):
+        return factories.ExpertRequestFactory(project=self.project, issue=self.issue, user=self.user)
+
+    @cached_property
+    def bid(self):
+        return factories.ExpertBidFactory(request=self.expert_request)
