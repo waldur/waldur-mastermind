@@ -7,19 +7,19 @@ install_requires = [
     'defusedxml>=0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>=0.148.3',
+    'nodeconductor>=0.149.3',
     'nodeconductor_auth_social>=0.7.3',
-    'nodeconductor_auth_openid>=0.8.4',
+    'nodeconductor_auth_openid>=0.8.5',
     'nodeconductor_aws>=0.10.0',
     'nodeconductor_azure>=0.3.0',
     'nodeconductor_cost_planning>=0.5.0',
     'nodeconductor_digitalocean>=0.9.0',
-    'nodeconductor_openstack>=0.37.3',
-    'nodeconductor_saml2>=0.8.1',
-    'waldur_ansible>=0.3.0',
-    'waldur_freeipa>=0.2.2',
+    'nodeconductor_openstack>=0.37.5',
+    'nodeconductor_saml2>=0.8.2',
+    'waldur_ansible>=0.3.1',
+    'waldur_freeipa>=0.2.3',
     'waldur_paypal>=0.6.2',
-    'waldur_slurm>=0.2.7',
+    'waldur_slurm>=0.3.1',
 ]
 
 test_requires = [
@@ -30,7 +30,7 @@ test_requires = [
 
 setup(
     name='nodeconductor-assembly-waldur',
-    version='2.7.8',
+    version='2.7.9',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -53,6 +53,7 @@ setup(
             'waldur_experts = nodeconductor_assembly_waldur.experts.extension:ExpertsExtension',
             'waldur_billing = nodeconductor_assembly_waldur.billing.extension:BillingExtension',
             'waldur_slurm_invoices = nodeconductor_assembly_waldur.slurm_invoices.extension:SlurmInvoicesExtension',
+            'waldur_ansible_estimator = nodeconductor_assembly_waldur.ansible_estimator.extension:AnsibleEstimatorExtension',
         ),
     },
     include_package_data=True,

@@ -7,6 +7,8 @@ class ExpertsExtension(NodeConductorExtension):
     class Settings:
         WALDUR_EXPERTS = {
             'REQUEST_LINK_TEMPLATE': 'https://www.example.com/#/experts/{uuid}/',
+            'CURRENCY_NAME': 'EUR',
+            'SITE_NAME': 'Example Waldur Site',
             'CONTRACT': {
                 'offerings': {
                     # 'custom_vpc_experts': {

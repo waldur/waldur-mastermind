@@ -1,6 +1,8 @@
 from ddt import ddt, data
 from rest_framework import test, status
 
+from nodeconductor.core.tests.helpers import override_nodeconductor_settings
+from nodeconductor.structure.tests import factories as structure_factories
 from nodeconductor_assembly_waldur.packages.tests import fixtures as packages_fixtures
 from nodeconductor_assembly_waldur.slurm_invoices.tests import factories as slurm_factories
 from waldur_slurm.tests import fixtures as slurm_fixtures
@@ -164,3 +166,57 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
         self.scope.delete()
         self.item.refresh_from_db()
         self.check_output()
+
+
+class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = slurm_fixtures.SlurmFixture()
+        self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
+        self.url = structure_factories.CustomerFactory.get_url(self.fixture.customer)
+
+    @override_nodeconductor_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
+    def test_owner_can_delete_customer_with_pending_invoice(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    @override_nodeconductor_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
+    def test_owner_can_not_delete_customer_with_non_empty_invoice(self):
+        factories.GenericInvoiceItemFactory(invoice=self.invoice, unit_price=100)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_nodeconductor_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
+    def test_owner_can_not_delete_customer_with_active_invoice_even_if_its_empty(self):
+        self.invoice.state = models.Invoice.States.CREATED
+        self.invoice.save()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_staff_can_delete_customer_with_pending_invoice(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_staff_can_delete_customer_with_non_empty_invoice(self):
+        factories.GenericInvoiceItemFactory(invoice=self.invoice, unit_price=100)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_staff_can_delete_customer_with_active_invoice(self):
+        self.invoice.state = models.Invoice.States.CREATED
+        self.invoice.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)

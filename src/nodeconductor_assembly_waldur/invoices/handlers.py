@@ -1,8 +1,10 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.cost_tracking import signals as cost_signals
 from nodeconductor_assembly_waldur.support import models as support_models
@@ -118,3 +120,11 @@ def emit_invoice_created_event(sender, instance, created=False, **kwargs):
                                       invoice=instance,
                                       issuer_details=settings.INVOICES['ISSUER_DETAILS'])
 
+
+def prevent_deletion_of_customer_with_invoice(sender, instance, user, **kwargs):
+    if user.is_staff:
+        return
+    PENDING = models.Invoice.States.PENDING
+    for invoice in models.Invoice.objects.filter(customer=instance):
+        if invoice.state != PENDING or invoice.price > 0:
+            raise ValidationError(_('Can\'t delete organization with invoice %s.') % invoice)

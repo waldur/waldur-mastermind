@@ -3,7 +3,7 @@ from django.utils import timezone
 from nodeconductor_assembly_waldur.invoices import registrators as invoices_registrators
 
 from .log import event_logger
-from . import models
+from . import models, tasks
 
 
 def log_expert_request_creation(sender, instance, created=False, **kwargs):
@@ -78,3 +78,43 @@ def add_completed_expert_request_to_invoice(sender, instance, created=False, **k
 
 def terminate_invoice_when_expert_request_deleted(sender, instance, **kwargs):
     invoices_registrators.RegistrationManager.terminate(instance, timezone.now())
+
+
+def set_project_name_on_expert_request_creation(sender, instance, created=False, **kwargs):
+    if created:
+        request = instance
+        request.project_name = request.project.name
+        request.project_uuid = request.project.uuid.hex
+        request.customer = request.project.customer
+        request.save(update_fields=('project_name', 'project_uuid', 'customer'))
+
+
+def update_expert_request_on_project_name_update(sender, instance, **kwargs):
+    project = instance
+    if project.tracker.has_changed('name'):
+        models.ExpertRequest.objects.filter(project=project).update(project_name=project.name)
+
+
+def set_team_name_on_expert_contract_creation(sender, instance, created=False, **kwargs):
+    if created:
+        contract = instance
+        contract.team_name = contract.team.name
+        contract.team_uuid = contract.team.uuid.hex
+        contract.team_customer = contract.team.customer
+        contract.save(update_fields=('team_name', 'team_uuid', 'team_customer'))
+
+
+def update_expert_contract_on_project_name_update(sender, instance, **kwargs):
+    project = instance
+    if project.tracker.has_changed('name'):
+        models.ExpertContract.objects.filter(team=project).update(team_name=project.name)
+
+
+def notify_expert_providers_about_new_request(sender, instance, created=False, **kwargs):
+    if created:
+        tasks.send_new_request.delay(instance.uuid.hex)
+
+
+def notify_customer_owners_about_new_bid(sender, instance, created=False, **kwargs):
+    if created:
+        tasks.send_new_bid.delay(instance.uuid.hex)

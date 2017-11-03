@@ -1,6 +1,9 @@
 from __future__ import unicode_literals
 
+import collections
+
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
@@ -118,6 +121,52 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
         revoke_request_permissions(expert_request)
         return response.Response({'status': _('Expert request has been completed.')}, status=status.HTTP_200_OK)
 
+    @decorators.detail_route()
+    def users(self, request, uuid=None):
+        """
+        Returns dict, where key is user UUID, and value is list of roles: staff, support, owner, expert.
+
+        1. If user is an owner of organization that has issued current expert request -> owner.
+        2. If user is from an organization that has submitted a bid -> expert.
+        3. If user is staff/support -> staff, support.
+
+        For example:
+        {
+            "0b02d56ebb0d4c6cb00a0728b5d9f349": ["owner"],
+            "77020e89a4c54b189d0b27a2a863824f": ["expert"],
+            "3d8ddca6c44a4cbda9a49e7c7cc1099b": ["staff", "support"]
+        }
+        """
+        expert_request = self.get_object()
+        roles = collections.defaultdict(list)
+
+        if expert_request.issue:
+            authors = list(expert_request.issue.comments.values_list('author__user__id', flat=True))
+            users = get_user_model().objects.filter(id__in=authors)
+
+            owners = expert_request.customer.get_owners()
+            owners = [key.hex for key in owners.values_list('uuid', flat=True)]
+
+            teams = list(expert_request.bids.values_list('team_id', flat=True))
+            experts = get_user_model().objects.filter(
+                projectpermission__project__in=teams,
+                projectpermission__is_active=True
+            )
+            experts = [key.hex for key in experts.values_list('uuid', flat=True)]
+
+            for user in users:
+                key = user.uuid.hex
+                if user.is_staff:
+                    roles[key].append('staff')
+                if user.is_support:
+                    roles[key].append('support')
+                if key in owners:
+                    roles[key].append('owner')
+                if key in experts:
+                    roles[key].append('expert')
+
+        return response.Response(status=status.HTTP_200_OK, data=dict(roles))
+
     def is_valid_request(request, view, obj=None):
         expert_request = obj
 
@@ -175,9 +224,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
         )
 
         create_team_invitations(expert_bid.team, expert_request.project, current_user)
-
-        for permission in expert_request.project.customer.permissions.all():
-            tasks.send_contract.delay(expert_request.uuid.hex, permission.user.email)
+        tasks.send_accepted_request.delay(expert_request.uuid.hex)
 
         return response.Response({'status': _('Expert bid has been accepted.')}, status=status.HTTP_200_OK)
 

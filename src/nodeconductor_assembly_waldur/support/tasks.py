@@ -41,9 +41,12 @@ def send_issue_updated_notification(serialized_issue):
 
 
 @shared_task(name='nodeconductor_assembly_waldur.support.send_comment_added_notification')
-def send_comment_added_notification(serialized_issue):
-    issue = core_utils.deserialize_instance(serialized_issue)
-    _send_issue_notification(issue, 'comment_added')
+def send_comment_added_notification(serialized_comment):
+    comment = core_utils.deserialize_instance(serialized_comment)
+
+    # Skip notifications about comments added to an issue by caller himself
+    if comment.author.user != comment.issue.caller:
+        _send_issue_notification(comment.issue, 'comment_added')
 
 
 def _send_issue_notification(issue, template):

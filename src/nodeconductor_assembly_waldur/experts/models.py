@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.utils.translation import ugettext_lazy as _
 from django.db import models
@@ -21,6 +22,7 @@ from . import managers
 class ExpertProvider(core_models.UuidMixin,
                      structure_models.TimeStampedModel):
     customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
+    enable_notifications = models.BooleanField(default=True)
 
     class Meta(object):
         verbose_name = _('Expert providers')
@@ -31,6 +33,19 @@ class ExpertProvider(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'expert-provider'
+
+    @classmethod
+    def get_expert_managers(cls):
+        """
+        Returns queryset for all organization owners of expert providers.
+        """
+        enabled_providers = cls.objects.filter(enable_notifications=True)
+        customers = list(enabled_providers.values_list('customer', flat=True))
+        return get_user_model().objects.filter(
+            customerpermission__customer__in=customers,
+            customerpermission__is_active=True,
+            customerpermission__role=structure_models.CustomerRole.OWNER,
+        )
 
 
 class PriceMixin(models.Model):
@@ -45,7 +60,6 @@ class PriceMixin(models.Model):
 @python_2_unicode_compatible
 class ExpertRequest(core_models.UuidMixin,
                     core_models.NameMixin,
-                    core_models.DescribableMixin,
                     PriceMixin,
                     common_mixins.ProductCodeMixin,
                     structure_models.StructureLoggableMixin,
@@ -63,9 +77,16 @@ class ExpertRequest(core_models.UuidMixin,
             (COMPLETED, _('Completed'))
         )
 
+    description = models.TextField(blank=True)
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
                              help_text=_('The user which has created this request.'))
-    project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
+    project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.SET_NULL, null=True)
+    # Project name, project UUID, customer should be stored separately
+    # because they are not available after project removal
+    project_name = models.CharField(max_length=150, blank=True)
+    project_uuid = models.CharField(max_length=32, blank=True)
+    customer = models.ForeignKey(structure_models.Customer, related_name='+', on_delete=models.CASCADE, null=True)
+
     state = models.CharField(default=States.PENDING, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
     extra = core_fields.JSONField(default={})
@@ -102,6 +123,10 @@ class ExpertRequest(core_models.UuidMixin,
     def link(self):
         return settings.WALDUR_EXPERTS['REQUEST_LINK_TEMPLATE'].format(uuid=self.uuid.hex)
 
+    @property
+    def planned_budget(self):
+        return self.extra.get('price')
+
     def __str__(self):
         return '{} / {}'.format(self.project.name, self.project.customer.name)
 
@@ -134,7 +159,13 @@ class ExpertBid(core_models.UuidMixin,
 
 class ExpertContract(PriceMixin, core_models.DescribableMixin, structure_models.TimeStampedModel):
     request = models.OneToOneField(ExpertRequest, on_delete=models.CASCADE, related_name='contract')
-    team = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.PROTECT)
+    team = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.SET_NULL, null=True)
+
+    # Team name, team UUID and customer should be stored separately
+    # because they are not available after project removal
+    team_name = models.CharField(max_length=150, blank=True)
+    team_uuid = models.CharField(max_length=32, blank=True)
+    team_customer = models.ForeignKey(structure_models.Customer, related_name='+', on_delete=models.CASCADE, null=True)
 
     class Meta:
         ordering = ['-created']

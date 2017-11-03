@@ -79,7 +79,12 @@ class CommentCreatedHandlerTest(BaseHandlerTest):
 
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_email_is_not_set_if_feature_is_suppressed(self):
+    def test_email_is_not_sent_for_own_comments(self):
+        issue = factories.IssueFactory()
+        factories.CommentFactory(issue=issue, is_public=True, author__user=issue.caller)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_email_is_not_sent_if_feature_is_suppressed(self):
         with self.settings(SUPPRESS_NOTIFICATION_EMAILS=True):
             factories.CommentFactory(is_public=True)
 

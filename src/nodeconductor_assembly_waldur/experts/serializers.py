@@ -22,7 +22,8 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.ExpertProvider
-        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'agree_with_policy')
+        fields = ('url', 'uuid', 'created', 'customer', 'customer_name',
+                  'agree_with_policy', 'enable_notifications')
         read_only_fields = ('url', 'uuid', 'created')
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
@@ -34,6 +35,11 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate(self, attrs):
+        # We do not need to check ToS acceptance if provider is already created.
+        if self.instance:
+            structure_permissions.is_owner(self.context['request'], None, self.instance.customer)
+            return attrs
+
         agree_with_policy = attrs.pop('agree_with_policy', False)
         if not agree_with_policy:
             raise serializers.ValidationError(
@@ -63,7 +69,6 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
                               serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_EXPERTS['CONTRACT']['offerings'].keys())
     state = serializers.ReadOnlyField(source='get_state_display')
-    description = serializers.CharField(required=False)
     contract = ExpertContractSerializer(required=False, read_only=True)
     customer = serializers.HyperlinkedRelatedField(
         source='project.customer',
@@ -106,6 +111,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
             'issue': {'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            'description': {'write_only': True, 'required': False},
         }
         related_paths = {
             'project': ('uuid', 'name'),

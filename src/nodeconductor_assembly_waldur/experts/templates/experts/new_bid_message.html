@@ -1,17 +1,17 @@
 {% extends 'experts/base.html' %}
 
 {% block title %}
-The contract for expert request under {{ customer_name }} / {{ project_name }} has been created
+A new bid has been added by {{ bid.team.customer.name }} to your request for {{ request.name }}
 {% endblock title %}
 
 {% block header %}
-The contract for expert request under {{ customer_name }} / {{ project_name }} has been created.
+A new bid has been added by {{ bid.team.customer.name }} to your request for {{ request.name }}.
 {% endblock header %}
 
 {% block body %}
 <tr>
     <td class="content-block">
-        Please go to <a href="{{ request.link }}">{{ site_name }}</a> to see it.
+        Go to <a href="{{ request.link }}">{{ site_name }}</a> to see the details.
     </td>
 </tr>
 {% endblock body %}

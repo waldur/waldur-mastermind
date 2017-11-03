@@ -1,18 +1,17 @@
 Installation
 ------------
 
-* `Install Waldur Core <http://nodeconductor.readthedocs.org/en/latest/guide/intro.html#installation-from-source>`_
+1. `Install Waldur Core <https://github.com/opennode/waldur-core/blob/develop/docs/guide/install-from-src.rst>`_
 
-* Clone Waldur MasterMind repository
-
-  .. code-block:: bash
-
-    git clone https://github.com/opennode/nodeconductor-assembly-waldur.git
-
-* Install Waldur MasterMind into virtual environment
+2. Clone Waldur MasterMind repository
 
   .. code-block:: bash
 
-    cd /path/to/nodeconductor-assembly-waldur/
-    python setup.py install
+    git clone https://github.com/opennode/waldur-mastermind.git
 
+3. Install Waldur MasterMind into virtual environment
+
+  .. code-block:: bash
+
+    cd /path/to/waldur-mastermind/
+    python setup.py develop
