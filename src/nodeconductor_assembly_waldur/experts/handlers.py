@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 
 from nodeconductor_assembly_waldur.invoices import registrators as invoices_registrators
@@ -112,9 +113,17 @@ def update_expert_contract_on_project_name_update(sender, instance, **kwargs):
 
 def notify_expert_providers_about_new_request(sender, instance, created=False, **kwargs):
     if created:
-        tasks.send_new_request.delay(instance.uuid.hex)
+        transaction.on_commit(lambda:
+                              tasks.send_new_request.delay(instance.uuid.hex))
 
 
 def notify_customer_owners_about_new_bid(sender, instance, created=False, **kwargs):
     if created:
-        tasks.send_new_bid.delay(instance.uuid.hex)
+        transaction.on_commit(lambda:
+                              tasks.send_new_bid.delay(instance.uuid.hex))
+
+
+def notify_customer_owners_about_new_contract(sender, instance, created=False, **kwargs):
+    if created:
+        transaction.on_commit(lambda:
+                              tasks.send_new_contract.delay(instance.request.uuid.hex))

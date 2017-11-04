@@ -6,7 +6,9 @@ from nodeconductor.core import NodeConductorExtension
 class ExpertsExtension(NodeConductorExtension):
     class Settings:
         WALDUR_EXPERTS = {
-            'REQUEST_LINK_TEMPLATE': 'https://www.example.com/#/experts/{uuid}/',
+            'REQUEST_PROJECT_LINK_TEMPLATE': 'https://www.example.com/#/projects/{project_uuid}/experts/{request_uuid}/',
+            'REQUEST_CUSTOMER_LINK_TEMPLATE': 'https://www.example.com/#/organizations/{customer_uuid}/experts/{request_uuid}/',
+            'INVITATION_LINK_TEMPLATE': 'https://www.example.com/#/invitation/{uuid}/',
             'CURRENCY_NAME': 'EUR',
             'SITE_NAME': 'Example Waldur Site',
             'CONTRACT': {

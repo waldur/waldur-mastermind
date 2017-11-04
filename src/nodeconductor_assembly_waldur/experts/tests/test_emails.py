@@ -44,7 +44,7 @@ class NewExpertRequestMailTest(test.APITransactionTestCase):
         tasks.send_new_request(self.expert_request.uuid.hex)
 
         message = send_mail_mock.call_args[0][1]
-        self.assertTrue('100 EUR' in message)
+        self.assertTrue('100.0 EUR' in message)
 
     def test_site_name_is_rendered_in_html_message(self, send_mail_mock):
         tasks.send_new_request(self.expert_request.uuid.hex)
