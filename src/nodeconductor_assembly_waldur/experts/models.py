@@ -34,19 +34,6 @@ class ExpertProvider(core_models.UuidMixin,
     def get_url_name(cls):
         return 'expert-provider'
 
-    @classmethod
-    def get_expert_managers(cls):
-        """
-        Returns queryset for all organization owners of expert providers.
-        """
-        enabled_providers = cls.objects.filter(enable_notifications=True)
-        customers = list(enabled_providers.values_list('customer', flat=True))
-        return get_user_model().objects.filter(
-            customerpermission__customer__in=customers,
-            customerpermission__is_active=True,
-            customerpermission__role=structure_models.CustomerRole.OWNER,
-        )
-
 
 class PriceMixin(models.Model):
     class Meta(object):
@@ -120,12 +107,14 @@ class ExpertRequest(core_models.UuidMixin,
         return type_settings.get('label', None)
 
     @property
-    def link(self):
-        return settings.WALDUR_EXPERTS['REQUEST_LINK_TEMPLATE'].format(uuid=self.uuid.hex)
-
-    @property
     def planned_budget(self):
-        return self.extra.get('price')
+        price = self.extra.get('price')
+        if price:
+            try:
+                return float(price)
+            except ValueError:
+                return 0
+        return 0
 
     def __str__(self):
         return '{} / {}'.format(self.project.name, self.project.customer.name)

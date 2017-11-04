@@ -7,9 +7,24 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
+from nodeconductor.structure import models as structure_models
 from . import models
 
 logger = logging.getLogger(__name__)
+
+
+def get_request_customer_link(request, customer):
+    return settings.WALDUR_EXPERTS['REQUEST_CUSTOMER_LINK_TEMPLATE'].format(
+        request_uuid=request.uuid.hex,
+        customer_uuid=customer.uuid.hex
+    )
+
+
+def get_request_project_link(request):
+    return settings.WALDUR_EXPERTS['REQUEST_PROJECT_LINK_TEMPLATE'].format(
+        request_uuid=request.uuid.hex,
+        project_uuid=request.project.uuid.hex
+    )
 
 
 @shared_task(name='nodeconductor_assembly_waldur.experts.send_new_request')
@@ -19,8 +34,16 @@ def send_new_request(request_uuid):
     """
 
     request = models.ExpertRequest.objects.get(uuid=request_uuid)
-    users = models.ExpertProvider.get_expert_managers()
-    send_request_mail('new_request', request, users)
+
+    enabled_providers = models.ExpertProvider.objects.filter(enable_notifications=True)
+    customers = list(enabled_providers.values_list('customer', flat=True))
+    customers = structure_models.Customer.objects.filter(pk__in=customers)
+    for customer in customers:
+        users = customer.get_owners()
+        extra_context = {
+            'request_link': get_request_customer_link(request, customer)
+        }
+        send_request_mail('new_request', request, users, extra_context)
 
 
 @shared_task(name='nodeconductor_assembly_waldur.experts.send_new_bid')
@@ -31,18 +54,25 @@ def send_new_bid(bid_uuid):
 
     bid = models.ExpertBid.objects.get(uuid=bid_uuid)
     users = bid.request.customer.get_owners()
-    send_request_mail('new_bid', bid.request, users, extra_context={'bid': bid})
+    extra_context = {
+        'bid': bid,
+        'request_link': get_request_project_link(bid.request)
+    }
+    send_request_mail('new_bid', bid.request, users, extra_context)
 
 
-@shared_task(name='nodeconductor_assembly_waldur.experts.send_accepted_request')
-def send_accepted_request(request_uuid):
+@shared_task(name='nodeconductor_assembly_waldur.experts.send_new_contract')
+def send_new_contract(request_uuid):
     """
     Send email notification about accepted expert request.
     """
 
     request = models.ExpertRequest.objects.get(uuid=request_uuid)
-    users = request.project.customer.get_owners()
-    send_request_mail('contract', request, users)
+    users = request.customer.get_owners()
+    extra_context = {
+        'request_link': get_request_project_link(request)
+    }
+    send_request_mail('contract', request, users, extra_context)
 
 
 def send_request_mail(event_type, request, users, extra_context=None):

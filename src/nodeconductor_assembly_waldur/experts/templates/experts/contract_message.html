@@ -11,11 +11,11 @@ The contract for expert request under {{ customer_name }} / {{ project_name }} h
 {% block body %}
 <tr>
     <td class="content-block">
-        Please go to <a href="{{ request.link }}">{{ site_name }}</a> to see it.
+        Please go to <a href="{{ request_link }}">{{ site_name }}</a> to see it.
     </td>
 </tr>
 {% endblock body %}
 
 {% block footer %}
-<a href="{{ request.link }}">Unsubscribe</a> from these alerts.
+<a href="{{ request_link }}">Unsubscribe</a> from these alerts.
 {% endblock footer %}

@@ -8,13 +8,13 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APITransactionTestCase
 
 from nodeconductor_assembly_waldur.support import models
 from nodeconductor_assembly_waldur.support.tests import factories
 
 
-class TestJiraWebHooks(APITestCase):
+class TestJiraWebHooks(APITransactionTestCase):
     JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME = "jira_issue_updated_query.json"
 
     def setUp(self):

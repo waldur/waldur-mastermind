@@ -19,7 +19,7 @@ from nodeconductor.users import models as user_models
 from nodeconductor.users import tasks as user_tasks
 from nodeconductor_assembly_waldur.support import backend as support_backend
 
-from . import serializers, models, filters, tasks
+from . import serializers, models, filters
 
 
 def is_expert_manager(user):
@@ -41,8 +41,10 @@ def create_team_invitations(team, project, current_user):
             customer=project.customer,
             project=project,
             project_role=structure_models.ProjectRole.ADMINISTRATOR,
+            link_template=settings.WALDUR_EXPERTS['INVITATION_LINK_TEMPLATE'],
         )
-        user_tasks.send_invitation.delay(invitation.uuid.hex, current_user.full_name or current_user.username)
+        username = current_user.full_name or current_user.username
+        user_tasks.send_invitation.delay(invitation.uuid.hex, username)
 
 
 def cancel_team_invitations(team, project):
@@ -223,9 +225,8 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
             description=expert_bid.description,
         )
 
-        create_team_invitations(expert_bid.team, expert_request.project, current_user)
-        tasks.send_accepted_request.delay(expert_request.uuid.hex)
-
+        transaction.on_commit(lambda:
+                              create_team_invitations(expert_bid.team, expert_request.project, current_user))
         return response.Response({'status': _('Expert bid has been accepted.')}, status=status.HTTP_200_OK)
 
     def is_pending_request(request, view, obj=None):

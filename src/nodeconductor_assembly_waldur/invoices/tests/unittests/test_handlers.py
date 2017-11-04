@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db.models.signals import pre_delete
-from django.test import TestCase
+from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 from mock import Mock, mock
@@ -20,7 +20,7 @@ from .. import factories, fixtures
 from ... import models, utils
 
 
-class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
+class UpdateInvoiceOnOpenstackPackageDeletionTest(TransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
@@ -63,7 +63,7 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TestCase):
         self.assertEqual(mocked_handler.call_count, 1)
 
 
-class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
+class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
@@ -265,7 +265,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TestCase):
         self.assertEqual(Decimal(expected_price), models.Invoice.objects.first().price)
 
 
-class AddNewOfferingDetailsToInvoiceTest(TestCase):
+class AddNewOfferingDetailsToInvoiceTest(TransactionTestCase):
 
     def setUp(self):
         self.fixture = support_fixtures.SupportFixture()
@@ -315,7 +315,7 @@ class AddNewOfferingDetailsToInvoiceTest(TestCase):
         self.assertEqual(invoice.price, Decimal(expected_price))
 
 
-class UpdateInvoiceOnOfferingDeletionTest(TestCase):
+class UpdateInvoiceOnOfferingDeletionTest(TransactionTestCase):
 
     def setUp(self):
         self.fixture = support_fixtures.SupportFixture()
@@ -361,7 +361,7 @@ class UpdateInvoiceOnOfferingDeletionTest(TestCase):
             self.assertEqual(new_invoice.offering_items.first().end, next_month)
 
 
-class UpdateInvoiceOnOfferingStateChange(TestCase):
+class UpdateInvoiceOnOfferingStateChange(TransactionTestCase):
 
     def setUp(self):
         self.fixture = support_fixtures.SupportFixture()
@@ -398,7 +398,7 @@ class UpdateInvoiceOnOfferingStateChange(TestCase):
 
 
 @mock.patch('nodeconductor_assembly_waldur.invoices.tasks.send_invoice_report')
-class SendReportOnInvoiceStateChange(TestCase):
+class SendReportOnInvoiceStateChange(TransactionTestCase):
 
     @override_invoices_settings(INVOICE_REPORTING={'ENABLE': True})
     def test_report_is_sent_if_invoice_state_changed_to_created(self, mocked_task):
@@ -423,7 +423,7 @@ class SendReportOnInvoiceStateChange(TestCase):
         self.assertFalse(mocked_task.delay.called)
 
 
-class EmitInvoiceCreatedOnStateChange(TestCase):
+class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
 
     @mock.patch('nodeconductor.cost_tracking.signals.invoice_created')
     def test_invoice_created_signal_is_emitted_on_monthly_invoice_creation(self, invoice_created_mock):

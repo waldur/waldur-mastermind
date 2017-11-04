@@ -9,7 +9,7 @@ A new request for experts has been published by {{ request.customer.name }}
 {% endblock header %}
 
 {% block body %}
-{% if request.planned_budget %}
+{% if request.planned_budget > 0 %}
 <tr>
     <td class="content-block">
         Estimated budget is <strong>{{ request.planned_budget }} {{ currency_name }}</strong>.
@@ -18,7 +18,7 @@ A new request for experts has been published by {{ request.customer.name }}
 {% endif %}
 <tr>
     <td class="content-block">
-        Visit <a href="{{ request.link }}">{{ site_name }}</a> to find our more details and submit your proposal.
+        Visit <a href="{{ request_link }}">{{ site_name }}</a> to find our more details and submit your proposal.
     </td>
 </tr>
 {% endblock body %}
