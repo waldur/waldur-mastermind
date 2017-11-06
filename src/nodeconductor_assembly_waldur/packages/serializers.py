@@ -47,10 +47,29 @@ def _check_template_service_settings(serializer, template):
     return template
 
 
-def _set_tenant_quotas(tenant, template):
+def _get_template_quotas(template):
     components = {c.type: c.amount for c in template.components.all()}
-    for quota_name, component_type in models.OpenStackPackage.get_quota_to_component_mapping().items():
-        tenant.set_quota_limit(quota_name, components[component_type])
+    mapping = models.OpenStackPackage.get_quota_to_component_mapping()
+    return {
+        quota_name: components[component_type]
+        for quota_name, component_type in mapping.items()
+    }
+
+
+def _apply_quotas(target, quotas):
+    for name, limit in quotas.items():
+        target.set_quota_limit(name, limit)
+
+
+def _set_tenant_quotas(tenant, template):
+    quotas = _get_template_quotas(template)
+    _apply_quotas(tenant, quotas)
+
+
+def _set_related_service_settings_quotas(tenant, template):
+    quotas = _get_template_quotas(template)
+    for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
+        _apply_quotas(target, quotas)
 
 
 def _set_tenant_extra_configuration(tenant, template):
@@ -208,6 +227,7 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
 
         tenant = package.tenant
         _set_tenant_quotas(tenant, new_template)
+        _set_related_service_settings_quotas(tenant, new_template)
         _set_tenant_extra_configuration(tenant, new_template)
 
         package.delete()
