@@ -82,12 +82,6 @@ class InvoiceConfig(AppConfig):
             dispatch_uid='nodeconductor_assembly_waldur.invoices.update_invoice_item_on_project_name_update',
         )
 
-        signals.post_save.connect(
-            handlers.send_invoice_report,
-            sender=models.Invoice,
-            dispatch_uid='nodeconductor_assembly_waldur.invoices.send_invoice_report',
-        )
-
         core_signals.pre_delete_validate.connect(
             handlers.prevent_deletion_of_customer_with_invoice,
             sender=structure_models.Customer,

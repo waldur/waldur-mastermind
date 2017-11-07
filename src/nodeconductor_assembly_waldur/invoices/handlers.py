@@ -101,15 +101,6 @@ def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
             item.save(update_fields=['project_name'])
 
 
-def send_invoice_report(sender, instance, created=False, **kwargs):
-    if not settings.INVOICES['INVOICE_REPORTING']['ENABLE']:
-        return
-    invoice = instance
-    if invoice.tracker.has_changed('state') and invoice.state == models.Invoice.States.CREATED:
-        transaction.on_commit(lambda:
-                              tasks.send_invoice_report.delay(invoice.uuid.hex))
-
-
 def emit_invoice_created_event(sender, instance, created=False, **kwargs):
     if created:
         return
