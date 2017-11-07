@@ -397,32 +397,6 @@ class UpdateInvoiceOnOfferingStateChange(TransactionTestCase):
         self.assertEqual(self.invoice.price, Decimal(expected_price))
 
 
-@mock.patch('nodeconductor_assembly_waldur.invoices.tasks.send_invoice_report')
-class SendReportOnInvoiceStateChange(TransactionTestCase):
-
-    @override_invoices_settings(INVOICE_REPORTING={'ENABLE': True})
-    def test_report_is_sent_if_invoice_state_changed_to_created(self, mocked_task):
-        fixture = fixtures.InvoiceFixture()
-        invoice = fixture.invoice
-        invoice.set_created()
-        mocked_task.delay.assert_called_once_with(invoice.uuid.hex)
-
-    @override_invoices_settings(INVOICE_REPORTING={'ENABLE': True})
-    def test_report_is_not_sent_if_invoice_state_changed_to_cancelled(self, mocked_task):
-        fixture = fixtures.InvoiceFixture()
-        invoice = fixture.invoice
-        invoice.state = models.Invoice.States.CANCELED
-        invoice.save()
-        self.assertFalse(mocked_task.delay.called)
-
-    @override_invoices_settings(INVOICE_REPORTING={'ENABLE': False})
-    def test_report_is_not_sent_if_feature_is_disabled(self, mocked_task):
-        fixture = fixtures.InvoiceFixture()
-        invoice = fixture.invoice
-        invoice.set_created()
-        self.assertFalse(mocked_task.delay.called)
-
-
 class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
 
     @mock.patch('nodeconductor.cost_tracking.signals.invoice_created')

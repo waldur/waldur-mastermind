@@ -1,11 +1,14 @@
 from django.conf import settings
 from django.contrib import admin
 from django.forms import ModelForm, ChoiceField
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.core import admin as core_admin
 from nodeconductor.structure import admin as structure_admin
 
-from . import models
+from . import models, tasks
 
 
 class InvoiceItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
@@ -25,12 +28,25 @@ class OfferingItemInline(InvoiceItemInline):
     readonly_fields = InvoiceItemInline.readonly_fields + ('offering', 'offering_details')
 
 
-class InvoiceAdmin(core_admin.UpdateOnlyModelAdmin, admin.ModelAdmin):
+class InvoiceAdmin(core_admin.ExtraActionsMixin,
+                   core_admin.UpdateOnlyModelAdmin,
+                   admin.ModelAdmin):
     inlines = [OpenStackItemInline, OfferingItemInline]
     readonly_fields = ('customer', 'state', 'total', 'year', 'month')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer', 'uuid')
+
+    def get_extra_actions(self):
+        return [self.send_invoice_report]
+
+    def send_invoice_report(self, request):
+        tasks.send_invoice_report.delay()
+        message = _('Invoice report task has been scheduled')
+        self.message_user(request, message)
+        return redirect(reverse('admin:invoices_invoice_changelist'))
+
+    send_invoice_report.short_description = _('Send invoice report as CSV to email')
 
 
 class PaymentDetailsInline(admin.StackedInline):
