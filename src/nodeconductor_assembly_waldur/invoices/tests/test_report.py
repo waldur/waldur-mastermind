@@ -85,6 +85,13 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 @freeze_time('2017-11-01')
 @mock.patch('nodeconductor_assembly_waldur.invoices.tasks.send_mail')
 class InvoiceReportTaskTest(BaseReportFormatterTest):
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    def test_invoice_are_skipped_if_payment_details_are_missing(self, send_mail_mock):
+        tasks.send_invoice_report()
+        message = send_mail_mock.call_args[0][1]
+        lines = message.splitlines()
+        self.assertEqual(0, len(lines))
+
     @utils.override_invoices_settings(
         INVOICE_REPORTING=INVOICE_REPORTING,
         ENABLE_ACCOUNTING_START_DATE=True,
@@ -146,6 +153,11 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
     def test_active_invoice_are_merged(self, send_mail_mock):
+        factories.PaymentDetailsFactory(
+            customer=self.customer,
+            accounting_start_date=timezone.now() - datetime.timedelta(days=10)
+        )
+
         fixture = fixtures.InvoiceFixture()
         package = fixtures.create_package(111, fixture.openstack_tenant)
         package.template.name = 'PackageTemplate'
@@ -155,6 +167,11 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         invoice.customer.agreement_number = 777
         invoice.customer.save()
         invoice.set_created()
+
+        factories.PaymentDetailsFactory(
+            customer=package.tenant.service_project_link.project.customer,
+            accounting_start_date=timezone.now() - datetime.timedelta(days=10)
+        )
 
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[0][1]

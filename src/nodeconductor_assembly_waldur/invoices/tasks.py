@@ -87,6 +87,8 @@ def send_invoice_report():
     # Report should include only organizations that had accounting running during the invoice period.
     if settings.INVOICES['ENABLE_ACCOUNTING_START_DATE']:
         invoices = invoices.filter(customer__payment_details__accounting_start_date__lte=date)
+    else:
+        invoices = invoices.filter(customer__payment_details__isnull=False)
 
     # Report should not include customers with 0 invoice sum.
     invoices = [invoice for invoice in invoices if invoice.total > 0]
