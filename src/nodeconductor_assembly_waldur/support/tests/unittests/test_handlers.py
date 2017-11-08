@@ -1,11 +1,11 @@
 from django.conf import settings
 from django.core import mail
-from django.test import TestCase
+from django.test import TransactionTestCase
 
 from .. import factories
 
 
-class BaseHandlerTest(TestCase):
+class BaseHandlerTest(TransactionTestCase):
 
     def setUp(self):
         settings.CELERY_ALWAYS_EAGER = True

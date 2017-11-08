@@ -4,15 +4,16 @@ from rest_framework import test, status
 from rest_framework.reverse import reverse
 
 from nodeconductor.structure import models as structure_models
-from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
+from nodeconductor_openstack.openstack import models as openstack_models
 from nodeconductor_openstack.openstack.tests import factories as openstack_factories
+from nodeconductor_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures
 from .. import models
 
 
 @ddt
-class OpenStackPackageRetreiveTest(test.APITransactionTestCase):
+class OpenStackPackageRetrieveTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.PackageFixture()
@@ -219,6 +220,17 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
             'ram': self.new_template.components.get(type='ram').amount,
             'storage': self.new_template.components.get(type='storage').amount,
         })
+
+    def test_after_package_extension_related_service_settings_are_updated(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+        quotas = self.package.service_settings.quotas
+        components = self.new_template.components
+        self.assertEqual(quotas.get(name='vcpu').limit, components.get(type='cores').amount)
+        self.assertEqual(quotas.get(name='ram').limit, components.get(type='ram').amount)
+        self.assertEqual(quotas.get(name='storage').limit, components.get(type='storage').amount)
 
     def set_usage_and_limit(self, component_type, usage, old_limit, new_limit):
         mapping = models.OpenStackPackage.get_quota_to_component_mapping()

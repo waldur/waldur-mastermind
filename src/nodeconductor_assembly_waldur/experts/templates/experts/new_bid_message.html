@@ -11,11 +11,11 @@ A new bid has been added by {{ bid.team.customer.name }} to your request for {{ 
 {% block body %}
 <tr>
     <td class="content-block">
-        Go to <a href="{{ request.link }}">{{ site_name }}</a> to see the details.
+        Go to <a href="{{ request_link }}">{{ site_name }}</a> to see the details.
     </td>
 </tr>
 {% endblock body %}
 
 {% block footer %}
-<a href="{{ request.link }}">Unsubscribe</a> from these alerts.
+<a href="{{ request_link }}">Unsubscribe</a> from these alerts.
 {% endblock footer %}

@@ -1,3 +1,5 @@
+from django.db import transaction
+
 from nodeconductor.core import utils as core_utils
 
 from .log import event_logger
@@ -62,12 +64,15 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
     if not created or not comment.is_public:
         return
 
-    tasks.send_comment_added_notification.delay(core_utils.serialize_instance(comment))
+    serialized_comment = core_utils.serialize_instance(comment)
+    transaction.on_commit(lambda:
+                          tasks.send_comment_added_notification.delay(serialized_comment))
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
     if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'}:
         return
 
-    issue = instance
-    tasks.send_issue_updated_notification.delay(core_utils.serialize_instance(issue))
+    serialized_issue = core_utils.serialize_instance(instance)
+    transaction.on_commit(lambda:
+                          tasks.send_issue_updated_notification.delay(serialized_issue))

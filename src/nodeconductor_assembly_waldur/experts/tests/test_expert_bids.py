@@ -224,7 +224,7 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
         ]
         mocked_task.delay.assert_has_calls(calls)
 
-    @mock.patch('nodeconductor_assembly_waldur.experts.tasks.send_accepted_request')
+    @mock.patch('nodeconductor_assembly_waldur.experts.tasks.send_new_contract')
     def test_when_bid_accepted_notification_emails_for_customer_owners_are_sent(self, mocked_task):
         self.client.force_authenticate(self.project_fixture.owner)
         self.accept_bid()

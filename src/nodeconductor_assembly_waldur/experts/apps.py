@@ -58,10 +58,24 @@ class ExpertsConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.notify_expert_providers_about_new_request,
+            sender=ExpertRequest,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'notify_expert_providers_about_new_request',
+        )
+
+        signals.post_save.connect(
             handlers.notify_customer_owners_about_new_bid,
             sender=ExpertBid,
             dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
                          'notify_customer_owners_about_new_bid',
+        )
+
+        signals.post_save.connect(
+            handlers.notify_customer_owners_about_new_contract,
+            sender=ExpertContract,
+            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
+                         'notify_customer_owners_about_new_contract',
         )
 
         signals.post_save.connect(
@@ -90,11 +104,4 @@ class ExpertsConfig(AppConfig):
             sender=structure_models.Project,
             dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
                          'update_expert_contract_on_project_name_update',
-        )
-
-        signals.post_save.connect(
-            handlers.notify_expert_providers_about_new_request,
-            sender=ExpertRequest,
-            dispatch_uid='nodeconductor_assembly_waldur.experts.handlers.'
-                         'notify_expert_providers_about_new_request',
         )
