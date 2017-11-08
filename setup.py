@@ -7,8 +7,8 @@ install_requires = [
     'defusedxml>=0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>=0.149.3',
-    'nodeconductor_auth_social>=0.7.3',
+    'nodeconductor>=0.150.0',
+    'nodeconductor_auth_social>=0.7.4',
     'nodeconductor_auth_openid>=0.8.5',
     'nodeconductor_aws>=0.10.0',
     'nodeconductor_azure>=0.3.0',
@@ -19,7 +19,7 @@ install_requires = [
     'waldur_ansible>=0.3.1',
     'waldur_freeipa>=0.2.3',
     'waldur_paypal>=0.6.2',
-    'waldur_slurm>=0.3.1',
+    'waldur_slurm>=0.3.2',
 ]
 
 test_requires = [
