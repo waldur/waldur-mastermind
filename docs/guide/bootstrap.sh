@@ -17,12 +17,13 @@ waldur-paypal
 waldur-mastermind"
 for component in $WALDUR_COMPONENTS
 do
-  if [ ! -d "$component" ]; then git clone git@github.com:opennode/${component}.git
-  else
-    cd $component
-    git checkout develop
-    git pull
-    python setup.py develop
-    cd ../
+  if [ ! -d "$component" ]
+    then git clone git@github.com:opennode/${component}.git
   fi
+
+  cd $component
+  git checkout develop
+  git pull
+  python setup.py develop
+  cd ../
 done
