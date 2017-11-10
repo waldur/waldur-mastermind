@@ -18,7 +18,7 @@ waldur-mastermind"
 for component in $WALDUR_COMPONENTS
 do
   if [ ! -d "$component" ]
-    then git clone git@github.com:opennode/${component}.git
+    then git clone git@code.opennodecloud.com:waldur/${component}.git
   fi
 
   cd $component
