@@ -17,6 +17,7 @@ install_requires = [
     'nodeconductor_openstack>=0.37.5',
     'nodeconductor_saml2>=0.8.2',
     'waldur_ansible>=0.3.1',
+    'waldur_auth_valimo>=0.2.0',
     'waldur_freeipa>=0.2.3',
     'waldur_paypal>=0.6.2',
     'waldur_slurm>=0.3.2',
