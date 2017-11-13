@@ -89,8 +89,13 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
     def get_queryset(self):
         qs = super(ExpertRequestViewSet, self).get_queryset()
 
-        if not is_expert_manager(self.request.user):
+        if self.request.user.is_staff:
+            return qs
+        elif is_expert_manager(self.request.user):
+            qs = qs.filtered_for_manager(self.request.user)
+        else:
             qs = qs.filtered_for_user(self.request.user)
+
         return qs
 
     @decorators.list_route()

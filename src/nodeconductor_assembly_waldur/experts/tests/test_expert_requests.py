@@ -12,8 +12,8 @@ from nodeconductor.users import models as user_models
 from nodeconductor.users.tests import factories as user_factories
 from nodeconductor_assembly_waldur.support.tests import factories as support_factories
 
-from .. import models
 from . import factories, fixtures
+from .. import models
 
 
 def override_experts_contract(contract=None):
@@ -190,6 +190,7 @@ class ExpertRequestActionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.expert_request = factories.ExpertRequestFactory()
         self.expert_request.state = models.ExpertRequest.States.ACTIVE
+        self.expert_request.type = 'custom_vpc_experts'
         self.expert_request.save()
 
         self.expert_team = structure_factories.ProjectFactory()
@@ -199,6 +200,10 @@ class ExpertRequestActionsTest(test.APITransactionTestCase):
         )
 
         self.staff = structure_factories.UserFactory(is_staff=True)
+
+        self.expert_fixture = structure_fixtures.ProjectFixture()
+        self.expert_provider = factories.ExpertProviderFactory(customer=self.expert_fixture.customer)
+        self.expert_manager = self.expert_fixture.owner
 
 
 class ExpertRequestCancelTest(ExpertRequestActionsTest):
@@ -291,7 +296,31 @@ class ExpertRequestCancelTest(ExpertRequestActionsTest):
         return self.client.post(url)
 
 
+@override_experts_contract()
 class ExpertRequestCompleteTest(ExpertRequestActionsTest):
+    def _test_count_expert_requests(self, user, count):
+        self.client.force_authenticate(user)
+        url = factories.ExpertRequestFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), count)
+
+    def test_if_user_is_not_of_related_organization_and_expert_request_is_active(self):
+        self._test_count_expert_requests(self.expert_manager, 1)
+        self._test_count_expert_requests(self.staff, 1)
+
+    def test_if_user_is_not_of_related_organization_and_expert_request_is_completed(self):
+        self.expert_request.state = models.ExpertRequest.States.COMPLETED
+        self.expert_request.save()
+        self._test_count_expert_requests(self.expert_manager, 0)
+        self._test_count_expert_requests(self.staff, 1)
+
+    def test_if_user_is_of_related_organization_and_expert_request_is_completed(self):
+        self.expert_request.state = models.ExpertRequest.States.COMPLETED
+        self.expert_request.save()
+        self.expert_team.permissions.create(user=self.expert_manager, is_active=True)
+        self._test_count_expert_requests(self.expert_manager, 1)
+        self._test_count_expert_requests(self.staff, 1)
 
     def test_expert_request_can_be_completed_by_staff(self):
         self.client.force_authenticate(self.staff)
