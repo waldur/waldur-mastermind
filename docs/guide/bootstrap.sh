@@ -3,6 +3,7 @@ WALDUR_COMPONENTS="waldur-core
 waldur-auth-social
 waldur-auth-openid
 waldur-auth-saml2
+waldur-auth-valimo
 waldur-aws
 waldur-azure
 waldur-digitalocean

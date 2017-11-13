@@ -13,6 +13,7 @@ Requires: waldur-ansible >= 0.3.1
 Requires: waldur-auth-openid >= 0.8.5
 Requires: waldur-auth-social >= 0.7.4
 Requires: waldur-auth-saml2 >= 0.8.2
+Requires: waldur-auth-valimo >= 0.3.0
 Requires: waldur-aws >= 0.10.0
 Requires: waldur-azure >= 0.3.0
 Requires: waldur-cost-planning >= 0.5.0
