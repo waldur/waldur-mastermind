@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import cStringIO
-import datetime
 import logging
 
 from celery import shared_task
@@ -63,7 +62,7 @@ def send_invoice_notification(invoice_uuid, link_template):
         'link': link_template.format(uuid=invoice_uuid)
     }
 
-    subject = render_to_string('invoices/notification_subject.txt', context)
+    subject = render_to_string('invoices/notification_subject.txt', context).strip()
     text_message = render_to_string('invoices/notification_message.txt', context)
     html_message = render_to_string('invoices/notification_message.html', context)
 
@@ -80,7 +79,7 @@ def send_invoice_report():
     subject = render_to_string('invoices/report_subject.txt', {
         'month': date.month,
         'year': date.year,
-    })
+    }).strip()
 
     invoices = models.Invoice.objects.all()
 
