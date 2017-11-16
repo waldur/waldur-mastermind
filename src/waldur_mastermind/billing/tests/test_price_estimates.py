@@ -9,8 +9,8 @@ from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 
-from .. import exceptions, models
 from . import factories
+from .. import exceptions, models
 
 
 class PriceEstimateSignalsTest(test.APITransactionTestCase):
@@ -36,6 +36,24 @@ class PriceEstimateSignalsTest(test.APITransactionTestCase):
 class PriceEstimateAPITest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
+
+    @freeze_time('2017-11-01 00:00:00')
+    def test_get_archive_price_estimate_for_customer(self):
+        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        models.PriceEstimate.objects.filter(scope=self.fixture.customer).update(total=100)
+
+        response = self.client.get(structure_factories.CustomerFactory.get_url(self.fixture.customer))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        estimate = response.data['billing_price_estimate']
+        self.assertEqual(estimate['total'], 100)
+
+        response = self.client.get(structure_factories.CustomerFactory.get_url(self.fixture.customer), {
+            'year': 2017,
+            'month': 10
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        estimate = response.data['billing_price_estimate']
+        self.assertEqual(estimate['total'], 0)
 
     @data('staff', 'owner', 'manager', 'admin')
     def test_authorized_can_get_price_estimate_for_customer(self, user):

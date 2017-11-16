@@ -1,14 +1,13 @@
 from django.db.models import Sum
 from django.utils.translation import ugettext_lazy as _
-
 from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.core import signals as core_signals
 from nodeconductor.structure import models as structure_models
 from nodeconductor.structure import serializers as structure_serializers
-
 from . import models
+from ..invoices import utils
 
 
 class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
@@ -78,6 +77,26 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
+    total = serializers.SerializerMethodField()
+
+    def get_total(self, obj):
+        request = self.context['request']
+
+        try:
+            year = int(request.query_params.get('year', ''))
+            month = int(request.query_params.get('month', ''))
+
+            if not utils.check_past_date(year, month):
+                raise ValueError()
+
+        except ValueError:
+            year = month = None
+
+        if year and month:
+            return obj.get_total(year=year, month=month)
+
+        return obj.total
+
     class Meta:
         model = models.PriceEstimate
         fields = ('url', 'threshold', 'total', 'limit')

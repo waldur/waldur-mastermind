@@ -1,3 +1,5 @@
+import datetime
+
 from calendar import monthrange
 from django.utils import timezone
 
@@ -33,3 +35,13 @@ def get_current_month_days():
     now = timezone.now()
     range = monthrange(now.year, now.month)
     return range[1]
+
+
+def check_past_date(year, month, day=None):
+    day = day or 1
+
+    try:
+        return datetime.date(year=int(year), month=int(month), day=int(day)) <= timezone.now().date()
+    except ValueError:
+        return False
+
