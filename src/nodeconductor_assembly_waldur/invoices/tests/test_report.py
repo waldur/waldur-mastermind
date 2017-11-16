@@ -68,8 +68,6 @@ INVOICE_REPORTING = {
 @freeze_time('2017-09-26')
 class SafReportFormatterTest(BaseReportFormatterTest):
     def test_invoice_items_are_properly_formatted(self):
-        self.invoice.number = 100003
-        self.invoice.save()
         report = format_invoice_csv(self.invoice)
         lines = report.splitlines()
         self.assertEqual(2, len(lines))
@@ -79,8 +77,8 @@ class SafReportFormatterTest(BaseReportFormatterTest):
                           'ARTPROJEKT;ARTNIMI;VALI;U_KONEDEARV;H_PERIOOD'
         self.assertEqual(lines[0], expected_header)
 
-        expected_data = '100003;30.09.2017;26.09.2017;26.10.2017;100;100;;5;1500.00;0.00;20%;' \
-                        'PROJEKT; (Small / PackageTemplate);;;01.09.2017-30.09.2017'
+        expected_data = '{};30.09.2017;26.09.2017;26.10.2017;100;100;;5;1500.00;0.00;20%;' \
+                        'PROJEKT; (Small / PackageTemplate);;;01.09.2017-30.09.2017'.format(self.invoice.number)
         self.assertEqual(lines[1], expected_data)
 
 
