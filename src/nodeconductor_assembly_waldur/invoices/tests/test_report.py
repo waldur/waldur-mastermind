@@ -68,6 +68,8 @@ INVOICE_REPORTING = {
 @freeze_time('2017-09-26')
 class SafReportFormatterTest(BaseReportFormatterTest):
     def test_invoice_items_are_properly_formatted(self):
+        self.invoice.number = 100003
+        self.invoice.save()
         report = format_invoice_csv(self.invoice)
         lines = report.splitlines()
         self.assertEqual(2, len(lines))
