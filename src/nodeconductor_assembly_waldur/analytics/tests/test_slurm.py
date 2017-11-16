@@ -40,3 +40,6 @@ class SlurmAnalyticsTest(TestCase):
             },
         ]
         self.assertItemsEqual(slurm.get_usage(), expected_points)
+
+    def test_if_there_are_no_allocations_empty_list_is_returned(self):
+        self.assertEqual(slurm.get_usage(), [])
