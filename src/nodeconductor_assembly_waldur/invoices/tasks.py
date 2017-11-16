@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import cStringIO
+import datetime
 import logging
 
 from celery import shared_task
@@ -72,16 +73,22 @@ def send_invoice_notification(invoice_uuid, link_template):
     send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, emails, html_message=html_message)
 
 
+def get_previous_month():
+    date = timezone.now()
+    month, year = (date.month - 1, date.year) if date.month != 1 else (12, date.year - 1)
+    return datetime.date(year, month, 1)
+
+
 @shared_task(name='invoices.send_invoice_report')
 def send_invoice_report():
     """ Sends aggregate accounting data as CSV """
-    date = timezone.now()
+    date = get_previous_month()
     subject = render_to_string('invoices/report_subject.txt', {
         'month': date.month,
         'year': date.year,
     }).strip()
 
-    invoices = models.Invoice.objects.all()
+    invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
     if settings.INVOICES['ENABLE_ACCOUNTING_START_DATE']:
