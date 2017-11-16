@@ -253,6 +253,7 @@ class GenericItemReportSerializer(InvoiceItemReportSerializer):
 
 # SAF is accounting soft from Estonia: www.sysdec.ee/safsaf.htm
 class SAFReportSerializer(serializers.Serializer):
+    DOKNR = serializers.ReadOnlyField(source='invoice.number')
     KUUPAEV = serializers.SerializerMethodField(method_name='get_last_day_of_month')
     VORMKUUP = serializers.SerializerMethodField(method_name='get_invoice_date')
     MAKSEAEG = serializers.SerializerMethodField(method_name='get_due_date')
@@ -270,7 +271,7 @@ class SAFReportSerializer(serializers.Serializer):
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
     class Meta(object):
-        fields = ('KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
+        fields = ('DOKNR', 'KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
                   'ARTIKKEL', 'KOGUS', 'SUMMA', 'RMAKSUSUM', 'RMAKSULIPP',
                   'ARTPROJEKT', 'ARTNIMI', 'VALI', 'U_KONEDEARV', 'H_PERIOOD')
 
@@ -303,7 +304,7 @@ class SAFReportSerializer(serializers.Serializer):
         return invoice_item.usage_days
 
     def get_total(self, invoice_item):
-        return quantize_price(invoice_item.total)
+        return quantize_price(invoice_item.price)
 
     def get_tax(self, invoice_item):
         return quantize_price(invoice_item.tax)

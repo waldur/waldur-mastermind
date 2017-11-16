@@ -72,12 +72,12 @@ class SafReportFormatterTest(BaseReportFormatterTest):
         lines = report.splitlines()
         self.assertEqual(2, len(lines))
 
-        expected_header = 'KUUPAEV;VORMKUUP;MAKSEAEG;YKSUS;PARTNER;'\
+        expected_header = 'DOKNR;KUUPAEV;VORMKUUP;MAKSEAEG;YKSUS;PARTNER;'\
                           'ARTIKKEL;KOGUS;SUMMA;RMAKSUSUM;RMAKSULIPP;'\
                           'ARTPROJEKT;ARTNIMI;VALI;U_KONEDEARV;H_PERIOOD'
         self.assertEqual(lines[0], expected_header)
 
-        expected_data = '30.09.2017;26.09.2017;26.10.2017;100;100;;5;1500.00;0.00;20%;' \
+        expected_data = '100003;30.09.2017;26.09.2017;26.10.2017;100;100;;5;1500.00;0.00;20%;' \
                         'PROJEKT; (Small / PackageTemplate);;;01.09.2017-30.09.2017'
         self.assertEqual(lines[1], expected_data)
 
@@ -85,6 +85,12 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 @freeze_time('2017-11-01')
 @mock.patch('nodeconductor_assembly_waldur.invoices.tasks.send_mail')
 class InvoiceReportTaskTest(BaseReportFormatterTest):
+    def setUp(self):
+        super(InvoiceReportTaskTest, self).setUp()
+        self.invoice.year = 2017
+        self.invoice.month = 10
+        self.invoice.save()
+
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
     def test_invoice_are_skipped_if_payment_details_are_missing(self, send_mail_mock):
         tasks.send_invoice_report()
@@ -127,7 +133,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
     def test_active_customers_are_not_skipped_anyways(self, send_mail_mock):
         factories.PaymentDetailsFactory(
             customer=self.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=10)
+            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
         )
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[0][1]
@@ -141,7 +147,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
     def test_empty_invoice_is_skipped(self, send_mail_mock):
         factories.PaymentDetailsFactory(
             customer=self.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=10)
+            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
         )
         for item in self.invoice.items:
             item.delete()
@@ -155,7 +161,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
     def test_active_invoice_are_merged(self, send_mail_mock):
         factories.PaymentDetailsFactory(
             customer=self.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=10)
+            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
         )
 
         fixture = fixtures.InvoiceFixture()
@@ -166,11 +172,14 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         invoice = models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
         invoice.customer.agreement_number = 777
         invoice.customer.save()
+        invoice.year = 2017
+        invoice.month = 10
+        invoice.save()
         invoice.set_created()
 
         factories.PaymentDetailsFactory(
             customer=package.tenant.service_project_link.project.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=10)
+            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
         )
 
         tasks.send_invoice_report()
