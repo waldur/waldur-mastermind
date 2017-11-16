@@ -1,7 +1,8 @@
 import django_filters
 from django.conf import settings
 from django.core import exceptions
-from django.db.models import Q, BooleanField
+from django.db.models import Q
+from django import forms
 from django.utils import timezone
 from nodeconductor.core import filters as core_filters
 from nodeconductor.structure import filters as structure_filters
@@ -35,7 +36,7 @@ class AccountingStartDateFilter(core_filters.BaseExternalFilter):
             return queryset
 
         value = request.query_params.get('accounting_is_running')
-        boolean_field = BooleanField()
+        boolean_field = forms.NullBooleanField()
 
         try:
             value = boolean_field.to_python(value)
