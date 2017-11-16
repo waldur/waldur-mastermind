@@ -4,6 +4,8 @@ from waldur_slurm import models, utils
 
 
 def get_usage():
+    if not models.Allocation.objects.exists():
+        return []
     qs = models.Allocation.objects.all()
     params = dict(('total_%s' % quota, Sum(quota)) for quota in utils.FIELD_NAMES)
     qs = qs.aggregate(**params)
