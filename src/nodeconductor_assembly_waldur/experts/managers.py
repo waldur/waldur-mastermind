@@ -12,6 +12,13 @@ class ExpertRequestQuerySet(models.QuerySet):
             project__customer__permissions__role=structure_models.CustomerRole.OWNER,
         )
 
+    def filtered_for_manager(self, user):
+        user_projects = structure_models.Project.objects.filter(permissions__is_active=True, permissions__user=user).\
+            distinct()
+        return self.filter(~Q(state=self.model.States.COMPLETED) |
+                           Q(state=self.model.States.COMPLETED,
+                             contract__team__in=user_projects.all()))
+
 
 class ExpertRequestManager(models.Manager):
     def get_queryset(self):
