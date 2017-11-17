@@ -6,7 +6,6 @@ from rest_framework.reverse import reverse
 from nodeconductor.structure import models as structure_models
 from nodeconductor_openstack.openstack import models as openstack_models
 from nodeconductor_openstack.openstack.tests import factories as openstack_factories
-from nodeconductor_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures
 from .. import models
