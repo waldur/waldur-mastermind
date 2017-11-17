@@ -30,7 +30,7 @@ test_requires = [
 ]
 
 setup(
-    name='nodeconductor-assembly-waldur',
+    name='waldur-mastermind',
     version='2.8.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
@@ -47,14 +47,14 @@ setup(
     zip_safe=False,
     entry_points={
         'nodeconductor_extensions': (
-            'waldur_packages = nodeconductor_assembly_waldur.packages.extension:PackagesExtension',
-            'waldur_invoices = nodeconductor_assembly_waldur.invoices.extension:InvoicesExtension',
-            'waldur_support = nodeconductor_assembly_waldur.support.extension:SupportExtension',
-            'waldur_analytics = nodeconductor_assembly_waldur.analytics.extension:AnalyticsExtension',
-            'waldur_experts = nodeconductor_assembly_waldur.experts.extension:ExpertsExtension',
-            'waldur_billing = nodeconductor_assembly_waldur.billing.extension:BillingExtension',
-            'waldur_slurm_invoices = nodeconductor_assembly_waldur.slurm_invoices.extension:SlurmInvoicesExtension',
-            'waldur_ansible_estimator = nodeconductor_assembly_waldur.ansible_estimator.extension:AnsibleEstimatorExtension',
+            'waldur_packages = waldur_mastermind.packages.extension:PackagesExtension',
+            'waldur_invoices = waldur_mastermind.invoices.extension:InvoicesExtension',
+            'waldur_support = waldur_mastermind.support.extension:SupportExtension',
+            'waldur_analytics = waldur_mastermind.analytics.extension:AnalyticsExtension',
+            'waldur_experts = waldur_mastermind.experts.extension:ExpertsExtension',
+            'waldur_billing = waldur_mastermind.billing.extension:BillingExtension',
+            'waldur_slurm_invoices = waldur_mastermind.slurm_invoices.extension:SlurmInvoicesExtension',
+            'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
         ),
     },
     include_package_data=True,
