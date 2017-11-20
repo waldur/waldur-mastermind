@@ -2,7 +2,7 @@
 from rest_framework import serializers as rf_serializers
 
 from nodeconductor_cost_planning import optimizers, register, serializers
-from nodeconductor_openstack.openstack import apps as openstack_apps
+from waldur_openstack.openstack import apps as openstack_apps
 
 from waldur_mastermind.packages.models import PackageTemplate, PackageComponent
 from waldur_mastermind.packages.serializers import PackageTemplateSerializer

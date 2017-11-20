@@ -10,7 +10,7 @@ from rest_framework.test import APITransactionTestCase
 from nodeconductor.structure.tests import factories as structure_factories
 from waldur_mastermind.ansible_estimator.tests.fixtures import EstimationFixture
 from waldur_mastermind.packages import models as package_models
-from nodeconductor_openstack.openstack_tenant.tests import factories as tenant_factories
+from waldur_openstack.openstack_tenant.tests import factories as tenant_factories
 from waldur_ansible.tests import factories
 
 Types = package_models.PackageComponent.Types

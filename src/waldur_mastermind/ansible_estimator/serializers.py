@@ -5,7 +5,7 @@ from nodeconductor.core import models as core_models
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.core import utils as core_utils
 from nodeconductor.structure.serializers import PermissionFieldFilteringMixin
-from nodeconductor_openstack.openstack_tenant import models as openstack_models
+from waldur_openstack.openstack_tenant import models as openstack_models
 from waldur_ansible import models
 
 

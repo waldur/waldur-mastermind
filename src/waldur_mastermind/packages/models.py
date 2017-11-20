@@ -10,7 +10,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from nodeconductor.core import models as core_models
 from nodeconductor.structure import models as structure_models
-from nodeconductor_openstack.openstack import models as openstack_models, apps as openstack_apps
+from waldur_openstack.openstack import models as openstack_models, apps as openstack_apps
 from waldur_mastermind.common import mixins as common_mixins
 
 from waldur_mastermind.common.utils import quantize_price

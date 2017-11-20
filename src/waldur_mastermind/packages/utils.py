@@ -2,7 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from nodeconductor.cost_tracking import ConsumableItem
 from nodeconductor.cost_tracking.models import DefaultPriceListItem
-from nodeconductor_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import models as openstack_models
 
 
 class Types(object):

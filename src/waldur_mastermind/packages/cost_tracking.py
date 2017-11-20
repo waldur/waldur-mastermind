@@ -1,7 +1,7 @@
 import logging
 
 from nodeconductor.cost_tracking import CostTrackingStrategy, ConsumableItem, CostTrackingRegister
-from nodeconductor_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import models as openstack_models
 
 from . import models, utils
 

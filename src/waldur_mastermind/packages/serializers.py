@@ -5,9 +5,9 @@ from rest_framework import serializers
 
 from nodeconductor.core import serializers as core_serializers
 from nodeconductor.structure import serializers as structure_serializers, models as structure_models
-from nodeconductor_openstack.openstack import (
+from waldur_openstack.openstack import (
     apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
-from nodeconductor_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import models
 
@@ -85,7 +85,7 @@ def _set_tenant_extra_configuration(tenant, template):
 
 def _has_access_to_package(user, spl):
     """ Staff and owner always have access to package. Manager - only if correspondent flag is enabled """
-    manager_can_create = settings.NODECONDUCTOR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
+    manager_can_create = settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
     return (
         user.is_staff or
         spl.service.customer.has_user(user, structure_models.CustomerRole.OWNER) or
