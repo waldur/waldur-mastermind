@@ -83,7 +83,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 
 
 @freeze_time('2017-11-01')
-@mock.patch('waldur_mastermind.invoices.tasks.send_mail')
+@mock.patch('waldur_mastermind.invoices.tasks.utils.send_mail_attachment')
 class InvoiceReportTaskTest(BaseReportFormatterTest):
     def setUp(self):
         super(InvoiceReportTaskTest, self).setUp()
@@ -94,7 +94,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
     def test_invoice_are_skipped_if_payment_details_are_missing(self, send_mail_mock):
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[0][1]
+        message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
@@ -108,7 +108,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             accounting_start_date=timezone.now() + datetime.timedelta(days=10)
         )
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[0][1]
+        message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
@@ -122,7 +122,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             accounting_start_date=timezone.now() + datetime.timedelta(days=10)
         )
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[0][1]
+        message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
@@ -136,7 +136,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             accounting_start_date=timezone.now() - datetime.timedelta(days=50)
         )
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[0][1]
+        message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
@@ -153,7 +153,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             item.delete()
 
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[0][1]
+        message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
@@ -183,6 +183,6 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         )
 
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[0][1]
+        message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(3, len(lines))

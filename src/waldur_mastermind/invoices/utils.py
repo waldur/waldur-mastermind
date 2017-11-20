@@ -1,4 +1,7 @@
 from calendar import monthrange
+
+from django.conf import settings
+from django.core.mail import EmailMessage
 from django.utils import timezone
 
 from nodeconductor.core import utils as core_utils
@@ -33,3 +36,15 @@ def get_current_month_days():
     now = timezone.now()
     range = monthrange(now.year, now.month)
     return range[1]
+
+
+def send_mail_attachment(subject, body, to, filename, attach_text, content_type='text/plain', from_email=None):
+    from_email = from_email or settings.DEFAULT_FROM_EMAIL
+    email = EmailMessage(
+        subject=subject,
+        body=body,
+        to=to,
+        from_email=from_email
+    )
+    email.attach(filename, attach_text, content_type)
+    return email.send()
