@@ -3,9 +3,9 @@ from django.utils.functional import cached_property
 from nodeconductor.structure import models as structure_models
 from nodeconductor.structure.tests import fixtures as structure_fixtures, factories as structure_factories
 from waldur_mastermind.packages import models as package_models
-from nodeconductor_openstack.openstack import apps as openstack_apps, models as openstack_models
-from nodeconductor_openstack.openstack_tenant import apps as tenant_apps, models as tenant_models
-from nodeconductor_openstack.openstack_tenant.tests import factories as tenant_factories
+from waldur_openstack.openstack import apps as openstack_apps, models as openstack_models
+from waldur_openstack.openstack_tenant import apps as tenant_apps, models as tenant_models
+from waldur_openstack.openstack_tenant.tests import factories as tenant_factories
 
 Types = package_models.PackageComponent.Types
 

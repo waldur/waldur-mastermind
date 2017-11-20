@@ -9,7 +9,7 @@ from nodeconductor.core import utils as core_utils
 from nodeconductor.structure import SupportedServices
 from nodeconductor.structure import serializers as structure_serializers
 from waldur_mastermind.common.utils import quantize_price
-from nodeconductor_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import models as openstack_models
 from waldur_mastermind.support import models as support_models
 
 from . import models

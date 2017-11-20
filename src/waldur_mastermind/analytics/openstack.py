@@ -1,5 +1,5 @@
-from nodeconductor_openstack.openstack.models import Tenant
-from nodeconductor_openstack.openstack_tenant.models import Instance
+from waldur_openstack.openstack.models import Tenant
+from waldur_openstack.openstack_tenant.models import Instance
 
 
 def get_tenants():

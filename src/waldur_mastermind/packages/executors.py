@@ -1,6 +1,6 @@
 from nodeconductor.core import executors as core_executors, tasks as core_tasks, utils as core_utils
 from nodeconductor.structure import executors as structure_executors
-from nodeconductor_openstack.openstack import executors as openstack_executors
+from waldur_openstack.openstack import executors as openstack_executors
 
 from . import tasks
 

@@ -1,5 +1,5 @@
 from nodeconductor.core import tasks as core_tasks
-from nodeconductor_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import models as openstack_models
 
 
 class OpenStackPackageErrorTask(core_tasks.ErrorStateTransitionTask):
