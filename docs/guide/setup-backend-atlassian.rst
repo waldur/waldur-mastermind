@@ -10,11 +10,11 @@ NodeConductor Settings configuration
 
     # For Service Desk
     WALDUR_SUPPORT.update({
-        'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:ServiceDeskBackend',
+        'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
     })
     # For JIRA
     WALDUR_SUPPORT.update({
-        'ACTIVE_BACKEND': 'nodeconductor_assembly_waldur.support.backend.atlassian:JiraBackend',
+        'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:JiraBackend',
     })
 
 2. Setup connection. Define server URL and user details to connect JIRA or Service Desk to NodeConductor:

@@ -43,7 +43,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'NodeConductor Assembly Waldur'
+project = u'Waldur MasterMind'
 copyright = u'2016, OpenNode'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -51,7 +51,7 @@ copyright = u'2016, OpenNode'
 # built documents.
 #
 # The short X.Y version.
-from nodeconductor_assembly_waldur import __version__
+from waldur_mastermind import __version__
 
 version = __version__
 # The full version, including alpha/beta/rc tags.
@@ -179,7 +179,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'nodeconductor-assembly-waldur'
+htmlhelp_basename = 'waldur-mastermind'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -199,7 +199,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'nodeconductor-assembly-waldur.tex', u'NodeConductor Assembly Waldur Documentation',
+  ('index', 'waldur-mastermind.tex', u'Waldur MasterMind Documentation',
    u'OpenNode', 'manual'),
 ]
 
@@ -229,7 +229,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'nodeconductor-assembly-waldur', u'NodeConductor Assembly Waldur Documentation',
+    ('index', 'waldur-mastermind', u'Waldur MasterMind Documentation',
      [u'OpenNode'], 1)
 ]
 
@@ -243,8 +243,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'NodeConductor Assembly Waldur ', u'NodeConductor Assembly Waldur Documentation',
-   u'OpenNode', 'nodeconductor-assembly-waldur', 'One line description of project.',
+  ('index', 'Waldur MasterMind ', u'Waldur MasterMind Documentation',
+   u'OpenNode', 'waldur-mastermind', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -269,4 +269,4 @@ from django.core.wsgi import get_wsgi_application
 get_wsgi_application()
 
 from nodeconductor.core.management.commands.drfdocs import Command
-Command().handle('nodeconductor_assembly_waldur', path='docs/drfapi')
+Command().handle('waldur_mastermind', path='docs/drfapi')

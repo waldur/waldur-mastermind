@@ -1,8 +1,6 @@
 Welcome to Waldur MasterMind plugin's documentation!
 ====================================================
 
-Plugin for interaction and management of Atlassian JIRA.
-
 Guide
 -----
 
@@ -31,7 +29,7 @@ Developer
 License
 -------
 
-NodeConductor Assembly Waldur plugin is open-source under MIT license.
+Waldur MasterMind plugin is open-source under MIT license.
 
 
 Indices and tables
