@@ -116,6 +116,8 @@ def get_resources(request, job):
     link = job.service_project_link
 
     for item in items:
+        if 'ssh_public_key' in item:
+            item['ssh_public_key'] = request.data['ssh_public_key']
         serializer = openstack_serializers.InstanceSerializer(data=item, context={'request': request})
         if not serializer.is_valid():
             errors.append(serializer.errors)

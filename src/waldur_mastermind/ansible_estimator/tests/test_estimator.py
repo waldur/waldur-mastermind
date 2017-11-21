@@ -45,6 +45,9 @@ class EstimatorTest(APITransactionTestCase):
         self.ssh_public_key = structure_factories.SshPublicKeyFactory(user=self.fixture.owner)
         self.ssh_public_key_url = structure_factories.SshPublicKeyFactory.get_url(self.ssh_public_key)
 
+        self.internal_key = structure_factories.SshPublicKeyFactory(user=self.fixture.staff)
+        self.internal_key_url = structure_factories.SshPublicKeyFactory.get_url(self.internal_key)
+
         self.path_patcher = mock.patch('os.path.exists')
         self.path_api = self.path_patcher.start()
         self.path_api.side_effect = lambda f: f == self.playbook.get_playbook_path()
@@ -106,6 +109,7 @@ class EstimatorTest(APITransactionTestCase):
         return 'ok: [localhost] => %s' % json.dumps({
             'WALDUR_CHECK_MODE': True,
             'service_project_link': self.private_link_url,
+            'ssh_public_key': self.internal_key_url,
             'flavor': self.flavor_url,
             'image': self.image_url,
             'name': 'Valid name',
