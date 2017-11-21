@@ -38,23 +38,26 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
     def get_estimated_models(cls):
         return structure_models.Project, structure_models.Customer
 
-    def update_total(self):
-        current_year = invoices_utils.get_current_year()
-        current_month = invoices_utils.get_current_month()
+    def get_total(self, year, month):
 
         if self.content_type.model_class() == structure_models.Project:
-            self.total = sum(item.price
+            return sum(item.price
                              for model in invoices_models.InvoiceItem.get_all_models()
-                             for item in model.objects.filter(invoice__year=current_year,
-                                                              invoice__month=current_month,
+                             for item in model.objects.filter(invoice__year=year,
+                                                              invoice__month=month,
                                                               project__uuid=self.scope.uuid.hex))
         elif self.content_type.model_class() == structure_models.Customer:
             try:
                 invoice = invoices_models.Invoice.objects.get(
                     customer=self.scope,
-                    year=current_year,
-                    month=current_month,
+                    year=year,
+                    month=month,
                 )
-                self.total = invoice.total
+                return invoice.total
             except invoices_models.Invoice.DoesNotExist:
-                pass
+                return 0
+
+    def update_total(self):
+        current_year = invoices_utils.get_current_year()
+        current_month = invoices_utils.get_current_month()
+        self.total = self.get_total(current_year, current_month)
