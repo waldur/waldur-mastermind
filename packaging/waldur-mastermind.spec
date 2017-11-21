@@ -16,7 +16,7 @@ Requires: waldur-auth-saml2 >= 0.8.2
 Requires: waldur-auth-valimo >= 0.3.0
 Requires: waldur-aws >= 0.10.0
 Requires: waldur-azure >= 0.3.0
-Requires: waldur-cost-planning > 0.5.4
+Requires: waldur-cost-planning >= 0.5.4
 Requires: waldur-digitalocean >= 0.9.0
 Requires: waldur-freeipa >= 0.2.3
 Requires: waldur-openstack >= 0.38.0
