@@ -15,7 +15,7 @@ from nodeconductor.core import utils as core_utils
 from nodeconductor.core.csv import UnicodeDictWriter
 from nodeconductor.structure import models as structure_models
 
-from . import models, registrators, serializers
+from . import models, registrators, serializers, utils
 
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,11 @@ def send_invoice_report():
         'month': date.month,
         'year': date.year,
     }).strip()
-
+    body = render_to_string('invoices/report_body.txt', {
+        'month': date.month,
+        'year': date.year,
+    }).strip()
+    filename = '03M%02d%dWaldur.txt' % (date.month, date.year)
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
@@ -103,7 +107,13 @@ def send_invoice_report():
     # Please note that email body could be empty if there are no valid invoices
     emails = [settings.INVOICES['INVOICE_REPORTING']['EMAIL']]
     logger.debug('About to send accounting report to {emails}'.format(emails=emails))
-    send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, emails)
+    utils.send_mail_attachment(
+        subject=subject,
+        body=body,
+        to=emails,
+        attach_text=text_message,
+        filename=filename
+    )
 
 
 def format_invoice_csv(invoices):

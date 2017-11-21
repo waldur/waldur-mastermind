@@ -3,7 +3,7 @@ import random
 
 from rest_framework.reverse import reverse
 
-from nodeconductor_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import models as openstack_models
 from nodeconductor.structure.tests import factories as structure_factories
 
 from .. import models

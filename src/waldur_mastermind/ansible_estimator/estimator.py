@@ -7,7 +7,7 @@ import itertools
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
 
-from nodeconductor_openstack.openstack_tenant import serializers as openstack_serializers
+from waldur_openstack.openstack_tenant import serializers as openstack_serializers
 from waldur_mastermind.packages import models as package_models
 
 from waldur_ansible.backend import AnsibleBackendError

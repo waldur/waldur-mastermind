@@ -4,8 +4,8 @@ from rest_framework import test, status
 from rest_framework.reverse import reverse
 
 from nodeconductor.structure import models as structure_models
-from nodeconductor_openstack.openstack import models as openstack_models
-from nodeconductor_openstack.openstack.tests import factories as openstack_factories
+from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack.tests import factories as openstack_factories
 
 from . import factories, fixtures
 from .. import models
@@ -66,11 +66,11 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_can_create_openstack_package_with_permission_from_settings(self):
-        openstack_settings = settings.NODECONDUCTOR_OPENSTACK.copy()
+        openstack_settings = settings.WALDUR_OPENSTACK.copy()
         openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
         self.client.force_authenticate(user=self.fixture.manager)
 
-        with self.settings(NODECONDUCTOR_OPENSTACK=openstack_settings):
+        with self.settings(WALDUR_OPENSTACK=openstack_settings):
             response = self.client.post(self.url, data=self.get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -141,11 +141,11 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_can_extend_openstack_package_with_permission_from_settings(self):
-        openstack_settings = settings.NODECONDUCTOR_OPENSTACK.copy()
+        openstack_settings = settings.WALDUR_OPENSTACK.copy()
         openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
         self.client.force_authenticate(user=self.fixture.manager)
 
-        with self.settings(NODECONDUCTOR_OPENSTACK=openstack_settings):
+        with self.settings(WALDUR_OPENSTACK=openstack_settings):
             response = self.client.post(self.change_url, data=self.get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
