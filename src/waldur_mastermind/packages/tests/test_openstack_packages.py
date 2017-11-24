@@ -3,6 +3,7 @@ from django.conf import settings
 from rest_framework import test, status
 from rest_framework.reverse import reverse
 
+from nodeconductor.core.tests.helpers import override_nodeconductor_settings
 from nodeconductor.structure import models as structure_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
@@ -50,6 +51,22 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
             'name': 'test_package',
             'template': factories.PackageTemplateFactory.get_url(template),
         }
+
+    @data('staff')
+    @override_nodeconductor_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_only_staff_manages_services_he_can_create_openstack_package(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+
+        response = self.client.post(self.url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @data('user', 'admin', 'owner')
+    @override_nodeconductor_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_only_staff_manages_services_other_user_can_not_create_package(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+
+        response = self.client.post(self.url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data('staff', 'owner')
     def test_user_can_create_openstack_package(self, user):
@@ -127,6 +144,20 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         self.fixture = fixtures.PackageFixture()
         self.package = self.fixture.openstack_package
         self.new_template = factories.PackageTemplateFactory(service_settings=self.fixture.openstack_service_settings)
+
+    @data('staff',)
+    @override_nodeconductor_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_only_staff_manages_services_he_can_extend_openstack_package(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    @data('owner', 'admin', 'user')
+    @override_nodeconductor_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_only_staff_manages_services_other_user_can_not_extend_package(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data('staff', 'owner')
     def test_can_extend_openstack_package(self, user):
