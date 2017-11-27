@@ -39,6 +39,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         return response.Response(display_serializer.data, status=status.HTTP_201_CREATED)
 
     create_serializer_class = serializers.OpenStackPackageCreateSerializer
+    create_permissions = [structure_permissions.check_access_to_services_management]
 
     @list_route(methods=['post'])
     def change(self, request, **kwargs):
@@ -52,6 +53,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
                                  status=status.HTTP_202_ACCEPTED)
 
     change_serializer_class = serializers.OpenStackPackageChangeSerializer
+    change_permissions = create_permissions
 
     @list_route(methods=['post'])
     def assign(self, request, **kwargs):
