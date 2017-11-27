@@ -7,9 +7,9 @@ install_requires = [
     'defusedxml>=0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>=0.150.2',
-    'nodeconductor_auth_social>=0.7.4',
-    'nodeconductor_auth_openid>=0.8.5',
+    'nodeconductor>=0.150.4',
+    'waldur_auth_social>=0.7.5',
+    'waldur_auth_openid>=0.8.6',
     'nodeconductor_aws>=0.10.0',
     'nodeconductor_azure>=0.3.0',
     'nodeconductor_cost_planning>=0.5.4',
@@ -31,7 +31,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.8.1',
+    version='2.8.2',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
