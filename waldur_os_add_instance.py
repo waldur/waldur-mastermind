@@ -29,8 +29,18 @@ options:
     required: false
   flavor:
     description:
-      - The name or id of the flavor to use.
-    required: true
+      - The name or id of the flavor to use. 
+        If this is not declared, flavor_min_cpu and/or flavor_min_ram must be declared.
+        For example: flavor_min_cpu: 2   
+    required: false
+  flavor_min_cpu:
+    description:
+      - The minimum cpu count.
+    required: false
+  flavor_min_ram:
+    description:
+      - The minimum ram size (MB).
+    required: false        
   floating_ip:
     description:
       - An id or address of the existing floating IP to use.
@@ -174,7 +184,7 @@ def main():
         'name': {'required': True, 'type': 'str'},
         'provider': {'required': True, 'type': 'str'},
         'project': {'required': True, 'type': 'str'},
-        'flavor': {'required': True, 'type': 'str'},
+        'flavor': {'type': 'str'},
         'image': {'required': True, 'type': 'str'},
         'system_volume_size': {'required': True, 'type': 'int'},
         'security_groups': {'type': 'list'},
@@ -187,7 +197,9 @@ def main():
         'tags': {'type': 'list'},
         'wait': {'default': True, 'type': 'bool'},
         'timeout': {'default': 600, 'type': 'int'},
-        'interval': {'default': 20, 'type': 'int'}
+        'interval': {'default': 20, 'type': 'int'},
+        'flavor_min_cpu': {'type': 'int'},
+        'flavor_min_cpu': {'type': 'int'},
     }
     mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks']]
     required_one_of = [['subnet', 'networks']]

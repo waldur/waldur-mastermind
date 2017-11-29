@@ -53,7 +53,6 @@ class TestWaldurClient(unittest.TestCase):
         post_url = '%s/openstacktenant-instances/' % self.params['api_url']
         mapping = {
             'project': 'projects',
-            'flavor': 'openstacktenant-flavors',
             'image': 'openstacktenant-images',
             'subnet': 'openstacktenant-subnets',
             'security_groups': 'openstacktenant-security-groups',
@@ -81,6 +80,22 @@ class TestWaldurClient(unittest.TestCase):
         instance_url = '%s/openstacktenant-instances/%s/' % (self.params['api_url'], self.instance['uuid'])
         responses.add(responses.GET, instance_url, json=self.instance)
 
+        url = self._get_url('openstacktenant-flavors', {'ram__gte': 2000, 'cores__gte': 2, 'o': 'cores,ram,disk'})
+        responses.add(
+            method='GET',
+            url=url,
+            json=[self.instance, self.instance, self.instance],
+            match_querystring=True
+        )
+
+        url = self._get_url('openstacktenant-flavors', {'settings_uuid': u'settings_uuid', 'name_exact': 'flavor'})
+        responses.add(
+            method='GET',
+            url=url,
+            json=[self.instance],
+            match_querystring=True
+        )
+
     def _get_url(self, endpoint, params=None):
         url = '%(url)s/%(endpoint)s/'
         url = url % {
@@ -106,6 +121,21 @@ class TestWaldurClient(unittest.TestCase):
     @responses.activate
     def test_waldur_client_sends_request_with_passed_parameters(self):
         self.setUpInstanceCreationResponses()
+
+        access_token = self.params.pop('access_token')
+        client = WaldurClient(self.params.pop('api_url'), access_token)
+        instance = client.create_instance(**self.params)
+
+        self.assertTrue(instance['name'], self.params['name'])
+        self.assertEqual('token %s' % access_token,
+                         responses.calls[0].request.headers['Authorization'])
+
+    @responses.activate
+    def test_waldur_client_sends_request_with_flavor_min_cpu_and_flavor_min_ram(self):
+        self.setUpInstanceCreationResponses()
+        self.params.pop('flavor')
+        self.params['flavor_min_cpu'] = 2
+        self.params['flavor_min_ram'] = 2000
 
         access_token = self.params.pop('access_token')
         client = WaldurClient(self.params.pop('api_url'), access_token)

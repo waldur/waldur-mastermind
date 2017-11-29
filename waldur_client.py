@@ -84,7 +84,7 @@ class WaldurClient(object):
         details = 'Status: %s. Reason: %s.' % (response.status_code, reason)
         return 'Server refuses to communicate. %s' % details
 
-    def _query_resource(self, endpoint, query_params):
+    def _query_resource(self, endpoint, query_params, get_first=False):
         url = self._build_url(endpoint)
         if 'uuid' in query_params:
             url += query_params.pop('uuid') + '/'
@@ -105,7 +105,7 @@ class WaldurClient(object):
         if isinstance(result, dict):
             return result
 
-        if len(result) > 1:
+        if len(result) > 1 and not get_first:
             message = 'Ambiguous result. Endpoint: %s. Query: %s' % (url, query_params)
             raise MultipleObjectsReturned(message)
 
@@ -190,6 +190,15 @@ class WaldurClient(object):
 
     def _get_flavor(self, identifier, settings_uuid):
         return self._get_property(self.Endpoints.Flavor, identifier, settings_uuid)
+
+    def _get_flavor_from_params(self, cpu, ram):
+        query_params = {'o': 'cores,ram,disk'}
+        if cpu:
+            query_params['cores__gte'] = cpu
+        if ram:
+            query_params['ram__gte'] = ram
+
+        return self._query_resource(self.Endpoints.Flavor, query_params, get_first=True)
 
     def _get_image(self, identifier, settings_uuid):
         return self._get_property(self.Endpoints.Image, identifier, settings_uuid)
@@ -365,9 +374,11 @@ class WaldurClient(object):
             provider,
             project,
             networks,
-            flavor,
             image,
             system_volume_size,
+            flavor=None,
+            flavor_min_cpu=None,
+            flavor_min_ram=None,
             interval=10,
             timeout=600,
             wait=True,
@@ -385,6 +396,8 @@ class WaldurClient(object):
         :param project: uuid or name of the project to add the instance.
         :param networks: a list of networks to attach instance to.
         :param flavor: uuid or name of the flavor to use.
+        :param flavor_min_cpu: min cpu count.
+        :param flavor_min_ram: min ram size (MB).
         :param image: uuid or name of the image to use.
         :param system_volume_size: size of the system volume in GB.
         :param interval: interval of instance state polling in seconds.
@@ -404,7 +417,11 @@ class WaldurClient(object):
         service_project_link = self._get_service_project_link(
             provider_uuid=provider['uuid'],
             project_uuid=project['uuid'])
-        flavor = self._get_flavor(flavor, settings_uuid)
+        if flavor:
+            flavor = self._get_flavor(flavor, settings_uuid)
+        else:
+            flavor = self._get_flavor_from_params(flavor_min_cpu, flavor_min_ram)
+
         image = self._get_image(image, settings_uuid)
         subnets, floating_ips = self._networks_to_payload(networks)
 
