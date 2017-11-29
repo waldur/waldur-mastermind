@@ -1,7 +1,7 @@
 from rest_framework import status, test
 
 from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor_cost_planning.tests import factories as cost_planning_factories
+from waldur_cost_planning.tests import factories as cost_planning_factories
 
 from . import fixtures, factories
 from .. import models
