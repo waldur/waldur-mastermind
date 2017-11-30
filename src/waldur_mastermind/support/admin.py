@@ -4,7 +4,7 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-from nodeconductor.structure import admin as structure_admin
+from waldur_core.structure import admin as structure_admin
 
 from . import models
 

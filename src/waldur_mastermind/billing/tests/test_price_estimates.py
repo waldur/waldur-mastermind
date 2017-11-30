@@ -2,8 +2,8 @@ from ddt import ddt, data
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests import fixtures as structure_fixtures
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support import models as support_models

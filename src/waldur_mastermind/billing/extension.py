@@ -1,9 +1,9 @@
 from __future__ import unicode_literals
 
-from nodeconductor.core import NodeConductorExtension
+from waldur_core.core import WaldurExtension
 
 
-class BillingExtension(NodeConductorExtension):
+class BillingExtension(WaldurExtension):
     @staticmethod
     def django_app():
         return 'waldur_mastermind.billing'

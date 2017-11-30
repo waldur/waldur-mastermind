@@ -7,7 +7,7 @@ class AnalyticsConfig(AppConfig):
     verbose_name = 'Analytics'
 
     def ready(self):
-        from nodeconductor.structure.models import ResourceMixin
+        from waldur_core.structure.models import ResourceMixin
         from . import handlers
 
         for index, model in enumerate(ResourceMixin.get_all_models()):

@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
-from nodeconductor.structure import models as structure_models
+from waldur_core.structure import models as structure_models
 from . import models
 
 logger = logging.getLogger(__name__)

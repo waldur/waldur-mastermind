@@ -2,10 +2,10 @@ from __future__ import unicode_literals
 
 from datetime import timedelta
 
-from nodeconductor.core import NodeConductorExtension
+from waldur_core.core import WaldurExtension
 
 
-class SupportExtension(NodeConductorExtension):
+class SupportExtension(WaldurExtension):
     class Settings(object):
         WALDUR_SUPPORT = {
             # wiki for global options: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration

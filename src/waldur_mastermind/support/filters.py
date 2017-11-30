@@ -1,8 +1,8 @@
 import django_filters
 from django.conf import settings
 
-from nodeconductor.core import filters as core_filters
-from nodeconductor.structure import models as structure_models, filters as structure_filters
+from waldur_core.core import filters as core_filters
+from waldur_core.structure import models as structure_models, filters as structure_filters
 
 from . import models
 

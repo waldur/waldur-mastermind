@@ -6,7 +6,7 @@ from decimal import Decimal
 import django.core.validators
 from django.db import migrations, models
 import django.db.models.deletion
-import nodeconductor.core.fields
+import waldur_core.core.fields
 import waldur_mastermind.invoices.utils
 
 
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
                 ('project_name', models.CharField(blank=True, max_length=150)),
                 ('project_uuid', models.CharField(blank=True, max_length=32)),
                 ('object_id', models.PositiveIntegerField(null=True)),
-                ('details', nodeconductor.core.fields.JSONField(blank=True, default={}, help_text='Stores data about scope')),
+                ('details', waldur_core.core.fields.JSONField(blank=True, default={}, help_text='Stores data about scope')),
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType')),
                 ('invoice', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='generic_items', to='invoices.Invoice')),
                 ('project', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='structure.Project')),

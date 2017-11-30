@@ -1,9 +1,9 @@
 from __future__ import unicode_literals
 
-from nodeconductor.core import NodeConductorExtension
+from waldur_core.core import WaldurExtension
 
 
-class InvoicesExtension(NodeConductorExtension):
+class InvoicesExtension(WaldurExtension):
     class Settings:
         # wiki: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration
         INVOICES = {

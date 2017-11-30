@@ -5,8 +5,8 @@ import pytz
 
 from django.utils import timezone
 
-from nodeconductor.core import utils as core_utils
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages.tests import fixtures as package_fixtures, factories as packages_factories
 from waldur_mastermind.packages import models as package_models

@@ -1,4 +1,4 @@
-from nodeconductor.core import tasks as core_tasks
+from waldur_core.core import tasks as core_tasks
 from waldur_openstack.openstack import models as openstack_models
 
 

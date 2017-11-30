@@ -3,11 +3,11 @@ from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from nodeconductor.core import serializers as core_serializers
-from nodeconductor.core import signals as core_signals
-from nodeconductor.core import utils as core_utils
-from nodeconductor.structure import SupportedServices
-from nodeconductor.structure import serializers as structure_serializers
+from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
+from waldur_core.core import utils as core_utils
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.utils import quantize_price
 from waldur_openstack.openstack import models as openstack_models
 from waldur_mastermind.support import models as support_models

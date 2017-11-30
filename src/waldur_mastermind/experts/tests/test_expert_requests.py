@@ -5,11 +5,11 @@ from django.conf import settings
 from django.test import override_settings
 from rest_framework import test, status
 
-from nodeconductor.structure import models as structure_models
-from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests import fixtures as structure_fixtures
-from nodeconductor.users import models as user_models
-from nodeconductor.users.tests import factories as user_factories
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_core.users import models as user_models
+from waldur_core.users.tests import factories as user_factories
 from waldur_mastermind.support.tests import factories as support_factories
 
 from . import factories, fixtures

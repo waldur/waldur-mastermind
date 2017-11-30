@@ -1,9 +1,9 @@
 from __future__ import unicode_literals
 
-from nodeconductor.core import NodeConductorExtension
+from waldur_core.core import WaldurExtension
 
 
-class ExpertsExtension(NodeConductorExtension):
+class ExpertsExtension(WaldurExtension):
     class Settings:
         WALDUR_EXPERTS = {
             'REQUEST_PROJECT_LINK_TEMPLATE': 'https://www.example.com/#/projects/{project_uuid}/experts/{request_uuid}/',

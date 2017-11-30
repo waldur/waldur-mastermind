@@ -2,10 +2,10 @@ from django.db.models import Sum
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from nodeconductor.core import serializers as core_serializers
-from nodeconductor.core import signals as core_signals
-from nodeconductor.structure import models as structure_models
-from nodeconductor.structure import serializers as structure_serializers
+from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import serializers as structure_serializers
 from . import models
 from ..invoices import utils
 

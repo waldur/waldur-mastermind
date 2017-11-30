@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
-from nodeconductor.cost_tracking import signals as cost_signals
+from waldur_core.cost_tracking import signals as cost_signals
 from waldur_mastermind.support import models as support_models
 
 from . import tasks, models, log, registrators

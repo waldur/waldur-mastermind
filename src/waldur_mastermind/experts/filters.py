@@ -1,6 +1,6 @@
 import django_filters
 
-from nodeconductor.core import filters as core_filters
+from waldur_core.core import filters as core_filters
 
 from . import models
 

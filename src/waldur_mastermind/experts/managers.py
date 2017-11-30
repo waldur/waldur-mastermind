@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Q
 
-from nodeconductor.structure import models as structure_models
+from waldur_core.structure import models as structure_models
 
 
 class ExpertRequestQuerySet(models.QuerySet):

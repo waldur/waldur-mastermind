@@ -3,8 +3,8 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from nodeconductor.core import serializers as core_serializers
-from nodeconductor.structure import serializers as structure_serializers, models as structure_models
+from waldur_core.core import serializers as core_serializers
+from waldur_core.structure import serializers as structure_serializers, models as structure_models
 from waldur_openstack.openstack import (
     apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps

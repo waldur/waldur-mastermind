@@ -1,6 +1,6 @@
 from django.utils import timezone
 
-from nodeconductor.structure.permissions import _get_project
+from waldur_core.structure.permissions import _get_project
 from waldur_mastermind.invoices import models, utils
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.packages import models as packages_models

@@ -3,7 +3,7 @@
 from __future__ import unicode_literals
 
 from django.db import migrations
-import nodeconductor.core.fields
+import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
@@ -16,6 +16,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='expertrequest',
             name='extra',
-            field=nodeconductor.core.fields.JSONField(default={}),
+            field=waldur_core.core.fields.JSONField(default={}),
         ),
     ]

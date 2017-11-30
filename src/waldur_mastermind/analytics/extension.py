@@ -2,10 +2,10 @@ from __future__ import unicode_literals
 
 from datetime import timedelta
 
-from nodeconductor.core import NodeConductorExtension
+from waldur_core.core import WaldurExtension
 
 
-class AnalyticsExtension(NodeConductorExtension):
+class AnalyticsExtension(WaldurExtension):
     class Settings:
         # See also: http://influxdb-python.readthedocs.io/en/latest/api-documentation.html#influxdbclient
         WALDUR_ANALYTICS = {

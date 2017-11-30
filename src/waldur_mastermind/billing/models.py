@@ -6,9 +6,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from nodeconductor.core import models as core_models
-from nodeconductor.logging import models as logging_models
-from nodeconductor.structure import models as structure_models
+from waldur_core.core import models as core_models
+from waldur_core.logging import models as logging_models
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoices_utils
 

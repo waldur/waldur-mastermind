@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 
 from django.db import migrations, models
-import nodeconductor.core.fields
+import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
@@ -15,6 +15,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='paymentdetails',
             name='uuid',
-            field=nodeconductor.core.fields.UUIDField(),
+            field=waldur_core.core.fields.UUIDField(),
         ),
     ]

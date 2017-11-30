@@ -7,9 +7,9 @@ from django.db import migrations, models
 import django.db.models.deletion
 import django.utils.timezone
 import model_utils.fields
-import nodeconductor.core.fields
-import nodeconductor.core.validators
-import nodeconductor.structure.models
+import waldur_core.core.fields
+import waldur_core.core.validators
+import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
@@ -28,8 +28,8 @@ class Migration(migrations.Migration):
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('description', models.CharField(blank=True, max_length=500, verbose_name='description')),
-                ('name', models.CharField(max_length=150, validators=[nodeconductor.core.validators.validate_name], verbose_name='name')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name')),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('state', models.CharField(choices=[('pending', 'Pending'), ('active', 'Active'), ('cancelled', 'Cancelled'), ('completed', 'Completed')], default='pending', max_length=30)),
                 ('type', models.CharField(max_length=255)),
                 ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.Project')),
@@ -38,6 +38,6 @@ class Migration(migrations.Migration):
             options={
                 'ordering': ['-created'],
             },
-            bases=(nodeconductor.structure.models.StructureLoggableMixin, models.Model),
+            bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
     ]
