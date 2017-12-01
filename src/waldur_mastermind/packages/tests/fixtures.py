@@ -1,8 +1,8 @@
 from django.utils.functional import cached_property
 
-from nodeconductor.structure import models as structure_models
-from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests.fixtures import ProjectFixture
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack import models as openstack_models, apps as openstack_apps
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 

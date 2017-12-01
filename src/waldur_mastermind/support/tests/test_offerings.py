@@ -7,8 +7,8 @@ import mock
 from waldur_mastermind.support.backend import SupportBackendError
 from rest_framework import status, test
 
-from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests import fixtures as structure_fixtures
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.support.tests.base import override_support_settings, override_offerings
 
 from . import base, factories

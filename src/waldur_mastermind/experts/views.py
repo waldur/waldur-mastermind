@@ -10,13 +10,13 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 
-from nodeconductor.core import views as core_views
-from nodeconductor.structure import filters as structure_filters
-from nodeconductor.structure import models as structure_models
-from nodeconductor.structure import permissions as structure_permissions
-from nodeconductor.structure import views as structure_views
-from nodeconductor.users import models as user_models
-from nodeconductor.users import tasks as user_tasks
+from waldur_core.core import views as core_views
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import views as structure_views
+from waldur_core.users import models as user_models
+from waldur_core.users import tasks as user_tasks
 from waldur_mastermind.support import backend as support_backend
 
 from . import serializers, models, filters

@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.reverse import reverse
 from rest_framework.test import APITransactionTestCase
 
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.ansible_estimator.tests.fixtures import EstimationFixture
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack_tenant.tests import factories as tenant_factories

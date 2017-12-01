@@ -4,8 +4,8 @@ from rest_framework import permissions, status, viewsets, exceptions
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
-from nodeconductor.core import permissions as core_permissions, views as core_views
-from nodeconductor.structure import filters as structure_filters, permissions as structure_permissions
+from waldur_core.core import permissions as core_permissions, views as core_views
+from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
 
 from . import filters, models, serializers, tasks
 

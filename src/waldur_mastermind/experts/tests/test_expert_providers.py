@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from rest_framework import test, status
 
-from nodeconductor.structure.tests import fixtures, factories as structure_factories
+from waldur_core.structure.tests import fixtures, factories as structure_factories
 
 from waldur_mastermind.experts import models
 

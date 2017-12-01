@@ -10,7 +10,7 @@ from freezegun import freeze_time
 from mock import Mock, mock
 import pytz
 
-from nodeconductor.core import utils as core_utils
+from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as packages_factories
@@ -399,7 +399,7 @@ class UpdateInvoiceOnOfferingStateChange(TransactionTestCase):
 
 class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
 
-    @mock.patch('nodeconductor.cost_tracking.signals.invoice_created')
+    @mock.patch('waldur_core.cost_tracking.signals.invoice_created')
     def test_invoice_created_signal_is_emitted_on_monthly_invoice_creation(self, invoice_created_mock):
         fixture = fixtures.InvoiceFixture()
         invoice = fixture.invoice

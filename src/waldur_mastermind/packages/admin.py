@@ -8,8 +8,8 @@ from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 from django.utils.translation import ugettext_lazy as _
 
-from nodeconductor.core import admin as core_admin
-from nodeconductor.structure import models as structure_models
+from waldur_core.core import admin as core_admin
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.packages import models, utils
 
 

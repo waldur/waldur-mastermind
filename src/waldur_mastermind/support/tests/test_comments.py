@@ -1,7 +1,7 @@
 from ddt import ddt, data
 from rest_framework import status
 
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 
 from . import factories, base
 from .. import models

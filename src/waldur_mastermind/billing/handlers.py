@@ -2,7 +2,7 @@ import logging
 
 from django.db import transaction
 
-from nodeconductor.structure import models as structure_models
+from waldur_core.structure import models as structure_models
 
 from . import log, models
 

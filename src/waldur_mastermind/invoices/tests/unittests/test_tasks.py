@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 

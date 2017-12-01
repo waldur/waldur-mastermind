@@ -7,12 +7,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
-from nodeconductor.core import views as core_views
-from nodeconductor.structure import filters as structure_filters
-from nodeconductor.structure import metadata as structure_metadata
-from nodeconductor.structure import models as structure_models
-from nodeconductor.structure import permissions as structure_permissions
-from nodeconductor.structure import views as structure_views
+from waldur_core.core import views as core_views
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import metadata as structure_metadata
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import views as structure_views
 
 
 from . import filters, models, serializers, backend

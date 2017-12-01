@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 
-from nodeconductor.cost_tracking import ConsumableItem
-from nodeconductor.cost_tracking.models import DefaultPriceListItem
+from waldur_core.cost_tracking import ConsumableItem
+from waldur_core.cost_tracking.models import DefaultPriceListItem
 from waldur_openstack.openstack import models as openstack_models
 
 

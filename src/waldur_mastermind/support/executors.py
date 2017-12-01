@@ -1,5 +1,5 @@
-from nodeconductor.core import executors as core_executors, tasks as core_tasks
-from nodeconductor.structure import executors as structure_executors
+from waldur_core.core import executors as core_executors, tasks as core_tasks
+from waldur_core.structure import executors as structure_executors
 
 from . import models
 

@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 from django.db import migrations
 
-from nodeconductor.structure.permissions import _get_project
+from waldur_core.structure.permissions import _get_project
 
 
 def set_invoice_item_project(apps, schema_editor):

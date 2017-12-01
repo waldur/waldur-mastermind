@@ -15,7 +15,7 @@ Registrators defines items creation and termination logic for each invoice item.
 from django.db import transaction
 from django.utils import timezone
 
-from nodeconductor.core import utils as core_utils
+from waldur_core.core import utils as core_utils
 
 
 class BaseRegistrator(object):

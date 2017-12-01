@@ -1,4 +1,4 @@
-from nodeconductor.logging.loggers import EventLogger, event_logger
+from waldur_core.logging.loggers import EventLogger, event_logger
 
 
 class OpenStackPackageLogger(EventLogger):

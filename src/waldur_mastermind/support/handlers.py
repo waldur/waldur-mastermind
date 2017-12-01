@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from nodeconductor.core import utils as core_utils
+from waldur_core.core import utils as core_utils
 
 from .log import event_logger
 from . import tasks, models

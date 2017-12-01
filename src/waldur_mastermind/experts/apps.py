@@ -9,7 +9,7 @@ class ExpertsConfig(AppConfig):
     verbose_name = 'Experts'
 
     def ready(self):
-        from nodeconductor.structure import models as structure_models
+        from waldur_core.structure import models as structure_models
         from waldur_mastermind.invoices import registrators as invoices_registrators
         from . import handlers, registrators
 

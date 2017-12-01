@@ -2,8 +2,8 @@ import factory
 
 from rest_framework.reverse import reverse
 
-from nodeconductor.structure import models as structure_models
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import factories as structure_factories
 
 from .. import models
 
