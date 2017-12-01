@@ -1,8 +1,8 @@
 Setup backend Atlassian
 -----------------------
 
-NodeConductor Settings configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Waldur Settings configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Define active backend.
 
