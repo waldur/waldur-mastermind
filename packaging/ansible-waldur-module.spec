@@ -3,7 +3,7 @@
 Name: ansible-waldur-module
 Summary: Ansible module for Waldur API.
 Group: Development/Libraries
-Version: 0.4.1
+Version: 0.4.2
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
