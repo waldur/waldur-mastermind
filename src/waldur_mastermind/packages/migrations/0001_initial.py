@@ -3,9 +3,9 @@ from __future__ import unicode_literals
 
 from django.db import migrations, models
 from decimal import Decimal
-import nodeconductor.core.fields
+import waldur_core.core.fields
 import django.core.validators
-import nodeconductor.core.validators
+import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
@@ -28,9 +28,9 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('description', models.CharField(max_length=500, verbose_name='description', blank=True)),
-                ('name', models.CharField(max_length=150, verbose_name='name', validators=[nodeconductor.core.validators.validate_name])),
+                ('name', models.CharField(max_length=150, verbose_name='name', validators=[waldur_core.core.validators.validate_name])),
                 ('icon_url', models.URLField(verbose_name='icon url', blank=True)),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('type', models.CharField(default='openstack', max_length=50, choices=[('openstack', 'OpenStack')])),
             ],
             options={

@@ -11,9 +11,9 @@ from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from nodeconductor.core import utils as core_utils
-from nodeconductor.core.csv import UnicodeDictWriter
-from nodeconductor.structure import models as structure_models
+from waldur_core.core import utils as core_utils
+from waldur_core.core.csv import UnicodeDictWriter
+from waldur_core.structure import models as structure_models
 
 from . import models, registrators, serializers, utils
 

@@ -3,10 +3,10 @@ from __future__ import unicode_literals
 
 from django.db import migrations, models
 import model_utils.fields
-import nodeconductor.core.fields
+import waldur_core.core.fields
 import django.utils.timezone
 from django.conf import settings
-import nodeconductor.core.validators
+import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, verbose_name='created', editable=False)),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, verbose_name='modified', editable=False)),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('description', models.TextField()),
                 ('is_public', models.BooleanField(default=True)),
                 ('backend_id', models.CharField(max_length=255, blank=True)),
@@ -36,8 +36,8 @@ class Migration(migrations.Migration):
             name='SupportUser',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('name', models.CharField(max_length=150, verbose_name='name', validators=[nodeconductor.core.validators.validate_name])),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('name', models.CharField(max_length=150, verbose_name='name', validators=[waldur_core.core.validators.validate_name])),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(max_length=255, blank=True)),
                 ('user', models.ForeignKey(related_name='+', blank=True, to=settings.AUTH_USER_MODEL, null=True)),
             ],

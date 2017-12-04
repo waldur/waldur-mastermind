@@ -3,8 +3,8 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, permissions, response, status
 from rest_framework.decorators import list_route
 
-from nodeconductor.core import views as core_views
-from nodeconductor.structure import filters as structure_filters, permissions as structure_permissions
+from waldur_core.core import views as core_views
+from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
 
 from . import filters, models, serializers, executors
 
@@ -39,6 +39,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         return response.Response(display_serializer.data, status=status.HTTP_201_CREATED)
 
     create_serializer_class = serializers.OpenStackPackageCreateSerializer
+    create_permissions = [structure_permissions.check_access_to_services_management]
 
     @list_route(methods=['post'])
     def change(self, request, **kwargs):
@@ -52,6 +53,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
                                  status=status.HTTP_202_ACCEPTED)
 
     change_serializer_class = serializers.OpenStackPackageChangeSerializer
+    change_permissions = create_permissions
 
     @list_route(methods=['post'])
     def assign(self, request, **kwargs):

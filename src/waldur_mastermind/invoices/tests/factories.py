@@ -3,7 +3,7 @@ import factory
 from rest_framework.reverse import reverse
 from django.utils import timezone
 
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support.tests import factories as support_factories
 

@@ -3,7 +3,7 @@ from ddt import ddt, data
 from django.utils import timezone
 from rest_framework import test, status
 
-from nodeconductor.structure.tests import factories as structure_factories, fixtures as structure_fixtures
+from waldur_core.structure.tests import factories as structure_factories, fixtures as structure_fixtures
 
 from .utils import override_invoices_settings
 from . import factories, fixtures

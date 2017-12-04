@@ -2,7 +2,7 @@
 from __future__ import unicode_literals
 
 from django.db import migrations, models
-import nodeconductor.core.fields
+import waldur_core.core.fields
 from decimal import Decimal
 import django.db.models.deletion
 import django.core.validators
@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
             name='Invoice',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('month', models.PositiveSmallIntegerField(default=waldur_mastermind.invoices.utils.get_current_month, validators=[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(12)])),
                 ('year', models.PositiveSmallIntegerField(default=waldur_mastermind.invoices.utils.get_current_year)),
                 ('state', models.CharField(default='pending', max_length=7, choices=[('billed', 'Billed'), ('paid', 'Paid'), ('pending', 'Pending')])),
@@ -32,7 +32,7 @@ class Migration(migrations.Migration):
             name='OpenStackItem',
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
-                ('package_details', nodeconductor.core.fields.JSONField(default={}, help_text='Stores data about package', blank=True)),
+                ('package_details', waldur_core.core.fields.JSONField(default={}, help_text='Stores data about package', blank=True)),
                 ('price', models.DecimalField(help_text='Price is calculated on a monthly basis.', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
                 ('start', models.DateTimeField(default=waldur_mastermind.invoices.utils.get_current_month_start, help_text='Date and time when item usage has started.')),
                 ('end', models.DateTimeField(default=waldur_mastermind.invoices.utils.get_current_month_end, help_text='Date and time when item usage has ended.')),

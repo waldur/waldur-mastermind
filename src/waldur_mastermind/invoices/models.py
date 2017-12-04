@@ -15,10 +15,10 @@ from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from nodeconductor.core.fields import JSONField
-from nodeconductor.core import models as core_models, utils as core_utils
-from nodeconductor.core.exceptions import IncorrectStateException
-from nodeconductor.structure import models as structure_models
+from waldur_core.core.fields import JSONField
+from waldur_core.core import models as core_models, utils as core_utils
+from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.structure import models as structure_models
 
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models

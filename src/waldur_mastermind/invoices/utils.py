@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.utils import timezone
 
-from nodeconductor.core import utils as core_utils
+from waldur_core.core import utils as core_utils
 
 
 def get_current_month():

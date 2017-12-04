@@ -1,8 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
-from nodeconductor.cost_tracking.models import PriceEstimate
-from nodeconductor.structure.models import ServiceSettings
+from waldur_core.cost_tracking.models import PriceEstimate
+from waldur_core.structure.models import ServiceSettings
 
 
 def get_total_cost():

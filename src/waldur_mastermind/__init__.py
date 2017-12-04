@@ -1,3 +1,3 @@
-from nodeconductor import _get_version
+from waldur_core import _get_version
 
 __version__ = _get_version('waldur_mastermind')

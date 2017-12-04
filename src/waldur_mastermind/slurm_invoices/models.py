@@ -4,8 +4,8 @@ from django.db import models
 from django.core.validators import MinValueValidator
 from django.utils.translation import ugettext_lazy as _
 
-from nodeconductor.core import models as core_models
-from nodeconductor.structure import models as structure_models
+from waldur_core.core import models as core_models
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 
 

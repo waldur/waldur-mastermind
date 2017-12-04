@@ -11,8 +11,8 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.schemas import EndpointInspector
 
-from nodeconductor.logging.elasticsearch_client import ElasticsearchClient, ElasticsearchClientError
-from nodeconductor.server.celery import app as celery_app
+from waldur_core.logging.elasticsearch_client import ElasticsearchClient, ElasticsearchClientError
+from waldur_core.server.celery import app as celery_app
 
 User = get_user_model()
 

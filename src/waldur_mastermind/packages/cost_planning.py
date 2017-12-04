@@ -1,7 +1,7 @@
 """ Defines how to optimize OpenStack packages """
 from rest_framework import serializers as rf_serializers
 
-from nodeconductor_cost_planning import optimizers, register, serializers
+from waldur_cost_planning import optimizers, register, serializers
 from waldur_openstack.openstack import apps as openstack_apps
 
 from waldur_mastermind.packages.models import PackageTemplate, PackageComponent

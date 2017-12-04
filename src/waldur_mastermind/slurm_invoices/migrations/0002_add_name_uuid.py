@@ -3,8 +3,8 @@
 from __future__ import unicode_literals
 
 from django.db import migrations, models
-import nodeconductor.core.fields
-import nodeconductor.core.validators
+import waldur_core.core.fields
+import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
@@ -17,12 +17,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='slurmpackage',
             name='name',
-            field=models.CharField(default='default', max_length=150, validators=[nodeconductor.core.validators.validate_name], verbose_name='name'),
+            field=models.CharField(default='default', max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name'),
             preserve_default=False,
         ),
         migrations.AddField(
             model_name='slurmpackage',
             name='uuid',
-            field=nodeconductor.core.fields.UUIDField(),
+            field=waldur_core.core.fields.UUIDField(),
         ),
     ]

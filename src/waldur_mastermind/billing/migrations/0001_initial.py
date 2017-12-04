@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 import django.core.validators
 from django.db import migrations, models
 import django.db.models.deletion
-import nodeconductor.core.fields
+import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
             name='PriceEstimate',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('uuid', nodeconductor.core.fields.UUIDField()),
+                ('uuid', waldur_core.core.fields.UUIDField()),
                 ('threshold', models.FloatField(default=0, validators=[django.core.validators.MinValueValidator(0)])),
                 ('object_id', models.PositiveIntegerField(null=True)),
                 ('total', models.FloatField(default=0, help_text='Predicted price for scope for current month.')),

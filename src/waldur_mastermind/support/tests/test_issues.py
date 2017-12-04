@@ -3,7 +3,7 @@ import json
 from ddt import ddt, data
 from rest_framework import status
 
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import factories, base

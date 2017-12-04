@@ -3,24 +3,24 @@ from setuptools import setup, find_packages
 
 # defusedxml is required by djangosaml2
 install_requires = [
-    'ansible-waldur-module>=0.4.1',
+    'ansible-waldur-module>=0.4.2',
     'defusedxml>=0.4.1',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
-    'nodeconductor>=0.150.4',
-    'waldur_auth_social>=0.7.5',
-    'waldur_auth_openid>=0.8.6',
-    'nodeconductor_aws>=0.10.0',
-    'nodeconductor_azure>=0.3.0',
-    'nodeconductor_cost_planning>=0.5.4',
-    'nodeconductor_digitalocean>=0.9.0',
-    'waldur_openstack>=0.38.0',
-    'nodeconductor_saml2>=0.8.2',
-    'waldur_ansible>=0.3.2',
-    'waldur_auth_valimo>=0.3.0',
-    'waldur_freeipa>=0.2.3',
-    'waldur_paypal>=0.6.2',
-    'waldur_slurm>=0.3.2',
+    'waldur-core>=0.151.0',
+    'waldur_ansible>=0.3.3',
+    'waldur_auth_openid>=0.8.7',
+    'waldur_auth_social>=0.7.6',
+    'waldur_auth_saml2>=0.8.4',
+    'waldur_auth_valimo>=0.3.1',
+    'waldur_aws>=0.11.2',
+    'waldur_azure>=0.3.4',
+    'waldur_cost_planning>=0.5.6',
+    'waldur_digitalocean>=0.10.2',
+    'waldur_freeipa>=0.6.3',
+    'waldur_openstack>=0.38.2',
+    'waldur_paypal>=0.6.3',
+    'waldur_slurm>=0.3.3',
 ]
 
 test_requires = [
@@ -31,7 +31,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.8.2',
+    version='2.8.3',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -46,7 +46,7 @@ setup(
     },
     zip_safe=False,
     entry_points={
-        'nodeconductor_extensions': (
+        'waldur_extensions': (
             'waldur_packages = waldur_mastermind.packages.extension:PackagesExtension',
             'waldur_invoices = waldur_mastermind.invoices.extension:InvoicesExtension',
             'waldur_support = waldur_mastermind.support.extension:SupportExtension',

@@ -1,7 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, viewsets
 
-from nodeconductor.structure import filters as structure_filters
+from waldur_core.structure import filters as structure_filters
 
 from . import filters, models, serializers
 

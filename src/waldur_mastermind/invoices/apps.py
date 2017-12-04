@@ -7,8 +7,8 @@ class InvoiceConfig(AppConfig):
     verbose_name = 'Invoices'
 
     def ready(self):
-        from nodeconductor.core import signals as core_signals
-        from nodeconductor.structure import models as structure_models
+        from waldur_core.core import signals as core_signals
+        from waldur_core.structure import models as structure_models
         from waldur_mastermind.invoices.plugins import offering_registrator
         from waldur_mastermind.invoices.plugins import openstack_registrator
         from waldur_mastermind.packages import models as packages_models

@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from nodeconductor.cost_tracking.models import DefaultPriceListItem
+from waldur_core.cost_tracking.models import DefaultPriceListItem
 
 from .. import factories, fixtures
 from ... import admin, models

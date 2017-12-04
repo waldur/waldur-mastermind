@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
-from nodeconductor.core import filters as core_filters
-from nodeconductor.cost_tracking import models
+from waldur_core.core import filters as core_filters
+from waldur_core.cost_tracking import models
 
 
 class PriceEstimateScopeFilterBackend(core_filters.GenericKeyFilterBackend):

@@ -1,6 +1,6 @@
 from django.utils.functional import cached_property
 
-from nodeconductor.structure.tests import fixtures as structure_fixtures
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 

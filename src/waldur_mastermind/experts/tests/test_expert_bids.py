@@ -2,10 +2,10 @@ from ddt import ddt, data
 import mock
 from rest_framework import test, status
 
-from nodeconductor.structure.tests import factories as structure_factories
-from nodeconductor.structure.tests import fixtures as structure_fixtures
-from nodeconductor.structure import models as structure_models
-from nodeconductor.users import models as user_models
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_core.structure import models as structure_models
+from waldur_core.users import models as user_models
 
 from .. import models
 from . import factories
@@ -203,7 +203,7 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
         invitations = self.get_invitations(expert_users)
         self.assertEqual(len(invitations), len(expert_users))
 
-    @mock.patch('nodeconductor.users.tasks.send_invitation')
+    @mock.patch('waldur_core.users.tasks.send_invitation')
     def test_when_bid_accepted_invitations_for_expert_team_members_are_created(self, mocked_task):
         # Arrange
         expert_users = structure_factories.UserFactory.create_batch(3)

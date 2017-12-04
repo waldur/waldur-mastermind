@@ -3,8 +3,8 @@ from factory import fuzzy
 
 from django.urls import reverse
 
-from nodeconductor.cost_tracking import models
-from nodeconductor.structure.tests import factories as structure_factories
+from waldur_core.cost_tracking import models
+from waldur_core.structure.tests import factories as structure_factories
 
 
 class PriceEstimateFactory(factory.DjangoModelFactory):
