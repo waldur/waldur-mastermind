@@ -14,7 +14,6 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
-
 from . import filters, models, serializers, backend
 
 
@@ -210,7 +209,41 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     terminate_permissions = [structure_permissions.is_staff]
 
 
+class AttachmentViewSet(CheckExtensionMixin,
+                        core_views.ActionsViewSet):
+    queryset = models.Attachment.objects.all()
+    filter_class = filters.AttachmentFilter
+    filter_backends = [DjangoFilterBackend]
+    serializer_class = serializers.AttachmentSerializer
+    lookup_field = 'uuid'
+    disabled_actions = ['update', 'partial_update']
+
+    @transaction.atomic()
+    def perform_destroy(self, attachment):
+        backend.get_active_backend().delete_attachment(attachment)
+        attachment.delete()
+
+    @transaction.atomic()
+    def perform_create(self, serializer):
+        attachment = serializer.save()
+        backend.get_active_backend().create_attachment(attachment)
+
+    def get_queryset(self):
+        queryset = super(AttachmentViewSet, self).get_queryset()
+
+        if not self.request.user.is_staff:
+            user_customers = structure_models.Customer.objects.filter(
+                permissions__role=structure_models.CustomerRole.OWNER,
+                permissions__user=self.request.user,
+                permissions__is_active=True)
+            subquery = Q(issue__customer__in=user_customers) | Q(issue__caller=self.request.user)
+            queryset = queryset.filter(subquery)
+
+        return queryset
+
+
 def get_project_offerings_count(project):
     return models.Offering.objects.filter(project=project).count()
+
 
 structure_views.ProjectCountersView.register_counter('offerings', get_project_offerings_count)

@@ -1,13 +1,14 @@
 from __future__ import unicode_literals
 
 import copy
+import os
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.template import Context, Template
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import serializers
+from rest_framework import serializers, exceptions
 
 from waldur_core.core import serializers as core_serializers, utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
@@ -609,3 +610,32 @@ class OfferingCompleteSerializer(serializers.Serializer):
         instance.state = models.Offering.States.OK
         instance.save(update_fields=['state', 'unit_price', 'unit'])
         return instance
+
+
+class AttachmentSerializer(core_serializers.AugmentedSerializerMixin,
+                           serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.Attachment
+        fields = ('url', 'uuid', 'issue', 'issue_key', 'created', 'file')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid'},
+            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+        )
+        related_paths = dict(
+            issue=('key',),
+        )
+
+    def validate(self, attrs):
+        filename, file_extension = os.path.splitext(attrs['file'].name)
+        if file_extension in settings.WALDUR_SUPPORT['EXCLUDED_ATTACHMENT_TYPES']:
+            raise serializers.ValidationError(_('Invalid file extension'))
+
+        user = self.context['request'].user
+        issue = attrs['issue']
+        if user.is_staff or \
+                (issue.customer and issue.customer.has_user(user, structure_models.CustomerRole.OWNER)) or \
+                issue.caller == user:
+            return attrs
+
+        raise exceptions.PermissionDenied()
