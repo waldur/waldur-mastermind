@@ -48,7 +48,7 @@ class PriceEstimateViewSet(core_views.ActionsViewSet):
 
 class TotalCustomerCostView(views.APIView):
     def get(self, request, format=None):
-        if not self.request.user.is_staff:
+        if not self.request.user.is_staff and not request.user.is_support:
             raise exceptions.PermissionDenied()
 
         customers = structure_models.Customer.objects.all()
