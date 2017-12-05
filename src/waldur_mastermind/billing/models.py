@@ -42,10 +42,10 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
 
         if self.content_type.model_class() == structure_models.Project:
             return sum(item.price
-                             for model in invoices_models.InvoiceItem.get_all_models()
-                             for item in model.objects.filter(invoice__year=year,
-                                                              invoice__month=month,
-                                                              project__uuid=self.scope.uuid.hex))
+                       for model in invoices_models.InvoiceItem.get_all_models()
+                       for item in model.objects.filter(invoice__year=year,
+                                                        invoice__month=month,
+                                                        project__uuid=self.scope.uuid.hex))
         elif self.content_type.model_class() == structure_models.Customer:
             try:
                 invoice = invoices_models.Invoice.objects.get(
