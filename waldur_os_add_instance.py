@@ -30,8 +30,7 @@ options:
   flavor:
     description:
       - The name or id of the flavor to use. 
-        If this is not declared, flavor_min_cpu and/or flavor_min_ram must be declared.
-        For example: flavor_min_cpu: 2   
+        If this is not declared, flavor_min_cpu and/or flavor_min_ram must be declared.  
     required: false
   flavor_min_cpu:
     description:
@@ -139,7 +138,7 @@ EXAMPLES = '''
       waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        flavor: m1.micro
+        flavor_min_cpu: 2 
         floating_ip: auto
         image: CentOS 7 x86_64
         name: Build instance
@@ -162,7 +161,8 @@ EXAMPLES = '''
       waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        flavor: m1.micro
+        flavor_min_cpu: 2 
+        flavor_min_ram: 1024 
         floating_ip: auto
         image: CentOS 7 x86_64
         name: Build instance
@@ -199,9 +199,10 @@ def main():
         'timeout': {'default': 600, 'type': 'int'},
         'interval': {'default': 20, 'type': 'int'},
         'flavor_min_cpu': {'type': 'int'},
-        'flavor_min_cpu': {'type': 'int'},
+        'flavor_min_ram': {'type': 'int'},
     }
-    mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks']]
+    mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks'],
+                          ['flavor_min_cpu', 'flavor'], ['flavor_min_ram', 'flavor']]
     required_one_of = [['subnet', 'networks']]
     module = AnsibleModule(
         argument_spec=fields,
