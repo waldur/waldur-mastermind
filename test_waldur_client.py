@@ -36,6 +36,16 @@ class TestWaldurClient(unittest.TestCase):
             'data_volume_size': 5,
         }
 
+        self.flavor = {
+            "url": "url_flavor",
+            "uuid": "uuid",
+            "name": "g1.small1",
+            "settings": "url_settings",
+            "cores": 1,
+            "ram": 512,
+            "disk": 10240
+        }
+
         self.instance = {
             'uuid': 'uuid',
             'name': self.params['name'],
@@ -84,7 +94,7 @@ class TestWaldurClient(unittest.TestCase):
         responses.add(
             method='GET',
             url=url,
-            json=[self.instance, self.instance, self.instance],
+            json=[self.flavor, self.flavor, self.flavor],
             match_querystring=True
         )
 
@@ -92,7 +102,7 @@ class TestWaldurClient(unittest.TestCase):
         responses.add(
             method='GET',
             url=url,
-            json=[self.instance],
+            json=[self.flavor],
             match_querystring=True
         )
 
