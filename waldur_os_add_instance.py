@@ -138,7 +138,7 @@ EXAMPLES = '''
       waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        flavor_min_cpu: 2 
+        flavor: m1.micro 
         floating_ip: auto
         image: CentOS 7 x86_64
         name: Build instance
@@ -161,8 +161,7 @@ EXAMPLES = '''
       waldur_os_add_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        flavor_min_cpu: 2 
-        flavor_min_ram: 1024 
+        flavor: m1.micro 
         floating_ip: auto
         image: CentOS 7 x86_64
         name: Build instance
@@ -174,6 +173,28 @@ EXAMPLES = '''
         tags:
             - ansible_application_id
         wait: false
+        
+- name: flavor search by cpu and ram size
+  hosts: localhost
+  tasks:
+    - name: add instance
+      waldur_os_add_instance:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        data_volume_size: 100
+        flavor_min_cpu: 2 
+        flavor_min_ram: 1024
+        image: Ubuntu 16.04 x86_64
+        name: Warehouse instance
+        networks:
+          - floating_ip: auto
+            subnet: vpc-1-tm-sub-net
+          - floating_ip: 192.101.13.124
+            subnet: vpc-1-tm-sub-net-2
+        project: OpenStack Project
+        provider: VPC
+        security_groups:
+          - web
 '''
 
 
