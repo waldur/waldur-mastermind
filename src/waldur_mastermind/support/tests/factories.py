@@ -86,3 +86,23 @@ class OfferingFactory(factory.DjangoModelFactory):
     def get_list_action_url(cls, action=None):
         url = 'http://testserver' + reverse('support-offering-list')
         return url if action is None else url + action + '/'
+
+
+class AttachmentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Attachment
+
+    issue = factory.SubFactory(IssueFactory)
+    file = factory.django.FileField(filename='the_file.txt')
+
+    @classmethod
+    def get_url(cls, attachment=None, action=None):
+        if attachment is None:
+            attachment = AttachmentFactory()
+        url = 'http://testserver' + reverse('support-attachment-detail', kwargs={'uuid': attachment.uuid.hex})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-attachment-list')
+

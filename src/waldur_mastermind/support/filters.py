@@ -124,3 +124,13 @@ class OfferingFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.Offering
         fields = ('name', 'description', 'type', 'issue', 'issue_uuid', 'project', 'project_uuid', 'state')
+
+
+class AttachmentFilter(django_filters.FilterSet):
+    issue_key = django_filters.CharFilter(name='issue__backend_id')
+
+    class Meta(object):
+        model = models.Attachment
+        fields = [
+            'issue_key',
+        ]
