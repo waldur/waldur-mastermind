@@ -346,48 +346,6 @@ class ExpertRequestCompleteTest(ExpertRequestActionsTest):
         return self.client.post(url)
 
 
-class CountersTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = structure_fixtures.ProjectFixture()
-        self.expert_request = factories.ExpertRequestFactory(project=self.fixture.project)
-
-    def test_pending_request_are_counted_for_project(self):
-        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
-        self.client.force_authenticate(self.fixture.owner)
-        self.assert_has_experts(url, 1)
-
-    def test_active_request_are_counted_for_project(self):
-        self.expert_request.state = models.ExpertRequest.States.ACTIVE
-        self.expert_request.save()
-        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
-        self.client.force_authenticate(self.fixture.owner)
-        self.assert_has_experts(url, 1)
-
-    def test_cancelled_request_are_skipped_for_project(self):
-        self.expert_request.state = models.ExpertRequest.States.CANCELLED
-        self.expert_request.save()
-        url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
-        self.client.force_authenticate(self.fixture.owner)
-        self.assert_has_experts(url, 0)
-
-    def test_pending_request_are_counted_for_customer(self):
-        url = structure_factories.CustomerFactory.get_url(self.fixture.customer, action='counters')
-        self.client.force_authenticate(self.fixture.owner)
-        self.assert_has_experts(url, 1)
-
-    def test_active_request_are_counted_for_customer(self):
-        expert_request = factories.ExpertRequestFactory(state=models.ExpertRequest.States.ACTIVE)
-        models.ExpertContract.objects.create(request=expert_request, team=self.fixture.project)
-        url = structure_factories.CustomerFactory.get_url(self.fixture.customer, action='counters')
-        self.client.force_authenticate(self.fixture.owner)
-        self.assert_has_experts(url, 2)
-
-    def assert_has_experts(self, url, count):
-        response = self.client.get(url, {'fields': ['experts']})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'experts': count})
-
-
 class ExpertRequestProjectCacheTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
