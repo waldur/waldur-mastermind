@@ -5,10 +5,9 @@ import collections
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import decorators, exceptions, permissions, status, response, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import decorators, exceptions, permissions, status, response, viewsets
 
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
@@ -19,7 +18,7 @@ from waldur_core.users import models as user_models
 from waldur_core.users import tasks as user_tasks
 from waldur_mastermind.support import backend as support_backend
 
-from . import serializers, models, filters
+from . import serializers, models, filters, quotas
 
 
 def is_expert_manager(user):
@@ -251,17 +250,5 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     destroy_permissions = [is_pending_request, can_delete_bid]
 
 
-def get_project_experts_count(project):
-    valid_states = (models.ExpertRequest.States.ACTIVE, models.ExpertRequest.States.PENDING)
-    query = Q(project=project, state__in=valid_states)
-    return models.ExpertRequest.objects.filter(query).count()
-
-
-def get_customer_experts_count(customer):
-    query = Q(state=models.ExpertRequest.States.PENDING) |\
-            Q(state=models.ExpertRequest.States.ACTIVE, contract__team__customer=customer)
-    return models.ExpertRequest.objects.filter(query).count()
-
-
-structure_views.ProjectCountersView.register_counter('experts', get_project_experts_count)
-structure_views.CustomerCountersView.register_counter('experts', get_customer_experts_count)
+structure_views.ProjectCountersView.register_counter('experts', quotas.get_project_experts_count)
+structure_views.CustomerCountersView.register_counter('experts', quotas.get_customer_experts_count)

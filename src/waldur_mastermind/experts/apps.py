@@ -11,7 +11,7 @@ class ExpertsConfig(AppConfig):
     def ready(self):
         from waldur_core.structure import models as structure_models
         from waldur_mastermind.invoices import registrators as invoices_registrators
-        from . import handlers, registrators
+        from . import handlers, registrators, quotas
 
         ExpertRequest = self.get_model('ExpertRequest')
         ExpertBid = self.get_model('ExpertBid')
@@ -20,6 +20,22 @@ class ExpertsConfig(AppConfig):
         invoices_registrators.RegistrationManager.add_registrator(
             ExpertRequest,
             registrators.ExpertRequestRegistrator
+        )
+
+        quotas.add_quota_field()
+
+        signals.post_save.connect(
+            handlers.update_project_quota_when_request_is_saved,
+            sender=ExpertRequest,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'update_project_quota_when_expert_saved',
+        )
+
+        signals.pre_delete.connect(
+            handlers.update_project_quota_when_request_is_deleted,
+            sender=ExpertRequest,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'update_project_quota_when_request_is_deleted',
         )
 
         signals.post_save.connect(
