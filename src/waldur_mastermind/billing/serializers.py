@@ -78,6 +78,7 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
 
 class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     total = serializers.SerializerMethodField()
+    current = serializers.SerializerMethodField()
 
     def get_total(self, obj):
         request = self.context['request']
@@ -97,9 +98,18 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
 
         return obj.total
 
+    def get_current(self, obj):
+        request = self.context['request']
+        if request.query_params.get('year', '') or request.query_params.get('month', ''):
+            return None
+
+        year = utils.get_current_year()
+        month = utils.get_current_month()
+        return obj.get_total(year=year, month=month, current=True)
+
     class Meta:
         model = models.PriceEstimate
-        fields = ('url', 'threshold', 'total', 'limit')
+        fields = ('url', 'threshold', 'total', 'current', 'limit')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'billing-price-estimate-detail'},
         }
@@ -112,6 +122,7 @@ def get_price_estimate(serializer, scope):
         return {
             'threshold': 0.0,
             'total': 0.0,
+            'current': 0.0,
             'limit': -1.0
         }
     else:
