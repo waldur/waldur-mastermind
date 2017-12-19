@@ -39,7 +39,7 @@ def create_monthly_invoices():
         invoice.freeze()
 
     customers = structure_models.Customer.objects.all()
-    if settings.INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
         customers = customers.filter(
             Q(payment_details__accounting_start_date__lt=timezone.now()) |
             Q(payment_details__isnull=True)
@@ -47,7 +47,7 @@ def create_monthly_invoices():
     for customer in customers.iterator():
         registrators.RegistrationManager.get_or_create_invoice(customer, core_utils.month_start(date))
 
-    if settings.INVOICES['INVOICE_REPORTING']['ENABLE']:
+    if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
         send_invoice_report.delay()
 
 
@@ -95,7 +95,7 @@ def send_invoice_report():
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
-    if settings.INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
         invoices = invoices.filter(customer__payment_details__accounting_start_date__lte=date)
     else:
         invoices = invoices.filter(customer__payment_details__isnull=False)
@@ -105,7 +105,7 @@ def send_invoice_report():
     text_message = format_invoice_csv(invoices)
 
     # Please note that email body could be empty if there are no valid invoices
-    emails = [settings.INVOICES['INVOICE_REPORTING']['EMAIL']]
+    emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
     logger.debug('About to send accounting report to {emails}'.format(emails=emails))
     utils.send_mail_attachment(
         subject=subject,
@@ -120,9 +120,9 @@ def format_invoice_csv(invoices):
     if not isinstance(invoices, list):
         invoices = [invoices]
 
-    csv_params = settings.INVOICES['INVOICE_REPORTING']['CSV_PARAMS']
+    csv_params = settings.WALDUR_INVOICES['INVOICE_REPORTING']['CSV_PARAMS']
 
-    if settings.INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
+    if settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
         fields = serializers.SAFReportSerializer.Meta.fields
         stream = cStringIO.StringIO()
         writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)

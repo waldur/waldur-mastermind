@@ -117,7 +117,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         }
 
     def get_issuer_details(self, invoice):
-        return settings.INVOICES['ISSUER_DETAILS']
+        return settings.WALDUR_INVOICES['ISSUER_DETAILS']
 
     def get_customer_details(self, invoice):
         try:
@@ -149,7 +149,7 @@ class InvoiceNotificationSerializer(serializers.Serializer):
 class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
 
-    type = serializers.ChoiceField(choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']],
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_INVOICES['COMPANY_TYPES']],
                                    allow_blank=True,
                                    required=False)
 
@@ -229,7 +229,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
 
     def get_extra_kwargs(self):
         extra_kwargs = super(InvoiceItemReportSerializer, self).get_extra_kwargs()
-        extra_kwargs.update(settings.INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS'])
+        extra_kwargs.update(settings.WALDUR_INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS'])
         return extra_kwargs
 
 
@@ -310,10 +310,10 @@ class SAFReportSerializer(serializers.Serializer):
         return quantize_price(invoice_item.tax)
 
     def get_project(self, invoice_item):
-        return settings.INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['ARTPROJEKT']
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['ARTPROJEKT']
 
     def get_vat(self, invoice_item):
-        return settings.INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
+        return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
 
     def get_empty_field(self, invoice_item):
         return ''
