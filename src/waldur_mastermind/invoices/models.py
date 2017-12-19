@@ -78,7 +78,7 @@ class Invoice(core_models.UuidMixin, models.Model):
     @property
     def due_date(self):
         if self.invoice_date:
-            return self.invoice_date + datetime.timedelta(days=settings.INVOICES['PAYMENT_INTERVAL'])
+            return self.invoice_date + datetime.timedelta(days=settings.WALDUR_INVOICES['PAYMENT_INTERVAL'])
 
     @property
     def number(self):

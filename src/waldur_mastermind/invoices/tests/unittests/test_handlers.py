@@ -407,4 +407,4 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
 
         new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.CREATED)
         invoice_created_mock.send.assert_called_once_with(invoice=new_invoice, sender=models.Invoice,
-                                                          issuer_details=settings.INVOICES['ISSUER_DETAILS'])
+                                                          issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'])

@@ -62,7 +62,7 @@ class PaymentDetailsInline(admin.StackedInline):
 class PaymentDetailsAdminForm(ModelForm):
     def __init__(self, *args, **kwargs):
         super(PaymentDetailsAdminForm, self).__init__(*args, **kwargs)
-        self.fields['type'] = ChoiceField(choices=[(t, t) for t in settings.INVOICES['COMPANY_TYPES']])
+        self.fields['type'] = ChoiceField(choices=[(t, t) for t in settings.WALDUR_INVOICES['COMPANY_TYPES']])
 
 
 class PaymentDetailsAdmin(admin.ModelAdmin):
