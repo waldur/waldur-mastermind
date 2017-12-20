@@ -24,6 +24,7 @@ Requires: waldur-openstack >= 0.38.2
 Requires: waldur-paypal >= 0.6.3
 Requires: waldur-slurm >= 0.3.3
 Requires: python2-defusedxml >= 0.4.1
+Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
 
