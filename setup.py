@@ -5,6 +5,7 @@ from setuptools import setup, find_packages
 install_requires = [
     'ansible-waldur-module>=0.4.2',
     'defusedxml>=0.4.1',
+    'django-auth-ldap>=1.3.0',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'waldur-core>=0.151.0',

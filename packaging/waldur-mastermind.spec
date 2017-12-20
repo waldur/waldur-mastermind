@@ -8,6 +8,7 @@ Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.4.2
+Requires: django-auth-ldap >= 1.3.0
 Requires: waldur-core >= 0.151.0
 Requires: waldur-ansible >= 0.3.3
 Requires: waldur-auth-openid >= 0.8.7
