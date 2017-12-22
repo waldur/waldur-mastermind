@@ -240,3 +240,15 @@ class ServiceDeskBackend(JiraBackend):
                 raise e
         else:
             return True
+
+    @reraise_exceptions
+    def create_attachment(self, attachment):
+        backend_issue = self.manager.issue(attachment.issue.backend_id)
+        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
+        attachment.backend_id = backend_attachment.id
+        attachment.save(update_fields=['backend_id'])
+
+    @reraise_exceptions
+    def delete_attachment(self, attachment):
+        backend_attachment = self.manager.attachment(attachment.backend_id)
+        backend_attachment.delete()

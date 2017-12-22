@@ -6,7 +6,7 @@ from waldur_core.core import WaldurExtension
 class InvoicesExtension(WaldurExtension):
     class Settings:
         # wiki: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration
-        INVOICES = {
+        WALDUR_INVOICES = {
             'ISSUER_DETAILS': {
                 'company': 'OpenNode',
                 'address': 'Lille 4-205',

@@ -111,7 +111,7 @@ def emit_invoice_created_event(sender, instance, created=False, **kwargs):
 
     cost_signals.invoice_created.send(sender=models.Invoice,
                                       invoice=instance,
-                                      issuer_details=settings.INVOICES['ISSUER_DETAILS'])
+                                      issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'])
 
 
 def prevent_deletion_of_customer_with_invoice(sender, instance, user, **kwargs):

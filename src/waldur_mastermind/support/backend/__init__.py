@@ -35,6 +35,12 @@ class SupportBackend(object):
     def delete_comment(self, comment):
         pass
 
+    def create_attachment(self, attachment):
+        pass
+
+    def delete_attachment(self, attachment):
+        pass
+
     def get_users(self):
         """
         This method should return all users that are related to support project on backend.

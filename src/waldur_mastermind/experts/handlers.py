@@ -4,7 +4,16 @@ from django.utils import timezone
 from waldur_mastermind.invoices import registrators as invoices_registrators
 
 from .log import event_logger
-from . import models, tasks
+from . import models, tasks, quotas
+
+
+def update_project_quota_when_request_is_saved(sender, instance, created=False, **kwargs):
+    if created or instance.tracker.has_changed('state'):
+        transaction.on_commit(lambda: quotas.update_project_quota(instance.project))
+
+
+def update_project_quota_when_request_is_deleted(sender, instance, **kwargs):
+    transaction.on_commit(lambda: quotas.update_project_quota(instance.project))
 
 
 def log_expert_request_creation(sender, instance, created=False, **kwargs):

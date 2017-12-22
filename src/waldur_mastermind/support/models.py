@@ -184,3 +184,21 @@ class Offering(core_models.UuidMixin,
         context['resource_type'] = self.get_scope_type()
         context['resource_uuid'] = self.uuid.hex
         return context
+
+
+@python_2_unicode_compatible
+class Attachment(core_models.UuidMixin, TimeStampedModel):
+    class Permissions(object):
+        customer_path = 'issue__customer'
+        project_path = 'issue__project'
+
+    issue = models.ForeignKey(Issue, related_name='attachments')
+    file = models.FileField(upload_to='support_attachments')
+    backend_id = models.CharField(max_length=255, blank=True)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-attachment'
+
+    def __str__(self):
+        return '{} | {}'.format(self.issue, self.file.name.split('/')[-1])

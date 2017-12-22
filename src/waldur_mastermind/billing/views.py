@@ -1,10 +1,13 @@
 from __future__ import unicode_literals
 
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions
+from rest_framework import exceptions, response, status, views
 
 from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices import filters as invoices_filters
+from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices import utils as invoice_utils
 
 from . import filters, models, serializers
 
@@ -41,3 +44,30 @@ class PriceEstimateViewSet(core_views.ActionsViewSet):
                 )
 
     update_permissions = [is_owner_or_staff]
+
+
+class TotalCustomerCostView(views.APIView):
+    def get(self, request, format=None):
+        if not self.request.user.is_staff and not request.user.is_support:
+            raise exceptions.PermissionDenied()
+
+        customers = structure_models.Customer.objects.all()
+        customers = invoices_filters.AccountingStartDateFilter().filter(request, customers, self)
+
+        name = request.query_params.get('name', '')
+        if name:
+            customers = customers.filter(name__icontains=name)
+
+        year = invoice_utils.get_current_year()
+        month = invoice_utils.get_current_month()
+        try:
+            year = int(request.query_params.get('year', ''))
+            month = int(request.query_params.get('month', ''))
+        except ValueError:
+            pass
+
+        invoices = invoices_models.Invoice.objects.filter(customer__in=customers)
+        invoices = invoices.filter(year=year, month=month)
+
+        total = sum(invoice.total for invoice in invoices)
+        return response.Response({'total': total}, status=status.HTTP_200_OK)

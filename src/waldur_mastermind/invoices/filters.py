@@ -32,7 +32,7 @@ class PaymentDetailsFilter(django_filters.FilterSet):
 class AccountingStartDateFilter(core_filters.BaseExternalFilter):
     def filter(self, request, queryset, view):
 
-        if not settings.INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+        if not settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
             return queryset
 
         value = request.query_params.get('accounting_is_running')

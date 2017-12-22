@@ -40,4 +40,5 @@ class IssueAdmin(structure_admin.BackendModelAdmin):
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
+admin.site.register(models.Attachment)
 admin.site.register(models.SupportUser, SupportUserAdmin)
