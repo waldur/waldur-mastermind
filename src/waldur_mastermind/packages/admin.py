@@ -1,30 +1,15 @@
 import collections
-
 from decimal import Decimal
+
 from django import forms
 from django.conf import settings
 from django.contrib import admin
-from django.contrib.admin import widgets
 from django.forms.models import BaseInlineFormSet
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.packages import models, utils
-
-
-class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
-    def value_from_datadict(self, data, files, name):
-        value = super(GBtoMBWidget, self).value_from_datadict(data, files, name) or 0
-        value = int(value) * 1024
-        return value
-
-    def format_value(self, value):
-        return int(value) / 1024
-
-    def render(self, name, value, attrs=None, renderer=None):
-        result = super(GBtoMBWidget, self).render(name, value, attrs)
-        return '<label>%s GB</label>' % result
 
 
 class PriceForMBinGBWidget(forms.NumberInput):
@@ -135,7 +120,7 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
             is_readonly = self.instance and self.instance.is_read_only()
             form.fields['amount'] = forms.IntegerField(min_value=0,
                                                        initial=0,
-                                                       widget=GBtoMBWidget({'readonly': is_readonly}))
+                                                       widget=core_admin.GBtoMBWidget({'readonly': is_readonly}))
 
     def clean(self):
         super(PackageComponentInlineFormset, self).clean()
