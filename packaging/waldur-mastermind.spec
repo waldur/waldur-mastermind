@@ -8,7 +8,6 @@ Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.4.3
-Requires: django-auth-ldap >= 1.3.0
 Requires: waldur-core >= 0.151.2
 Requires: waldur-ansible >= 0.3.3
 Requires: waldur-auth-openid >= 0.8.7
@@ -25,6 +24,7 @@ Requires: waldur-paypal >= 0.6.3
 Requires: waldur-slurm >= 0.3.3
 Requires: python2-defusedxml >= 0.4.1
 Requires: python-django >= 1.11, python-django < 2.0
+Requires: python-django-auth-ldap >= 1.3.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
 
