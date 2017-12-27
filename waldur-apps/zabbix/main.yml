@@ -10,7 +10,8 @@
         access_token: "{{ access_token }}"
         api_url: "{{ api_url }}"
         data_volume_size: 1
-        flavor: m1.xsmall
+        flavor_min_cpu: 1
+        flavor_min_ram: 1024
         floating_ip: auto
         image: centos7-minimal-1707
         name: Zabbix on Waldur
@@ -72,15 +73,17 @@
         state: present
         user: centos
 
+
 - name: Install Zabbix server
   hosts: created_vm_instances
   become: true
   tasks:
-    - name: Install Apache2
+    - name: Install Apache2 and MariaDB
       package: pkg={{ item }} state=latest
       with_items:
         - httpd
         - mariadb-server
+        - MySQL-python
 
     - name: Install Zabbix Repo
       yum:
@@ -92,7 +95,6 @@
       with_items:
         - zabbix-server-mysql
         - zabbix-web-mysql
-        - MySQL-python
 
     - name: Enable and start services
       service:
@@ -120,7 +122,7 @@
       lineinfile:
         path: /etc/httpd/conf.d/zabbix.conf
         regexp: "# php_value date.timezone Europe/Riga"
-        line: "php_value date.timezone Europe/Riga"
+        line: "php_value date.timezone UTC"
       notify: httpd_restart
 
     - name: Configure Zabbix Host
