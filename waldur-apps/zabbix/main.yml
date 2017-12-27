@@ -112,7 +112,7 @@
     - name: Create Zabbix database user
       mysql_user:
         name: zabbix
-        password: zabbix
+        password: "{% if db_password %}{{ db_password }}{% else %}zabbix{% endif %}"
         priv: zabbix.*:ALL
 
     - name: Create DB Scheme
@@ -135,8 +135,8 @@
       lineinfile:
         path: /etc/zabbix/zabbix_server.conf
         regexp: "# DBPassword="
-        line: "DBPassword=zabbix"
-
+        line: "{% if db_password %}DBPassword={{ db_password }}{% else %}DBPassword=zabbix{% endif %}"
+        
   handlers:
     - name: httpd_restart
       service:
