@@ -112,11 +112,11 @@
     - name: Create Zabbix database user
       mysql_user:
         name: zabbix
-        password: "{% if db_password %}{{ db_password }}{% else %}zabbix{% endif %}"
+        password: "{{ db_password | default('zabbix') }}"
         priv: zabbix.*:ALL
 
     - name: Create DB Scheme
-      shell: zcat /usr/share/doc/zabbix-server-mysql-*/create.sql.gz | mysql -uzabbix zabbix -pzabbix
+      shell: "zcat /usr/share/doc/zabbix-server-mysql-*/create.sql.gz | mysql -uzabbix zabbix -p{{ db_password | default('zabbix') }}"
 
     - name: Configure Apache2
       lineinfile:
@@ -135,7 +135,7 @@
       lineinfile:
         path: /etc/zabbix/zabbix_server.conf
         regexp: "# DBPassword="
-        line: "{% if db_password %}DBPassword={{ db_password }}{% else %}DBPassword=zabbix{% endif %}"
+        line: "DBPassword={{ db_password | default('zabbix') }}"
         
   handlers:
     - name: httpd_restart
