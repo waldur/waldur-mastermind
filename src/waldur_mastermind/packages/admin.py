@@ -196,7 +196,7 @@ class OpenStackPackageAdmin(admin.ModelAdmin):
     def get_customer(self, obj):
         return obj.tenant.service_project_link.project.customer
 
-    get_customer.short_description = _('Customer')
+    get_customer.short_description = _('Organization')
     get_customer.admin_order_field = 'tenant__service_project_link__project__customer__name'
 
     list_display = ('template', 'tenant', 'service_settings', 'get_project', 'get_customer')
