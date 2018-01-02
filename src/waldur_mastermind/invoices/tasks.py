@@ -91,7 +91,7 @@ def send_invoice_report():
         'month': date.month,
         'year': date.year,
     }).strip()
-    filename = '03M%02d%dWaldur.txt' % (date.month, date.year)
+    filename = '3M%02d%dWaldur.txt' % (date.month, date.year)
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
