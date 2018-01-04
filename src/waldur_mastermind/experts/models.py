@@ -117,7 +117,9 @@ class ExpertRequest(core_models.UuidMixin,
         return 0
 
     def __str__(self):
-        return '{} / {}'.format(self.project.name, self.project.customer.name)
+        if self.project:
+            return '%s (%s)' % (self.name, self.project)
+        return self.name
 
 
 class ExpertBid(core_models.UuidMixin,
