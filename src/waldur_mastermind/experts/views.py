@@ -5,6 +5,7 @@ import collections
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.http import HttpResponse, Http404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, permissions, status, response, viewsets
@@ -18,7 +19,7 @@ from waldur_core.users import models as user_models
 from waldur_core.users import tasks as user_tasks
 from waldur_mastermind.support import backend as support_backend
 
-from . import serializers, models, filters, quotas
+from . import serializers, models, filters, quotas, tasks
 
 
 def is_expert_manager(user):
@@ -173,6 +174,23 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
 
         return response.Response(status=status.HTTP_200_OK, data=dict(roles))
 
+    @decorators.detail_route()
+    def pdf(self, request, uuid=None):
+        expert_request = self.get_object()
+        
+        try:
+            contract = models.ExpertContract.objects.get(request=expert_request)
+            if not contract.has_file():
+                raise Http404()
+
+            pdf_file = contract.get_file()
+            file_response = HttpResponse(pdf_file, content_type='application/pdf')
+            filename = contract.get_filename()
+            file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+            return file_response
+        except models.ExpertContract.DoesNotExist:
+            raise Http404()
+
     def is_valid_request(request, view, obj=None):
         expert_request = obj
 
@@ -222,7 +240,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
         expert_request.state = models.ExpertRequest.States.ACTIVE
         expert_request.save(update_fields=['state'])
 
-        models.ExpertContract.objects.create(
+        expert_contract = models.ExpertContract.objects.create(
             request=expert_request,
             team=expert_bid.team,
             price=expert_bid.price,
@@ -231,6 +249,9 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
 
         transaction.on_commit(lambda:
                               create_team_invitations(expert_bid.team, expert_request.project, current_user))
+
+        transaction.on_commit(lambda: tasks.create_pdf_contract.delay(expert_contract.id))
+
         return response.Response({'status': _('Expert bid has been accepted.')}, status=status.HTTP_200_OK)
 
     def is_pending_request(request, view, obj=None):

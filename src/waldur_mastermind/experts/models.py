@@ -1,19 +1,24 @@
 from __future__ import unicode_literals
 
+import base64
 from decimal import Decimal
+from HTMLParser import HTMLParser
+import StringIO
+
 from django.conf import settings
 from django.core.validators import MinValueValidator
-from django.utils.translation import ugettext_lazy as _
 from django.db import models
+from django.template.loader import render_to_string
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
+import pdfkit
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
-
+from waldur_mastermind.common import mixins as common_mixins, utils as common_utils
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.common import mixins as common_mixins
 
 from . import managers
 
@@ -157,6 +162,61 @@ class ExpertContract(PriceMixin, core_models.DescribableMixin, structure_models.
     team_name = models.CharField(max_length=150, blank=True)
     team_uuid = models.CharField(max_length=32, blank=True)
     team_customer = models.ForeignKey(structure_models.Customer, related_name='+', on_delete=models.CASCADE, null=True)
+
+    _file = models.TextField(blank=True, editable=False)
+
+    def get_file(self):
+        if not self._file:
+            return
+
+        content = base64.b64decode(self._file)
+        s = StringIO.StringIO(content)
+        return s
+
+    def create_file(self):
+        parser = HTMLParser()
+        context = {
+            'contract': self,
+            'client': {
+                'name': self.team.customer.name,
+                'laws': self.team.customer.country,
+                'number': self.team.customer.registration_code,
+                'representative': self.team.customer.get_owners()[0].full_name
+            },
+            'expert': {
+                'name': self.request.project.customer.name,
+                'laws': self.request.project.customer.country,
+                'number': self.request.project.customer.registration_code,
+                'representative': self.request.project.customer.get_owners()[0].full_name
+            },
+            'service': {
+                'description': parser.unescape(self.request.description),
+                'date_end': ''
+            },
+            'status': ExpertRequest.States.COMPLETED,
+            'remuneration': {
+                'type': 'period' if self.request.recurring_billing else 'one-time',
+                'value': common_utils.quantize_price(self.price),
+                'currency': settings.WALDUR_EXPERTS['CURRENCY_NAME']
+            },
+            'period': ''
+        }
+        contract_text = render_to_string('experts/contract_template.html', context)
+        pdf = pdfkit.from_string(contract_text, False)
+        self._file = base64.b64encode(pdf)
+        self.save()
+
+    def has_file(self):
+        return bool(self._file)
+
+    def get_filename(self):
+        filename = "{year}_{month:02d}_{day:02d}_expert_contract_{id}.pdf".format(
+            id=self.id,
+            year=self.created.year,
+            month=self.created.month,
+            day=self.created.day
+        )
+        return filename
 
     class Meta:
         ordering = ['-created']

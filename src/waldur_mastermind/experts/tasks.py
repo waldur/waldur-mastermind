@@ -8,6 +8,7 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
 from waldur_core.structure import models as structure_models
+
 from . import models
 
 logger = logging.getLogger(__name__)
@@ -133,3 +134,9 @@ def broadcast_mail(app, event_type, context, recipient_list):
 
     for recipient in recipient_list:
         send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [recipient], html_message=html_message)
+
+
+@shared_task
+def create_pdf_contract(contract_id):
+    contract = models.ExpertContract.objects.get(pk=contract_id)
+    contract.create_file()
