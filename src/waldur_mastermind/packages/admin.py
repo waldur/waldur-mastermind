@@ -165,7 +165,12 @@ class PackageTemplateAdmin(admin.ModelAdmin):
     package_dependant_fields = ('name', 'category', 'service_settings')
     fields = package_dependant_fields + ('archived', 'icon_url', 'description', 'product_code', 'article_code')
     list_display = ('name', 'uuid', 'service_settings', 'price', 'archived', 'monthly_price', 'category')
-    list_filter = ('service_settings',)
+
+    class ServiceSettingsSharedFilter(admin.RelatedFieldListFilter):
+        def field_choices(self, field, request, model_admin):
+            return field.get_choices(include_blank=False, limit_choices_to={'shared': True})
+
+    list_filter = (('service_settings', ServiceSettingsSharedFilter),)
     search_fields = ('name', 'uuid')
 
     def get_readonly_fields(self, request, obj=None):
