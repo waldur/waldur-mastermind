@@ -233,8 +233,7 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
     def test_when_bid_accepted_contract_is_created(self):
         self.client.force_authenticate(self.project_fixture.owner)
         self.accept_bid()
-        self.expert_request.refresh_from_db()
-        self.assertIsNotNone(self.expert_request.contract)
+        self.assertTrue(models.ExpertContract.objects.filter(request=self.expert_request).exists())
 
     def get_invitations(self, users):
         return user_models.Invitation.objects.filter(
