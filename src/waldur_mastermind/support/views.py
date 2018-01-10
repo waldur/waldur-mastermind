@@ -242,8 +242,9 @@ class AttachmentViewSet(CheckExtensionMixin,
         return queryset
 
 
-def get_project_offerings_count(project):
-    return models.Offering.objects.filter(project=project).count()
+def get_offerings_count(scope):
+    return scope.quotas.get(name='nc_offering_count').usage
 
 
-structure_views.ProjectCountersView.register_counter('offerings', get_project_offerings_count)
+structure_views.CustomerCountersView.register_counter('offerings', get_offerings_count)
+structure_views.ProjectCountersView.register_counter('offerings', get_offerings_count)
