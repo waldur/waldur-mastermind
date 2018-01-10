@@ -16,6 +16,28 @@ def update_project_quota_when_request_is_deleted(sender, instance, **kwargs):
     transaction.on_commit(lambda: quotas.update_project_quota(instance.project))
 
 
+def update_customer_quota_when_request_is_saved(sender, instance, created=False, **kwargs):
+    if created or instance.tracker.has_changed('state'):
+        customer = quotas.get_request_customer(instance)
+        transaction.on_commit(lambda: quotas.update_customer_quota(customer))
+
+
+def update_customer_quota_when_request_is_deleted(sender, instance, **kwargs):
+    customer = quotas.get_request_customer(instance)
+    transaction.on_commit(lambda: quotas.update_customer_quota(customer))
+
+
+def update_customer_quota_when_contract_is_created(sender, instance, created=False, **kwargs):
+    if created:
+        customer = quotas.get_contract_customer(instance)
+        transaction.on_commit(lambda: quotas.update_customer_quota(customer))
+
+
+def update_customer_quota_when_contract_is_deleted(sender, instance, **kwargs):
+    customer = quotas.get_contract_customer(instance)
+    transaction.on_commit(lambda: quotas.update_customer_quota(customer))
+
+
 def log_expert_request_creation(sender, instance, created=False, **kwargs):
     if not created:
         return

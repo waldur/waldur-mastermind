@@ -45,9 +45,9 @@ class CustomerCountersTest(BaseCountersTest):
         return structure_factories.CustomerFactory.get_url(self.fixture.customer, action='counters')
 
     def test_pending_request(self):
-        self.assert_has_experts(1)
+        self.assert_has_experts(0)
 
     def test_active_request(self):
         expert_request = factories.ExpertRequestFactory(state=models.ExpertRequest.States.ACTIVE)
         models.ExpertContract.objects.create(request=expert_request, team=self.fixture.project)
-        self.assert_has_experts(2)
+        self.assert_has_experts(1)
