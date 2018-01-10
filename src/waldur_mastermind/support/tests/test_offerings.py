@@ -142,7 +142,7 @@ class OfferingCreateTest(BaseOfferingTest):
         request_data = self._get_valid_request()
 
         response = self.client.post(self.url, data=request_data)
-        
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Issue.objects.count(), 1)
         issue = models.Issue.objects.first()
@@ -346,16 +346,33 @@ class OfferingGetConfiguredTest(BaseOfferingTest):
         self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
 
 
+@ddt
 class CountersTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
-        self.expert_request = factories.OfferingFactory(project=self.fixture.project)
 
-    def test_project_counter_has_experts(self):
+    @data((True, 1), (False, 0))
+    def test_project_counter_has_experts(self, (has_request, expected_value)):
+        if has_request:
+            factories.OfferingFactory(project=self.fixture.project)
+
         url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
         self.client.force_authenticate(self.fixture.owner)
 
         response = self.client.get(url, {'fields': ['offerings']})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'offerings': 1})
+        self.assertEqual(response.data, {'offerings': expected_value})
+
+    @data((True, 1), (False, 0))
+    def test_customer_counter_has_experts(self, (has_request, expected_value)):
+        if has_request:
+            factories.OfferingFactory(project=self.fixture.project)
+
+        url = structure_factories.CustomerFactory.get_url(self.fixture.customer, action='counters')
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.get(url, {'fields': ['offerings']})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {'offerings': expected_value})
