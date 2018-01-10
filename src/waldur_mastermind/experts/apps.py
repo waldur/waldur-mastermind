@@ -28,7 +28,7 @@ class ExpertsConfig(AppConfig):
             handlers.update_project_quota_when_request_is_saved,
             sender=ExpertRequest,
             dispatch_uid='waldur_mastermind.experts.handlers.'
-                         'update_project_quota_when_expert_saved',
+                         'update_project_quota_when_request_is_saved',
         )
 
         signals.pre_delete.connect(
@@ -36,6 +36,20 @@ class ExpertsConfig(AppConfig):
             sender=ExpertRequest,
             dispatch_uid='waldur_mastermind.experts.handlers.'
                          'update_project_quota_when_request_is_deleted',
+        )
+
+        signals.post_save.connect(
+            handlers.update_customer_quota_when_request_is_saved,
+            sender=ExpertRequest,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'update_customer_quota_when_request_is_saved',
+        )
+
+        signals.pre_delete.connect(
+            handlers.update_customer_quota_when_request_is_deleted,
+            sender=ExpertRequest,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'update_customer_quota_when_request_is_deleted',
         )
 
         signals.post_save.connect(
@@ -92,6 +106,20 @@ class ExpertsConfig(AppConfig):
             sender=ExpertContract,
             dispatch_uid='waldur_mastermind.experts.handlers.'
                          'notify_customer_owners_about_new_contract',
+        )
+
+        signals.post_save.connect(
+            handlers.update_customer_quota_when_contract_is_created,
+            sender=ExpertContract,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'update_customer_quota_when_contract_is_created',
+        )
+
+        signals.pre_delete.connect(
+            handlers.update_customer_quota_when_contract_is_deleted,
+            sender=ExpertContract,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'update_customer_quota_when_contract_is_deleted',
         )
 
         signals.post_save.connect(

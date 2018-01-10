@@ -250,5 +250,5 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     destroy_permissions = [is_pending_request, can_delete_bid]
 
 
-structure_views.ProjectCountersView.register_counter('experts', quotas.get_project_experts_count)
-structure_views.CustomerCountersView.register_counter('experts', quotas.get_customer_experts_count)
+structure_views.ProjectCountersView.register_counter('experts', quotas.get_experts_count)
+structure_views.CustomerCountersView.register_counter('experts', quotas.get_experts_count)

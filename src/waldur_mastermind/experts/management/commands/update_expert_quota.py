@@ -11,3 +11,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for project in structure_models.Project.objects.all():
             quotas.update_project_quota(project)
+
+        for customer in structure_models.Customer.objects.all():
+            quotas.update_customer_quota(customer)
