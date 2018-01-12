@@ -9,6 +9,7 @@ install_requires = [
     'django-auth-ldap>=1.3.0',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
+    'pdfkit>=0.4.1',
     'waldur-core>=0.151.2',
     'waldur_ansible>=0.3.3',
     'waldur_auth_openid>=0.8.7',

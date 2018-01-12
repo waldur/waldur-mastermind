@@ -27,6 +27,7 @@ Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-django-auth-ldap >= 1.3.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
+Requires: pdfkit >= 0.4.1
 
 Obsoletes: nodeconductor-assembly-waldur
 

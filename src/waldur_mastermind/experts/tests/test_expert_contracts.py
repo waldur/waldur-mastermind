@@ -1,3 +1,5 @@
+import mock
+
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -37,3 +39,17 @@ class ExpertContractProjectCacheTest(test.APITransactionTestCase):
         self.expert_contract.team.delete()
         self.expert_contract.team_customer.delete()
         self.assertFalse(models.ExpertContract.objects.filter(id=self.expert_contract.id))
+
+
+class CreatePDFContractTest(test.APITransactionTestCase):
+    @mock.patch('waldur_mastermind.experts.tasks.create_pdf_contract')
+    def test_task_create_pdf_contract_must_be_call_if_bid_was_accepted(self, create_pdf_contract_mock):
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.expert_bid = factories.ExpertBidFactory()
+        self.client.force_authenticate(self.staff)
+        response = self.accept_bid()
+        self.assertEqual(create_pdf_contract_mock.delay.call_count, 1)
+
+    def accept_bid(self):
+        url = factories.ExpertBidFactory.get_url(self.expert_bid, 'accept')
+        return self.client.post(url)
