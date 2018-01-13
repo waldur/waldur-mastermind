@@ -21,7 +21,7 @@ install_requires = [
     'waldur_cost_planning>=0.6.1',
     'waldur_digitalocean>=0.10.2',
     'waldur_freeipa>=0.6.3',
-    'waldur_openstack>=0.39.0',
+    'waldur_openstack>=0.40.0',
     'waldur_paypal>=0.6.3',
     'waldur_slurm>=0.4.0',
 ]
