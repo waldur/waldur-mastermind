@@ -4,6 +4,7 @@ import itertools
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
+from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -51,10 +52,26 @@ class ExpertProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
 class ExpertContractSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
+    file = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
+
+    def get_file(self, obj):
+        if not obj.has_file():
+            return None
+
+        request = self.context['request']
+        return reverse('expert-request-pdf', kwargs={'uuid': obj.request.uuid}, request=request)
+
+    def get_filename(self, obj):
+        if not obj.has_file():
+            return None
+
+        return obj.get_filename()
+
     class Meta(object):
         model = models.ExpertContract
         fields = (
-            'price', 'description', 'team', 'team_uuid', 'team_name',
+            'price', 'description', 'team', 'team_uuid', 'team_name', 'file', 'filename'
         )
         related_paths = {
             'team': ('uuid', 'name'),

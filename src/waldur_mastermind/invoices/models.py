@@ -70,6 +70,18 @@ class Invoice(core_models.UuidMixin, models.Model):
         return sum((item.price for item in self.items))
 
     @property
+    def tax_current(self):
+        return self.price_current * self.tax_percent / 100
+
+    @property
+    def total_current(self):
+        return self.price_current + self.tax_current
+
+    @property
+    def price_current(self):
+        return sum((item.price_current for item in self.items))
+
+    @property
     def items(self):
         return itertools.chain(self.openstack_items.all(),
                                self.offering_items.all(),
@@ -151,12 +163,16 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     def total(self):
         return self.price + self.tax
 
-    @property
-    def price(self):
+    def _price(self, current=False):
+        if not current:
+            usage_days = self.usage_days
+        else:
+            usage_days = utils.get_full_days(self.start, timezone.now())
+
         if self.unit == self.Units.QUANTITY:
             return self.unit_price * self.quantity
         elif self.unit == self.Units.PER_DAY:
-            return self.unit_price * self.usage_days
+            return self.unit_price * usage_days
         elif self.unit == self.Units.PER_HALF_MONTH:
             if self.start.day >= 15 or self.end.day <= 15:
                 return self.unit_price
@@ -164,6 +180,14 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
                 return self.unit_price * 2
 
         return self.unit_price
+
+    @property
+    def price(self):
+        return self._price()
+
+    @property
+    def price_current(self):
+        return self._price(current=True)
 
     @property
     def usage_days(self):

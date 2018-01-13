@@ -7,11 +7,29 @@ class SupportConfig(AppConfig):
     verbose_name = 'HelpDesk'
 
     def ready(self):
+        from waldur_core.quotas import fields as quota_fields
+        from waldur_core.structure import models as structure_models
+
         from . import handlers
 
         Issue = self.get_model('Issue')
         Offering = self.get_model('Offering')
         Comment = self.get_model('Comment')
+
+        structure_models.Project.add_quota_field(
+            name='nc_offering_count',
+            quota_field=quota_fields.CounterQuotaField(
+                target_models=[Offering],
+                path_to_scope='project',
+            )
+        )
+        structure_models.Customer.add_quota_field(
+            name='nc_offering_count',
+            quota_field=quota_fields.CounterQuotaField(
+                target_models=[Offering],
+                path_to_scope='project.customer',
+            )
+        )
 
         signals.post_save.connect(
             handlers.log_issue_save,
