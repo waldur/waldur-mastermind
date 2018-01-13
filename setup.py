@@ -34,7 +34,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.8.4',
+    version='2.8.5',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
