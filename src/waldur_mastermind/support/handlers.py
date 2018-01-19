@@ -73,6 +73,9 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
     if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'}:
         return
 
+    if 'backend_id' in instance.tracker.changed():
+        return
+
     serialized_issue = core_utils.serialize_instance(instance)
     transaction.on_commit(lambda:
                           tasks.send_issue_updated_notification.delay(serialized_issue))
