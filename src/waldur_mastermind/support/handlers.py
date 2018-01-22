@@ -73,7 +73,8 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
     if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'}:
         return
 
-    if 'backend_id' in instance.tracker.changed():
+    # Skip notification if issue is not created on backend yet.
+    if not instance.backend_id:
         return
 
     serialized_issue = core_utils.serialize_instance(instance)
