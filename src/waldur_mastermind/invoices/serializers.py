@@ -149,9 +149,19 @@ class InvoiceNotificationSerializer(serializers.Serializer):
 class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                                serializers.HyperlinkedModelSerializer):
 
-    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_INVOICES['COMPANY_TYPES']],
+    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_CORE['COMPANY_TYPES']],
                                    allow_blank=True,
                                    required=False)
+    email = serializers.EmailField(allow_blank=True, required=False, max_length=75)
+    company = serializers.CharField(allow_blank=True, required=False, max_length=150)
+    address = serializers.CharField(allow_blank=True, required=False, max_length=300)
+    country = serializers.CharField(allow_blank=True, required=False, max_length=255)
+    postal = serializers.CharField(allow_blank=True, required=False, max_length=20)
+    phone = serializers.CharField(allow_blank=True, required=False, max_length=255)
+    bank = serializers.CharField(allow_blank=True, required=False, max_length=150)
+    account = serializers.CharField(allow_blank=True, required=False, max_length=50)
+    default_tax_percent = serializers.DecimalField(max_digits=4, decimal_places=2, required=False)
+    accounting_start_date = serializers.DateTimeField(required=False)
 
     class Meta(object):
         model = models.PaymentDetails

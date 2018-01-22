@@ -1,12 +1,9 @@
-from django.conf import settings
 from django.contrib import admin
-from django.forms import ModelForm, ChoiceField
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
-from waldur_core.structure import admin as structure_admin
 
 from . import models, tasks
 
@@ -49,32 +46,4 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     send_invoice_report.short_description = _('Send invoice report as CSV to email')
 
 
-class PaymentDetailsInline(admin.StackedInline):
-    model = models.PaymentDetails
-
-    def get_readonly_fields(self, request, obj=None):
-        fields = super(PaymentDetailsInline, self).get_readonly_fields(request, obj)
-        if obj and hasattr(obj, 'payment_details') and obj.payment_details.is_billable():
-            fields += ('accounting_start_date',)
-        return fields
-
-
-class PaymentDetailsAdminForm(ModelForm):
-    def __init__(self, *args, **kwargs):
-        super(PaymentDetailsAdminForm, self).__init__(*args, **kwargs)
-        self.fields['type'] = ChoiceField(choices=[(t, t) for t in settings.WALDUR_INVOICES['COMPANY_TYPES']])
-
-
-class PaymentDetailsAdmin(admin.ModelAdmin):
-    form = PaymentDetailsAdminForm
-
-    def get_readonly_fields(self, request, obj=None):
-        fields = super(PaymentDetailsAdmin, self).get_readonly_fields(request, obj)
-        if obj and obj.is_billable():
-            fields += ('accounting_start_date',)
-        return fields
-
-
-structure_admin.CustomerAdmin.inlines += [PaymentDetailsInline]
 admin.site.register(models.Invoice, InvoiceAdmin)
-admin.site.register(models.PaymentDetails, PaymentDetailsAdmin)
