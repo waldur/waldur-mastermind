@@ -414,3 +414,41 @@ class ExpertRequestUsersTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(role in response.data[user.uuid.hex])
+
+
+@override_experts_contract()
+class ExpertRequestNotificationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.project_fixture = structure_fixtures.ProjectFixture()
+        self.customer_owner = self.project_fixture.owner
+        self.project = self.project_fixture.project
+
+        self.backend_patcher = mock.patch('waldur_mastermind.support.backend.get_active_backend')
+        self.backend_mock = self.backend_patcher.start()
+
+        class FakeBackend(object):
+            @staticmethod
+            def create_issue(issue):
+                issue.key = 'backend_issue.key'
+                issue.backend_id = 'backend_issue.key'
+                issue.save()
+
+        self.backend_mock.return_value = FakeBackend()
+
+        self.handlers_patcher = mock.patch('waldur_mastermind.support.tasks.send_issue_updated_notification')
+        self.handlers_mock = self.handlers_patcher.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_creating_new_expert_request_should_not_be_sending_notification_about_newly_created_issue(self):
+        self.client.force_authenticate(self.customer_owner)
+        url = factories.ExpertRequestFactory.get_list_url()
+        self.client.post(url, {
+            'project': structure_factories.ProjectFactory.get_url(self.project),
+            'type': 'custom_vpc_experts',
+            'name': 'Expert request for custom VPC',
+            'ram': 1024,
+            'storage': 10240,
+        })
+        self.assertEqual(self.handlers_mock.call_count, 0)
