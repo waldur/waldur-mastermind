@@ -1,19 +1,24 @@
 from __future__ import unicode_literals
 
-from datetime import datetime
 import functools
-import re
-from six.moves.html_parser import HTMLParser
 import json
+import logging
+import re
+from datetime import datetime
 
+import dateutil.parser
+import requests
 from django.conf import settings
 from django.utils import six
 from jira import JIRA, JIRAError, Comment
 from jira.utils import json_loads
+from six.moves.html_parser import HTMLParser
 
-from waldur_mastermind.support import models
+from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend import SupportBackendError, SupportBackend
 from waldur_mastermind.support.log import event_logger
+
+logger = logging.getLogger(__name__)
 
 
 class JiraBackendError(SupportBackendError):
@@ -246,7 +251,19 @@ class ServiceDeskBackend(JiraBackend):
         backend_issue = self.manager.issue(attachment.issue.backend_id)
         backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
         attachment.backend_id = backend_attachment.id
-        attachment.save(update_fields=['backend_id'])
+        attachment.mime_type = backend_attachment.mimeType
+        attachment.file_size = backend_attachment.size
+        attachment.created = dateutil.parser.parse(backend_attachment.created)
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
+        attachment.author = author
+        try:
+            thumbnail = utils.get_file_content_from_url(backend_attachment.thumbnail)
+            attachment.thumbnail.save(backend_attachment.filename, thumbnail, save=True)
+        except requests.RequestException:
+            logger.error('Attachment thumbnail (id: {backend_id}, url:{url}) synchronization for JIRA has failed.'.
+                         format(backend_id=attachment.backend_id, url=backend_attachment.thumbnail))
+
+        attachment.save()
 
     @reraise_exceptions
     def delete_attachment(self, attachment):

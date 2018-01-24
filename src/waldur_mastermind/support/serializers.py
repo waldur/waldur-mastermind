@@ -1,8 +1,12 @@
 from __future__ import unicode_literals
 
 import copy
+import logging
 import os
 
+import dateutil.parser
+import requests
+import six
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -14,8 +18,9 @@ from waldur_core.core import serializers as core_serializers, utils as core_util
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
-from . import models, backend
+from . import models, backend, utils
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
@@ -256,6 +261,21 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     backend_comments = self._get_backend_comments(issue.key, fields)
                     self._update_comments(issue=issue, backend_comments=backend_comments)
 
+                if 'attachment' in fields and fields['attachment']:
+                    current_file_ids = {b['backend_id'] for b in issue.attachments.all().values('backend_id')
+                                        if b['backend_id']}
+                    backend_file_ids = {six.text_type(b['id']) for b in fields['attachment']}
+                    delete_file_ids = current_file_ids - backend_file_ids
+                    add_file_ids = backend_file_ids - current_file_ids
+                    
+                    if delete_file_ids:
+                        models.Attachment.objects.filter(backend_id__in=delete_file_ids).delete()
+
+                    if add_file_ids:
+                        add_file = [b for b in fields['attachment'] if six.text_type(b['id']) in add_file_ids]
+                        for f in add_file:
+                            self._add_attachment(issue, f)
+
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
             issue.delete()
@@ -353,6 +373,30 @@ class WebHookReceiverSerializer(serializers.Serializer):
         :return: True if current JIRA instance is ServiceDesk, otherwise False.
         """
         return isinstance(backend.get_active_backend(), ServiceDeskBackend)
+
+    def _add_attachment(self, issue, backend_attachment):
+        try:
+            url = backend_attachment['content']
+            filename_content = utils.get_file_content_from_url(url)
+            url = backend_attachment['thumbnail']
+            thumbnail_content = utils.get_file_content_from_url(url)
+        except requests.RequestException:
+            logger.error('Attachment (id: {backend_id}, url:{url}) synchronization for JIRA has failed.'.
+                         format(backend_id=backend_attachment['id'], url=url))
+            return 
+
+        with transaction.atomic():
+            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment['author']['key'])
+            waldur_attachment = models.Attachment.objects.create(
+                issue=issue,
+                backend_id=backend_attachment['id'],
+                mime_type=backend_attachment['mimeType'],
+                file_size=backend_attachment['size'],
+                created=dateutil.parser.parse(backend_attachment['created']),
+                author=author
+            )
+            waldur_attachment.file.save(backend_attachment['filename'], filename_content, save=True)
+            waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
 
     @transaction.atomic()
     def _update_comments(self, issue, backend_comments):
@@ -617,7 +661,8 @@ class AttachmentSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Attachment
-        fields = ('url', 'uuid', 'issue', 'issue_key', 'created', 'file')
+        fields = ('url', 'uuid', 'issue', 'issue_key', 'created', 'file',
+                  'mime_type', 'file_size', 'thumbnail')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
