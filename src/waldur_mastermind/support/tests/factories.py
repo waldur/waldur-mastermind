@@ -23,6 +23,7 @@ class IssueFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Issue
 
+    backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
     key = factory.Sequence(lambda n: 'TST-%s' % n)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     caller = factory.SubFactory(structure_factories.UserFactory)
