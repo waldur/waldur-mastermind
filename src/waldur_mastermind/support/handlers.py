@@ -77,6 +77,10 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
     if not instance.backend_id:
         return
 
+    # Skip notification if issue just has been created on backend.
+    if 'backend_id' in instance.tracker.changed():
+        return
+
     serialized_issue = core_utils.serialize_instance(instance)
     transaction.on_commit(lambda:
                           tasks.send_issue_updated_notification.delay(serialized_issue))
