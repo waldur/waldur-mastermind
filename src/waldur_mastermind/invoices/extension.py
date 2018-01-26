@@ -24,12 +24,6 @@ class InvoicesExtension(WaldurExtension):
             },
             # How many days are given to pay for created invoice
             'PAYMENT_INTERVAL': 30,
-            'COMPANY_TYPES': (
-                'Ministry',
-                'Private company',
-                'Public company',
-                'Government owned company',
-            ),
             'ENABLE_ACCOUNTING_START_DATE': False,
             'INVOICE_REPORTING': {
                 'ENABLE': False,

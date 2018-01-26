@@ -91,13 +91,6 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.invoice.month = 10
         self.invoice.save()
 
-    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
-    def test_invoice_are_skipped_if_payment_details_are_missing(self, send_mail_mock):
-        tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
-        lines = message.splitlines()
-        self.assertEqual(0, len(lines))
-
     @utils.override_invoices_settings(
         INVOICE_REPORTING=INVOICE_REPORTING,
         ENABLE_ACCOUNTING_START_DATE=True,
