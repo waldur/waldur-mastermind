@@ -15,7 +15,8 @@ python-freeipa
 waldur-freeipa
 waldur-slurm
 waldur-paypal
-waldur-mastermind"
+waldur-mastermind
+waldur-zabbix"
 for component in $WALDUR_COMPONENTS
 do
   if [ ! -d "$component" ]
