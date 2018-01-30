@@ -13,7 +13,7 @@ class ZabbixServiceProjectLinkResourceFilterBackendTest(test.APITransactionTestC
         project = fixture.project
 
         server_vm = fixture.instance
-        internal_ip = InternalIPFactory(instance=server_vm)
+        internal_ip = InternalIPFactory.create(instance=server_vm, ip4_address='10.0.10.2')
         settings = factories.ServiceSettingsFactory(customer=fixture.customer, scope=server_vm)
         service = factories.ZabbixServiceFactory(customer=fixture.customer, settings=settings)
         valid_link = factories.ZabbixServiceProjectLinkFactory(service=service, project=project)
