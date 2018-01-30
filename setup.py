@@ -24,7 +24,7 @@ install_requires = [
     'waldur-openstack>=0.40.0',
     'waldur-paypal>=0.6.3',
     'waldur-slurm>=0.4.0',
-    'waldur-zabbix>=0.7.0',
+    'waldur-zabbix>=0.7.1',
 ]
 
 test_requires = [
