@@ -120,18 +120,16 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         return settings.WALDUR_INVOICES['ISSUER_DETAILS']
 
     def get_customer_details(self, invoice):
-        try:
-            payment_details = models.PaymentDetails.objects.get(customer=invoice.customer)
-        except models.PaymentDetails.DoesNotExist:
-            return
         return {
-            'company': payment_details.company,
-            'address': payment_details.address,
-            'country': payment_details.country,
-            'email': payment_details.email,
-            'postal': payment_details.postal,
-            'phone': payment_details.phone,
-            'bank': payment_details.bank,
+            'name': invoice.customer.name,
+            'address': invoice.customer.address,
+            'country': invoice.customer.country,
+            'country_name': invoice.customer.get_country_display(),
+            'email': invoice.customer.email,
+            'postal': invoice.customer.postal,
+            'phone_number': invoice.customer.phone_number,
+            'bank_name': invoice.customer.bank_name,
+            'bank_account': invoice.customer.bank_account,
         }
 
 
@@ -332,20 +330,3 @@ class SAFReportSerializer(serializers.Serializer):
         first_day = self.get_first_day(invoice_item)
         last_day = core_utils.month_end(first_day)
         return '%s-%s' % (self.format_date(first_day), self.format_date(last_day))
-
-
-def get_accounting_start_date(serializer, scope):
-    if not hasattr(scope, 'payment_details'):
-        return None
-    return scope.payment_details.accounting_start_date
-
-
-def add_accounting_start_date(sender, fields, **kwargs):
-    fields['accounting_start_date'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_accounting_start_date', get_accounting_start_date)
-
-
-core_signals.pre_serializer_fields.connect(
-    sender=structure_serializers.CustomerSerializer,
-    receiver=add_accounting_start_date,
-)
