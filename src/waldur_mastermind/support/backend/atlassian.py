@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import re
+import six
 from datetime import datetime
 
 import dateutil.parser
@@ -14,7 +15,7 @@ from jira import JIRA, JIRAError, Comment
 from jira.utils import json_loads
 from six.moves.html_parser import HTMLParser
 
-from waldur_mastermind.support import models, utils
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendError, SupportBackend
 from waldur_mastermind.support.log import event_logger
 
@@ -160,6 +161,23 @@ class JiraBackend(SupportBackend):
         users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
 
+    @reraise_exceptions
+    def create_attachment(self, attachment):
+        backend_issue = self.manager.issue(attachment.issue.backend_id)
+        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
+        attachment.backend_id = backend_attachment.id
+        attachment.mime_type = backend_attachment.mimeType
+        attachment.file_size = backend_attachment.size
+        attachment.created = dateutil.parser.parse(backend_attachment.created)
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
+        attachment.author = author
+        attachment.save()
+
+    @reraise_exceptions
+    def delete_attachment(self, attachment):
+        backend_attachment = self.manager.attachment(attachment.backend_id)
+        backend_attachment.delete()
+
 
 class ServiceDeskBackend(JiraBackend):
     servicedeskapi_path = 'servicedeskapi'
@@ -245,27 +263,3 @@ class ServiceDeskBackend(JiraBackend):
                 raise e
         else:
             return True
-
-    @reraise_exceptions
-    def create_attachment(self, attachment):
-        backend_issue = self.manager.issue(attachment.issue.backend_id)
-        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
-        attachment.backend_id = backend_attachment.id
-        attachment.mime_type = backend_attachment.mimeType
-        attachment.file_size = backend_attachment.size
-        attachment.created = dateutil.parser.parse(backend_attachment.created)
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
-        attachment.author = author
-        try:
-            thumbnail = utils.get_file_content_from_url(backend_attachment.thumbnail)
-            attachment.thumbnail.save(backend_attachment.filename, thumbnail, save=True)
-        except requests.RequestException:
-            logger.error('Attachment thumbnail (id: {backend_id}, url:{url}) synchronization for JIRA has failed.'.
-                         format(backend_id=attachment.backend_id, url=backend_attachment.thumbnail))
-
-        attachment.save()
-
-    @reraise_exceptions
-    def delete_attachment(self, attachment):
-        backend_attachment = self.manager.attachment(attachment.backend_id)
-        backend_attachment.delete()
