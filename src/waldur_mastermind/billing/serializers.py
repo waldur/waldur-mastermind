@@ -99,10 +99,6 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         return obj.total
 
     def get_current(self, obj):
-        request = self.context['request']
-        if request.query_params.get('year', '') or request.query_params.get('month', ''):
-            return None
-
         year = utils.get_current_year()
         month = utils.get_current_month()
         return obj.get_total(year=year, month=month, current=True)
