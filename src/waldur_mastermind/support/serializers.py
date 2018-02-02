@@ -261,12 +261,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     backend_comments = self._get_backend_comments(issue.key, fields)
                     self._update_comments(issue=issue, backend_comments=backend_comments)
 
-                if 'attachment' in fields and fields['attachment']:
+                if 'attachment' in fields:
                     current_file_ids = {b['backend_id'] for b in issue.attachments.all().values('backend_id')
                                         if b['backend_id']}
                     backend_file_ids = {six.text_type(b['id']) for b in fields['attachment']}
                     delete_file_ids = current_file_ids - backend_file_ids
                     add_file_ids = backend_file_ids - current_file_ids
+                    update_file_ids = {b.backend_id for b in issue.attachments.filter(thumbnail='').
+                        exclude(backend_id='')} - delete_file_ids
                     
                     if delete_file_ids:
                         models.Attachment.objects.filter(backend_id__in=delete_file_ids).delete()
@@ -275,6 +277,11 @@ class WebHookReceiverSerializer(serializers.Serializer):
                         add_file = [b for b in fields['attachment'] if six.text_type(b['id']) in add_file_ids]
                         for f in add_file:
                             self._add_attachment(issue, f)
+
+                    if update_file_ids:
+                        update_file = [b for b in fields['attachment'] if six.text_type(b['id']) in update_file_ids]
+                        for f in update_file:
+                            self._update_attachment(issue, f)
 
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
@@ -388,6 +395,9 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def _add_attachment(self, issue, backend_attachment):
         try:
             content = self._download_file(backend_attachment['content'])
+            if 'thumbnail' in backend_attachment:
+                thumbnail_content = self._download_file(backend_attachment['thumbnail'])
+
         except requests.RequestException as error:
             logger.error('Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'
                          .format(backend_id=issue.backend_id, error=error))
@@ -404,6 +414,23 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 author=author
             )
             waldur_attachment.file.save(backend_attachment['filename'], content, save=True)
+            if 'thumbnail' in backend_attachment:
+                waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
+
+    def _update_attachment(self, issue, backend_attachment):
+        if 'thumbnail' not in backend_attachment:
+            return 
+
+        try:
+            content = self._download_file(backend_attachment['thumbnail'])
+        except requests.RequestException as error:
+            logger.error('Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'
+                         .format(backend_id=issue.backend_id, error=error))
+            return
+
+        with transaction.atomic():
+            waldur_attachment = issue.attachments.get(backend_id=backend_attachment['id'])
+            waldur_attachment.thumbnail.save(backend_attachment['filename'], content, save=True)
 
     @transaction.atomic()
     def _update_comments(self, issue, backend_comments):
