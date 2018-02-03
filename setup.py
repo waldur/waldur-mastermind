@@ -13,8 +13,8 @@ install_requires = [
     'waldur-core>=0.153.0',
     'waldur-ansible>=0.3.3',
     'waldur-auth-openid>=0.8.7',
-    'waldur-auth-social>=0.7.7',
-    'waldur-auth-saml2>=0.8.4',
+    'waldur-auth-social>=0.7.8',
+    'waldur-auth-saml2>=0.8.5',
     'waldur-auth-valimo>=0.3.1',
     'waldur-aws>=0.11.2',
     'waldur-azure>=0.3.4',
@@ -22,9 +22,9 @@ install_requires = [
     'waldur-digitalocean>=0.10.2',
     'waldur-freeipa>=0.6.3',
     'waldur-openstack>=0.40.2',
-    'waldur-paypal>=0.6.3',
-    'waldur-slurm>=0.4.0',
-    'waldur-zabbix>=0.7.1',
+    'waldur-paypal>=0.7.0',
+    'waldur-slurm>=0.4.1',
+    'waldur-zabbix>=0.7.2',
 ]
 
 test_requires = [
