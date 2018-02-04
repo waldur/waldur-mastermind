@@ -127,10 +127,9 @@ class OfferingFilter(django_filters.FilterSet):
 
 
 class AttachmentFilter(django_filters.FilterSet):
-    issue_key = django_filters.CharFilter(name='issue__backend_id')
+    issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
+    issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
 
     class Meta(object):
         model = models.Attachment
-        fields = [
-            'issue_key',
-        ]
+        fields = ('issue', 'issue_uuid')

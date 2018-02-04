@@ -57,6 +57,20 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
         self.assertEqual(len(mail.outbox), 1)
 
+    def test_email_notification_is_not_sent_if_issue_just_has_not_been_created_on_backend_yet(self):
+        issue = factories.IssueFactory(backend_id='')
+        issue.status = 'new_status'
+        issue.save()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_email_notification_is_not_sent_if_issue_just_has_been_created_on_backend(self):
+        issue = factories.IssueFactory(backend_id='')
+        issue.backend_id = 'new_backend_id'
+        issue.save()
+
+        self.assertEqual(len(mail.outbox), 0)
+
 
 class CommentCreatedHandlerTest(BaseHandlerTest):
 

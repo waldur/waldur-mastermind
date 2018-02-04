@@ -15,6 +15,7 @@ python-freeipa
 waldur-freeipa
 waldur-slurm
 waldur-paypal
+waldur-zabbix
 waldur-mastermind"
 for component in $WALDUR_COMPONENTS
 do

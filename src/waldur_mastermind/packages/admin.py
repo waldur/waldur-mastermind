@@ -118,9 +118,11 @@ class PackageComponentInlineFormset(BaseInlineFormSet):
         super(PackageComponentInlineFormset, self).add_fields(form, index)
         if 'type' in form.initial and form.initial['type'] in models.PackageTemplate.get_memory_types():
             is_readonly = self.instance and self.instance.is_read_only()
-            form.fields['amount'] = forms.IntegerField(min_value=0,
-                                                       initial=0,
+            form.fields['amount'] = forms.IntegerField(min_value=1,
+                                                       initial=1024,
                                                        widget=core_admin.GBtoMBWidget({'readonly': is_readonly}))
+        elif 'type' in form.initial and form.initial['type'] == models.PackageComponent.Types.CORES:
+            form.fields['amount'] = forms.IntegerField(min_value=1, initial=1)
 
     def clean(self):
         super(PackageComponentInlineFormset, self).clean()

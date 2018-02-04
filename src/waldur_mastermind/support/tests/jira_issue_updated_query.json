@@ -48,7 +48,32 @@
         "self": "http://localhost:8080/rest/api/2/user?username=test_user",
         "timeZone": "America/New_York"
       },
-      "attachment": [],
+      "attachment": [
+        {
+          "id": 10001,
+          "self": "http://www.example.com/jira/rest/api/2.0/attachments/10000",
+          "filename": "picture.jpg",
+          "author": {
+            "self": "http://www.example.com/jira/rest/api/2/user?username=test_user",
+            "key": "test_user",
+            "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
+            "name": "test_user",
+            "avatarUrls": {
+              "48x48": "http://www.example.com/jira/secure/useravatar?size=large&ownerId=fred",
+              "24x24": "http://www.example.com/jira/secure/useravatar?size=small&ownerId=fred",
+              "16x16": "http://www.example.com/jira/secure/useravatar?size=xsmall&ownerId=fred",
+              "32x32": "http://www.example.com/jira/secure/useravatar?size=medium&ownerId=fred"
+            },
+            "displayName": "Test User",
+            "active": false
+          },
+          "created": "2018-01-09T04:01:22.240+0000",
+          "size": 23123,
+          "mimeType": "image/jpeg",
+          "content": "http://www.example.com/jira/attachments/10000",
+          "thumbnail": "http://www.example.com/jira/secure/thumbnail/10000"
+        }
+      ],
       "comment": {
         "comments": [
           {

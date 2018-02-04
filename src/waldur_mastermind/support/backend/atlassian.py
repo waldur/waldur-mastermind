@@ -1,19 +1,25 @@
 from __future__ import unicode_literals
 
-from datetime import datetime
 import functools
-import re
-from six.moves.html_parser import HTMLParser
 import json
+import logging
+import re
+import six
+from datetime import datetime
 
+import dateutil.parser
+import requests
 from django.conf import settings
 from django.utils import six
 from jira import JIRA, JIRAError, Comment
 from jira.utils import json_loads
+from six.moves.html_parser import HTMLParser
 
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendError, SupportBackend
 from waldur_mastermind.support.log import event_logger
+
+logger = logging.getLogger(__name__)
 
 
 class JiraBackendError(SupportBackendError):
@@ -155,6 +161,23 @@ class JiraBackend(SupportBackend):
         users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
 
+    @reraise_exceptions
+    def create_attachment(self, attachment):
+        backend_issue = self.manager.issue(attachment.issue.backend_id)
+        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
+        attachment.backend_id = backend_attachment.id
+        attachment.mime_type = backend_attachment.mimeType
+        attachment.file_size = backend_attachment.size
+        attachment.created = dateutil.parser.parse(backend_attachment.created)
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
+        attachment.author = author
+        attachment.save()
+
+    @reraise_exceptions
+    def delete_attachment(self, attachment):
+        backend_attachment = self.manager.attachment(attachment.backend_id)
+        backend_attachment.delete()
+
 
 class ServiceDeskBackend(JiraBackend):
     servicedeskapi_path = 'servicedeskapi'
@@ -240,15 +263,3 @@ class ServiceDeskBackend(JiraBackend):
                 raise e
         else:
             return True
-
-    @reraise_exceptions
-    def create_attachment(self, attachment):
-        backend_issue = self.manager.issue(attachment.issue.backend_id)
-        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
-        attachment.backend_id = backend_attachment.id
-        attachment.save(update_fields=['backend_id'])
-
-    @reraise_exceptions
-    def delete_attachment(self, attachment):
-        backend_attachment = self.manager.attachment(attachment.backend_id)
-        backend_attachment.delete()

@@ -76,6 +76,16 @@ class PaymentDetailsUpdateTest(test.APITransactionTestCase):
         response = self.client.put(factories.PaymentDetailsFactory.get_url(self.fixture.payment_details), data=payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_updating_of_payments_data_updates_customers_data(self):
+        EMAIL = 'new@customer.com'
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            'email': EMAIL,
+        }
+        self.client.put(factories.PaymentDetailsFactory.get_url(self.fixture.payment_details), data=payload)
+        self.fixture.payment_details.customer.refresh_from_db()
+        self.assertEqual(EMAIL, self.fixture.payment_details.customer.email)
+
 
 @ddt
 class PaymentDetailsDeleteTest(test.APITransactionTestCase):
@@ -115,8 +125,7 @@ class PaymentDetailFilterTest(test.APITransactionTestCase):
         :return: Bool
         """
 
-        if not getattr(customer, 'payment_details', None) or \
-                        customer.payment_details.accounting_start_date > timezone.now():
+        if customer.accounting_start_date > timezone.now():
             return False
 
         return True

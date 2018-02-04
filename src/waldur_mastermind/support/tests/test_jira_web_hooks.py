@@ -1,6 +1,7 @@
 import pkg_resources
 import json
 from datetime import datetime
+import mock
 
 from django.core import mail
 
@@ -10,6 +11,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
 
+from waldur_core.structure.images import dummy_image
 from waldur_mastermind.support import models
 from waldur_mastermind.support.tests import factories
 
@@ -318,3 +320,30 @@ class TestJiraWebHooks(APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 1)
         new_comment_added_subject = render_to_string('support/notification_comment_added_subject.txt').strip()
         self.assertEqual(mail.outbox[0].subject, new_comment_added_subject)
+
+    @mock.patch('waldur_mastermind.support.backend.atlassian.JIRA')
+    def test_add_attachment(self, mock_requests):
+        backend_attachment_id = 'backend_attachment_id'
+        mock_requests.get.return_value = mock.Mock(**{'raw':  dummy_image()})
+        backend_id, issue, support_user = self.set_issue_and_support_user()
+        self.request_data['issue']['key'] = backend_id
+        self.request_data['issue']['fields']['attachment'][0]['id'] = backend_attachment_id
+        self.client.post(self.url, self.request_data)
+        self.assertTrue(models.Attachment.objects.filter(backend_id=backend_attachment_id).exists())
+
+    @mock.patch('waldur_mastermind.support.backend.atlassian.JIRA')
+    def test_if_file_is_received_twice_create_it_once(self, mock_request):
+        backend_attachment_id = 'backend_attachment_id'
+        backend_id, issue, support_user = self.set_issue_and_support_user()
+        self.request_data['issue']['key'] = backend_id
+        self.request_data['issue']['fields']['attachment'][0]['id'] = backend_attachment_id
+        self.client.post(self.url, self.request_data)
+        self.client.post(self.url, self.request_data)
+        self.assertEqual(models.Attachment.objects.filter(backend_id=backend_attachment_id).count(), 1)
+
+    def test_delete_attachment(self):
+        backend_id, issue, support_user = self.set_issue_and_support_user()
+        self.request_data['issue']['key'] = backend_id
+        attachment = factories.AttachmentFactory(issue=issue, backend_id='old_id')
+        self.client.post(self.url, self.request_data)
+        self.assertFalse(models.Attachment.objects.filter(pk=attachment.id).exists())

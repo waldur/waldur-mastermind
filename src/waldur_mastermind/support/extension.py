@@ -81,7 +81,7 @@ class SupportExtension(WaldurExtension):
                 #     },
                 # },
             },
-            'EXCLUDED_ATTACHMENT_TYPES': []
+            'EXCLUDED_ATTACHMENT_TYPES': [],
         }
 
         SUPPRESS_NOTIFICATION_EMAILS = False

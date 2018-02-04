@@ -1,5 +1,3 @@
-import os
-
 from ddt import ddt, data
 from rest_framework import status
 

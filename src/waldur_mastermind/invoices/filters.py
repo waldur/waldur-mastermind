@@ -46,7 +46,7 @@ class AccountingStartDateFilter(core_filters.BaseExternalFilter):
         if value is None:
             return queryset
 
-        query = Q(payment_details__isnull=True) | Q(payment_details__accounting_start_date__gt=timezone.now())
+        query = Q(accounting_start_date__gt=timezone.now())
 
         if value:
             return queryset.exclude(query)

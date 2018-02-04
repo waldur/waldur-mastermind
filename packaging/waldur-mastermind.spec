@@ -1,33 +1,34 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.8.5
+Version: 2.8.6
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.5.0
-Requires: waldur-core >= 0.152.0
+Requires: waldur-core >= 0.154.0
 Requires: waldur-ansible >= 0.3.3
 Requires: waldur-auth-openid >= 0.8.7
-Requires: waldur-auth-social >= 0.7.7
-Requires: waldur-auth-saml2 >= 0.8.4
+Requires: waldur-auth-social >= 0.7.8
+Requires: waldur-auth-saml2 >= 0.8.5
 Requires: waldur-auth-valimo >= 0.3.1
 Requires: waldur-aws >= 0.11.2
 Requires: waldur-azure >= 0.3.4
 Requires: waldur-cost-planning >= 0.6.1
 Requires: waldur-digitalocean >= 0.10.2
 Requires: waldur-freeipa >= 0.6.3
-Requires: waldur-openstack >= 0.40.0
-Requires: waldur-paypal >= 0.6.3
-Requires: waldur-slurm >= 0.4.0
+Requires: waldur-openstack >= 0.40.2
+Requires: waldur-paypal >= 0.7.0
+Requires: waldur-slurm >= 0.4.1
+Requires: waldur-zabbix >= 0.7.2
 Requires: python2-defusedxml >= 0.4.1
 Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-django-auth-ldap >= 1.3.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-jira >= 1.0.7
-Requires: python-pdfkit >= 0.4.1
+Requires: python2-pdfkit >= 0.6.1
 
 Obsoletes: nodeconductor-assembly-waldur
 
@@ -65,6 +66,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Sun Feb 4 2018 Jenkins <jenkins@opennodecloud.com> - 2.8.6-1.el7
+- New upstream release
+
 * Sat Jan 13 2018 Jenkins <jenkins@opennodecloud.com> - 2.8.5-1.el7
 - New upstream release
 
