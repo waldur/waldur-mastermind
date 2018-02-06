@@ -13,6 +13,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 import pdfkit
+import six
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
@@ -33,7 +34,7 @@ class ExpertProvider(core_models.UuidMixin,
         verbose_name = _('Expert providers')
 
     def __str__(self):
-        return str(self.customer)
+        return six.text_type(self.customer)
 
     @classmethod
     def get_url_name(cls):
