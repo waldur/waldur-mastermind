@@ -116,7 +116,7 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
 
     class Meta(object):
         model = models.ExpertRequest
-        fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'description', 'extra',
+        fields = ('url', 'uuid', 'name', 'type', 'state', 'type_label', 'extra',
                   'customer', 'customer_name', 'customer_uuid',
                   'project', 'project_name', 'project_uuid',
                   'created', 'modified', 'contract', 'recurring_billing',
@@ -128,7 +128,6 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
             'url': {'lookup_field': 'uuid', 'view_name': 'expert-request-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
             'issue': {'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
-            'description': {'write_only': True, 'required': False},
         }
         related_paths = {
             'project': ('uuid', 'name'),
