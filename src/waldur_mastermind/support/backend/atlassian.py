@@ -8,7 +8,6 @@ import six
 from datetime import datetime
 
 import dateutil.parser
-import requests
 from django.conf import settings
 from django.utils import six
 from jira import JIRA, JIRAError, Comment
