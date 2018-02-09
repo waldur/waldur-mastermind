@@ -137,6 +137,8 @@ class Offering(core_models.UuidMixin,
 
     class Meta:
         ordering = ['-created']
+        verbose_name = _('Request')
+        verbose_name_plural = _('Requests')
 
     class Permissions(object):
         customer_path = 'project__customer'

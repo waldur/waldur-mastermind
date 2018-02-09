@@ -37,6 +37,8 @@ class Migration(migrations.Migration):
             ],
             options={
                 'abstract': False,
+                'verbose_name': 'Request',
+                'verbose_name_plural': 'Requests',
             },
         ),
     ]
