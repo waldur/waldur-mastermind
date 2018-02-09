@@ -227,9 +227,9 @@ class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
 
 
 class AttachmentSynchronizer(object):
-    def __init__(self, current_issue, backend_issue):
+    def __init__(self, current_issue, backend_id):
         self.current_issue = current_issue
-        self.backend_issue = backend_issue
+        self.backend_issue = self._get_backend_issue(backend_id)
 
     def perform_update(self):
         if self.stale_attachment_ids:
@@ -257,7 +257,7 @@ class AttachmentSynchronizer(object):
     @cached_property
     def current_attachments_map(self):
         return {
-            attachment.backend_id: attachment
+            six.text_type(attachment.backend_id): attachment
             for attachment in self.current_issue.attachments.all()
         }
 
@@ -315,6 +315,10 @@ class AttachmentSynchronizer(object):
         response.raise_for_status()
         return six.BytesIO(response.content)
 
+    def _get_backend_issue(self, backend_id):
+        manager = backend.get_active_backend().manager
+        return manager.issue(backend_id).raw['fields']
+
     def _add_attachment(self, issue, backend_attachment):
         try:
             content = self._download_file(backend_attachment['content'])
@@ -326,24 +330,23 @@ class AttachmentSynchronizer(object):
                          .format(backend_id=issue.backend_id, error=error))
             return
 
-        with transaction.atomic():
-            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment['author']['key'])
-            try:
-                waldur_attachment = models.Attachment.objects.create(
-                    issue=issue,
-                    backend_id=backend_attachment['id'],
-                    mime_type=backend_attachment['mimeType'],
-                    file_size=backend_attachment['size'],
-                    created=dateutil.parser.parse(backend_attachment['created']),
-                    author=author
-                )
-            except IntegrityError:
-                waldur_attachment = models.Attachment.objects.get(
-                    backend_id=backend_attachment['id']
-                )
-            waldur_attachment.file.save(backend_attachment['filename'], content, save=True)
-            if 'thumbnail' in backend_attachment:
-                waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment['author']['key'])
+        try:
+            waldur_attachment = models.Attachment.objects.create(
+                issue=issue,
+                backend_id=backend_attachment['id'],
+                mime_type=backend_attachment['mimeType'],
+                file_size=backend_attachment['size'],
+                created=dateutil.parser.parse(backend_attachment['created']),
+                author=author
+            )
+        except IntegrityError:
+            waldur_attachment = models.Attachment.objects.get(
+                backend_id=backend_attachment['id']
+            )
+        waldur_attachment.file.save(backend_attachment['filename'], content, save=True)
+        if 'thumbnail' in backend_attachment:
+            waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
 
     def _update_attachment(self, issue, backend_attachment, current_attachment):
         try:
@@ -373,7 +376,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         return attrs
 
-    @transaction.atomic()
     def save(self, **kwargs):
         fields = self.initial_data['issue']['fields']
         backend_id = self.initial_data['issue']['key']
@@ -394,7 +396,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     self._update_comments(issue=issue, backend_comments=backend_comments)
 
                 if 'attachment' in fields:
-                    AttachmentSynchronizer(issue, fields).perform_update()
+                    AttachmentSynchronizer(issue, backend_id).perform_update()
 
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)

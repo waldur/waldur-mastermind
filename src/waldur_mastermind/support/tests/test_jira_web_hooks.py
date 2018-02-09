@@ -322,9 +322,9 @@ class TestJiraWebHooks(APITransactionTestCase):
         self.assertEqual(mail.outbox[0].subject, new_comment_added_subject)
 
     @mock.patch('waldur_mastermind.support.backend.atlassian.JIRA')
-    def test_add_attachment(self, mock_requests):
+    def test_add_attachment(self, mock_jira):
         backend_attachment_id = 'backend_attachment_id'
-        mock_requests.get.return_value = mock.Mock(**{'raw':  dummy_image()})
+        mock_jira().issue.return_value = mock.Mock(raw=self.request_data['issue'])
         backend_id, issue, support_user = self.set_issue_and_support_user()
         self.request_data['issue']['key'] = backend_id
         self.request_data['issue']['fields']['attachment'][0]['id'] = backend_attachment_id
