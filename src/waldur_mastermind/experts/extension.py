@@ -10,7 +10,6 @@ class ExpertsExtension(WaldurExtension):
             'REQUEST_CUSTOMER_LINK_TEMPLATE': 'https://www.example.com/#/organizations/{customer_uuid}/experts/{request_uuid}/',
             'INVITATION_LINK_TEMPLATE': 'https://www.example.com/#/invitation/{uuid}/',
             'CURRENCY_NAME': 'EUR',
-            'SITE_NAME': 'Example Waldur Site',
             'CONTRACT': {
                 'offerings': {
                     # 'custom_vpc_experts': {
