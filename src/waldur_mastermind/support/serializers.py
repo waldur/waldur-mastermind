@@ -293,7 +293,7 @@ class AttachmentSynchronizer(object):
         Attachment is considered updated if its thumbnail just has been created.
         """
 
-        if not self.get_backend_attachment(attachment_id)['thumbnail']:
+        if 'thumbnail' not in self.get_backend_attachment(attachment_id):
             return False
 
         if attachment_id not in self.current_attachments_ids:
