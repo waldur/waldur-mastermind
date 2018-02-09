@@ -17,6 +17,7 @@ import six
 
 from waldur_core.core import serializers as core_serializers, utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import models, backend
@@ -580,6 +581,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            unit_price={'decimal_places': 2},
         )
         related_paths = dict(
             issue=('uuid', 'name', 'status', 'key', 'description', 'link'),
@@ -737,6 +739,8 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             type=type,
             product_code=offering_configuration.get('product_code', ''),
             article_code=offering_configuration.get('article_code', ''),
+            unit_price=offering_configuration.get('price', 0),
+            unit=offering_configuration.get('unit', UnitPriceMixin.Units.PER_MONTH),
         )
 
         return offering

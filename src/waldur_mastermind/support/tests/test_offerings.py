@@ -1,9 +1,11 @@
 from __future__ import unicode_literals
 
 from ddt import ddt, data
+from decimal import Decimal
 from django.conf import settings
 import mock
 
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.support.backend import SupportBackendError
 from rest_framework import status, test
 
@@ -189,6 +191,8 @@ class OfferingCreateTest(BaseOfferingTest):
         'label': 'Custom security package',
         'article_code': 'WALDUR-SECURITY',
         'product_code': 'PACK-001',
+        'price': 100,
+        'unit': UnitPriceMixin.Units.PER_DAY,
         'order': ['vm_count'],
         'options': {
             'vm_count': {
@@ -204,17 +208,27 @@ class OfferingCreateProductTest(BaseOfferingTest):
         self.url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.staff)
 
-    def test_product_code_is_copied_from_configuration_to_offering(self):
-        valid_request = {
+    def _get_valid_request(self, project=None):
+        return {
             'type': 'security_package',
             'name': 'Security package request',
             'vm_count': 1000,
-            'project': structure_factories.ProjectFactory.get_url(self.fixture.project)
+            'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project)
         }
+
+    def test_product_code_is_copied_from_configuration_to_offering(self):
+        valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['article_code'], 'WALDUR-SECURITY')
         self.assertEqual(response.data['product_code'], 'PACK-001')
+
+    def test_price_is_copied_from_configuration_to_offering(self):
+        valid_request = self._get_valid_request()
+        response = self.client.post(self.url, valid_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Decimal(response.data['unit_price']), Decimal(100))
+        self.assertEqual(response.data['unit'], 'day')
 
 
 class OfferingUpdateTest(BaseOfferingTest):
