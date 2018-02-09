@@ -17,6 +17,7 @@ import six
 
 from waldur_core.core import serializers as core_serializers, utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import models, backend
@@ -737,6 +738,8 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             type=type,
             product_code=offering_configuration.get('product_code', ''),
             article_code=offering_configuration.get('article_code', ''),
+            unit_price=offering_configuration.get('price', 0),
+            unit=offering_configuration.get('unit', UnitPriceMixin.Units.PER_MONTH),
         )
 
         return offering
