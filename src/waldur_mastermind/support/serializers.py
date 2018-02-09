@@ -581,6 +581,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            unit_price={'decimal_places': 2},
         )
         related_paths = dict(
             issue=('uuid', 'name', 'status', 'key', 'description', 'link'),

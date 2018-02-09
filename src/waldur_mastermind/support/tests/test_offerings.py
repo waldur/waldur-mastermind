@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from ddt import ddt, data
+from decimal import Decimal
 from django.conf import settings
 import mock
 
@@ -226,7 +227,7 @@ class OfferingCreateProductTest(BaseOfferingTest):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['unit_price'], '100.00')
+        self.assertEqual(Decimal(response.data['unit_price']), Decimal(100))
         self.assertEqual(response.data['unit'], 'day')
 
 
