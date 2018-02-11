@@ -14,10 +14,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterModelOptions(
-            name='offering',
-            options={'ordering': ['-created']},
-        ),
         migrations.RemoveField(
             model_name='offering',
             name='type_label',

@@ -8,7 +8,6 @@ import six
 from datetime import datetime
 
 import dateutil.parser
-import requests
 from django.conf import settings
 from django.utils import six
 from jira import JIRA, JIRAError, Comment
@@ -129,9 +128,14 @@ class JiraBackend(SupportBackend):
         Prepends user info to the comment description to display comment author in JIRA.
         User info format - '[user.full_name user.civil_number]: '.
         """
-        return '[%s %s]: %s' % (comment.author.user.full_name or comment.author.user.username,
-                                comment.author.user.civil_number or '',
-                                comment.description)
+        prefix = comment.author.name
+        # User is optional
+        user = comment.author.user
+        if user:
+            prefix = user.full_name or user.username
+            if user.civil_number:
+                prefix += ' ' + user.civil_number
+        return '[%s]: %s' % (prefix, comment.description)
 
     def extract_comment_message(self, comment_body):
         """

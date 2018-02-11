@@ -62,7 +62,8 @@ def _send_issue_notification(issue, template):
     receiver = issue.caller
 
     context = {
-        'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid)
+        'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid),
+        'site_name': settings.WALDUR_CORE['SITE_NAME'],
     }
 
     subject = render_to_string('support/notification_%s_subject.txt' % template).strip()

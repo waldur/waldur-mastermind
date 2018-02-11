@@ -93,6 +93,7 @@ class AttachmentFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Attachment
 
+    backend_id = factory.Sequence(lambda n: 'key_%s' % n)
     issue = factory.SubFactory(IssueFactory)
     file = factory.django.FileField(filename='the_file.txt')
 

@@ -137,6 +137,8 @@ class Offering(core_models.UuidMixin,
 
     class Meta:
         ordering = ['-created']
+        verbose_name = _('Request')
+        verbose_name_plural = _('Requests')
 
     class Permissions(object):
         customer_path = 'project__customer'
@@ -194,7 +196,7 @@ class Attachment(core_models.UuidMixin, TimeStampedModel):
 
     issue = models.ForeignKey(Issue, related_name='attachments')
     file = models.FileField(upload_to='support_attachments')
-    backend_id = models.CharField(max_length=255, blank=True)
+    backend_id = models.CharField(max_length=255, unique=True)
     mime_type = models.CharField(_('MIME type'), max_length=100, blank=True)
     file_size = models.PositiveIntegerField(_('Filesize, B'), blank=True, null=True)
     thumbnail = models.FileField(upload_to='support_attachments_thumbnails', blank=True, null=True)

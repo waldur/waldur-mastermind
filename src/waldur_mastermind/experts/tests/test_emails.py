@@ -50,7 +50,7 @@ class NewExpertRequestMailTest(test.APITransactionTestCase):
         tasks.send_new_request(self.expert_request.uuid.hex)
 
         message = send_mail_mock.call_args[1]['html_message']
-        self.assertTrue('Example Waldur Site' in message)
+        self.assertTrue('Waldur MasterMind' in message)
 
 
 @mock.patch('waldur_mastermind.experts.tasks.send_mail')

@@ -5,17 +5,19 @@ import logging
 import os
 
 import dateutil.parser
-import requests
-import six
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.template import Context, Template
+from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
+import jira
 from rest_framework import serializers, exceptions
+import six
 
 from waldur_core.core import serializers as core_serializers, utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import models, backend
@@ -225,6 +227,139 @@ class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
         )
 
 
+class AttachmentSynchronizer(object):
+    def __init__(self, current_issue, backend_id):
+        self.current_issue = current_issue
+        self.backend_issue = self._get_backend_issue(backend_id)
+
+    def perform_update(self):
+        if self.stale_attachment_ids:
+            models.Attachment.objects.filter(backend_id__in=self.stale_attachment_ids).delete()
+
+        for attachment_id in self.new_attachment_ids:
+            self._add_attachment(
+                self.current_issue,
+                self.get_backend_attachment(attachment_id)
+            )
+
+        for attachment_id in self.updated_attachments_ids:
+            self._update_attachment(
+                self.current_issue,
+                self.get_backend_attachment(attachment_id),
+                self.get_current_attachment(attachment_id)
+            )
+
+    def get_current_attachment(self, attachment_id):
+        return self.current_attachments_map[attachment_id]
+
+    def get_backend_attachment(self, attachment_id):
+        return self.backend_attachments_map[attachment_id]
+
+    @cached_property
+    def current_attachments_map(self):
+        return {
+            six.text_type(attachment.backend_id): attachment
+            for attachment in self.current_issue.attachments.all()
+        }
+
+    @cached_property
+    def current_attachments_ids(self):
+        return set(self.current_attachments_map.keys())
+
+    @cached_property
+    def backend_attachments_map(self):
+        return {
+            six.text_type(attachment['id']): attachment
+            for attachment in self.backend_issue['attachment']
+        }
+
+    @cached_property
+    def backend_attachments_ids(self):
+        return set(self.backend_attachments_map.keys())
+
+    @cached_property
+    def stale_attachment_ids(self):
+        return self.current_attachments_ids - self.backend_attachments_ids
+
+    @cached_property
+    def new_attachment_ids(self):
+        return self.backend_attachments_ids - self.current_attachments_ids
+
+    @cached_property
+    def updated_attachments_ids(self):
+        return filter(self._is_attachment_updated, self.backend_attachments_ids)
+
+    def _is_attachment_updated(self, attachment_id):
+        """
+        Attachment is considered updated if its thumbnail just has been created.
+        """
+
+        if 'thumbnail' not in self.get_backend_attachment(attachment_id):
+            return False
+
+        if attachment_id not in self.current_attachments_ids:
+            return False
+
+        if self.get_current_attachment(attachment_id).thumbnail:
+            return False
+
+        return True
+
+    def _download_file(self, url):
+        """
+        Download file from URL using secure JIRA session.
+        :return: byte stream
+        :raises: requests.RequestException
+        """
+        session = backend.get_active_backend().manager._session
+        response = session.get(url)
+        response.raise_for_status()
+        return six.BytesIO(response.content)
+
+    def _get_backend_issue(self, backend_id):
+        manager = backend.get_active_backend().manager
+        return manager.issue(backend_id).raw['fields']
+
+    def _add_attachment(self, issue, backend_attachment):
+        try:
+            content = self._download_file(backend_attachment['content'])
+            if 'thumbnail' in backend_attachment:
+                thumbnail_content = self._download_file(backend_attachment['thumbnail'])
+
+        except jira.JIRAError as error:
+            logger.error('Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'
+                         .format(backend_id=issue.backend_id, error=error))
+            return
+
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment['author']['key'])
+        try:
+            waldur_attachment = models.Attachment.objects.create(
+                issue=issue,
+                backend_id=backend_attachment['id'],
+                mime_type=backend_attachment['mimeType'],
+                file_size=backend_attachment['size'],
+                created=dateutil.parser.parse(backend_attachment['created']),
+                author=author
+            )
+        except IntegrityError:
+            waldur_attachment = models.Attachment.objects.get(
+                backend_id=backend_attachment['id']
+            )
+        waldur_attachment.file.save(backend_attachment['filename'], content, save=True)
+        if 'thumbnail' in backend_attachment:
+            waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
+
+    def _update_attachment(self, issue, backend_attachment, current_attachment):
+        try:
+            content = self._download_file(backend_attachment['thumbnail'])
+        except jira.JIRAError as error:
+            logger.error('Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'
+                         .format(backend_id=issue.backend_id, error=error))
+            return
+
+        current_attachment.thumbnail.save(backend_attachment['filename'], content, save=True)
+
+
 class WebHookReceiverSerializer(serializers.Serializer):
     class EventType:
         CREATED = 'jira:issue_created'
@@ -242,7 +377,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
         return attrs
 
-    @transaction.atomic()
     def save(self, **kwargs):
         fields = self.initial_data['issue']['fields']
         backend_id = self.initial_data['issue']['key']
@@ -252,6 +386,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
             try:
                 issue = models.Issue.objects.get(backend_id=backend_id)
             except models.Issue.DoesNotExist:
+                logger.warning('Skipping issue update with ID=%s because it does not exist in Waldur', backend_id)
                 pass
             else:
                 backend_issue = self._get_backend_issue(fields=fields)
@@ -262,26 +397,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     self._update_comments(issue=issue, backend_comments=backend_comments)
 
                 if 'attachment' in fields:
-                    current_file_ids = {b['backend_id'] for b in issue.attachments.all().values('backend_id')
-                                        if b['backend_id']}
-                    backend_file_ids = {six.text_type(b['id']) for b in fields['attachment']}
-                    delete_file_ids = current_file_ids - backend_file_ids
-                    add_file_ids = backend_file_ids - current_file_ids
-                    update_file_ids = {b.backend_id for b in issue.attachments.filter(thumbnail='').
-                        exclude(backend_id='')} - delete_file_ids
-                    
-                    if delete_file_ids:
-                        models.Attachment.objects.filter(backend_id__in=delete_file_ids).delete()
-
-                    if add_file_ids:
-                        add_file = [b for b in fields['attachment'] if six.text_type(b['id']) in add_file_ids]
-                        for f in add_file:
-                            self._add_attachment(issue, f)
-
-                    if update_file_ids:
-                        update_file = [b for b in fields['attachment'] if six.text_type(b['id']) in update_file_ids]
-                        for f in update_file:
-                            self._update_attachment(issue, f)
+                    AttachmentSynchronizer(issue, backend_id).perform_update()
 
         elif event_type == self.EventType.DELETED:
             issue = models.Issue.objects.get(backend_id=backend_id)
@@ -381,57 +497,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         """
         return isinstance(backend.get_active_backend(), ServiceDeskBackend)
 
-    def _download_file(self, url):
-        """
-        Download file from URL using secure JIRA session.
-        :return: byte stream
-        :raises: requests.RequestException
-        """
-        session = backend.get_active_backend().manager._session
-        response = session.get(url)
-        response.raise_for_status()
-        return six.BytesIO(response.content)
-
-    def _add_attachment(self, issue, backend_attachment):
-        try:
-            content = self._download_file(backend_attachment['content'])
-            if 'thumbnail' in backend_attachment:
-                thumbnail_content = self._download_file(backend_attachment['thumbnail'])
-
-        except requests.RequestException as error:
-            logger.error('Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'
-                         .format(backend_id=issue.backend_id, error=error))
-            return
-
-        with transaction.atomic():
-            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment['author']['key'])
-            waldur_attachment = models.Attachment.objects.create(
-                issue=issue,
-                backend_id=backend_attachment['id'],
-                mime_type=backend_attachment['mimeType'],
-                file_size=backend_attachment['size'],
-                created=dateutil.parser.parse(backend_attachment['created']),
-                author=author
-            )
-            waldur_attachment.file.save(backend_attachment['filename'], content, save=True)
-            if 'thumbnail' in backend_attachment:
-                waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
-
-    def _update_attachment(self, issue, backend_attachment):
-        if 'thumbnail' not in backend_attachment:
-            return 
-
-        try:
-            content = self._download_file(backend_attachment['thumbnail'])
-        except requests.RequestException as error:
-            logger.error('Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'
-                         .format(backend_id=issue.backend_id, error=error))
-            return
-
-        with transaction.atomic():
-            waldur_attachment = issue.attachments.get(backend_id=backend_attachment['id'])
-            waldur_attachment.thumbnail.save(backend_attachment['filename'], content, save=True)
-
     @transaction.atomic()
     def _update_comments(self, issue, backend_comments):
         comments = {c.backend_id: c for c in issue.comments.all()}
@@ -516,6 +581,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
             project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            unit_price={'decimal_places': 2},
         )
         related_paths = dict(
             issue=('uuid', 'name', 'status', 'key', 'description', 'link'),
@@ -673,6 +739,8 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             type=type,
             product_code=offering_configuration.get('product_code', ''),
             article_code=offering_configuration.get('article_code', ''),
+            unit_price=offering_configuration.get('price', 0),
+            unit=offering_configuration.get('unit', UnitPriceMixin.Units.PER_MONTH),
         )
 
         return offering

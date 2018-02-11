@@ -37,6 +37,9 @@ class Migration(migrations.Migration):
             ],
             options={
                 'abstract': False,
+                'ordering': ['-created'],
+                'verbose_name': 'Request',
+                'verbose_name_plural': 'Requests',
             },
         ),
     ]
