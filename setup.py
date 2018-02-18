@@ -10,21 +10,21 @@ install_requires = [
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'pdfkit>=0.6.1',
-    'waldur-core>=0.155.0',
+    'waldur-core>=0.155.3',
     'waldur-ansible>=0.3.3',
-    'waldur-auth-openid>=0.8.7',
+    'waldur-auth-openid>=0.8.8',
     'waldur-auth-social>=0.7.8',
-    'waldur-auth-saml2>=0.8.6',
-    'waldur-auth-valimo>=0.3.1',
+    'waldur-auth-saml2>=0.9.0',
+    'waldur-auth-valimo>=0.4.0',
     'waldur-aws>=0.11.2',
     'waldur-azure>=0.3.4',
     'waldur-cost-planning>=0.6.1',
     'waldur-digitalocean>=0.10.2',
     'waldur-freeipa>=0.6.3',
-    'waldur-openstack>=0.40.3',
+    'waldur-openstack>=0.40.5',
     'waldur-paypal>=0.7.0',
     'waldur-slurm>=0.4.1',
-    'waldur-zabbix>=0.7.3',
+    'waldur-zabbix>=0.7.4',
 ]
 
 test_requires = [
@@ -35,7 +35,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.8.7',
+    version='2.8.8',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
