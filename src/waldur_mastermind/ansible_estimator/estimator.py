@@ -1,16 +1,15 @@
 from __future__ import unicode_literals
 
 import collections
+import itertools
 import logging
 
-import itertools
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
-
-from waldur_openstack.openstack_tenant import serializers as openstack_serializers
+from waldur_ansible.playbook_jobs.backend.exceptions import AnsibleBackendError
 from waldur_mastermind.packages import models as package_models
+from waldur_openstack.openstack_tenant import serializers as openstack_serializers
 
-from waldur_ansible.backend import AnsibleBackendError
 from . import serializers
 
 logger = logging.getLogger(__name__)
