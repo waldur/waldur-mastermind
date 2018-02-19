@@ -1,0 +1,16 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Get an OpenStack instance
+  connection: local
+  hosts: localhost
+  roles:
+    - connection
+
+- name: List all environments
+  hosts: vm_instance_to_configure
+  tasks:
+    - name: list all installed virtual environments
+      shell: "export WORKON_HOME=/home/{{default_system_user}}/{{virtual_envs_dir_path}} && . /usr/local/bin/virtualenvwrapper.sh && lsvirtualenv -b"
+      args:
+        executable: /bin/bash

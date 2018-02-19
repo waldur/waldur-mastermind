@@ -1,0 +1,26 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: get provisioned instance
+  waldur_os_get_instance:
+    # access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+    # api_url: https://waldur.example.com:8000/api
+    access_token: "{{ access_token }}"
+    api_url: "{{ api_url }}"
+    #name: debian-vm
+    # yeah it is enough to specify only uuid of the instance
+    name: "{{instance_uuid}}"
+    #project: Our little project
+    #project: "{{project_name}}"
+  register: provisioned_instance
+
+- name: set instance facts
+  set_fact:
+    public_ip: "{{provisioned_instance.instance.external_ips.0}}"
+
+- name: add instance to dynamic inventory of current playbook execution
+  add_host:
+    ansible_ssh_private_key_file: "{{ private_key_path }}"
+    ansible_user: "{{default_system_user}}"
+    groups: vm_instance_to_configure
+    hostname: "{{ public_ip }}"

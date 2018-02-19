@@ -1,0 +1,8 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: add ssh public key to instance authorized keys
+  authorized_key:
+    key: "{{hostvars.localhost.public_key}}"
+    state: present
+    user: "{{default_system_user}}"
