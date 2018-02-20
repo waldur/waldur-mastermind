@@ -4,10 +4,8 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import SupportedServices
-from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.utils import quantize_price
 from waldur_openstack.openstack import models as openstack_models
 from waldur_mastermind.support import models as support_models
@@ -18,13 +16,14 @@ from . import models
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
+    factor = serializers.IntegerField(source='get_factor')
 
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.InvoiceItem
-        fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit',
+        fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit', 'factor',
                   'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid',
                   'scope_type', 'scope_uuid',)
 
