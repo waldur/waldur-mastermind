@@ -21,6 +21,8 @@
     backup: yes
 
 - name: trigger virtualenvs directory creation
-  shell: "export WORKON_HOME=/home/{{default_system_user}}/{{virtual_envs_dir_path}} && . /usr/local/bin/virtualenvwrapper.sh"
+  shell: ". /usr/local/bin/virtualenvwrapper.sh"
   args:
     executable: /bin/bash
+  environment:
+    WORKON_HOME: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}"
