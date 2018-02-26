@@ -168,22 +168,24 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         return self.price + self.tax
 
     def _price(self, current=False):
-        if not current:
-            usage_days = self.usage_days
-        else:
-            usage_days = utils.get_full_days(self.start, timezone.now())
+        return self.unit_price * self.get_factor(current)
 
+    def get_factor(self, current=False):
         if self.unit == self.Units.QUANTITY:
-            return self.unit_price * self.quantity
+            return self.quantity
         elif self.unit == self.Units.PER_DAY:
-            return self.unit_price * usage_days
+            if current:
+                return utils.get_full_days(self.start, timezone.now())
+            else:
+                return self.usage_days
         elif self.unit == self.Units.PER_HALF_MONTH:
             if self.start.day >= 15 or self.end.day <= 15:
-                return self.unit_price
+                return 1
             else:
-                return self.unit_price * 2
-
-        return self.unit_price
+                return 2
+        # By default PER_MONTH
+        else:
+            return 1
 
     @property
     def price(self):

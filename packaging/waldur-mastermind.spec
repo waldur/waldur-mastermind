@@ -1,28 +1,28 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.8.8
+Version: 2.8.9
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.5.0
-Requires: waldur-core >= 0.155.3
+Requires: waldur-core >= 0.156.1
 Requires: waldur-ansible >= 0.3.3
-Requires: waldur-auth-openid >= 0.8.8
-Requires: waldur-auth-social >= 0.7.8
-Requires: waldur-auth-saml2 >= 0.9.0
-Requires: waldur-auth-valimo >= 0.4.0
+Requires: waldur-auth-openid >= 0.8.9
+Requires: waldur-auth-social >= 0.7.9
+Requires: waldur-auth-saml2 >= 0.9.1
+Requires: waldur-auth-valimo >= 0.4.1
 Requires: waldur-aws >= 0.11.2
 Requires: waldur-azure >= 0.3.4
 Requires: waldur-cost-planning >= 0.6.1
 Requires: waldur-digitalocean >= 0.10.2
 Requires: waldur-freeipa >= 0.6.3
-Requires: waldur-openstack >= 0.40.5
+Requires: waldur-openstack >= 0.40.6
 Requires: waldur-paypal >= 0.7.0
 Requires: waldur-slurm >= 0.4.1
-Requires: waldur-zabbix >= 0.7.4
+Requires: waldur-zabbix >= 0.7.5
 Requires: python2-defusedxml >= 0.4.1
 Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-django-auth-ldap >= 1.3.0
@@ -66,6 +66,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Mon Feb 26 2018 Jenkins <jenkins@opennodecloud.com> - 2.8.9-1.el7
+- New upstream release
+
 * Sun Feb 18 2018 Jenkins <jenkins@opennodecloud.com> - 2.8.8-1.el7
 - New upstream release
 
