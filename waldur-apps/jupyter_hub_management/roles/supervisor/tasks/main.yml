@@ -1,0 +1,29 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: install apt supervisor package
+  apt:
+    name: supervisor
+    state: present
+
+- name: make sure supervisord is running
+  service:
+    name: supervisor
+    enabled: yes
+    state: started
+
+- name: run supervisord as root
+  lineinfile:
+    dest: /etc/supervisor/supervisord.conf
+    state: present
+    line: "user=root"
+    insertafter: ^\[supervisord\]
+
+- name: adapt socket permissions to solve permission issue
+  lineinfile:
+    dest: /etc/supervisor/supervisord.conf
+    regexp: ^(chmod=\d?\d\d\d).*(sockef file mode \(default 0700\))
+    line: 'chmod=0766                       ; sockef file mode (default 0700)'
+
+- name: restart supervisord to apply supervisord.conf modifications
+  service: name=supervisor state=restarted

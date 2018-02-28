@@ -1,0 +1,7 @@
+#!/bin/bash -l
+
+{% if oauth_config is defined and oauth_config.gitlab_host is not none %}
+export GITLAB_HOST='{{oauth_config.gitlab_host}}'
+{% endif%}
+
+exec jupyterhub --config={{jupyter_vars.jupyterhub_dir}}/jupyterhub_config.py $@

@@ -1,0 +1,28 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Install pytohn3-apt wrapper
+  apt:
+    name: python-apt
+    state: present
+- name: Install the gpg key for nodejs LTS
+  apt_key:
+    url: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
+    state: present
+- name: Install apt-transport-https to be able to work with https repos
+  apt:
+    name: apt-transport-https
+    state: present
+- apt_repository:
+    repo: "deb https://deb.nodesource.com/node_4.x {{ ansible_distribution_release }} main"
+    state: present
+- name: Install nodejs
+  apt:
+    name: nodejs=4.*
+    state: present
+    update_cache: yes
+- name: Install configurable-http-proxy globally
+  npm:
+    name: configurable-http-proxy
+    global: yes
+    state: present

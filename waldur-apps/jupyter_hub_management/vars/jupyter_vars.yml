@@ -1,0 +1,62 @@
+jupyterhub_dir: /etc/jupyterhub
+jupyterhub_log_dir: /var/log/jupyterhub
+user_process_memory_limit: 0.2G
+user_process_cpu_limit: 0.5
+port: 443
+
+#oauth_callback_url: http://192.168.221.229/hub/oauth_callback
+#oauth_client_id: 40229b53a035c4be7e6f
+#oauth_client_secret: 8a1a26db8f090025f95c9b5bc091f2b514da3031
+
+ssl_cert_directory: /etc/ssl/own_certs
+ssl_csr_directory: /etc/ssl/csr
+ssl_cert_path: /etc/ssl/own_certs/local_jupyterhub.crt
+ssl_key_path: /etc/ssl/private/local_jupyterhub.pem
+csr_path: /etc/ssl/csr/local_jupyterhub.csr
+
+# The base directory of user accounts.
+home_dir: /home
+
+# Users with administrative privileges.
+#jupyterhub_admin_users:
+#  - {
+#    username: instructor1,
+#    password: instructor1 #will not work
+#  }
+#  - {
+#    username: instructor2,
+#    password: instructor2,
+#  }
+
+# Whitelist of jupyterhub users.
+#jupyterhub_users:
+#  - {
+#    username: instructor1,
+#    password: instructor1 #will not work
+#  }
+#  - {
+#    username: instructor2,
+#    password: instructor2
+#  }
+#  - {
+#    username: grader1,
+#    password: grader1
+#  }
+#  - {
+#    username: grader2,
+#    password: grader2
+#  }
+#  - {
+#    username: student1,
+#    password: student1
+#  }
+
+#jupyterhub_groups:
+#  - {
+#      name: group1,
+#      members: ["instructor1", "grader1"]
+#    }
+#  - {
+#      name: group2,
+#      members: ["instructor2", "grader2"]
+#    }

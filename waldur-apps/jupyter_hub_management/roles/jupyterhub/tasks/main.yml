@@ -1,0 +1,40 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Install Jupyter globally
+  pip:
+    name: jupyter
+    executable: pip3
+    state: present
+
+- name: Install ipykernel globally
+  pip:
+    name: ipykernel
+    executable: pip3
+    state: present
+
+- name: Install JupyterHub globally
+  pip:
+    name: jupyterhub
+    executable: pip3
+    state: present
+
+- name: Install systemd spawner globally for jupyter sessions management
+  pip:
+    name: jupyterhub-systemdspawner
+    executable: pip3
+    state: present
+
+- name: Install oauthenticator for JupyterHub globally
+  pip:
+    name: oauthenticator
+    executable: pip3
+    state: present
+  when: oauth_config is defined
+
+- name: Install PyJWT when Azure OAuth is enabled
+  pip:
+    name: PyJWT
+    executable: pip3
+    state: present
+  when: oauth_config is defined and oauth_config.type == 2

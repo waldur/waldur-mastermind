@@ -1,10 +1,10 @@
 # -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
 ---
-- name: Get an OpenStack instance
+- name: Initialize inventory
   connection: local
   hosts: localhost
   roles:
-    - connection
+    - inventory_initialized
 
 - name: Install python environment & identify exact python version
   become: yes
