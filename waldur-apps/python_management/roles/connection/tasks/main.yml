@@ -3,15 +3,9 @@
 ---
 - name: get provisioned instance
   waldur_os_get_instance:
-    # access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
-    # api_url: https://waldur.example.com:8000/api
     access_token: "{{ access_token }}"
     api_url: "{{ api_url }}"
-    #name: debian-vm
-    # yeah it is enough to specify only uuid of the instance
     name: "{{instance_uuid}}"
-    #project: Our little project
-    #project: "{{project_name}}"
   register: provisioned_instance
 
 - name: set instance facts

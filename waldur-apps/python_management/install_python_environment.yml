@@ -6,12 +6,16 @@
   roles:
     - connection
 
-- name: Install python environment
+- name: Install python environment & identify exact python version
   become: yes
   hosts: vm_instance_to_configure
   tasks:
-    - include_role:
+    - name: Install python environment
+      include_role:
         name: python_pip_installed
+    #NB! name is important for backend logic!
+    - name: Identify installed python version
+      command: python3 -V
 
 - name: Initialize virtualenvwrapper
   hosts: vm_instance_to_configure
