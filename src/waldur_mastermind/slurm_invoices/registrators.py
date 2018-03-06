@@ -1,11 +1,9 @@
 import logging
-import math
 
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices import models as invoice_models
-
 from waldur_slurm import models as slurm_models
-from . import models
+from . import models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +36,7 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             return invoice_models.GenericInvoiceItem.objects.create(
                 scope=allocation,
                 project=source.service_project_link.project,
-                unit_price=self.get_price(allocation, package),
+                unit_price=utils.get_deposit_usage(allocation, package),
                 unit=invoice_models.GenericInvoiceItem.Units.QUANTITY,
                 quantity=1,
                 product_code=package.product_code,
@@ -56,17 +54,10 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             logger.debug('Skip SLURM invoice item because pricing package'
                          ' for service settings %s is not defined.', service_settings)
 
-    def get_price(self, allocation, package):
-        minutes_in_hour = 60
-        mb_in_gb = 1024
-        cpu_price = int(math.ceil(1.0 * allocation.cpu_usage / minutes_in_hour)) * package.cpu_price
-        gpu_price = int(math.ceil(1.0 * allocation.gpu_usage / minutes_in_hour)) * package.gpu_price
-        ram_price = int(math.ceil(1.0 * allocation.ram_usage / mb_in_gb)) * package.ram_price
-        return cpu_price + gpu_price + ram_price
-
     def get_details(self, source):
         return {
             'cpu_usage': source.cpu_usage,
             'gpu_usage': source.gpu_usage,
             'ram_usage': source.ram_usage,
+            'deposit_usage': source.deposit_usage,
         }

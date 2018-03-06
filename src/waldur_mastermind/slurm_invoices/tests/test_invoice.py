@@ -46,6 +46,7 @@ class InvoicesTest(TestCase):
             'gpu_usage': allocation.gpu_usage,
             'ram_usage': allocation.ram_usage,
             'scope_uuid': allocation.uuid.hex,
+            'deposit_usage': '0.00',
         })
 
     def create_package(self):
