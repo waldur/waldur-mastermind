@@ -1,12 +1,11 @@
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
-
+from waldur_ansible.playbook_jobs import models
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.serializers import PermissionFieldFilteringMixin
 from waldur_openstack.openstack_tenant import models as openstack_models
-from waldur_ansible import models
 
 
 class JobEstimateSerializer(PermissionFieldFilteringMixin,
