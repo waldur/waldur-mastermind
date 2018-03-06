@@ -2,6 +2,8 @@ from django.utils import timezone
 
 from waldur_mastermind.invoices import registrators
 
+from . import utils
+
 
 def add_new_allocation_to_invoice(sender, instance, created=False, **kwargs):
     if not created:
@@ -27,18 +29,32 @@ def update_invoice_item_on_allocation_usage_update(sender, instance, created=Fal
         return
 
     allocation = instance
-
-    has_changed = (allocation.tracker.has_changed('cpu_usage') or
-                   allocation.tracker.has_changed('gpu_usage') or
-                   allocation.tracker.has_changed('ram_usage'))
-    if not has_changed:
+    if not allocation.usage_changed():
         return
 
     invoice_item = registrators.RegistrationManager.get_item(allocation)
     if not invoice_item:
         return
-    registrator = registrators.RegistrationManager.get_registrator(allocation)
-    package = registrator.get_package(allocation)
+
+    package = utils.get_package(allocation)
     if package:
-        invoice_item.unit_price = registrator.get_price(allocation, package)
+        invoice_item.unit_price = utils.get_deposit_usage(allocation, package)
         invoice_item.save(update_fields=['unit_price'])
+
+
+def update_allocation_deposit(sender, instance, created=False, **kwargs):
+    allocation = instance
+
+    package = utils.get_package(allocation)
+    if not package:
+        return
+
+    if created or allocation.usage_changed():
+        if 'deposit_limit' in (kwargs.get('update_fields') or {}):
+            return
+
+        allocation.deposit_limit = utils.get_deposit_limit(allocation, package)
+        if created:
+            allocation.save()
+        else:
+            allocation.save(update_fields=['deposit_limit'])

@@ -23,6 +23,12 @@ class SlurmInvoicesConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.update_allocation_deposit,
+            sender=slurm_models.Allocation,
+            dispatch_uid='waldur_slurm.handlers.update_allocation_deposit',
+        )
+
+        signals.post_save.connect(
             handlers.terminate_invoice_when_allocation_cancelled,
             sender=slurm_models.Allocation,
             dispatch_uid='waldur_slurm.handlers.terminate_invoice_when_allocation_cancelled',
