@@ -23,7 +23,7 @@ install_requires = [
     'waldur-freeipa>=0.6.3',
     'waldur-openstack>=0.40.6',
     'waldur-paypal>=0.7.0',
-    'waldur-slurm>=0.4.1',
+    'waldur-slurm>=0.5.0',
     'waldur-zabbix>=0.7.5',
 ]
 
