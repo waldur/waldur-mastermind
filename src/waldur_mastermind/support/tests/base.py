@@ -1,5 +1,6 @@
 import copy
 
+import mock
 from django.conf import settings
 from django.test import override_settings
 from rest_framework import test
@@ -10,10 +11,16 @@ from . import fixtures
 class BaseTest(test.APITransactionTestCase):
 
     def setUp(self):
-        support_backend = 'waldur_mastermind.support.backend.atlassian:SupportBackend'
+        support_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
         settings.WALDUR_SUPPORT['ENABLED'] = True
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = support_backend
         self.fixture = fixtures.SupportFixture()
+        mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
+        self.mock_get_active_backend = mock_patch.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
 
 
 def override_support_settings(**kwargs):

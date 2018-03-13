@@ -2,6 +2,7 @@ from ddt import ddt, data
 from rest_framework import status
 
 from waldur_mastermind.support.tests.base import override_support_settings
+
 from . import factories, base
 
 

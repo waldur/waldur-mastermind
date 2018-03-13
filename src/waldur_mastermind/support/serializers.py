@@ -4,23 +4,20 @@ import copy
 import logging
 import os
 
-import dateutil.parser
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction, IntegrityError
+from django.db import transaction
 from django.template import Context, Template
-from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
-import jira
 from rest_framework import serializers, exceptions
-import six
 
-from waldur_core.core import serializers as core_serializers, utils as core_utils
+from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
+from waldur_jira.serializers import WebHookReceiverSerializer as JiraWebHookReceiverSerializer
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
-from . import models, backend
+from . import models
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -227,340 +224,38 @@ class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
         )
 
 
-class AttachmentSynchronizer(object):
-    def __init__(self, current_issue, backend_id):
-        self.current_issue = current_issue
-        self.backend_issue = self._get_backend_issue(backend_id)
+class WebHookReceiverSerializer(JiraWebHookReceiverSerializer):
+    def get_project(self, project_key):
+        class Project:
+            def get_backend(self):
+                return ServiceDeskBackend()
+            
+        return Project()
 
-    def perform_update(self):
-        if self.stale_attachment_ids:
-            models.Attachment.objects.filter(backend_id__in=self.stale_attachment_ids).delete()
-
-        for attachment_id in self.new_attachment_ids:
-            self._add_attachment(
-                self.current_issue,
-                self.get_backend_attachment(attachment_id)
-            )
-
-        for attachment_id in self.updated_attachments_ids:
-            self._update_attachment(
-                self.current_issue,
-                self.get_backend_attachment(attachment_id),
-                self.get_current_attachment(attachment_id)
-            )
-
-    def get_current_attachment(self, attachment_id):
-        return self.current_attachments_map[attachment_id]
-
-    def get_backend_attachment(self, attachment_id):
-        return self.backend_attachments_map[attachment_id]
-
-    @cached_property
-    def current_attachments_map(self):
-        return {
-            six.text_type(attachment.backend_id): attachment
-            for attachment in self.current_issue.attachments.all()
-        }
-
-    @cached_property
-    def current_attachments_ids(self):
-        return set(self.current_attachments_map.keys())
-
-    @cached_property
-    def backend_attachments_map(self):
-        return {
-            six.text_type(attachment['id']): attachment
-            for attachment in self.backend_issue['attachment']
-        }
-
-    @cached_property
-    def backend_attachments_ids(self):
-        return set(self.backend_attachments_map.keys())
-
-    @cached_property
-    def stale_attachment_ids(self):
-        return self.current_attachments_ids - self.backend_attachments_ids
-
-    @cached_property
-    def new_attachment_ids(self):
-        return self.backend_attachments_ids - self.current_attachments_ids
-
-    @cached_property
-    def updated_attachments_ids(self):
-        return filter(self._is_attachment_updated, self.backend_attachments_ids)
-
-    def _is_attachment_updated(self, attachment_id):
-        """
-        Attachment is considered updated if its thumbnail just has been created.
-        """
-
-        if 'thumbnail' not in self.get_backend_attachment(attachment_id):
-            return False
-
-        if attachment_id not in self.current_attachments_ids:
-            return False
-
-        if self.get_current_attachment(attachment_id).thumbnail:
-            return False
-
-        return True
-
-    def _download_file(self, url):
-        """
-        Download file from URL using secure JIRA session.
-        :return: byte stream
-        :raises: requests.RequestException
-        """
-        session = backend.get_active_backend().manager._session
-        response = session.get(url)
-        response.raise_for_status()
-        return six.BytesIO(response.content)
-
-    def _get_backend_issue(self, backend_id):
-        manager = backend.get_active_backend().manager
-        return manager.issue(backend_id).raw['fields']
-
-    def _add_attachment(self, issue, backend_attachment):
-        try:
-            content = self._download_file(backend_attachment['content'])
-            if 'thumbnail' in backend_attachment:
-                thumbnail_content = self._download_file(backend_attachment['thumbnail'])
-
-        except jira.JIRAError as error:
-            logger.error('Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'
-                         .format(backend_id=issue.backend_id, error=error))
-            return
-
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment['author']['key'])
-        try:
-            waldur_attachment = models.Attachment.objects.create(
-                issue=issue,
-                backend_id=backend_attachment['id'],
-                mime_type=backend_attachment['mimeType'],
-                file_size=backend_attachment['size'],
-                created=dateutil.parser.parse(backend_attachment['created']),
-                author=author
-            )
-        except IntegrityError:
-            waldur_attachment = models.Attachment.objects.get(
-                backend_id=backend_attachment['id']
-            )
-        waldur_attachment.file.save(backend_attachment['filename'], content, save=True)
-        if 'thumbnail' in backend_attachment:
-            waldur_attachment.thumbnail.save(backend_attachment['filename'], thumbnail_content, save=True)
-
-    def _update_attachment(self, issue, backend_attachment, current_attachment):
-        try:
-            content = self._download_file(backend_attachment['thumbnail'])
-        except jira.JIRAError as error:
-            logger.error('Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'
-                         .format(backend_id=issue.backend_id, error=error))
-            return
-
-        current_attachment.thumbnail.save(backend_attachment['filename'], content, save=True)
-
-
-class WebHookReceiverSerializer(serializers.Serializer):
-    class EventType:
-        CREATED = 'jira:issue_created'
-        UPDATED = 'jira:issue_updated'
-        DELETED = 'jira:issue_deleted'
-
-    PUBLIC_COMMENT_KEY = 'sd.public.comment'
-
-    def validate(self, attrs):
-        if 'issue' not in self.initial_data:
-            raise serializers.ValidationError(_('"issue" is missing in request data. Cannot process issue.'))
-
-        if 'webhookEvent' not in self.initial_data:
-            raise serializers.ValidationError(_('"webhookEvent" is missing in request data. Cannot find out even type'))
-
-        return attrs
-
-    def save(self, **kwargs):
-        fields = self.initial_data['issue']['fields']
-        backend_id = self.initial_data['issue']['key']
-
-        event_type = self.initial_data['webhookEvent']
-        if event_type == self.EventType.UPDATED:
-            try:
-                issue = models.Issue.objects.get(backend_id=backend_id)
-            except models.Issue.DoesNotExist:
-                logger.warning('Skipping issue update with ID=%s because it does not exist in Waldur', backend_id)
-                pass
-            else:
-                backend_issue = self._get_backend_issue(fields=fields)
-                self._update_issue(issue=issue, backend_issue=backend_issue)
-
-                if 'comment' in fields:
-                    backend_comments = self._get_backend_comments(issue.key, fields)
-                    self._update_comments(issue=issue, backend_comments=backend_comments)
-
-                if 'attachment' in fields:
-                    AttachmentSynchronizer(issue, backend_id).perform_update()
-
-        elif event_type == self.EventType.DELETED:
-            issue = models.Issue.objects.get(backend_id=backend_id)
-            issue.delete()
-
-    def _get_backend_issue(self, fields):
-        """
-        Builds a dictionary of issue attributes and values read from a JIRA response.
-        :param fields: issue fields in a response;
-        :return: a dictionary of issue attributes and values
-        """
-        backend_issue = {
-            'resolution': self._get_field_name(fields, 'resolution'),
-            'status': self._get_field_name(fields, 'status'),
-            'impact': self._get_impact_field(fields=fields),
-            'summary': fields['summary'],
-            'priority': self._get_field_name(fields, 'priority'),
-            'description': fields['description'] or '',
-            'type': fields['issuetype']['name'],
-        }
-
-        custom_field_values = [fields[customfield] for customfield in fields if customfield.startswith('customfield')]
-        backend_issue['first_response_sla'] = self._get_sla_field_value(custom_field_values)
-
-        assignee = self._get_support_user_by_field_name(field_name='assignee', fields=fields)
-        if assignee:
-            backend_issue['assignee'] = assignee
-
-        reporter = self._get_support_user_by_field_name(field_name='reporter', fields=fields)
-        if reporter:
-            backend_issue['reporter'] = reporter
-            if reporter.user:
-                backend_issue['caller'] = reporter.user
-
-        return backend_issue
-
-    def _update_issue(self, issue, backend_issue):
-        """
-        Updates given issue from the backend issue if it has been changed.
-        :param issue: an issue to update
-        :param backend_issue: a set of parameters to be updated.
-        """
-        updated = False
-
-        for field, backend_value in backend_issue.items():
-            current_value = getattr(issue, field)
-            if current_value != backend_value:
-                setattr(issue, field, backend_value)
-                updated = True
-
-        if updated:
-            issue.save()
-
-    def _get_field_name(self, fields, field_name, default_value=''):
-        """ Returns 'name' attribute of the field or default_value if the value is None """
-        return default_value if not fields[field_name] else fields[field_name]['name']
-
-    def _get_sla_field_value(self, custom_field_values):
-        sla_field_name = settings.WALDUR_SUPPORT.get('ISSUE', {}).get('sla_field', None)
-
-        for field in custom_field_values:
-            if isinstance(field, dict):
-                name = field.get('name', None)
-                if name and name == sla_field_name:
-                    ongoing_cycle = field.get('ongoingCycle', {})
-                    breach_time = ongoing_cycle.get('breachTime', {})
-                    epoch_milliseconds = breach_time.get('epochMillis', None)
-                    if epoch_milliseconds:
-                        return core_utils.timestamp_to_datetime(epoch_milliseconds / 1000.0)
-
-        return None
-
-    def _get_impact_field(self, fields):
-        issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
-        impact_field_name = issue_settings.get('impact_field', None)
-        return fields.get(impact_field_name, '')
-
-    def _get_backend_comments(self, issue_key, fields):
-        """
-        Forms a dictionary of a backend comments where an id is a key and a comment body is a value.
-        :param issue_key: an issue key to look up for comments;
-        :param fields: fields from issue in the response;
-        :return: a dictionary of a backend comments with their ids as keys.
-        """
-        active_backend = backend.get_active_backend()
-        if self._is_service_desk():
-            comments = active_backend.expand_comments(issue_key)
-            backend_comments = {c['id']: c for c in comments}
-        else:
-            backend_comments = {c['id']: c for c in fields['comment']['comments']}
-
-        return backend_comments
-
-    def _is_service_desk(self):
-        """
-        :return: True if current JIRA instance is ServiceDesk, otherwise False.
-        """
-        return isinstance(backend.get_active_backend(), ServiceDeskBackend)
-
-    @transaction.atomic()
-    def _update_comments(self, issue, backend_comments):
-        comments = {c.backend_id: c for c in issue.comments.all()}
-        active_backend = backend.get_active_backend()
-
-        for exist_comment_id in set(backend_comments) & set(comments):
-            backend_comment = backend_comments[exist_comment_id]
-            comment = comments[exist_comment_id]
-
-            update_fields = []
-
-            backend_comment_description = active_backend.extract_comment_message(backend_comment['body'])
-            if comment.description != backend_comment_description:
-                comment.description = backend_comment_description
-                update_fields.append('description')
-
-            if self._is_service_desk():
-                is_public = self._get_comment_public_field_value(backend_comment)
-                if is_public != comment.is_public:
-                    comment.is_public = is_public
-                    update_fields.append('is_public')
-
-            if update_fields:
-                comment.save(update_fields=update_fields)
-
-        for new_comment_id in set(backend_comments) - set(comments):
-            backend_comment = backend_comments[new_comment_id]
-            author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment['author']['key'])
-            new_comment = models.Comment(
-                issue=issue,
-                author=author,
-                description=backend_comment['body'],
-                backend_id=backend_comment['id'],
-            )
-
-            if self._is_service_desk():
-                new_comment.is_public = self._get_comment_public_field_value(backend_comment)
-
-            new_comment.save()
-
-        models.Comment.objects.filter(backend_id__in=set(comments) - set(backend_comments)).delete()
-
-    def _get_comment_public_field_value(self, backend_comment):
-        properties = backend_comment.get('properties', {})
+    def get_issue(self, project, key, create):
+        issue = None
 
         try:
-            internal_property = next(p for p in properties if p.get('key') == self.PUBLIC_COMMENT_KEY)
-        except StopIteration:
-            return True
+            issue = models.Issue.objects.get(backend_id=key)
+        except models.Issue.DoesNotExist:
+            if not create:
+                raise serializers.ValidationError('Issue with id %s does not exist.' % key)
 
-        is_internal = internal_property.get('value', {}).get('internal', False)
+        return issue
 
-        return not is_internal
+    def get_comment(self, issue, key, create):
+        comment = None
 
-    def _get_support_user_by_field_name(self, fields, field_name):
-        support_user = None
+        try:
+            comment = models.Comment.objects.get(issue=issue, backend_id=key)
+        except models.Comment.DoesNotExist:
+            if not create:
+                raise serializers.ValidationError('Comment with id %s does not exist.' % key)
 
-        if field_name in fields and fields[field_name]:
-            support_user_backend_key = fields[field_name]['key']
+        return comment
+    
 
-            if support_user_backend_key:
-                support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
-
-        return support_user
+WebHookReceiverSerializer.remove_event(['jira:issue_created'])
 
 
 class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
@@ -774,7 +469,8 @@ class AttachmentSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Attachment
         fields = ('url', 'uuid', 'issue', 'issue_key', 'created', 'file',
-                  'mime_type', 'file_size', 'thumbnail')
+                  'mime_type', 'file_size', 'thumbnail', 'backend_id', )
+        read_only_fields = ('backend_id',)
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},

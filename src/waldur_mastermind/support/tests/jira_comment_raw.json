@@ -1,0 +1,29 @@
+{
+  "body": "[Name LastName]: Comment description",
+  "updateAuthor": {
+    "displayName": "USER",
+    "name": "user",
+    "self": "https://example.net/rest/api/2/user?username=user",
+    "avatarUrls": {},
+    "emailAddress": "user@example.ee",
+    "key": "user",
+    "active": true,
+    "timeZone": "Europe/Helsinki",
+    "accountId": "aaa-bbb-ccc"
+  },
+  "created": "2018-03-28T10:40:46.974+0300",
+  "self": "https://example.net/rest/api/2/issue/11396/comment/10499",
+  "author": {
+    "displayName": "NC TEST USER",
+    "name": "user",
+    "self": "https://example.net/rest/api/2/user?username=user",
+    "avatarUrls": {},
+    "emailAddress": "user@example.ee",
+    "key": "user",
+    "active": true,
+    "timeZone": "Europe/Helsinki",
+    "accountId": "aaa-bbb-ccc"
+  },
+  "updated": "2018-03-28T10:40:46.974+0300",
+  "id": "10001"
+}

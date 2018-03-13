@@ -153,9 +153,8 @@ class OfferingCreateTest(BaseOfferingTest):
         offering = models.Offering.objects.first()
         self.assertEqual(issue.project.uuid, offering.project.uuid)
 
-    @mock.patch('waldur_mastermind.support.backend.get_active_backend')
-    def test_offering_is_not_created_if_backend_raises_error(self, get_active_backend_mock):
-        get_active_backend_mock.side_effect = SupportBackendError()
+    def test_offering_is_not_created_if_backend_raises_error(self):
+        self.mock_get_active_backend.side_effect = SupportBackendError()
 
         request_data = self._get_valid_request()
         self.assertEqual(models.Offering.objects.count(), 0)
@@ -202,6 +201,7 @@ class OfferingCreateTest(BaseOfferingTest):
         },
     },
 })
+@mock.patch('waldur_mastermind.support.backend.get_active_backend')
 class OfferingCreateProductTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateProductTest, self).setUp()
@@ -216,14 +216,14 @@ class OfferingCreateProductTest(BaseOfferingTest):
             'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project)
         }
 
-    def test_product_code_is_copied_from_configuration_to_offering(self):
+    def test_product_code_is_copied_from_configuration_to_offering(self, mock_active_backend):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['article_code'], 'WALDUR-SECURITY')
         self.assertEqual(response.data['product_code'], 'PACK-001')
 
-    def test_price_is_copied_from_configuration_to_offering(self):
+    def test_price_is_copied_from_configuration_to_offering(self, mock_active_backend):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -323,10 +323,6 @@ class OfferingCompleteTest(BaseOfferingTest):
 
 @ddt
 class OfferingTerminateTest(BaseOfferingTest):
-
-    def setUp(self, **kwargs):
-        super(OfferingTerminateTest, self).setUp(**kwargs)
-
     def test_staff_can_terminate_offering(self):
         self.client.force_authenticate(self.fixture.staff)
         self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)

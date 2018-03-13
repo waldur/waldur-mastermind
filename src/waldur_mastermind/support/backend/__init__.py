@@ -18,28 +18,28 @@ class SupportBackendError(Exception):
 class SupportBackend(object):
     """ Interface for support backend """
     def create_issue(self, issue):
-        pass
+        raise NotImplementedError
 
     def update_issue(self, issue):
-        pass
+        raise NotImplementedError
 
     def delete_issue(self, issue):
-        pass
+        raise NotImplementedError
 
     def create_comment(self, comment):
-        pass
+        raise NotImplementedError
 
     def update_comment(self, comment):
-        pass
+        raise NotImplementedError
 
     def delete_comment(self, comment):
-        pass
+        raise NotImplementedError
 
     def create_attachment(self, attachment):
-        pass
+        raise NotImplementedError
 
     def delete_attachment(self, attachment):
-        pass
+        raise NotImplementedError
 
     def get_users(self):
         """
@@ -47,4 +47,4 @@ class SupportBackend(object):
 
         Each user should be represented as not saved SupportUser instance.
         """
-        pass
+        raise NotImplementedError
