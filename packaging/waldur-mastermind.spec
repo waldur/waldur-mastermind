@@ -19,6 +19,7 @@ Requires: waldur-azure >= 0.3.4
 Requires: waldur-cost-planning >= 0.6.1
 Requires: waldur-digitalocean >= 0.10.2
 Requires: waldur-freeipa >= 0.6.3
+Requires: waldur-jira >= 0.6.1
 Requires: waldur-openstack >= 0.40.6
 Requires: waldur-paypal >= 0.7.0
 Requires: waldur-slurm >= 0.5.0

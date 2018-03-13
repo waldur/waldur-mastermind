@@ -16,6 +16,7 @@ waldur-freeipa
 waldur-slurm
 waldur-paypal
 waldur-zabbix
+waldur-jira
 waldur-mastermind"
 for component in $WALDUR_COMPONENTS
 do
