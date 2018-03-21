@@ -59,16 +59,6 @@ c.AzureAdOAuthenticator.client_id = '{{oauth_config.client_id}}'
 c.AzureAdOAuthenticator.client_secret = '{{oauth_config.client_secret}}'
 {% endif%}
 
-
-#c.JupyterHub.authenticator_class = u'oauthenticator.LocalGitHubOAuthenticator'
-#c.LocalGitHubOAuthenticator.create_system_users = True
-#c.Authenticator.add_user_cmd =  ['adduser', '-q', '--home', '{{jupyter_vars.home_dir}}/USERNAME', '--gecos', '""', '--disabled-password']
-#c.GitHubOAuthenticator.oauth_callback_url = u'{{ oauth_config.oauth_callback_url }}'
-#c.GitHubOAuthenticator.client_id = u'{{ oauth_config.client_id }}'
-#c.GitHubOAuthenticator.client_secret = u'{{ oauth_config.client_secret }}'
-#c.Authenticator.delete_invalid_users = True
-{% endif %}
-
 {% if jupyterhub_admin_users|length %}
 c.Authenticator.admin_users = {
 {%- for user in jupyterhub_admin_users[:-1] -%}
