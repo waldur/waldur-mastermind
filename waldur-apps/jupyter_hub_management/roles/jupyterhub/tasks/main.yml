@@ -27,7 +27,9 @@
 
 - name: Install oauthenticator for JupyterHub globally
   pip:
-    name: oauthenticator
+    #TODO temporary hack to test Azure integration
+    #name: oauthenticator
+    name: git+https://github.com/jupyterhub/oauthenticator
     executable: pip3
     state: present
   when: oauth_config is defined

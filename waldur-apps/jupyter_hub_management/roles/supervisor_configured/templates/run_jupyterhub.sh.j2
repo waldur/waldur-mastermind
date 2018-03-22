@@ -4,4 +4,8 @@
 export GITLAB_HOST='{{oauth_config.gitlab_host}}'
 {% endif%}
 
+{% if oauth_config is defined and oauth_config.tenant_id is not none %}
+export AAD_TENANT_ID='{{oauth_config.tenant_id}}'
+{% endif%}
+
 exec jupyterhub --config={{jupyter_vars.jupyterhub_dir}}/jupyterhub_config.py $@

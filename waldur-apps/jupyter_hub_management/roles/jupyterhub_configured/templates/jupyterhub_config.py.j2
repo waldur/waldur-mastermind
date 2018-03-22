@@ -1,6 +1,5 @@
 c = get_config()
 c.JupyterHub.port = {{jupyter_vars.port}}
-# c.JupyterHub.db_url = u'{{ jupyter_vars.jupyterhub_dir }}/jupyterhub.sqlite'
 c.JupyterHub.confirm_no_ssl = True
 
 c.JupyterHub.ssl_key = '{{jupyter_vars.ssl_key_path}}'
@@ -19,21 +18,20 @@ c.JupyterHub.cookie_secret_file = '{{ jupyter_vars.jupyterhub_dir }}/jupyterhub_
 
 #processes' spawner
 c.JupyterHub.spawner_class = 'systemdspawner.SystemdSpawner'
-#spawner config
-#THESE PARAMETERS ARE NOT SUPPORTED BY DEBIAN
-#c.SystemdSpawner.mem_limit = '{{jupyter_vars.user_process_memory_limit}}'
-#c.SystemdSpawner.cpu_limit = {{jupyter_vars.user_process_cpu_limit}}
-#cannot spawn processes with these on debian 9:
-#c.SystemdSpawner.isolate_tmp = True
-#c.SystemdSpawner.isolate_devices = True
-#c.SystemdSpawner.disable_user_sudo = True
 
 {% if oauth_config is defined %}
+
+class NormalizeUsernameMixin(object):
+    def normalize_username(self, username):
+        return username.lower().replace(' ', '_').replace('.', '_')
 
 # GitLab
 {% if oauth_config.type == 1 %}
 from oauthenticator.gitlab import LocalGitLabOAuthenticator
-c.JupyterHub.authenticator_class = LocalGitLabOAuthenticator
+class NormalizedLocalGitLabOAuthenticator(NormalizeUsernameMixin, LocalGitLabOAuthenticator):
+    pass
+
+c.JupyterHub.authenticator_class = NormalizedLocalGitLabOAuthenticator
 
 c.Authenticator.add_user_cmd =  ['adduser', '-q', '--home', '{{jupyter_vars.home_dir}}/USERNAME', '--gecos', '""', '--disabled-password']
 c.Authenticator.delete_invalid_users = True
@@ -47,7 +45,10 @@ c.GitLabOAuthenticator.client_secret = '{{oauth_config.client_secret}}'
 # Azure
 {% if oauth_config.type == 2 %}
 from oauthenticator.azuread import LocalAzureAdOAuthenticator
-c.JupyterHub.authenticator_class = LocalAzureAdOAuthenticator
+class NormalizedLocalAzureAdOAuthenticator(NormalizeUsernameMixin, LocalAzureAdOAuthenticator):
+    pass
+
+c.JupyterHub.authenticator_class = NormalizedLocalAzureAdOAuthenticator
 
 c.Authenticator.add_user_cmd =  ['adduser', '-q', '--home', '{{jupyter_vars.home_dir}}/USERNAME', '--gecos', '""', '--disabled-password']
 c.Authenticator.delete_invalid_users = True
@@ -58,6 +59,8 @@ c.AzureAdOAuthenticator.oauth_callback_url = '{{oauth_config.oauth_callback_url}
 c.AzureAdOAuthenticator.client_id = '{{oauth_config.client_id}}'
 c.AzureAdOAuthenticator.client_secret = '{{oauth_config.client_secret}}'
 {% endif%}
+
+{% endif %}
 
 {% if jupyterhub_admin_users|length %}
 c.Authenticator.admin_users = {

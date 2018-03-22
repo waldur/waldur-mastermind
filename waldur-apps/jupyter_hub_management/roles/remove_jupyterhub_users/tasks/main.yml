@@ -42,7 +42,7 @@
 
 - name: stop server instances of deleted users
   uri:
-    url: "http://127.0.0.1:8081/hub/api/users/{{item.name}}/server"
+    url: "http://127.0.0.1:8081/hub/api/users/{{item.name | urlencode}}/server"
     method: DELETE
     headers:
       Authorization: "token {{jupyter_hub_api_token}}"
@@ -56,7 +56,7 @@
 
 - name: delete removed users from the JupyterHub DB
   uri:
-    url: "http://127.0.0.1:8081/hub/api/users/{{item.name}}"
+    url: "http://127.0.0.1:8081/hub/api/users/{{item.name | urlencode}}"
     method: DELETE
     headers:
       Authorization: "token {{jupyter_hub_api_token}}"
