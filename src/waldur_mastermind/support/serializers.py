@@ -589,6 +589,15 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             project=('uuid', 'name',),
         )
 
+    def validate_report(self, report):
+        if not isinstance(report, dict):
+            raise serializers.ValidationError('Report should be an object.')
+
+        if len(report.keys()) == 0:
+            raise serializers.ValidationError('Report object should contain at least one key.')
+
+        return report
+
     def get_filtered_field_names(self):
         return ('project',)
 

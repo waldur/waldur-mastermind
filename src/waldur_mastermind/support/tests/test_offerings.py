@@ -256,6 +256,12 @@ class OfferingUpdateTest(BaseOfferingTest):
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_report_should_contain_at_least_one_key(self):
+        self.client.force_authenticate(self.fixture.staff)
+        request = {'name': 'New name', 'report': {}}
+        response = self.client.put(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class OfferingCompleteTest(BaseOfferingTest):
 
