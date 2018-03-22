@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from django import forms
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from jsoneditor.forms import JSONEditor
 
 from waldur_core.structure import admin as structure_admin
 
@@ -27,10 +28,18 @@ class SupportUserAdmin(admin.ModelAdmin):
     form = SupportUserAdminForm
 
 
+class OfferingAdminForm(forms.ModelForm):
+    class Meta:
+        widgets = {
+            'report': JSONEditor(),
+        }
+
+
 class OfferingAdmin(admin.ModelAdmin):
     list_display = ('type', 'name', 'unit_price', 'unit', 'state')
     fields = ('name', 'unit_price', 'unit', 'type', 'issue',
-              'project', 'state', 'product_code', 'article_code')
+              'project', 'state', 'product_code', 'article_code', 'report')
+    form = OfferingAdminForm
 
 
 class IssueAdmin(structure_admin.BackendModelAdmin):

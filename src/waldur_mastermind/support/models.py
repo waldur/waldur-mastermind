@@ -10,6 +10,7 @@ from model_utils import FieldTracker
 
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
@@ -155,6 +156,7 @@ class Offering(core_models.UuidMixin,
     issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
+    report = core_fields.JSONField(blank=True)
 
     tracker = FieldTracker()
 

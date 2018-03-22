@@ -234,32 +234,33 @@ class OfferingCreateProductTest(BaseOfferingTest):
 class OfferingUpdateTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingUpdateTest, self).setUp()
+        self.offering = self.fixture.offering
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
+    def test_staff_can_update_offering(self):
         self.client.force_authenticate(self.fixture.staff)
 
-    def test_it_is_possible_to_update_offering_name(self):
-        offering = self.fixture.offering
-        expected_name = 'New name'
-        url = factories.OfferingFactory.get_url(offering)
+        new_name = 'New name'
+        new_report = {'Name': 'Value'}
 
-        response = self.client.put(url, {'name': expected_name})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.put(self.url, {'name': new_name, 'report': new_report})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        offering.refresh_from_db()
-        self.assertEqual(offering.name, expected_name)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.name, new_name)
+        self.assertEqual(self.offering.report, new_report)
 
-    def test_offering_description_cannot_be_updated(self):
-        offering = self.fixture.offering
-        issue = models.Issue.objects.first()
-        expected_description = 'Old description'
-        issue.description = expected_description
-        issue.save()
-        url = factories.OfferingFactory.get_url(offering)
+    def test_owner_can_not_update_offering(self):
+        self.client.force_authenticate(self.fixture.owner)
+        request = {'name': 'New name', 'report': {'Name': 'Value'}}
+        response = self.client.put(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-        response = self.client.put(url, {'name': 'New name', 'description': expected_description})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        issue.refresh_from_db()
-        self.assertEqual(issue.description, expected_description)
+    def test_report_should_contain_at_least_one_key(self):
+        self.client.force_authenticate(self.fixture.staff)
+        request = {'name': 'New name', 'report': {}}
+        response = self.client.put(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class OfferingCompleteTest(BaseOfferingTest):

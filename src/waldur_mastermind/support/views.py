@@ -208,6 +208,8 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     terminate_permissions = [structure_permissions.is_staff]
 
+    update_permissions = partial_update_permissions = [structure_permissions.is_staff]
+
 
 class AttachmentViewSet(CheckExtensionMixin,
                         core_views.ActionsViewSet):
