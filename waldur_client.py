@@ -463,9 +463,11 @@ class WaldurClient(object):
 
         return instance
 
-    def get_instance(self, name, project):
+    def get_instance(self, name, project=None):
         if is_uuid(name):
             return self._query_resource_by_uuid(self.Endpoints.Instance, name)
         else:
+            if project is None:
+                raise ValueError("You should specify project name if name is not UUID")
             query = {'project_name': project, 'name_exact': name}
             return self._query_resource(self.Endpoints.Instance, query)

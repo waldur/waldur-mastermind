@@ -1,0 +1,19 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Ensure python3 is installed
+  apt:
+    name: python3-dev
+    state: present
+    update_cache: yes
+- name: Ensure pip is installed
+  apt:
+    name: python-pip
+    state: present
+- name: Ensure virtualenv is installed
+  apt:
+    name: python-virtualenv
+    state: present
+- name: Ensure virtualenvwrapper is installed
+  pip:
+    name: virtualenvwrapper
