@@ -3,29 +3,29 @@ from setuptools import setup, find_packages
 
 # defusedxml is required by djangosaml2
 install_requires = [
-    'ansible-waldur-module>=0.5.0',
+    'ansible-waldur-module>=0.6.0',
     'defusedxml>=0.4.1',
     'Django>=1.11,<2.0',
     'django-auth-ldap>=1.3.0',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'pdfkit>=0.6.1',
-    'waldur-core>=0.156.1',
+    'waldur-core>=0.157.0',
     'waldur-ansible>=0.4.0',
     'waldur-auth-openid>=0.8.9',
     'waldur-auth-social>=0.7.9',
     'waldur-auth-saml2>=0.9.1',
-    'waldur-auth-valimo>=0.4.1',
-    'waldur-aws>=0.11.2',
-    'waldur-azure>=0.3.4',
+    'waldur-auth-valimo>=0.5.0',
+    'waldur-aws>=0.11.3',
+    'waldur-azure>=0.3.5',
     'waldur-cost-planning>=0.6.1',
     'waldur-digitalocean>=0.10.2',
     'waldur-freeipa>=0.6.3',
-    'waldur-jira>=0.6.1',
-    'waldur-openstack>=0.40.6',
+    'waldur-jira>=0.7.0',
+    'waldur-openstack>=0.41.1',
     'waldur-paypal>=0.7.0',
     'waldur-slurm>=0.5.0',
-    'waldur-zabbix>=0.7.5',
+    'waldur-zabbix>=0.8.0',
 ]
 
 test_requires = [
