@@ -308,7 +308,8 @@ class OpenStackItem(InvoiceItem):
             self.package_details['template_name'] = self.package.template.name
             self.package_details['template_uuid'] = self.package.template.uuid.hex
             self.package_details['template_category'] = self.package.template.category
-            self.save(update_fields=['package_details'])
+            self.package = None
+            self.save(update_fields=['package', 'package_details'])
 
     def shift_backward(self, days=1):
         """
