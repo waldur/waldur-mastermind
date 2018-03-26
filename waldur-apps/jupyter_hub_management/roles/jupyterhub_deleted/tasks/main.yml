@@ -1,0 +1,78 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Stop JupyterHub
+  command: supervisorctl stop jupyterhub
+
+- name: Kill running proxy process
+  shell: "pkill node"
+  ignore_errors: yes
+
+- name: Get running JupyterHub processes (with all user instances)
+  shell: "ps -ef | grep -v grep | grep -w jupyterhub | awk '{print $2}'"
+  register: running_jupyter_hub_processes
+
+- name: Kill running JupyterHub processes
+  shell: "kill -9 {{ item }}"
+  with_items: "{{ running_jupyter_hub_processes.stdout_lines }}"
+
+- name: Remove Jupyter globally
+  pip:
+    name: jupyter
+    executable: pip3
+    state: absent
+
+- name: Remove ipykernel globally
+  pip:
+    name: ipykernel
+    executable: pip3
+    state: absent
+
+- name: Remove JupyterHub globally
+  pip:
+    name: jupyterhub
+    executable: pip3
+    state: absent
+
+- name: Remove systemd spawner globally
+  pip:
+    name: jupyterhub-systemdspawner
+    executable: pip3
+    state: absent
+
+- name: Remove oauthenticator for JupyterHub globally
+  pip:
+    name: oauthenticator
+    executable: pip3
+    state: absent
+
+- name: Remove nodejs 4
+  apt:
+    name: nodejs=4.*
+    state: absent
+
+- name: Remove JupyterHub configuration folder
+  file:
+    state: absent
+    path: "{{ jupyter_vars.jupyterhub_dir }}"
+
+- name: Remove JupyterHub share folder
+  file:
+    state: absent
+    path: /usr/local/share/jupyter
+
+- name: Remove JupyterHub logs folder
+  file:
+    state: absent
+    path: "{{ jupyter_vars.jupyterhub_log_dir }}"
+
+- name: Remove JupyterHub start script
+  file:
+    state: absent
+    path: "{{jupyter_vars.jupyterhub_dir}}/start-jupyterhub.sh"
+
+- name: delete all jupyterhub users from the OS
+  user:
+    name: "{{item}}"
+    state: absent
+  with_items: "{{all_jupyterhub_users}}"

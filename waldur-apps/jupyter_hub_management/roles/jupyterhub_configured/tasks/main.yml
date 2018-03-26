@@ -1,0 +1,57 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: make sure directory with configurations exists
+  file:
+    path: "{{jupyter_vars.jupyterhub_dir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: make sure logs directory exists
+  file:
+    path: "{{jupyter_vars.jupyterhub_log_dir}}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: check if cookie secret file exists
+  stat:
+    path: "{{jupyter_vars.jupyterhub_dir}}/jupyterhub_cookie_secret"
+  register: cookie_secret_file
+
+- name: generate new cookie secret file if it is not present
+  shell: "openssl rand -base64 2048 > {{jupyter_vars.jupyterhub_dir}}/jupyterhub_cookie_secret"
+  when: cookie_secret_file.stat.exists == False
+
+- name: change permissions of cookie secret
+  file:
+    path: "{{jupyter_vars.jupyterhub_dir}}/jupyterhub_cookie_secret"
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: install jupyterhub config file
+  template:
+    src: jupyterhub_config.py.j2
+    dest: "{{jupyter_vars.jupyterhub_dir}}/jupyterhub_config.py"
+    owner: root
+    group: root
+    mode: '0644'
+    backup: yes
+
+- name: install cull_idle_servers dependencies dateutil
+  pip:
+    name: python-dateutil
+    state: present
+    executable: pip3
+
+- name: install cull_idle_servers.py
+  copy:
+    src: cull_idle_servers.py
+    dest: "{{jupyter_vars.jupyterhub_dir}}"
+    owner: root
+    group: root
+    mode: '0700'

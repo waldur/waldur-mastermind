@@ -1,0 +1,11 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: create users if no oauth authenticator
+  user:
+    name: "{{item.username}}"
+    state: present
+    password: "{{item.password}}"
+  when: "{{item.password}} != ''"
+  with_items: "{{all_jupyterhub_users}}"
+  when: oauth_config is not defined
