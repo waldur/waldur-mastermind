@@ -32,7 +32,8 @@ def update_project_quota(project):
 def update_customer_quota(customer):
     if not customer:
         return
-    query = Q(contract__team__customer=customer, state=models.ExpertRequest.States.ACTIVE)
+    valid_states = (models.ExpertRequest.States.ACTIVE, models.ExpertRequest.States.PENDING)
+    query = Q(contract__team__customer=customer, state__in=valid_states)
     count = models.ExpertRequest.objects.filter(query).count()
     customer.set_quota_usage(QUOTA_NAME, count)
 
