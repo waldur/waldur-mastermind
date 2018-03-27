@@ -25,6 +25,12 @@
     executable: pip3
     state: present
 
+#needed to fetch the latest version of oauthenticator plugin
+- name: Ensure git is installed
+  apt:
+    name: git
+    state: present
+
 - name: Install oauthenticator for JupyterHub globally
   pip:
     #TODO temporary hack to test Azure integration

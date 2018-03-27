@@ -6,18 +6,22 @@
     name: python3-dev
     state: present
     update_cache: yes
+
 - name: Ensure pip is installed
   apt:
     name: python-pip
     state: present
-- name: Ensure pip is installed
+
+- name: Ensure pip3 is installed
   apt:
     name: python3-pip
     state: present
+
 - name: Ensure virtualenv is installed
   apt:
     name: python-virtualenv
     state: present
+
 - name: Ensure virtualenvwrapper is installed
   pip:
     name: virtualenvwrapper
