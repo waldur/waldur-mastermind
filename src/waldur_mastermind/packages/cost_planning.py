@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 """ Defines how to optimize OpenStack packages """
 from rest_framework import serializers as rf_serializers
 
