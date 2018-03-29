@@ -1,0 +1,77 @@
+{
+    "timestamp": 1521535954290,
+    "webhookEvent": "comment_created",
+    "comment": {
+        "self": "https://example.com/rest/api/2/issue/11277/comment/10420",
+        "id": "10420",
+        "author": {
+            "self": "https://example.com/rest/api/2/user?username=user",
+            "name": "user",
+            "key": "user",
+            "accountId": "557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b",
+            "avatarUrls": {},
+            "displayName": "USER",
+            "active": true,
+            "timeZone": "Europe/Helsinki"
+        },
+        "body": "comment1",
+        "updateAuthor": {
+            "self": "https://example.com/rest/api/2/user?username=user",
+            "name": "user",
+            "key": "user",
+            "accountId": "557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b",
+            "avatarUrls": {},
+            "displayName": "USER",
+            "active": true,
+            "timeZone": "Europe/Helsinki"
+        },
+        "created": "2018-03-20T10:52:34.290+0200",
+        "updated": "2018-03-20T10:52:34.290+0200"
+    },
+    "issue": {
+        "id": "11277",
+        "self": "https://example.com/rest/api/2/issue/11277",
+        "key": "ISSUE-KEY",
+        "fields": {
+            "summary": "test_issue",
+            "issuetype": {
+                "self": "https://example.com/rest/api/2/issuetype/10107",
+                "id": "10107",
+                "description": "An information issue type. ",
+                "iconUrl": "https://example.com/secure/viewavatar?size=xsmall&avatarId=10300&avatarType=issuetype",
+                "name": "Informational",
+                "subtask": false,
+                "avatarId": 10300
+            },
+            "project": {
+                "self": "https://example.com/rest/api/2/project/10001",
+                "id": "10001",
+                "key": "WAL",
+                "name": "Waldur",
+                "projectTypeKey": "service_desk",
+                "avatarUrls": {}
+            },
+            "assignee": null,
+            "priority": {
+                "self": "https://example.com/rest/api/2/priority/3",
+                "iconUrl": "https://example.com/images/icons/priorities/medium.svg",
+                "name": "Medium",
+                "id": "3"
+            },
+            "status": {
+                "self": "https://example.com/rest/api/2/status/1",
+                "description": "The issue is open and ready for the assignee to start work on it.",
+                "iconUrl": "https://example.com/images/icons/statuses/open.png",
+                "name": "Open",
+                "id": "1",
+                "statusCategory": {
+                    "self": "https://example.com/rest/api/2/statuscategory/2",
+                    "id": 2,
+                    "key": "new",
+                    "colorName": "blue-gray",
+                    "name": "To Do"
+                }
+            }
+        }
+    }
+}

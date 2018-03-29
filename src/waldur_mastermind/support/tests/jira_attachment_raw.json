@@ -1,0 +1,20 @@
+{
+  "author": {
+    "displayName": "USER",
+    "name": "user",
+    "self": "https://example.net/rest/api/2/user?username=user",
+    "avatarUrls": {},
+    "emailAddress": "user@example.ee",
+    "key": "user",
+    "active": true,
+    "timeZone": "Europe/Helsinki",
+    "accountId": "557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b"
+  },
+  "self": "https://example.net/rest/api/2/attachment/10614",
+  "created": "2018-03-28T12:51:23.409+0300",
+  "filename": "file.gif",
+  "content": "https://example.net/secure/attachment/10614/tmpUMsXPE.gif",
+  "thumbnail": "https://example.net/secure/attachment/10614/tmpUMsXPE.gif",
+  "id": "10001",
+  "size": 42
+}

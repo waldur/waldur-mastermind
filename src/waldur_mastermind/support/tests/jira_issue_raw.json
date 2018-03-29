@@ -1,0 +1,95 @@
+{
+  "key": "WAL-TEST",
+  "fields": {
+    "customfield_10138": {
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/5"
+      },
+      "id": "5",
+      "name": "Time to resolution"
+    },
+    "customfield_10116": null,
+    "customfield_10141": {
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/8"
+      },
+      "id": "8",
+      "name": "Time to approve normal change"
+    },
+    "customfield_10140": {
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/7"
+      },
+      "id": "7",
+      "name": "Time to close after resolution"
+    },
+    "priority": {
+      "self": "https://example.net/rest/api/2/priority/3",
+      "name": "Medium",
+      "id": "3"
+    },
+    "attachment": [],
+    "status": {
+      "statusCategory": {
+        "name": "To Do",
+        "self": "https://example.net/rest/api/2/statuscategory/2",
+        "id": 2,
+        "key": "new",
+        "colorName": "blue-gray"
+      },
+      "description": "The issue is open and ready for the assignee to start work on it.",
+      "self": "https://example.net/rest/api/2/status/1",
+      "iconUrl": "https://example.net/images/icons/statuses/open.png",
+      "id": "1",
+      "name": "Open"
+    },
+    "updated": "2018-03-27T13:26:59.875+0300",
+    "customfield_10200": "English",
+    "customfield_10139": {
+      "ongoingCycle":{
+        "breachTime":{
+          "epochMillis": 1000000
+        }
+      },
+      "completedCycles": [],
+      "_links": {
+        "self": "https://example.net/rest/servicedeskapi/request/11393/sla/6"
+      },
+      "id": "6",
+      "name": "Time to first response"
+    },
+    "description": "\\n\\n---\\nAdditional Info: \\n",
+    "reporter": {
+      "displayName": "USER",
+      "name": "user",
+      "self": "https://example.net/rest/api/2/user?username=user",
+      "avatarUrls": {},
+      "emailAddress": "user@example.ee",
+      "key": "user",
+      "active": true,
+      "timeZone": "Europe/Helsinki",
+      "accountId": "557058:c857a9e5-59f5-4ec0-a474-c28ddce3f79b"
+    },
+    "summary": "test_issue",
+    "created": "2018-03-27T13:26:59.210+0300",
+    "versions": [],
+    "resolutiondate": null,
+    "issuetype": {
+      "name": "Informational",
+      "self": "https://example.net/rest/api/2/issuetype/10107",
+      "iconUrl": "",
+      "subtask": null,
+      "avatarId": 10300,
+      "id": "10107",
+      "description": "An information issue type. "
+    },
+    "resolution": null,
+    "comment": {"total": 0, "startAt": 0, "maxResults": 0, "comments": []}
+  },
+  "self": "https://example.net/rest/api/2/issue/11393",
+  "id": "11393",
+  "expand": "renderedFields,names,schema,operations,editmeta,changelog,versionedRepresentations"
+}

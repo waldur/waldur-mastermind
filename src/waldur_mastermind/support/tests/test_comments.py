@@ -45,7 +45,7 @@ class CommentDeleteTest(base.BaseTest):
         super(CommentDeleteTest, self).setUp()
         self.comment = factories.CommentFactory(issue=self.fixture.issue)
         self.url = factories.CommentFactory.get_url(self.comment)
-
+        
     def test_staff_can_delete_comment(self):
         self.client.force_authenticate(self.fixture.staff)
 

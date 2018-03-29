@@ -72,7 +72,8 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
-    if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'}:
+    if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'} or \
+            set(instance.tracker.changed()) == {'modified'}:
         return
 
     # Skip notification if issue is not created on backend yet.
