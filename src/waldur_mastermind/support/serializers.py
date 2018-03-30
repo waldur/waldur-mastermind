@@ -285,11 +285,18 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         )
 
     def validate_report(self, report):
-        if not isinstance(report, dict):
+        if not isinstance(report, list):
             raise serializers.ValidationError('Report should be an object.')
 
-        if len(report.keys()) == 0:
-            raise serializers.ValidationError('Report object should contain at least one key.')
+        if len(report) == 0:
+            raise serializers.ValidationError('Report object should contain at least one section.')
+
+        for section in report:
+            if not section.get('header'):
+                raise serializers.ValidationError('Report section should contain header.')
+
+            if not section.get('body'):
+                raise serializers.ValidationError('Report section should contain body.')
 
         return report
 
