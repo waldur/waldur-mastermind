@@ -1,4 +1,5 @@
 %define __data_dir %{_datadir}/ansible-waldur
+%define __playbooks_dir %{__data_dir}/waldur-apps
 
 Name: ansible-waldur-module
 Summary: Ansible module for Waldur API.
@@ -29,8 +30,13 @@ management of infrastructure under Waldur through Ansible playbooks.
 %install
 rm -rf %{buildroot}
 %{__python} setup.py install -O1 --root=%{buildroot}
+
 mkdir -p %{buildroot}%{__data_dir}
 cp waldur_os_*.py %{buildroot}%{__data_dir}
+
+mkdir -p %{buildroot}%{__playbooks_dir}
+cp -Rv waldur-apps/jupyter_hub_management %{buildroot}%{__playbooks_dir}
+cp -Rv waldur-apps/python_management %{buildroot}%{__playbooks_dir}
 
 %clean
 rm -rf %{buildroot}
