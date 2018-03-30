@@ -236,29 +236,28 @@ class OfferingUpdateTest(BaseOfferingTest):
         super(OfferingUpdateTest, self).setUp()
         self.offering = self.fixture.offering
         self.url = factories.OfferingFactory.get_url(self.offering)
+        self.new_report = [{'header': 'Volumes', 'body': 'Volume Name'}]
 
     def test_staff_can_update_offering(self):
         self.client.force_authenticate(self.fixture.staff)
 
         new_name = 'New name'
-        new_report = {'Name': 'Value'}
-
-        response = self.client.put(self.url, {'name': new_name, 'report': new_report})
+        response = self.client.put(self.url, {'name': new_name, 'report': self.new_report})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, new_name)
-        self.assertEqual(self.offering.report, new_report)
+        self.assertEqual(self.offering.report, self.new_report)
 
     def test_owner_can_not_update_offering(self):
         self.client.force_authenticate(self.fixture.owner)
-        request = {'name': 'New name', 'report': {'Name': 'Value'}}
+        request = {'name': 'New name', 'report': self.new_report}
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_report_should_contain_at_least_one_key(self):
+    def test_report_should_contain_at_least_one_section(self):
         self.client.force_authenticate(self.fixture.staff)
-        request = {'name': 'New name', 'report': {}}
+        request = {'name': 'New name', 'report': []}
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
