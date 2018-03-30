@@ -23,7 +23,7 @@
   register: cookie_secret_file
 
 - name: generate new cookie secret file if it is not present
-  shell: "openssl rand -base64 2048 > {{jupyter_vars.jupyterhub_dir}}/jupyterhub_cookie_secret"
+  shell: "openssl rand -hex 32 > {{jupyter_vars.jupyterhub_dir}}/jupyterhub_cookie_secret"
   when: cookie_secret_file.stat.exists == False
 
 - name: change permissions of cookie secret
@@ -55,3 +55,17 @@
     owner: root
     group: root
     mode: '0700'
+
+- name: check whether manage_etc_hosts is true in cloud.cfg
+  command: "grep -Fxq \"manage_etc_hosts: true\" /etc/cloud/cloud.cfg"
+  register: manage_etc_hosts
+  ignore_errors: yes
+
+# this step is needed for configurable-http-proxy to start (systems with manage_etc_hosts: true do not need it)
+- name: if not manage_etc_hosts, ensure that hostname is defined in /etc/hosts
+  lineinfile:
+    dest: /etc/hosts
+    regexp: "127.0.0.1 {{ ansible_hostname }}"
+    insertafter: 127.0.0.1 localhost
+    line: "127.0.0.1 {{ ansible_hostname }}"
+  when: manage_etc_hosts.rc != 0
