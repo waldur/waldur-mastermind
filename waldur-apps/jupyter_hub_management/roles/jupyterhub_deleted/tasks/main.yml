@@ -1,8 +1,46 @@
 # -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
 
 ---
+- name: get access token of the first admin
+  command: "jupyterhub token {{first_admin_username | lower}}"
+  args:
+    chdir: "{{jupyter_vars.jupyterhub_dir}}"
+  register: jupyter_hub_api_token_command_output
+
+- name: get token from the command output
+  set_fact:
+    jupyter_hub_api_token: "{{jupyter_hub_api_token_command_output.stdout_lines | list | last}}"
+
+- name: get list of users in the database
+  uri:
+    url: http://127.0.0.1:8081/hub/api/users
+    method: GET
+    headers:
+      Authorization: "token {{jupyter_hub_api_token}}"
+    return_content: yes
+    body_format: json
+  register: jupyter_hub_user_list
+
+- name: stop all server instances
+  uri:
+    url: "http://127.0.0.1:8081/hub/api/users/{{item.name | urlencode}}/server"
+    method: DELETE
+    headers:
+      Authorization: "token {{jupyter_hub_api_token}}"
+    status_code: 202, 204
+  when: item.server is not none
+  with_items: "{{jupyter_hub_user_list.json}}"
+
+- name: wait for server instances to stop
+  wait_for:
+    timeout: 15
+
 - name: Stop JupyterHub
   command: supervisorctl stop jupyterhub
+
+- name: wait for JupyterHub to stop
+  wait_for:
+    timeout: 10
 
 - name: Kill running proxy process
   shell: "pkill node"

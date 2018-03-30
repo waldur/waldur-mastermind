@@ -10,7 +10,6 @@
 - name: Remove virtual environments directory
   hosts: vm_instance_to_configure
   become: yes
-  become_user: "{{default_system_user}}"
   tasks:
     - name: Remove virtual environments directory
       file:

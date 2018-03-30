@@ -10,11 +10,11 @@
   become: yes
   hosts: vm_instance_to_configure
   gather_facts: false
-  # Ansible requires python2, which is not installed by default on some distributions
   pre_tasks:
-   - raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
-   # action: setup will gather facts after python2 has been installed
-   - action: setup
+    - name: Install Python2 if not present (required by Ansible)
+      raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+    # setup: will gather facts after python2 has been installed
+    - setup:
   tasks:
     - name: include JupyterHub configuration variables
       include_vars:
