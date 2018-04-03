@@ -187,7 +187,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         reporter = get_support_user_by_field(backend_issue.fields, 'reporter')
         if reporter:
             issue.reporter = reporter
-            
+
     def _backend_comment_to_comment(self, backend_comment, comment):
         comment.update_message(backend_comment.body)
         author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment.author.key)

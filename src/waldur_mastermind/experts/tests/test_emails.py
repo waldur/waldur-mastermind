@@ -60,7 +60,7 @@ class NewExpertBidMailTest(test.APITransactionTestCase):
         self.bid = self.fixture.bid
 
     def test_when_new_expert_request_is_sent_to_customer_owners(self, send_mail_mock):
-        owner = self.fixture.owner
+        self.fixture.owner
         tasks.send_new_bid(self.bid.uuid.hex)
         send_mail_mock.assert_called_once()
 
@@ -69,7 +69,7 @@ class NewExpertBidMailTest(test.APITransactionTestCase):
         self.assertEqual(send_mail_mock.call_count, 0)
 
     def test_expert_organization_name_is_rendered_in_text_message(self, send_mail_mock):
-        owner = self.fixture.owner
+        self.fixture.owner
         tasks.send_new_bid(self.bid.uuid.hex)
         message = send_mail_mock.call_args[0][1]
         self.assertTrue(self.bid.team.customer.name in message)

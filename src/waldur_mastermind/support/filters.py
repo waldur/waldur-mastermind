@@ -71,7 +71,7 @@ class CommentIssueResourceFilterBackend(IssueResourceFilterBackend):
 class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     def filter_queryset(self, request, queryset, view):
         return super(IssueCallerOrRoleFilterBackend, self).filter_queryset(request, queryset, view).distinct() | \
-               queryset.filter(caller=request.user).distinct()
+            queryset.filter(caller=request.user).distinct()
 
 
 class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
@@ -79,7 +79,7 @@ class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter)
         return super(CommentIssueCallerOrRoleFilterBackend, self).filter_queryset(request,
                                                                                   queryset,
                                                                                   view).distinct() | \
-               queryset.filter(issue__caller=request.user).distinct()
+            queryset.filter(issue__caller=request.user).distinct()
 
 
 class CommentFilter(django_filters.FilterSet):

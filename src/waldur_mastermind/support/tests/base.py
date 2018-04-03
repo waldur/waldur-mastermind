@@ -22,7 +22,6 @@ class BaseTest(test.APITransactionTestCase):
         mock.patch.stopall()
 
 
-
 def override_support_settings(**kwargs):
     support_settings = copy.deepcopy(settings.WALDUR_SUPPORT)
     support_settings.update(kwargs)

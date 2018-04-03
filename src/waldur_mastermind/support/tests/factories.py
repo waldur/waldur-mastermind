@@ -107,4 +107,3 @@ class AttachmentFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-attachment-list')
-
