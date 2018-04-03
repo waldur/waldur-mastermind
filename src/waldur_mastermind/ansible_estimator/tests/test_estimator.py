@@ -145,4 +145,3 @@ class EstimatorTest(APITransactionTestCase):
             'prices': self.get_expected_prices(),
             'cost': self.get_expected_cost()
         }
-

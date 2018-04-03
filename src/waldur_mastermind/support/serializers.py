@@ -229,7 +229,7 @@ class WebHookReceiverSerializer(JiraWebHookReceiverSerializer):
         class Project:
             def get_backend(self):
                 return ServiceDeskBackend()
-            
+
         return Project()
 
     def get_issue(self, project, key, create):
@@ -253,7 +253,7 @@ class WebHookReceiverSerializer(JiraWebHookReceiverSerializer):
                 raise serializers.ValidationError('Comment with id %s does not exist.' % key)
 
         return comment
-    
+
 
 WebHookReceiverSerializer.remove_event(['jira:issue_created'])
 

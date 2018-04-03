@@ -72,4 +72,3 @@ class SupportConfig(AppConfig):
             sender=Issue,
             dispatch_uid='waldur_mastermind.support.handlers.send_issue_updated_notification'
         )
-

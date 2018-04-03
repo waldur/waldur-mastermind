@@ -11,7 +11,6 @@ from mock import Mock, mock
 import pytz
 
 from waldur_core.core import utils as core_utils
-from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
@@ -130,7 +129,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
         with freeze_time(start_date):
             old_package = fixtures.create_package(component_price=old_component_price)
-        customer = old_package.tenant.service_project_link.project.customer
+        old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
@@ -159,7 +158,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
         with freeze_time(start_date):
             old_package = fixtures.create_package(component_price=old_component_price)
-        customer = old_package.tenant.service_project_link.project.customer
+        old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
@@ -188,7 +187,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
         with freeze_time(start_date):
             old_package = fixtures.create_package(component_price=old_component_price)
-        customer = old_package.tenant.service_project_link.project.customer
+        old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):

@@ -45,7 +45,7 @@ class CommentDeleteTest(base.BaseTest):
         super(CommentDeleteTest, self).setUp()
         self.comment = factories.CommentFactory(issue=self.fixture.issue)
         self.url = factories.CommentFactory.get_url(self.comment)
-        
+
     def test_staff_can_delete_comment(self):
         self.client.force_authenticate(self.fixture.staff)
 
@@ -139,4 +139,4 @@ class CommentRetrieveTest(base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
-        self.assertTrue(comment.uuid.hex in [comment['uuid'] for comment in response.data])
+        self.assertTrue(comment.uuid.hex in [item['uuid'] for item in response.data])

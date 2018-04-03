@@ -47,7 +47,7 @@ class CreatePDFContractTest(test.APITransactionTestCase):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.expert_bid = factories.ExpertBidFactory()
         self.client.force_authenticate(self.staff)
-        response = self.accept_bid()
+        self.accept_bid()
         self.assertEqual(create_pdf_contract_mock.delay.call_count, 1)
 
     def accept_bid(self):

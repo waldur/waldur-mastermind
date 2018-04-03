@@ -362,7 +362,8 @@ class CountersTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
 
     @data((True, 1), (False, 0))
-    def test_project_counter_has_experts(self, (has_request, expected_value)):
+    def test_project_counter_has_experts(self, pair):
+        (has_request, expected_value) = pair
         if has_request:
             factories.OfferingFactory(project=self.fixture.project)
 
@@ -375,7 +376,8 @@ class CountersTest(test.APITransactionTestCase):
         self.assertEqual(response.data, {'offerings': expected_value})
 
     @data((True, 1), (False, 0))
-    def test_customer_counter_has_experts(self, (has_request, expected_value)):
+    def test_customer_counter_has_experts(self, pair):
+        (has_request, expected_value) = pair
         if has_request:
             factories.OfferingFactory(project=self.fixture.project)
 

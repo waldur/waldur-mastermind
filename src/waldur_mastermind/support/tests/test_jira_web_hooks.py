@@ -210,7 +210,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         synchronizer.perform_update()
         self.assertEqual(self.issue.comments.count(), 0)
 
-        
+
 class TestUpdateCommentFromJira(APITransactionTestCase):
     def setUp(self):
         jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
