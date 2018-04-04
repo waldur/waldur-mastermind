@@ -4,6 +4,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support import models as support_models
@@ -30,6 +31,24 @@ class PriceEstimateSignalsTest(test.APITransactionTestCase):
     def test_price_estimate_is_deleted_for_project_by_signal(self):
         self.fixture.project.delete()
         self.assertFalse(models.PriceEstimate.objects.filter(scope=self.fixture.project).exists())
+
+    def test_price_estimate_for_project_is_updated_when_invoice_is_created(self):
+        estimate = models.PriceEstimate.objects.get(scope=self.fixture.project)
+        estimate.total = 100
+        estimate.save()
+
+        invoice_factories.InvoiceFactory(customer=self.fixture.customer)
+        estimate.refresh_from_db()
+        self.assertEqual(estimate.total, 0)
+
+    def test_price_estimate_for_customer_is_updated_when_invoice_is_created(self):
+        estimate = models.PriceEstimate.objects.get(scope=self.fixture.customer)
+        estimate.total = 100
+        estimate.save()
+
+        invoice_factories.InvoiceFactory(customer=self.fixture.customer)
+        estimate.refresh_from_db()
+        self.assertEqual(estimate.total, 0)
 
 
 @ddt
