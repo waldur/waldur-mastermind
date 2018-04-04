@@ -27,6 +27,13 @@ class BillingConfig(AppConfig):
                              'delete_stale_price_estimate_%s_%s' % (index, model.__class__),
             )
 
+        signals.post_save.connect(
+            handlers.update_estimate_when_invoice_is_created,
+            sender=invoices_models.Invoice,
+            dispatch_uid='waldur_mastermind.billing.'
+                         'update_estimate_when_invoice_is_created',
+        )
+
         for index, model in enumerate(invoices_models.InvoiceItem.get_all_models()):
             signals.post_save.connect(
                 handlers.process_invoice_item,

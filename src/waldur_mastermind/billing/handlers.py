@@ -21,6 +21,20 @@ def delete_stale_price_estimate(sender, instance, **kwargs):
     models.PriceEstimate.objects.filter(scope=instance).delete()
 
 
+def update_estimate_when_invoice_is_created(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+    transaction.on_commit(lambda: update_estimates_for_customer(instance.customer))
+
+
+def update_estimates_for_customer(customer):
+    scopes = [customer] + list(customer.projects.all())
+    for scope in scopes:
+        estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
+        estimate.update_total()
+        estimate.save(update_fields=['total'])
+
+
 def process_invoice_item(sender, instance, created=False, **kwargs):
     if (not created and
             not instance.tracker.has_changed('unit_price') and
