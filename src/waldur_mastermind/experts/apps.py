@@ -11,6 +11,8 @@ class ExpertsConfig(AppConfig):
     def ready(self):
         from waldur_core.structure import models as structure_models
         from waldur_mastermind.invoices import registrators as invoices_registrators
+        from waldur_mastermind.support.models import Comment
+        
         from . import handlers, registrators, quotas
 
         ExpertRequest = self.get_model('ExpertRequest')
@@ -148,4 +150,11 @@ class ExpertsConfig(AppConfig):
             sender=structure_models.Project,
             dispatch_uid='waldur_mastermind.experts.handlers.'
                          'update_expert_contract_on_project_name_update',
+        )
+
+        signals.post_save.connect(
+            handlers.send_expert_comment_added_notification,
+            sender=Comment,
+            dispatch_uid='waldur_mastermind.experts.handlers.'
+                         'send_expert_comment_added_notification',
         )
