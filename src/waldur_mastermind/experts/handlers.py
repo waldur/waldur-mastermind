@@ -162,7 +162,7 @@ def notify_customer_owners_about_new_contract(sender, instance, created=False, *
         transaction.on_commit(lambda:
                               tasks.send_new_contract.delay(instance.request.uuid.hex))
 
-        
+
 def send_expert_comment_added_notification(sender, instance, created=False, **kwargs):
     # Send Expert notifications
     comment = instance
@@ -173,5 +173,3 @@ def send_expert_comment_added_notification(sender, instance, created=False, **kw
     serialized_comment = core_utils.serialize_instance(comment)
     transaction.on_commit(lambda:
                           tasks.send_expert_comment_added_notification.delay(serialized_comment))
-
-

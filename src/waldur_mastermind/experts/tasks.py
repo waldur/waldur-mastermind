@@ -148,21 +148,19 @@ def create_pdf_contract(contract_id):
 def send_expert_comment_added_notification(serialized_comment):
     # Send Expert notifications
     comment = core_utils.deserialize_instance(serialized_comment)
-    
+
     if not comment.issue.expertrequest_set.count():
         return
-    
+
     expert_request = comment.issue.expertrequest_set.first()
     expert_contract = getattr(expert_request, 'contract', None)
 
     if expert_contract:
         permissions = structure_models.ProjectPermission.objects.filter(is_active=True,
-                                         project=expert_contract.team,
-                                         role=structure_models.ProjectRole.ADMINISTRATOR)
+                                                                        project=expert_contract.team,
+                                                                        role=structure_models.ProjectRole.ADMINISTRATOR)
         experts = map(lambda p: p.user, permissions)
 
         if comment.author.user not in experts:
             for expert in experts:
                 _send_issue_notification(comment.issue, 'comment_added', receiver=expert)
-
-

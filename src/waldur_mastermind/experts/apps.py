@@ -12,7 +12,7 @@ class ExpertsConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_mastermind.invoices import registrators as invoices_registrators
         from waldur_mastermind.support.models import Comment
-        
+
         from . import handlers, registrators, quotas
 
         ExpertRequest = self.get_model('ExpertRequest')
