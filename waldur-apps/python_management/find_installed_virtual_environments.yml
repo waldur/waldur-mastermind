@@ -16,3 +16,4 @@
         executable: /bin/bash
       environment:
         WORKON_HOME: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}"
+      ignore_errors: yes

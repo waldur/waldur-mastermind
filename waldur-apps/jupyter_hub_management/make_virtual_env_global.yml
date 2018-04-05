@@ -16,6 +16,7 @@
         state: present
         virtualenv: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}/{{virtual_env_name}}"
         virtualenv_python: python3
+        extra_args: --disable-pip-version-check
 
     # NB! Name is important for backend logic!
     - name: Final list of all installed libraries in the venv

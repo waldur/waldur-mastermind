@@ -36,6 +36,7 @@
         state: absent
         virtualenv: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}/{{virtual_env_name}}"
         virtualenv_python: python3
+        extra_args: --disable-pip-version-check
       with_items: "{{libraries_to_remove}}"
       when: libraries_to_remove is defined
 
@@ -50,6 +51,7 @@
         requirements: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}/waldur_pip_requirements.txt"
         virtualenv: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}/{{virtual_env_name}}"
         virtualenv_python: python3
+        extra_args: --disable-pip-version-check
       when: libraries_to_install is defined
 
     # NB! Name is important for backend logic!

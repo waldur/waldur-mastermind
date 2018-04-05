@@ -17,3 +17,4 @@
 - name: Ensure virtualenvwrapper is installed
   pip:
     name: virtualenvwrapper
+    extra_args: --disable-pip-version-check

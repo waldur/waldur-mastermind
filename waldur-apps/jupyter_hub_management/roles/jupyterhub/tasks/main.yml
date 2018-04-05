@@ -6,24 +6,28 @@
     name: jupyter
     executable: pip3
     state: present
+    extra_args: --disable-pip-version-check
 
 - name: Install ipykernel globally
   pip:
     name: ipykernel
     executable: pip3
     state: present
+    extra_args: --disable-pip-version-check
 
 - name: Install JupyterHub globally
   pip:
     name: jupyterhub
     executable: pip3
     state: present
+    extra_args: --disable-pip-version-check
 
 - name: Install systemd spawner globally for jupyter sessions management
   pip:
     name: jupyterhub-systemdspawner
     executable: pip3
     state: present
+    extra_args: --disable-pip-version-check
 
 #needed to fetch the latest version of oauthenticator plugin
 - name: Ensure git is installed
@@ -35,9 +39,10 @@
   pip:
     #TODO temporary hack to test Azure integration
     #name: oauthenticator
-    name: git+https://github.com/jupyterhub/oauthenticator
+    name: git+https://github.com/jupyterhub/oauthenticator#egg=oauthenticator
     executable: pip3
     state: present
+    extra_args: --disable-pip-version-check
   when: oauth_config is defined
 
 - name: Install PyJWT when Azure OAuth is enabled
@@ -45,4 +50,5 @@
     name: PyJWT
     executable: pip3
     state: present
+    extra_args: --disable-pip-version-check
   when: oauth_config is defined and oauth_config.type == 2
