@@ -1,6 +1,8 @@
 import mock
-
 from rest_framework import test
+
+from waldur_core.core import utils as core_utils
+from waldur_mastermind.support.tests import factories as support_factories
 
 from . import factories, fixtures
 from .. import tasks
@@ -73,3 +75,29 @@ class NewExpertBidMailTest(test.APITransactionTestCase):
         tasks.send_new_bid(self.bid.uuid.hex)
         message = send_mail_mock.call_args[0][1]
         self.assertTrue(self.bid.team.customer.name in message)
+
+
+@mock.patch('waldur_mastermind.experts.tasks._send_issue_notification')
+class NewCommentMailTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ExpertsFixture()
+
+    def test_send_notification_for_expert_if_user_added_comment(self, send_mock):
+        self.comment = support_factories.CommentFactory(issue=self.fixture.issue)
+        self.fixture.contract
+        self.fixture.expert_request
+        self.fixture.admin
+        serialized_comment = core_utils.serialize_instance(self.comment)
+        tasks.send_expert_comment_added_notification(serialized_comment)
+        self.assertEqual(send_mock.call_count, 1)
+
+    def test_dont_send_notification_for_expert_if_expert_added_comment(self, send_mock):
+        expert_support_user = support_factories.SupportUserFactory(user=self.fixture.admin)
+        self.comment = support_factories.CommentFactory(issue=self.fixture.issue,
+                                                        author=expert_support_user)
+        self.fixture.contract
+        self.fixture.expert_request
+        self.fixture.admin
+        serialized_comment = core_utils.serialize_instance(self.comment)
+        tasks.send_expert_comment_added_notification(serialized_comment)
+        self.assertEqual(send_mock.call_count, 0)

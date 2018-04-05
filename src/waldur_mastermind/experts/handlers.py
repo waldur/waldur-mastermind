@@ -3,10 +3,11 @@ from __future__ import unicode_literals
 from django.db import transaction
 from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import registrators as invoices_registrators
 
-from .log import event_logger
 from . import models, tasks, quotas
+from .log import event_logger
 
 
 def update_project_quota_when_request_is_saved(sender, instance, created=False, **kwargs):
@@ -160,3 +161,15 @@ def notify_customer_owners_about_new_contract(sender, instance, created=False, *
     if created:
         transaction.on_commit(lambda:
                               tasks.send_new_contract.delay(instance.request.uuid.hex))
+
+
+def send_expert_comment_added_notification(sender, instance, created=False, **kwargs):
+    # Send Expert notifications
+    comment = instance
+
+    if not created or not comment.is_public:
+        return
+
+    serialized_comment = core_utils.serialize_instance(comment)
+    transaction.on_commit(lambda:
+                          tasks.send_expert_comment_added_notification.delay(serialized_comment))
