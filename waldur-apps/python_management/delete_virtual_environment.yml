@@ -10,8 +10,11 @@
 - name: Remove virtual environment
   hosts: vm_instance_to_configure
   become: yes
-  become_user: "{{default_system_user}}"
   tasks:
+    - name: Make virutal environment local if possible
+      script: "files/make_virtual_env_local.sh /home/{{default_system_user}}/{{virtual_envs_dir_path}} {{virtual_env_name}}"
+      ignore_errors: yes
+
     - name: Remove virtual environment
       file:
         state: absent
