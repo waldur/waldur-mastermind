@@ -1,0 +1,20 @@
+# -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
+
+---
+- name: Stop JupyterHub
+  command: supervisorctl stop jupyterhub
+
+- name: wait for JupyterHub to stop
+  wait_for:
+    timeout: 10
+
+- name: Kill running proxy process
+  shell: "pkill node"
+  ignore_errors: yes
+
+- name: Start JupyterHub
+  command: supervisorctl start jupyterhub
+
+- name: wait for JupyterHub to start
+  wait_for:
+    timeout: 35

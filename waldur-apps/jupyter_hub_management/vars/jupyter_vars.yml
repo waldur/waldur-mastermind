@@ -1,0 +1,12 @@
+jupyterhub_dir: /etc/jupyterhub
+jupyterhub_log_dir: /var/log/jupyterhub
+port: 443
+
+ssl_cert_directory: /etc/ssl/own_certs
+ssl_csr_directory: /etc/ssl/csr
+ssl_cert_path: /etc/ssl/own_certs/local_jupyterhub.crt
+ssl_key_path: /etc/ssl/private/local_jupyterhub.pem
+csr_path: /etc/ssl/csr/local_jupyterhub.csr
+
+# The base directory of user accounts.
+home_dir: /home

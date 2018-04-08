@@ -1,11 +1,11 @@
 # -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
 
 ---
-- name: Get an OpenStack instance
+- name: Initialize inventory
   connection: local
   hosts: localhost
   roles:
-    - connection
+    - inventory_initialized
 
 - name: List all environments
   hosts: vm_instance_to_configure
@@ -16,3 +16,4 @@
         executable: /bin/bash
       environment:
         WORKON_HOME: "/home/{{default_system_user}}/{{virtual_envs_dir_path}}"
+      ignore_errors: yes

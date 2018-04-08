@@ -1,0 +1,84 @@
+c = get_config()
+c.JupyterHub.port = {{jupyter_vars.port}}
+c.JupyterHub.confirm_no_ssl = True
+
+c.JupyterHub.ssl_key = '{{jupyter_vars.ssl_key_path}}'
+c.JupyterHub.ssl_cert = '{{jupyter_vars.ssl_cert_path}}'
+
+c.JupyterHub.cleanup_proxy = True
+c.JupyterHub.cleanup_servers = False
+c.JupyterHub.services = [
+    {
+        'name': 'cull-idle',
+        'admin': True,
+        'command': 'python3 cull_idle_servers.py --timeout={{session_timeout_seconds}}'.split(),
+    }
+]
+c.JupyterHub.cookie_secret_file = '{{ jupyter_vars.jupyterhub_dir }}/jupyterhub_cookie_secret'
+
+#processes' spawner
+c.JupyterHub.spawner_class = 'systemdspawner.SystemdSpawner'
+
+{% if oauth_config is defined %}
+
+class NormalizeUsernameMixin(object):
+    def normalize_username(self, username):
+        # NB! Should be consistent with cloud broker backend mapping located in jupyter_hub_management/serializers.py JupyterHubManagementSerializer.normalize_username!
+        return ''.join(c if c.isalnum() else '_' for c in username.lower())
+
+# GitLab
+{% if oauth_config.type == 1 %}
+from oauthenticator.gitlab import LocalGitLabOAuthenticator
+class NormalizedLocalGitLabOAuthenticator(NormalizeUsernameMixin, LocalGitLabOAuthenticator):
+    pass
+
+c.JupyterHub.authenticator_class = NormalizedLocalGitLabOAuthenticator
+
+c.Authenticator.add_user_cmd =  ['adduser', '-q', '--home', '{{jupyter_vars.home_dir}}/USERNAME', '--gecos', '""', '--disabled-password']
+c.Authenticator.delete_invalid_users = True
+c.GitLabOAuthenticator.create_system_users = True
+
+c.GitLabOAuthenticator.oauth_callback_url = '{{oauth_config.oauth_callback_url}}'
+c.GitLabOAuthenticator.client_id = '{{oauth_config.client_id}}'
+c.GitLabOAuthenticator.client_secret = '{{oauth_config.client_secret}}'
+{% endif%}
+
+# Azure
+{% if oauth_config.type == 2 %}
+from oauthenticator.azuread import LocalAzureAdOAuthenticator
+class NormalizedLocalAzureAdOAuthenticator(NormalizeUsernameMixin, LocalAzureAdOAuthenticator):
+    pass
+
+c.JupyterHub.authenticator_class = NormalizedLocalAzureAdOAuthenticator
+
+c.Authenticator.add_user_cmd =  ['adduser', '-q', '--home', '{{jupyter_vars.home_dir}}/USERNAME', '--gecos', '""', '--disabled-password']
+c.Authenticator.delete_invalid_users = True
+c.AzureAdOAuthenticator.create_system_users = True
+
+c.AzureAdOAuthenticator.tenant_id = '{{oauth_config.tenant_id}}'
+c.AzureAdOAuthenticator.oauth_callback_url = '{{oauth_config.oauth_callback_url}}'
+c.AzureAdOAuthenticator.client_id = '{{oauth_config.client_id}}'
+c.AzureAdOAuthenticator.client_secret = '{{oauth_config.client_secret}}'
+{% endif%}
+
+{% endif %}
+
+{% if jupyterhub_admin_users|length %}
+c.Authenticator.admin_users = {
+{%- for user in jupyterhub_admin_users[:-1] -%}
+'{{user.username}}',
+{%- endfor -%}
+'{{-jupyterhub_admin_users[-1].username-}}'}
+{% else %}
+c.Authenticator.admin_users = set()
+{% endif %}
+
+{% if jupyterhub_whitelisted_users|length %}
+c.Authenticator.whitelist = {
+{%- for user in jupyterhub_whitelisted_users[:-1] -%}
+'{{user.username}}',
+{%- endfor -%}
+'{{-jupyterhub_whitelisted_users[-1].username-}}'}
+{% else %}
+c.Authenticator.whitelist = set()
+{% endif %}
