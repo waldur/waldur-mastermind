@@ -59,30 +59,35 @@
     name: jupyter
     executable: pip3
     state: absent
+    extra_args: --disable-pip-version-check
 
 - name: Remove ipykernel globally
   pip:
     name: ipykernel
     executable: pip3
     state: absent
+    extra_args: --disable-pip-version-check
 
 - name: Remove JupyterHub globally
   pip:
     name: jupyterhub
     executable: pip3
     state: absent
+    extra_args: --disable-pip-version-check
 
 - name: Remove systemd spawner globally
   pip:
     name: jupyterhub-systemdspawner
     executable: pip3
     state: absent
+    extra_args: --disable-pip-version-check
 
 - name: Remove oauthenticator for JupyterHub globally
   pip:
     name: oauthenticator
     executable: pip3
     state: absent
+    extra_args: --disable-pip-version-check
 
 - name: Remove nodejs 4
   apt:

@@ -47,6 +47,7 @@
     name: python-dateutil
     state: present
     executable: pip3
+    extra_args: --disable-pip-version-check
 
 - name: install cull_idle_servers.py
   copy:

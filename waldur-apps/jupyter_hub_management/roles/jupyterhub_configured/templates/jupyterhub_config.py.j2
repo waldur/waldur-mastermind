@@ -23,7 +23,8 @@ c.JupyterHub.spawner_class = 'systemdspawner.SystemdSpawner'
 
 class NormalizeUsernameMixin(object):
     def normalize_username(self, username):
-        return username.lower().replace(' ', '_').replace('.', '_')
+        # NB! Should be consistent with cloud broker backend mapping located in jupyter_hub_management/serializers.py JupyterHubManagementSerializer.normalize_username!
+        return ''.join(c if c.isalnum() else '_' for c in username.lower())
 
 # GitLab
 {% if oauth_config.type == 1 %}
