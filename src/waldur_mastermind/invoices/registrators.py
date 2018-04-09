@@ -60,10 +60,6 @@ class BaseRegistrator(object):
         """
         raise NotImplementedError()
 
-    def has_sources(self, customer):
-        """ Indicate whether customer has any invoice item source. """
-        raise NotImplementedError()
-
     def get_name(self, source):
         return source.name
 
@@ -86,10 +82,6 @@ class RegistrationManager(object):
     @classmethod
     def get_registrator(cls, source):
         return cls._registrators[source.__class__]
-
-    @classmethod
-    def has_sources(cls, customer):
-        return any(registrator.has_sources(customer) for registrator in cls.get_registrators())
 
     @classmethod
     def get_or_create_invoice(cls, customer, date):

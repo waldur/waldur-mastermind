@@ -13,9 +13,6 @@ class ExpertRequestRegistrator(registrators.BaseRegistrator):
         return models.ExpertRequest.objects.filter(project__customer=customer,
                                                    state=models.ExpertRequest.States.COMPLETED)
 
-    def has_sources(self, customer):
-        return self.get_sources(customer).exists()
-
     def get_customer(self, source):
         return source.customer
 
