@@ -28,7 +28,7 @@ class OfferingItemRegistrator(BaseRegistrator):
     def _create_item(self, source, invoice, start, end):
         offering = source
 
-        if models.OfferingItem.objects.filter(offering=offering).exists():
+        if models.OfferingItem.objects.filter(invoice=invoice, offering=offering).exists():
             return
 
         result = models.OfferingItem.objects.create(

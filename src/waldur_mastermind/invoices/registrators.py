@@ -38,16 +38,16 @@ class BaseRegistrator(object):
         """ Register single chargeable item in the invoice. """
         raise NotImplementedError()
 
-    def terminate(self, item, now=None):
+    def terminate(self, source, now=None):
         """
         Freeze invoice item's usage.
-        :param item: chargeable item to use for search of invoice item.
+        :param source: chargeable item to use for search of invoice item.
         :param now: date of invoice with invoice items.
         """
         if not now:
             now = timezone.now()
 
-        item = self._find_item(item, now)
+        item = self._find_item(source, now)
         if item:
             item.terminate(end=now)
 
