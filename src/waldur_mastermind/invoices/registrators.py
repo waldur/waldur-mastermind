@@ -38,16 +38,16 @@ class BaseRegistrator(object):
         """ Register single chargeable item in the invoice. """
         raise NotImplementedError()
 
-    def terminate(self, item, now=None):
+    def terminate(self, source, now=None):
         """
         Freeze invoice item's usage.
-        :param item: chargeable item to use for search of invoice item.
+        :param source: chargeable item to use for search of invoice item.
         :param now: date of invoice with invoice items.
         """
         if not now:
             now = timezone.now()
 
-        item = self._find_item(item, now)
+        item = self._find_item(source, now)
         if item:
             item.terminate(end=now)
 
@@ -58,10 +58,6 @@ class BaseRegistrator(object):
         :param now: date of invoice with invoice items.
         :return: invoice item or None
         """
-        raise NotImplementedError()
-
-    def has_sources(self, customer):
-        """ Indicate whether customer has any invoice item source. """
         raise NotImplementedError()
 
     def get_name(self, source):
@@ -86,10 +82,6 @@ class RegistrationManager(object):
     @classmethod
     def get_registrator(cls, source):
         return cls._registrators[source.__class__]
-
-    @classmethod
-    def has_sources(cls, customer):
-        return any(registrator.has_sources(customer) for registrator in cls.get_registrators())
 
     @classmethod
     def get_or_create_invoice(cls, customer, date):

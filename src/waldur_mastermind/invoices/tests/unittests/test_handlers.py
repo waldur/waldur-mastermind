@@ -13,6 +13,7 @@ import pytz
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as packages_factories
+from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 
 from .. import factories, fixtures
@@ -276,6 +277,19 @@ class AddNewOfferingDetailsToInvoiceTest(TransactionTestCase):
         self.assertEqual(models.Invoice.objects.count(), 1)
         invoice = models.Invoice.objects.first()
         self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+
+    def test_invoice_is_not_created_for_pending_offering(self):
+        issue = support_factories.IssueFactory(customer=self.fixture.customer, project=self.fixture.project)
+        pending_offering = support_factories.OfferingFactory(issue=issue)
+
+        offering = self.fixture.offering
+        offering.state = offering.States.OK
+        offering.save()
+
+        self.assertEqual(models.Invoice.objects.count(), 1)
+        invoice = models.Invoice.objects.first()
+        self.assertTrue(invoice.offering_items.filter(offering=offering).exists())
+        self.assertFalse(invoice.offering_items.filter(offering=pending_offering).exists())
 
     def test_existing_invoice_is_updated_on_offering_creation(self):
         start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)

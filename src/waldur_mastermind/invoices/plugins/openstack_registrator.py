@@ -25,9 +25,6 @@ class OpenStackItemRegistrator(BaseRegistrator):
         return packages_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer).distinct()
 
-    def has_sources(self, customer):
-        return self.get_sources(customer).exists()
-
     def _create_item(self, source, invoice, start, end):
         package = source
         overlapping_item = models.OpenStackItem.objects.filter(
