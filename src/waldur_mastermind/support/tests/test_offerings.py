@@ -153,9 +153,8 @@ class OfferingCreateTest(BaseOfferingTest):
         offering = models.Offering.objects.first()
         self.assertEqual(issue.project.uuid, offering.project.uuid)
 
-    @mock.patch('waldur_mastermind.support.backend.get_active_backend')
-    def test_offering_is_not_created_if_backend_raises_error(self, get_active_backend_mock):
-        get_active_backend_mock.side_effect = SupportBackendError()
+    def test_offering_is_not_created_if_backend_raises_error(self):
+        self.mock_get_active_backend.side_effect = SupportBackendError()
 
         request_data = self._get_valid_request()
         self.assertEqual(models.Offering.objects.count(), 0)
@@ -202,6 +201,7 @@ class OfferingCreateTest(BaseOfferingTest):
         },
     },
 })
+@mock.patch('waldur_mastermind.support.backend.get_active_backend')
 class OfferingCreateProductTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateProductTest, self).setUp()
@@ -216,14 +216,14 @@ class OfferingCreateProductTest(BaseOfferingTest):
             'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project)
         }
 
-    def test_product_code_is_copied_from_configuration_to_offering(self):
+    def test_product_code_is_copied_from_configuration_to_offering(self, mock_active_backend):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['article_code'], 'WALDUR-SECURITY')
         self.assertEqual(response.data['product_code'], 'PACK-001')
 
-    def test_price_is_copied_from_configuration_to_offering(self):
+    def test_price_is_copied_from_configuration_to_offering(self, mock_active_backend):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -236,29 +236,28 @@ class OfferingUpdateTest(BaseOfferingTest):
         super(OfferingUpdateTest, self).setUp()
         self.offering = self.fixture.offering
         self.url = factories.OfferingFactory.get_url(self.offering)
+        self.new_report = [{'header': 'Volumes', 'body': 'Volume Name'}]
 
     def test_staff_can_update_offering(self):
         self.client.force_authenticate(self.fixture.staff)
 
         new_name = 'New name'
-        new_report = {'Name': 'Value'}
-
-        response = self.client.put(self.url, {'name': new_name, 'report': new_report})
+        response = self.client.put(self.url, {'name': new_name, 'report': self.new_report})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, new_name)
-        self.assertEqual(self.offering.report, new_report)
+        self.assertEqual(self.offering.report, self.new_report)
 
     def test_owner_can_not_update_offering(self):
         self.client.force_authenticate(self.fixture.owner)
-        request = {'name': 'New name', 'report': {'Name': 'Value'}}
+        request = {'name': 'New name', 'report': self.new_report}
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_report_should_contain_at_least_one_key(self):
+    def test_report_should_contain_at_least_one_section(self):
         self.client.force_authenticate(self.fixture.staff)
-        request = {'name': 'New name', 'report': {}}
+        request = {'name': 'New name', 'report': []}
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -323,10 +322,6 @@ class OfferingCompleteTest(BaseOfferingTest):
 
 @ddt
 class OfferingTerminateTest(BaseOfferingTest):
-
-    def setUp(self, **kwargs):
-        super(OfferingTerminateTest, self).setUp(**kwargs)
-
     def test_staff_can_terminate_offering(self):
         self.client.force_authenticate(self.fixture.staff)
         self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
@@ -367,7 +362,8 @@ class CountersTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
 
     @data((True, 1), (False, 0))
-    def test_project_counter_has_experts(self, (has_request, expected_value)):
+    def test_project_counter_has_experts(self, pair):
+        (has_request, expected_value) = pair
         if has_request:
             factories.OfferingFactory(project=self.fixture.project)
 
@@ -380,7 +376,8 @@ class CountersTest(test.APITransactionTestCase):
         self.assertEqual(response.data, {'offerings': expected_value})
 
     @data((True, 1), (False, 0))
-    def test_customer_counter_has_experts(self, (has_request, expected_value)):
+    def test_customer_counter_has_experts(self, pair):
+        (has_request, expected_value) = pair
         if has_request:
             factories.OfferingFactory(project=self.fixture.project)
 

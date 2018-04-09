@@ -265,7 +265,7 @@ class ExpertRequestCancelTest(ExpertRequestActionsTest):
 
         # Act
         self.client.force_authenticate(self.staff)
-        response = self.cancel_expert_request()
+        self.cancel_expert_request()
 
         # Assert
         self.assertFalse(self.expert_request.project.has_user(expert))
@@ -282,7 +282,7 @@ class ExpertRequestCancelTest(ExpertRequestActionsTest):
 
         # Act
         self.client.force_authenticate(self.staff)
-        response = self.cancel_expert_request()
+        self.cancel_expert_request()
 
         # Assert
         pending_invitations = user_models.Invitation.objects.filter(state=user_models.Invitation.State.PENDING)

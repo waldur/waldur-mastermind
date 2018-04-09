@@ -6,7 +6,7 @@ import logging
 
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions
-from waldur_ansible.playbook_jobs.backend.exceptions import AnsibleBackendError
+from waldur_ansible.common.exceptions import AnsibleBackendError
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack_tenant import serializers as openstack_serializers
 
@@ -19,6 +19,7 @@ class InMemoryJob(object):
     """
     This class is used instead of database object for Ansible Job model.
     """
+
     def __init__(self, **kwargs):
         self.output = ''
         self.__dict__.update(kwargs)
@@ -35,13 +36,14 @@ class InMemoryResource(object):
     This class allows to treat dictionary as an object
     For example, use resource.flavor.cores instead of resource['flavor'].cores
     """
+
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
 
 def get_job(request):
     """
-    Construct in-memory Ansible job object using default values for SSH key and name. 
+    Construct in-memory Ansible job object using default values for SSH key and name.
     """
     serializer = serializers.JobEstimateSerializer(data=request.data, context={'request': request})
     serializer.is_valid(raise_exception=True)

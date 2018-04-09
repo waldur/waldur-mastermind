@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import re
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -22,7 +24,8 @@ from . import backend, managers
 class Issue(core_models.UuidMixin,
             structure_models.StructureLoggableMixin,
             core_models.BackendModelMixin,
-            TimeStampedModel):
+            TimeStampedModel,
+            core_models.StateMixin):
     class Meta:
         ordering = ['-created']
 
@@ -30,7 +33,7 @@ class Issue(core_models.UuidMixin,
         customer_path = 'customer'
         project_path = 'project'
 
-    backend_id = models.CharField(max_length=255, blank=True)
+    backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     key = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=255)
     link = models.URLField(max_length=255, help_text=_('Link to issue in support system.'), blank=True)
@@ -63,6 +66,9 @@ class Issue(core_models.UuidMixin,
 
     tracker = FieldTracker()
 
+    def get_description(self):
+        return self.description
+
     @classmethod
     def get_url_name(cls):
         return 'support-issue'
@@ -89,7 +95,7 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
         ordering = ['name']
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
-    backend_id = models.CharField(max_length=255, blank=True)
+    backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
 
     objects = managers.SupportUserManager()
 
@@ -102,9 +108,13 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class Comment(core_models.UuidMixin, core_models.BackendModelMixin, TimeStampedModel):
+class Comment(core_models.UuidMixin,
+              core_models.BackendModelMixin,
+              TimeStampedModel,
+              core_models.StateMixin):
     class Meta:
         ordering = ['-created']
+        unique_together = ('backend_id', 'issue')
 
     class Permissions(object):
         customer_path = 'issue__customer'
@@ -114,7 +124,31 @@ class Comment(core_models.UuidMixin, core_models.BackendModelMixin, TimeStampedM
     author = models.ForeignKey(SupportUser, related_name='comments')
     description = models.TextField()
     is_public = models.BooleanField(default=True)
-    backend_id = models.CharField(max_length=255, blank=True)
+    backend_id = models.CharField(max_length=255, blank=True, null=True)
+
+    def clean_message(self, message):
+        """
+        Extracts comment message from JIRA comment which contains user's info in its body.
+        """
+        match = re.search('^(\[.*?\]\:\s)', message)
+        return message.replace(match.group(0), '') if match else message
+
+    def prepare_message(self):
+        """
+        Prepends user info to the comment description to display comment author in JIRA.
+        User info format - '[user.full_name user.civil_number]: '.
+        """
+        prefix = self.author.name
+        # User is optional
+        user = self.author.user
+        if user:
+            prefix = user.full_name or user.username
+            if user.civil_number:
+                prefix += ' ' + user.civil_number
+        return '[%s]: %s' % (prefix, self.description)
+
+    def update_message(self, message):
+        self.description = self.clean_message(message)
 
     @classmethod
     def get_url_name(cls):
@@ -191,7 +225,9 @@ class Offering(core_models.UuidMixin,
 
 
 @python_2_unicode_compatible
-class Attachment(core_models.UuidMixin, TimeStampedModel):
+class Attachment(core_models.UuidMixin,
+                 TimeStampedModel,
+                 core_models.StateMixin):
     class Permissions(object):
         customer_path = 'issue__customer'
         project_path = 'issue__project'

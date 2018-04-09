@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import collections
 from decimal import Decimal
 
@@ -69,7 +71,7 @@ class PackageComponentForm(forms.ModelForm):
         instance = getattr(self, 'instance', None)
         template = getattr(instance, 'template', None)
         if template and template.openstack_packages.exists() and (
-                        'monthly_price' in self.changed_data or 'amount' in self.changed_data):
+                'monthly_price' in self.changed_data or 'amount' in self.changed_data):
             raise forms.ValidationError(_('Price cannot be changed for a template which has connected packages.'))
 
         type = self.cleaned_data['type']

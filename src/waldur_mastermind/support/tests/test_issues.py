@@ -301,7 +301,6 @@ class IssueDeleteTest(base.BaseTest):
 
 @ddt
 class IssueCommentTest(base.BaseTest):
-
     @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_with_access_to_issue_can_comment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))

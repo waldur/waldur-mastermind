@@ -94,4 +94,3 @@ class PackageDeploymentPlanTest(test.APITransactionTestCase):
         ]
         for t in type_component:
             self.template.components.filter(type=t).update(amount=source[t])
-

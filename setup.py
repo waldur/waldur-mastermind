@@ -3,15 +3,15 @@ from setuptools import setup, find_packages
 
 # defusedxml is required by djangosaml2
 install_requires = [
-    'ansible-waldur-module>=0.6.0',
+    'ansible-waldur-module>=0.6.1',
     'defusedxml>=0.4.1',
     'Django>=1.11,<2.0',
     'django-auth-ldap>=1.3.0',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'pdfkit>=0.6.1',
-    'waldur-core>=0.157.0',
-    'waldur-ansible>=0.4.0',
+    'waldur-core>=0.157.3',
+    'waldur-ansible>=0.5.2',
     'waldur-auth-openid>=0.8.9',
     'waldur-auth-social>=0.7.9',
     'waldur-auth-saml2>=0.9.1',
@@ -21,8 +21,8 @@ install_requires = [
     'waldur-cost-planning>=0.6.1',
     'waldur-digitalocean>=0.10.2',
     'waldur-freeipa>=0.6.3',
-    'waldur-jira>=0.7.0',
-    'waldur-openstack>=0.41.1',
+    'waldur-jira>=0.7.1',
+    'waldur-openstack>=0.41.2',
     'waldur-paypal>=0.7.0',
     'waldur-slurm>=0.5.0',
     'waldur-zabbix>=0.8.0',
@@ -36,7 +36,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.9.0',
+    version='2.9.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

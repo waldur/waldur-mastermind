@@ -1,196 +1,49 @@
 from __future__ import unicode_literals
 
-import functools
+import collections
 import json
 import logging
-import re
-import six
 from datetime import datetime
 
 import dateutil.parser
 from django.conf import settings
-from django.utils import six
-from jira import JIRA, JIRAError, Comment
+from django.utils import timezone
+from jira import JIRAError, Comment
 from jira.utils import json_loads
 from six.moves.html_parser import HTMLParser
 
+from waldur_jira.backend import reraise_exceptions, JiraBackend
 from waldur_mastermind.support import models
-from waldur_mastermind.support.backend import SupportBackendError, SupportBackend
-from waldur_mastermind.support.log import event_logger
+
+from . import SupportBackend
 
 logger = logging.getLogger(__name__)
 
 
-class JiraBackendError(SupportBackendError):
-    pass
+Settings = collections.namedtuple('Settings', ['backend_url', 'username', 'password'])
 
 
-def reraise_exceptions(func):
-    @functools.wraps(func)
-    def wrapped(self, *args, **kwargs):
-        try:
-            return func(self, *args, **kwargs)
-        except JIRAError as e:
-            six.reraise(JiraBackendError, e)
-
-    return wrapped
-
-
-class JiraBackend(SupportBackend):
-    credentials = settings.WALDUR_SUPPORT.get('CREDENTIALS', {})
-    project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
-    issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
-
-    @property
-    @reraise_exceptions
-    def manager(self):
-        # manager will be the same for all issues - we can cache it on the class level.
-        if not hasattr(self.__class__, '_manager'):
-            self.__class__._manager = JIRA(
-                server=self.credentials['server'],
-                options={'verify': self.credentials['verify_ssl']},
-                basic_auth=(self.credentials['username'], self.credentials['password']),
-                validate=False)
-        return self.__class__._manager
-
-    @reraise_exceptions
-    def _get_field_id_by_name(self, field_name):
-        if not hasattr(self.__class__, '_fields'):
-            self.__class__._fields = self.manager.fields()
-        try:
-            return next(f['id'] for f in self.__class__._fields if field_name in f['clauseNames'])
-        except StopIteration:
-            return JiraBackendError('Field "{0}" does not exist in JIRA.'.format(field_name))
-
-    def _issue_to_dict(self, issue):
-        """ Convert issue to dict that can be accepted by JIRA as input parameters """
-        caller = issue.caller.full_name or issue.caller.username
-        parser = HTMLParser()
-        args = {
-            'project': self.project_settings['key'],
-            'summary': parser.unescape(issue.summary),
-            'description': parser.unescape(issue.description),
-            'issuetype': {'name': issue.type},
-            self._get_field_id_by_name(self.issue_settings['caller_field']): caller,
-        }
-
-        if issue.reporter:
-            args[self._get_field_id_by_name(self.issue_settings['reporter_field'])] = issue.reporter.name
-        if issue.impact:
-            args[self._get_field_id_by_name(self.issue_settings['impact_field'])] = issue.impact
-        if issue.priority:
-            args['priority'] = {'name': issue.priority}
-        return args
-
-    @reraise_exceptions
-    def create_issue(self, issue):
-        backend_issue = self.manager.create_issue(**self._issue_to_dict(issue))
-        if issue.assignee:
-            self.manager.assign_issue(backend_issue.key, issue.assignee.backend_id)
-        issue.key = backend_issue.key
-        issue.backend_id = backend_issue.key
-        issue.resolution = backend_issue.fields.resolution or ''
-        issue.status = backend_issue.fields.status.name or ''
-        issue.link = backend_issue.permalink()
-        issue.priority = backend_issue.fields.priority.name
-        issue.first_response_sla = self._get_first_sla_field(backend_issue)
-        issue.save()
-
-        event_logger.waldur_issue.info(
-            'Issue {issue_key} has been created.',
-            event_type='issue_creation_succeeded',
-            event_context={
-                'issue': issue,
-            })
-
-        return backend_issue
-
-    def _get_first_sla_field(self, backend_issue):
-        field_name = self._get_field_id_by_name(self.issue_settings['sla_field'])
-        value = getattr(backend_issue.fields, field_name, None)
-        if value and hasattr(value, 'ongoingCycle'):
-            epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
-            if epoch_milliseconds:
-                return datetime.fromtimestamp(epoch_milliseconds / 1000.0)
-
-    @reraise_exceptions
-    def update_issue(self, issue):
-        backend_issue = self.manager.issue(issue.backend_id)
-        backend_issue.update(summary=issue.summary, description=issue.description)
-
-    @reraise_exceptions
-    def delete_issue(self, issue):
-        backend_issue = self.manager.issue(issue.backend_id)
-        backend_issue.delete()
-
-    def _prepare_comment_message(self, comment):
-        """
-        Prepends user info to the comment description to display comment author in JIRA.
-        User info format - '[user.full_name user.civil_number]: '.
-        """
-        prefix = comment.author.name
-        # User is optional
-        user = comment.author.user
-        if user:
-            prefix = user.full_name or user.username
-            if user.civil_number:
-                prefix += ' ' + user.civil_number
-        return '[%s]: %s' % (prefix, comment.description)
-
-    def extract_comment_message(self, comment_body):
-        """
-        Extracts comment message from JIRA comment which contains user's info in its body.
-        """
-        match = re.search('^(\[.*?\]\:\s)', comment_body)
-        return comment_body.replace(match.group(0), '') if match else comment_body
-
-    @reraise_exceptions
-    def create_comment(self, comment):
-        backend_comment = self.manager.add_comment(comment.issue.backend_id, self._prepare_comment_message(comment))
-        comment.backend_id = backend_comment.id
-        comment.save(update_fields=['backend_id'])
-
-    @reraise_exceptions
-    def update_comment(self, comment):
-        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
-        backend_comment.update(body=self._prepare_comment_message(comment))
-
-    @reraise_exceptions
-    def delete_comment(self, comment):
-        backend_comment = self.manager.comment(comment.issue.backend_id, comment.backend_id)
-        backend_comment.delete()
-
-    @reraise_exceptions
-    def get_users(self):
-        users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
-        return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
-
-    @reraise_exceptions
-    def create_attachment(self, attachment):
-        backend_issue = self.manager.issue(attachment.issue.backend_id)
-        backend_attachment = self.manager.add_attachment(backend_issue, attachment.file.file)
-        attachment.backend_id = backend_attachment.id
-        attachment.mime_type = backend_attachment.mimeType
-        attachment.file_size = backend_attachment.size
-        attachment.created = dateutil.parser.parse(backend_attachment.created)
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
-        attachment.author = author
-        attachment.save()
-
-    @reraise_exceptions
-    def delete_attachment(self, attachment):
-        backend_attachment = self.manager.attachment(attachment.backend_id)
-        backend_attachment.delete()
-
-
-class ServiceDeskBackend(JiraBackend):
+class ServiceDeskBackend(JiraBackend, SupportBackend):
     servicedeskapi_path = 'servicedeskapi'
+    model_comment = models.Comment
+    model_issue = models.Issue
+    model_attachment = models.Attachment
+
+    def __init__(self):
+        self.settings = Settings(
+            backend_url=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('server'),
+            username=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('username'),
+            password=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('password'),
+        )
+        self.verify = settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('verify_ssl')
+        self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
+        self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
 
     @reraise_exceptions
     def create_comment(self, comment):
         backend_comment = self._add_comment(
             comment.issue.backend_id,
-            self._prepare_comment_message(comment),
+            comment.prepare_message(),
             is_internal=not comment.is_public,
         )
         comment.backend_id = backend_comment.id
@@ -232,9 +85,30 @@ class ServiceDeskBackend(JiraBackend):
         self._create_customer(issue.caller.email, issue.caller.full_name)
         super(ServiceDeskBackend, self).create_issue(issue)
 
+    @reraise_exceptions
+    def get_users(self):
+        users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
+        return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
+
     def _issue_to_dict(self, issue):
-        args = super(ServiceDeskBackend, self)._issue_to_dict(issue)
-        args[self._get_field_id_by_name(self.issue_settings['caller_field'])] = [{
+        caller = issue.caller.full_name or issue.caller.username
+        parser = HTMLParser()
+        args = {
+            'project': self.project_settings['key'],
+            'summary': parser.unescape(issue.summary),
+            'description': parser.unescape(issue.description),
+            'issuetype': {'name': issue.type},
+            self.get_field_id_by_name(self.issue_settings['caller_field']): caller,
+        }
+
+        if issue.reporter:
+            args[self.get_field_id_by_name(self.issue_settings['reporter_field'])] = issue.reporter.name
+        if issue.impact:
+            args[self.get_field_id_by_name(self.issue_settings['impact_field'])] = issue.impact
+        if issue.priority:
+            args['priority'] = {'name': issue.priority}
+
+        args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [{
             "name": issue.caller.email,
             "key": issue.caller.email
         }]
@@ -256,14 +130,74 @@ class ServiceDeskBackend(JiraBackend):
             'X-ExperimentalApi': 'true',
         }
 
-        url = "{host}rest/{path}/customer".format(host=self.credentials['server'], path=self.servicedeskapi_path)
+        url = "{host}rest/{path}/customer".format(host=self.settings.backend_url, path=self.servicedeskapi_path)
         try:
             self.manager._session.post(url, data=json.dumps(data), headers=headers)
         except JIRAError as e:
             # TODO [TM:1/11/17] replace it with api call when such an ability is provided
             if e.status_code == 400 and "already exists" in e.text:
+                # TODO: This don't work if Jira language is not English
                 return False
             else:
                 raise e
         else:
             return True
+
+    def _get_first_sla_field(self, backend_issue):
+        field_name = self.get_field_id_by_name(self.issue_settings['sla_field'])
+        value = getattr(backend_issue.fields, field_name, None)
+        if value and hasattr(value, 'ongoingCycle'):
+            epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
+            if epoch_milliseconds:
+                return datetime.fromtimestamp(epoch_milliseconds / 1000.0, timezone.get_default_timezone())
+
+    def _backend_issue_to_issue(self, backend_issue, issue):
+        issue.key = backend_issue.key
+        issue.backend_id = backend_issue.key
+        issue.resolution = backend_issue.fields.resolution or ''
+        issue.status = backend_issue.fields.status.name or ''
+        issue.link = backend_issue.permalink()
+        issue.priority = backend_issue.fields.priority.name
+        issue.first_response_sla = self._get_first_sla_field(backend_issue)
+        issue.summary = backend_issue.fields.summary
+        issue.description = backend_issue.fields.description or ''
+        issue.type = backend_issue.fields.issuetype.name
+
+        def get_support_user_by_field(fields, field_name):
+            support_user = None
+            backend_user = getattr(fields, field_name, None)
+
+            if backend_user:
+                support_user_backend_key = getattr(backend_user, 'key', None)
+
+                if support_user_backend_key:
+                    support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
+
+            return support_user
+
+        impact_field_id = self.get_field_id_by_name(self.issue_settings['impact_field'])
+        impact = getattr(backend_issue.fields, impact_field_id, None)
+        if impact:
+            issue.impact = impact
+
+        assignee = get_support_user_by_field(backend_issue.fields, 'assignee')
+        if assignee:
+            issue.assignee = assignee
+
+        reporter = get_support_user_by_field(backend_issue.fields, 'reporter')
+        if reporter:
+            issue.reporter = reporter
+
+    def _backend_comment_to_comment(self, backend_comment, comment):
+        comment.update_message(backend_comment.body)
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment.author.key)
+        comment.author = author
+        internal = self._get_property('comment', backend_comment.id, 'sd.public.comment')
+        comment.is_public = not internal.get('value', {}).get('internal', False)
+
+    def _backend_attachment_to_attachment(self, backend_attachment, attachment):
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
+        attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
+        attachment.file_size = backend_attachment.size
+        attachment.created = dateutil.parser.parse(backend_attachment.created)
+        attachment.author = author

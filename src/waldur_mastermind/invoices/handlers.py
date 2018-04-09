@@ -1,16 +1,14 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
-from django.db import transaction
-from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.cost_tracking import signals as cost_signals
 from waldur_mastermind.support import models as support_models
-
-from . import tasks, models, log, registrators
+from . import models, log, registrators
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
@@ -35,11 +33,11 @@ def update_invoice_on_offering_deletion(sender, instance, **kwargs):
 
 def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
     state = instance.state
-    if (state == support_models.Offering.States.OK
-            and support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
+    if (state == support_models.Offering.States.OK and
+            support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
         registrators.RegistrationManager.register(instance, timezone.now())
-    if (state == support_models.Offering.States.TERMINATED
-            and support_models.Offering.States.OK == instance.tracker.previous('state')):
+    if (state == support_models.Offering.States.TERMINATED and
+            support_models.Offering.States.OK == instance.tracker.previous('state')):
         registrators.RegistrationManager.terminate(instance, timezone.now())
 
 

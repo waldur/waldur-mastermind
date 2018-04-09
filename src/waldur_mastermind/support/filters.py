@@ -71,7 +71,7 @@ class CommentIssueResourceFilterBackend(IssueResourceFilterBackend):
 class IssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
     def filter_queryset(self, request, queryset, view):
         return super(IssueCallerOrRoleFilterBackend, self).filter_queryset(request, queryset, view).distinct() | \
-               queryset.filter(caller=request.user).distinct()
+            queryset.filter(caller=request.user).distinct()
 
 
 class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter):
@@ -79,7 +79,7 @@ class CommentIssueCallerOrRoleFilterBackend(structure_filters.GenericRoleFilter)
         return super(CommentIssueCallerOrRoleFilterBackend, self).filter_queryset(request,
                                                                                   queryset,
                                                                                   view).distinct() | \
-               queryset.filter(issue__caller=request.user).distinct()
+            queryset.filter(issue__caller=request.user).distinct()
 
 
 class CommentFilter(django_filters.FilterSet):
@@ -112,6 +112,7 @@ class OfferingFilter(django_filters.FilterSet):
     type = django_filters.ChoiceFilter(choices=[(item, item) for item in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
+    issue_key = django_filters.CharFilter(name='issue__key')
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
     state = core_filters.MappedMultipleChoiceFilter(

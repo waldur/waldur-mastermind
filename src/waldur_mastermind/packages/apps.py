@@ -10,7 +10,7 @@ class PackageConfig(AppConfig):
         OpenStackPackage = self.get_model('OpenStackPackage')
 
         from . import handlers
-        from . import cost_planning
+        from . import cost_planning  # noqa: F401
 
         signals.post_save.connect(
             handlers.log_openstack_package_creation,

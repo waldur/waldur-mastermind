@@ -25,6 +25,7 @@ class LinkFilterBackend(DjangoFilterBackend):
     we should be able to get list of all Zabbix service project links
     which could be used as Zabbix monitoring in the same OpenStack tenant.
     """
+
     def filter_queryset(self, request, queryset, view):
         resource_url = request.query_params.get('resource')
         if resource_url:

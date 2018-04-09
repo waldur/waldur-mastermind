@@ -173,14 +173,14 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
 
     def test_when_bid_accepted_request_becomes_active(self):
         self.client.force_authenticate(self.project_fixture.owner)
-        response = self.accept_bid()
+        self.accept_bid()
         self.expert_request.refresh_from_db()
         self.assertEqual(self.expert_request.state, models.ExpertRequest.States.ACTIVE)
 
     def test_when_bid_accepted_event_is_emitted(self):
         self.client.force_authenticate(self.project_fixture.owner)
         with mock.patch('logging.LoggerAdapter.info') as mocked_info:
-            response = self.accept_bid()
+            self.accept_bid()
             template = 'Expert request {expert_request_name} has been activated.'
             context = {
                 'expert_request_name': self.expert_bid.request.name,
@@ -188,20 +188,6 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
             expected_message = template.format(**context)
             actual_message = mocked_info.call_args_list[-1][0][0]
             self.assertEqual(expected_message, actual_message)
-
-    def test_when_bid_accepted_invitations_for_expert_team_members_are_created(self):
-        # Arrange
-        expert_users = structure_factories.UserFactory.create_batch(3)
-        for user in expert_users:
-            self.team.add_user(user, structure_models.ProjectRole.ADMINISTRATOR)
-
-        # Act
-        self.client.force_authenticate(self.project_fixture.owner)
-        self.accept_bid()
-
-        # Assert
-        invitations = self.get_invitations(expert_users)
-        self.assertEqual(len(invitations), len(expert_users))
 
     @mock.patch('waldur_core.users.tasks.send_invitation')
     def test_when_bid_accepted_invitations_for_expert_team_members_are_created(self, mocked_task):

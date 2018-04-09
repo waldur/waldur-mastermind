@@ -1,5 +1,6 @@
-import logging
+from __future__ import unicode_literals
 
+import logging
 from smtplib import SMTPException
 
 from celery import Task, shared_task
@@ -9,9 +10,7 @@ from django.template.loader import render_to_string
 
 from waldur_core.core import utils as core_utils
 
-
 from . import backend, models
-
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def send_comment_added_notification(serialized_comment):
         _send_issue_notification(comment.issue, 'comment_added')
 
 
-def _send_issue_notification(issue, template):
+def _send_issue_notification(issue, template, receiver=None):
     if not settings.WALDUR_SUPPORT['ENABLED']:
         return
 
@@ -59,7 +58,8 @@ def _send_issue_notification(issue, template):
         logger.info(message)
         return
 
-    receiver = issue.caller
+    if not receiver:
+        receiver = issue.caller
 
     context = {
         'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid),

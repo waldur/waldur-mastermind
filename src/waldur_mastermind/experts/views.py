@@ -177,7 +177,7 @@ class ExpertRequestViewSet(core_views.ActionsViewSet):
     @decorators.detail_route()
     def pdf(self, request, uuid=None):
         expert_request = self.get_object()
-        
+
         try:
             contract = models.ExpertContract.objects.get(request=expert_request)
             if not contract.has_file():

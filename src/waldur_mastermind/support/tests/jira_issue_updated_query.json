@@ -58,12 +58,7 @@
             "key": "test_user",
             "accountId": "99:27935d01-92a7-4687-8272-a9b8d3b2ae2e",
             "name": "test_user",
-            "avatarUrls": {
-              "48x48": "http://www.example.com/jira/secure/useravatar?size=large&ownerId=fred",
-              "24x24": "http://www.example.com/jira/secure/useravatar?size=small&ownerId=fred",
-              "16x16": "http://www.example.com/jira/secure/useravatar?size=xsmall&ownerId=fred",
-              "32x32": "http://www.example.com/jira/secure/useravatar?size=medium&ownerId=fred"
-            },
+            "avatarUrls": {},
             "displayName": "Test User",
             "active": false
           },
@@ -272,5 +267,19 @@
     "self": "http://localhost:8080/rest/api/2/user?username=test_user",
     "timeZone": "America/New_York"
   },
-  "webhookEvent": "jira:issue_updated"
+  "webhookEvent": "jira:issue_updated",
+  "changelog": {
+      "id": "11846",
+      "items": [
+          {
+              "field": "Attachment",
+              "fieldtype": "jira",
+              "fieldId": "attachment",
+              "from": null,
+              "fromString": null,
+              "to": "100001",
+              "toString": "filename.pdf"
+          }
+      ]
+  }
 }

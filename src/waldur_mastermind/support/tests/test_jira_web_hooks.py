@@ -1,349 +1,303 @@
-import pkg_resources
+import collections
 import json
-from datetime import datetime
+
+import jira
 import mock
-
-from django.core import mail
-
+import pkg_resources
+import six
 from django.conf import settings
-from django.template.loader import render_to_string
+from django.core import mail
 from django.urls import reverse
-from rest_framework import status
+from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
 
-from waldur_core.structure.images import dummy_image
-from waldur_mastermind.support import models
+from waldur_jira.backend import AttachmentSynchronizer, CommentSynchronizer
+from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories
 
 
+@mock.patch('waldur_mastermind.support.serializers.ServiceDeskBackend')
 class TestJiraWebHooks(APITransactionTestCase):
-    JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME = "jira_issue_updated_query.json"
-
     def setUp(self):
         self.url = reverse('web-hook-receiver')
-        self.CREATED = 'jira:issue_created'
-        self.UPDATED = 'jira:issue_updated'
-        self.DELETED = 'jira:issue_deleted'
-        jira_backend = 'waldur_mastermind.support.backend.atlassian:JiraBackend'
+        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
         settings.WALDUR_SUPPORT['ENABLED'] = True
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
-        jira_request = pkg_resources.resource_stream(__name__, self.JIRA_ISSUE_UPDATE_REQUEST_FILE_NAME).read().decode()
-        self.request_data = json.loads(jira_request)
         settings.CELERY_ALWAYS_EAGER = True
+        backend_id = 'SNT-101'
+        self.issue = factories.IssueFactory(backend_id=backend_id)
+
+        def create_request(test, name, path):
+            jira_request = pkg_resources.resource_stream(__name__, path).read().decode()
+            jira_request = json.loads(jira_request)
+            jira_request['issue']['key'] = backend_id
+            setattr(test, 'request_data_' + name, jira_request)
+
+        jira_requests = (
+            ('issue_updated', 'jira_issue_updated_query.json'),
+            ('comment_create', 'jira_comment_create_query.json'),
+            ('comment_update', 'jira_comment_update_query.json'),
+            ('comment_delete', 'jira_comment_delete_query.json'),
+        )
+        [create_request(self, *r) for r in jira_requests]
 
     def tearDown(self):
         settings.CELERY_ALWAYS_EAGER = False
 
-    def set_issue_and_support_user(self):
-        backend_id = 'SNT-101'
-        issue = factories.IssueFactory(backend_id=backend_id)
-        support_user = factories.SupportUserFactory(backend_id='support')
-        return backend_id, issue, support_user
+    def test_issue_update(self, mock_jira):
+        self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
+        self.client.post(self.url, self.request_data_issue_updated)
+        self.assertTrue(self._call_update_issue(mock_jira))
 
-    def test_issue_update_callback_does_not_update_issue_link(self):
-        backend_id = 'WAL-101'
-        permalink = 'https://example.atlassian.net/browse/WAL-101'
-        issue = factories.IssueFactory(backend_id=backend_id, link=permalink)
-        self.request_data['issue']['key'] = backend_id
+    def test_comment_create(self, mock_jira):
+        self.client.post(self.url, self.request_data_comment_create)
+        self.assertTrue(self._call_create_comment(mock_jira))
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+    def test_comment_update(self, mock_jira):
+        comment = factories.CommentFactory(issue=self.issue)
+        self.request_data_comment_update['comment']['id'] = comment.backend_id
+        self.client.post(self.url, self.request_data_comment_update)
+        self.assertTrue(self._call_update_comment(mock_jira))
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.link, permalink)
+    def test_comment_delete(self, mock_jira):
+        comment = factories.CommentFactory(issue=self.issue)
+        self.request_data_comment_delete['comment']['id'] = comment.backend_id
+        self.client.post(self.url, self.request_data_comment_delete)
+        self.assertTrue(self._call_delete_comment(mock_jira))
 
-    def test_issue_update_callback_updates_issue_summary(self):
-        # arrange
-        expected_summary = 'Happy New Year'
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        self.assertNotEquals(issue.summary, expected_summary)
+    def test_add_attachment(self, mock_jira):
+        self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
+        self.client.post(self.url, self.request_data_issue_updated)
+        self.assertTrue(self._call_update_attachment(mock_jira))
 
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        self.request_data['issue']['fields']['summary'] = expected_summary
+    def test_delete_attachment(self, mock_jira):
+        self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
+        self.client.post(self.url, self.request_data_issue_updated)
+        self.assertTrue(self._call_update_attachment(mock_jira))
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+    def _call_update_attachment(self, mock_jira):
+        return filter(lambda x: x[0] == '().update_attachment_from_jira', mock_jira.mock_calls)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.summary, expected_summary)
+    def _call_create_comment(self, mock_jira):
+        return filter(lambda x: x[0] == '().create_comment_from_jira', mock_jira.mock_calls)
 
-    def test_issue_update_callback_updates_issue_assignee(self):
-        # arrange
-        backend_id, issue, assignee = self.set_issue_and_support_user()
+    def _call_update_comment(self, mock_jira):
+        return filter(lambda x: x[0] == '().update_comment_from_jira', mock_jira.mock_calls)
 
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        self.request_data['issue']['fields']['assignee'] = {
-            "key": assignee.backend_id
-        }
+    def _call_delete_comment(self, mock_jira):
+        return filter(lambda x: x[0] == '().delete_comment_from_jira', mock_jira.mock_calls)
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+    def _call_update_issue(self, mock_jira):
+        return filter(lambda x: x[0] == '().update_issue_from_jira', mock_jira.mock_calls)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.assignee.id, assignee.id)
 
-    def test_issue_update_callback_updates_issue_reporter(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        reporter = factories.SupportUserFactory(backend_id='Tiffany')
+MockSupportUser = collections.namedtuple('MockSupportUser', ['key'])
 
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        self.request_data['issue']['fields']['reporter'] = {
-            "key": reporter.backend_id
-        }
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+class TestUpdateIssueFromJira(APITransactionTestCase):
+    def setUp(self):
+        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
+        settings.CELERY_ALWAYS_EAGER = True
+        self.issue = factories.IssueFactory()
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.reporter.id, reporter.id)
+        backend_issue_raw = pkg_resources.resource_stream(__name__, 'jira_issue_raw.json').read().decode()
+        backend_issue_raw = json.loads(backend_issue_raw)
+        self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
+        self.backend = ServiceDeskBackend()
+        self.impact_field_id = 'customfield_10116'
 
-    def test_issue_update_callback_creates_a_comment(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        factories.SupportUserFactory(backend_id=backend_id)
-        self.assertEqual(issue.comments.count(), 0)
+        path = mock.patch.object(ServiceDeskBackend, 'get_backend_issue',
+                                 new=mock.Mock(return_value=self.backend_issue))
+        path.start()
 
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        expected_comments_count = self.request_data['issue']['fields']['comment']['total']
+        self.first_response_sla = timezone.now()
+        path = mock.patch.object(ServiceDeskBackend, '_get_first_sla_field',
+                                 new=mock.Mock(return_value=self.first_response_sla))
+        path.start()
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+        def side_effect(arg):
+            if arg == 'Impact':
+                return self.impact_field_id
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.comments.count(), expected_comments_count)
+        path = mock.patch.object(ServiceDeskBackend, 'get_field_id_by_name',
+                                 new=mock.Mock(side_effect=side_effect))
+        path.start()
 
-    def test_issue_update_callback_updates_a_comment(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        expected_comment_body = 'Merry Christmas'
-        comment = factories.CommentFactory(issue=issue)
+    def tearDown(self):
+        mock.patch.stopall()
+        settings.CELERY_ALWAYS_EAGER = False
 
-        self.request_data['issue']['key'] = issue.backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        self.request_data['issue']['fields']['comment']['comments'][0]['id'] = comment.backend_id
-        self.request_data['issue']['fields']['comment']['comments'][0]['body'] = expected_comment_body
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        issue_comment = issue.comments.first()
-        self.assertIsNotNone(issue_comment)
-        self.assertEqual(issue_comment.description, expected_comment_body)
-
-    def test_webhook_cleans_up_user_info_and_does_not_update_comment_if_it_is_not_changed(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        comment = factories.CommentFactory(issue=issue)
-        expected_comment_body = comment.description
-        jira_comment_body = '[Luke Skywalker 19BBY-TA-T16]: %s' % expected_comment_body
-
-        self.request_data['issue']['key'] = issue.backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        self.request_data['issue']['fields']['comment']['comments'][0]['id'] = comment.backend_id
-        self.request_data['issue']['fields']['comment']['comments'][0]['body'] = jira_comment_body
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        issue_comment = issue.comments.first()
-        self.assertIsNotNone(issue_comment)
-        self.assertEqual(issue_comment.description, expected_comment_body)
-
-    def test_issue_update_callback_creates_deletes_two_comments(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        initial_number_of_comments = 2
-        factories.CommentFactory.create_batch(initial_number_of_comments, issue=issue)
-        self.assertEqual(issue.comments.count(), initial_number_of_comments)
-
-        self.request_data['issue']['key'] = issue.backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        expected_comments_count = self.request_data['issue']['fields']['comment']['total']
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.comments.count(), expected_comments_count)
-
-    def test_issue_update_callback_populates_impact_field(self):
-        # arrange
-        impact_field = settings.WALDUR_SUPPORT['ISSUE']['impact_field']
+    def test_update_issue_impact_field(self):
         impact_field_value = 'Custom Value'
-        backend_id, issue, _ = self.set_issue_and_support_user()
+        setattr(self.backend_issue.fields, self.impact_field_id, impact_field_value)
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.impact, impact_field_value)
 
-        self.request_data['issue']['key'] = issue.backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = issue.reporter.backend_id
-        self.request_data['issue']['fields'][impact_field] = impact_field_value
+    def test_update_issue_assignee(self):
+        assignee = factories.SupportUserFactory(backend_id='support_user_backend_id')
+        backend_assignee_user = MockSupportUser(key=assignee.backend_id)
+        self.backend_issue.fields.assignee = backend_assignee_user
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.assignee.id, assignee.id)
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+    def test_update_issue_reporter(self):
+        reporter = factories.SupportUserFactory(backend_id='support_user_backend_id')
+        backend_reporter_user = MockSupportUser(key=reporter.backend_id)
+        self.backend_issue.fields.reporter = backend_reporter_user
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.reporter.id, reporter.id)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.impact, impact_field_value)
-
-    def test_issue_update_callback_does_not_create_issue(self):
-        # arrange
-        backend_id = 'SNT-102'
-        reporter = factories.SupportUserFactory(backend_id=backend_id)
-        self.assertEqual(models.Issue.objects.count(), 0)
-
-        self.request_data['webhookEvent'] = self.CREATED
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = reporter.backend_id
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(models.Issue.objects.count(), 0)
-
-    def test_issue_update_callback_updates_issue_caller(self):
-        # arrange
+    def test_update_issue_summary(self):
         expected_summary = 'Happy New Year'
-        backend_id, issue, support_user = self.set_issue_and_support_user()
+        self.backend_issue.fields.summary = expected_summary
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.summary, expected_summary)
 
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = support_user.backend_id
-        self.request_data['issue']['fields']['summary'] = expected_summary
+    def test_update_issue_link(self):
+        permalink = self.backend_issue.permalink()
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.link, permalink)
 
-        # act
-        response = self.client.post(self.url, self.request_data)
+    def test_update_first_response_sla(self):
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.first_response_sla, self.first_response_sla)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(issue.caller.id, support_user.user.id)
-
-    def test_issue_update_callback_updates_first_response_sla(self):
-        # arrange
-        backend_id, issue, support_user = self.set_issue_and_support_user()
-
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['reporter']['key'] = support_user.backend_id
-        epoch_millis = self.request_data['issue']['fields']['customfield_10006']['ongoingCycle']['breachTime']['epochMillis']
-        expected_first_response_sla = datetime.fromtimestamp(epoch_millis / 1000.0)
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        naive_issue_time = issue.first_response_sla.replace(tzinfo=None)
-        self.assertEqual(naive_issue_time, expected_first_response_sla)
-
-    def test_web_hook_raises_400_error_if_request_is_invalid(self):
-        response = self.client.post(self.url, {})
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_resolution_is_populated_from_jira_request(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
+    def test_update_issue_resolution(self):
         expected_resolution = 'Done'
-        self.request_data['issue']['fields']['resolution']['name'] = expected_resolution
-        self.request_data['issue']['key'] = backend_id
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(expected_resolution, issue.resolution)
+        self.backend_issue.fields.resolution = expected_resolution
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.resolution, expected_resolution)
 
     def test_resolution_is_empty_if_it_is_none(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        self.request_data['issue']['fields']['resolution'] = None
-        self.request_data['issue']['key'] = backend_id
+        expected_resolution = None
+        self.backend_issue.fields.resolution = expected_resolution
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.resolution, '')
 
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual('', issue.resolution)
-
-    def test_status_is_populated_from_jira_request(self):
-        # arrange
-        backend_id, issue, _ = self.set_issue_and_support_user()
-        self.request_data['issue']['key'] = backend_id
-        expected_status = 'To Do'
-        self.request_data['issue']['fields']['status']['name'] = expected_status
-
-        # act
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEquals(response.status_code, status.HTTP_200_OK)
-        issue.refresh_from_db()
-        self.assertEqual(expected_status, issue.status)
+    def test_update_issue_status(self):
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.status, self.backend_issue.fields.status.name)
 
     def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(self):
-        fields = self.request_data['issue']['fields']
-        reporter = factories.SupportUserFactory(backend_id=fields['reporter']['key'])
-        assignee = factories.SupportUserFactory(backend_id=fields['assignee']['key'])
-        first_response_sla = fields['customfield_10006']['ongoingCycle']['breachTime']['epochMillis'] / 1000.0
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        self.backend.update_issue_from_jira(self.issue)
+        self.assertEqual(len(mail.outbox), 0)
 
-        factories.IssueFactory(
-            resolution=fields['resolution']['name'],
-            backend_id=self.request_data['issue']['key'],
-            status=fields['status']['name'],
-            link=self.request_data['issue']['self'],
-            summary=fields['summary'],
-            priority=fields['priority']['name'],
-            description=fields['description'],
-            type=fields['issuetype']['name'],
-            assignee=assignee,
-            reporter=reporter,
-            caller=reporter.user,
-            first_response_sla=datetime.fromtimestamp(first_response_sla),
-        )
-
-        response = self.client.post(self.url, self.request_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+    def test_web_hook_does_trigger_issue_update_email_if_the_issue_was_updated(self):
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
+        expected_resolution = 'Done'
+        self.backend_issue.fields.resolution = expected_resolution
+        self.backend.update_issue_from_jira(self.issue)
         self.assertEqual(len(mail.outbox), 1)
-        new_comment_added_subject = render_to_string('support/notification_comment_added_subject.txt').strip()
-        self.assertEqual(mail.outbox[0].subject, new_comment_added_subject)
 
-    @mock.patch('waldur_mastermind.support.backend.atlassian.JIRA')
-    def test_add_attachment(self, mock_jira):
-        backend_attachment_id = 'backend_attachment_id'
-        mock_jira().issue.return_value = mock.Mock(raw=self.request_data['issue'])
-        backend_id, issue, support_user = self.set_issue_and_support_user()
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['attachment'][0]['id'] = backend_attachment_id
-        self.client.post(self.url, self.request_data)
-        self.assertTrue(models.Attachment.objects.filter(backend_id=backend_attachment_id).exists())
+    def test_issue_update_callback_creates_deletes_two_comments(self):
+        factories.CommentFactory(issue=self.issue)
+        factories.CommentFactory(issue=self.issue)
+        synchronizer = CommentSynchronizer(self.backend, self.issue, self.backend_issue)
+        synchronizer.perform_update()
+        self.assertEqual(self.issue.comments.count(), 0)
 
-    @mock.patch('waldur_mastermind.support.backend.atlassian.JIRA')
-    def test_if_file_is_received_twice_create_it_once(self, mock_request):
-        backend_attachment_id = 'backend_attachment_id'
-        backend_id, issue, support_user = self.set_issue_and_support_user()
-        self.request_data['issue']['key'] = backend_id
-        self.request_data['issue']['fields']['attachment'][0]['id'] = backend_attachment_id
-        self.client.post(self.url, self.request_data)
-        self.client.post(self.url, self.request_data)
-        self.assertEqual(models.Attachment.objects.filter(backend_id=backend_attachment_id).count(), 1)
+
+class TestUpdateCommentFromJira(APITransactionTestCase):
+    def setUp(self):
+        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
+        self.comment = factories.CommentFactory()
+
+        backend_comment_raw = pkg_resources.resource_stream(__name__, 'jira_comment_raw.json').read().decode()
+        backend_comment_raw = json.loads(backend_comment_raw)
+        self.backend_comment = jira.resources.Comment({'server': 'example.com'}, None, backend_comment_raw)
+        self.backend = ServiceDeskBackend()
+
+        self.internal = {'value': {'internal': False}}
+        path = mock.patch.object(ServiceDeskBackend, '_get_property',
+                                 new=mock.Mock(return_value=self.internal))
+        path.start()
+
+        path = mock.patch.object(ServiceDeskBackend, 'get_backend_comment',
+                                 new=mock.Mock(return_value=self.backend_comment))
+        path.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_update_comment_description(self):
+        self.backend.update_comment_from_jira(self.comment)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.description, self.comment.clean_message(self.backend_comment.body))
+
+    def test_update_comment_is_public(self):
+        self.internal['value']['internal'] = True
+        self.backend.update_comment_from_jira(self.comment)
+        self.internal['value']['internal'] = False
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.is_public, False)
+
+    def test_webhook_cleans_up_user_info_and_does_not_update_comment_if_it_is_not_changed(self):
+        expected_comment_body = self.comment.description
+        jira_comment_body = '[Luke Skywalker 19BBY-TA-T16]: %s' % expected_comment_body
+        self.backend_comment.body = jira_comment_body
+        self.backend.update_comment_from_jira(self.comment)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.description, expected_comment_body)
+
+
+class TestUpdateAttachmentFromJira(APITransactionTestCase):
+    def setUp(self):
+        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
+        self.issue = factories.IssueFactory()
+
+        backend_issue_raw = pkg_resources.resource_stream(__name__, 'jira_issue_raw.json').read().decode()
+        backend_issue_raw = json.loads(backend_issue_raw)
+        self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
+
+        backend_attachment_raw = pkg_resources.resource_stream(__name__, 'jira_attachment_raw.json').read().decode()
+        backend_attachment_raw = json.loads(backend_attachment_raw)
+        self.backend_attachment = jira.resources.Attachment({'server': 'example.com'}, None, backend_attachment_raw)
+        self.backend_issue.fields.attachment.append(self.backend_attachment)
+
+        self.backend = ServiceDeskBackend()
+
+        path = mock.patch.object(ServiceDeskBackend, 'get_backend_issue',
+                                 new=mock.Mock(return_value=self.backend_issue))
+        path.start()
+
+        path = mock.patch.object(ServiceDeskBackend, 'get_backend_attachment',
+                                 new=mock.Mock(return_value=self.backend_attachment))
+        path.start()
+
+        GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+        file_content = six.BytesIO(GIF.decode('base64'))
+        path = mock.patch.object(AttachmentSynchronizer, '_download_file',
+                                 new=mock.Mock(return_value=file_content))
+        path.start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_add_attachment(self):
+        self.backend.update_attachment_from_jira(self.issue)
+        self.assertEqual(self.issue.attachments.count(), 1)
 
     def test_delete_attachment(self):
-        backend_id, issue, support_user = self.set_issue_and_support_user()
-        self.request_data['issue']['key'] = backend_id
-        attachment = factories.AttachmentFactory(issue=issue, backend_id='old_id')
-        self.client.post(self.url, self.request_data)
-        self.assertFalse(models.Attachment.objects.filter(pk=attachment.id).exists())
+        self.backend.update_attachment_from_jira(self.issue)
+        self.assertEqual(self.issue.attachments.count(), 1)
+        self.backend_issue.fields.attachment = []
+        self.backend.update_attachment_from_jira(self.issue)
+        self.assertEqual(self.issue.attachments.count(), 0)

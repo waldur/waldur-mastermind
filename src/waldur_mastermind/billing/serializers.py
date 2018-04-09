@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 from django.db.models import Sum
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers

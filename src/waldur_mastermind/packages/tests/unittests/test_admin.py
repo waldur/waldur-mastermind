@@ -76,7 +76,7 @@ class TestPackageComponentForm(TestCase):
             'monthly_price': '0',
             'amount': '2',
             'type': models.PackageComponent.Types.RAM,
-            'price': '9', # price is required but not used in form validation.
+            'price': '9',  # price is required but not used in form validation.
         }
         form = admin.PackageComponentForm(data=data)
         self.assertTrue(form.is_valid())
@@ -90,8 +90,7 @@ class TestPackageComponentForm(TestCase):
             'monthly_price': '0',
             'amount': '2',
             'type': instance.type,
-            'price': '9', # price is required but not used in form validation.
+            'price': '9',  # price is required but not used in form validation.
         }
         form = admin.PackageComponentForm(data=data, instance=instance)
         self.assertFalse(form.is_valid())
-

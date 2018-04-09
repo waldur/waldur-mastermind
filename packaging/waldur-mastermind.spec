@@ -1,15 +1,15 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.9.0
+Version: 2.9.1
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
-Requires: ansible-waldur-module >= 0.6.0
-Requires: waldur-core >= 0.157.0
-Requires: waldur-ansible >= 0.4.0
+Requires: ansible-waldur-module >= 0.6.1
+Requires: waldur-core >= 0.157.3
+Requires: waldur-ansible >= 0.5.2
 Requires: waldur-auth-openid >= 0.8.9
 Requires: waldur-auth-social >= 0.7.9
 Requires: waldur-auth-saml2 >= 0.9.1
@@ -19,8 +19,8 @@ Requires: waldur-azure >= 0.3.5
 Requires: waldur-cost-planning >= 0.6.1
 Requires: waldur-digitalocean >= 0.10.2
 Requires: waldur-freeipa >= 0.6.3
-Requires: waldur-jira >= 0.7.0
-Requires: waldur-openstack >= 0.41.0
+Requires: waldur-jira >= 0.7.1
+Requires: waldur-openstack >= 0.41.2
 Requires: waldur-paypal >= 0.7.0
 Requires: waldur-slurm >= 0.5.0
 Requires: waldur-zabbix >= 0.8.0
@@ -67,6 +67,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Mon Apr 9 2018 Jenkins <jenkins@opennodecloud.com> - 2.9.1-1.el7
+- New upstream release
+
 * Sun Mar 25 2018 Jenkins <jenkins@opennodecloud.com> - 2.9.0-1.el7
 - New upstream release
 

@@ -7,7 +7,9 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.support.tasks import _send_issue_notification
 
 from . import models
 
@@ -140,3 +142,18 @@ def broadcast_mail(app, event_type, context, recipient_list):
 def create_pdf_contract(contract_id):
     contract = models.ExpertContract.objects.get(pk=contract_id)
     contract.create_file()
+
+
+@shared_task(name='waldur_mastermind.experts.send_expert_comment_added_notification')
+def send_expert_comment_added_notification(serialized_comment):
+    # Send Expert notifications
+    comment = core_utils.deserialize_instance(serialized_comment)
+    expert_request = comment.issue.expertrequest_set.first()
+    expert_contract = getattr(expert_request, 'contract', None)
+
+    if expert_contract:
+        experts = expert_contract.team.get_users(structure_models.ProjectRole.ADMINISTRATOR)
+
+        if comment.author.user not in experts:
+            for expert in experts:
+                _send_issue_notification(comment.issue, 'comment_added', receiver=expert)

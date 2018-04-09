@@ -139,4 +139,4 @@ class CommentRetrieveTest(base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
-        self.assertTrue(comment.uuid.hex in [comment['uuid'] for comment in response.data])
+        self.assertTrue(comment.uuid.hex in [item['uuid'] for item in response.data])

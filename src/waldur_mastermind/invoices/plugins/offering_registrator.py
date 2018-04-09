@@ -6,10 +6,10 @@ from waldur_mastermind.support import models as support_models
 class OfferingItemRegistrator(BaseRegistrator):
 
     def get_sources(self, customer):
-        return support_models.Offering.objects.filter(project__customer=customer).distinct()
-
-    def has_sources(self, customer):
-        return self.get_sources(customer).exists()
+        return support_models.Offering.objects.filter(
+            project__customer=customer,
+            state=support_models.Offering.States.OK,
+        ).distinct()
 
     def get_customer(self, source):
         return source.project.customer
@@ -27,6 +27,10 @@ class OfferingItemRegistrator(BaseRegistrator):
 
     def _create_item(self, source, invoice, start, end):
         offering = source
+
+        if models.OfferingItem.objects.filter(invoice=invoice, offering=offering).exists():
+            return
+
         result = models.OfferingItem.objects.create(
             offering=offering,
             project=offering.project,

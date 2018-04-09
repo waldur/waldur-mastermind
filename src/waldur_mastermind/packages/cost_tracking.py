@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import logging
 
 from waldur_core.cost_tracking import CostTrackingStrategy, ConsumableItem, CostTrackingRegister
