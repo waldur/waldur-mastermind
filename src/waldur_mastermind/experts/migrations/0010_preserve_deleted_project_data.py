@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='expertrequest',
             name='customer',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+',
+            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, 
                                     to='structure.Customer'),
         ),
         migrations.AddField(
@@ -39,7 +39,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='expertcontract',
             name='team_customer',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.Customer'),
+            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='structure.Customer'),
         ),
         migrations.AddField(
             model_name='expertcontract',
