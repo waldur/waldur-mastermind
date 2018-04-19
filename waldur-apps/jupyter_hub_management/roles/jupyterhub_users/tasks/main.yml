@@ -1,11 +1,30 @@
 # -*- coding: utf-8; indent-tabs-mode: nil; tab-width: 2; -*-
 
 ---
+# used by JupyterHub in case of OAuth2 authentication
+- name: new users should have private home directories
+  lineinfile:
+    dest: /etc/adduser.conf
+    regexp: '^DIR_MODE=\d?\d\d\d$'
+    line: 'DIR_MODE=0700'
+    backup: yes
+
 - name: create users if no oauth authenticator
   user:
     name: "{{item.username}}"
     state: present
     password: "{{item.password}}"
+  when: "{{item.password}} != ''"
+  with_items: "{{all_jupyterhub_users}}"
+  when: oauth_config is not defined
+
+# Ansible user module does not take into account /etc/adduser.conf so we do it manually
+- name: change home directory permissions for the created users
+  file:
+    path: "/home/{{item.username}}"
+    mode: 0700
+    state: directory
+    recurse: yes
   when: "{{item.password}} != ''"
   with_items: "{{all_jupyterhub_users}}"
   when: oauth_config is not defined
