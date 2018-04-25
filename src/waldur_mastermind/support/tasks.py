@@ -3,19 +3,20 @@ from __future__ import unicode_literals
 import logging
 from smtplib import SMTPException
 
-from celery import Task, shared_task
+from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.task_celery_old import CeleryTaskWithAutoRegister
 
 from . import backend, models
 
 logger = logging.getLogger(__name__)
 
 
-class SupportUserPullTask(Task):
+class SupportUserPullTask(CeleryTaskWithAutoRegister):
     """ Pull support users from backend """
     name = 'support.SupportUserPullTask'
 
