@@ -311,6 +311,19 @@ class OpenStackPackageAssignTest(test.APITransactionTestCase):
             tenant=self.fixture.openstack_tenant,
         ).exists())
 
+    def test_duplicate_packages_are_not_allowed(self):
+        package = self.fixture.openstack_package
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            'tenant': openstack_factories.TenantFactory.get_url(package.tenant),
+            'template': factories.PackageTemplateFactory.get_url(package.template)
+        }
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(1, models.OpenStackPackage.objects.filter(
+            tenant=self.fixture.openstack_tenant).count())
+
     @data('owner', 'admin', 'manager')
     def test_user_cannot_assign_package(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
