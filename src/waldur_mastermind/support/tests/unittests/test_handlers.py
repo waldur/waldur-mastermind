@@ -8,11 +8,11 @@ from .. import factories
 class BaseHandlerTest(TransactionTestCase):
 
     def setUp(self):
-        settings.CELERY_ALWAYS_EAGER = True
+        settings.task_always_eager = True
         settings.WALDUR_SUPPORT['ENABLED'] = True
 
     def tearDown(self):
-        settings.CELERY_ALWAYS_EAGER = False
+        settings.task_always_eager = False
         settings.WALDUR_SUPPORT['ENABLED'] = False
 
 
