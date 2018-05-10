@@ -69,4 +69,7 @@
     regexp: "127.0.0.1 {{ ansible_hostname }}"
     insertafter: 127.0.0.1 localhost
     line: "127.0.0.1 {{ ansible_hostname }}"
+    # workaround for integration tests due to a docker bug
+    # https://github.com/ansible/ansible/issues/13981
+    unsafe_writes: yes
   when: manage_etc_hosts.rc != 0
