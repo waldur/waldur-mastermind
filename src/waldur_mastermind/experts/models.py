@@ -78,7 +78,7 @@ class ExpertRequest(core_models.UuidMixin,
     # because they are not available after project removal
     project_name = models.CharField(max_length=150, blank=True)
     project_uuid = models.CharField(max_length=32, blank=True)
-    customer = models.ForeignKey(structure_models.Customer, related_name='+', on_delete=models.CASCADE, null=True)
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE, null=True)
 
     state = models.CharField(default=States.PENDING, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
@@ -136,7 +136,7 @@ class ExpertBid(core_models.UuidMixin,
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
                              help_text=_('The user which has created this bid.'))
     request = models.ForeignKey(ExpertRequest, on_delete=models.CASCADE, related_name='bids')
-    team = models.ForeignKey(structure_models.Project, related_name='+')
+    team = models.ForeignKey(structure_models.Project)
     objects = managers.ExpertBidManager()
     tracker = FieldTracker()
 
@@ -162,7 +162,7 @@ class ExpertContract(PriceMixin, core_models.DescribableMixin, structure_models.
     # because they are not available after project removal
     team_name = models.CharField(max_length=150, blank=True)
     team_uuid = models.CharField(max_length=32, blank=True)
-    team_customer = models.ForeignKey(structure_models.Customer, related_name='+', on_delete=models.CASCADE, null=True)
+    team_customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE, null=True)
 
     _file = models.TextField(blank=True, editable=False)
 

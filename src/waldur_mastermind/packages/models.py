@@ -142,7 +142,7 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
     template = models.ForeignKey(PackageTemplate, related_name='openstack_packages',
                                  help_text=_('Tenant will be created based on this template.'),
                                  on_delete=models.PROTECT)
-    tenant = models.ForeignKey(openstack_models.Tenant, related_name='+')
+    tenant = models.OneToOneField(openstack_models.Tenant, related_name='+')
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+', null=True,
                                          on_delete=models.SET_NULL)
 

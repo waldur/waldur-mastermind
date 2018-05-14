@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('price', models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
                 ('request', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bids', to='experts.ExpertRequest')),
-                ('team', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.Project')),
+                ('team', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='structure.Project')),
                 ('user', models.ForeignKey(help_text='The user which has created this bid.', on_delete=django.db.models.deletion.CASCADE, related_name='+', to=settings.AUTH_USER_MODEL)),
             ],
             options={

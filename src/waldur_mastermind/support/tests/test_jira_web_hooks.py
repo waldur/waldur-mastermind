@@ -23,7 +23,7 @@ class TestJiraWebHooks(APITransactionTestCase):
         jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
         settings.WALDUR_SUPPORT['ENABLED'] = True
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
-        settings.CELERY_ALWAYS_EAGER = True
+        settings.task_always_eager = True
         backend_id = 'SNT-101'
         self.issue = factories.IssueFactory(backend_id=backend_id)
 
@@ -42,7 +42,7 @@ class TestJiraWebHooks(APITransactionTestCase):
         [create_request(self, *r) for r in jira_requests]
 
     def tearDown(self):
-        settings.CELERY_ALWAYS_EAGER = False
+        settings.task_always_eager = False
 
     def test_issue_update(self, mock_jira):
         self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
@@ -99,7 +99,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
         settings.WALDUR_SUPPORT['ENABLED'] = True
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
-        settings.CELERY_ALWAYS_EAGER = True
+        settings.task_always_eager = True
         self.issue = factories.IssueFactory()
 
         backend_issue_raw = pkg_resources.resource_stream(__name__, 'jira_issue_raw.json').read().decode()
@@ -127,7 +127,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
 
     def tearDown(self):
         mock.patch.stopall()
-        settings.CELERY_ALWAYS_EAGER = False
+        settings.task_always_eager = False
 
     def test_update_issue_impact_field(self):
         impact_field_value = 'Custom Value'

@@ -12,7 +12,7 @@ class SupportExtension(WaldurExtension):
             'ENABLED': False,
             # wiki for JIRA-specific options:
             # https://opennode.atlassian.net/wiki/display/WD/JIRA+Service+Desk+configuration
-            'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:JiraBackend',
+            'ACTIVE_BACKEND': 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
             'CREDENTIALS': {
                 'server': 'http://example.com/',
                 'username': 'USERNAME',

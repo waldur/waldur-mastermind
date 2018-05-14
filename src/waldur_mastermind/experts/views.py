@@ -5,6 +5,7 @@ import collections
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse, Http404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -227,7 +228,7 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
     create_permissions = [is_expert_manager]
 
     def get_queryset(self):
-        return super(ExpertBidViewSet, self).get_queryset()\
+        return super(ExpertBidViewSet, self).get_queryset() \
             .filtered_for_user(self.request.user).distinct()
 
     @decorators.detail_route(methods=['post'])
@@ -273,3 +274,26 @@ class ExpertBidViewSet(core_views.ActionsViewSet):
 
 structure_views.ProjectCountersView.register_counter('experts', quotas.get_experts_count)
 structure_views.CustomerCountersView.register_counter('experts', quotas.get_experts_count)
+
+
+def experts_customers(user):
+    connected_customers_query = structure_models.Customer.objects.all()
+    connected_customers_query = connected_customers_query.filter(
+        Q(permissions__user=user, permissions__is_active=True) |
+        Q(projects__permissions__user=user, projects__permissions__is_active=True)
+    ).distinct()
+
+    expert_bids = models.ExpertBid.objects.filter(
+        Q(request__customer__in=connected_customers_query) |
+        Q(team__customer__in=connected_customers_query)
+    ).distinct()
+
+    relation_customers = structure_models.Customer.objects.filter(
+        Q(projects__expertbid__in=expert_bids) |
+        Q(expertrequest__bids__in=expert_bids)).distinct()
+
+    return Q(customerpermission__customer__in=relation_customers, customerpermission__is_active=True) | \
+        Q(projectpermission__project__customer__in=relation_customers, projectpermission__is_active=True)
+
+
+structure_filters.UserFilterBackend.register_extra_query(experts_customers)

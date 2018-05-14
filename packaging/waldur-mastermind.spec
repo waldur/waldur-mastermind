@@ -1,29 +1,29 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.9.1
+Version: 2.9.2
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.6.1
-Requires: waldur-core >= 0.157.3
-Requires: waldur-ansible >= 0.5.2
+Requires: waldur-core >= 0.159.0
+Requires: waldur-ansible >= 0.6.1
 Requires: waldur-auth-openid >= 0.8.9
 Requires: waldur-auth-social >= 0.7.9
-Requires: waldur-auth-saml2 >= 0.9.1
+Requires: waldur-auth-saml2 >= 0.9.3
 Requires: waldur-auth-valimo >= 0.5.0
-Requires: waldur-aws >= 0.11.3
-Requires: waldur-azure >= 0.3.5
-Requires: waldur-cost-planning >= 0.6.1
-Requires: waldur-digitalocean >= 0.10.2
+Requires: waldur-aws >= 0.11.4
+Requires: waldur-azure >= 0.4.0
+Requires: waldur-cost-planning >= 0.6.2
+Requires: waldur-digitalocean >= 0.11.0
 Requires: waldur-freeipa >= 0.6.3
-Requires: waldur-jira >= 0.7.1
-Requires: waldur-openstack >= 0.41.2
-Requires: waldur-paypal >= 0.7.0
-Requires: waldur-slurm >= 0.5.0
-Requires: waldur-zabbix >= 0.8.0
+Requires: waldur-jira >= 0.8.0
+Requires: waldur-openstack >= 0.42.0
+Requires: waldur-paypal >= 0.8.0
+Requires: waldur-slurm >= 0.6.0
+Requires: waldur-zabbix >= 0.8.1
 Requires: python2-defusedxml >= 0.4.1
 Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-django-auth-ldap >= 1.3.0
@@ -67,6 +67,9 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 
 %changelog
+* Mon May 14 2018 Jenkins <jenkins@opennodecloud.com> - 2.9.2-1.el7
+- New upstream release
+
 * Mon Apr 9 2018 Jenkins <jenkins@opennodecloud.com> - 2.9.1-1.el7
 - New upstream release
 

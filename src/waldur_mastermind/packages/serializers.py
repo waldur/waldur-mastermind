@@ -264,6 +264,13 @@ class OpenStackPackageAssignSerializer(serializers.Serializer):
 
         return template
 
+    def validate_tenant(self, tenant):
+        if models.OpenStackPackage.objects.filter(tenant=tenant).exists():
+            raise serializers.ValidationError(
+                _('Package for tenant already exists. '
+                  'Please use change package operation instead.'))
+        return tenant
+
     def validate(self, attrs):
         attrs = super(OpenStackPackageAssignSerializer, self).validate(attrs)
         spl = attrs['tenant'].service_project_link
