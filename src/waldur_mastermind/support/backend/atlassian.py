@@ -81,9 +81,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if not issue.caller.email:
             return
 
-        # customer will be associated with the issue by updating issue arguments in _issue_to_dict.
-        self._create_customer(issue.caller.email, issue.caller.full_name)
+        self.create_user(self.issue.caller)
         super(ServiceDeskBackend, self).create_issue(issue)
+
+    def create_user(self, user):
+        return self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
 
     @reraise_exceptions
     def get_users(self):
@@ -91,14 +93,12 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
 
     def _issue_to_dict(self, issue):
-        caller = issue.caller.full_name or issue.caller.username
         parser = HTMLParser()
         args = {
             'project': self.project_settings['key'],
             'summary': parser.unescape(issue.summary),
             'description': parser.unescape(issue.description),
             'issuetype': {'name': issue.type},
-            self.get_field_id_by_name(self.issue_settings['caller_field']): caller,
         }
 
         if issue.reporter:
@@ -113,35 +113,6 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             "key": issue.caller.email
         }]
         return args
-
-    def _create_customer(self, email, full_name):
-        """
-        Creates customer in Jira Service Desk without assigning it to any particular service desk.
-        :param email: customer email
-        :param full_name: customer full name
-        :return: True if customer is created. False if user exists already.
-        """
-        data = {
-            "fullName": full_name,
-            "email": email
-        }
-
-        headers = {
-            'X-ExperimentalApi': 'true',
-        }
-
-        url = "{host}rest/{path}/customer".format(host=self.settings.backend_url, path=self.servicedeskapi_path)
-        try:
-            self.manager._session.post(url, data=json.dumps(data), headers=headers)
-        except JIRAError as e:
-            # TODO [TM:1/11/17] replace it with api call when such an ability is provided
-            if e.status_code == 400 and "already exists" in e.text:
-                # TODO: This don't work if Jira language is not English
-                return False
-            else:
-                raise e
-        else:
-            return True
 
     def _get_first_sla_field(self, backend_issue):
         field_name = self.get_field_id_by_name(self.issue_settings['sla_field'])
