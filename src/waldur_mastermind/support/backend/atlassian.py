@@ -8,7 +8,7 @@ from datetime import datetime
 import dateutil.parser
 from django.conf import settings
 from django.utils import timezone
-from jira import JIRAError, Comment
+from jira import Comment
 from jira.utils import json_loads
 from six.moves.html_parser import HTMLParser
 
