@@ -8,13 +8,13 @@ from . import tasks
 class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
 
     @classmethod
-    def get_task_signature(cls, package, serialized_package):
+    def get_task_signature(cls, package, serialized_package, **kwargs):
         tenant = package.tenant
         serialized_tenant = core_utils.serialize_instance(tenant)
         service_settings = package.service_settings
         serialized_service_settings = core_utils.serialize_instance(service_settings)
 
-        create_tenant = openstack_executors.TenantCreateExecutor.get_task_signature(tenant, serialized_tenant)
+        create_tenant = openstack_executors.TenantCreateExecutor.get_task_signature(tenant, serialized_tenant, **kwargs)
         set_tenant_ok = openstack_executors.TenantCreateExecutor.get_success_signature(tenant, serialized_tenant)
 
         populate_service_settings = tasks.OpenStackPackageSettingsPopulationTask().si(serialized_package)

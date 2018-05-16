@@ -1,3 +1,6 @@
+import mock
+
+from celery.app.task import Task
 from ddt import ddt, data
 from django.conf import settings
 from rest_framework import test, status
@@ -134,6 +137,25 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_skip_connection_extnet_is_true_task_exists(self):
+        chain = self._get_chain(False)
+        self.assertEqual(len([t.args for t in chain if 'connect_tenant_to_external_network' in t.args]), 1)
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_skip_connection_extnet_is_true_task_does_not_exists(self):
+        chain = self._get_chain(True)
+        self.assertEqual(len([t.args for t in chain if 'connect_tenant_to_external_network' in t.args]), 0)
+
+    def _get_chain(self, skip_connection_extnet=False):
+        self.client.force_authenticate(user=self.fixture.staff)
+        payload = self.get_valid_payload()
+        payload['skip_connection_extnet'] = skip_connection_extnet
+        mock_apply_async = mock.MagicMock()
+        Task.apply_async = mock_apply_async
+        self.client.post(self.url, data=payload)
+        return mock_apply_async.call_args[1]['chain']
 
 
 @ddt
