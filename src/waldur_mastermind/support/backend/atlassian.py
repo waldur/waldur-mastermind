@@ -81,7 +81,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if not issue.caller.email:
             return
 
-        self.create_user(self.issue.caller)
+        self.create_user(issue.caller)
         super(ServiceDeskBackend, self).create_issue(issue)
 
     def create_user(self, user):
