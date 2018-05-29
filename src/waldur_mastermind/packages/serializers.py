@@ -101,9 +101,10 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         view_name='package-template-detail',
         write_only=True,
         queryset=models.PackageTemplate.objects.all())
+    skip_connection_extnet = serializers.BooleanField(default=False)
 
     class Meta(openstack_serializers.TenantSerializer.Meta):
-        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template',)
+        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', )
 
     def validate_service_project_link(self, spl):
         # It should be possible for owner to create package but impossible to create a package directly.
@@ -162,6 +163,7 @@ class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.OpenStackPackage
         fields = ('url', 'uuid', 'name', 'description', 'template', 'tenant', 'service_settings',)
+
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail', 'read_only': True},
