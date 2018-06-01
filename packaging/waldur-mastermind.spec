@@ -8,7 +8,7 @@ Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.7.0
-Requires: waldur-core >= 0.160.0
+Requires: waldur-core >= 0.160.3
 Requires: waldur-ansible >= 0.6.1
 Requires: waldur-auth-openid >= 0.8.9
 Requires: waldur-auth-social >= 0.7.9
@@ -19,9 +19,9 @@ Requires: waldur-azure >= 0.4.0
 Requires: waldur-cost-planning >= 0.6.2
 Requires: waldur-digitalocean >= 0.11.1
 Requires: waldur-freeipa >= 0.6.3
-Requires: waldur-jira >= 0.8.1
-Requires: waldur-openstack >= 0.42.1
-Requires: waldur-paypal >= 0.8.1
+Requires: waldur-jira >= 0.8.2
+Requires: waldur-openstack >= 0.43.0
+Requires: waldur-paypal >= 0.8.2
 Requires: waldur-slurm >= 0.6.0
 Requires: waldur-zabbix >= 0.8.1
 Requires: python2-defusedxml >= 0.4.1
