@@ -1,3 +1,4 @@
+import mock
 from ddt import ddt, data
 from django.conf import settings
 from rest_framework import test, status
@@ -134,6 +135,32 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_skip_connection_extnet_is_false_transfer_false(self):
+        transmitted_skip = self._request_with_skip_connection_extnet(False)
+        self.assertEqual(transmitted_skip, False)
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_if_skip_connection_extnet_is_true_transfer_true(self):
+        transmitted_skip = self._request_with_skip_connection_extnet(True)
+        self.assertEqual(transmitted_skip, True)
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=False)
+    def test_transfer_false_if_only_staff_managers_services_is_false(self):
+        transmitted_skip = self._request_with_skip_connection_extnet(True)
+        self.assertEqual(transmitted_skip, False)
+
+    def _request_with_skip_connection_extnet(self, skip_connection_extnet=False):
+        self.client.force_authenticate(user=self.fixture.staff)
+        payload = self.get_valid_payload()
+        payload['skip_connection_extnet'] = skip_connection_extnet
+        patch = mock.patch('waldur_mastermind.packages.views.executors')
+        mock_executors = patch.start()
+        self.client.post(self.url, data=payload)
+        transmitted_skip = mock_executors.OpenStackPackageCreateExecutor.execute.call_args[1]['skip_connection_extnet']
+        mock.patch.stopall()
+        return transmitted_skip
 
 
 @ddt

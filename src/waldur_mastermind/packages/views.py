@@ -1,7 +1,8 @@
 from __future__ import unicode_literals
 
-from django_filters.rest_framework import DjangoFilterBackend
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, permissions, response, status
 from rest_framework.decorators import list_route
 
@@ -35,7 +36,9 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         package = serializer.save()
-        executors.OpenStackPackageCreateExecutor.execute(package)
+        skip = (settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES'] and
+                serializer.validated_data['skip_connection_extnet'])
+        executors.OpenStackPackageCreateExecutor.execute(package, skip_connection_extnet=skip)
 
         display_serializer = serializers.OpenStackPackageSerializer(instance=package, context={'request': request})
         return response.Response(display_serializer.data, status=status.HTTP_201_CREATED)
