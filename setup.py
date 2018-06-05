@@ -61,6 +61,7 @@ setup(
             'waldur_slurm_invoices = waldur_mastermind.slurm_invoices.extension:SlurmInvoicesExtension',
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
+            'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
         ),
     },
     include_package_data=True,
