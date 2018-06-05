@@ -17,10 +17,11 @@ class ServiceProviderFactory(factory.DjangoModelFactory):
     def get_url(cls, service_provider=None, action=None):
         if service_provider is None:
             service_provider = ServiceProviderFactory()
-        url = 'http://testserver' + reverse('service-provider-detail', kwargs={'uuid': service_provider.uuid})
+        url = 'http://testserver' + reverse('marketplace-service-provider-detail',
+                                            kwargs={'uuid': service_provider.uuid})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('service-provider-list')
+        url = 'http://testserver' + reverse('marketplace-service-provider-list')
         return url if action is None else url + action + '/'

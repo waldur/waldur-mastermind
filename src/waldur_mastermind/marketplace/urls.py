@@ -4,4 +4,5 @@ from waldur_mastermind.marketplace import views
 
 
 def register_in(router):
-    router.register(r'service-providers', views.ServiceProviderViewSet, base_name='service-provider')
+    router.register(r'marketplace-service-providers', views.ServiceProviderViewSet,
+                    base_name='marketplace-service-provider')
