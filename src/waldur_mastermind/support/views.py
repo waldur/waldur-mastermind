@@ -4,10 +4,12 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
 from waldur_core.core import views as core_views
+from waldur_core.core import validators as core_validators
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import metadata as structure_metadata
 from waldur_core.structure import models as structure_models
@@ -165,7 +167,6 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
-    disabled_actions = ['destroy']
 
     @decorators.list_route()
     def configured(self, request):
@@ -203,12 +204,16 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     def terminate(self, request, uuid=None):
         offering = self.get_object()
         offering.state = models.Offering.States.TERMINATED
+        offering.terminated_at = timezone.now()
         offering.save()
         return response.Response({'status': _('Offering is marked as terminated.')}, status=status.HTTP_200_OK)
 
     terminate_permissions = [structure_permissions.is_staff]
 
     update_permissions = partial_update_permissions = [structure_permissions.is_staff]
+
+    destroy_permissions = [structure_permissions.is_staff]
+    destroy_validators = [core_validators.StateValidator(models.Offering.States.TERMINATED)]
 
 
 class AttachmentViewSet(CheckExtensionMixin,
