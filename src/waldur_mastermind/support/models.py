@@ -191,6 +191,7 @@ class Offering(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
     report = core_fields.JSONField(blank=True)
+    terminated_at = models.DateTimeField(editable=False, blank=True, null=True)
 
     tracker = FieldTracker()
 

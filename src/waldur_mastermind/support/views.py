@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
@@ -203,6 +204,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     def terminate(self, request, uuid=None):
         offering = self.get_object()
         offering.state = models.Offering.States.TERMINATED
+        offering.terminated_at = timezone.now()
         offering.save()
         return response.Response({'status': _('Offering is marked as terminated.')}, status=status.HTTP_200_OK)
 
