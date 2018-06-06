@@ -166,7 +166,6 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filter_class = filters.OfferingFilter
-    disabled_actions = ['destroy']
 
     @decorators.list_route()
     def configured(self, request):
@@ -211,6 +210,8 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     terminate_permissions = [structure_permissions.is_staff]
 
     update_permissions = partial_update_permissions = [structure_permissions.is_staff]
+
+    destroy_permissions = [structure_permissions.is_staff]
 
 
 class AttachmentViewSet(CheckExtensionMixin,
