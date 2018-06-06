@@ -3,7 +3,6 @@ import json
 
 import jira
 import mock
-import pkg_resources
 import six
 from django.conf import settings
 from django.core import mail
@@ -14,6 +13,7 @@ from rest_framework.test import APITransactionTestCase
 from waldur_jira.backend import AttachmentSynchronizer, CommentSynchronizer
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories
+from waldur_mastermind.support.tests.base import load_resource
 
 
 @mock.patch('waldur_mastermind.support.serializers.ServiceDeskBackend')
@@ -28,8 +28,7 @@ class TestJiraWebHooks(APITransactionTestCase):
         self.issue = factories.IssueFactory(backend_id=backend_id)
 
         def create_request(test, name, path):
-            jira_request = pkg_resources.resource_stream(__name__, path).read().decode()
-            jira_request = json.loads(jira_request)
+            jira_request = json.loads(load_resource(path))
             jira_request['issue']['key'] = backend_id
             setattr(test, 'request_data_' + name, jira_request)
 
@@ -102,8 +101,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         settings.task_always_eager = True
         self.issue = factories.IssueFactory()
 
-        backend_issue_raw = pkg_resources.resource_stream(__name__, 'jira_issue_raw.json').read().decode()
-        backend_issue_raw = json.loads(backend_issue_raw)
+        backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
         self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
         self.backend = ServiceDeskBackend()
         self.impact_field_id = 'customfield_10116'
@@ -218,8 +216,7 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
         self.comment = factories.CommentFactory()
 
-        backend_comment_raw = pkg_resources.resource_stream(__name__, 'jira_comment_raw.json').read().decode()
-        backend_comment_raw = json.loads(backend_comment_raw)
+        backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
         self.backend_comment = jira.resources.Comment({'server': 'example.com'}, None, backend_comment_raw)
         self.backend = ServiceDeskBackend()
 
@@ -263,12 +260,10 @@ class TestUpdateAttachmentFromJira(APITransactionTestCase):
         settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
         self.issue = factories.IssueFactory()
 
-        backend_issue_raw = pkg_resources.resource_stream(__name__, 'jira_issue_raw.json').read().decode()
-        backend_issue_raw = json.loads(backend_issue_raw)
+        backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
         self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
 
-        backend_attachment_raw = pkg_resources.resource_stream(__name__, 'jira_attachment_raw.json').read().decode()
-        backend_attachment_raw = json.loads(backend_attachment_raw)
+        backend_attachment_raw = json.loads(load_resource('jira_attachment_raw.json'))
         self.backend_attachment = jira.resources.Attachment({'server': 'example.com'}, None, backend_attachment_raw)
         self.backend_issue.fields.attachment.append(self.backend_attachment)
 
