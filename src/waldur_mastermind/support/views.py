@@ -9,6 +9,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
 from waldur_core.core import views as core_views
+from waldur_core.core import validators as core_validators
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import metadata as structure_metadata
 from waldur_core.structure import models as structure_models
@@ -212,6 +213,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     update_permissions = partial_update_permissions = [structure_permissions.is_staff]
 
     destroy_permissions = [structure_permissions.is_staff]
+    destroy_validators = [core_validators.StateValidator(models.Offering.States.TERMINATED)]
 
 
 class AttachmentViewSet(CheckExtensionMixin,

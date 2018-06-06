@@ -370,6 +370,33 @@ class OfferingTerminateTest(BaseOfferingTest):
         self.fixture.offering.refresh_from_db()
 
 
+@ddt
+class OfferingDeleteTest(BaseOfferingTest):
+    def setUp(self):
+        super(OfferingDeleteTest, self).setUp()
+        self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering)
+
+    def test_staff_can_delete_terminated_offering(self):
+        self.fixture.offering.state = models.Offering.States.TERMINATED
+        self.fixture.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_staff_can_not_delete_pending_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_other_user_can_not_delete_offering(self):
+        self.fixture.offering.state = models.Offering.States.TERMINATED
+        self.fixture.offering.save()
+
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class OfferingGetConfiguredTest(BaseOfferingTest):
 
     def test_offering_view_returns_configured_offerings(self):
