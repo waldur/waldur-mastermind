@@ -20,7 +20,7 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
         }
         protected_fields = ('customer',)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'service-provider-detail'},
+            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-service-provider-detail'},
             'customer': {'lookup_field': 'uuid'},
         }
 
@@ -31,3 +31,18 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
         structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
         return attrs
+
+
+class CategorySerializer(core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
+    offerings_count = serializers.SerializerMethodField()
+
+    def get_offerings_count(self, category):
+        return category.offerings.count()
+
+    class Meta(object):
+        model = models.Category
+        fields = ('url', 'uuid', 'created', 'title', 'description', 'features', 'icon', 'offerings_count')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
+        }
