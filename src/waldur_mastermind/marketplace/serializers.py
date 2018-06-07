@@ -46,3 +46,26 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
+
+
+class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Offering
+        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider', 'category',
+                  'rating', 'installation_count', 'features', 'geolocations', 'is_active')
+        read_only_fields = ('url', 'uuid', 'created')
+        protected_fields = ('provider',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+            'provider': {'lookup_field': 'uuid', 'view_name': 'marketplace-service-provider-detail'},
+            'category': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
+        }
+
+    def validate(self, attrs):
+        if self.instance:
+            structure_permissions.is_owner(self.context['request'], None, self.instance.provider.customer)
+            return attrs
+
+        structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
+        return attrs

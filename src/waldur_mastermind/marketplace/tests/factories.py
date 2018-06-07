@@ -45,3 +45,25 @@ class CategoryFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-category-list')
         return url if action is None else url + action + '/'
+
+
+class OfferingFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Offering
+
+    name = factory.Sequence(lambda n: 'offering-%s' % n)
+    category = factory.SubFactory(CategoryFactory)
+    provider = factory.SubFactory(ServiceProviderFactory)
+
+    @classmethod
+    def get_url(cls, offering=None, action=None):
+        if offering is None:
+            offering = OfferingFactory()
+        url = 'http://testserver' + reverse('marketplace-offering-detail',
+                                            kwargs={'uuid': offering.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-offering-list')
+        return url if action is None else url + action + '/'

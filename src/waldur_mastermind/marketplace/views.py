@@ -44,3 +44,20 @@ class CategoryViewSet(core_views.ActionsViewSet):
     update_permissions = [is_staff]
     partial_update_permissions = [is_staff]
     destroy_permissions = [is_staff]
+
+
+class OfferingViewSet(core_views.ActionsViewSet):
+    queryset = models.Offering.objects.all()
+    serializer_class = serializers.OfferingSerializer
+    lookup_field = 'uuid'
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+
+    def staff_or_owner(request, view, obj=None):
+        if not obj:
+            return
+        if request.user.is_staff:
+            return
+        if not structure_permissions._has_owner_access(request.user, obj.provider.customer):
+            raise exceptions.PermissionDenied()
+
+    destroy_permissions = [staff_or_owner]

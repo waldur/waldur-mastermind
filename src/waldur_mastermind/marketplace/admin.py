@@ -22,5 +22,17 @@ class CategoryAdmin(admin.ModelAdmin):
     form = CategoryForm
 
 
+class OfferingForm(forms.ModelForm):
+    class Meta:
+        widgets = {
+            'features': JSONEditor(),
+        }
+
+
+class OfferingAdmin(admin.ModelAdmin):
+    form = OfferingForm
+
+
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category, CategoryAdmin)
+admin.site.register(models.Offering, OfferingAdmin)

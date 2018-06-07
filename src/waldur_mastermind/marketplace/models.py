@@ -53,7 +53,7 @@ class Offering(core_models.UuidMixin, core_models.NameMixin,
     thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
     full_description = models.TextField(blank=True)
     rating = models.IntegerField(default=0)
-    installation_count = models.IntegerField(default=0)
+    installation_count = models.IntegerField(default=0, editable=False)
     category = models.ForeignKey(Category, related_name='offerings')
     provider = models.ForeignKey(ServiceProvider, related_name='offerings')
     features = JSONField(default=[])
