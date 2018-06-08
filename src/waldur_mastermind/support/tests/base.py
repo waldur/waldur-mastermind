@@ -3,6 +3,7 @@ import copy
 import mock
 from django.conf import settings
 from django.test import override_settings
+import pkg_resources
 from rest_framework import test
 
 from . import fixtures
@@ -53,3 +54,7 @@ def override_offerings():
             },
         },
     })
+
+
+def load_resource(path):
+    return pkg_resources.resource_stream(__name__, path).read().decode()

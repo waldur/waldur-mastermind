@@ -20,12 +20,12 @@ install_requires = [
     'waldur-azure>=0.4.0',
     'waldur-cost-planning>=0.6.2',
     'waldur-digitalocean>=0.11.1',
-    'waldur-freeipa>=0.6.3',
+    'waldur-freeipa>=0.6.4',
     'waldur-jira>=0.8.2',
-    'waldur-openstack>=0.43.0',
+    'waldur-openstack>=0.43.1',
     'waldur-paypal>=0.8.2',
     'waldur-slurm>=0.6.0',
-    'waldur-zabbix>=0.8.1',
+    'waldur-zabbix>=0.8.2',
 ]
 
 test_requires = [
@@ -36,7 +36,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.9.4',
+    version='2.9.5',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -61,6 +61,7 @@ setup(
             'waldur_slurm_invoices = waldur_mastermind.slurm_invoices.extension:SlurmInvoicesExtension',
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
+            'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
         ),
     },
     include_package_data=True,

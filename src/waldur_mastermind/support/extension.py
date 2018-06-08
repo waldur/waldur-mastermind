@@ -50,6 +50,7 @@ class SupportExtension(WaldurExtension):
                 ),
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
+            'TERMINATED_OFFERING_LIFETIME': timedelta(weeks=2),
             'OFFERINGS': {
                 # An example of configuration for debugging purposes.
                 # Add it to settings file to enable Custom VPC offering
@@ -111,6 +112,11 @@ class SupportExtension(WaldurExtension):
             'pull-support-users': {
                 'task': 'support.SupportUserPullTask',
                 'schedule': timedelta(hours=6),
+                'args': (),
+            },
+            'remove-terminated-offerings': {
+                'task': 'waldur_mastermind.support.remove_terminated_offerings',
+                'schedule': timedelta(hours=24),
                 'args': (),
             },
         }

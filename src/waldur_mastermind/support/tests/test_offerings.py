@@ -1,8 +1,12 @@
 from __future__ import unicode_literals
 
+from datetime import timedelta
+
 from ddt import ddt, data
 from decimal import Decimal
 from django.conf import settings
+from django.utils import timezone
+from freezegun import freeze_time
 import mock
 
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -14,7 +18,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.support.tests.base import override_support_settings, override_offerings
 
 from . import base, factories
-from .. import models
+from .. import models, tasks
 
 
 @override_offerings()
@@ -322,28 +326,75 @@ class OfferingCompleteTest(BaseOfferingTest):
 
 @ddt
 class OfferingTerminateTest(BaseOfferingTest):
-    def test_staff_can_terminate_offering(self):
-        self.client.force_authenticate(self.fixture.staff)
-        self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
+    def setUp(self):
+        super(OfferingTerminateTest, self).setUp()
         self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering, action='terminate')
 
+    def test_staff_can_terminate_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url)
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
         self.fixture.offering.refresh_from_db()
         self.assertEqual(self.fixture.offering.state, models.Offering.States.TERMINATED)
 
     @data('user', 'global_support', 'owner', 'admin', 'manager')
     def test_user_cannot_terminate_offering(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
-        self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering, action='terminate')
-
         response = self.client.post(self.url)
-
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
         self.fixture.offering.refresh_from_db()
         self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
+
+    def test_terminated_offerings_is_deleted_if_expiration_date_passed(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        mocked_now = timezone.now() + settings.WALDUR_SUPPORT['TERMINATED_OFFERING_LIFETIME'] + timedelta(hours=1)
+        with freeze_time(mocked_now):
+            tasks.remove_terminated_offerings()
+
+        self.assertRaises(models.Offering.DoesNotExist, self.fixture.offering.refresh_from_db)
+
+    def test_terminated_offerings_is_skipped_if_expiration_date_has_not_passed_yet(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        mocked_now = timezone.now() + settings.WALDUR_SUPPORT['TERMINATED_OFFERING_LIFETIME'] - timedelta(hours=1)
+        with freeze_time(mocked_now):
+            tasks.remove_terminated_offerings()
+
+        self.fixture.offering.refresh_from_db()
+
+
+@ddt
+class OfferingDeleteTest(BaseOfferingTest):
+    def setUp(self):
+        super(OfferingDeleteTest, self).setUp()
+        self.url = factories.OfferingFactory.get_url(offering=self.fixture.offering)
+
+    def test_staff_can_delete_terminated_offering(self):
+        self.fixture.offering.state = models.Offering.States.TERMINATED
+        self.fixture.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_staff_can_not_delete_pending_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_other_user_can_not_delete_offering(self):
+        self.fixture.offering.state = models.Offering.States.TERMINATED
+        self.fixture.offering.save()
+
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class OfferingGetConfiguredTest(BaseOfferingTest):
