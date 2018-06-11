@@ -6,6 +6,7 @@ from rest_framework import exceptions
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+
 from . import serializers, models, filters
 
 
@@ -25,3 +26,21 @@ class ServiceProviderViewSet(core_views.ActionsViewSet):
             raise exceptions.PermissionDenied()
 
     destroy_permissions = [staff_or_owner]
+
+
+class CategoryViewSet(core_views.ActionsViewSet):
+    queryset = models.Category.objects.all()
+    serializer_class = serializers.CategorySerializer
+    lookup_field = 'uuid'
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+
+    def is_staff(request, view, obj=None):
+        if request.user.is_staff:
+            return
+
+        raise exceptions.PermissionDenied()
+
+    create_permissions = [is_staff]
+    update_permissions = [is_staff]
+    partial_update_permissions = [is_staff]
+    destroy_permissions = [is_staff]
