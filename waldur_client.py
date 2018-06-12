@@ -52,6 +52,7 @@ class WaldurClient(object):
         SshKey = 'keys'
         Tenant = 'openstack-tenants'
         TenantSecurityGroup = 'openstack-security-groups'
+        Volume = 'openstacktenant-volumes'
 
     def __init__(self, api_url, access_token):
         """
@@ -463,11 +464,75 @@ class WaldurClient(object):
 
         return instance
 
-    def get_instance(self, name, project=None):
+    def _get_project_resource(self, endpoint, name, project=None):
         if is_uuid(name):
-            return self._query_resource_by_uuid(self.Endpoints.Instance, name)
+            return self._query_resource_by_uuid(endpoint, name)
         else:
             if project is None:
                 raise ValueError("You should specify project name if name is not UUID")
             query = {'project_name': project, 'name_exact': name}
-            return self._query_resource(self.Endpoints.Instance, query)
+            return self._query_resource(endpoint, query)
+
+    def get_instance(self, name, project=None):
+        return self._get_project_resource(self.Endpoints.Instance, name, project)
+
+    def get_volume(self, name, project=None):
+        return self._get_project_resource(self.Endpoints.Volume, name, project)
+
+    def update_volume(self, volume, description):
+        payload = {
+            'name': volume['name'],
+            'description': description,
+        }
+        uuid = volume['uuid']
+        return self._update_resource(self.Endpoints.Volume, uuid, payload)
+
+    def delete_volume(self, uuid):
+        return self._delete_resource(self.Endpoints.Volume, uuid)
+
+    def create_volume(self,
+                      name,
+                      project,
+                      provider,
+                      size,
+                      description=None,
+                      tags=None,
+                      wait=True,
+                      interval=10,
+                      timeout=600):
+        """
+        Creates OpenStack volume via Waldur API from passed parameters.
+
+        :param name: name of the volume.
+        :param project: uuid or name of the project to add the volume to.
+        :param provider: uuid or name of the provider to use.
+        :param size: size of the volume in GBs.
+        :param description: arbitrary text.
+        :param tags: list of tags to add to the volume.
+        :param wait: defines whether the client has to wait for volume provisioning.
+        :param interval: interval of volume state polling in seconds.
+        :param timeout: a maximum amount of time to wait for volume provisioning.
+        :return: volume as a dictionary.
+        """
+        provider = self._get_provider(provider)
+        project = self._get_project(project)
+        service_project_link = self._get_service_project_link(
+            provider_uuid=provider['uuid'],
+            project_uuid=project['uuid'])
+
+        payload = {
+            'name': name,
+            'service_project_link': service_project_link['url'],
+            'size': size * 1024,
+        }
+        if description:
+            payload.update({'description': description})
+        if tags:
+            payload.update({'tags': tags})
+
+        resource = self._create_resource(self.Endpoints.Volume, payload)
+
+        if wait:
+            self._wait_for_resource(self.Endpoints.Volume, resource['uuid'], interval, timeout)
+
+        return resource
