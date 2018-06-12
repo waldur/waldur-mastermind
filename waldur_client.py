@@ -49,6 +49,7 @@ class WaldurClient(object):
         Image = 'openstacktenant-images'
         ServiceProjectLink = 'openstacktenant-service-project-link'
         Instance = 'openstacktenant-instances'
+        Snapshot = 'openstacktenant-snapshots'
         SshKey = 'keys'
         Tenant = 'openstack-tenants'
         TenantSecurityGroup = 'openstack-security-groups'
@@ -479,6 +480,9 @@ class WaldurClient(object):
     def get_volume(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Volume, name, project)
 
+    def _get_volume(self, name):
+        return self._get_resource(self.Endpoints.Volume, name)
+
     def update_volume(self, volume, description):
         payload = {
             'name': volume['name'],
@@ -534,5 +538,52 @@ class WaldurClient(object):
 
         if wait:
             self._wait_for_resource(self.Endpoints.Volume, resource['uuid'], interval, timeout)
+
+        return resource
+
+    def get_snapshot(self, name):
+        return self._get_resource(self.Endpoints.Snapshot, name)
+
+    def delete_snapshot(self, uuid):
+        return self._delete_resource(self.Endpoints.Snapshot, uuid)
+
+    def create_snapshot(self,
+                        name,
+                        volume,
+                        kept_until=None,
+                        description=None,
+                        tags=None,
+                        wait=True,
+                        interval=10,
+                        timeout=600):
+        """
+        Creates OpenStack snapshot via Waldur API from passed parameters.
+
+        :param name: name of the snapshot.
+        :param volume: name or ID of the volume.
+        :param kept_until: Guaranteed time of snapshot retention. If null - keep forever.
+        :param description: arbitrary text.
+        :param tags: list of tags to add to the snapshot.
+        :param wait: defines whether the client has to wait for snapshot provisioning.
+        :param interval: interval of snapshot state polling in seconds.
+        :param timeout: a maximum amount of time to wait for snapshot provisioning.
+        :return: snapshot as a dictionary.
+        """
+        volume = self._get_volume(volume)
+        payload = {
+            'name': name,
+        }
+        if description:
+            payload.update({'description': description})
+        if tags:
+            payload.update({'tags': tags})
+        if kept_until:
+            payload.update({'kept_until': kept_until})
+
+        action_url = '%s/%s/snapshot' % (self.Endpoints.Volume, volume['uuid'])
+        resource = self._create_resource(action_url, payload)
+
+        if wait:
+            self._wait_for_resource(self.Endpoints.Snapshot, resource['uuid'], interval, timeout)
 
         return resource
