@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException
+from waldur_client import WaldurClientException, waldur_full_argument_spec, waldur_client_from_module
 
 DOCUMENTATION = '''
 ---
@@ -84,17 +84,12 @@ EXAMPLES = '''
 
 
 def main():
-    fields = {
-        'api_url': {'required': True, 'type': 'str'},
-        'access_token': {'required': True, 'type': 'str'},
-        'instance': {'type': 'str'},
-        'floating_ips': {'type': 'list'},
-        'address': {'type': 'str'},
-        'subnet': {'type': 'str'},
-        'wait': {'default': True, 'type': 'bool'},
-        'timeout': {'default': 600, 'type': 'int'},
-        'interval': {'default': 20, 'type': 'int'},
-    }
+    fields = waldur_full_argument_spec(
+        instance=dict(type='str'),
+        floating_ips=dict(type='list'),
+        address=dict(type='str'),
+        subnet=dict(type='str'),
+    )
     required_together = [['address', 'subnet']]
     mutually_exclusive = [['floating_ips', 'subnet'],
                           ['floating_ips', 'address']]
@@ -105,7 +100,7 @@ def main():
         required_one_of=required_one_of,
         mutually_exclusive=mutually_exclusive)
 
-    client = WaldurClient(module.params['api_url'], module.params['access_token'])
+    client = waldur_client_from_module(module)
     floating_ips = module.params.get('floating_ips') or [{
         'address': module.params['address'],
         'subnet': module.params['subnet'],

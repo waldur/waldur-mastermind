@@ -3,8 +3,7 @@
 from ansible.module_utils.basic import *
 from waldur_client import (
     WaldurClientException, ObjectDoesNotExist,
-    waldur_full_argument_spec, waldur_client_from_module
-)
+    waldur_client_from_module, waldur_resource_argument_spec)
 
 DOCUMENTATION = '''
 ---
@@ -52,7 +51,7 @@ options:
   image:
     description:
       - The name or id of the image to use.
-    required: true
+    required: is state is 'present'
   interval:
     default: 20
     description:
@@ -70,11 +69,11 @@ options:
   project:
     description:
       - The name or id of the project to add an instance to.
-    required: true
+    required: is state is 'present'
   provider:
     description:
       - The name or id of the instance provider.
-    required: true
+    required: is state is 'present'
   security_groups:
     default: default
     description:
@@ -99,7 +98,7 @@ options:
   system_volume_size:
     description:
       - The size of the system volume in GBs.
-    required: true
+    required: is state is 'present'
   timeout:
     default: 600
     description:
@@ -257,6 +256,7 @@ def send_request_to_waldur(client, module):
 
             instance = client.create_instance(
                 name=module.params['name'],
+                description=module.params['description'],
                 provider=module.params['provider'],
                 project=module.params['project'],
                 networks=networks,
@@ -282,8 +282,7 @@ def send_request_to_waldur(client, module):
 
 def main():
     module = AnsibleModule(
-        argument_spec=waldur_full_argument_spec(
-            name=dict(required=True, type='str'),
+        argument_spec=waldur_resource_argument_spec(
             project=dict(type='str', default=None),
             provider=dict(type='str', default=None),
             flavor=dict(type='str', default=None),
@@ -298,8 +297,6 @@ def main():
             data_volume_size=dict(type='int', default=None),
             ssh_key=dict(type='str', default=None),
             user_data=dict(type='str', default=None),
-            tags=dict(type='list', default=None),
-            state=dict(default='present', choices=['absent', 'present']),
         ),
         mutually_exclusive=[
             ['subnet', 'networks'],

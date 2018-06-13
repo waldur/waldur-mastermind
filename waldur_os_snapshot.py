@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned
+from waldur_client import WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned, \
+    waldur_client_from_module, waldur_resource_argument_spec
 
 DOCUMENTATION = '''
 ---
@@ -57,7 +58,7 @@ options:
   volume:
     description:
       - The name or id of the OpenStack volume.
-    required: true
+    required: is state is 'present'
   wait:
     default: true
     description:
@@ -119,22 +120,20 @@ def send_request_to_waldur(client, module):
 
 
 def main():
-    fields = {
-        'access_token': {'required': True, 'type': 'str'},
-        'api_url': {'required': True, 'type': 'str'},
-        'description': {'type': 'str'},
-        'interval': {'default': 20, 'type': 'int'},
-        'kept_until': {'type': 'str', 'required': False},
-        'name': {'required': True, 'type': 'str'},
-        'state': {'default': 'present', 'choices': ['absent', 'present']},
-        'tags': {'type': 'list'},
-        'timeout': {'default': 600, 'type': 'int'},
-        'volume': {'required': True, 'type': 'str'},
-        'wait': {'default': True, 'type': 'bool'},
-    }
+    fields = waldur_resource_argument_spec(
+        kept_until=dict(type='str', default=None),
+        volume=dict(type='str', default=None),
+    )
     module = AnsibleModule(argument_spec=fields)
 
-    client = WaldurClient(module.params['api_url'], module.params['access_token'])
+    state = module.params['state']
+    volume = module.params['volume']
+
+    if state == 'present':
+        if not volume:
+            module.fail_json(msg="Parameter 'volume' is required if state == 'present'")
+
+    client = waldur_client_from_module(module)
 
     try:
         has_changed = send_request_to_waldur(client, module)

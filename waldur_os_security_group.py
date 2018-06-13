@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException
+from waldur_client import WaldurClientException, waldur_client_from_module, \
+    waldur_resource_argument_spec
 
 DOCUMENTATION = '''
 ---
@@ -28,14 +29,10 @@ options:
       - A CIDR the security group rule is applied to.
     required:
       - If 'rules' are not provided.
-  tenant:
-    description:
-      - The name of the tenant to create a security group for.
-    required: false
   description:
     description:
       - A description of the security group.
-    required: true
+    required: false
   from_port:
     description:
       - The lowest port value the security group rule is applied to.
@@ -76,6 +73,10 @@ options:
     description:
       - List of tags that will be added to the security group on provisioning.
     required: false
+  tenant:
+    description:
+      - The name of the tenant to create a security group for.
+    required: true
   timeout:
     default: 600
     description:
@@ -115,18 +116,9 @@ EXAMPLES = '''
       waldur_os_security_group:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        tenant: VPC #1
-        rules:
-          - from_port: 80
-            to_port: 80
-            cidr: 0.0.0.0/0
-            protocol: tcp
-          - from_port: 443
-            to_port: 443
-            cidr: 0.0.0.0/0
-            protocol: tcp
-        state: absent
         name: classic-web
+        tenant: VPC #1
+        state: absent
 
 - name: add security group
   hosts: localhost
@@ -185,23 +177,14 @@ def send_request_to_waldur(client, module):
 
 
 def main():
-    fields = {
-        'api_url': {'required': True, 'type': 'str'},
-        'access_token': {'required': True, 'type': 'str'},
-        'description': {'type': 'str'},
-        'rules': {'type': 'list'},
-        'from_port': {'type': 'str'},
-        'to_port': {'type': 'str'},
-        'cidr': {'type': 'str'},
-        'protocol': {'type': 'str', 'choices': ['tcp', 'udp', 'icmp']},
-        'state': {'default': 'present', 'choices': ['absent', 'present']},
-        'name': {'required': True, 'type': 'str'},
-        'tenant': {'required': True, 'type': 'str'},
-        'tags': {'type': 'list'},
-        'wait': {'default': True, 'type': 'bool'},
-        'timeout': {'default': 600, 'type': 'int'},
-        'interval': {'default': 20, 'type': 'int'},
-    }
+    fields = waldur_resource_argument_spec(
+        rules=dict(type='list'),
+        from_port=dict(type='str'),
+        to_port=dict(type='str'),
+        cidr=dict(type='str'),
+        protocol=dict(type='str', choices=['tcp', 'udp', 'icmp']),
+        tenant=dict(type='str', required=True),
+    )
     required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
     mutually_exclusive = [['from_port', 'rules'],
                           ['to_port', 'rules'],
@@ -214,7 +197,7 @@ def main():
         required_one_of=required_one_of,
         mutually_exclusive=mutually_exclusive)
 
-    client = WaldurClient(module.params['api_url'], module.params['access_token'])
+    client = waldur_client_from_module(module)
 
     try:
         has_changed = send_request_to_waldur(client, module)

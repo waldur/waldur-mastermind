@@ -384,6 +384,7 @@ class WaldurClient(object):
             networks,
             image,
             system_volume_size,
+            description=None,
             flavor=None,
             flavor_min_cpu=None,
             flavor_min_ram=None,
@@ -400,6 +401,7 @@ class WaldurClient(object):
         Creates OpenStack instance from passed parameters.
 
         :param name: name of the instance.
+        :param description: description of the instance.
         :param provider: uuid or name of the provider to use.
         :param project: uuid or name of the project to add the instance.
         :param networks: a list of networks to attach instance to.
@@ -458,6 +460,8 @@ class WaldurClient(object):
             payload.update({'ssh_public_key': ssh_key['url']})
         if tags:
             payload.update({'tags': tags})
+        if description:
+            payload['description'] = description
 
         if check_mode:
             payload['WALDUR_CHECK_MODE'] = True
@@ -599,14 +603,25 @@ class WaldurClient(object):
 
 
 def waldur_full_argument_spec(**kwargs):
-    spec = {
-        'api_url': {'required': True, 'type': 'str'},
-        'access_token': {'required': True, 'type': 'str'},
-        'wait': {'default': True, 'type': 'bool'},
-        'timeout': {'default': 600, 'type': 'int'},
-        'interval': {'default': 20, 'type': 'int'},
-    }
+    spec = dict(
+        api_url=dict(required=True, type='str'),
+        access_token=dict(required=True, type='str'),
+        wait=dict(default=True, type='bool'),
+        timeout=dict(default=600, type='int'),
+        interval=dict(default=20, type='int'),
+    )
     spec.update(kwargs)
+    return spec
+
+
+def waldur_resource_argument_spec(**kwargs):
+    spec = dict(
+        name=dict(required=True, type='str'),
+        description=dict(type='str', default=None),
+        state=dict(default='present', choices=['absent', 'present']),
+        tags=dict(type='list', default=None),
+    )
+    spec.update(waldur_full_argument_spec(**kwargs))
     return spec
 
 
