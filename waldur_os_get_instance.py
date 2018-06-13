@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException
+from waldur_client import WaldurClient, WaldurClientException, waldur_client_from_module
 
 DOCUMENTATION = '''
 ---
@@ -55,7 +55,7 @@ def main():
     }
     module = AnsibleModule(argument_spec=fields)
 
-    client = WaldurClient(module.params['api_url'], module.params['access_token'])
+    client = waldur_client_from_module(module)
     try:
         instance = client.get_instance(
             name=module.params['name'],

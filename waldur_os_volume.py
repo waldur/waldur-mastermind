@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned
+from waldur_client import WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned, \
+    waldur_client_from_module, waldur_resource_argument_spec
 
 DOCUMENTATION = '''
 ---
@@ -38,15 +39,15 @@ options:
   project:
     description:
       - The name or id of the project to add volume to.
-    required: true
+    required: is state is 'present'
   provider:
     description:
       - The name or id of the OpenStack provider.
-    required: true
+    required: is state is 'present'
   size:
     description:
       - The size of the volume in GBs.
-    required: true
+    required: is state is 'present'
   state:
     choices:
       - present
@@ -145,23 +146,27 @@ def send_request_to_waldur(client, module):
 
 
 def main():
-    fields = {
-        'access_token': {'required': True, 'type': 'str'},
-        'api_url': {'required': True, 'type': 'str'},
-        'description': {'type': 'str'},
-        'interval': {'default': 20, 'type': 'int'},
-        'name': {'required': True, 'type': 'str'},
-        'project': {'required': True, 'type': 'str'},
-        'provider': {'required': True, 'type': 'str'},
-        'size': {'required': True, 'type': 'int'},
-        'state': {'default': 'present', 'choices': ['absent', 'present']},
-        'tags': {'type': 'list'},
-        'timeout': {'default': 600, 'type': 'int'},
-        'wait': {'default': True, 'type': 'bool'},
-    }
+    fields = waldur_resource_argument_spec(
+        project=dict(type='str', default=None),
+        provider=dict(type='str', default=None),
+        size=dict(type='int', default=None),
+    )
     module = AnsibleModule(argument_spec=fields)
 
-    client = WaldurClient(module.params['api_url'], module.params['access_token'])
+    state = module.params['state']
+    project = module.params['project']
+    provider = module.params['provider']
+    size = module.params['size']
+
+    if state == 'present':
+        if not project:
+            module.fail_json(msg="Parameter 'project' is required if state == 'present'")
+        if not provider:
+            module.fail_json(msg="Parameter 'provider' is required if state == 'present'")
+        if not size:
+            module.fail_json(msg="Parameter 'size' is required if state == 'present'")
+
+    client = waldur_client_from_module(module)
 
     try:
         has_changed = send_request_to_waldur(client, module)

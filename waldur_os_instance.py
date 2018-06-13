@@ -3,8 +3,7 @@
 from ansible.module_utils.basic import *
 from waldur_client import (
     WaldurClientException, ObjectDoesNotExist,
-    waldur_full_argument_spec, waldur_client_from_module
-)
+    waldur_client_from_module, waldur_resource_argument_spec)
 
 DOCUMENTATION = '''
 ---
@@ -30,6 +29,11 @@ options:
     description:
       - The size of the data volume in GB. Data volume is not created if value is empty.
     required: false
+  delete_volumes:
+    description:
+      - If true, delete volumes when deleting instance.
+    required: false
+    default: true
   flavor:
     description:
       - The name or id of the flavor to use.
@@ -52,7 +56,7 @@ options:
   image:
     description:
       - The name or id of the image to use.
-    required: true
+    required: is state is 'present'
   interval:
     default: 20
     description:
@@ -70,11 +74,17 @@ options:
   project:
     description:
       - The name or id of the project to add an instance to.
-    required: true
+    required: is state is 'present'
   provider:
     description:
       - The name or id of the instance provider.
-    required: true
+    required: is state is 'present'
+  release_floating_ips:
+    description:
+      - When state is absent and this option is true, any floating IP
+        associated with the instance will be deleted along with the instance.
+    required: false
+    default: true
   security_groups:
     default: default
     description:
@@ -99,7 +109,7 @@ options:
   system_volume_size:
     description:
       - The size of the system volume in GBs.
-    required: true
+    required: is state is 'present'
   timeout:
     default: 600
     description:
@@ -246,7 +256,18 @@ def send_request_to_waldur(client, module):
     try:
         instance = client.get_instance(name, project)
         if not present:
-            client.delete_instance(instance['uuid'])
+            if instance['state'] == 'OK' and instance['runtime_state'] == 'ACTIVE':
+                client.stop_instance(
+                    instance['uuid'],
+                    wait=True,
+                    interval=module.params['interval'],
+                    timeout=module.params['timeout'],
+                )
+            client.delete_instance(
+                instance['uuid'],
+                delete_volumes=module.params['delete_volumes'],
+                release_floating_ips=module.params['release_floating_ips'],
+            )
             has_changed = True
     except ObjectDoesNotExist:
         if present:
@@ -257,6 +278,7 @@ def send_request_to_waldur(client, module):
 
             instance = client.create_instance(
                 name=module.params['name'],
+                description=module.params['description'],
                 provider=module.params['provider'],
                 project=module.params['project'],
                 networks=networks,
@@ -282,24 +304,23 @@ def send_request_to_waldur(client, module):
 
 def main():
     module = AnsibleModule(
-        argument_spec=waldur_full_argument_spec(
-            name=dict(required=True, type='str'),
-            project=dict(type='str', default=None),
-            provider=dict(type='str', default=None),
-            flavor=dict(type='str', default=None),
+        argument_spec=waldur_resource_argument_spec(
+            data_volume_size=dict(type='int', default=None),
+            delete_volumes=dict(type='bool', default=True),
             flavor_min_cpu=dict(type='int', default=None),
             flavor_min_ram=dict(type='int', default=None),
-            image=dict(type='str', default=None),
-            system_volume_size=dict(type='int', default=None),
-            security_groups=dict(type='list', default=None),
-            networks=dict(type='list', default=None),
-            subnet=dict(type='str', default=None),
+            flavor=dict(type='str', default=None),
             floating_ip=dict(type='str', default=None),
-            data_volume_size=dict(type='int', default=None),
+            image=dict(type='str', default=None),
+            networks=dict(type='list', default=None),
+            project=dict(type='str', default=None),
+            provider=dict(type='str', default=None),
+            release_floating_ips=dict(type='bool', default=True),
+            security_groups=dict(type='list', default=None),
             ssh_key=dict(type='str', default=None),
+            subnet=dict(type='str', default=None),
+            system_volume_size=dict(type='int', default=None),
             user_data=dict(type='str', default=None),
-            tags=dict(type='list', default=None),
-            state=dict(default='present', choices=['absent', 'present']),
         ),
         mutually_exclusive=[
             ['subnet', 'networks'],
