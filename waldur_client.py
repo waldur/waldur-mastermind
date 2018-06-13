@@ -36,8 +36,12 @@ class TimeoutError(WaldurClientException):
     pass
 
 
+class InvalidStateError(WaldurClientException):
+    """Thrown when a resource transitions to the error state."""
+    pass
+
+
 class WaldurClient(object):
-    resource_stable_states = ['OK', 'Erred']
 
     class Endpoints(object):
         Provider = 'openstacktenant'
@@ -251,7 +255,9 @@ class WaldurClient(object):
 
     def _is_resource_ready(self, endpoint, uuid):
         resource = self._query_resource_by_uuid(endpoint, uuid)
-        return resource['state'] in self.resource_stable_states
+        if resource['state'] == 'Erred':
+            raise InvalidStateError('Resource is in erred state.')
+        return resource['state'] == 'OK'
 
     def _create_instance(self, payload):
         return self._create_resource(self.Endpoints.Instance, payload)
