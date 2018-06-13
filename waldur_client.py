@@ -476,7 +476,7 @@ class WaldurClient(object):
             return self._query_resource_by_uuid(endpoint, name)
         else:
             if project is None:
-                raise ValueError("You should specify project name if name is not UUID")
+                raise ValidationError("You should specify project name if name is not UUID")
             query = {'project_name': project, 'name_exact': name}
             return self._query_resource(endpoint, query)
 

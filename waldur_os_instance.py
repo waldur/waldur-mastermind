@@ -59,7 +59,7 @@ options:
       - An interval of the instance state polling.
   name:
     description:
-      - The name of the new OpenStack instance.
+      - The name of the new OpenStack instance or UUID for existing instance.
     required: true
   networks:
     description:
