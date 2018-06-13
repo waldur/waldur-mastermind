@@ -15,7 +15,7 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.category = factories.CategoryFactory()
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
-    def test_service_provider_should_be_visible_to_all_authenticated_users(self, user):
+    def test_category_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.CategoryFactory.get_list_url()
@@ -23,7 +23,7 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    def test_service_provider_should_be_invisible_to_unauthenticated_users(self):
+    def test_category_should_be_invisible_to_unauthenticated_users(self):
         url = factories.CategoryFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -53,7 +53,6 @@ class CategoryCreateTest(test.APITransactionTestCase):
 
         payload = {
             'title': 'category',
-            'features': '[]'
         }
 
         return self.client.post(url, payload)

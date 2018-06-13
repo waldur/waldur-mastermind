@@ -109,7 +109,7 @@ class SupportUserFilter(django_filters.FilterSet):
 class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
-    type = django_filters.ChoiceFilter(choices=[(item, item) for item in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
+    type = django_filters.MultipleChoiceFilter(choices=[(item, item) for item in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
     issue_key = django_filters.CharFilter(name='issue__key')

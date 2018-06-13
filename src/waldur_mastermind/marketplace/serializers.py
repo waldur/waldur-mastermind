@@ -42,7 +42,7 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Category
-        fields = ('url', 'uuid', 'created', 'title', 'description', 'features', 'icon', 'offerings_count')
+        fields = ('url', 'uuid', 'created', 'title', 'description', 'icon', 'offerings_count')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
@@ -53,7 +53,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider', 'category',
-                  'rating', 'installation_count', 'features', 'geolocations', 'is_active')
+                  'rating', 'features', 'geolocations', 'is_active')
         read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('provider',)
         extra_kwargs = {

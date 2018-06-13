@@ -31,7 +31,6 @@ class CategoryFactory(factory.DjangoModelFactory):
         model = models.Category
 
     title = factory.Sequence(lambda n: 'category-%s' % n)
-    features = '[]'
 
     @classmethod
     def get_url(cls, category=None, action=None):
