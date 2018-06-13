@@ -36,8 +36,12 @@ class TimeoutError(WaldurClientException):
     pass
 
 
+class InvalidStateError(WaldurClientException):
+    """Thrown when a resource transitions to the error state."""
+    pass
+
+
 class WaldurClient(object):
-    resource_stable_states = ['OK', 'Erred']
 
     class Endpoints(object):
         Provider = 'openstacktenant'
@@ -251,7 +255,9 @@ class WaldurClient(object):
 
     def _is_resource_ready(self, endpoint, uuid):
         resource = self._query_resource_by_uuid(endpoint, uuid)
-        return resource['state'] in self.resource_stable_states
+        if resource['state'] == 'Erred':
+            raise InvalidStateError('Resource is in erred state.')
+        return resource['state'] == 'OK'
 
     def _create_instance(self, payload):
         return self._create_resource(self.Endpoints.Instance, payload)
@@ -470,12 +476,15 @@ class WaldurClient(object):
             return self._query_resource_by_uuid(endpoint, name)
         else:
             if project is None:
-                raise ValueError("You should specify project name if name is not UUID")
+                raise ValidationError("You should specify project name if name is not UUID")
             query = {'project_name': project, 'name_exact': name}
             return self._query_resource(endpoint, query)
 
     def get_instance(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Instance, name, project)
+
+    def delete_instance(self, uuid):
+        return self._delete_resource(self.Endpoints.Instance, uuid)
 
     def get_volume(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Volume, name, project)
@@ -587,3 +596,19 @@ class WaldurClient(object):
             self._wait_for_resource(self.Endpoints.Snapshot, resource['uuid'], interval, timeout)
 
         return resource
+
+
+def waldur_full_argument_spec(**kwargs):
+    spec = {
+        'api_url': {'required': True, 'type': 'str'},
+        'access_token': {'required': True, 'type': 'str'},
+        'wait': {'default': True, 'type': 'bool'},
+        'timeout': {'default': 600, 'type': 'int'},
+        'interval': {'default': 20, 'type': 'int'},
+    }
+    spec.update(kwargs)
+    return spec
+
+
+def waldur_client_from_module(module):
+    return WaldurClient(module.params['api_url'], module.params['access_token'])
