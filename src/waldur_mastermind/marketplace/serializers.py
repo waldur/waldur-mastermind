@@ -53,7 +53,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider', 'category',
-                  'rating', 'features', 'geolocations', 'is_active')
+                  'rating', 'attributes', 'geolocations', 'is_active')
         read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('provider',)
         extra_kwargs = {

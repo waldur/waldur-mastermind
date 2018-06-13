@@ -13,21 +13,10 @@ class ServiceProviderAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'customer', 'created')
 
 
-class CategoryForm(forms.ModelForm):
-    class Meta:
-        widgets = {
-            'features': JSONEditor(),
-        }
-
-
-class CategoryAdmin(admin.ModelAdmin):
-    form = CategoryForm
-
-
 class OfferingForm(forms.ModelForm):
     class Meta:
         widgets = {
-            'features': JSONEditor(),
+            'attributes': JSONEditor(),
         }
 
 
@@ -50,7 +39,7 @@ class AttributeAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
-admin.site.register(models.Category, CategoryAdmin)
+admin.site.register(models.Category)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section)
 admin.site.register(models.Attribute, AttributeAdmin)
