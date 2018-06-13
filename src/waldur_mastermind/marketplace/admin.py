@@ -33,6 +33,11 @@ class AttributeForm(forms.ModelForm):
         klass.available_values_validate(JSONField().to_python(value))
         return value
 
+    class Meta:
+        widgets = {
+            'available_values': JSONEditor(),
+        }
+
 
 class AttributeAdmin(admin.ModelAdmin):
     form = AttributeForm

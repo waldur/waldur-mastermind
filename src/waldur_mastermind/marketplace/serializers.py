@@ -1,11 +1,16 @@
 from __future__ import unicode_literals
 
+import json
+
 from rest_framework import serializers
+from rest_framework_hstore.fields import HStoreField
+from rest_framework import exceptions as rest_exceptions
 
 from waldur_core.core import serializers as core_serializers
+from django.core.exceptions import ValidationError
 from waldur_core.structure import permissions as structure_permissions
 
-from . import models
+from . import models, utils, attribute_types
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -48,8 +53,26 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
+class OfferingHStoreSerializer(serializers.ModelSerializer):
+    attributes = HStoreField()
+
+    class Meta:
+        model = models.Offering
+
+
+class AttributesSerializer(serializers.Field):
+    def to_internal_value(self, data):
+        data = json.loads(data)
+        return utils.dict_to_hstore(data)
+
+    def to_representation(self, attributes):
+        return utils.hstore_to_dict(attributes)
+
+
+class OfferingSerializer(OfferingHStoreSerializer, core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
+    attributes = AttributesSerializer()
+
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider', 'category',
@@ -65,7 +88,23 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     def validate(self, attrs):
         if self.instance:
             structure_permissions.is_owner(self.context['request'], None, self.instance.provider.customer)
-            return attrs
+        else:
+            structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
 
-        structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
+        offering_attributes = utils.hstore_to_dict(attrs['attributes'])
+        offering_attribute_keys = offering_attributes.keys()
+        attributes = list(models.Attribute.objects.filter(section__category=attrs['category'],
+                                                          key__in=offering_attribute_keys))
+        for key, value in offering_attributes.items():
+            attribute = filter(lambda a: a.key == key, attributes)[0] if filter(lambda a: a.key == key, attributes) \
+                else None
+            if attribute:
+                klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
+                klass = getattr(attribute_types, klass_name)
+                try:
+                    klass.validate(value, attribute.available_values)
+                except ValidationError as e:
+                    err = rest_exceptions.ValidationError({'attributes': e.message})
+                    raise err
+
         return attrs

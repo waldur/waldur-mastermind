@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import six
 from django.db import models
+from django.contrib.postgres.fields import HStoreField
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
@@ -10,6 +11,7 @@ from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 
 from .attribute_types import ATTRIBUTE_TYPES
+from . import utils
 
 
 @python_2_unicode_compatible
@@ -78,11 +80,14 @@ class Offering(core_models.UuidMixin, core_models.NameMixin,
     rating = models.IntegerField(default=0)
     category = models.ForeignKey(Category, related_name='offerings')
     provider = models.ForeignKey(ServiceProvider, related_name='offerings')
-    attributes = JSONField(default=[])
+    attributes = HStoreField(blank=True, null=True)
     geolocations = JSONField(default=[], blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
     is_active = models.BooleanField(default=True)
+
+    def get_attributes(self):
+        return utils.hstore_to_dict(self.attributes)
 
     class Meta(object):
         verbose_name = _('Offering')

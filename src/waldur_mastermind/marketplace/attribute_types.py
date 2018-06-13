@@ -27,17 +27,30 @@ class AttributeType(object):
         if values:
             raise ValidationError(_("Available values must be empty for this attribute type."))
 
+    @staticmethod
+    def validate(values, available_values):
+        raise NotImplementedError
+
 
 class BooleanAttribute(AttributeType):
-    pass
+    @staticmethod
+    def validate(values, available_values=None):
+        if not isinstance(values, bool):
+            raise ValidationError(_("Value must be a boolean type  for this attribute type."))
 
 
 class StringAttribute(AttributeType):
-    pass
+    @staticmethod
+    def validate(values, available_values=None):
+        if not isinstance(values, six.text_type):
+            raise ValidationError(_("Value must be a boolean type  for this attribute type."))
 
 
 class IntegerAttribute(AttributeType):
-    pass
+    @staticmethod
+    def validate(values, available_values=None):
+        if not isinstance(values, int):
+            raise ValidationError(_("Value must be an integer type  for this attribute type."))
 
 
 class ChoiceAttribute(AttributeType):
@@ -49,6 +62,15 @@ class ChoiceAttribute(AttributeType):
         if not isinstance(values, list):
             raise ValidationError(_("Available values must be a list for this attribute type."))
 
+    @staticmethod
+    def validate(values, available_values):
+        if not isinstance(values, six.text_type):
+            raise ValidationError(_("Value must be a string for this attribute."))
+
+        if not(values in available_values):
+            raise ValidationError(_("This value is not available for this attribute.") %
+                                  set(values) - set(available_values))
+
 
 class ListAttribute(AttributeType):
     @staticmethod
@@ -58,3 +80,11 @@ class ListAttribute(AttributeType):
 
         if not isinstance(values, list):
             raise ValidationError(_("Available values must be a list for this attribute type."))
+
+    @staticmethod
+    def validate(values, available_values):
+        if not isinstance(values, list):
+            raise ValidationError(_("Value must be a list for this attribute."))
+
+        if not(set(values) <= set(available_values)):
+            raise ValidationError(_("These values are not available for this attribute."))
