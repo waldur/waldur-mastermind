@@ -1,15 +1,15 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException
+from waldur_client import WaldurClient, WaldurClientException, ObjectDoesNotExist
 
 DOCUMENTATION = '''
 ---
-module: waldur_os_add_instance
-short_description: Create OpenStack instance
-version_added: 0.1
+module: waldur_os_instance
+short_description: Create or delete OpenStack instance
+version_added: 0.8
 description:
-  - Create an OpenStack instance
+  - Create or delete OpenStack compute instance via Waldur API.
 requirements:
   - python = 2.7
   - requests
@@ -29,8 +29,8 @@ options:
     required: false
   flavor:
     description:
-      - The name or id of the flavor to use. 
-        If this is not declared, flavor_min_cpu and/or flavor_min_ram must be declared.  
+      - The name or id of the flavor to use.
+        If this is not declared, flavor_min_cpu and/or flavor_min_ram must be declared.
     required: false
   flavor_min_cpu:
     description:
@@ -39,7 +39,7 @@ options:
   flavor_min_ram:
     description:
       - The minimum ram size (MB).
-    required: false        
+    required: false
   floating_ip:
     description:
       - An id or address of the existing floating IP to use.
@@ -81,6 +81,13 @@ options:
     description:
       - The name or id of the SSH key to attach to the newly created instance.
     required: false
+  state:
+    choices:
+      - present
+      - absent
+    default: present
+    description:
+      - Should the resource be present or absent.
   subnet:
     description:
       - The name or id of the subnet to use.
@@ -114,7 +121,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_add_instance:
+      waldur_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
@@ -135,10 +142,10 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_add_instance:
+      waldur_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        flavor: m1.micro 
+        flavor: m1.micro
         floating_ip: auto
         image: CentOS 7 x86_64
         name: Build instance
@@ -158,10 +165,10 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_add_instance:
+      waldur_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
-        flavor: m1.micro 
+        flavor: m1.micro
         floating_ip: auto
         image: CentOS 7 x86_64
         name: Build instance
@@ -173,16 +180,16 @@ EXAMPLES = '''
         tags:
             - ansible_application_id
         wait: false
-        
+
 - name: flavor search by cpu and ram size
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_add_instance:
+      waldur_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
-        flavor_min_cpu: 2 
+        flavor_min_cpu: 2
         flavor_min_ram: 1024
         image: Ubuntu 16.04 x86_64
         name: Warehouse instance
@@ -195,7 +202,67 @@ EXAMPLES = '''
         provider: VPC
         security_groups:
           - web
+
+- name: delete existing OpenStack compute instance
+  hosts: localhost
+  tasks:
+    - name: delete instance
+      waldur_os_instance:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        project: OpenStack Project
+        provider: VPC
+        name: Warehouse instance
+        subnet: vpc-1-tm-sub-net-2
+        floating_ip: 1.1.1.1
+        system_volume_size: 10
+        state: absent
 '''
+
+
+def send_request_to_waldur(client, module):
+    name = module.params['name']
+    project = module.params['project']
+    present = module.params['state'] == 'present'
+
+    instance = None
+    has_changed = False
+
+    try:
+        instance = client.get_instance(name, project)
+        if not present:
+            client.delete_instance(instance['uuid'])
+            has_changed = True
+    except ObjectDoesNotExist:
+        if present:
+            networks = module.params.get('networks') or [{
+                'subnet': module.params['subnet'],
+                'floating_ip': module.params.get('floating_ip')
+            }]
+
+            instance = client.create_instance(
+                name=module.params['name'],
+                provider=module.params['provider'],
+                project=module.params['project'],
+                networks=networks,
+                image=module.params['image'],
+                system_volume_size=module.params['system_volume_size'],
+                security_groups=module.params.get('security_groups'),
+                flavor=module.params.get('flavor'),
+                flavor_min_cpu=module.params.get('flavor_min_cpu'),
+                flavor_min_ram=module.params.get('flavor_min_ram'),
+                data_volume_size=module.params.get('data_volume_size'),
+                ssh_key=module.params.get('ssh_key'),
+                wait=module.params['wait'],
+                interval=module.params['interval'],
+                timeout=module.params['timeout'],
+                user_data=module.params.get('user_data'),
+                tags=module.params.get('tags'),
+                check_mode=module.check_mode,
+            )
+            has_changed = True
+
+    return instance, has_changed
 
 
 def main():
@@ -221,6 +288,7 @@ def main():
         'interval': {'default': 20, 'type': 'int'},
         'flavor_min_cpu': {'type': 'int'},
         'flavor_min_ram': {'type': 'int'},
+        'state': {'default': 'present', 'choices': ['absent', 'present']},
     }
     mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks'],
                           ['flavor_min_cpu', 'flavor'], ['flavor_min_ram', 'flavor']]
@@ -233,33 +301,12 @@ def main():
     )
 
     client = WaldurClient(module.params['api_url'], module.params['access_token'])
-    networks = module.params.get('networks') or [{
-        'subnet': module.params['subnet'],
-        'floating_ip': module.params.get('floating_ip')
-    }]
     try:
-        instance = client.create_instance(
-            name=module.params['name'],
-            provider=module.params['provider'],
-            project=module.params['project'],
-            networks=networks,
-            security_groups=module.params['security_groups'],
-            flavor=module.params['flavor'],
-            image=module.params['image'],
-            system_volume_size=module.params['system_volume_size'],
-            data_volume_size=module.params['data_volume_size'],
-            ssh_key=module.params['ssh_key'],
-            wait=module.params['wait'],
-            interval=module.params['interval'],
-            timeout=module.params['timeout'],
-            user_data=module.params['user_data'],
-            tags=module.params.get('tags'),
-            check_mode=module.check_mode,
-        )
+        instance, has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as error:
         module.fail_json(msg=error.message)
     else:
-        module.exit_json(instance=instance)
+        module.exit_json(instance=instance, has_changed=has_changed)
 
 
 if __name__ == '__main__':

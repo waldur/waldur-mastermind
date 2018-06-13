@@ -477,6 +477,9 @@ class WaldurClient(object):
     def get_instance(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Instance, name, project)
 
+    def delete_instance(self, uuid):
+        return self._delete_resource(self.Endpoints.Instance, uuid)
+
     def get_volume(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Volume, name, project)
 

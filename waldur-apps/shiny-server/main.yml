@@ -6,7 +6,7 @@
   hosts: localhost
   tasks:
     - name: Start VM instances
-      waldur_os_add_instance:
+      waldur_os_instance:
         access_token: "{{ access_token }}"
         api_url: "{{ api_url }}"
         data_volume_size: 1
