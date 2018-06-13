@@ -11,13 +11,47 @@ except ImportError:
 from waldur_client import WaldurClient, WaldurClientException
 
 
-class TestWaldurClient(unittest.TestCase):
+class BaseWaldurClientTest(unittest.TestCase):
 
     def setUp(self):
+        self.api_url = 'http://example.com:8000/api'
+        self.access_token = 'token'
+        self.client = WaldurClient(self.api_url, self.access_token)
+        self.tenant = {
+            'name': 'tenant',
+            'uuid': str(uuid.uuid4())
+        }
+
+    def _get_url(self, endpoint, params=None):
+        url = '%(url)s/%(endpoint)s/'
+        url = url % {
+            'url': self.api_url,
+            'endpoint': endpoint,
+        }
+        return '%s?%s' % (url, urlencode(params)) if params else url
+
+    def _get_resource_url(self, endpoint, uuid):
+        return '%s%s' % (self._get_url(endpoint), uuid)
+
+    def _get_subresource_url(self, endpoint, uuid, action=None):
+        url = self._get_resource_url(endpoint, uuid)
+        return '%s/%s/' % (url, action) if action else url
+
+    def _get_object(self, name):
+        return {
+            'url': 'url_%s' % name,
+            'uuid': 'uuid_%s' % name,
+            'name': self.params[name] if name in self.params else name,
+        }
+
+
+class InstanceCreateTest(BaseWaldurClientTest):
+
+    def setUp(self):
+        super(InstanceCreateTest, self).setUp()
+
         self.params = {
             'name': 'instance',
-            'api_url': 'http://example.com:8000/api',
-            'access_token': 'token',
             'provider': 'provider',
             'project': 'project',
             'networks': [{
@@ -37,13 +71,13 @@ class TestWaldurClient(unittest.TestCase):
         }
 
         self.flavor = {
-            "url": "url_flavor",
-            "uuid": "uuid",
-            "name": "g1.small1",
-            "settings": "url_settings",
-            "cores": 1,
-            "ram": 512,
-            "disk": 10240
+            'url': 'url_flavor',
+            'uuid': 'uuid',
+            'name': 'g1.small1',
+            'settings': 'url_settings',
+            'cores': 1,
+            'ram': 512,
+            'disk': 10240
         }
 
         self.instance = {
@@ -54,13 +88,7 @@ class TestWaldurClient(unittest.TestCase):
             'external_ips': ['142.124.1.50'],
         }
 
-        self.tenant = {
-            'name': 'tenant',
-            'uuid': str(uuid.uuid4())
-        }
-
-    def setUpInstanceCreationResponses(self):
-        post_url = '%s/openstacktenant-instances/' % self.params['api_url']
+        post_url = '%s/openstacktenant-instances/' % self.api_url
         mapping = {
             'project': 'projects',
             'image': 'openstacktenant-images',
@@ -87,7 +115,7 @@ class TestWaldurClient(unittest.TestCase):
         status_url = self._get_url('openstacktenant-instances')
         responses.add(responses.GET, status_url, json=[self.instance])
 
-        instance_url = '%s/openstacktenant-instances/%s/' % (self.params['api_url'], self.instance['uuid'])
+        instance_url = '%s/openstacktenant-instances/%s/' % (self.api_url, self.instance['uuid'])
         responses.add(responses.GET, instance_url, json=self.instance)
 
         url = self._get_url('openstacktenant-flavors', {'ram__gte': 2000, 'cores__gte': 2, 'o': 'cores,ram,disk'})
@@ -106,64 +134,75 @@ class TestWaldurClient(unittest.TestCase):
             match_querystring=True
         )
 
-    def _get_url(self, endpoint, params=None):
-        url = '%(url)s/%(endpoint)s/'
-        url = url % {
-            'url': self.params['api_url'],
-            'endpoint': endpoint,
-        }
-        return '%s?%s' % (url, urlencode(params)) if params else url
-
-    def _get_resource_url(self, endpoint, uuid):
-        return '%s%s' % (self._get_url(endpoint), uuid)
-
-    def _get_subresource_url(self, endpoint, uuid, action=None):
-        url = self._get_resource_url(endpoint, uuid)
-        return '%s/%s/' % (url, action) if action else url
-
-    def _get_object(self, name):
-        return {
-            'url': 'url_%s' % name,
-            'uuid': 'uuid_%s' % name,
-            'name': self.params[name] if name in self.params else name,
-        }
-
     @responses.activate
     def test_waldur_client_sends_request_with_passed_parameters(self):
-        self.setUpInstanceCreationResponses()
 
-        access_token = self.params.pop('access_token')
-        client = WaldurClient(self.params.pop('api_url'), access_token)
-        instance = client.create_instance(**self.params)
+        instance = self.client.create_instance(**self.params)
 
         self.assertTrue(instance['name'], self.params['name'])
-        self.assertEqual('token %s' % access_token,
+        self.assertEqual('token %s' % self.access_token,
                          responses.calls[0].request.headers['Authorization'])
 
     @responses.activate
     def test_waldur_client_sends_request_with_flavor_min_cpu_and_flavor_min_ram(self):
-        self.setUpInstanceCreationResponses()
         self.params.pop('flavor')
         self.params['flavor_min_cpu'] = 2
         self.params['flavor_min_ram'] = 2000
 
-        access_token = self.params.pop('access_token')
-        client = WaldurClient(self.params.pop('api_url'), access_token)
-        instance = client.create_instance(**self.params)
+        instance = self.client.create_instance(**self.params)
 
         self.assertTrue(instance['name'], self.params['name'])
-        self.assertEqual('token %s' % access_token,
+        self.assertEqual('token %s' % self.access_token,
                          responses.calls[0].request.headers['Authorization'])
 
     @responses.activate
     def test_waldur_client_raises_error_if_networks_do_no_have_a_subnet(self):
-        self.setUpInstanceCreationResponses()
-
-        client = WaldurClient(self.params.pop('api_url'), self.params.pop('access_token'))
         del self.params['networks'][0]['subnet']
 
-        self.assertRaises(WaldurClientException, client.create_instance, **self.params)
+        self.assertRaises(WaldurClientException, self.client.create_instance, **self.params)
 
+
+class InstanceDeleteTest(BaseWaldurClientTest):
+    def setUp(self):
+        super(InstanceDeleteTest, self).setUp()
+        self.expected_url = 'http://example.com:8000/api/openstacktenant-instances/' \
+                            '6b6e60870ad64085aadcdcbc1fd84a7e/?' \
+                            'delete_volumes=True&release_floating_ips=True'
+
+    @responses.activate
+    def test_deletion_parameters_are_passed_as_query_parameters(self):
+        responses.add(responses.DELETE,
+                      self.expected_url,
+                      status=204,
+                      json={'details': 'Instance has been deleted.'})
+        self.client.delete_instance('6b6e60870ad64085aadcdcbc1fd84a7e')
+        self.assertEqual(self.expected_url, responses.calls[0].request.url)
+
+    @responses.activate
+    def test_error_is_raised_if_invalid_status_code_is_returned(self):
+        responses.add(responses.DELETE,
+                      self.expected_url,
+                      status=400,
+                      json={'details': 'Instance has invalid state.'})
+        self.assertRaises(WaldurClientException, self.client.delete_instance, '6b6e60870ad64085aadcdcbc1fd84a7e')
+
+
+class InstanceStopTest(BaseWaldurClientTest):
+    def setUp(self):
+        super(InstanceStopTest, self).setUp()
+        self.expected_url = 'http://example.com:8000/api/openstacktenant-instances/' \
+                            '6b6e60870ad64085aadcdcbc1fd84a7e/stop/'
+
+    @responses.activate
+    def test_valid_url_is_rendered_for_action(self):
+        responses.add(responses.POST,
+                      self.expected_url,
+                      status=202,
+                      json={'details': 'Instance stop has been scheduled.'})
+        self.client.stop_instance('6b6e60870ad64085aadcdcbc1fd84a7e', wait=False)
+
+
+class SecurityGroupTest(BaseWaldurClientTest):
     @responses.activate
     def test_waldur_client_returns_security_group_by_tenant_name_and_security_group_name(self):
         security_group = dict(name='security_group')
@@ -172,8 +211,7 @@ class TestWaldurClient(unittest.TestCase):
         responses.add(responses.GET, get_url, json=[security_group], match_querystring=True)
         responses.add(responses.GET, self._get_url('openstack-tenants'), json=[self.tenant])
 
-        client = WaldurClient(self.params['api_url'], self.params['access_token'])
-        response = client.get_security_group(self.tenant['name'], security_group['name'])
+        response = self.client.get_security_group(self.tenant['name'], security_group['name'])
 
         self.assertEqual(response['name'], security_group['name'])
 
@@ -195,10 +233,10 @@ class TestWaldurClient(unittest.TestCase):
         post_url = self._get_subresource_url('openstack-tenants', self.tenant['uuid'], action_name)
         responses.add(responses.POST, post_url, json=security_group, status=201)
 
-        instance_url = '%s/openstack-security-groups/%s/' % (self.params['api_url'], security_group['uuid'])
-        responses.add(responses.GET, instance_url, json=security_group, status=201)
+        instance_url = '%s/openstack-security-groups/%s/' % (self.api_url, security_group['uuid'])
+        responses.add(responses.GET, instance_url, json=security_group, status=200)
 
-        client = WaldurClient(self.params['api_url'], self.params['access_token'])
+        client = WaldurClient(self.api_url, self.access_token)
         response = client.create_security_group(
             tenant=self.tenant['name'],
             name=security_group['name'],

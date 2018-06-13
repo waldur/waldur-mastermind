@@ -29,6 +29,11 @@ options:
     description:
       - The size of the data volume in GB. Data volume is not created if value is empty.
     required: false
+  delete_volumes:
+    description:
+      - If true, delete volumes when deleting instance.
+    required: false
+    default: true
   flavor:
     description:
       - The name or id of the flavor to use.
@@ -74,6 +79,12 @@ options:
     description:
       - The name or id of the instance provider.
     required: is state is 'present'
+  release_floating_ips:
+    description:
+      - When state is absent and this option is true, any floating IP
+        associated with the instance will be deleted along with the instance.
+    required: false
+    default: true
   security_groups:
     default: default
     description:
@@ -245,7 +256,18 @@ def send_request_to_waldur(client, module):
     try:
         instance = client.get_instance(name, project)
         if not present:
-            client.delete_instance(instance['uuid'])
+            if instance['state'] == 'OK' and instance['runtime_state'] == 'ACTIVE':
+                client.stop_instance(
+                    instance['uuid'],
+                    wait=True,
+                    interval=module.params['interval'],
+                    timeout=module.params['timeout'],
+                )
+            client.delete_instance(
+                instance['uuid'],
+                delete_volumes=module.params['delete_volumes'],
+                release_floating_ips=module.params['release_floating_ips'],
+            )
             has_changed = True
     except ObjectDoesNotExist:
         if present:
@@ -283,19 +305,21 @@ def send_request_to_waldur(client, module):
 def main():
     module = AnsibleModule(
         argument_spec=waldur_resource_argument_spec(
-            project=dict(type='str', default=None),
-            provider=dict(type='str', default=None),
-            flavor=dict(type='str', default=None),
+            data_volume_size=dict(type='int', default=None),
+            delete_volumes=dict(type='bool', default=True),
             flavor_min_cpu=dict(type='int', default=None),
             flavor_min_ram=dict(type='int', default=None),
-            image=dict(type='str', default=None),
-            system_volume_size=dict(type='int', default=None),
-            security_groups=dict(type='list', default=None),
-            networks=dict(type='list', default=None),
-            subnet=dict(type='str', default=None),
+            flavor=dict(type='str', default=None),
             floating_ip=dict(type='str', default=None),
-            data_volume_size=dict(type='int', default=None),
+            image=dict(type='str', default=None),
+            networks=dict(type='list', default=None),
+            project=dict(type='str', default=None),
+            provider=dict(type='str', default=None),
+            release_floating_ips=dict(type='bool', default=True),
+            security_groups=dict(type='list', default=None),
             ssh_key=dict(type='str', default=None),
+            subnet=dict(type='str', default=None),
+            system_volume_size=dict(type='int', default=None),
             user_data=dict(type='str', default=None),
         ),
         mutually_exclusive=[

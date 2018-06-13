@@ -2,6 +2,7 @@ import json
 import time
 from uuid import UUID
 import requests
+from six.moves.urllib.parse import urlencode, urljoin
 
 
 def is_uuid(value):
@@ -76,11 +77,13 @@ class WaldurClient(object):
         return url if url[-1] == '/' else '%s/' % url
 
     def _build_url(self, endpoint):
-        return requests.compat.urljoin(self.api_url, self._ensure_trailing_slash(endpoint))
+        return urljoin(self.api_url, self._ensure_trailing_slash(endpoint))
 
     def _build_resource_url(self, endpoint, uuid, action=None):
-        resource_url = self._build_url('/'.join([endpoint, uuid]))
-        return ''.join([resource_url, action]) if action else resource_url
+        parts = [endpoint, uuid]
+        if action:
+            parts.append(action)
+        return self._build_url('/'.join(parts))
 
     def _parse_error(self, response):
         try:
@@ -90,20 +93,39 @@ class WaldurClient(object):
         details = 'Status: %s. Reason: %s.' % (response.status_code, reason)
         return 'Server refuses to communicate. %s' % details
 
+    def _make_request(self, method, url, valid_states, **kwargs):
+        params = dict(headers=self.headers)
+        params.update(kwargs)
+
+        try:
+            response = getattr(requests, method)(url, **params)
+        except requests.exceptions.RequestException as error:
+            raise WaldurClientException(error.message)
+
+        if response.status_code not in valid_states:
+            error = self._parse_error(response)
+            raise WaldurClientException(error)
+
+        return response.json()
+
+    def _get(self, url, valid_states, **kwargs):
+        return self._make_request('get', url, valid_states, **kwargs)
+
+    def _post(self, url, valid_states, **kwargs):
+        return self._make_request('post', url, valid_states, **kwargs)
+
+    def _put(self, url, valid_states, **kwargs):
+        return self._make_request('put', url, valid_states, **kwargs)
+
+    def _delete(self, url, valid_states, **kwargs):
+        return self._make_request('delete', url, valid_states, **kwargs)
+
     def _query_resource(self, endpoint, query_params, get_first=False):
         url = self._build_url(endpoint)
         if 'uuid' in query_params:
             url += query_params.pop('uuid') + '/'
-        try:
-            response = requests.get(url, params=query_params, headers=self.headers)
-        except requests.exceptions.RequestException as error:
-            raise WaldurClientException(error.message)
 
-        if response.status_code >= 400:
-            error = self._parse_error(response)
-            raise WaldurClientException(error)
-
-        result = response.json()
+        result = self._get(url, valid_states=[200], params=query_params)
         if not result:
             message = 'Result is empty. Endpoint: %s. Query: %s' % (endpoint, query_params)
             raise ObjectDoesNotExist(message)
@@ -139,42 +161,22 @@ class WaldurClient(object):
 
     def _create_resource(self, endpoint, payload=None, valid_state=201):
         url = self._build_url(endpoint)
-        try:
-            response = requests.post(url, json=payload, headers=self.headers)
-        except requests.exceptions.RequestException as error:
-            raise WaldurClientException(error.message)
-
-        if response.status_code != valid_state:
-            error = self._parse_error(response)
-            raise WaldurClientException(error)
-
-        return response.json()
+        return self._post(url, [valid_state], json=payload)
 
     def _update_resource(self, endpoint, uuid, payload):
         url = self._build_resource_url(endpoint, uuid)
-        try:
-            response = requests.put(url, data=json.dumps(payload), headers=self.headers)
-        except requests.exceptions.RequestException as error:
-            raise WaldurClientException(error.message)
+        return self._put(url, [200], data=json.dumps(payload))
 
-        if response.status_code != 200:
-            error = self._parse_error(response)
-            raise WaldurClientException(error)
-
-        return response.json()
+    def _delete_resource_by_url(self, url):
+        return self._delete(url, [202, 204])
 
     def _delete_resource(self, endpoint, uuid):
         url = self._build_resource_url(endpoint, uuid)
-        try:
-            response = requests.delete(url, headers=self.headers)
-        except requests.exceptions.RequestException as error:
-            raise WaldurClientException(error.message)
+        return self._delete_resource_by_url(url)
 
-        if response.status_code not in (204, 202):
-            error = self._parse_error(response)
-            raise WaldurClientException(error)
-
-        return response.json()
+    def _execute_resource_action(self, endpoint, uuid, action):
+        url = self._build_resource_url(endpoint, uuid, action)
+        return self._post(url, [202])
 
     def _get_service_project_link(self, provider_uuid, project_uuid):
         query = {'project_uuid': project_uuid, 'service_uuid': provider_uuid}
@@ -487,8 +489,24 @@ class WaldurClient(object):
     def get_instance(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Instance, name, project)
 
-    def delete_instance(self, uuid):
-        return self._delete_resource(self.Endpoints.Instance, uuid)
+    def stop_instance(self, uuid, wait=True, interval=10, timeout=600):
+        """
+        Stop OpenStack instance and wait until operation is compeleted.
+
+        :param uuid: unique identifier of the instance
+        :param wait: defines whether the client has to wait for volume provisioning.
+        :param interval: interval of volume state polling in seconds.
+        :param timeout: a maximum amount of time to wait for volume provisioning.
+        """
+        self._execute_resource_action(self.Endpoints.Instance, uuid, 'stop')
+        if wait:
+            self._wait_for_resource(self.Endpoints.Instance, uuid, interval, timeout)
+
+    def delete_instance(self, uuid, delete_volumes=True, release_floating_ips=True):
+        base_url = self._build_resource_url(self.Endpoints.Instance, uuid)
+        params = dict(delete_volumes=delete_volumes, release_floating_ips=release_floating_ips)
+        url = base_url + '?' + urlencode(params)
+        return self._delete_resource_by_url(url)
 
     def get_volume(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Volume, name, project)
