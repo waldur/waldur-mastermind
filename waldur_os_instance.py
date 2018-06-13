@@ -1,7 +1,10 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException, ObjectDoesNotExist
+from waldur_client import (
+    WaldurClientException, ObjectDoesNotExist,
+    waldur_full_argument_spec, waldur_client_from_module
+)
 
 DOCUMENTATION = '''
 ---
@@ -203,6 +206,22 @@ EXAMPLES = '''
         security_groups:
           - web
 
+- name: create OpenStack instance with predefined floating IP
+  hosts: localhost
+  tasks:
+    - name: create instance
+      waldur_os_instance:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        project: OpenStack Project
+        provider: VPC
+        name: Warehouse instance
+        image: CentOS 7
+        flavor: m1.small
+        subnet: vpc-1-tm-sub-net-2
+        floating_ip: 1.1.1.1
+        system_volume_size: 10
+
 - name: delete existing OpenStack compute instance
   hosts: localhost
   tasks:
@@ -211,11 +230,7 @@ EXAMPLES = '''
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
-        provider: VPC
         name: Warehouse instance
-        subnet: vpc-1-tm-sub-net-2
-        floating_ip: 1.1.1.1
-        system_volume_size: 10
         state: absent
 '''
 
@@ -266,41 +281,62 @@ def send_request_to_waldur(client, module):
 
 
 def main():
-    fields = {
-        'api_url': {'required': True, 'type': 'str'},
-        'access_token': {'required': True, 'type': 'str'},
-        'name': {'required': True, 'type': 'str'},
-        'provider': {'required': True, 'type': 'str'},
-        'project': {'required': True, 'type': 'str'},
-        'flavor': {'type': 'str'},
-        'image': {'required': True, 'type': 'str'},
-        'system_volume_size': {'required': True, 'type': 'int'},
-        'security_groups': {'type': 'list'},
-        'networks': {'type': 'list'},
-        'subnet': {'type': 'str'},
-        'floating_ip': {'type': 'str'},
-        'data_volume_size': {'type': 'int'},
-        'ssh_key': {'type': 'str'},
-        'user_data': {'type': 'str'},
-        'tags': {'type': 'list'},
-        'wait': {'default': True, 'type': 'bool'},
-        'timeout': {'default': 600, 'type': 'int'},
-        'interval': {'default': 20, 'type': 'int'},
-        'flavor_min_cpu': {'type': 'int'},
-        'flavor_min_ram': {'type': 'int'},
-        'state': {'default': 'present', 'choices': ['absent', 'present']},
-    }
-    mutually_exclusive = [['subnet', 'networks'], ['floating_ip', 'networks'],
-                          ['flavor_min_cpu', 'flavor'], ['flavor_min_ram', 'flavor']]
-    required_one_of = [['subnet', 'networks']]
     module = AnsibleModule(
-        argument_spec=fields,
-        required_one_of=required_one_of,
-        mutually_exclusive=mutually_exclusive,
+        argument_spec=waldur_full_argument_spec(
+            name=dict(required=True, type='str'),
+            project=dict(type='str', default=None),
+            provider=dict(type='str', default=None),
+            flavor=dict(type='str', default=None),
+            flavor_min_cpu=dict(type='int', default=None),
+            flavor_min_ram=dict(type='int', default=None),
+            image=dict(type='str', default=None),
+            system_volume_size=dict(type='int', default=None),
+            security_groups=dict(type='list', default=None),
+            networks=dict(type='list', default=None),
+            subnet=dict(type='str', default=None),
+            floating_ip=dict(type='str', default=None),
+            data_volume_size=dict(type='int', default=None),
+            ssh_key=dict(type='str', default=None),
+            user_data=dict(type='str', default=None),
+            tags=dict(type='list', default=None),
+            state=dict(default='present', choices=['absent', 'present']),
+        ),
+        mutually_exclusive=[
+            ['subnet', 'networks'],
+            ['floating_ip', 'networks'],
+            ['flavor_min_cpu', 'flavor'],
+            ['flavor_min_ram', 'flavor']
+        ],
         supports_check_mode=True,
     )
 
-    client = WaldurClient(module.params['api_url'], module.params['access_token'])
+    state = module.params['state']
+    project = module.params['project']
+    provider = module.params['provider']
+    image = module.params['image']
+    flavor = module.params['flavor']
+    flavor_min_cpu = module.params['flavor_min_cpu']
+    flavor_min_ram = module.params['flavor_min_ram']
+    subnet = module.params['subnet']
+    networks = module.params['networks']
+    system_volume_size = module.params['system_volume_size']
+
+    if state == 'present':
+        if not project:
+            module.fail_json(msg="Parameter 'project' is required if state == 'present'")
+        if not provider:
+            module.fail_json(msg="Parameter 'provider' is required if state == 'present'")
+        if not image:
+            module.fail_json(msg="Parameter 'image' is required if state == 'present'")
+        if not (flavor or (flavor_min_cpu and flavor_min_ram)):
+            module.fail_json(msg="Parameter 'flavor' or ('flavor_min_cpu' and 'flavor_min_ram')"
+                                 " is required if state == 'present'")
+        if not system_volume_size:
+            module.fail_json(msg="Parameter 'system_volume_size' is required if state == 'present'")
+        if not networks and not subnet:
+            module.fail_json(msg="Parameter 'networks' or 'subnet' is required if state == 'present'")
+
+    client = waldur_client_from_module(module)
     try:
         instance, has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as error:

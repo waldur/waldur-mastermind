@@ -596,3 +596,19 @@ class WaldurClient(object):
             self._wait_for_resource(self.Endpoints.Snapshot, resource['uuid'], interval, timeout)
 
         return resource
+
+
+def waldur_full_argument_spec(**kwargs):
+    spec = {
+        'api_url': {'required': True, 'type': 'str'},
+        'access_token': {'required': True, 'type': 'str'},
+        'wait': {'default': True, 'type': 'bool'},
+        'timeout': {'default': 600, 'type': 'int'},
+        'interval': {'default': 20, 'type': 'int'},
+    }
+    spec.update(kwargs)
+    return spec
+
+
+def waldur_client_from_module(module):
+    return WaldurClient(module.params['api_url'], module.params['access_token'])
