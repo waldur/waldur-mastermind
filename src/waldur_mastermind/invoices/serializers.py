@@ -145,43 +145,6 @@ class InvoiceNotificationSerializer(serializers.Serializer):
         return link_template
 
 
-class PaymentDetailsSerializer(core_serializers.AugmentedSerializerMixin,
-                               serializers.HyperlinkedModelSerializer):
-
-    type = serializers.ChoiceField(choices=[(t, t) for t in settings.WALDUR_CORE['COMPANY_TYPES']],
-                                   allow_blank=True,
-                                   required=False)
-    email = serializers.EmailField(allow_blank=True, required=False, max_length=75)
-    company = serializers.CharField(allow_blank=True, required=False, max_length=150)
-    address = serializers.CharField(allow_blank=True, required=False, max_length=300)
-    country = serializers.CharField(allow_blank=True, required=False, max_length=255)
-    postal = serializers.CharField(allow_blank=True, required=False, max_length=20)
-    phone = serializers.CharField(allow_blank=True, required=False, max_length=255)
-    bank = serializers.CharField(allow_blank=True, required=False, max_length=150)
-    account = serializers.CharField(allow_blank=True, required=False, max_length=50)
-    default_tax_percent = serializers.DecimalField(max_digits=4, decimal_places=2, required=False)
-    accounting_start_date = serializers.DateTimeField(required=False)
-
-    class Meta(object):
-        model = models.PaymentDetails
-        fields = (
-            'url', 'uuid', 'customer', 'company', 'type', 'address',
-            'country', 'email', 'postal', 'phone', 'bank', 'account',
-            'default_tax_percent', 'accounting_start_date', 'is_billable',
-        )
-        protected_fields = ('customer',)
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'customer': {'lookup_field': 'uuid'},
-        }
-
-    def get_fields(self):
-        fields = super(PaymentDetailsSerializer, self).get_fields()
-        if isinstance(self.instance, models.PaymentDetails):
-            fields['accounting_start_date'].read_only = self.instance.is_billable()
-        return fields
-
-
 class InvoiceItemReportSerializer(serializers.ModelSerializer):
     invoice_number = serializers.ReadOnlyField(source='invoice.number')
     invoice_uuid = serializers.ReadOnlyField(source='invoice.uuid')
