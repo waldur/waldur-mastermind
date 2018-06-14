@@ -5,6 +5,10 @@ from waldur_client import (
     WaldurClientException, ObjectDoesNotExist,
     waldur_client_from_module, waldur_resource_argument_spec)
 
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'OpenNode'}
+
 DOCUMENTATION = '''
 ---
 module: waldur_os_instance
@@ -28,35 +32,29 @@ options:
   data_volume_size:
     description:
       - The size of the data volume in GB. Data volume is not created if value is empty.
-    required: false
   delete_volumes:
     description:
       - If true, delete volumes when deleting instance.
-    required: false
     default: true
   flavor:
     description:
       - The name or id of the flavor to use.
         If this is not declared, flavor_min_cpu and/or flavor_min_ram must be declared.
-    required: false
   flavor_min_cpu:
     description:
       - The minimum cpu count.
-    required: false
   flavor_min_ram:
     description:
       - The minimum ram size (MB).
-    required: false
   floating_ip:
     description:
       - An id or address of the existing floating IP to use.
         Not assigned if not specified. Use `auto` to allocate new floating IP or reuse available one.
-    required:
-      - If a `networks` parameter is not provided.
+        It is required if a `networks` parameter is not provided.
   image:
     description:
       - The name or id of the image to use.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   interval:
     default: 20
     description:
@@ -69,31 +67,27 @@ options:
     description:
       - A list of networks an instance has to be attached to.
         A network object consists of 'floating_ip' and 'subnet' fields.
-      required:
-        - If neither 'floating_ip' nor 'subnet' provided.
+        It is required if neither 'floating_ip' nor 'subnet' provided.
   project:
     description:
       - The name or id of the project to add an instance to.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   provider:
     description:
       - The name or id of the instance provider.
-    required: is state is 'present'
+        It is  required if is state is 'present'.
   release_floating_ips:
     description:
       - When state is absent and this option is true, any floating IP
         associated with the instance will be deleted along with the instance.
-    required: false
     default: true
   security_groups:
     default: default
     description:
       - A list of ids or names of security groups to apply to the newly created instance.
-    required: false
   ssh_key:
     description:
       - The name or id of the SSH key to attach to the newly created instance.
-    required: false
   state:
     choices:
       - present
@@ -104,12 +98,11 @@ options:
   subnet:
     description:
       - The name or id of the subnet to use.
-    required:
-      - If a `networks` parameter is not provided.
+        It is required if a `networks` parameter is not provided.
   system_volume_size:
     description:
       - The size of the system volume in GBs.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   timeout:
     default: 600
     description:
@@ -117,11 +110,9 @@ options:
   user_data:
     description:
       - An additional data that will be added to the instance on provisioning.
-    required: false
   tags:
     description:
       - List of tags that will be added to the instance on provisioning.
-    required: false
   wait:
     default: true
     description:

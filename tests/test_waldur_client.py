@@ -1,12 +1,9 @@
+import json
 import unittest
 import uuid
 
 import responses
-
-try:
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlencode
+from six.moves.urllib.parse import urlencode
 
 from waldur_client import WaldurClient, WaldurClientException
 
@@ -245,5 +242,42 @@ class SecurityGroupTest(BaseWaldurClientTest):
         self.assertEqual(security_group['name'], response['name'])
 
 
-if __name__ == '__main__':
-    unittest.main()
+class VolumeDetachTest(BaseWaldurClientTest):
+    def setUp(self):
+        super(VolumeDetachTest, self).setUp()
+        self.expected_url = 'http://example.com:8000/api/openstacktenant-volumes/' \
+                            '6b6e60870ad64085aadcdcbc1fd84a7e/detach/'
+
+    @responses.activate
+    def test_valid_url_is_rendered_for_action(self):
+        responses.add(responses.POST,
+                      self.expected_url,
+                      status=202,
+                      json={'details': 'detach was scheduled.'})
+        self.client.detach_volume('6b6e60870ad64085aadcdcbc1fd84a7e', wait=False)
+
+
+class VolumeAttachTest(BaseWaldurClientTest):
+    def setUp(self):
+        super(VolumeAttachTest, self).setUp()
+        self.expected_url = 'http://example.com:8000/api/openstacktenant-volumes/' \
+                            'volume_uuid/attach/'
+
+    @responses.activate
+    def test_valid_url_is_rendered_for_action(self):
+        # Arrange
+        responses.add(responses.POST,
+                      self.expected_url,
+                      status=202,
+                      json={'details': 'attach was scheduled.'})
+
+        # Act
+        self.client.attach_volume('volume_uuid', 'instance_uuid', '/dev/vdb', wait=False)
+
+        # Assert
+        actual = json.loads(responses.calls[0].request.body)
+        expected = {
+            'instance': 'http://example.com:8000/api/openstacktenant-instances/instance_uuid/',
+            'device': '/dev/vdb'
+        }
+        self.assertEqual(expected, actual)
