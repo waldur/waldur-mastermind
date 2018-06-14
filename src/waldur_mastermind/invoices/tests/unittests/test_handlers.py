@@ -11,6 +11,7 @@ from mock import Mock, mock
 import pytz
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support.tests import factories as support_factories
@@ -90,9 +91,11 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
             self.assertEqual(invoice.total, expected_total)
 
     def test_default_tax_percent_is_used_on_invoice_creation(self):
-        payment_details = factories.PaymentDetailsFactory(default_tax_percent=20)
-        invoice = factories.InvoiceFactory(customer=payment_details.customer)
-        self.assertEqual(invoice.tax_percent, payment_details.default_tax_percent)
+        customer = structure_factories.CustomerFactory()
+        customer.default_tax_percent = 20
+        customer.save()
+        invoice = factories.InvoiceFactory(customer=customer)
+        self.assertEqual(invoice.tax_percent, customer.default_tax_percent)
 
     def test_package_creation_does_not_increase_price_from_old_package_if_it_is_cheaper(self):
         old_component_price = 100

@@ -71,6 +71,7 @@ class CheckAccountingStartDateTest(TestCase):
 
         with override_invoices_settings(ENABLE_ACCOUNTING_START_DATE=skip_trial):
             customer = structure_factories.CustomerFactory()
-            models.PaymentDetails.objects.create(customer=customer, accounting_start_date=accounting_start_date)
+            customer.accounting_start_date = accounting_start_date
+            customer.save()
             tasks.create_monthly_invoices()
             self.assertEqual(invoice_exists, models.Invoice.objects.filter(customer=customer).exists())
