@@ -174,9 +174,9 @@ class WaldurClient(object):
         url = self._build_resource_url(endpoint, uuid)
         return self._delete_resource_by_url(url)
 
-    def _execute_resource_action(self, endpoint, uuid, action):
+    def _execute_resource_action(self, endpoint, uuid, action, **kwargs):
         url = self._build_resource_url(endpoint, uuid, action)
-        return self._post(url, [202])
+        return self._post(url, [202], **kwargs)
 
     def _get_service_project_link(self, provider_uuid, project_uuid):
         query = {'project_uuid': project_uuid, 'service_uuid': provider_uuid}
@@ -491,12 +491,12 @@ class WaldurClient(object):
 
     def stop_instance(self, uuid, wait=True, interval=10, timeout=600):
         """
-        Stop OpenStack instance and wait until operation is compeleted.
+        Stop OpenStack instance and wait until operation is completed.
 
         :param uuid: unique identifier of the instance
-        :param wait: defines whether the client has to wait for volume provisioning.
+        :param wait: defines whether the client has to wait for operation completion.
         :param interval: interval of volume state polling in seconds.
-        :param timeout: a maximum amount of time to wait for volume provisioning.
+        :param timeout: a maximum amount of time to wait for operation completion.
         """
         self._execute_resource_action(self.Endpoints.Instance, uuid, 'stop')
         if wait:
@@ -571,6 +571,38 @@ class WaldurClient(object):
             self._wait_for_resource(self.Endpoints.Volume, resource['uuid'], interval, timeout)
 
         return resource
+
+    def detach_volume(self, uuid, wait=True, interval=10, timeout=600):
+        """
+        Detach OpenStack volume from instance and wait until operation is completed.
+
+        :param uuid: unique identifier of the volume
+        :param wait: defines whether the client has to wait for operation completion.
+        :param interval: interval of volume state polling in seconds.
+        :param timeout: a maximum amount of time to wait for operation completion.
+        """
+        self._execute_resource_action(self.Endpoints.Volume, uuid, 'detach')
+        if wait:
+            self._wait_for_resource(self.Endpoints.Volume, uuid, interval, timeout)
+
+    def attach_volume(self, volume, instance, device, wait=True, interval=10, timeout=600):
+        """
+        Detach OpenStack volume from instance and wait until operation is completed.
+
+        :param volume: unique identifier of the volume
+        :param instance: unique identifier of the instance
+        :param device: name of volume as instance device e.g. /dev/vdb
+        :param wait: defines whether the client has to wait for operation completion.
+        :param interval: interval of volume state polling in seconds.
+        :param timeout: a maximum amount of time to wait for operation completion.
+        """
+        payload = dict(
+            instance=self._build_resource_url(self.Endpoints.Instance, instance),
+            device=device
+        )
+        self._execute_resource_action(self.Endpoints.Volume, volume, 'attach', json=payload)
+        if wait:
+            self._wait_for_resource(self.Endpoints.Volume, volume, interval, timeout)
 
     def get_snapshot(self, name):
         return self._get_resource(self.Endpoints.Snapshot, name)
