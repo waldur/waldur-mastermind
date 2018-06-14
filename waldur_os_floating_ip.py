@@ -3,6 +3,10 @@
 from ansible.module_utils.basic import *
 from waldur_client import WaldurClientException, waldur_full_argument_spec, waldur_client_from_module
 
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'OpenNode'}
+
 DOCUMENTATION = '''
 ---
 module: waldur_os_floating_ip
@@ -19,9 +23,8 @@ options:
     required: true
   address:
     description:
-      - an IP address of the floating IP to be assigned to the instance.
-    required:
-      - if 'floating_ips' are not provided.
+      - IP address of the floating IP to be assigned to the instance.
+        It is required if 'floating_ips' are not provided.
   api_url:
     description:
       - Fully qualified url to the Waldur.
@@ -30,17 +33,15 @@ options:
     description:
       - A list of floating IPs to be assigned to the instance.
         A floating IP consists of 'subnet' and 'address'.
-    required:
-      - if 'floating_ips' are not provided.
+        It is required if 'floating_ips' are not provided.
   subnet:
     description:
       - A subnet to be assigned to the instance.
-    required:
-      - if 'floating_ips' are not provided.
+        It is required if 'floating_ips' are not provided.
   instance:
     description:
       - The name of the virtual machine to assign floating IPs to.
-    required: True
+    required: true
   interval:
     default: 20
     description:
