@@ -13,17 +13,6 @@ class ServiceProviderAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'customer', 'created')
 
 
-class OfferingForm(forms.ModelForm):
-    class Meta:
-        widgets = {
-            'attributes': JSONEditor(),
-        }
-
-
-class OfferingAdmin(admin.ModelAdmin):
-    form = OfferingForm
-
-
 class AttributeForm(forms.ModelForm):
     def clean_available_values(self):
         value = self.cleaned_data['available_values']
@@ -45,6 +34,6 @@ class AttributeAdmin(admin.ModelAdmin):
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category)
-admin.site.register(models.Offering, OfferingAdmin)
+admin.site.register(models.Offering)
 admin.site.register(models.Section)
 admin.site.register(models.Attribute, AttributeAdmin)

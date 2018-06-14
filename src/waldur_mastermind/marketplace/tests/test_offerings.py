@@ -12,7 +12,7 @@ class OfferingGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory()
+        self.offering = factories.OfferingFactory(attributes='')
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_offerings_should_be_visible_to_all_authenticated_users(self, user):
@@ -55,6 +55,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
         payload = {
             'name': 'offering',
+            'attributes': '',
             'category': factories.CategoryFactory.get_url(),
             'provider': factories.ServiceProviderFactory.get_url(self.provider),
         }
@@ -85,7 +86,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         provider = factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(provider=provider)
+        offering = factories.OfferingFactory(provider=provider, attributes='')
         url = factories.OfferingFactory.get_url(offering)
 
         response = self.client.patch(url, {
@@ -103,7 +104,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(provider=self.provider)
+        self.offering = factories.OfferingFactory(provider=self.provider, attributes='')
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_offering(self, user):

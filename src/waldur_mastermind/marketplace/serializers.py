@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import json
 
 from rest_framework import serializers
-from rest_framework_hstore.fields import HStoreField
 from rest_framework import exceptions as rest_exceptions
 
 from waldur_core.core import serializers as core_serializers
@@ -53,15 +52,10 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class OfferingHStoreSerializer(serializers.ModelSerializer):
-    attributes = HStoreField()
-
-    class Meta:
-        model = models.Offering
-
-
 class AttributesSerializer(serializers.Field):
     def to_internal_value(self, data):
+        if not data:
+            return ''
         data = json.loads(data)
         return utils.dict_to_hstore(data)
 
@@ -69,7 +63,7 @@ class AttributesSerializer(serializers.Field):
         return utils.hstore_to_dict(attributes)
 
 
-class OfferingSerializer(OfferingHStoreSerializer, core_serializers.AugmentedSerializerMixin,
+class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = AttributesSerializer()
 
@@ -91,20 +85,21 @@ class OfferingSerializer(OfferingHStoreSerializer, core_serializers.AugmentedSer
         else:
             structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
 
-        offering_attributes = utils.hstore_to_dict(attrs['attributes'])
-        offering_attribute_keys = offering_attributes.keys()
-        attributes = list(models.Attribute.objects.filter(section__category=attrs['category'],
-                                                          key__in=offering_attribute_keys))
-        for key, value in offering_attributes.items():
-            attribute = filter(lambda a: a.key == key, attributes)[0] if filter(lambda a: a.key == key, attributes) \
-                else None
-            if attribute:
-                klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
-                klass = getattr(attribute_types, klass_name)
-                try:
-                    klass.validate(value, attribute.available_values)
-                except ValidationError as e:
-                    err = rest_exceptions.ValidationError({'attributes': e.message})
-                    raise err
+        if attrs.get('attributes'):
+            offering_attributes = utils.hstore_to_dict(attrs['attributes'])
+            offering_attribute_keys = offering_attributes.keys()
+            attributes = list(models.Attribute.objects.filter(section__category=attrs['category'],
+                                                              key__in=offering_attribute_keys))
+            for key, value in offering_attributes.items():
+                attribute = filter(lambda a: a.key == key, attributes)[0] if filter(lambda a: a.key == key, attributes) \
+                    else None
+                if attribute:
+                    klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
+                    klass = getattr(attribute_types, klass_name)
+                    try:
+                        klass.validate(value, attribute.available_values)
+                    except ValidationError as e:
+                        err = rest_exceptions.ValidationError({'attributes': e.message})
+                        raise err
 
         return attrs
