@@ -19,7 +19,7 @@ Configure an Ansible playbook with parameters
 .. code-block:: yaml
 
   name: Trigger master instance
-  waldur_os_add_instance:
+  waldur_os_instance:
     access_token: "{{ access_token }}"
     api_url: "{{ api_url }}"
     flavor: m1.micro

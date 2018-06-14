@@ -13,7 +13,7 @@ tests_requires = [
 
 setup(
     name='ansible-waldur-module',
-    version='0.7.0',
+    version='0.8.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='https://waldur.com',
@@ -23,7 +23,6 @@ setup(
     py_modules=['waldur_client'],
     install_requires=install_requires,
     tests_require=tests_requires,
-    test_suite='test_waldur_client',
     classifiers=[
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
