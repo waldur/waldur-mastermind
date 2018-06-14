@@ -4,6 +4,10 @@ from ansible.module_utils.basic import *
 from waldur_client import WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned, \
     waldur_client_from_module, waldur_resource_argument_spec
 
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'OpenNode'}
+
 DOCUMENTATION = '''
 ---
 module: waldur_os_snapshot
@@ -27,7 +31,6 @@ options:
   description:
     description:
       - A description of the snapshot.
-    required: false
   interval:
     default: 20
     description:
@@ -35,7 +38,6 @@ options:
   kept_until:
     description:
       - Guaranteed time of snapshot retention. If null - keep forever.
-    required: false
   name:
     description:
       - The name of the snapshot.
@@ -50,7 +52,6 @@ options:
   tags:
     description:
       - List of tags that will be added to the snapshot on provisioning.
-    required: false
   timeout:
     default: 600
     description:
@@ -58,7 +59,7 @@ options:
   volume:
     description:
       - The name or id of the OpenStack volume.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   wait:
     default: true
     description:

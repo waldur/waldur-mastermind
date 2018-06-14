@@ -1,7 +1,11 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
-from waldur_client import WaldurClient, WaldurClientException, waldur_client_from_module
+from waldur_client import WaldurClientException, waldur_client_from_module
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'OpenNode'}
 
 DOCUMENTATION = '''
 ---

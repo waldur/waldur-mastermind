@@ -4,6 +4,10 @@ from ansible.module_utils.basic import *
 from waldur_client import WaldurClientException, waldur_client_from_module, \
     waldur_resource_argument_spec
 
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'OpenNode'}
+
 DOCUMENTATION = '''
 ---
 module: waldur_os_security_group
@@ -27,8 +31,7 @@ options:
   cidr:
     description:
       - A CIDR the security group rule is applied to.
-    required:
-      - If 'rules' are not provided.
+       It is required if 'rules' are not provided.
   description:
     description:
       - A description of the security group.
@@ -36,8 +39,7 @@ options:
   from_port:
     description:
       - The lowest port value the security group rule is applied to.
-    required:
-      - If 'rules' are not provided.
+        It is required if 'rules' are not provided.
   interval:
     default: 20
     description:
@@ -45,8 +47,7 @@ options:
   protocol:
     description:
       - A protocol the security group rule is applied to.
-    required:
-      - If 'rules' are not provided.
+        It is required if 'rules' are not provided.
   name:
     description:
       - The name of the security group.
@@ -55,8 +56,7 @@ options:
     description:
       - A list of security group rules to be applied to the security group.
         A rule consists of 4 fields: 'to_port', 'from_port', 'cidr' and 'protocol'
-    required:
-      - If 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
+        It is required if 'to_port', 'from_port', 'cidr' and 'protocol' are not specified.
   state:
     choices:
       - present
@@ -67,12 +67,10 @@ options:
   to_port:
     description:
       - The highest port value the security group rule is applied to.
-    required:
-      - If 'rules' are not provided.
+        It is required if 'rules' are not provided.
   tags:
     description:
       - List of tags that will be added to the security group on provisioning.
-    required: false
   tenant:
     description:
       - The name of the tenant to create a security group for.

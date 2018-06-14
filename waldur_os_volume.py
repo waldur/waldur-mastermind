@@ -4,6 +4,10 @@ from ansible.module_utils.basic import *
 from waldur_client import WaldurClientException, ObjectDoesNotExist, MultipleObjectsReturned, \
     waldur_client_from_module, waldur_resource_argument_spec
 
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'OpenNode'}
+
 DOCUMENTATION = '''
 ---
 module: waldur_os_volume
@@ -27,7 +31,6 @@ options:
   description:
     description:
       - A description of the volume.
-    required: false
   interval:
     default: 20
     description:
@@ -39,15 +42,15 @@ options:
   project:
     description:
       - The name or id of the project to add volume to.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   provider:
     description:
       - The name or id of the OpenStack provider.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   size:
     description:
       - The size of the volume in GBs.
-    required: is state is 'present'
+        It is required if is state is 'present'.
   state:
     choices:
       - present
@@ -58,7 +61,6 @@ options:
   tags:
     description:
       - List of tags that will be added to the volume on provisioning.
-    required: false
   timeout:
     default: 600
     description:
