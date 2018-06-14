@@ -144,7 +144,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
     def test_active_invoice_are_merged(self, send_mail_mock):
-        self.customer.accounting_start_date=timezone.now() - datetime.timedelta(days=50)
+        self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
         self.customer.save()
         fixture = fixtures.InvoiceFixture()
         package = fixtures.create_package(111, fixture.openstack_tenant)
