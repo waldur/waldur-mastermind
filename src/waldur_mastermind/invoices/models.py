@@ -16,7 +16,7 @@ from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from waldur_core.core.fields import JSONField, CountryField
+from waldur_core.core.fields import JSONField
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
