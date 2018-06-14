@@ -16,7 +16,7 @@ from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from waldur_core.core.fields import JSONField, CountryField
+from waldur_core.core.fields import JSONField
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
@@ -363,78 +363,3 @@ class OpenStackItem(InvoiceItem):
                 template_category = categories[template_category]
 
             return template_category
-
-
-@python_2_unicode_compatible
-class PaymentDetails(core_models.UuidMixin, models.Model):
-    # TODO: [WAL-1394] Delete this model
-    """ Customer payment details """
-
-    class Permissions(object):
-        customer_path = 'customer'
-
-    class Meta(object):
-        verbose_name = _('Payment details')
-        verbose_name_plural = _('Payment details')
-
-    customer = models.OneToOneField(structure_models.Customer, related_name='payment_details')
-    _accounting_start_date = models.DateTimeField(_('Start date of accounting'), default=timezone.now,
-                                                  blank=True, editable=False)  # move customer
-    _company = models.CharField(blank=True, max_length=150, editable=False)  # link customer.name
-    _type = models.CharField(blank=True, max_length=150, editable=False)  # move customer
-    _address = models.CharField(blank=True, max_length=300, editable=False)  # move customer
-    _country = models.CharField(blank=True, max_length=50, editable=False)  # link customer
-    _email = models.EmailField(blank=True, max_length=75, editable=False)  # link customer
-    _postal = models.CharField(blank=True, max_length=20, editable=False)  # move customer
-    _phone = models.CharField(blank=True, max_length=20, editable=False)  # link customer.phone_number
-    _bank = models.CharField(blank=True, max_length=150, editable=False)  # move customer
-    _account = models.CharField(blank=True, max_length=50, editable=False)  # move customer
-    _default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
-                                               validators=[MinValueValidator(0), MaxValueValidator(100)],
-                                               blank=True, editable=False)  # move customer
-
-    def _create_customers_property(name):
-        def get_property(self):
-            return getattr(self.customer, name)
-
-        def set_property(self, value):
-            setattr(self.customer, name, value)
-
-        return property(get_property, set_property)
-
-    company = _create_customers_property('name')
-    type = _create_customers_property('type')
-    address = _create_customers_property('address')
-    email = _create_customers_property('email')
-    postal = _create_customers_property('postal')
-    phone = _create_customers_property('phone_number')
-    bank = _create_customers_property('bank_name')
-    account = _create_customers_property('bank_account')
-    default_tax_percent = _create_customers_property('default_tax_percent')
-    accounting_start_date = _create_customers_property('accounting_start_date')
-
-    def get_country(self):
-        return self.customer.country
-
-    def set_country(self, value):
-        country = filter(lambda x: x[1] == value, CountryField.COUNTRIES)
-        if country:
-            self.customer.country = country[0][0]
-        else:
-            logger.warning('Invalid country name %s' % value)
-
-    country = property(get_country, set_country)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'payment-details'
-
-    def is_billable(self):
-        return timezone.now() >= self.accounting_start_date
-
-    def __str__(self):
-        return 'PaymentDetails for %s' % self.customer
-
-    def save(self, *args, **kwargs):
-        self.customer.save()
-        super(PaymentDetails, self).save(*args, **kwargs)
