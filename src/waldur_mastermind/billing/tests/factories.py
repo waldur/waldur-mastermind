@@ -1,10 +1,10 @@
 import factory
 from factory import fuzzy
-
 from django.urls import reverse
 
-from waldur_core.cost_tracking import models
 from waldur_core.structure.tests import factories as structure_factories
+
+from .. import models
 
 
 class PriceEstimateFactory(factory.DjangoModelFactory):
