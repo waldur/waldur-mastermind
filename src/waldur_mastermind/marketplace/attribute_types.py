@@ -49,7 +49,7 @@ class StringAttribute(AttributeType):
 class IntegerAttribute(AttributeType):
     @staticmethod
     def validate(values, available_values=None):
-        if not isinstance(values, int):
+        if isinstance(values, bool) or not isinstance(values, int):
             raise ValidationError(_("Value must be an integer type  for this attribute type."))
 
 
@@ -68,8 +68,7 @@ class ChoiceAttribute(AttributeType):
             raise ValidationError(_("Value must be a string for this attribute."))
 
         if not(values in available_values):
-            raise ValidationError(_("This value is not available for this attribute.") %
-                                  set(values) - set(available_values))
+            raise ValidationError(_("This value is not available for this attribute."))
 
 
 class ListAttribute(AttributeType):

@@ -54,10 +54,7 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
 class AttributesSerializer(serializers.Field):
     def to_internal_value(self, data):
-        if not data:
-            return ''
-        data = json.loads(data)
-        return utils.dict_to_hstore(data)
+        return data
 
     def to_representation(self, attributes):
         return utils.hstore_to_dict(attributes)
@@ -85,21 +82,29 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         else:
             structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
 
-        if attrs.get('attributes'):
-            offering_attributes = utils.hstore_to_dict(attrs['attributes'])
-            offering_attribute_keys = offering_attributes.keys()
-            attributes = list(models.Attribute.objects.filter(section__category=attrs['category'],
-                                                              key__in=offering_attribute_keys))
-            for key, value in offering_attributes.items():
-                attribute = filter(lambda a: a.key == key, attributes)[0] if filter(lambda a: a.key == key, attributes) \
-                    else None
-                if attribute:
-                    klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
-                    klass = getattr(attribute_types, klass_name)
-                    try:
-                        klass.validate(value, attribute.available_values)
-                    except ValidationError as e:
-                        err = rest_exceptions.ValidationError({'attributes': e.message})
-                        raise err
+        offering_attributes = attrs.get('attributes')
+
+        if offering_attributes:
+            category = attrs.get('category', self.instance.category)
+            self._validate_attributes(offering_attributes, category)
+            offering_attributes = json.loads(offering_attributes)
+            attrs['attributes'] = utils.dict_to_hstore(offering_attributes)
 
         return attrs
+
+    def _validate_attributes(self, offering_attributes, category):
+        offering_attributes = json.loads(offering_attributes)
+        offering_attribute_keys = offering_attributes.keys()
+        category_attributes = list(models.Attribute.objects.filter(section__category=category,
+                                                                   key__in=offering_attribute_keys))
+        for key, value in offering_attributes.items():
+            attribute = filter(lambda a: a.key == key, category_attributes)[0] \
+                if filter(lambda a: a.key == key, category_attributes) else None
+            if attribute:
+                klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
+                klass = getattr(attribute_types, klass_name)
+                try:
+                    klass.validate(value, attribute.available_values)
+                except ValidationError as e:
+                    err = rest_exceptions.ValidationError({'attributes': e.message})
+                    raise err

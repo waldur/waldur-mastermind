@@ -66,3 +66,21 @@ class OfferingFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-offering-list')
         return url if action is None else url + action + '/'
+
+
+class SectionFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Section
+
+    key = factory.Sequence(lambda n: 'section-%s' % n)
+    category = factory.SubFactory(CategoryFactory)
+
+
+class AttributesFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Attribute
+
+    key = factory.Sequence(lambda n: 'attribute-%s' % n)
+    section = factory.SubFactory(SectionFactory)
+    type = 'list'
+    available_values = ["web_chat", "phone"]

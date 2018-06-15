@@ -1,10 +1,16 @@
+from __future__ import unicode_literals
+
+import json
+
 from ddt import data, ddt
+from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
 
 from . import factories
+from .. import serializers, utils
 
 
 @ddt
@@ -124,3 +130,103 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         url = factories.OfferingFactory.get_url(self.offering)
         response = self.client.delete(url)
         return response
+
+
+@ddt
+class OfferingAttributesTest(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.serializer = serializers.OfferingSerializer()
+        self.category = factories.CategoryFactory()
+        self.section = factories.SectionFactory(category=self.category)
+        self.attribute = factories.AttributesFactory(section=self.section, key='userSupportOptions')
+
+    @data(["web_chat", "phone"], )
+    def test_list_attribute_is_valid(self, value):
+        self._valid('list', value)
+
+    @data(["chat", "phone"], "web_chat", 1, False)
+    def test_list_attribute_is_not_valid(self, value):
+        self._not_valid('list', value)
+
+    @data("web_chat", )
+    def test_choice_attribute_is_valid(self, value):
+        self._valid('choice', value)
+
+    @data(["web_chat"], "chat", 1, False)
+    def test_choice_attribute_is_not_valid(self, value):
+        self._not_valid('choice', value)
+
+    @data("name", )
+    def test_string_attribute_is_valid(self, value):
+        self._valid('string', value)
+
+    @data(["web_chat"], 1, False)
+    def test_string_attribute_is_not_valid(self, value):
+        self._not_valid('string', value)
+
+    @data(1, )
+    def test_integer_attribute_is_valid(self, value):
+        self._valid('integer', value)
+
+    @data(["web_chat"], "web_chat", False)
+    def test_integer_attribute_is_not_valid(self, value):
+        self._not_valid('integer', value)
+
+    @data(True, )
+    def test_boolean_attribute_is_valid(self, value):
+        self._valid('boolean', value)
+
+    @data(["web_chat"], "web_chat", 1)
+    def test_boolean_attribute_is_not_valid(self, value):
+        self._not_valid('boolean', value)
+
+    def test_convert_attribute_from_dict_to_hstore(self):
+        hstore = utils.dict_to_hstore({
+            "cloudDeploymentModel": "private_cloud",
+            "vendorType": "reseller",
+            "userSupportOptions": ["web_chat", "phone"],
+            "dataProtectionInternal": "ipsec",
+            "dataProtectionExternal": "tls12"
+        })
+        for field in ["cloudDeploymentModel__private_cloud",
+                      "vendorType__reseller",
+                      "userSupportOptions__web_chat",
+                      "userSupportOptions__phone",
+                      "dataProtectionInternal__ipsec",
+                      "dataProtectionExternal__tls12"]:
+            self.assertTrue(hstore[field])
+
+    def test_convert_attribute_from_hstore_to_dict(self):
+        dictionary = utils.hstore_to_dict({
+            "cloudDeploymentModel__private_cloud": True,
+            "vendorType__reseller": True,
+            "userSupportOptions__web_chat": True,
+            "userSupportOptions__phone": True,
+            "dataProtectionInternal__ipsec": True,
+            "dataProtectionExternal__tls12": True
+        })
+        self.assertEqual(cmp(dictionary, {
+            "cloudDeploymentModel": "private_cloud",
+            "vendorType": "reseller",
+            "userSupportOptions": ["web_chat", "phone"],
+            "dataProtectionInternal": "ipsec",
+            "dataProtectionExternal": "tls12"
+        }), 0)
+
+    def _valid(self, attribute_type, value):
+        self.attribute.type = attribute_type
+        self.attribute.save()
+        attributes = json.dumps({
+            "userSupportOptions": value,
+        })
+        self.assertIsNone(self.serializer._validate_attributes(attributes, self.category))
+
+    def _not_valid(self, attribute_type, value):
+        self.attribute.type = attribute_type
+        self.attribute.save()
+        attributes = json.dumps({
+            "userSupportOptions": value,
+        })
+        self.assertRaises(rest_exceptions.ValidationError, self.serializer._validate_attributes,
+                          attributes, self.category)
