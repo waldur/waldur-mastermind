@@ -17,8 +17,7 @@ class AttributeForm(forms.ModelForm):
     def clean_available_values(self):
         value = self.cleaned_data['available_values']
         attribute_type = self.cleaned_data['type']
-        klass_name = utils.snake_to_camel(attribute_type) + 'Attribute'
-        klass = getattr(attribute_types, klass_name)
+        klass = attribute_types.get_attribute_type(attribute_type)
         klass.available_values_validate(JSONField().to_python(value))
         return value
 

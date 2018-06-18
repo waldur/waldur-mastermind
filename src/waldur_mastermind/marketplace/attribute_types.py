@@ -5,22 +5,7 @@ import six
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 
-from . import utils
 
-ATTRIBUTE_TYPES = []
-
-
-class AttributeTypeMeta(type):
-    def __new__(mcs, class_name, bases, attrs):
-        if class_name.endswith('Attribute'):
-            name = class_name.replace('Attribute', '')
-            name = utils.camel_to_snake(name)
-            ATTRIBUTE_TYPES.append((name, name))
-
-        return super(AttributeTypeMeta, mcs).__new__(mcs, class_name, bases, attrs)
-
-
-@six.add_metaclass(AttributeTypeMeta)
 class AttributeType(object):
     @staticmethod
     def available_values_validate(values):
@@ -87,3 +72,26 @@ class ListAttribute(AttributeType):
 
         if not(set(values) <= set(available_values)):
             raise ValidationError(_("These values are not available for this attribute."))
+
+
+ATTRIBUTE_TYPES = (
+    ('boolean', 'boolean'),
+    ('string', 'string'),
+    ('integer', 'integer'),
+    ('choice', 'choice'),
+    ('list', 'list'),
+)
+
+
+def get_attribute_type(name):
+    attribute_type = {
+        'boolean': BooleanAttribute,
+        'string': StringAttribute,
+        'integer': IntegerAttribute,
+        'choice': ChoiceAttribute,
+        'list': ListAttribute,
+    }
+    try:
+        return attribute_type[name]
+    except KeyError:
+        pass

@@ -61,7 +61,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
         payload = {
             'name': 'offering',
-            'attributes': '',
+            #'attributes': '',
             'category': factories.CategoryFactory.get_url(),
             'provider': factories.ServiceProviderFactory.get_url(self.provider),
         }

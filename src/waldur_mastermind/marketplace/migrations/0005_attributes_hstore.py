@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='offering',
             name='attributes',
-            field=django.contrib.postgres.fields.hstore.HStoreField(blank=True),
+            field=django.contrib.postgres.fields.hstore.HStoreField(blank=True, default=''),
         ),
     ]

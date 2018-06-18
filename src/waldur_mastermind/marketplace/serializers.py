@@ -60,7 +60,7 @@ class AttributesSerializer(core_fields.JsonField):
 
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    attributes = AttributesSerializer()
+    attributes = AttributesSerializer(required=False)
 
     class Meta(object):
         model = models.Offering
@@ -100,8 +100,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             attribute = match_attributes[0] if match_attributes else None
 
             if attribute:
-                klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
-                klass = getattr(attribute_types, klass_name, None)
+                klass = attribute_types.get_attribute_type(attribute.type)
                 if klass:
                     try:
                         klass.validate(value, attribute.available_values)

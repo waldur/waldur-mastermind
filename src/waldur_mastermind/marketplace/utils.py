@@ -13,28 +13,9 @@ def camel_to_snake(word):
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
-def hstore_to_dict(hsore):
-    """
-    :param hsore: JSON string. For example:
-        {
-          "cloudDeploymentModel__private_cloud": true,
-          "vendorType__reseller": true,
-          "userSupportOptions__web_chat": true,
-          "userSupportOptions__phone": true,
-          "dataProtectionInternal__ipsec": true,
-          "dataProtectionExternal__tls12": true
-        }
-    :return: JSON string. For example:
-        {
-          "cloudDeploymentModel": "private_cloud",
-          "vendorType": "reseller",
-          "userSupportOptions": ["web_chat", "phone"],
-          "dataProtectionInternal": "ipsec",
-          "dataProtectionExternal": "tls12"
-        }
-    """
+def hstore_to_dict(hstore):
     attributes = {}
-    for attr in hsore:
+    for attr in hstore:
         attr_list = attr.split('__')
         key = attr_list[0]
         if len(attr_list) > 1:
@@ -47,7 +28,7 @@ def hstore_to_dict(hsore):
             else:
                 attributes[key] = attr_list[1]
         else:
-            attributes[attr] = hsore[attr]
+            attributes[attr] = hstore[attr]
     return attributes
 
 
@@ -57,11 +38,11 @@ def dict_to_hstore(dictionary):
         if isinstance(value, int):
             result[key] = value
 
-        if isinstance(value, six.text_type) and re.match("^[A-Za-z0-9-]+$", value):
+        if isinstance(value, six.text_type) and re.match("^[A-Za-z0-9_-]+$", value):
             result[key + '__' + value] = True
 
         if isinstance(value, list) and value:
             for v in value:
-                if isinstance(v, six.text_type) and re.match("^[A-Za-z0-9-]+$", v):
+                if isinstance(v, six.text_type) and re.match("^[A-Za-z0-9_-]+$", v):
                     result[key + '__' + v] = True
     return result
