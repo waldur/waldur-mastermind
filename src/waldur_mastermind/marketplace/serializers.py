@@ -8,6 +8,7 @@ from rest_framework import exceptions as rest_exceptions
 from waldur_core.core import serializers as core_serializers
 from django.core.exceptions import ValidationError
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.core import fields as core_fields
 
 from . import models, utils, attribute_types
 
@@ -52,10 +53,7 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class AttributesSerializer(serializers.Field):
-    def to_internal_value(self, data):
-        return data
-
+class AttributesSerializer(core_fields.JsonField):
     def to_representation(self, attributes):
         return utils.hstore_to_dict(attributes)
 
@@ -98,13 +96,15 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         category_attributes = list(models.Attribute.objects.filter(section__category=category,
                                                                    key__in=offering_attribute_keys))
         for key, value in offering_attributes.items():
-            attribute = filter(lambda a: a.key == key, category_attributes)[0] \
-                if filter(lambda a: a.key == key, category_attributes) else None
+            match_attributes = filter(lambda a: a.key == key, category_attributes)
+            attribute = match_attributes[0] if match_attributes else None
+
             if attribute:
                 klass_name = utils.snake_to_camel(attribute.type) + 'Attribute'
-                klass = getattr(attribute_types, klass_name)
-                try:
-                    klass.validate(value, attribute.available_values)
-                except ValidationError as e:
-                    err = rest_exceptions.ValidationError({'attributes': e.message})
-                    raise err
+                klass = getattr(attribute_types, klass_name, None)
+                if klass:
+                    try:
+                        klass.validate(value, attribute.available_values)
+                    except ValidationError as e:
+                        err = rest_exceptions.ValidationError({'attributes': e.message})
+                        raise err
