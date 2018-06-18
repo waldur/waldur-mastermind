@@ -14,6 +14,25 @@ def camel_to_snake(word):
 
 
 def hstore_to_dict(hsore):
+    """
+    :param hsore: JSON string. For example:
+        {
+          "cloudDeploymentModel__private_cloud": true,
+          "vendorType__reseller": true,
+          "userSupportOptions__web_chat": true,
+          "userSupportOptions__phone": true,
+          "dataProtectionInternal__ipsec": true,
+          "dataProtectionExternal__tls12": true
+        }
+    :return: JSON string. For example:
+        {
+          "cloudDeploymentModel": "private_cloud",
+          "vendorType": "reseller",
+          "userSupportOptions": ["web_chat", "phone"],
+          "dataProtectionInternal": "ipsec",
+          "dataProtectionExternal": "tls12"
+        }
+    """
     attributes = {}
     for attr in hsore:
         attr_list = attr.split('__')
