@@ -106,10 +106,9 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     class Meta(openstack_serializers.TenantSerializer.Meta):
         fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', )
 
-    def validate_service_project_link(self, spl):
+    def _validate_service_project_link(self, spl):
         # It should be possible for owner to create package but impossible to create a package directly.
         # So we need to ignore tenant spl validation.
-        spl = super(openstack_serializers.TenantSerializer, self).validate_service_project_link(spl)
 
         user = self.context['request'].user
         if not _has_access_to_package(user, spl):
@@ -129,6 +128,7 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         template = attrs['template']
         attrs = super(OpenStackPackageCreateSerializer, self).validate(attrs)
         spl = attrs['service_project_link']
+        self._validate_service_project_link(spl)
         if spl.service.settings != template.service_settings:
             raise serializers.ValidationError(
                 _('Template and service project link should be connected to the same service settings.'))
