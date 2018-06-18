@@ -38,11 +38,11 @@ def dict_to_hstore(dictionary):
         if isinstance(value, int):
             result[key] = value
 
-        if isinstance(value, six.text_type) and value:
+        if isinstance(value, six.text_type) and re.match("^[A-Za-z0-9-]+$", value):
             result[key + '__' + value] = True
 
         if isinstance(value, list) and value:
             for v in value:
-                if v:
+                if isinstance(v, six.text_type) and re.match("^[A-Za-z0-9-]+$", v):
                     result[key + '__' + v] = True
     return result
