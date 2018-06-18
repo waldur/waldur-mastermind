@@ -6,7 +6,7 @@ from jsoneditor.forms import JSONEditor
 
 from waldur_core.core.fields import JSONField
 
-from . import models, attribute_types, utils
+from . import models, attribute_types
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
