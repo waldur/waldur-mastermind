@@ -83,15 +83,13 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         offering_attributes = attrs.get('attributes')
 
         if offering_attributes:
-            category = attrs.get('category', self.instance.category)
+            category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
-            offering_attributes = json.loads(offering_attributes)
             attrs['attributes'] = utils.dict_to_hstore(offering_attributes)
 
         return attrs
 
     def _validate_attributes(self, offering_attributes, category):
-        offering_attributes = json.loads(offering_attributes)
         offering_attribute_keys = offering_attributes.keys()
         category_attributes = list(models.Attribute.objects.filter(section__category=category,
                                                                    key__in=offering_attribute_keys))

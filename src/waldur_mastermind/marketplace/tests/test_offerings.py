@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import json
+import unittest
 
 from ddt import data, ddt
 from rest_framework import exceptions as rest_exceptions
@@ -53,7 +54,20 @@ class OfferingCreateTest(test.APITransactionTestCase):
         response = self.create_offering(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def create_offering(self, user):
+    @unittest.skip('Only for PostgreSQL')
+    def test_create_offering_with_attributes(self):
+        response = self.create_offering('staff', attributes=True)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Offering.objects.filter(provider__customer=self.customer).exists())
+        offering = models.Offering.objects.get(provider__customer=self.customer)
+        self.assertEqual(cmp(offering.attributes, {'dataProtectionExternal__tls12': 'True',
+                                                   'cloudDeploymentModel__private_cloud': 'True',
+                                                   'dataProtectionInternal__ipsec': 'True',
+                                                   'userSupportOptions__phone': 'True',
+                                                   'userSupportOptions__web_chat': 'True',
+                                                   'vendorType__reseller': 'True'}), 0)
+
+    def create_offering(self, user, attributes=False):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.OfferingFactory.get_list_url()
@@ -61,10 +75,18 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
         payload = {
             'name': 'offering',
-            #'attributes': '',
             'category': factories.CategoryFactory.get_url(),
             'provider': factories.ServiceProviderFactory.get_url(self.provider),
         }
+
+        if attributes:
+            payload['attributes'] = json.dumps({
+                'cloudDeploymentModel': 'private_cloud',
+                'vendorType': 'reseller',
+                'userSupportOptions': ['web_chat', 'phone'],
+                'dataProtectionInternal': 'ipsec',
+                'dataProtectionExternal': 'tls12'
+            })
 
         return self.client.post(url, payload)
 
@@ -141,27 +163,27 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.section = factories.SectionFactory(category=self.category)
         self.attribute = factories.AttributesFactory(section=self.section, key='userSupportOptions')
 
-    @data(["web_chat", "phone"], )
+    @data(['web_chat', 'phone'], )
     def test_list_attribute_is_valid(self, value):
         self._valid('list', value)
 
-    @data(["chat", "phone"], "web_chat", 1, False)
+    @data(['chat', 'phone'], 'web_chat', 1, False)
     def test_list_attribute_is_not_valid(self, value):
         self._not_valid('list', value)
 
-    @data("web_chat", )
+    @data('web_chat', )
     def test_choice_attribute_is_valid(self, value):
         self._valid('choice', value)
 
-    @data(["web_chat"], "chat", 1, False)
+    @data(['web_chat'], 'chat', 1, False)
     def test_choice_attribute_is_not_valid(self, value):
         self._not_valid('choice', value)
 
-    @data("name", )
+    @data('name', )
     def test_string_attribute_is_valid(self, value):
         self._valid('string', value)
 
-    @data(["web_chat"], 1, False)
+    @data(['web_chat'], 1, False)
     def test_string_attribute_is_not_valid(self, value):
         self._not_valid('string', value)
 
@@ -169,7 +191,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def test_integer_attribute_is_valid(self, value):
         self._valid('integer', value)
 
-    @data(["web_chat"], "web_chat", False)
+    @data(['web_chat'], 'web_chat', False)
     def test_integer_attribute_is_not_valid(self, value):
         self._not_valid('integer', value)
 
@@ -177,48 +199,48 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def test_boolean_attribute_is_valid(self, value):
         self._valid('boolean', value)
 
-    @data(["web_chat"], "web_chat", 1)
+    @data(['web_chat'], 'web_chat', 1)
     def test_boolean_attribute_is_not_valid(self, value):
         self._not_valid('boolean', value)
 
     def test_convert_attribute_from_dict_to_hstore(self):
         hstore = utils.dict_to_hstore({
-            "cloudDeploymentModel": "private_cloud",
-            "vendorType": "reseller",
-            "userSupportOptions": ["web_chat", "phone"],
-            "dataProtectionInternal": "ipsec",
-            "dataProtectionExternal": "tls12"
+            'cloudDeploymentModel': 'private_cloud',
+            'vendorType': 'reseller',
+            'userSupportOptions': ['web_chat', 'phone'],
+            'dataProtectionInternal': 'ipsec',
+            'dataProtectionExternal': 'tls12'
         })
-        for field in ["cloudDeploymentModel__private_cloud",
-                      "vendorType__reseller",
-                      "userSupportOptions__web_chat",
-                      "userSupportOptions__phone",
-                      "dataProtectionInternal__ipsec",
-                      "dataProtectionExternal__tls12"]:
+        for field in ['cloudDeploymentModel__private_cloud',
+                      'vendorType__reseller',
+                      'userSupportOptions__web_chat',
+                      'userSupportOptions__phone',
+                      'dataProtectionInternal__ipsec',
+                      'dataProtectionExternal__tls12']:
             self.assertTrue(hstore[field])
 
     def test_convert_attribute_from_hstore_to_dict(self):
         dictionary = utils.hstore_to_dict({
-            "cloudDeploymentModel__private_cloud": True,
-            "vendorType__reseller": True,
-            "userSupportOptions__web_chat": True,
-            "userSupportOptions__phone": True,
-            "dataProtectionInternal__ipsec": True,
-            "dataProtectionExternal__tls12": True
+            'cloudDeploymentModel__private_cloud': True,
+            'vendorType__reseller': True,
+            'userSupportOptions__web_chat': True,
+            'userSupportOptions__phone': True,
+            'dataProtectionInternal__ipsec': True,
+            'dataProtectionExternal__tls12': True
         })
         self.assertEqual(cmp(dictionary, {
-            "cloudDeploymentModel": "private_cloud",
-            "vendorType": "reseller",
-            "userSupportOptions": ["web_chat", "phone"],
-            "dataProtectionInternal": "ipsec",
-            "dataProtectionExternal": "tls12"
+            'cloudDeploymentModel': 'private_cloud',
+            'vendorType': 'reseller',
+            'userSupportOptions': ['web_chat', 'phone'],
+            'dataProtectionInternal': 'ipsec',
+            'dataProtectionExternal': 'tls12'
         }), 0)
 
     def _valid(self, attribute_type, value):
         self.attribute.type = attribute_type
         self.attribute.save()
         attributes = json.dumps({
-            "userSupportOptions": value,
+            'userSupportOptions': value,
         })
         self.assertIsNone(self.serializer._validate_attributes(attributes, self.category))
 
@@ -226,7 +248,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.attribute.type = attribute_type
         self.attribute.save()
         attributes = json.dumps({
-            "userSupportOptions": value,
+            'userSupportOptions': value,
         })
         self.assertRaises(rest_exceptions.ValidationError, self.serializer._validate_attributes,
                           attributes, self.category)
