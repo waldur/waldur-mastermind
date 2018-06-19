@@ -52,7 +52,7 @@ class TotalCustomerCostView(views.APIView):
             raise exceptions.PermissionDenied()
 
         customers = structure_models.Customer.objects.all()
-        customers = structure_filters.AccountingStartDateFilter().filter(request, customers, self)
+        customers = structure_filters.AccountingStartDateFilter().filter_queryset(request, customers, self)
 
         name = request.query_params.get('name', '')
         if name:
