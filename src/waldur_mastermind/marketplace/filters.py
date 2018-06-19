@@ -12,3 +12,16 @@ class ServiceProviderFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.ServiceProvider
         fields = []
+
+
+class ScreenshotstFilter(django_filters.FilterSet):
+    o = django_filters.OrderingFilter(fields=(
+        ('title', 'title'),
+        ('description', 'description'),
+        ('created', 'created'),
+        ('modified', 'modified'),
+    ))
+
+    class Meta(object):
+        model = models.Screenshots
+        fields = []

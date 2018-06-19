@@ -1,16 +1,13 @@
 from __future__ import unicode_literals
 
+import os
 import re
+
 import six
-
-
-def snake_to_camel(word):
-    return ''.join(x.capitalize() or '_' for x in word.split('_'))
-
-
-def camel_to_snake(word):
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', word)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+from PIL import Image
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage as storage
 
 
 def hstore_to_dict(hstore):
@@ -38,11 +35,38 @@ def dict_to_hstore(dictionary):
         if isinstance(value, int):
             result[key] = value
 
-        if isinstance(value, six.text_type) and re.match("^[A-Za-z0-9_-]+$", value):
+        if isinstance(value, six.text_type) and re.match('^[A-Za-z0-9_-]+$', value):
             result[key + '__' + value] = True
 
         if isinstance(value, list) and value:
             for v in value:
-                if isinstance(v, six.text_type) and re.match("^[A-Za-z0-9_-]+$", v):
+                if isinstance(v, six.text_type) and re.match('^[A-Za-z0-9_-]+$', v):
                     result[key + '__' + v] = True
     return result
+
+
+def create_screenshot_thumbnail(screenshot):
+    pic = screenshot.image
+    fh = storage.open(pic.name, 'r')
+    image = Image.open(fh)
+    image.thumbnail(settings.WALDUR_MARKETPLACE['THUMBNAIL_SIZE'], Image.ANTIALIAS)
+    fh.close()
+
+    thumb_extension = os.path.splitext(pic.name)[1]
+    thumb_extension = thumb_extension.lower()
+    thumb_name = os.path.basename(pic.name)
+
+    if thumb_extension in ['.jpg', '.jpeg']:
+        FTYPE = 'JPEG'
+    elif thumb_extension == '.gif':
+        FTYPE = 'GIF'
+    elif thumb_extension == '.png':
+        FTYPE = 'PNG'
+    else:
+        return
+
+    temp_thumb = six.StringIO()
+    image.save(temp_thumb, FTYPE)
+    temp_thumb.seek(0)
+    screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)
+    temp_thumb.close()

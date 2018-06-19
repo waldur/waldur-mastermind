@@ -31,8 +31,19 @@ class AttributeAdmin(admin.ModelAdmin):
     form = AttributeForm
 
 
+class ScreenshotsInline(admin.TabularInline):
+    model = models.Screenshots
+
+
+class OfferingAdmin(admin.ModelAdmin):
+    inlines = [
+        ScreenshotsInline,
+    ]
+
+
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category)
-admin.site.register(models.Offering)
+admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section)
 admin.site.register(models.Attribute, AttributeAdmin)
+admin.site.register(models.Screenshots)
