@@ -67,6 +67,30 @@ class OfferingCreateTest(test.APITransactionTestCase):
                                                    'userSupportOptions__web_chat': 'True',
                                                    'vendorType__reseller': 'True'}), 0)
 
+    def test_dont_create_offering_if_attributes_is_not_valid(self):
+        self.category = factories.CategoryFactory()
+        self.section = factories.SectionFactory(category=self.category)
+        self.attribute = factories.AttributesFactory(section=self.section, key='userSupportOptions')
+        self.provider = factories.ServiceProviderFactory(customer=self.customer)
+                
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_list_url()
+
+        payload = {
+            'name': 'offering',
+            'category': factories.CategoryFactory.get_url(category=self.category),
+            'provider': factories.ServiceProviderFactory.get_url(self.provider),
+            'attributes': json.dumps({
+                'cloudDeploymentModel': 'private_cloud',
+                'vendorType': 'reseller',
+                'userSupportOptions': ['chat', 'phone'],
+                'dataProtectionInternal': 'ipsec',
+                'dataProtectionExternal': 'tls12'
+            })
+        }
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def create_offering(self, user, attributes=False):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
