@@ -8,3 +8,5 @@ def register_in(router):
                     base_name='marketplace-service-provider'),
     router.register(r'marketplace-categories', views.CategoryViewSet,
                     base_name='marketplace-category'),
+    router.register(r'marketplace-offerings', views.OfferingViewSet,
+                    base_name='marketplace-offering')

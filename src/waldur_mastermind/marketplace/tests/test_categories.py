@@ -53,7 +53,6 @@ class CategoryCreateTest(test.APITransactionTestCase):
 
         payload = {
             'title': 'category',
-            'features': '[]'
         }
 
         return self.client.post(url, payload)
