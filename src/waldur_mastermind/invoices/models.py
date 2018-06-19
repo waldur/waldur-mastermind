@@ -54,12 +54,19 @@ class Invoice(core_models.UuidMixin, models.Model):
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.PENDING)
     customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'), related_name='+')
+    current_cost = models.DecimalField(default=0, max_digits=10, decimal_places=2,
+                                       help_text=_('Cached value for current cost.'),
+                                       editable=False)
     tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     invoice_date = models.DateField(null=True, blank=True,
                                     help_text=_('Date then invoice moved from state pending to created.'))
 
     tracker = FieldTracker()
+
+    def update_current_cost(self):
+        self.current_cost = self.total_current
+        self.save(update_fields=['current_cost'])
 
     @property
     def tax(self):

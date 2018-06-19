@@ -76,6 +76,22 @@ class InvoiceConfig(AppConfig):
                              'set_project_name_on_invoice_item_creation_%s_%s' % (index, model.__class__),
             )
 
+            signals.post_save.connect(
+                handlers.update_current_cost_when_invoice_item_is_updated,
+                sender=model,
+                dispatch_uid='waldur_mastermind.invoices.'
+                             'update_current_cost_when_invoice_item_is_updated_%s_%s' %
+                             (index, model.__class__),
+            )
+
+            signals.post_delete.connect(
+                handlers.update_current_cost_when_invoice_item_is_deleted,
+                sender=model,
+                dispatch_uid='waldur_mastermind.invoices.'
+                             'update_current_cost_when_invoice_item_is_deleted_%s_%s' %
+                             (index, model.__class__),
+            )
+
         signals.post_save.connect(
             handlers.update_invoice_item_on_project_name_update,
             sender=structure_models.Project,

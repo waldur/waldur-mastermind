@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -117,3 +118,13 @@ def prevent_deletion_of_customer_with_invoice(sender, instance, user, **kwargs):
     for invoice in models.Invoice.objects.filter(customer=instance):
         if invoice.state != PENDING or invoice.price > 0:
             raise ValidationError(_('Can\'t delete organization with invoice %s.') % invoice)
+
+
+def update_current_cost_when_invoice_item_is_updated(sender, instance, created=False, **kwargs):
+    invoice_item = instance
+    if created or set(invoice_item.tracker.changed()) & {'start', 'end', 'quantity', 'unit_price'}:
+        transaction.on_commit(lambda: invoice_item.invoice.update_current_cost())
+
+
+def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs):
+    transaction.on_commit(lambda: instance.invoice.update_current_cost())
