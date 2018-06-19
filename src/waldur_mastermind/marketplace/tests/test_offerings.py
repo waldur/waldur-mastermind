@@ -72,7 +72,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.section = factories.SectionFactory(category=self.category)
         self.attribute = factories.AttributesFactory(section=self.section, key='userSupportOptions')
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-                
+
         self.client.force_authenticate(self.fixture.staff)
         url = factories.OfferingFactory.get_list_url()
 
