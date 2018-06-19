@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -127,4 +128,11 @@ def update_current_cost_when_invoice_item_is_updated(sender, instance, created=F
 
 
 def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs):
-    transaction.on_commit(lambda: instance.invoice.update_current_cost())
+    def update_invoice():
+        try:
+            instance.invoice.update_current_cost()
+        except ObjectDoesNotExist:
+            # It is okay to skip cache invalidation if invoice has been already removed
+            pass
+
+    transaction.on_commit(update_invoice)
