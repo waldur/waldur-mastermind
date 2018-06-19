@@ -239,16 +239,16 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def _valid(self, attribute_type, value):
         self.attribute.type = attribute_type
         self.attribute.save()
-        attributes = json.dumps({
+        attributes = {
             'userSupportOptions': value,
-        })
+        }
         self.assertIsNone(self.serializer._validate_attributes(attributes, self.category))
 
     def _not_valid(self, attribute_type, value):
         self.attribute.type = attribute_type
         self.attribute.save()
-        attributes = json.dumps({
+        attributes = {
             'userSupportOptions': value,
-        })
+        }
         self.assertRaises(rest_exceptions.ValidationError, self.serializer._validate_attributes,
                           attributes, self.category)
