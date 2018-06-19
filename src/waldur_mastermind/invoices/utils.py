@@ -59,3 +59,22 @@ def send_mail_attachment(subject, body, to, filename, attach_text, content_type=
     )
     email.attach(filename, attach_text, content_type)
     return email.send()
+
+
+def parse_period(attrs, use_default=True):
+    year = use_default and get_current_year() or None
+    month = use_default and get_current_month() or None
+
+    try:
+        year = int(attrs.get('year', ''))
+        month = int(attrs.get('month', ''))
+    except ValueError:
+        pass
+
+    return year, month
+
+
+def get_previous_month():
+    date = timezone.now()
+    month, year = (date.month - 1, date.year) if date.month != 1 else (12, date.year - 1)
+    return datetime.date(year, month, 1)

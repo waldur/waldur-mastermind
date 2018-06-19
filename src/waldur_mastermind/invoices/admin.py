@@ -37,7 +37,10 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     search_fields = ('customer', 'uuid')
 
     def get_extra_actions(self):
-        return [self.send_invoice_report]
+        return [
+            self.send_invoice_report,
+            self.update_current_cost,
+        ]
 
     def send_invoice_report(self, request):
         tasks.send_invoice_report.delay()
@@ -46,6 +49,14 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
         return redirect(reverse('admin:invoices_invoice_changelist'))
 
     send_invoice_report.short_description = _('Send invoice report as CSV to email')
+
+    def update_current_cost(self, request):
+        tasks.update_invoices_current_cost.delay()
+        message = _('Task has been scheduled.')
+        self.message_user(request, message)
+        return redirect(reverse('admin:invoices_invoice_changelist'))
+
+    send_invoice_report.short_description = _('Update current cost for invoices')
 
 
 admin.site.register(models.Invoice, InvoiceAdmin)

@@ -58,14 +58,7 @@ class TotalCustomerCostView(views.APIView):
         if name:
             customers = customers.filter(name__icontains=name)
 
-        year = invoice_utils.get_current_year()
-        month = invoice_utils.get_current_month()
-        try:
-            year = int(request.query_params.get('year', ''))
-            month = int(request.query_params.get('month', ''))
-        except ValueError:
-            pass
-
+        year, month = invoice_utils.parse_period(request.query_params)
         invoices = invoices_models.Invoice.objects.filter(customer__in=customers)
         invoices = invoices.filter(year=year, month=month)
 

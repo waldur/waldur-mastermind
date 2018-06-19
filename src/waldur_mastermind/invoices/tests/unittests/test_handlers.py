@@ -424,3 +424,40 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
         new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.CREATED)
         invoice_created_mock.send.assert_called_once_with(invoice=new_invoice, sender=models.Invoice,
                                                           issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'])
+
+
+class UpdateInvoiceCurrentCostTest(TransactionTestCase):
+    def setUp(self):
+        super(UpdateInvoiceCurrentCostTest, self).setUp()
+        self.project = structure_factories.ProjectFactory()
+        self.invoice = factories.InvoiceFactory(customer=self.project.customer)
+
+    def create_invoice_item(self):
+        return factories.GenericInvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            unit_price=100,
+            quantity=1,
+            unit=models.InvoiceItem.Units.QUANTITY
+        )
+
+    def test_when_invoice_item_is_created_current_cost_is_updated(self):
+        self.create_invoice_item()
+        self.invoice.refresh_from_db()
+        self.assertEqual(100, self.invoice.current_cost)
+
+    def test_when_invoice_item_is_updated_current_cost_is_updated(self):
+        invoice_item = self.create_invoice_item()
+
+        invoice_item.quantity = 2
+        invoice_item.save()
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(200, self.invoice.current_cost)
+
+    def test_when_invoice_item_is_deleted_current_cost_is_updated(self):
+        invoice_item = self.create_invoice_item()
+        invoice_item.delete()
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(0, self.invoice.current_cost)

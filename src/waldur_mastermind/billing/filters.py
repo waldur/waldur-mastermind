@@ -7,6 +7,8 @@ from rest_framework.settings import api_settings
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices import utils as invoice_utils
 
 from . import models
 
@@ -34,4 +36,19 @@ class CustomerEstimatedCostFilter(core_filters.BaseExternalFilter):
         return queryset
 
 
+class CustomerCurrentCostFilter(core_filters.BaseExternalFilter):
+    def filter(self, request, queryset, view):
+
+        order_by = request.query_params.get(api_settings.ORDERING_PARAM)
+        if order_by not in ('current_cost', '-current_cost'):
+            return queryset
+
+        year, month = invoice_utils.parse_period(request.query_params)
+        invoices = invoice_models.Invoice.objects.filter(year=year, month=month, customer=OuterRef('pk'))
+        queryset = queryset.annotate(current_cost=Subquery(invoices.values('current_cost')[:1]))
+        queryset = queryset.order_by(order_by)
+        return queryset
+
+
 structure_filters.ExternalCustomerFilterBackend.register(CustomerEstimatedCostFilter())
+structure_filters.ExternalCustomerFilterBackend.register(CustomerCurrentCostFilter())

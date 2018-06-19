@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+from datetime import timedelta
+
 from waldur_core.core import WaldurExtension
 
 
@@ -69,4 +71,9 @@ class InvoicesExtension(WaldurExtension):
                 'schedule': crontab(minute=0, hour=0, day_of_month='1'),
                 'args': (),
             },
+            'update-invoices-current-cost': {
+                'task': 'invoices.update_invoices_current_cost',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            }
         }
