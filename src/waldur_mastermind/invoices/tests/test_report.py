@@ -5,6 +5,7 @@ from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.invoices.tasks import format_invoice_csv
 
 from .. import models, tasks
@@ -91,10 +92,8 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.invoice.month = 10
         self.invoice.save()
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=True,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_demo_customers_are_skipped_if_accounting_start_is_enabled(self, send_mail_mock):
         self.customer.accounting_start_date = timezone.now() + datetime.timedelta(days=10)
         self.customer.save()
@@ -103,10 +102,8 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=False,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=False)
     def test_demo_customers_are_not_skipped_if_accounting_start_is_not_enabled(self, send_mail_mock):
         self.customer.accounting_start_date = timezone.now() + datetime.timedelta(days=10)
         self.customer.save()
@@ -115,10 +112,8 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=True,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_active_customers_are_not_skipped_anyways(self, send_mail_mock):
         self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
         self.customer.save()
@@ -127,10 +122,8 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=True,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_empty_invoice_is_skipped(self, send_mail_mock):
         self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
         self.customer.save()

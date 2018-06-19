@@ -5,7 +5,7 @@ from rest_framework import exceptions, response, status, views
 
 from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.invoices import filters as invoices_filters
+from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 
@@ -52,7 +52,7 @@ class TotalCustomerCostView(views.APIView):
             raise exceptions.PermissionDenied()
 
         customers = structure_models.Customer.objects.all()
-        customers = invoices_filters.AccountingStartDateFilter().filter(request, customers, self)
+        customers = structure_filters.AccountingStartDateFilter().filter(request, customers, self)
 
         name = request.query_params.get('name', '')
         if name:
