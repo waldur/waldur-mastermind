@@ -26,7 +26,6 @@ class InvoicesExtension(WaldurExtension):
             },
             # How many days are given to pay for created invoice
             'PAYMENT_INTERVAL': 30,
-            'ENABLE_ACCOUNTING_START_DATE': False,
             'INVOICE_REPORTING': {
                 'ENABLE': False,
                 'EMAIL': 'accounting@waldur.example.com',

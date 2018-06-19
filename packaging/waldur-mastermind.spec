@@ -8,7 +8,7 @@ Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: ansible-waldur-module >= 0.7.0
-Requires: waldur-core >= 0.161.1
+Requires: waldur-core >= 0.161.2
 Requires: waldur-ansible >= 0.6.1
 Requires: waldur-auth-openid >= 0.8.9
 Requires: waldur-auth-social >= 0.7.9
