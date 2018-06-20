@@ -276,3 +276,17 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         }
         self.assertRaises(rest_exceptions.ValidationError, self.serializer._validate_attributes,
                           attributes, self.category)
+
+
+class OfferingQuotaTest(test.APITransactionTestCase):
+    def get_usage(self, category):
+        return category.quotas.get(name='offering_count').usage
+
+    def test_empty_category(self):
+        self.assertEqual(0, self.get_usage(factories.CategoryFactory()))
+
+    def test_offering_count_quota_is_populated(self):
+        category = factories.CategoryFactory()
+        provider = factories.ServiceProviderFactory()
+        factories.OfferingFactory.create_batch(3, category=category, provider=provider)
+        self.assertEqual(3, self.get_usage(category))
