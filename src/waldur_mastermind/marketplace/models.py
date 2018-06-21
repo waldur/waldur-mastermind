@@ -8,6 +8,7 @@ from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
+from waldur_core.core.validators import FileTypeValidator
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
 from waldur_core.quotas import models as quotas_models
@@ -34,12 +35,24 @@ class ServiceProvider(core_models.UuidMixin,
         return 'marketplace-service-provider'
 
 
+VectorizedImageValidator = FileTypeValidator(
+    allowed_types=[
+        'image/png',
+        'image/jpeg',
+        'image/svg+xml',
+    ]
+)
+
+
 @python_2_unicode_compatible
 class Category(core_models.UuidMixin,
                quotas_models.QuotaModelMixin,
                structure_models.TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
-    icon = models.ImageField(upload_to='marketplace_category_icons', blank=True, null=True)
+    icon = models.FileField(upload_to='marketplace_category_icons',
+                            blank=True,
+                            null=True,
+                            validators=[VectorizedImageValidator])
     description = models.TextField(blank=True)
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
