@@ -90,8 +90,8 @@ class WaldurClient(object):
     def _parse_error(self, response):
         try:
             reason = response.json()
-        except ValueError as error:
-            reason = error.message
+        except ValueError:
+            reason = 'Unable to parse JSON'
         details = 'Status: %s. Reason: %s.' % (response.status_code, reason)
         return 'Server refuses to communicate. %s' % details
 
