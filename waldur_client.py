@@ -1,7 +1,9 @@
 import json
 import time
 from uuid import UUID
+
 import requests
+import six
 from six.moves.urllib.parse import urlencode, urljoin
 
 
@@ -100,7 +102,7 @@ class WaldurClient(object):
         try:
             response = getattr(requests, method)(url, **params)
         except requests.exceptions.RequestException as error:
-            raise WaldurClientException(error.message)
+            raise WaldurClientException(six.text_type(error))
 
         if response.status_code not in valid_states:
             error = self._parse_error(response)
