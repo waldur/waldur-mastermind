@@ -112,8 +112,7 @@ class Offering(core_models.UuidMixin, core_models.NameMixin,
 
 @python_2_unicode_compatible
 class Screenshots(core_models.UuidMixin, core_models.DescribableMixin,
-                  structure_models.TimeStampedModel, core_models.NameMixin,):
-    title = models.CharField(blank=False, max_length=255)
+                  structure_models.TimeStampedModel, core_models.NameMixin):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
     offering = models.ForeignKey(Offering, related_name='screenshots')
@@ -122,7 +121,7 @@ class Screenshots(core_models.UuidMixin, core_models.DescribableMixin,
         verbose_name = _('Screenshot')
 
     def __str__(self):
-        return six.text_type(self.title)
+        return six.text_type(self.name)
 
     @classmethod
     def get_url_name(cls):
