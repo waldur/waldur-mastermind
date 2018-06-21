@@ -4,6 +4,7 @@ from setuptools import setup
 
 install_requires = [
     'requests>=2.6.0',
+    'six>=1.9.0',
 ]
 
 tests_requires = [
