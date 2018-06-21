@@ -4,7 +4,7 @@ from rest_framework import serializers
 from rest_framework import exceptions as rest_exceptions
 
 from waldur_core.core import serializers as core_serializers
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.core import fields as core_fields
 
@@ -38,14 +38,17 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    offerings_count = serializers.SerializerMethodField()
+    offering_count = serializers.SerializerMethodField()
 
-    def get_offerings_count(self, category):
-        return category.offerings.count()
+    def get_offering_count(self, category):
+        try:
+            return category.quotas.get(name='offering_count').usage
+        except ObjectDoesNotExist:
+            return 0
 
     class Meta(object):
         model = models.Category
-        fields = ('url', 'uuid', 'created', 'title', 'description', 'icon', 'offerings_count')
+        fields = ('url', 'uuid', 'created', 'title', 'description', 'icon', 'offering_count')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
