@@ -8,6 +8,7 @@ install_requires = [
 ]
 
 tests_requires = [
+    'mock>=1.0.1',
     'responses>=0.5.0',
 ]
 

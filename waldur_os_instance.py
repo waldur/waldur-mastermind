@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
+import six
+
 from waldur_client import (
     WaldurClientException, ObjectDoesNotExist,
     waldur_client_from_module, waldur_resource_argument_spec)
@@ -351,8 +353,8 @@ def main():
     client = waldur_client_from_module(module)
     try:
         instance, has_changed = send_request_to_waldur(client, module)
-    except WaldurClientException as error:
-        module.fail_json(msg=error.message)
+    except WaldurClientException as e:
+        module.fail_json(msg=six.text_type(e))
     else:
         module.exit_json(instance=instance, has_changed=has_changed)
 
