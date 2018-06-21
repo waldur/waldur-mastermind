@@ -39,7 +39,7 @@ def create_monthly_invoices():
         invoice.freeze()
 
     customers = structure_models.Customer.objects.all()
-    if settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
     for customer in customers.iterator():
@@ -87,7 +87,7 @@ def send_invoice_report():
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
-    if settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
         invoices = invoices.filter(customer__accounting_start_date__lte=date)
 
     # Report should not include customers with 0 invoice sum.

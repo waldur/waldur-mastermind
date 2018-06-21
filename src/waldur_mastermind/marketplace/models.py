@@ -10,6 +10,8 @@ from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
+from waldur_core.quotas import models as quotas_models
+from waldur_core.quotas import fields as quotas_fields
 
 from . import utils
 from .attribute_types import ATTRIBUTE_TYPES
@@ -34,10 +36,17 @@ class ServiceProvider(core_models.UuidMixin,
 
 @python_2_unicode_compatible
 class Category(core_models.UuidMixin,
+               quotas_models.QuotaModelMixin,
                structure_models.TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
     icon = models.ImageField(upload_to='marketplace_category_icons', blank=True, null=True)
     description = models.TextField(blank=True)
+
+    class Quotas(quotas_models.QuotaModelMixin.Quotas):
+        offering_count = quotas_fields.CounterQuotaField(
+            target_models=lambda: [Offering],
+            path_to_scope='category',
+        )
 
     class Meta(object):
         verbose_name = _('Category')

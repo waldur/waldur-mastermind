@@ -5,8 +5,8 @@ from django.test import TestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices.tests.utils import override_invoices_settings
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 
 from .. import factories
@@ -69,7 +69,7 @@ class CheckAccountingStartDateTest(TestCase):
         else:
             accounting_start_date = timezone.now() + timedelta(days=30)
 
-        with override_invoices_settings(ENABLE_ACCOUNTING_START_DATE=skip_trial):
+        with override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=skip_trial):
             customer = structure_factories.CustomerFactory()
             customer.accounting_start_date = accounting_start_date
             customer.save()
