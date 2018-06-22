@@ -14,7 +14,6 @@ from waldur_core.structure.images import get_upload_path
 from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas import fields as quotas_fields
 
-from . import utils
 from .attribute_types import ATTRIBUTE_TYPES
 
 
@@ -118,9 +117,6 @@ class Offering(core_models.UuidMixin,
 
     class Permissions(object):
         customer_path = 'provider__customer'
-
-    def get_attributes(self):
-        return utils.hstore_to_dict(self.attributes)
 
     class Meta(object):
         verbose_name = _('Offering')

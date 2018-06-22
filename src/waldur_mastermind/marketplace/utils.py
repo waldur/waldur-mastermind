@@ -1,48 +1,12 @@
 from __future__ import unicode_literals
 
 import os
-import re
 
 import six
 from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
-
-
-def hstore_to_dict(hstore):
-    attributes = {}
-    for attr in hstore:
-        attr_list = attr.split('__')
-        key = attr_list[0]
-        if len(attr_list) > 1:
-            if key in attributes:
-                value = attributes[key]
-                if isinstance(value, list):
-                    attributes[key].append(attr_list[1])
-                else:
-                    attributes[key] = [value, attr_list[1]]
-            else:
-                attributes[key] = attr_list[1]
-        else:
-            attributes[attr] = hstore[attr]
-    return attributes
-
-
-def dict_to_hstore(dictionary):
-    result = {}
-    for key, value in dictionary.items():
-        if isinstance(value, int):
-            result[key] = value
-
-        if isinstance(value, six.text_type) and re.match('^[A-Za-z0-9_-]+$', value):
-            result[key + '__' + value] = True
-
-        if isinstance(value, list) and value:
-            for v in value:
-                if isinstance(v, six.text_type) and re.match('^[A-Za-z0-9_-]+$', v):
-                    result[key + '__' + v] = True
-    return result
 
 
 def create_screenshot_thumbnail(screenshot):
