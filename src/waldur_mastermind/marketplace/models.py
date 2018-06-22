@@ -20,9 +20,13 @@ from .attribute_types import ATTRIBUTE_TYPES
 
 @python_2_unicode_compatible
 class ServiceProvider(core_models.UuidMixin,
+                      structure_models.StructureModel,
                       structure_models.TimeStampedModel):
     customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
     enable_notifications = models.BooleanField(default=True)
+
+    class Permissions(object):
+        customer_path = 'customer'
 
     class Meta(object):
         verbose_name = _('Service provider')
@@ -96,8 +100,11 @@ class Attribute(structure_models.TimeStampedModel):
 
 
 @python_2_unicode_compatible
-class Offering(core_models.UuidMixin, core_models.NameMixin,
-               core_models.DescribableMixin, structure_models.TimeStampedModel):
+class Offering(core_models.UuidMixin,
+               core_models.NameMixin,
+               core_models.DescribableMixin,
+               structure_models.StructureModel,
+               structure_models.TimeStampedModel):
     thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
     full_description = models.TextField(blank=True)
     rating = models.IntegerField(default=0)
@@ -108,6 +115,9 @@ class Offering(core_models.UuidMixin, core_models.NameMixin,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
     is_active = models.BooleanField(default=True)
+
+    class Permissions(object):
+        customer_path = 'provider__customer'
 
     def get_attributes(self):
         return utils.hstore_to_dict(self.attributes)
@@ -124,11 +134,17 @@ class Offering(core_models.UuidMixin, core_models.NameMixin,
 
 
 @python_2_unicode_compatible
-class Screenshots(core_models.UuidMixin, core_models.DescribableMixin,
-                  structure_models.TimeStampedModel, core_models.NameMixin):
+class Screenshots(core_models.UuidMixin,
+                  structure_models.StructureModel,
+                  core_models.DescribableMixin,
+                  structure_models.TimeStampedModel,
+                  core_models.NameMixin):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
     offering = models.ForeignKey(Offering, related_name='screenshots')
+
+    class Permissions(object):
+        customer_path = 'offering__provider__customer'
 
     class Meta(object):
         verbose_name = _('Screenshot')
