@@ -38,8 +38,8 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         offering = self.screenshot.offering
-        url = factories.OfferingFactory.get_url(offering=offering, action='screenshots')
-        response = self.client.get(url)
+        url = factories.ScreenshotsFactory.get_list_url()
+        response = self.client.get(url, {'offering_uuid': offering.uuid})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 

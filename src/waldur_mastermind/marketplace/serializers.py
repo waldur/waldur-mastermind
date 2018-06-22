@@ -27,11 +27,8 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate(self, attrs):
-        if self.instance:
-            structure_permissions.is_owner(self.context['request'], None, self.instance.customer)
-            return attrs
-
-        structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
+        if not self.instance:
+            structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
         return attrs
 
 
@@ -75,9 +72,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate(self, attrs):
-        if self.instance:
-            structure_permissions.is_owner(self.context['request'], None, self.instance.provider.customer)
-        else:
+        if not self.instance:
             structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
 
         offering_attributes = attrs.get('attributes')
@@ -120,8 +115,6 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate(self, attrs):
-        if self.instance:
-            structure_permissions.is_owner(self.context['request'], None, self.instance.offering.provider.customer)
-        else:
+        if not self.instance:
             structure_permissions.is_owner(self.context['request'], None, attrs['offering'].provider.customer)
         return attrs
