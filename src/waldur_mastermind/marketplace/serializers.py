@@ -3,12 +3,12 @@ from __future__ import unicode_literals
 from rest_framework import serializers
 from rest_framework import exceptions as rest_exceptions
 
+from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.core import fields as core_fields
 
-from . import models, utils, attribute_types
+from . import models, attribute_types
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -50,14 +50,10 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class AttributesSerializer(core_fields.JsonField):
-    def to_representation(self, attributes):
-        return utils.hstore_to_dict(attributes)
-
-
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    attributes = AttributesSerializer(required=False)
+
+    attributes = core_fields.JsonField(required=False)
 
     class Meta(object):
         model = models.Offering
@@ -80,7 +76,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         if offering_attributes:
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
-            attrs['attributes'] = utils.dict_to_hstore(offering_attributes)
 
         return attrs
 

@@ -11,7 +11,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
 
 from . import factories
-from .. import serializers, utils
+from .. import serializers
 
 
 @ddt
@@ -19,7 +19,7 @@ class OfferingGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory(attributes='')
+        self.offering = factories.OfferingFactory()
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_offerings_should_be_visible_to_all_authenticated_users(self, user):
@@ -60,12 +60,13 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Offering.objects.filter(provider__customer=self.customer).exists())
         offering = models.Offering.objects.get(provider__customer=self.customer)
-        self.assertEqual(cmp(offering.attributes, {'dataProtectionExternal__tls12': 'True',
-                                                   'cloudDeploymentModel__private_cloud': 'True',
-                                                   'dataProtectionInternal__ipsec': 'True',
-                                                   'userSupportOptions__phone': 'True',
-                                                   'userSupportOptions__web_chat': 'True',
-                                                   'vendorType__reseller': 'True'}), 0)
+        self.assertEqual(offering.attributes, {
+            'cloudDeploymentModel': 'private_cloud',
+            'vendorType': 'reseller',
+            'userSupportOptions': ['web_chat', 'phone'],
+            'dataProtectionInternal': 'ipsec',
+            'dataProtectionExternal': 'tls12'
+        })
 
     def test_dont_create_offering_if_attributes_is_not_valid(self):
         self.category = factories.CategoryFactory()
@@ -138,7 +139,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         provider = factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(provider=provider, attributes='')
+        offering = factories.OfferingFactory(provider=provider)
         url = factories.OfferingFactory.get_url(offering)
 
         response = self.client.patch(url, {
@@ -156,7 +157,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(provider=self.provider, attributes='')
+        self.offering = factories.OfferingFactory(provider=self.provider)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_offering(self, user):
@@ -226,39 +227,6 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     @data(['web_chat'], 'web_chat', 1)
     def test_boolean_attribute_is_not_valid(self, value):
         self._not_valid('boolean', value)
-
-    def test_convert_attribute_from_dict_to_hstore(self):
-        hstore = utils.dict_to_hstore({
-            'cloudDeploymentModel': 'private_cloud',
-            'vendorType': 'reseller',
-            'userSupportOptions': ['web_chat', 'phone'],
-            'dataProtectionInternal': 'ipsec',
-            'dataProtectionExternal': 'tls12'
-        })
-        for field in ['cloudDeploymentModel__private_cloud',
-                      'vendorType__reseller',
-                      'userSupportOptions__web_chat',
-                      'userSupportOptions__phone',
-                      'dataProtectionInternal__ipsec',
-                      'dataProtectionExternal__tls12']:
-            self.assertTrue(hstore[field])
-
-    def test_convert_attribute_from_hstore_to_dict(self):
-        dictionary = utils.hstore_to_dict({
-            'cloudDeploymentModel__private_cloud': True,
-            'vendorType__reseller': True,
-            'userSupportOptions__web_chat': True,
-            'userSupportOptions__phone': True,
-            'dataProtectionInternal__ipsec': True,
-            'dataProtectionExternal__tls12': True
-        })
-        self.assertEqual(cmp(dictionary, {
-            'cloudDeploymentModel': 'private_cloud',
-            'vendorType': 'reseller',
-            'userSupportOptions': ['web_chat', 'phone'],
-            'dataProtectionInternal': 'ipsec',
-            'dataProtectionExternal': 'tls12'
-        }), 0)
 
     def _valid(self, attribute_type, value):
         self.attribute.type = attribute_type
