@@ -16,7 +16,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
 
 class ScreenshotstFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=(
-        ('title', 'title'),
+        ('name', 'name'),
         ('description', 'description'),
         ('created', 'created'),
         ('modified', 'modified'),

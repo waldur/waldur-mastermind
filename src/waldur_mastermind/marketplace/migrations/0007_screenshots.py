@@ -14,7 +14,7 @@ from waldur_core.structure.images import get_upload_path
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0005_attributes_hstore'),
+        ('marketplace', '0006_allow_svg_category_icon'),
     ]
 
     operations = [
