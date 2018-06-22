@@ -1,4 +1,5 @@
 import factory
+from django.db.models import signals
 from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -84,3 +85,26 @@ class AttributesFactory(factory.DjangoModelFactory):
     section = factory.SubFactory(SectionFactory)
     type = 'list'
     available_values = ["web_chat", "phone"]
+
+
+@factory.django.mute_signals(signals.pre_save, signals.post_save)
+class ScreenshotsFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Screenshots
+
+    name = factory.Sequence(lambda n: 'screenshot-%s' % n)
+    image = factory.django.ImageField()
+    offering = factory.SubFactory(OfferingFactory)
+
+    @classmethod
+    def get_url(cls, screenshot=None, action=None):
+        if screenshot is None:
+            screenshot = ScreenshotsFactory()
+        url = 'http://testserver' + reverse('marketplace-screenshot-detail',
+                                            kwargs={'uuid': screenshot.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-screenshot-list')
+        return url if action is None else url + action + '/'

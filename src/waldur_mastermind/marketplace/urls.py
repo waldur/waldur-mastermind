@@ -10,3 +10,5 @@ def register_in(router):
                     base_name='marketplace-category'),
     router.register(r'marketplace-offerings', views.OfferingViewSet,
                     base_name='marketplace-offering')
+    router.register(r'marketplace-screenshots', views.ScreenshotViewSet,
+                    base_name='marketplace-screenshot')

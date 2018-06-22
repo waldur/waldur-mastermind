@@ -13,7 +13,6 @@ from . import models, utils, attribute_types
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
-
     class Meta(object):
         model = models.ServiceProvider
         fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'enable_notifications')
@@ -106,3 +105,23 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                     except ValidationError as e:
                         err = rest_exceptions.ValidationError({'attributes': e.message})
                         raise err
+
+
+class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
+                           serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Screenshots
+        fields = ('url', 'uuid', 'created', 'name', 'description', 'image', 'thumbnail', 'offering')
+        read_only_fields = ('url', 'uuid', 'created')
+        protected_fields = ('offering', 'image')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+        }
+
+    def validate(self, attrs):
+        if self.instance:
+            structure_permissions.is_owner(self.context['request'], None, self.instance.offering.provider.customer)
+        else:
+            structure_permissions.is_owner(self.context['request'], None, attrs['offering'].provider.customer)
+        return attrs
