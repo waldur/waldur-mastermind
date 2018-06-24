@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import json
-import unittest
 
 from ddt import data, ddt
 from rest_framework import exceptions as rest_exceptions

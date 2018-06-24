@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import mock
 from ddt import data, ddt
-from rest_framework import test, status
+from rest_framework import status
 
 from waldur_core.structure.images import dummy_image
 from waldur_core.structure.tests import fixtures
