@@ -22,7 +22,16 @@ setup(
     license='MIT',
     description='Ansible module for the Waldur API.',
     long_description=open('README.rst').read(),
-    py_modules=['waldur_client'],
+    py_modules=[
+        'waldur_client',
+        'waldur_os_floating_ip',
+        'waldur_os_get_instance',
+        'waldur_os_instance',
+        'waldur_os_instance_volume',
+        'waldur_os_security_group',
+        'waldur_os_snapshot',
+        'waldur_os_volume',
+    ],
     install_requires=install_requires,
     tests_require=tests_requires,
     classifiers=[
