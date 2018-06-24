@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # has to be a full import due to Ansible 2.0 compatibility
 from ansible.module_utils.basic import *
+import six
+
 from waldur_client import WaldurClientException, waldur_client_from_module
 
 ANSIBLE_METADATA = {'metadata_version': '1.1',
@@ -65,8 +67,8 @@ def main():
             name=module.params['name'],
             project=module.params['project'],
         )
-    except WaldurClientException as error:
-        module.fail_json(msg=error.message)
+    except WaldurClientException as e:
+        module.fail_json(msg=six.text_type(e))
     else:
         module.exit_json(instance=instance)
 

@@ -4,13 +4,14 @@
 Name: ansible-waldur-module
 Summary: Ansible module for Waldur API.
 Group: Development/Libraries
-Version: 0.8.1
+Version: 0.8.2
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
 Source0: %{name}-%{version}.tar.gz
 
 Requires: python-requests >= 2.6.0
+Requires: python-six >= 1.9.0
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
