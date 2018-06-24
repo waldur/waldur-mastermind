@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 import six
-from django.contrib.postgres.fields import HStoreField
+from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -109,7 +109,7 @@ class Offering(core_models.UuidMixin,
     rating = models.IntegerField(default=0)
     category = models.ForeignKey(Category, related_name='offerings')
     provider = models.ForeignKey(ServiceProvider, related_name='offerings')
-    attributes = HStoreField(blank=True, default='')
+    attributes = BetterJSONField(blank=True, default='')
     geolocations = JSONField(default=[], blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))

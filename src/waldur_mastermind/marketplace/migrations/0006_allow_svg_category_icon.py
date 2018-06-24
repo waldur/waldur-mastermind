@@ -9,7 +9,7 @@ import waldur_core.core.validators
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0005_attributes_hstore'),
+        ('marketplace', '0005_attributes_jsonb'),
     ]
 
     operations = [

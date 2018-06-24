@@ -10,12 +10,12 @@ from rest_framework import test, status
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
 
-from . import factories
+from . import factories, utils
 from .. import serializers
 
 
 @ddt
-class OfferingGetTest(test.APITransactionTestCase):
+class OfferingGetTest(utils.PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -37,7 +37,7 @@ class OfferingGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingCreateTest(test.APITransactionTestCase):
+class OfferingCreateTest(utils.PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -54,7 +54,6 @@ class OfferingCreateTest(test.APITransactionTestCase):
         response = self.create_offering(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @unittest.skip('Only for PostgreSQL')
     def test_create_offering_with_attributes(self):
         response = self.create_offering('staff', attributes=True)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -117,7 +116,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUpdateTest(test.APITransactionTestCase):
+class OfferingUpdateTest(utils.PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -151,7 +150,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingDeleteTest(test.APITransactionTestCase):
+class OfferingDeleteTest(utils.PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -246,7 +245,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
                           attributes, self.category)
 
 
-class OfferingQuotaTest(test.APITransactionTestCase):
+class OfferingQuotaTest(utils.PostgreSQLTest):
     def get_usage(self, category):
         return category.quotas.get(name='offering_count').usage
 
