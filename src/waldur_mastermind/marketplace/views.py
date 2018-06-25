@@ -1,27 +1,48 @@
 from __future__ import unicode_literals
 
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import exceptions
 
 from waldur_core.core import views as core_views
-from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+
 from . import serializers, models, filters
 
 
-class ServiceProviderViewSet(core_views.ActionsViewSet):
+class BaseMarketplaceView(core_views.ActionsViewSet):
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    update_permissions = \
+        partial_update_permissions = \
+        destroy_permissions = \
+        [structure_permissions.is_owner]
+
+
+class ServiceProviderViewSet(BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all()
     serializer_class = serializers.ServiceProviderSerializer
-    lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.ServiceProviderFilter
 
-    def staff_or_owner(request, view, obj=None):
-        if not obj:
-            return
-        if request.user.is_staff:
-            return
-        if not structure_permissions._has_owner_access(request.user, obj.customer):
-            raise exceptions.PermissionDenied()
 
-    destroy_permissions = [staff_or_owner]
+class CategoryViewSet(core_views.ActionsViewSet):
+    queryset = models.Category.objects.all()
+    serializer_class = serializers.CategorySerializer
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+
+    create_permissions = \
+        update_permissions = \
+        partial_update_permissions = \
+        destroy_permissions = \
+        [structure_permissions.is_staff]
+
+
+class OfferingViewSet(BaseMarketplaceView):
+    queryset = models.Offering.objects.all()
+    serializer_class = serializers.OfferingSerializer
+    filter_class = filters.OfferingFilter
+
+
+class ScreenshotViewSet(BaseMarketplaceView):
+    queryset = models.Screenshots.objects.all()
+    serializer_class = serializers.ScreenshotSerializer
+    filter_class = filters.ScreenshotFilter

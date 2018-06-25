@@ -11,6 +11,7 @@ from mock import Mock, mock
 import pytz
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support.tests import factories as support_factories
@@ -90,9 +91,11 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
             self.assertEqual(invoice.total, expected_total)
 
     def test_default_tax_percent_is_used_on_invoice_creation(self):
-        payment_details = factories.PaymentDetailsFactory(default_tax_percent=20)
-        invoice = factories.InvoiceFactory(customer=payment_details.customer)
-        self.assertEqual(invoice.tax_percent, payment_details.default_tax_percent)
+        customer = structure_factories.CustomerFactory()
+        customer.default_tax_percent = 20
+        customer.save()
+        invoice = factories.InvoiceFactory(customer=customer)
+        self.assertEqual(invoice.tax_percent, customer.default_tax_percent)
 
     def test_package_creation_does_not_increase_price_from_old_package_if_it_is_cheaper(self):
         old_component_price = 100
@@ -421,3 +424,40 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
         new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.CREATED)
         invoice_created_mock.send.assert_called_once_with(invoice=new_invoice, sender=models.Invoice,
                                                           issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'])
+
+
+class UpdateInvoiceCurrentCostTest(TransactionTestCase):
+    def setUp(self):
+        super(UpdateInvoiceCurrentCostTest, self).setUp()
+        self.project = structure_factories.ProjectFactory()
+        self.invoice = factories.InvoiceFactory(customer=self.project.customer)
+
+    def create_invoice_item(self):
+        return factories.GenericInvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            unit_price=100,
+            quantity=1,
+            unit=models.InvoiceItem.Units.QUANTITY
+        )
+
+    def test_when_invoice_item_is_created_current_cost_is_updated(self):
+        self.create_invoice_item()
+        self.invoice.refresh_from_db()
+        self.assertEqual(100, self.invoice.current_cost)
+
+    def test_when_invoice_item_is_updated_current_cost_is_updated(self):
+        invoice_item = self.create_invoice_item()
+
+        invoice_item.quantity = 2
+        invoice_item.save()
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(200, self.invoice.current_cost)
+
+    def test_when_invoice_item_is_deleted_current_cost_is_updated(self):
+        invoice_item = self.create_invoice_item()
+        invoice_item.delete()
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(0, self.invoice.current_cost)

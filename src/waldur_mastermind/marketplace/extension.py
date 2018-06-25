@@ -5,7 +5,10 @@ from waldur_core.core import WaldurExtension
 
 class MarketplaceExtension(WaldurExtension):
     class Settings:
-        WALDUR_MARKETPLACE = {}
+        WALDUR_MARKETPLACE = {
+            'THUMBNAIL_SIZE': (120, 120),
+            'THUMBNAIL_SUFFIX': 'thumbnail',
+        }
 
     @staticmethod
     def django_app():

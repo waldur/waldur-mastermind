@@ -2,11 +2,11 @@ from __future__ import unicode_literals
 
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import permissions, status, viewsets, exceptions
+from rest_framework import status, exceptions
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
-from waldur_core.core import permissions as core_permissions, views as core_views
+from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
 
 from . import filters, models, serializers, tasks
@@ -38,12 +38,3 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     send_notification_serializer_class = serializers.InvoiceNotificationSerializer
     send_notification_permissions = [structure_permissions.is_staff]
     send_notification_validators = [_is_invoice_created]
-
-
-class PaymentDetailsViewSet(viewsets.ModelViewSet):
-    queryset = models.PaymentDetails.objects.order_by('customer')
-    serializer_class = serializers.PaymentDetailsSerializer
-    lookup_field = 'uuid'
-    permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly)
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.PaymentDetailsFilter

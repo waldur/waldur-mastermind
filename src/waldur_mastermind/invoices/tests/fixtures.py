@@ -1,6 +1,5 @@
 from django.utils.functional import cached_property
 
-from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 
@@ -11,14 +10,6 @@ class InvoiceFixture(packages_fixtures.PackageFixture):
     @cached_property
     def invoice(self):
         return factories.InvoiceFactory(
-            customer=self.customer
-        )
-
-
-class PaymentDetailsFixture(structure_fixtures.ProjectFixture):
-    @cached_property
-    def payment_details(self):
-        return factories.PaymentDetailsFactory(
             customer=self.customer
         )
 

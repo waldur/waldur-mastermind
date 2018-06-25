@@ -3,29 +3,29 @@ from setuptools import setup, find_packages
 
 # defusedxml is required by djangosaml2
 install_requires = [
-    'ansible-waldur-module>=0.7.0',
+    'ansible-waldur-module>=0.8.2',
     'defusedxml>=0.4.1',
     'Django>=1.11,<2.0',
     'django-auth-ldap>=1.3.0',
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'pdfkit>=0.6.1',
-    'waldur-core>=0.160.3',
+    'waldur-core>=0.161.3',
     'waldur-ansible>=0.6.1',
     'waldur-auth-openid>=0.8.9',
     'waldur-auth-social>=0.7.9',
     'waldur-auth-saml2>=0.9.3',
     'waldur-auth-valimo>=0.5.0',
-    'waldur-aws>=0.11.4',
-    'waldur-azure>=0.4.0',
+    'waldur-aws>=0.11.5',
+    'waldur-azure>=0.4.1',
     'waldur-cost-planning>=0.6.2',
-    'waldur-digitalocean>=0.11.1',
+    'waldur-digitalocean>=0.11.2',
     'waldur-freeipa>=0.6.4',
-    'waldur-jira>=0.8.2',
-    'waldur-openstack>=0.43.1',
+    'waldur-jira>=0.8.3',
+    'waldur-openstack>=0.43.3',
     'waldur-paypal>=0.8.2',
-    'waldur-slurm>=0.6.0',
-    'waldur-zabbix>=0.8.2',
+    'waldur-slurm>=0.6.1',
+    'waldur-zabbix>=0.8.3',
 ]
 
 test_requires = [
@@ -36,7 +36,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.9.5',
+    version='2.9.6',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

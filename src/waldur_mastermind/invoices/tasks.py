@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import cStringIO
-import datetime
 import logging
 
 from celery import shared_task
@@ -14,6 +13,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.core.csv import UnicodeDictWriter
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices.utils import get_previous_month
 
 from . import models, registrators, serializers, utils
 
@@ -39,7 +39,7 @@ def create_monthly_invoices():
         invoice.freeze()
 
     customers = structure_models.Customer.objects.all()
-    if settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
     for customer in customers.iterator():
@@ -71,12 +71,6 @@ def send_invoice_notification(invoice_uuid, link_template):
     send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, emails, html_message=html_message)
 
 
-def get_previous_month():
-    date = timezone.now()
-    month, year = (date.month - 1, date.year) if date.month != 1 else (12, date.year - 1)
-    return datetime.date(year, month, 1)
-
-
 @shared_task(name='invoices.send_invoice_report')
 def send_invoice_report():
     """ Sends aggregate accounting data as CSV """
@@ -93,7 +87,7 @@ def send_invoice_report():
     invoices = models.Invoice.objects.filter(year=date.year, month=date.month)
 
     # Report should include only organizations that had accounting running during the invoice period.
-    if settings.WALDUR_INVOICES['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
         invoices = invoices.filter(customer__accounting_start_date__lte=date)
 
     # Report should not include customers with 0 invoice sum.
@@ -148,3 +142,12 @@ def format_invoice_csv(invoices):
         writer.writerows(generic_serializer.data)
 
     return stream.getvalue().decode('utf-8')
+
+
+@shared_task(name='invoices.update_invoices_current_cost')
+def update_invoices_current_cost():
+    year = utils.get_current_year()
+    month = utils.get_current_month()
+
+    for invoice in models.Invoice.objects.filter(year=year, month=month):
+        invoice.update_current_cost()

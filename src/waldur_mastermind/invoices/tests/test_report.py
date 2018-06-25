@@ -5,6 +5,7 @@ from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.invoices.tasks import format_invoice_csv
 
 from .. import models, tasks
@@ -91,57 +92,41 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.invoice.month = 10
         self.invoice.save()
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=True,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_demo_customers_are_skipped_if_accounting_start_is_enabled(self, send_mail_mock):
-        factories.PaymentDetailsFactory(
-            customer=self.customer,
-            accounting_start_date=timezone.now() + datetime.timedelta(days=10)
-        )
+        self.customer.accounting_start_date = timezone.now() + datetime.timedelta(days=10)
+        self.customer.save()
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=False,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=False)
     def test_demo_customers_are_not_skipped_if_accounting_start_is_not_enabled(self, send_mail_mock):
-        factories.PaymentDetailsFactory(
-            customer=self.customer,
-            accounting_start_date=timezone.now() + datetime.timedelta(days=10)
-        )
+        self.customer.accounting_start_date = timezone.now() + datetime.timedelta(days=10)
+        self.customer.save()
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=True,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_active_customers_are_not_skipped_anyways(self, send_mail_mock):
-        factories.PaymentDetailsFactory(
-            customer=self.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
-        )
+        self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
+        self.customer.save()
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attach_text']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
-    @utils.override_invoices_settings(
-        INVOICE_REPORTING=INVOICE_REPORTING,
-        ENABLE_ACCOUNTING_START_DATE=True,
-    )
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_empty_invoice_is_skipped(self, send_mail_mock):
-        factories.PaymentDetailsFactory(
-            customer=self.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
-        )
+        self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
+        self.customer.save()
         for item in self.invoice.items:
             item.delete()
 
@@ -152,11 +137,8 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
     def test_active_invoice_are_merged(self, send_mail_mock):
-        factories.PaymentDetailsFactory(
-            customer=self.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
-        )
-
+        self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
+        self.customer.save()
         fixture = fixtures.InvoiceFixture()
         package = fixtures.create_package(111, fixture.openstack_tenant)
         package.template.name = 'PackageTemplate'
@@ -170,10 +152,9 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         invoice.save()
         invoice.set_created()
 
-        factories.PaymentDetailsFactory(
-            customer=package.tenant.service_project_link.project.customer,
-            accounting_start_date=timezone.now() - datetime.timedelta(days=50)
-        )
+        customer = package.tenant.service_project_link.project.customer
+        customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
+        customer.save()
 
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attach_text']
