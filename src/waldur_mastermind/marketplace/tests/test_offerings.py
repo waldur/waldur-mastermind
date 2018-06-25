@@ -256,3 +256,27 @@ class OfferingQuotaTest(utils.PostgreSQLTest):
         provider = factories.ServiceProviderFactory()
         factories.OfferingFactory.create_batch(3, category=category, provider=provider)
         self.assertEqual(3, self.get_usage(category))
+
+
+class OfferingFilterTest(utils.PostgreSQLTest):
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(attributes={
+            'cloudDeploymentModel': 'private_cloud',
+            'userSupportOption': ['phone'],
+        })
+        self.url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_filter_positive(self):
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'cloudDeploymentModel': 'private_cloud',
+        })})
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_negative(self):
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'cloudDeploymentModel': 'private_cloud_1',
+        })})
+        self.assertEqual(len(response.data), 0)

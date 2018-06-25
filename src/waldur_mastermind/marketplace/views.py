@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from django_filters.rest_framework import DjangoFilterBackend
 
 from waldur_core.core import views as core_views
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 
 from . import serializers, models, filters
@@ -39,6 +40,8 @@ class CategoryViewSet(core_views.ActionsViewSet):
 class OfferingViewSet(BaseMarketplaceView):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingSerializer
+    lookup_field = 'uuid'
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.OfferingFilter
 
 

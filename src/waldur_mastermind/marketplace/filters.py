@@ -1,4 +1,8 @@
+import json
+
 import django_filters
+from django.utils.translation import ugettext_lazy as _
+from rest_framework import exceptions as rest_exceptions
 
 from waldur_core.core import filters as core_filters
 
@@ -18,10 +22,21 @@ class OfferingFilter(django_filters.FilterSet):
     provider = core_filters.URLFilter(view_name='marketplace-service-provider-detail',
                                       name='provider__uuid')
     provider_uuid = django_filters.UUIDFilter(name='provider__uuid')
+    attributes = django_filters.CharFilter(name='attributes', method='filter_attributes')
+
+    def filter_attributes(self, queryset, name, value):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            raise rest_exceptions.ValidationError(_('Filter attribute is not valid.'))
+
+        for k, v in value.items():
+            queryset = queryset.filter(attributes__contains={k: v})
+        return queryset
 
     class Meta(object):
         model = models.Offering
-        fields = []
+        fields = ['attributes']
 
 
 class ScreenshotFilter(django_filters.FilterSet):
