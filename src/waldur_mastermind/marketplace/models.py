@@ -115,6 +115,10 @@ class Offering(core_models.UuidMixin,
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
     is_active = models.BooleanField(default=True)
 
+    native_name = models.CharField(max_length=160, default='', blank=True)
+    native_description = models.CharField(max_length=500, default='', blank=True)
+    preferred_language = models.CharField(max_length=10, blank=True)
+
     class Permissions(object):
         customer_path = 'provider__customer'
 
