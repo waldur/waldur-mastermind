@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -ex
+
+cp -r /mnt /tmp
+
+#rm -rf /mnt/test_reports
+#mkdir /mnt/test_reports
+
+cd /tmp/mnt
+python setup.py develop
+
+cat > /tmp/mnt/src/waldur_mastermind/test_settings.py << EOF
+from waldur_core.server.test_settings import *
+
+DATABASES = { 
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'waldur',
+        'USER': 'root',
+        'HOST': 'db',
+        'PORT': 5432,
+        'PASSWORD': 'secret',
+    }
+}
+EOF
+
+pytest \
+    --numprocesses=5 \
+    --nomigrations \
+    --ds=waldur_mastermind.test_settings \
+    --pyargs waldur_mastermind
+    #--junitxml=/mnt/test_reports/junit.xml
+
+#chmod -R a+rw /mnt/test_reports

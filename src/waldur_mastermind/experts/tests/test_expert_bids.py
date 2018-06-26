@@ -208,7 +208,7 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
             mock.call(invitation.uuid.hex, self.project_fixture.owner.full_name)
             for invitation in invitations
         ]
-        mocked_task.delay.assert_has_calls(calls)
+        mocked_task.delay.assert_has_calls(calls, any_order=True)
 
     @mock.patch('waldur_mastermind.experts.tasks.send_new_contract')
     def test_when_bid_accepted_notification_emails_for_customer_owners_are_sent(self, mocked_task):

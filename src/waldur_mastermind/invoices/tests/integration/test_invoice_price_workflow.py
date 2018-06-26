@@ -198,27 +198,30 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         with freeze_time(start_date):
             offering.state = support_models.Offering.States.OK
             offering.save(update_fields=['state'])
+            offering_item = models.OfferingItem.objects.get(offering=offering)
 
         with freeze_time(end_date):
             offering.state = support_models.Offering.States.TERMINATED
             offering.save(update_fields=['state'])
+            offering_item.refresh_from_db()
 
         expected_price = offering.unit_price
-        offering_item = models.OfferingItem.objects.get(offering=offering)
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_end_in_second_half(self):
         start_date = timezone.datetime(2017, 7, 10)
         end_date = timezone.datetime(2017, 7, 20)
         offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
+
         with freeze_time(start_date):
             offering.state = support_models.Offering.States.OK
             offering.save(update_fields=['state'])
+            offering_item = models.OfferingItem.objects.get(offering=offering)
 
         with freeze_time(end_date):
             offering.state = support_models.Offering.States.TERMINATED
             offering.save(update_fields=['state'])
+            offering_item.refresh_from_db()
 
         expected_price = offering.unit_price * 2
-        offering_item = models.OfferingItem.objects.get(offering=offering)
         self.assertEqual(offering_item.price, expected_price)
