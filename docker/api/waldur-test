@@ -8,9 +8,29 @@ echo '[+] Cleaning up jUnit test report directory'
 rm -rf /mnt/test_reports
 mkdir /mnt/test_reports
 
+echo '[+] Copying pip cache from host to guest'
+rsync \
+    --archive \
+    --recursive \
+    --ignore-existing \
+    --chown root:root \
+    /tmp/pip-cache/ \
+    /root/.cache/pip/
+
 echo '[+] Installing Python package under test'
 cd /tmp/mnt
-python setup.py develop
+pip install --editable .
+
+echo '[+] Copying pip cache from guest to host'
+rsync \
+    --archive \
+    --recursive \
+    --ignore-existing \
+    --chown user:user \
+    /root/.cache/pip/ \
+    /tmp/pip-cache/
+
+chown -R user:user /tmp/pip-cache
 
 echo '[+] Running Python linter'
 flake8 --ignore E501 --exclude=*migrations* src/
@@ -36,8 +56,9 @@ EOF
 
 echo '[+] Running unit tests'
 pytest \
-    --numprocesses=5 \
+    --numprocesses=${NUM_PROCESSES} \
     --nomigrations \
+    --reuse-db \
     --ds=waldur_mastermind.test_settings \
     --pyargs waldur_mastermind waldur_core.core \
     --junitxml=/mnt/test_reports/junit.xml
