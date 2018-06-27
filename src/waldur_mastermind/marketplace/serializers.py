@@ -1,11 +1,13 @@
 from __future__ import unicode_literals
 
-from rest_framework import serializers
+from django.conf import settings
+from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rest_exceptions
+from rest_framework import serializers
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
-from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from waldur_core.structure import permissions as structure_permissions
 
 from . import models, attribute_types
@@ -52,13 +54,14 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-
+    preferred_language = serializers.ChoiceField(choices=settings.LANGUAGES, allow_blank=True, required=False)
     attributes = core_fields.JsonField(required=False)
 
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider', 'category',
-                  'rating', 'attributes', 'geolocations', 'is_active')
+                  'rating', 'attributes', 'geolocations', 'is_active', 'native_name', 'native_description',
+                  'preferred_language')
         read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('provider',)
         extra_kwargs = {
@@ -77,6 +80,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
 
+        self._validate_language(attrs)
         return attrs
 
     def _validate_attributes(self, offering_attributes, category):
@@ -95,6 +99,16 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                     except ValidationError as e:
                         err = rest_exceptions.ValidationError({'attributes': e.message})
                         raise err
+
+    def _validate_language(self, attrs):
+        language = attrs.get('preferred_language')
+        native_name = attrs.get('native_name')
+        native_description = attrs.get('native_description')
+
+        if not language and (native_name or native_description):
+            raise rest_exceptions.ValidationError(
+                {'preferred_language': _('This field is required if native_name or native_description is specified.')}
+            )
 
 
 class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,

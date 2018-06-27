@@ -1,10 +1,12 @@
 from __future__ import unicode_literals
 
 from django import forms
+from django.conf import settings
 from django.contrib import admin
 from jsoneditor.forms import JSONEditor
 
 from waldur_core.core.fields import JSONField
+from waldur_core.core.admin import OptionalChoiceField
 
 from . import models, attribute_types
 
@@ -35,7 +37,14 @@ class ScreenshotsInline(admin.TabularInline):
     model = models.Screenshots
 
 
+class OfferingForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(OfferingForm, self).__init__(*args, **kwargs)
+        self.fields['preferred_language'] = OptionalChoiceField(choices=settings.LANGUAGES, required=False)
+
+
 class OfferingAdmin(admin.ModelAdmin):
+    form = OfferingForm
     inlines = [
         ScreenshotsInline,
     ]
