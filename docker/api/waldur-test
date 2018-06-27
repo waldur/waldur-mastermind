@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-set -ex
+set -e
 
+echo '[+] Copying source code'
 cp -r /mnt /tmp
 
-#rm -rf /mnt/test_reports
-#mkdir /mnt/test_reports
+echo '[+] Cleaning up jUnit test report directory'
+rm -rf /mnt/test_reports
+mkdir /mnt/test_reports
 
+echo '[+] Installing Python package under test'
 cd /tmp/mnt
 python setup.py develop
 
@@ -15,7 +18,7 @@ flake8 --ignore E501 --exclude=*migrations* src/
 echo '[+] Running security tests'
 bandit --ini .bandit -x waldur-core,tests -r src/
 
-echo '[+] Running unit tests'
+echo '[+] Generating Django configuration for application'
 cat > /tmp/mnt/src/waldur_mastermind/test_settings.py << EOF
 from waldur_core.server.test_settings import *
 
@@ -31,11 +34,12 @@ DATABASES = {
 }
 EOF
 
+echo '[+] Running unit tests'
 pytest \
     --numprocesses=5 \
     --nomigrations \
     --ds=waldur_mastermind.test_settings \
-    --pyargs waldur_mastermind waldur_core.core
-    #--junitxml=/mnt/test_reports/junit.xml
+    --pyargs waldur_mastermind waldur_core.core \
+    --junitxml=/mnt/test_reports/junit.xml
 
-#chmod -R a+rw /mnt/test_reports
+chown -R user:user /mnt/test_reports/
