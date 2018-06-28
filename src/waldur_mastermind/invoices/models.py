@@ -53,7 +53,10 @@ class Invoice(core_models.UuidMixin, models.Model):
                                              validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.PENDING)
-    customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'), related_name='+')
+    customer = models.ForeignKey(structure_models.Customer,
+                                 verbose_name=_('organization'),
+                                 related_name='+',
+                                 on_delete=models.CASCADE)
     current_cost = models.DecimalField(default=0, max_digits=10, decimal_places=2,
                                        help_text=_('Cached value for current cost.'),
                                        editable=False)
@@ -273,7 +276,8 @@ class OfferingItem(InvoiceItem):
         if self.offering:
             self.offering_details['offering_type'] = self.offering.type
             self.offering_details['offering_uuid'] = self.offering.uuid.hex
-            self.save(update_fields=['offering_details'])
+            self.offering = None
+            self.save(update_fields=['offering_details', 'offering'])
 
     def get_offering_uuid(self):
         if self.offering:
