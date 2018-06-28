@@ -3,3 +3,4 @@ omit =
   *tests*
   *migrations*
   */test_settings.py
+branch = True
