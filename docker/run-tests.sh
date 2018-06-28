@@ -13,5 +13,5 @@ docker-compose run \
     -e NUM_PROCESSES=5 \
     api waldur-test
 result=$?
-docker-compose down &> /dev/null || true &> /dev/null
+docker-compose down --rmi all &> /dev/null || true &> /dev/null
 exit $result

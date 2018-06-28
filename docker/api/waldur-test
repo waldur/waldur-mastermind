@@ -4,10 +4,6 @@ set -e
 echo '[+] Copying source code'
 cp -r /mnt /tmp
 
-echo '[+] Cleaning up jUnit test report directory'
-rm -rf /mnt/test_reports
-mkdir /mnt/test_reports
-
 echo '[+] Copying pip cache from host to guest'
 rsync \
     --archive \
@@ -19,7 +15,7 @@ rsync \
 
 echo '[+] Installing Python package under test'
 cd /tmp/mnt
-pip install --editable .
+pip --cache-dir=/root/.cache/pip/ install --editable .
 
 echo '[+] Copying pip cache from guest to host'
 rsync \
@@ -54,6 +50,16 @@ DATABASES = {
 }
 EOF
 
+if [ -f /mnt/test_report.xml ]; then
+    echo '[+] Cleaning up old test report'
+    rm /mnt/test_report.xml
+fi
+
+if [ -f /mnt/coverage.xml ]; then
+    echo '[+] Cleaning up old coverage report'
+    rm /mnt/coverage.xml
+fi
+
 echo '[+] Running unit tests'
 pytest \
     --numprocesses=${NUM_PROCESSES} \
@@ -61,6 +67,20 @@ pytest \
     --reuse-db \
     --ds=waldur_mastermind.test_settings \
     --pyargs waldur_mastermind waldur_core.core \
-    --junitxml=/mnt/test_reports/junit.xml
+    --junitxml=/mnt/test_report.xml \
+    --cov=src \
+    --cov-report xml:/mnt/coverage.xml
 
-chown -R user:user /mnt/test_reports/
+if [ -f /mnt/test_report.xml ]; then
+    echo '[+] Updating permissions for test report'
+    chown -R user:user /mnt/test_report.xml
+fi
+
+if [ -f /mnt/coverage.xml ]; then
+    echo '[+] Updating permissions and file path for coverage report'
+    chown -R user:user /mnt/coverage.xml
+    sed \
+        --in-place \
+        --expression='s/<source>\/tmp\/mnt\/src<\/source>/<source>src<\/source>/' \
+        /mnt/coverage.xml
+fi
