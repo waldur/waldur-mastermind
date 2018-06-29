@@ -137,35 +137,67 @@ EXAMPLES = '''
         name: classic-web
         tags:
             - ansible_application_id
+
+- name: update rules of security group
+  hosts: localhost
+  tasks:
+    - name: update rules of security group
+      waldur_os_security_group:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        tenant: VPC #1
+        state: present
+        name: postgresql
+        rules:
+          - to_port: 22
+            cidr: 0.0.0.0/0
+            from_port: 22
+            protocol: tcp
+
+          - to_port: -1
+            cidr: 0.0.0.0/0
+            from_port: -1
+            protocol: icmp
+
+          - to_port: 5432
+            cidr: 0.0.0.0/0
+            from_port: 5432
+            protocol: tcp
 '''
 
 
 def send_request_to_waldur(client, module):
     has_changed = False
+    tenant = module.params['tenant']
     name = module.params['name']
-    security_group = client.get_security_group(tenant=module.params['tenant'], name=name)
+    description = module.params.get('description') or ''
+    rules = module.params.get('rules') or [{
+        'from_port': module.params['from_port'],
+        'to_port': module.params['to_port'],
+        'cidr': module.params['cidr'],
+        'protocol': module.params['protocol'],
+    }]
+
+    security_group = client.get_security_group(tenant, name)
     present = module.params['state'] == 'present'
+
     if security_group:
         if present:
-            if security_group['description'] != module.params.get('description'):
-                client.update_security_group_description(
-                    security_group,
-                    description=module.params.get('description'))
+            if security_group['description'] != description:
+                client.update_security_group_description(security_group, description)
+                has_changed = True
+
+            if security_group['rules'] != rules:
+                client.update_security_group_rules(security_group, rules)
                 has_changed = True
         else:
             client.delete_security_group(security_group['uuid'])
             has_changed = True
     elif present:
-        rules = module.params.get('rules') or [{
-            'from_port': module.params['from_port'],
-            'to_port': module.params['to_port'],
-            'cidr': module.params['cidr'],
-            'protocol': module.params['protocol'],
-        }]
         client.create_security_group(
-            tenant=module.params['tenant'],
-            name=module.params['name'],
-            description=module.params.get('description'),
+            tenant=tenant,
+            name=name,
+            description=description,
             rules=rules,
             tags=module.params.get('tags'),
             wait=module.params['wait'],
