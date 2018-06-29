@@ -3,7 +3,7 @@ import unittest
 import uuid
 
 import responses
-from six.moves.urllib.parse import urlencode
+from six.moves.urllib.parse import urlencode, urlparse, parse_qs
 
 from waldur_client import WaldurClient, WaldurClientException
 
@@ -173,7 +173,12 @@ class InstanceDeleteTest(BaseWaldurClientTest):
                       status=204,
                       json={'details': 'Instance has been deleted.'})
         self.client.delete_instance('6b6e60870ad64085aadcdcbc1fd84a7e')
-        self.assertEqual(self.expected_url, responses.calls[0].request.url)
+        expected = {
+            'delete_volumes': ['True'],
+            'release_floating_ips': ['True'],
+        }
+        request = urlparse(responses.calls[0].request.url)
+        self.assertEqual(expected, parse_qs(request.query))
 
     @responses.activate
     def test_error_is_raised_if_invalid_status_code_is_returned(self):
@@ -275,7 +280,7 @@ class VolumeAttachTest(BaseWaldurClientTest):
         self.client.attach_volume('volume_uuid', 'instance_uuid', '/dev/vdb', wait=False)
 
         # Assert
-        actual = json.loads(responses.calls[0].request.body)
+        actual = json.loads(responses.calls[0].request.body.decode('utf-8'))
         expected = {
             'instance': 'http://example.com:8000/api/openstacktenant-instances/instance_uuid/',
             'device': '/dev/vdb'
