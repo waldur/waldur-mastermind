@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import six
 from django.contrib.postgres.fields import JSONField as BetterJSONField
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -106,7 +107,9 @@ class Offering(core_models.UuidMixin,
                structure_models.TimeStampedModel):
     thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
     full_description = models.TextField(blank=True)
-    rating = models.IntegerField(default=0)
+    rating = models.IntegerField(null=True,
+                                 validators=[MaxValueValidator(5), MinValueValidator(1)],
+                                 help_text=_('Rating is value from 1 to 5.'))
     category = models.ForeignKey(Category, related_name='offerings')
     provider = models.ForeignKey(ServiceProvider, related_name='offerings')
     attributes = BetterJSONField(blank=True, default='')
