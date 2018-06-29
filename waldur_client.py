@@ -345,6 +345,14 @@ class WaldurClient(object):
         uuid = security_group['uuid']
         return self._update_resource(self.Endpoints.TenantSecurityGroup, uuid, payload)
 
+    def update_security_group_rules(self, security_group, rules):
+        return self._execute_resource_action(
+            endpoint=self.Endpoints.TenantSecurityGroup,
+            uuid=security_group['uuid'],
+            action='set_rules',
+            json=rules,
+        )
+
     def get_security_group(self, tenant, name):
         tenant = self._get_tenant(tenant)
         security_group = None
