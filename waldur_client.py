@@ -518,6 +518,37 @@ class WaldurClient(object):
         url = base_url + '?' + urlencode(params)
         return self._delete_resource_by_url(url)
 
+    def update_instance_security_groups(self,
+                                        instance_uuid,
+                                        settings_uuid,
+                                        security_groups,
+                                        wait=True,
+                                        interval=10,
+                                        timeout=600):
+        """
+        Update security groups for OpenStack instance and wait until operation is completed.
+
+        :param instance_uuid: unique identifier of the instance
+        :param settings_uuid: unique identifier of the service settings
+        :param security_groups: list of security group names
+        :param wait: defines whether the client has to wait for operation completion.
+        :param interval: interval of volume state polling in seconds.
+        :param timeout: a maximum amount of time to wait for operation completion.
+        """
+        payload = []
+        for group in security_groups:
+            security_group = self._get_security_group(group, settings_uuid)
+            payload.append({'url': security_group['url']})
+
+        self._execute_resource_action(
+            endpoint=self.Endpoints.TenantSecurityGroup,
+            uuid=instance_uuid,
+            action='update_security_groups',
+            json=dict(security_groups=payload),
+        )
+        if wait:
+            self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
+
     def get_volume(self, name, project=None):
         return self._get_project_resource(self.Endpoints.Volume, name, project)
 
