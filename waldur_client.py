@@ -541,7 +541,7 @@ class WaldurClient(object):
             payload.append({'url': security_group['url']})
 
         self._execute_resource_action(
-            endpoint=self.Endpoints.TenantSecurityGroup,
+            endpoint=self.Endpoints.Instance,
             uuid=instance_uuid,
             action='update_security_groups',
             json=dict(security_groups=payload),
