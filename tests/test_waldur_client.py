@@ -208,7 +208,7 @@ class SecurityGroupTest(BaseWaldurClientTest):
     @responses.activate
     def test_waldur_client_returns_security_group_by_tenant_name_and_security_group_name(self):
         security_group = dict(name='security_group')
-        params = dict(name=security_group['name'], tenant_uuid=self.tenant['uuid'])
+        params = dict(name_exact=security_group['name'], tenant_uuid=self.tenant['uuid'])
         get_url = self._get_url('openstack-security-groups', params)
         responses.add(responses.GET, get_url, json=[security_group], match_querystring=True)
         responses.add(responses.GET, self._get_url('openstack-tenants'), json=[self.tenant])
