@@ -14,10 +14,10 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 DOCUMENTATION = '''
 ---
 module: waldur_os_instance
-short_description: Create or delete OpenStack instance
+short_description: Create, update or delete OpenStack instance
 version_added: 0.8
 description:
-  - Create or delete OpenStack compute instance via Waldur API.
+  - Create, update or delete OpenStack compute instance via Waldur API.
 requirements:
   - python = 2.7
   - requests
@@ -235,6 +235,20 @@ EXAMPLES = '''
         project: OpenStack Project
         name: Warehouse instance
         state: absent
+
+- name: update security groups of instance
+  hosts: localhost
+  tasks:
+    - name: update security groups of mysql server
+      waldur_os_instance:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        name: mysql-server
+        project: OpenStack Project
+        state: present
+        security_groups:
+          - ssh
+          - icmp
 '''
 
 
@@ -262,6 +276,19 @@ def send_request_to_waldur(client, module):
                 release_floating_ips=module.params['release_floating_ips'],
             )
             has_changed = True
+        else:
+            actual_groups = [group['name'] for group in instance.get('security_groups') or []]
+            requested_groups = module.params.get('security_groups') or []
+            if actual_groups != requested_groups:
+                client.update_instance_security_groups(
+                    instance_uuid=instance['uuid'],
+                    settings_uuid=instance['service_settings_uuid'],
+                    security_groups=requested_groups,
+                    wait=module.params['wait'],
+                    interval=module.params['interval'],
+                    timeout=module.params['timeout'],
+                )
+                has_changed = True
     except ObjectDoesNotExist:
         if present:
             networks = module.params.get('networks') or [{
@@ -324,6 +351,7 @@ def main():
         supports_check_mode=True,
     )
 
+    name = module.params['name']
     state = module.params['state']
     project = module.params['project']
     provider = module.params['provider']
@@ -335,7 +363,14 @@ def main():
     networks = module.params['networks']
     system_volume_size = module.params['system_volume_size']
 
-    if state == 'present':
+    instance_exists = True
+    client = waldur_client_from_module(module)
+    try:
+        client.get_instance(name, project)
+    except ObjectDoesNotExist:
+        instance_exists = False
+
+    if state == 'present' and not instance_exists:
         if not project:
             module.fail_json(msg="Parameter 'project' is required if state == 'present'")
         if not provider:
@@ -349,8 +384,6 @@ def main():
             module.fail_json(msg="Parameter 'system_volume_size' is required if state == 'present'")
         if not networks and not subnet:
             module.fail_json(msg="Parameter 'networks' or 'subnet' is required if state == 'present'")
-
-    client = waldur_client_from_module(module)
     try:
         instance, has_changed = send_request_to_waldur(client, module)
     except WaldurClientException as e:

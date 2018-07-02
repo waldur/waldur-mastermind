@@ -3,16 +3,17 @@ management of infrastructure under Waldur through Ansible playbooks.
 
 Supported functionality
 =======================
-- OpenStack VM provisioning.
-- Security group manipulations.
-- Floating IP assignment.
+- OpenStack virtual machine provisioning.
+- OpenStack security group provisioning.
+- OpenStack floating IP assignment.
+- OpenStack volume provisioning.
+- OpenStack snapshot provisioning.
 
 See also: http://docs.ansible.com/ansible/modules.html
 
 
-How to
-======
-
+Example usage
+=============
 
 Configure an Ansible playbook with parameters
 ---------------------------------------------
@@ -38,3 +39,9 @@ Pass parameters to an Ansible playbook
 .. code-block:: bash
 
     ANSIBLE_LIBRARY=/usr/share/ansible-waldur/ ansible -m waldur_os_get_instance -a "api_url=https://waldur.example.com/api/ access_token=9036194e1ac54cada3248a8c6b203bf7 name=instance-name project='Project name'" localhost
+
+
+Contributing
+============
+
+See also: https://docs.ansible.com/ansible/latest/dev_guide/developing_modules_general.html
