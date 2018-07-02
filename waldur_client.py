@@ -145,7 +145,7 @@ class WaldurClient(object):
         return self._query_resource(endpoint, {'uuid': value})
 
     def _query_resource_by_name(self, endpoint, value):
-        return self._query_resource(endpoint, {'name': value})
+        return self._query_resource(endpoint, {'name_exact': value})
 
     def _get_resource(self, endpoint, value):
         """
@@ -252,7 +252,7 @@ class WaldurClient(object):
 
     def _get_tenant_security_group(self, tenant_uuid, name):
         query = {
-            'name': name,
+            'name_exact': name,
             'tenant_uuid': tenant_uuid,
         }
         return self._query_resource(self.Endpoints.TenantSecurityGroup, query)
