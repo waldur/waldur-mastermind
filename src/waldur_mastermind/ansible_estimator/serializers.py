@@ -29,7 +29,7 @@ class JobEstimateSerializer(PermissionFieldFilteringMixin,
         view_name=core_utils.get_detail_view_name(models.Playbook),
         queryset=models.Playbook.objects.all(),
     )
-    arguments = core_serializers.JSONField(default={})
+    arguments = core_serializers.JSONField(default=dict)
 
     class Meta(object):
         model = models.Job

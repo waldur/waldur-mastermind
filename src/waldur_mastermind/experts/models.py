@@ -82,7 +82,7 @@ class ExpertRequest(core_models.UuidMixin,
 
     state = models.CharField(default=States.PENDING, max_length=30, choices=States.CHOICES)
     type = models.CharField(max_length=255)
-    extra = core_fields.JSONField(default={})
+    extra = core_fields.JSONField(default=dict)
     issue = models.ForeignKey(support_models.Issue, null=True, on_delete=models.SET_NULL)
     recurring_billing = models.BooleanField(
         default=False, help_text=_('Defines whether expert request has to be billed every month or only once'))
