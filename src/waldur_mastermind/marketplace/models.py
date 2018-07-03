@@ -113,7 +113,7 @@ class Offering(core_models.UuidMixin,
     category = models.ForeignKey(Category, related_name='offerings')
     provider = models.ForeignKey(ServiceProvider, related_name='offerings')
     attributes = BetterJSONField(blank=True, default='')
-    geolocations = JSONField(default=[], blank=True,
+    geolocations = JSONField(default=list, blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
     is_active = models.BooleanField(default=True)

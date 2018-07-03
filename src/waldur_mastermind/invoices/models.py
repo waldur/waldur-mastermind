@@ -236,7 +236,7 @@ class GenericInvoiceItem(InvoiceItem):
     quantity = models.PositiveIntegerField(default=0)
 
     scope = GenericForeignKey('content_type', 'object_id')
-    details = JSONField(default={}, blank=True, help_text=_('Stores data about scope'))
+    details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
 
     objects = managers.GenericInvoiceItemManager()
     tracker = FieldTracker()
@@ -259,7 +259,7 @@ class OfferingItem(InvoiceItem):
     """ OfferingItem stores details for invoices about purchased custom offering item. """
     invoice = models.ForeignKey(Invoice, related_name='offering_items')
     offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
-    offering_details = JSONField(default={}, blank=True, help_text=_('Stores data about offering'))
+    offering_details = JSONField(default=dict, blank=True, help_text=_('Stores data about offering'))
     tracker = FieldTracker()
 
     @property
@@ -298,7 +298,7 @@ class OpenStackItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='openstack_items')
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
-    package_details = JSONField(default={}, blank=True, help_text=_('Stores data about package'))
+    package_details = JSONField(default=dict, blank=True, help_text=_('Stores data about package'))
     tracker = FieldTracker()
 
     @property
