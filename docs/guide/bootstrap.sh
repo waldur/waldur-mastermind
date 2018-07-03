@@ -20,13 +20,14 @@ waldur-jira
 waldur-mastermind"
 for component in $WALDUR_COMPONENTS
 do
+  echo "[+] Synchronizing $component"
   if [ ! -d "$component" ]
     then git clone git@code.opennodecloud.com:waldur/${component}.git
   fi
 
   cd $component
-  git checkout develop
-  git pull
-  python setup.py develop
+  git checkout develop >/dev/null 2>&1
+  git pull >/dev/null 2>&1
+  pip install . >/dev/null 2>&1
   cd ../
 done
