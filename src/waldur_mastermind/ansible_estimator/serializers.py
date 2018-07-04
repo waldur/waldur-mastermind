@@ -5,7 +5,6 @@ from rest_framework import serializers
 
 from waldur_ansible.playbook_jobs import models
 from waldur_core.core import models as core_models
-from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.serializers import PermissionFieldFilteringMixin
 from waldur_openstack.openstack_tenant import models as openstack_models
@@ -29,7 +28,7 @@ class JobEstimateSerializer(PermissionFieldFilteringMixin,
         view_name=core_utils.get_detail_view_name(models.Playbook),
         queryset=models.Playbook.objects.all(),
     )
-    arguments = core_serializers.JSONField(default=dict)
+    arguments = serializers.JSONField(default=dict)
 
     class Meta(object):
         model = models.Job

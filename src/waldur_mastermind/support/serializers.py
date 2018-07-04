@@ -263,7 +263,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
     state = serializers.ReadOnlyField(source='get_state_display')
-    report = core_serializers.JSONField(required=False)
+    report = serializers.JSONField(required=False)
 
     class Meta(object):
         model = models.Offering
@@ -292,6 +292,9 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             raise serializers.ValidationError('Report object should contain at least one section.')
 
         for section in report:
+            if not isinstance(section, dict):
+                raise serializers.ValidationError('Report section should be an object.')
+
             if not section.get('header'):
                 raise serializers.ValidationError('Report section should contain header.')
 
