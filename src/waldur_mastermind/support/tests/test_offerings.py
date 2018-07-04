@@ -265,6 +265,12 @@ class OfferingUpdateTest(BaseOfferingTest):
         response = self.client.put(self.url, request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_report_section_should_be_a_list(self):
+        self.client.force_authenticate(self.fixture.staff)
+        request = {'name': 'New name', 'report': [1, 2]}
+        response = self.client.put(self.url, request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class OfferingCompleteTest(BaseOfferingTest):
 
