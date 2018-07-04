@@ -6,14 +6,15 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
+from django_fsm import transition, FSMIntegerField
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
 from waldur_core.core.validators import FileTypeValidator
+from waldur_core.quotas import fields as quotas_fields
+from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
-from waldur_core.quotas import models as quotas_models
-from waldur_core.quotas import fields as quotas_fields
 
 from .attribute_types import ATTRIBUTE_TYPES
 
@@ -112,7 +113,7 @@ class Offering(core_models.UuidMixin,
                                  help_text=_('Rating is value from 1 to 5.'))
     category = models.ForeignKey(Category, related_name='offerings')
     provider = models.ForeignKey(ServiceProvider, related_name='offerings')
-    attributes = BetterJSONField(blank=True, default='')
+    attributes = BetterJSONField(blank=True, default=dict)
     geolocations = JSONField(default=list, blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
@@ -158,3 +159,76 @@ class Screenshots(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-screenshot'
+
+
+class Order(core_models.UuidMixin,
+            structure_models.TimeStampedModel):
+    class States(object):
+        DRAFT = 1
+        REQUESTED_FOR_APPROVAL = 2
+        EXECUTING = 3
+        DONE = 4
+        TERMINATED = 5
+
+        CHOICES = (
+            (DRAFT, 'draft'),
+            (REQUESTED_FOR_APPROVAL, 'requested for approval'),
+            (EXECUTING, 'executing'),
+            (DONE, 'done'),
+            (TERMINATED, 'terminated'),
+        )
+
+    created_by = models.ForeignKey(core_models.User, related_name='orders')
+    approved_by = models.ForeignKey(core_models.User, blank=True, null=True, related_name='+')
+    approved_at = models.DateTimeField(editable=False, null=True, blank=True)
+    project = models.ForeignKey(structure_models.Project)
+    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    total_cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+
+    class Permissions(object):
+        customer_path = 'project__customer'
+        project_path = 'project'
+
+    class Meta(object):
+        verbose_name = _('Order')
+        ordering = ('created',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-order'
+
+    @transition(field=state, source=States.DRAFT, target=States.REQUESTED_FOR_APPROVAL)
+    def set_state_requested_for_approval(self):
+        pass
+
+    @transition(field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.EXECUTING)
+    def set_state_executing(self):
+        pass
+
+    @transition(field=state, source=States.EXECUTING, target=States.DONE)
+    def set_state_done(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATED)
+    def set_state_terminated(self):
+        pass
+
+
+class Item(core_models.UuidMixin,
+           structure_models.TimeStampedModel):
+    order = models.ForeignKey(Order, related_name='items')
+    offering = models.ForeignKey(Offering)
+    attributes = BetterJSONField(blank=True, default=dict)
+    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+
+    class Permissions(object):
+        customer_path = 'order__project__customer'
+        project_path = 'order__project'
+
+    class Meta(object):
+        verbose_name = _('Item')
+        ordering = ('created',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-item'

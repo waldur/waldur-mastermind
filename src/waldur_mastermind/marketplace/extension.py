@@ -8,6 +8,9 @@ class MarketplaceExtension(WaldurExtension):
         WALDUR_MARKETPLACE = {
             'THUMBNAIL_SIZE': (120, 120),
             'THUMBNAIL_SUFFIX': 'thumbnail',
+            'OWNER_CAN_APPROVE_ORDER': True,
+            'MANAGER_CAN_APPROVE_ORDER': False,
+            'ADMIN_CAN_APPROVE_ORDER': False,
         }
 
     @staticmethod

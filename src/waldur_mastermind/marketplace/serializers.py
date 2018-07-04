@@ -3,12 +3,12 @@ from __future__ import unicode_literals
 from django.conf import settings
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions as rest_exceptions
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
-from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import permissions as structure_permissions, serializers as structure_serializers
 
 from . import models, attribute_types
 
@@ -116,7 +116,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                     try:
                         klass.validate(value, attribute.available_values)
                     except ValidationError as e:
-                        err = rest_exceptions.ValidationError({'attributes': e.message})
+                        err = rf_exceptions.ValidationError({'attributes': e.message})
                         raise err
 
     def _validate_language(self, attrs):
@@ -125,7 +125,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         native_description = attrs.get('native_description')
 
         if not language and (native_name or native_description):
-            raise rest_exceptions.ValidationError(
+            raise rf_exceptions.ValidationError(
                 {'preferred_language': _('This field is required if native_name or native_description is specified.')}
             )
 
@@ -146,3 +146,59 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
         if not self.instance:
             structure_permissions.is_owner(self.context['request'], None, attrs['offering'].provider.customer)
         return attrs
+
+
+class ItemSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                     core_serializers.AugmentedSerializerMixin,
+                     serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Item
+        fields = ('url', 'uuid', 'created', 'order', 'offering', 'attributes', 'cost')
+        read_only_fields = ('url', 'uuid', 'created',)
+        protected_fields = ('order', 'offering')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+            'order': {'lookup_field': 'uuid', 'view_name': 'marketplace-order-detail'},
+        }
+
+    def get_filtered_field_names(self):
+        return 'order',
+
+    def validate(self, attrs):
+        if self.instance:
+            state = self.instance.order.state
+        else:
+            state = attrs['order'].state
+
+        if state != models.Order.States.DRAFT:
+            raise rf_exceptions.ValidationError(_('Only orders with state \'draft\' are available for editing.'))
+
+        return attrs
+
+
+class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                      core_serializers.AugmentedSerializerMixin,
+                      serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Order
+        fields = ('url', 'uuid', 'id', 'created', 'created_by', 'approved_by', 'approved_at',
+                  'project', 'state', 'get_state_display', 'items', 'total_cost',)
+        read_only_fields = ('url', 'uuid', 'id', 'created', 'created_by', 'approved_by', 'approved_at',
+                            'state', 'total_cost', 'get_state_display',)
+        protected_fields = ('project',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'created_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'approved_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            'items': {'lookup_field': 'uuid', 'view_name': 'marketplace-item-detail'},
+        }
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        validated_data['created_by'] = user
+        return super(OrderSerializer, self).create(validated_data)
+
+    def get_filtered_field_names(self):
+        return 'project',

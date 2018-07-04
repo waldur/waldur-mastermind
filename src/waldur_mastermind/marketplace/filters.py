@@ -2,7 +2,7 @@ import json
 
 import django_filters
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions as rest_exceptions
+from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
 
@@ -28,7 +28,7 @@ class OfferingFilter(django_filters.FilterSet):
         try:
             value = json.loads(value)
         except ValueError:
-            raise rest_exceptions.ValidationError(_('Filter attribute is not valid.'))
+            raise rf_exceptions.ValidationError(_('Filter attribute is not valid.'))
 
         for k, v in value.items():
             queryset = queryset.filter(attributes__contains={k: v})
@@ -52,4 +52,31 @@ class ScreenshotFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.Screenshots
+        fields = []
+
+
+class OrderFilter(django_filters.FilterSet):
+    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(name='project__uuid')
+
+    o = django_filters.OrderingFilter(fields=(
+        ('created_by', 'created_by'),
+        ('approved_at', 'approved_at'),
+        ('total_cost', 'total_cost'),
+    ))
+
+    class Meta(object):
+        model = models.Order
+        fields = ['state']
+
+
+class ItemFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+
+    order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
+    order_uuid = django_filters.UUIDFilter(name='order__uuid')
+
+    class Meta(object):
+        model = models.Item
         fields = []
