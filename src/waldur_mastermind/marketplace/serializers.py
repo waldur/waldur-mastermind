@@ -6,7 +6,6 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
-from waldur_core.core import fields as core_fields
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import permissions as structure_permissions, serializers as structure_serializers
 
@@ -74,12 +73,14 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     preferred_language = serializers.ChoiceField(choices=settings.LANGUAGES, allow_blank=True, required=False)
-    attributes = core_fields.JsonField(required=False)
+    attributes = serializers.JSONField(required=False)
+    category_title = serializers.ReadOnlyField(source='category.title')
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider', 'category',
-                  'rating', 'attributes', 'geolocations', 'is_active', 'native_name', 'native_description',
+        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider',
+                  'category', 'category_title', 'rating', 'attributes', 'geolocations',
+                  'is_active', 'native_name', 'native_description',
                   'preferred_language', 'thumbnail')
         read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('provider',)
@@ -94,8 +95,12 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
 
         offering_attributes = attrs.get('attributes')
+        if offering_attributes is not None:
+            if not isinstance(offering_attributes, dict):
+                raise rf_exceptions.ValidationError({
+                    'attributes': 'Dictionary is expected.'
+                })
 
-        if offering_attributes:
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
 

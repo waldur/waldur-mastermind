@@ -90,6 +90,23 @@ class OfferingCreateTest(utils.PostgreSQLTest):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_offering_is_not_created_if_attributes_are_not_provided(self):
+        self.category = factories.CategoryFactory()
+        self.section = factories.SectionFactory(category=self.category)
+        self.provider = factories.ServiceProviderFactory(customer=self.customer)
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_list_url()
+
+        payload = {
+            'name': 'offering',
+            'category': factories.CategoryFactory.get_url(category=self.category),
+            'provider': factories.ServiceProviderFactory.get_url(self.provider),
+            'attributes': '"String is not allowed, dictionary is expected."'
+        }
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_dont_create_offering_if_language_is_not_specified_but_native_name_is_specified(self):
         response = self.create_offering('staff', add_payload={
             'native_name': 'native_name'
@@ -116,13 +133,13 @@ class OfferingCreateTest(utils.PostgreSQLTest):
         }
 
         if attributes:
-            payload['attributes'] = json.dumps({
+            payload['attributes'] = {
                 'cloudDeploymentModel': 'private_cloud',
                 'vendorType': 'reseller',
                 'userSupportOptions': ['web_chat', 'phone'],
                 'dataProtectionInternal': 'ipsec',
                 'dataProtectionExternal': 'tls12'
-            })
+            }
 
         if add_payload:
             payload.update(add_payload)
