@@ -34,9 +34,28 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
+class NestedAttributeSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.Attribute
+        fields = ('key', 'title', 'type', 'available_values')
+
+
+class NestedSectionSerializer(serializers.ModelSerializer):
+    attributes = NestedAttributeSerializer(many=True, read_only=True)
+
+    class Meta(object):
+        model = models.Section
+        fields = ('key', 'title', 'attributes')
+
+
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     offering_count = serializers.SerializerMethodField()
+    sections = NestedSectionSerializer(many=True, read_only=True)
+
+    @staticmethod
+    def eager_load(queryset):
+        return queryset.prefetch_related('sections', 'sections__attributes')
 
     def get_offering_count(self, category):
         try:
@@ -46,7 +65,7 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Category
-        fields = ('url', 'uuid', 'created', 'title', 'description', 'icon', 'offering_count')
+        fields = ('url', 'uuid', 'created', 'title', 'description', 'icon', 'offering_count', 'sections')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
