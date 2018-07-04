@@ -145,7 +145,8 @@ class WaldurClient(object):
         return self._query_resource(endpoint, {'uuid': value})
 
     def _query_resource_by_name(self, endpoint, value):
-        return self._query_resource(endpoint, {'name_exact': value})
+        # TODO: Drop inexact filtering by name when all deployments are updated.
+        return self._query_resource(endpoint, {'name': value, 'name_exact': value})
 
     def _get_resource(self, endpoint, value):
         """
@@ -696,7 +697,7 @@ class WaldurClient(object):
 def waldur_full_argument_spec(**kwargs):
     spec = dict(
         api_url=dict(required=True, type='str'),
-        access_token=dict(required=True, type='str'),
+        access_token=dict(required=True, type='str', no_log=True),
         wait=dict(default=True, type='bool'),
         timeout=dict(default=600, type='int'),
         interval=dict(default=20, type='int'),
