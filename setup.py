@@ -10,8 +10,8 @@ install_requires = [
     'influxdb>=4.1.0',
     'jira>=1.0.7',
     'pdfkit>=0.6.1',
-    'waldur-core>=0.161.3',
-    'waldur-ansible>=0.6.1',
+    'waldur-core>=0.161.4',
+    'waldur-ansible>=0.6.2',
     'waldur-auth-openid>=0.8.9',
     'waldur-auth-social>=0.7.9',
     'waldur-auth-saml2>=0.9.3',
@@ -25,7 +25,7 @@ install_requires = [
     'waldur-openstack>=0.43.3',
     'waldur-paypal>=0.9.0',
     'waldur-slurm>=0.6.1',
-    'waldur-zabbix>=0.8.3',
+    'waldur-zabbix>=0.8.4',
 ]
 
 test_requires = [

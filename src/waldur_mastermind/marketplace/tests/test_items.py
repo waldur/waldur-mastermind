@@ -73,11 +73,17 @@ class ItemCreateTest(utils.PostgreSQLTest):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('staff', 'owner', 'admin', 'manager')
-    def test_user_can_not_create_item_if_order_state_is_not_draft(self, user):
+    def test_user_can_not_create_item_if_order_state_is_not_draft(self):
         self.order.state = models.Order.States.DONE
         self.order.save()
-        response = self.create_item(user)
+        response = self.create_item('staff')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(models.Item.objects.filter(order=self.order).exists())
+
+    def test_user_can_not_create_item_if_offering_is_not_available(self):
+        self.offering.is_active = False
+        self.offering.save()
+        response = self.create_item('staff')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(models.Item.objects.filter(order=self.order).exists())
 

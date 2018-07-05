@@ -156,10 +156,13 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
 class ItemSerializer(structure_serializers.PermissionFieldFilteringMixin,
                      core_serializers.AugmentedSerializerMixin,
                      serializers.HyperlinkedModelSerializer):
+
+    offering_name = serializers.ReadOnlyField(source='offering.name')
+
     class Meta(object):
         model = models.Item
-        fields = ('url', 'uuid', 'created', 'order', 'offering', 'attributes', 'cost')
-        read_only_fields = ('url', 'uuid', 'created',)
+        fields = ('url', 'uuid', 'created', 'order', 'offering', 'offering_name', 'attributes', 'cost')
+        read_only_fields = ('url', 'uuid', 'created', 'cost')
         protected_fields = ('order', 'offering')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -170,6 +173,11 @@ class ItemSerializer(structure_serializers.PermissionFieldFilteringMixin,
     def get_filtered_field_names(self):
         return 'order',
 
+    def validate_offering(self, offering):
+        if not offering.is_active:
+            raise rf_exceptions.ValidationError(_('Offering is not available.'))
+        return offering
+
     def validate(self, attrs):
         if self.instance:
             state = self.instance.order.state
@@ -177,7 +185,7 @@ class ItemSerializer(structure_serializers.PermissionFieldFilteringMixin,
             state = attrs['order'].state
 
         if state != models.Order.States.DRAFT:
-            raise rf_exceptions.ValidationError(_('Only orders with state \'draft\' are available for editing.'))
+            raise rf_exceptions.ValidationError(_('Only orders with state "draft" are available for editing.'))
 
         return attrs
 
