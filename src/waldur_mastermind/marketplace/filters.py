@@ -22,6 +22,9 @@ class OfferingFilter(django_filters.FilterSet):
     provider = core_filters.URLFilter(view_name='marketplace-service-provider-detail',
                                       name='provider__uuid')
     provider_uuid = django_filters.UUIDFilter(name='provider__uuid')
+    customer = core_filters.URLFilter(view_name='customer-detail',
+                                      name='provider__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='provider__customer__uuid')
     attributes = django_filters.CharFilter(name='attributes', method='filter_attributes')
 
     def filter_attributes(self, queryset, name, value):
