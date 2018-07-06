@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-from django.conf import settings
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -74,7 +73,6 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    preferred_language = serializers.ChoiceField(choices=settings.LANGUAGES, allow_blank=True, required=False)
     attributes = serializers.JSONField(required=False)
     category_title = serializers.ReadOnlyField(source='category.title')
 
@@ -82,8 +80,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
-                  'is_active', 'native_name', 'native_description',
-                  'preferred_language', 'thumbnail')
+                  'is_active', 'native_name', 'native_description', 'thumbnail')
         read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('customer',)
         extra_kwargs = {
@@ -106,7 +103,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
 
-        self._validate_language(attrs)
         return attrs
 
     def _validate_attributes(self, offering_attributes, category):
@@ -125,16 +121,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                     except ValidationError as e:
                         err = rf_exceptions.ValidationError({'attributes': e.message})
                         raise err
-
-    def _validate_language(self, attrs):
-        language = attrs.get('preferred_language')
-        native_name = attrs.get('native_name')
-        native_description = attrs.get('native_description')
-
-        if not language and (native_name or native_description):
-            raise rf_exceptions.ValidationError(
-                {'preferred_language': _('This field is required if native_name or native_description is specified.')}
-            )
 
 
 class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,

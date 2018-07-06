@@ -78,6 +78,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
 
         payload = {
             'name': 'offering',
+            'native_name': 'native_name',
             'category': factories.CategoryFactory.get_url(category=self.category),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
             'attributes': json.dumps({
@@ -107,19 +108,6 @@ class OfferingCreateTest(utils.PostgreSQLTest):
         }
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_dont_create_offering_if_language_is_not_specified_but_native_name_is_specified(self):
-        response = self.create_offering('staff', add_payload={
-            'native_name': 'native_name'
-        })
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_create_offering_if_language_is_nspecified_and_native_name_is_specified(self):
-        response = self.create_offering('staff', add_payload={
-            'native_name': 'native_name',
-            'preferred_language': 'en'
-        })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)

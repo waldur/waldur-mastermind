@@ -121,7 +121,6 @@ class Offering(core_models.UuidMixin,
 
     native_name = models.CharField(max_length=160, default='', blank=True)
     native_description = models.CharField(max_length=500, default='', blank=True)
-    preferred_language = models.CharField(max_length=10, blank=True)
 
     class Permissions(object):
         customer_path = 'customer'
