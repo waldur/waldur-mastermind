@@ -7,6 +7,7 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
 from waldur_core.structure import permissions as structure_permissions, serializers as structure_serializers
 
 from . import models, attribute_types
@@ -215,3 +216,19 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     def get_filtered_field_names(self):
         return 'project',
+
+
+def get_is_service_provider(serializer, scope):
+    customer = structure_permissions._get_customer(scope)
+    return models.ServiceProvider.objects.filter(customer=customer).exists()
+
+
+def add_service_provider(sender, fields, **kwargs):
+    fields['is_service_provider'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_service_provider', get_is_service_provider)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_service_provider,
+)
