@@ -7,6 +7,7 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
 from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
 
 from . import factories, utils
@@ -46,7 +47,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
     def test_authorized_user_can_create_offering(self, user):
         response = self.create_offering(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Offering.objects.filter(provider__customer=self.customer).exists())
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_create_offering(self, user):
@@ -56,8 +57,8 @@ class OfferingCreateTest(utils.PostgreSQLTest):
     def test_create_offering_with_attributes(self):
         response = self.create_offering('staff', attributes=True)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Offering.objects.filter(provider__customer=self.customer).exists())
-        offering = models.Offering.objects.get(provider__customer=self.customer)
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+        offering = models.Offering.objects.get(customer=self.customer)
         self.assertEqual(offering.attributes, {
             'cloudDeploymentModel': 'private_cloud',
             'vendorType': 'reseller',
@@ -78,7 +79,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
         payload = {
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(category=self.category),
-            'provider': factories.ServiceProviderFactory.get_url(self.provider),
+            'customer': structure_factories.CustomerFactory.get_url(self.customer),
             'attributes': json.dumps({
                 'cloudDeploymentModel': 'private_cloud',
                 'vendorType': 'reseller',
@@ -101,7 +102,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
         payload = {
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(category=self.category),
-            'provider': factories.ServiceProviderFactory.get_url(self.provider),
+            'customer': structure_factories.CustomerFactory.get_url(self.customer),
             'attributes': '"String is not allowed, dictionary is expected."'
         }
         response = self.client.post(url, payload)
@@ -129,7 +130,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
         payload = {
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(),
-            'provider': factories.ServiceProviderFactory.get_url(self.provider),
+            'customer': structure_factories.CustomerFactory.get_url(self.customer),
         }
 
         if attributes:
@@ -169,8 +170,8 @@ class OfferingUpdateTest(utils.PostgreSQLTest):
     def update_offering(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        provider = factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(provider=provider)
+        factories.ServiceProviderFactory(customer=self.customer)
+        offering = factories.OfferingFactory(customer=self.customer)
         url = factories.OfferingFactory.get_url(offering)
 
         response = self.client.patch(url, {
@@ -188,19 +189,19 @@ class OfferingDeleteTest(utils.PostgreSQLTest):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(provider=self.provider)
+        self.offering = factories.OfferingFactory(customer=self.customer)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_offering(self, user):
         response = self.delete_offering(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
-        self.assertFalse(models.Offering.objects.filter(provider__customer=self.customer).exists())
+        self.assertFalse(models.Offering.objects.filter(customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_delete_offering(self, user):
         response = self.delete_offering(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.Offering.objects.filter(provider__customer=self.customer).exists())
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
     def delete_offering(self, user):
         user = getattr(self.fixture, user)
@@ -287,7 +288,7 @@ class OfferingQuotaTest(utils.PostgreSQLTest):
     def test_offering_count_quota_is_populated(self):
         category = factories.CategoryFactory()
         provider = factories.ServiceProviderFactory()
-        factories.OfferingFactory.create_batch(3, category=category, provider=provider)
+        factories.OfferingFactory.create_batch(3, category=category, customer=provider.customer)
         self.assertEqual(3, self.get_usage(category))
 
 

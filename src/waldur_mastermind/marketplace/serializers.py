@@ -8,7 +8,8 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
-from waldur_core.structure import permissions as structure_permissions, serializers as structure_serializers
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import serializers as structure_serializers
 
 from . import models, attribute_types
 
@@ -79,21 +80,21 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'provider',
+        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
                   'is_active', 'native_name', 'native_description',
                   'preferred_language', 'thumbnail')
         read_only_fields = ('url', 'uuid', 'created')
-        protected_fields = ('provider',)
+        protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
-            'provider': {'lookup_field': 'uuid', 'view_name': 'marketplace-service-provider-detail'},
+            'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             'category': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
 
     def validate(self, attrs):
         if not self.instance:
-            structure_permissions.is_owner(self.context['request'], None, attrs['provider'].customer)
+            structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
 
         offering_attributes = attrs.get('attributes')
         if offering_attributes is not None:
@@ -150,7 +151,7 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
 
     def validate(self, attrs):
         if not self.instance:
-            structure_permissions.is_owner(self.context['request'], None, attrs['offering'].provider.customer)
+            structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
         return attrs
 
 

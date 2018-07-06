@@ -53,7 +53,7 @@ class ScreenshotsCreateTest(utils.PostgreSQLTest):
     def test_authorized_user_can_create_screenshot(self, user):
         response = self.create_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Screenshots.objects.filter(offering__provider__customer=self.customer).exists())
+        self.assertTrue(models.Screenshots.objects.filter(offering__customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_create_screenshot(self, user):
@@ -71,7 +71,7 @@ class ScreenshotsCreateTest(utils.PostgreSQLTest):
         self.client.force_authenticate(user)
         url = factories.ScreenshotsFactory.get_list_url()
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(provider=self.provider)
+        self.offering = factories.OfferingFactory(customer=self.customer)
 
         payload = {
             'name': 'screenshot',
@@ -105,7 +105,7 @@ class ScreenshotsUpdateTest(utils.PostgreSQLTest):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(provider=self.provider)
+        self.offering = factories.OfferingFactory(customer=self.customer)
         screenshot = factories.ScreenshotsFactory(offering=self.offering)
         url = factories.ScreenshotsFactory.get_url(screenshot=screenshot)
 
@@ -124,20 +124,20 @@ class ScreenshotsDeleteTest(utils.PostgreSQLTest):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(provider=self.provider)
+        self.offering = factories.OfferingFactory(customer=self.customer)
         self.screenshot = factories.ScreenshotsFactory(offering=self.offering)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_screenshot(self, user):
         response = self.delete_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
-        self.assertFalse(models.Screenshots.objects.filter(offering__provider__customer=self.customer).exists())
+        self.assertFalse(models.Screenshots.objects.filter(offering__customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_delete_screenshot(self, user):
         response = self.delete_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.Screenshots.objects.filter(offering__provider__customer=self.customer).exists())
+        self.assertTrue(models.Screenshots.objects.filter(offering__customer=self.customer).exists())
 
     def delete_screenshot(self, user):
         user = getattr(self.fixture, user)

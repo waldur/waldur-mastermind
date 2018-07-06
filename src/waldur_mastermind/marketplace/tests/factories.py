@@ -53,7 +53,7 @@ class OfferingFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'offering-%s' % n)
     category = factory.SubFactory(CategoryFactory)
-    provider = factory.SubFactory(ServiceProviderFactory)
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
 
     @classmethod
     def get_url(cls, offering=None, action=None):

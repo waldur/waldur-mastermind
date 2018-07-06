@@ -112,7 +112,7 @@ class Offering(core_models.UuidMixin,
                                  validators=[MaxValueValidator(5), MinValueValidator(1)],
                                  help_text=_('Rating is value from 1 to 5.'))
     category = models.ForeignKey(Category, related_name='offerings')
-    provider = models.ForeignKey(ServiceProvider, related_name='offerings')
+    customer = models.ForeignKey(structure_models.Customer, related_name='+', null=True)
     attributes = BetterJSONField(blank=True, default=dict)
     geolocations = JSONField(default=list, blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
@@ -124,7 +124,7 @@ class Offering(core_models.UuidMixin,
     preferred_language = models.CharField(max_length=10, blank=True)
 
     class Permissions(object):
-        customer_path = 'provider__customer'
+        customer_path = 'customer'
 
     class Meta(object):
         verbose_name = _('Offering')
@@ -148,7 +148,7 @@ class Screenshots(core_models.UuidMixin,
     offering = models.ForeignKey(Offering, related_name='screenshots')
 
     class Permissions(object):
-        customer_path = 'offering__provider__customer'
+        customer_path = 'offering__customer'
 
     class Meta(object):
         verbose_name = _('Screenshot')
