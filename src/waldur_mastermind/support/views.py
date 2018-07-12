@@ -249,6 +249,13 @@ class AttachmentViewSet(CheckExtensionMixin,
         return queryset
 
 
+class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = models.Template.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.TemplateSerializer
+
+
 def get_offerings_count(scope):
     return scope.quotas.get(name='nc_offering_count').usage
 
