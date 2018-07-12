@@ -254,10 +254,10 @@ class Template(core_models.UuidMixin,
                TimeStampedModel):
 
     class IssueTypes(object):
-        INFORMATIONAL = 'informational'
-        SERVICE_REQUEST = 'service_request'
-        CHANGE_REQUEST = 'change_request'
-        INCIDENT = 'incident'
+        INFORMATIONAL = 'INFORMATIONAL'
+        SERVICE_REQUEST = 'SERVICE_REQUEST'
+        CHANGE_REQUEST = 'CHANGE_REQUEST'
+        INCIDENT = 'INCIDENT'
 
         CHOICES = (
             (INFORMATIONAL, 'Informational'),

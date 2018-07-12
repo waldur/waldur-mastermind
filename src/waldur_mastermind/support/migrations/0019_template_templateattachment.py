@@ -28,7 +28,7 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('native_name', models.CharField(blank=True, max_length=150)),
                 ('native_description', models.TextField(blank=True)),
-                ('issue_type', models.CharField(choices=[('informational', 'Informational'), ('service_request', 'Service request'), ('change_request', 'Change request'), ('incident', 'Incident')], default='informational', max_length=30)),
+                ('issue_type', models.CharField(choices=[('INFORMATIONAL', 'Informational'), ('SERVICE_REQUEST', 'Service request'), ('CHANGE_REQUEST', 'Change request'), ('INCIDENT', 'Incident')], default='informational', max_length=30)),
             ],
             options={
                 'abstract': False,
