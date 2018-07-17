@@ -41,6 +41,8 @@ def process_invoice_item(sender, instance, created=False, **kwargs):
             not instance.tracker.has_changed('start') and
             not instance.tracker.has_changed('end')):
         return
+    if not instance.project:
+        return
     with transaction.atomic():
         for scope in [instance.project, instance.project.customer]:
             estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
