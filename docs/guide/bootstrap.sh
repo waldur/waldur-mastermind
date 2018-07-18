@@ -28,6 +28,6 @@ do
   cd $component
   git checkout develop >/dev/null 2>&1
   git pull >/dev/null 2>&1
-  pip install . >/dev/null 2>&1
+  pip install --editable . >/dev/null 2>&1
   cd ../
 done
