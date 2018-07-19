@@ -183,7 +183,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                       serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Order
-        fields = ('url', 'uuid', 'id', 'created', 'created_by', 'approved_by', 'approved_at',
+        fields = ('url', 'uuid', 'created', 'created_by', 'approved_by', 'approved_at',
                   'project', 'state', 'get_state_display', 'items', 'total_cost',)
         read_only_fields = ('url', 'uuid', 'id', 'created', 'created_by', 'approved_by', 'approved_at',
                             'state', 'total_cost', 'get_state_display',)
