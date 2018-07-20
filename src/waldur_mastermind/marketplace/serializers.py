@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -18,7 +19,6 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.ServiceProvider
         fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'enable_notifications')
-        read_only_fields = ('url', 'uuid', 'created')
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }
@@ -81,7 +81,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
                   'is_active', 'native_name', 'native_description', 'thumbnail')
-        read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -128,7 +127,6 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Screenshots
         fields = ('url', 'uuid', 'created', 'name', 'description', 'image', 'thumbnail', 'offering')
-        read_only_fields = ('url', 'uuid', 'created')
         protected_fields = ('offering', 'image')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -141,41 +139,24 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class ItemSerializer(structure_serializers.PermissionFieldFilteringMixin,
-                     core_serializers.AugmentedSerializerMixin,
+class ItemSerializer(core_serializers.AugmentedSerializerMixin,
                      serializers.HyperlinkedModelSerializer):
 
     offering_name = serializers.ReadOnlyField(source='offering.name')
 
     class Meta(object):
         model = models.Item
-        fields = ('url', 'uuid', 'created', 'order', 'offering', 'offering_name', 'attributes', 'cost')
-        read_only_fields = ('url', 'uuid', 'created', 'cost')
-        protected_fields = ('order', 'offering')
+        fields = ('offering', 'offering_name', 'attributes', 'cost')
+        read_only_fields = ('cost',)
+        protected_fields = ('offering',)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
-            'order': {'lookup_field': 'uuid', 'view_name': 'marketplace-order-detail'},
         }
-
-    def get_filtered_field_names(self):
-        return 'order',
 
     def validate_offering(self, offering):
         if not offering.is_active:
             raise rf_exceptions.ValidationError(_('Offering is not available.'))
         return offering
-
-    def validate(self, attrs):
-        if self.instance:
-            state = self.instance.order.state
-        else:
-            state = attrs['order'].state
-
-        if state != models.Order.States.DRAFT:
-            raise rf_exceptions.ValidationError(_('Only orders with state "draft" are available for editing.'))
-
-        return attrs
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
@@ -183,26 +164,36 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                       serializers.HyperlinkedModelSerializer):
 
     state = serializers.ReadOnlyField(source='get_state_display')
+    items = ItemSerializer(many=True)
 
     class Meta(object):
         model = models.Order
         fields = ('url', 'uuid', 'created', 'created_by', 'approved_by', 'approved_at',
                   'project', 'state', 'items', 'total_cost',)
-        read_only_fields = ('url', 'uuid', 'id', 'created', 'created_by', 'approved_by', 'approved_at',
-                            'state', 'total_cost', 'get_state_display',)
-        protected_fields = ('project',)
+        read_only_fields = ('created_by', 'approved_by', 'approved_at', 'state', 'total_cost')
+        protected_fields = ('project', 'items')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'created_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
             'approved_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
-            'items': {'lookup_field': 'uuid', 'view_name': 'marketplace-item-detail'},
         }
 
+    @transaction.atomic
     def create(self, validated_data):
         user = self.context['request'].user
         validated_data['created_by'] = user
-        return super(OrderSerializer, self).create(validated_data)
+        items = validated_data.pop('items')
+        order = super(OrderSerializer, self).create(validated_data)
+        models.Item.objects.bulk_create([
+            models.Item(
+                order=order,
+                offering=item['offering'],
+                attributes=item.get('attributes', {}),
+            )
+            for item in items
+        ])
+        return order
 
     def get_filtered_field_names(self):
         return 'project',

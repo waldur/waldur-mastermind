@@ -220,14 +220,6 @@ class Item(core_models.UuidMixin,
     attributes = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
 
-    class Permissions(object):
-        customer_path = 'order__project__customer'
-        project_path = 'order__project'
-
     class Meta(object):
         verbose_name = _('Item')
         ordering = ('created',)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'marketplace-item'

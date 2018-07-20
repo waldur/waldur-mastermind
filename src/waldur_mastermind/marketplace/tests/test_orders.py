@@ -56,6 +56,7 @@ class OrderCreateTest(utils.PostgreSQLTest):
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Order.objects.filter(created_by=user).exists())
+        self.assertEqual(1, len(response.data['items']))
 
     @data('user')
     def test_user_can_not_create_order_with_not_relation_project(self, user):
@@ -63,24 +64,23 @@ class OrderCreateTest(utils.PostgreSQLTest):
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_unauthorized_user_can_not_create_order(self):
-        url = factories.OrderFactory.get_list_url()
-        payload = {
-            'project': structure_factories.ProjectFactory.get_url(self.project),
-            'items': [
-                factories.ItemFactory.get_url()
-            ]
-        }
-        response = self.client.post(url, payload)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    def test_user_can_not_create_item_if_offering_is_not_available(self):
+        offering = factories.OfferingFactory(is_active=False)
+        response = self.create_order(self.fixture.staff, offering)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def create_order(self, user):
+    def create_order(self, user, offering=None):
+        if offering is None:
+            offering = factories.OfferingFactory()
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
         payload = {
             'project': structure_factories.ProjectFactory.get_url(self.project),
             'items': [
-                factories.ItemFactory.get_url()
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'attributes': {}
+                },
             ]
         }
         return self.client.post(url, payload)

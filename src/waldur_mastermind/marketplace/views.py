@@ -123,18 +123,3 @@ class OrderViewSet(BaseMarketplaceView):
         order.save(update_fields=['state'])
         return Response({'detail': _('Order state updated.')},
                         status=status.HTTP_200_OK)
-
-
-class ItemViewSet(BaseMarketplaceView):
-    queryset = models.Item.objects.all()
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    serializer_class = serializers.ItemSerializer
-    filter_class = filters.ItemFilter
-
-    def check_permissions_for_items_change(request, view, item=None):
-        if not item:
-            return
-        if item.order.state != models.Order.States.DRAFT:
-            raise rf_exceptions.PermissionDenied()
-
-    destroy_permissions = [check_permissions_for_items_change]
