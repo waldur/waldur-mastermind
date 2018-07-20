@@ -16,13 +16,13 @@ class ScreenshotsGetTest(utils.PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.screenshot = factories.ScreenshotsFactory()
+        self.screenshot = factories.ScreenshotFactory()
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_screenshots_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.ScreenshotsFactory.get_list_url()
+        url = factories.ScreenshotFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
@@ -37,7 +37,7 @@ class ScreenshotsGetTest(utils.PostgreSQLTest):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         offering = self.screenshot.offering
-        url = factories.ScreenshotsFactory.get_list_url()
+        url = factories.ScreenshotFactory.get_list_url()
         response = self.client.get(url, {'offering_uuid': offering.uuid})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
@@ -69,7 +69,7 @@ class ScreenshotsCreateTest(utils.PostgreSQLTest):
     def create_screenshot(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.ScreenshotsFactory.get_list_url()
+        url = factories.ScreenshotFactory.get_list_url()
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer)
 
@@ -106,8 +106,8 @@ class ScreenshotsUpdateTest(utils.PostgreSQLTest):
         self.client.force_authenticate(user)
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer)
-        screenshot = factories.ScreenshotsFactory(offering=self.offering)
-        url = factories.ScreenshotsFactory.get_url(screenshot=screenshot)
+        screenshot = factories.ScreenshotFactory(offering=self.offering)
+        url = factories.ScreenshotFactory.get_url(screenshot=screenshot)
 
         response = self.client.patch(url, {
             'name': 'new_screenshot'
@@ -125,7 +125,7 @@ class ScreenshotsDeleteTest(utils.PostgreSQLTest):
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer)
-        self.screenshot = factories.ScreenshotsFactory(offering=self.offering)
+        self.screenshot = factories.ScreenshotFactory(offering=self.offering)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_screenshot(self, user):
@@ -142,6 +142,6 @@ class ScreenshotsDeleteTest(utils.PostgreSQLTest):
     def delete_screenshot(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.ScreenshotsFactory.get_url(self.screenshot)
+        url = factories.ScreenshotFactory.get_url(self.screenshot)
         response = self.client.delete(url)
         return response

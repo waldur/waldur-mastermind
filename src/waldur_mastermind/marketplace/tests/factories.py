@@ -77,7 +77,7 @@ class SectionFactory(factory.DjangoModelFactory):
     category = factory.SubFactory(CategoryFactory)
 
 
-class AttributesFactory(factory.DjangoModelFactory):
+class AttributeFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Attribute
 
@@ -88,7 +88,7 @@ class AttributesFactory(factory.DjangoModelFactory):
 
 
 @factory.django.mute_signals(signals.pre_save, signals.post_save)
-class ScreenshotsFactory(factory.DjangoModelFactory):
+class ScreenshotFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Screenshots
 
@@ -99,7 +99,7 @@ class ScreenshotsFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, screenshot=None, action=None):
         if screenshot is None:
-            screenshot = ScreenshotsFactory()
+            screenshot = ScreenshotFactory()
         url = 'http://testserver' + reverse('marketplace-screenshot-detail',
                                             kwargs={'uuid': screenshot.uuid})
         return url if action is None else url + action + '/'

@@ -70,7 +70,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
     def test_dont_create_offering_if_attributes_is_not_valid(self):
         self.category = factories.CategoryFactory()
         self.section = factories.SectionFactory(category=self.category)
-        self.attribute = factories.AttributesFactory(section=self.section, key='userSupportOptions')
+        self.attribute = factories.AttributeFactory(section=self.section, key='userSupportOptions')
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
 
         self.client.force_authenticate(self.fixture.staff)
@@ -206,7 +206,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.serializer = serializers.OfferingSerializer()
         self.category = factories.CategoryFactory()
         self.section = factories.SectionFactory(category=self.category)
-        self.attribute = factories.AttributesFactory(section=self.section, key='userSupportOptions')
+        self.attribute = factories.AttributeFactory(section=self.section, key='userSupportOptions')
 
     @data(['web_chat', 'phone'], )
     def test_list_attribute_is_valid(self, value):
