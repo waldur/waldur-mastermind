@@ -131,22 +131,9 @@ class OrderFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class ItemFactory(factory.DjangoModelFactory):
+class OrderItemFactory(factory.DjangoModelFactory):
     class Meta(object):
-        model = models.Item
+        model = models.OrderItem
 
     order = factory.SubFactory(OrderFactory)
     offering = factory.SubFactory(OfferingFactory)
-
-    @classmethod
-    def get_url(cls, item=None, action=None):
-        if item is None:
-            item = ItemFactory()
-        url = 'http://testserver' + reverse('marketplace-item-detail',
-                                            kwargs={'uuid': item.uuid})
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('marketplace-item-list')
-        return url if action is None else url + action + '/'

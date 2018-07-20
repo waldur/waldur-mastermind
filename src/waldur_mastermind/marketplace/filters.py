@@ -77,5 +77,5 @@ class ItemFilter(django_filters.FilterSet):
     order_uuid = django_filters.UUIDFilter(name='order__uuid')
 
     class Meta(object):
-        model = models.Item
+        model = models.OrderItem
         fields = []

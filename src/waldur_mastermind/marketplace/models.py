@@ -104,6 +104,7 @@ class Attribute(structure_models.TimeStampedModel):
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
+               quotas_models.QuotaModelMixin,
                structure_models.StructureModel,
                structure_models.TimeStampedModel):
     thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
@@ -127,6 +128,12 @@ class Offering(core_models.UuidMixin,
 
     class Meta(object):
         verbose_name = _('Offering')
+
+    class Quotas(quotas_models.QuotaModelMixin.Quotas):
+        order_item_count = quotas_fields.CounterQuotaField(
+            target_models=lambda: [OrderItem],
+            path_to_scope='offering',
+        )
 
     def __str__(self):
         return six.text_type(self.name)
@@ -213,13 +220,13 @@ class Order(core_models.UuidMixin,
         pass
 
 
-class Item(core_models.UuidMixin,
-           structure_models.TimeStampedModel):
+class OrderItem(core_models.UuidMixin,
+                structure_models.TimeStampedModel):
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
 
     class Meta(object):
-        verbose_name = _('Item')
+        verbose_name = _('Order item')
         ordering = ('created',)
