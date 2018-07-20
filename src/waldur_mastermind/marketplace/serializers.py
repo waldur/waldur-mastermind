@@ -34,10 +34,18 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
+class NesterAttributeOptionSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.AttributeOption
+        fields = ('key', 'title')
+
+
 class NestedAttributeSerializer(serializers.ModelSerializer):
+    options = NesterAttributeOptionSerializer(many=True)
+
     class Meta(object):
         model = models.Attribute
-        fields = ('key', 'title', 'type', 'available_values')
+        fields = ('key', 'title', 'type', 'options')
 
 
 class NestedSectionSerializer(serializers.ModelSerializer):
@@ -65,7 +73,7 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Category
-        fields = ('url', 'uuid', 'created', 'title', 'description', 'icon', 'offering_count', 'sections')
+        fields = ('url', 'uuid', 'title', 'description', 'icon', 'offering_count', 'sections')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
@@ -123,7 +131,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 klass = attribute_types.get_attribute_type(attribute.type)
                 if klass:
                     try:
-                        klass.validate(value, attribute.available_values)
+                        klass.validate(value, list(attribute.options.values_list('key', flat=True)))
                     except ValidationError as e:
                         err = rf_exceptions.ValidationError({'attributes': e.message})
                         raise err
@@ -133,7 +141,7 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Screenshots
-        fields = ('url', 'uuid', 'created', 'name', 'description', 'image', 'thumbnail', 'offering')
+        fields = ('url', 'uuid', 'name', 'description', 'image', 'thumbnail', 'offering')
         protected_fields = ('offering', 'image')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

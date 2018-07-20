@@ -206,9 +206,22 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.serializer = serializers.OfferingSerializer()
         self.category = factories.CategoryFactory()
         self.section = factories.SectionFactory(category=self.category)
-        self.attribute = factories.AttributeFactory(section=self.section, key='userSupportOptions')
+        self.attribute = factories.AttributeFactory(
+            section=self.section,
+            key='userSupportOptions',
+            type='list'
+        )
+        models.AttributeOption.objects.create(
+            attribute=self.attribute,
+            key='web_chat',
+            title='Web chat'),
+        models.AttributeOption.objects.create(
+            attribute=self.attribute,
+            key='phone',
+            title='Telephone'
+        )
 
-    @data(['web_chat', 'phone'], )
+    @data(['web_chat', 'phone'])
     def test_list_attribute_is_valid(self, value):
         self._valid('list', value)
 
@@ -216,7 +229,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def test_list_attribute_is_not_valid(self, value):
         self._not_valid('list', value)
 
-    @data('web_chat', )
+    @data('web_chat')
     def test_choice_attribute_is_valid(self, value):
         self._valid('choice', value)
 
@@ -224,7 +237,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def test_choice_attribute_is_not_valid(self, value):
         self._not_valid('choice', value)
 
-    @data('name', )
+    @data('name')
     def test_string_attribute_is_valid(self, value):
         self._valid('string', value)
 
@@ -232,17 +245,15 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def test_string_attribute_is_not_valid(self, value):
         self._not_valid('string', value)
 
-    @data(1, )
-    def test_integer_attribute_is_valid(self, value):
-        self._valid('integer', value)
+    def test_integer_attribute_is_valid(self):
+        self._valid('integer', 1)
 
     @data(['web_chat'], 'web_chat', False)
     def test_integer_attribute_is_not_valid(self, value):
         self._not_valid('integer', value)
 
-    @data(True, )
-    def test_boolean_attribute_is_valid(self, value):
-        self._valid('boolean', value)
+    def test_boolean_attribute_is_valid(self):
+        self._valid('boolean', True)
 
     @data(['web_chat'], 'web_chat', 1)
     def test_boolean_attribute_is_not_valid(self, value):

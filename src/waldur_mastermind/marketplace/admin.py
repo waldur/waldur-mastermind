@@ -1,34 +1,20 @@
 from __future__ import unicode_literals
 
-from django import forms
 from django.contrib import admin
-from jsoneditor.forms import JSONEditor
 
-from waldur_core.core.fields import JSONField
-
-from . import models, attribute_types
+from . import models
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
     list_display = ('uuid', 'customer', 'created')
 
 
-class AttributeForm(forms.ModelForm):
-    def clean_available_values(self):
-        value = self.cleaned_data['available_values']
-        attribute_type = self.cleaned_data['type']
-        klass = attribute_types.get_attribute_type(attribute_type)
-        klass.available_values_validate(JSONField().to_python(value))
-        return value
-
-    class Meta:
-        widgets = {
-            'available_values': JSONEditor(),
-        }
+class AttributeOptionInline(admin.TabularInline):
+    model = models.AttributeOption
 
 
 class AttributeAdmin(admin.ModelAdmin):
-    form = AttributeForm
+    inlines = [AttributeOptionInline]
 
 
 class ScreenshotsInline(admin.TabularInline):
@@ -36,9 +22,7 @@ class ScreenshotsInline(admin.TabularInline):
 
 
 class OfferingAdmin(admin.ModelAdmin):
-    inlines = [
-        ScreenshotsInline,
-    ]
+    inlines = [ScreenshotsInline]
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
