@@ -75,18 +75,25 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
     category_title = serializers.ReadOnlyField(source='category.title')
+    order_item_count = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
-                  'is_active', 'native_name', 'native_description', 'thumbnail')
+                  'is_active', 'native_name', 'native_description', 'thumbnail', 'order_item_count')
         protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             'category': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
+
+    def get_order_item_count(self, offering):
+        try:
+            return offering.quotas.get(name='order_item_count').usage
+        except ObjectDoesNotExist:
+            return 0
 
     def validate(self, attrs):
         if not self.instance:
@@ -145,7 +152,7 @@ class ItemSerializer(core_serializers.AugmentedSerializerMixin,
     offering_name = serializers.ReadOnlyField(source='offering.name')
 
     class Meta(object):
-        model = models.Item
+        model = models.OrderItem
         fields = ('offering', 'offering_name', 'attributes', 'cost')
         read_only_fields = ('cost',)
         protected_fields = ('offering',)
@@ -185,8 +192,8 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
         validated_data['created_by'] = user
         items = validated_data.pop('items')
         order = super(OrderSerializer, self).create(validated_data)
-        models.Item.objects.bulk_create([
-            models.Item(
+        models.OrderItem.objects.bulk_create([
+            models.OrderItem(
                 order=order,
                 offering=item['offering'],
                 attributes=item.get('attributes', {}),

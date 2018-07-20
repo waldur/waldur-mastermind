@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
                 ('cost', models.DecimalField(blank=True, decimal_places=10, max_digits=22, null=True)),
             ],
             options={
-                'verbose_name': 'Item',
+                'verbose_name': 'Order item',
             },
         ),
         migrations.CreateModel(
@@ -62,7 +62,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterModelOptions(
             name='item',
-            options={'ordering': ('created',), 'verbose_name': 'Item'},
+            options={'ordering': ('created',), 'verbose_name': 'Order item'},
         ),
         migrations.AlterModelOptions(
             name='order',
