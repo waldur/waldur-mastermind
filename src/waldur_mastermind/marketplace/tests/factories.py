@@ -83,8 +83,6 @@ class AttributeFactory(factory.DjangoModelFactory):
 
     key = factory.Sequence(lambda n: 'attribute-%s' % n)
     section = factory.SubFactory(SectionFactory)
-    type = 'list'
-    available_values = ["web_chat", "phone"]
 
 
 @factory.django.mute_signals(signals.pre_save, signals.post_save)

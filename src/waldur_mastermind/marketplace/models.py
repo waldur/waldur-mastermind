@@ -94,7 +94,19 @@ class Attribute(structure_models.TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
     section = models.ForeignKey(Section, related_name='attributes')
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
-    available_values = JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return six.text_type(self.title)
+
+
+@python_2_unicode_compatible
+class AttributeOption(models.Model):
+    attribute = models.ForeignKey(Attribute, related_name='options', on_delete=models.CASCADE)
+    key = models.CharField(max_length=255)
+    title = models.CharField(max_length=255)
+
+    class Meta(object):
+        unique_together = ('attribute', 'key')
 
     def __str__(self):
         return six.text_type(self.title)
