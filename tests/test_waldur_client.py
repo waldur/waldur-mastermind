@@ -112,16 +112,8 @@ class InstanceCreateTest(BaseWaldurClientTest):
         status_url = self._get_url('openstacktenant-instances')
         responses.add(responses.GET, status_url, json=[self.instance])
 
-        instance_url = '%s/openstacktenant-instances/%s/' % (self.api_url, self.instance['uuid'])
-        responses.add(responses.GET, instance_url, json=self.instance)
-
-        url = self._get_url('openstacktenant-flavors', {'ram__gte': 2000, 'cores__gte': 2, 'o': 'cores,ram,disk'})
-        responses.add(
-            method='GET',
-            url=url,
-            json=[self.flavor, self.flavor, self.flavor],
-            match_querystring=True
-        )
+        self.instance_url = '%s/openstacktenant-instances/%s/' % (self.api_url, self.instance['uuid'])
+        responses.add(responses.GET, self.instance_url, json=self.instance)
 
         url = self._get_url('openstacktenant-flavors', {'settings_uuid': u'settings_uuid', 'name_exact': 'flavor'})
         responses.add(
@@ -132,31 +124,70 @@ class InstanceCreateTest(BaseWaldurClientTest):
         )
 
     @responses.activate
-    def test_waldur_client_sends_request_with_passed_parameters(self):
-
-        instance = self.client.create_instance(**self.params)
-
-        self.assertTrue(instance['name'], self.params['name'])
-        self.assertEqual('token %s' % self.access_token,
-                         responses.calls[0].request.headers['Authorization'])
+    def test_valid_body_is_sent(self):
+        actual = self.create_instance()
+        self.assertEqual(actual, {
+            'data_volume_size': 5120,
+            'flavor': 'url_flavor',
+            'floating_ips': [{'subnet': 'url_subnet'}],
+            'image': 'url_image',
+            'internal_ips_set': [{'subnet': 'url_subnet'}],
+            'name': 'instance',
+            'security_groups': [{'url': 'url_security_groups'}],
+            'service_project_link': 'url_service_project_link',
+            'ssh_public_key': 'url_ssh_key',
+            'system_volume_size': 10240,
+            'user_data': 'user_data'
+        })
 
     @responses.activate
-    def test_waldur_client_sends_request_with_flavor_min_cpu_and_flavor_min_ram(self):
+    def test_flavors_are_filtered_by_ram_and_cpu(self):
+        url = self._get_url('openstacktenant-flavors', {
+            'ram__gte': 2000,
+            'cores__gte': 2,
+            'o': 'cores,ram,disk'
+        })
+        responses.add(
+            method='GET',
+            url=url,
+            json=[self.flavor, self.flavor, self.flavor],
+            match_querystring=True
+        )
+
         self.params.pop('flavor')
         self.params['flavor_min_cpu'] = 2
         self.params['flavor_min_ram'] = 2000
 
-        instance = self.client.create_instance(**self.params)
-
-        self.assertTrue(instance['name'], self.params['name'])
-        self.assertEqual('token %s' % self.access_token,
-                         responses.calls[0].request.headers['Authorization'])
+        actual = self.create_instance()
+        self.assertEqual(actual['flavor'], self.flavor['url'])
 
     @responses.activate
-    def test_waldur_client_raises_error_if_networks_do_no_have_a_subnet(self):
+    def test_if_networks_do_no_have_a_subnet_error_is_raised(self):
         del self.params['networks'][0]['subnet']
 
-        self.assertRaises(WaldurClientException, self.client.create_instance, **self.params)
+        self.assertRaises(WaldurClientException, self.create_instance)
+
+    @responses.activate
+    def test_wait_for_floating_ip(self):
+        self.create_instance()
+        self.assertEqual(2, len([call for call in responses.calls
+                                 if call.request.url == self.instance_url]))
+
+    @responses.activate
+    def test_skip_floating_ip(self):
+        del self.instance['external_ips']
+        del self.params['networks'][0]['floating_ip']
+
+        self.create_instance()
+        self.assertEqual(1, len([call for call in responses.calls
+                                 if call.request.url == self.instance_url]))
+
+    def create_instance(self):
+        self.client.create_instance(**self.params)
+        post_request = [call.request
+                        for call in responses.calls
+                        if call.request.method == 'POST'][0]
+        return json.loads(post_request.body.decode('utf-8'))
 
 
 class InstanceDeleteTest(BaseWaldurClientTest):
