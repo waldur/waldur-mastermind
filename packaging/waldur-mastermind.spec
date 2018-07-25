@@ -113,6 +113,7 @@ Obsoletes: waldur-freeipa
 Obsoletes: waldur-jira
 Obsoletes: waldur-openstack
 Obsoletes: waldur-paypal
+Obsoletes: waldur-rijkscloud
 Obsoletes: waldur-slurm
 Obsoletes: waldur-zabbix
 
