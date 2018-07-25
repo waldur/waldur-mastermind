@@ -99,6 +99,23 @@ Requires: PyYAML
 Requires: uwsgi-plugin-python
 Requires: xmlsec1-openssl
 
+Obsoletes: waldur-ansible
+Obsoletes: waldur-auth-openid
+Obsoletes: waldur-auth-saml2
+Obsoletes: waldur-auth-social
+Obsoletes: waldur-auth-valimo
+Obsoletes: waldur-aws
+Obsoletes: waldur-azure
+Obsoletes: waldur-core
+Obsoletes: waldur-cost-planning
+Obsoletes: waldur-digitalocean
+Obsoletes: waldur-freeipa
+Obsoletes: waldur-jira
+Obsoletes: waldur-openstack
+Obsoletes: waldur-paypal
+Obsoletes: waldur-slurm
+Obsoletes: waldur-zabbix
+
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 
