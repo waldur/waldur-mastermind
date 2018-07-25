@@ -3,18 +3,20 @@ from __future__ import unicode_literals
 import logging
 import uuid
 
+import requests
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
+from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
 from django.core.mail import send_mail
 from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.lru_cache import lru_cache
+from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
-import requests
 
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import timestamp_to_datetime
@@ -34,7 +36,6 @@ class UuidMixin(models.Model):
 
 
 class Alert(UuidMixin, TimeStampedModel):
-
     class Meta:
         unique_together = ("content_type", "object_id", "alert_type", "is_closed")
 
@@ -79,6 +80,7 @@ class AlertThresholdMixin(models.Model):
     """
     It is expected that model has scope field.
     """
+
     class Meta(object):
         abstract = True
 
@@ -108,11 +110,12 @@ class EventTypesMixin(models.Model):
     """
     Mixin to add a event_types and event_groups fields.
     """
+
     class Meta(object):
         abstract = True
 
-    event_types = JSONField('List of event types')
-    event_groups = JSONField('List of event groups', default=list)
+    event_types = BetterJSONField('List of event types')
+    event_groups = BetterJSONField('List of event groups', default=list)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -132,6 +135,8 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
 
     @property
     def all_event_types(self):
+        from waldur_core.logging import loggers
+
         self_types = set(self.event_types)
         try:
             hook_ct = ct_models.ContentType.objects.get_for_model(self)
@@ -139,7 +144,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
         except SystemNotification.DoesNotExist:
             return self_types
         else:
-            return self_types | set(base_types.event_types)
+            return self_types | set(loggers.expand_event_groups(base_types.event_groups)) | set(base_types.event_types)
 
     @classmethod
     def get_active_hooks(cls):
@@ -182,7 +187,6 @@ class WebHook(BaseHook):
 
 
 class PushHook(BaseHook):
-
     class Type:
         IOS = 1
         ANDROID = 2
@@ -259,4 +263,53 @@ class EmailHook(BaseHook):
 
 
 class SystemNotification(EventTypesMixin, models.Model):
-    hook_content_type = models.OneToOneField(ct_models.ContentType, related_name='+')
+    # Model doesn't inherit NameMixin, because this is circular dependence.
+    name = models.CharField(_('name'), max_length=150)
+    hook_content_type = models.ForeignKey(ct_models.ContentType, related_name='+')
+    roles = JSONField('List of roles', default=list)
+
+    @staticmethod
+    def get_valid_roles():
+        return 'admin', 'manager', 'owner'
+
+    @classmethod
+    def get_hooks(cls, event_type, project=None, customer=None):
+        from waldur_core.structure import models as structure_models
+        from waldur_core.logging import loggers
+
+        groups = [g[0] for g in loggers.event_logger.get_all_groups().items() if event_type in g[1]]
+
+        for hook in cls.objects.filter(models.Q(event_types__contains=event_type) |
+                                       models.Q(event_groups__has_any_keys=groups)):
+            hook_class = hook.hook_content_type.model_class()
+            users_qs = []
+
+            if project:
+                if 'admin' in hook.roles:
+                    users_qs.append(project.get_users(structure_models.ProjectRole.ADMINISTRATOR))
+                if 'manager' in hook.roles:
+                    users_qs.append(project.get_users(structure_models.ProjectRole.MANAGER))
+                if 'owner' in hook.roles:
+                    users_qs.append(project.customer.get_owners())
+
+            if customer:
+                if 'owner' in hook.roles:
+                    users_qs.append(customer.get_owners())
+
+            if len(users_qs) > 1:
+                users = users_qs[0].union(*users_qs[1:]).distinct()
+            elif len(users_qs) == 1:
+                users = users_qs[0]
+            else:
+                users = []
+
+            for user in users:
+                if user.email:
+                    yield hook_class(
+                        user=user,
+                        event_types=hook.event_types,
+                        email=user.email
+                    )
+
+    def __str__(self):
+        return '%s | %s' % (self.hook_content_type, self.name)

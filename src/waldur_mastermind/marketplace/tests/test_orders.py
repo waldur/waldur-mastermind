@@ -4,14 +4,15 @@ from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status
 
+from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import fixtures, factories as structure_factories
 
-from . import factories, utils
+from . import factories
 from .. import models, base
 
 
 @ddt
-class OrderGetTest(utils.PostgreSQLTest):
+class OrderGetTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -44,7 +45,7 @@ class OrderGetTest(utils.PostgreSQLTest):
 
 
 @ddt
-class OrderCreateTest(utils.PostgreSQLTest):
+class OrderCreateTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -87,7 +88,7 @@ class OrderCreateTest(utils.PostgreSQLTest):
 
 
 @ddt
-class OrderUpdateTest(utils.PostgreSQLTest):
+class OrderUpdateTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -173,7 +174,7 @@ class OrderUpdateTest(utils.PostgreSQLTest):
 
 
 @ddt
-class OrderDeleteTest(utils.PostgreSQLTest):
+class OrderDeleteTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

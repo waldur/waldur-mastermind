@@ -21,19 +21,24 @@ class JSONMultipleChoiceField(forms.MultipleChoiceField):
 
 class BaseHookForm(forms.ModelForm):
     event_types = JSONMultipleChoiceField(
-        choices=[(e, e) for e in get_valid_events()],
+        choices=lambda: [(e, e) for e in get_valid_events()],
         widget=forms.SelectMultiple(attrs={'size': '30'}),
         required=False,
     )
 
     event_groups = JSONMultipleChoiceField(
-        choices=[(g, g) for g in get_event_groups()],
+        choices=lambda: [(g, g) for g in get_event_groups()],
         widget=forms.SelectMultiple(attrs={'size': '30'}),
         required=False,
     )
 
 
 class SystemNotificationForm(BaseHookForm):
+    roles = JSONMultipleChoiceField(
+        choices=[(g, g) for g in models.SystemNotification.get_valid_roles()],
+        widget=forms.SelectMultiple(attrs={'size': '30'}),
+        required=True,
+    )
 
     class Meta:
         model = models.SystemNotification
@@ -53,7 +58,7 @@ class AlertAdminForm(ModelForm):
 
 class SystemNotificationAdmin(admin.ModelAdmin):
     form = SystemNotificationForm
-    list_display = 'hook_content_type',
+    list_display = ('name', 'hook_content_type', 'roles')
 
 
 class AlertAdmin(admin.ModelAdmin):

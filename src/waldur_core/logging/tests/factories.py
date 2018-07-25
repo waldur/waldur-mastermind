@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.urls import reverse
+from django.contrib.contenttypes import models as ct_models
 import factory
 
 from waldur_core.logging import models
@@ -114,3 +115,14 @@ class PushHookFactory(factory.DjangoModelFactory):
         if hook is None:
             hook = PushHookFactory()
         return 'http://testserver' + reverse('pushhook-detail', kwargs={'uuid': hook.uuid})
+
+
+class SystemNotificationFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.SystemNotification
+
+    event_types = get_valid_events()[:3]
+    roles = ['admin']
+    hook_content_type = factory.LazyAttribute(
+        lambda o: ct_models.ContentType.objects.get_by_natural_key('logging', 'emailhook')
+    )

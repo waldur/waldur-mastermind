@@ -5,7 +5,8 @@ from django.conf import settings
 from django.utils import timezone
 
 from waldur_core.logging.loggers import alert_logger, event_logger
-from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin
+from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification
+from waldur_core.structure import models as structure_models
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,20 @@ logger = logging.getLogger(__name__)
 @shared_task(name='waldur_core.logging.process_event')
 def process_event(event):
     for hook in BaseHook.get_active_hooks():
+        if check_event(event, hook):
+            hook.process(event)
+
+    try:
+        project_uuid = event['context'].get('project_uuid')
+        project = project_uuid and structure_models.Project.objects.get(uuid=project_uuid)
+        customer_uuid = event['context'].get('customer_uuid')
+        customer = customer_uuid and structure_models.Customer.objects.get(uuid=customer_uuid)
+    except structure_models.Project.DoesNotExist:
+        raise StopIteration()
+    except structure_models.Customer.DoesNotExist:
+        raise StopIteration()
+
+    for hook in SystemNotification.get_hooks(event['type'], project=project, customer=customer):
         if check_event(event, hook):
             hook.process(event)
 

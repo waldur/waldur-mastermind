@@ -6,16 +6,17 @@ from ddt import data, ddt
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
+from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
 
-from . import factories, utils
+from . import factories
 from .. import serializers
 
 
 @ddt
-class OfferingGetTest(utils.PostgreSQLTest):
+class OfferingGetTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -37,7 +38,7 @@ class OfferingGetTest(utils.PostgreSQLTest):
 
 
 @ddt
-class OfferingCreateTest(utils.PostgreSQLTest):
+class OfferingCreateTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -137,7 +138,7 @@ class OfferingCreateTest(utils.PostgreSQLTest):
 
 
 @ddt
-class OfferingUpdateTest(utils.PostgreSQLTest):
+class OfferingUpdateTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -171,7 +172,7 @@ class OfferingUpdateTest(utils.PostgreSQLTest):
 
 
 @ddt
-class OfferingDeleteTest(utils.PostgreSQLTest):
+class OfferingDeleteTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -277,7 +278,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
                           attributes, self.category)
 
 
-class OfferingQuotaTest(utils.PostgreSQLTest):
+class OfferingQuotaTest(PostgreSQLTest):
     def get_usage(self, category):
         return category.quotas.get(name='offering_count').usage
 
@@ -291,7 +292,7 @@ class OfferingQuotaTest(utils.PostgreSQLTest):
         self.assertEqual(3, self.get_usage(category))
 
 
-class OfferingFilterTest(utils.PostgreSQLTest):
+class OfferingFilterTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

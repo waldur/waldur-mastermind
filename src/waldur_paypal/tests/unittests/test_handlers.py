@@ -4,11 +4,9 @@ import mock
 from django.test import TestCase
 from django.utils import timezone
 
-from waldur_core.logging import models as logging_models
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_paypal import handlers, models
 
-from .. import fixtures, utils
+from .. import fixtures
 
 
 class CreateInvoiceTest(TestCase):
@@ -95,19 +93,3 @@ class CreateInvoiceTest(TestCase):
             self.assertEqual(created_item.tax, original_item.tax)
             self.assertEqual(created_item.unit_of_measure, models.InvoiceItem.UnitsOfMeasure.AMOUNT)
             self.assertEqual(created_item.quantity, original_item.usage_days)
-
-
-class CreateHookTest(TestCase):
-    def test_if_extension_is_disabled_email_hook_is_not_created(self):
-        user = structure_factories.UserFactory()
-        self.assertFalse(logging_models.EmailHook.objects.filter(user=user).exists())
-
-    @utils.override_paypal_settings(ENABLED=True)
-    def test_if_extension_is_enabled_email_hook_is_created(self):
-        user = structure_factories.UserFactory()
-        self.assertTrue(logging_models.EmailHook.objects.filter(user=user).exists())
-
-    @utils.override_paypal_settings(ENABLED=True)
-    def test_if_user_does_not_have_email_hook_is_not_created(self):
-        user = structure_factories.UserFactory(email='')
-        self.assertFalse(logging_models.EmailHook.objects.filter(user=user).exists())
