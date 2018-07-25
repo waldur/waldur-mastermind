@@ -1,0 +1,93 @@
+{% load humanize %}
+<html>
+    <head>
+        <style type="text/css">
+            body {
+                font-size: 14px;
+            }
+
+            table {
+                padding: 4px;
+            }
+
+            @page {
+                size: a4 portrait;
+                @frame content_frame {
+                    left: 50pt;
+                    width: 512pt;
+                    top: 40pt;
+                    height: 632pt;
+                }
+
+                @frame footer_frame {
+                    -pdf-frame-content: footer_content;
+                    left: 50pt;
+                    width: 512pt;
+                    top: 772pt;
+                    height: 120pt;
+                }
+            }
+            #footer_content {
+                font-size: 12px;
+            }
+            #pagination {
+                text-align: right;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="footer_content"> <hr>
+            <div id="pagination">
+                page <pdf:pagenumber/>
+                of <pdf:pagecount/>
+            </div>
+        </div>
+
+        <h1>Deployment plan "{{ plan.name }}"</h1>
+
+        <p>
+            <b>Customer</b>: {{ plan.customer }}
+            <br/>
+            <b>Provider</b>: {{ plan.provider }}
+        </p>
+
+        <hr/>
+
+        <table>
+            <thead>
+                <tr>
+                    <td><b>Application</b></td>
+                    <td align="center"><b>Quantity</b></td>
+                    <td align="center"><b>Price</b></td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in plan.items %}
+                <tr>
+                    <td>
+                        {{ forloop.counter }})
+                        <b>{{ item.title }}</b>
+                        <br/>
+                        {{ item.description }}
+                    </td>
+                    <td width="80" align="center">{{ item.quantity }}</td>
+                    <td width="200" align="center">{{ item.price | floatformat:2 | intcomma }} {{ plan.currency }} / month</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="3">
+                        <hr/>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        <b>Total</b>:
+                    </td>
+                    <td align="center">
+                        {{ plan.total | floatformat:2 | intcomma }} {{ plan.currency }} / month
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </body>
+</html>

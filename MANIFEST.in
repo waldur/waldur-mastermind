@@ -1,5 +1,2 @@
 include *.md *.rst
-recursive-include src/waldur_mastermind/experts/templates *.html *.txt *.css
-recursive-include src/waldur_mastermind/invoices/templates *.html *.txt
-recursive-include src/waldur_mastermind/packages/templates *.html *.txt
-recursive-include src/waldur_mastermind/support/templates *.html *.txt
+recursive-include src *.html *.txt *.css

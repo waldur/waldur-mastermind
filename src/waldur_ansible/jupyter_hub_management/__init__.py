@@ -1,0 +1,1 @@
+default_app_config = 'waldur_ansible.jupyter_hub_management.apps.JupyterHubManagementConfig'

@@ -1,0 +1,75 @@
+@import url("https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,700,300italic,400italic,700italic");
+/*! normalize.css v3.0.2 | MIT License | git.io/normalize */
+/**
+ * 1. Set default font family to sans-serif.
+ * 2. Prevent iOS text size adjust after orientation change, without disabling
+ *    user zoom.
+ */
+html {
+  font-family: sans-serif;
+  /* 1 */
+  -ms-text-size-adjust: 100%;
+  /* 2 */
+  -webkit-text-size-adjust: 100%;
+  /* 2 */
+}
+
+body {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  background: #f7f7f7;
+  font-family: 'Source Sans Pro', sans-serif;
+  color: #303030;
+}
+
+a {
+  color: #2980b9;
+  text-decoration: none;
+}
+
+body {
+  background: url(../images/cmd.png);
+}
+
+h1.title {
+  font-size: 40pt;
+  color: #595959;
+  text-align: center;
+}
+
+.list-unstyled {
+  padding-left: 0;
+  list-style: none;
+}
+
+.waldur-link {
+  display: inline-block;
+  font-weight: 400;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  border: 1px solid transparent;
+  border-color: #007bff;
+  border-radius: .3rem;
+  padding: .5rem .75rem;
+  line-height: 1.25;
+  transition: all .15s ease-in-out;
+  color: #007bff;
+  background-color: white;
+  padding: .5rem 1rem;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  margin: 15px;
+  min-width: 200px;
+}
+
+.well {
+  background-color: rgba(0, 128, 21, 0.17);
+  border: 1px solid #e3e3e3;
+  width: 270px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 10px;
+}

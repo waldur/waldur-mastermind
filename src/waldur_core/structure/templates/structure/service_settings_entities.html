@@ -1,0 +1,13 @@
+<br>
+{% for project in projects %}
+    <ul>
+        <li><a href="{{ project.url }}">{{ project.name }}</a></li>
+        <ul>
+            {% for service in project.services %}
+            <li><a href="{{ service.url }}">{{ service.name }}</a></li>
+            {% endfor %}
+        </ul>
+    </ul>
+{% empty %}
+    <p>There's no any project connected to this service settings</p>
+{% endfor %}

@@ -1,0 +1,43 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-04-21 13:14+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: views.py:69
+msgid "This endpoint is for anonymous users only."
+msgstr ""
+
+#: views.py:83
+msgid "Identity provider does not support available bindings."
+msgstr ""
+
+#: views.py:134
+msgid "SAML2 response has errors."
+msgstr ""
+
+#: views.py:145
+msgid "SAML2 authentication failed."
+msgstr ""
+
+#: views.py:180
+msgid "You cannot be logged out."
+msgstr ""
+
+#: views.py:185
+msgid "You are not logged in any IdP/AA."
+msgstr ""

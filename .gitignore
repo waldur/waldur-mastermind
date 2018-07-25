@@ -6,6 +6,8 @@
 *.pyc
 *.mo
 db.sqlite3
+*.rpm
+src/waldur_core/server/settings.py
 
 /.idea
 /.project

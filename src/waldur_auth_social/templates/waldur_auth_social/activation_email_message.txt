@@ -1,0 +1,7 @@
+You're receiving this email because you created an account on Waldur.
+
+Please go to the following page to activate account: {{ activation_url }}
+
+Thanks for using our site!
+
+The Waldur team.

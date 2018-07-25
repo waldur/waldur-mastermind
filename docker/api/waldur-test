@@ -15,7 +15,7 @@ rsync \
 
 echo '[+] Installing Python package under test'
 cd /tmp/mnt
-pip --cache-dir=/root/.cache/pip/ install --editable .
+pip --cache-dir=/root/.cache/pip/ install --editable .[test]
 
 echo '[+] Copying pip cache from guest to host'
 rsync \
@@ -32,7 +32,7 @@ echo '[+] Running Python linter'
 flake8 --ignore E501 --exclude=*migrations* src/
 
 echo '[+] Running security tests'
-bandit --ini .bandit -x waldur-core,tests -r src/
+bandit --ini .bandit -x tests -r src/
 
 echo '[+] Generating Django configuration for application'
 cat > /tmp/mnt/src/waldur_mastermind/test_settings.py << EOF
@@ -66,10 +66,10 @@ pytest \
     --nomigrations \
     --reuse-db \
     --ds=waldur_mastermind.test_settings \
-    --pyargs waldur_mastermind waldur_core.core \
     --junitxml=/mnt/test_report.xml \
     --cov=src \
-    --cov-report xml:/mnt/coverage.xml
+    --cov-report xml:/mnt/coverage.xml \
+    src
 
 if [ -f /mnt/test_report.xml ]; then
     echo '[+] Updating permissions for test report'

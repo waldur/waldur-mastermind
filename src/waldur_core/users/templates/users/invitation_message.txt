@@ -1,0 +1,5 @@
+Hello!
+
+{{ sender }} has invited you to join {{ name }} {{ type }} in {{ role|lower }} role.
+Please visit the link below to sign up and accept your invitation:
+{{ link }}
