@@ -183,10 +183,16 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     class Meta(object):
         model = models.Order
-        fields = ('url', 'uuid', 'created', 'created_by', 'approved_by', 'approved_at',
+        fields = ('url', 'uuid',
+                  'created', 'created_by', 'created_by_username', 'created_by_full_name',
+                  'approved_by', 'approved_at', 'approved_by_username', 'approved_by_full_name',
                   'project', 'state', 'items', 'total_cost',)
         read_only_fields = ('created_by', 'approved_by', 'approved_at', 'state', 'total_cost')
         protected_fields = ('project', 'items')
+        related_paths = {
+            'created_by': ('username', 'full_name'),
+            'approved_by': ('username', 'full_name'),
+        }
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'created_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
