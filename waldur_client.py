@@ -484,7 +484,8 @@ class WaldurClient(object):
 
         if wait:
             self._wait_for_resource(self.Endpoints.Instance, instance['uuid'], interval, timeout)
-            self._wait_for_external_ip(instance['uuid'], interval, timeout)
+            if floating_ips:
+                self._wait_for_external_ip(instance['uuid'], interval, timeout)
 
         return instance
 
