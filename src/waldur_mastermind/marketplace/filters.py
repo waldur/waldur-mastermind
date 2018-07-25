@@ -42,12 +42,7 @@ class ScreenshotFilter(django_filters.FilterSet):
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
 
-    o = django_filters.OrderingFilter(fields=(
-        ('name', 'name'),
-        ('description', 'description'),
-        ('created', 'created'),
-        ('modified', 'modified'),
-    ))
+    o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     class Meta(object):
         model = models.Screenshots
@@ -58,11 +53,7 @@ class OrderFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
 
-    o = django_filters.OrderingFilter(fields=(
-        ('created_by', 'created_by'),
-        ('approved_at', 'approved_at'),
-        ('total_cost', 'total_cost'),
-    ))
+    o = django_filters.OrderingFilter(fields=('created', 'approved_at', 'total_cost', 'state'))
 
     class Meta(object):
         model = models.Order
