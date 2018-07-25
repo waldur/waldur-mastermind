@@ -118,7 +118,6 @@ pycodestyle==2.3.1
 pycountry==1.20
 pycparser==2.18
 pycryptodomex==3.6.1
-pycurl==7.19.0
 pyflakes==1.6.0
 pygobject==3.22.0
 pygpgme==0.3
