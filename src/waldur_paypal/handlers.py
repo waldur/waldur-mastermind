@@ -1,9 +1,5 @@
 import logging
 
-from django.conf import settings
-from django.db import transaction
-from waldur_core.logging import models as logging_models
-
 from .log import event_logger
 from . import models, helpers
 
@@ -35,27 +31,6 @@ def log_invoice_delete(sender, instance, **kwargs):
         event_context={
             'invoice': instance,
         })
-
-
-def add_email_hooks_to_user(sender, instance, created, **kwargs):
-    if not settings.WALDUR_PAYPAL['ENABLED']:
-        return
-
-    if not created or not instance.tracker.has_changed('email') or not instance.email:
-        return
-
-    event_types = ['invoice_creation_succeeded', 'payment_creation_succeeded',
-                   'payment_approval_succeeded', 'payment_cancel_succeeded']
-    user = instance
-
-    with transaction.atomic():
-        logging_models.EmailHook.objects.update_or_create(
-            user=user,
-            defaults={
-                'event_types': event_types,
-                'email': user.email
-            }
-        )
 
 
 def create_invoice(sender, invoice, issuer_details, **kwargs):

@@ -6,13 +6,14 @@ from rest_framework import status
 
 from waldur_core.structure.images import dummy_image
 from waldur_core.structure.tests import fixtures
+from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_mastermind.marketplace import models
 
-from . import factories, utils
+from . import factories
 
 
 @ddt
-class ScreenshotsGetTest(utils.PostgreSQLTest):
+class ScreenshotsGetTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -44,7 +45,7 @@ class ScreenshotsGetTest(utils.PostgreSQLTest):
 
 
 @ddt
-class ScreenshotsCreateTest(utils.PostgreSQLTest):
+class ScreenshotsCreateTest(PostgreSQLTest):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -83,7 +84,7 @@ class ScreenshotsCreateTest(utils.PostgreSQLTest):
 
 
 @ddt
-class ScreenshotsUpdateTest(utils.PostgreSQLTest):
+class ScreenshotsUpdateTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -118,7 +119,7 @@ class ScreenshotsUpdateTest(utils.PostgreSQLTest):
 
 
 @ddt
-class ScreenshotsDeleteTest(utils.PostgreSQLTest):
+class ScreenshotsDeleteTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

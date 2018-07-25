@@ -1,13 +1,21 @@
-from ddt import ddt, data
-from django.urls import reverse
-from rest_framework import status, test
+import time
 
+import six
+from ddt import ddt, data
+from django.core import mail
+from django.urls import reverse
+from rest_framework import status
+
+from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.logging import loggers
 from waldur_core.logging.tests.factories import WebHookFactory, PushHookFactory
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import factories as structure_factories, fixtures as structure_fixtures
+
+from . import factories
+from .. import models, tasks
 
 
-class BaseHookApiTest(test.APITransactionTestCase):
+class BaseHookApiTest(PostgreSQLTest):
     def setUp(self):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.author = structure_factories.UserFactory()
@@ -153,3 +161,57 @@ class HookFilterViewTest(BaseHookApiTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(self.author.uuid, response.data[0]['author_uuid'])
+
+
+class SystemNotificationTest(PostgreSQLTest):
+    def setUp(self):
+        self.system_notification = factories.SystemNotificationFactory()
+        self.event_types = self.system_notification.event_types
+        self.project_fixture = structure_fixtures.ProjectFixture()
+        self.project = self.project_fixture.project
+        self.admin = self.project_fixture.admin
+        self.manager = self.project_fixture.manager
+        self.event = {
+            'type': self.event_types[0],
+            'context': {'project_uuid': six.text_type(self.project.uuid)},
+            'timestamp': time.time(),
+            'message': 'test message'
+        }
+
+    def test_send_notification_if_user_is_not_subscribed_but_event_type_is_system_type(self):
+        self.assertFalse(models.EmailHook.objects.count())
+        tasks.process_event(self.event)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(self.admin.email in mail.outbox[0].to)
+
+    def test_not_send_notification_if_event_type_is_not_system_type(self):
+        self.assertFalse(models.EmailHook.objects.count())
+        self.event['type'] = 'test_event_type'
+        tasks.process_event(self.event)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_not_send_notification_if_wrong_project(self):
+        self.assertFalse(models.EmailHook.objects.count())
+        self.event['context'] = {}
+        tasks.process_event(self.event)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_not_send_notification_if_wrong_role(self):
+        self.assertFalse(models.EmailHook.objects.count())
+        self.system_notification.roles = ['manager']
+        self.system_notification.save()
+        tasks.process_event(self.event)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertFalse(self.admin.email in mail.outbox[0].to)
+
+    def test_event_groups(self):
+        groups = loggers.get_event_groups()
+        group = groups.keys()[0]
+        self.system_notification.event_groups = [group]
+        self.system_notification.event_types = []
+        self.system_notification.save()
+        event_type = list(groups[group])[0]
+        self.event['type'] = event_type
+        tasks.process_event(self.event)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(self.admin.email in mail.outbox[0].to)
