@@ -1,0 +1,10 @@
+/var/log/waldur/*.log {
+    compress
+    copytruncate
+    daily
+    delaycompress
+    missingok
+    notifempty
+    rotate 91
+    su waldur waldur
+}

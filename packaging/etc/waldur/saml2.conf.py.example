@@ -1,0 +1,154 @@
+import datetime
+import saml2
+
+# wiki: https://opennode.atlassian.net/wiki/display/WD/Identity+providers
+WALDUR_AUTH_SAML2.update({
+    # used for assigning the registration method to the user
+    'name': 'saml2',
+    # full path to the xmlsec1 binary program
+    'xmlsec_binary': '/usr/bin/xmlsec1',
+    # required for assertion consumer, single logout services and entity ID
+    'base_url': '',
+    # directory with attribute mapping
+    'attribute_map_dir': '/etc/waldur/saml2/attribute-maps',
+    # set to True to output debugging information
+    'debug': False,
+    # IdPs metadata XML files stored locally
+    'idp_metadata_local': [],
+    # IdPs metadata XML files stored remotely
+    'idp_metadata_remote': [],
+    # logging
+    # empty to disable logging SAML2-related stuff to file
+    'log_file': '',
+    'log_level': 'INFO',
+    # Indicates if the entity will sign the logout requests
+    'logout_requests_signed': 'true',
+    # Indicates if the authentication requests sent should be signed by default
+    'authn_requests_signed': 'true',
+    # PEM formatted certificate chain file
+    'cert_file': '/etc/waldur/saml2/sp.crt',
+    # PEM formatted certificate key file
+    'key_file': '/etc/waldur/saml2/sp.pem',
+    # SAML attributes that are required to identify a user
+    'required_attributes': [],
+    # SAML attributes that may be useful to have but not required
+    'optional_attributes': [],
+    # mapping between SAML attributes and User fields
+    'saml_attribute_mapping': {},
+    # organization responsible for the service
+    # you can set multilanguage information here
+    'organization': {
+        'name': [('OpenNode OU', 'et'), ('OpenNode LLC', 'en')],
+        'display_name': [('OpenNode', 'et'), ('OpenNode', 'en')],
+        'url': [('https://opennodecloud.com/', 'et'), ('https://opennodecloud.com/', 'en')],
+    },
+
+    # attributes required by CoC
+    # https://wiki.refeds.org/display/CODE/SAML+2+Profile+for+the+Data+Protection+Code+of+Conduct
+    'privacy_statement_url': 'http://example.com/#/privacy-policy/',
+    'display_name': 'Service provider display name',
+    'description': 'Service provider description',
+
+    # mdpi attributes
+    'registration_policy': 'http://example.com/#/registration-policy/',
+    'registration_authority': 'http://example.com/#/registration-authority/',
+    'registration_instant': datetime.datetime(2017, 1, 1).isoformat(),
+})
+
+SAML_ATTRIBUTE_MAPPING = WALDUR_AUTH_SAML2['saml_attribute_mapping']
+
+SAML_CONFIG.update({
+    'xmlsec_binary': WALDUR_AUTH_SAML2['xmlsec_binary'],
+    'entityid': WALDUR_AUTH_SAML2['base_url'] + '/api-auth/saml2/metadata/',
+    'attribute_map_dir': WALDUR_AUTH_SAML2['attribute_map_dir'],
+    'service': {
+        'sp': {
+            'logout_requests_signed': WALDUR_AUTH_SAML2['logout_requests_signed'],
+            'authn_requests_signed': WALDUR_AUTH_SAML2['authn_requests_signed'],
+            'endpoints': {
+                'assertion_consumer_service': [
+                    (WALDUR_AUTH_SAML2['base_url'] + '/api-auth/saml2/login/complete/',
+                     saml2.BINDING_HTTP_POST),
+                ],
+                'single_logout_service': [
+                    (WALDUR_AUTH_SAML2['base_url'] + '/api-auth/saml2/logout/complete/',
+                     saml2.BINDING_HTTP_REDIRECT),
+                    (WALDUR_AUTH_SAML2['base_url'] + '/api-auth/saml2/logout/complete/',
+                     saml2.BINDING_HTTP_POST),
+                ],
+            },
+            'required_attributes': WALDUR_AUTH_SAML2['required_attributes'],
+            'optional_attributes': WALDUR_AUTH_SAML2['optional_attributes'],
+        },
+    },
+    'metadata': [
+        {
+            'class': 'WALDUR_AUTH_SAML2.utils.DatabaseMetadataLoader',
+            'metadata': [('WALDUR_AUTH_SAML2.utils.DatabaseMetadataLoader',)],
+        },
+    ],
+    'organization': WALDUR_AUTH_SAML2['organization'],
+    'debug': int(WALDUR_AUTH_SAML2['debug']),
+    'key_file': WALDUR_AUTH_SAML2['key_file'],
+    'cert_file': WALDUR_AUTH_SAML2['cert_file'],
+    'extensions': {
+        'mdui': {
+            'UIInfo': {
+                'display_name': {
+                    'lang': 'en',
+                    'text': WALDUR_AUTH_SAML2['display_name'],
+                },
+                'description': {
+                    'lang': 'en',
+                    'text': WALDUR_AUTH_SAML2['description'],
+                },
+                'privacy_statement_url': {
+                    'lang': 'en',
+                    'text': WALDUR_AUTH_SAML2['privacy_statement_url'],
+                },
+            },
+        },
+        'mdrpi': {
+            'RegistrationInfo': {
+                'registration_policy': {
+                    'lang': 'en',
+                    'text': WALDUR_AUTH_SAML2['registration_policy'],
+                },
+                'registrationAuthority': WALDUR_AUTH_SAML2['registration_authority'],
+                'registrationInstant': WALDUR_AUTH_SAML2['registration_instant'],
+            },
+        },
+    },
+})
+
+if WALDUR_AUTH_SAML2['log_file'] != '':
+    level = WALDUR_AUTH_SAML2['log_level'].upper()
+    LOGGING['handlers']['file-saml2'] = {
+        'class': 'logging.handlers.WatchedFileHandler',
+        'filename': WALDUR_AUTH_SAML2['log_file'],
+        'formatter': 'simple',
+        'level': level,
+    }
+
+    LOGGING['loggers']['djangosaml2'] = {
+        'handlers': ['file-saml2'],
+        'propagate': True,
+        'level': level,
+    }
+
+    LOGGING['loggers']['saml2'] = {
+        'handlers': ['file-saml2'],
+        'propagate': True,
+        'level': level,
+    }
+
+SAML_CONFIG['encryption_keypairs'] = [{
+    'key_file': WALDUR_AUTH_SAML2['key_file'],
+    'cert_file': WALDUR_AUTH_SAML2['cert_file'],
+}]
+
+for remote in WALDUR_AUTH_SAML2['idp_metadata_remote']:
+    SAML_CONFIG['metadata'].append({
+        'class': 'saml2.mdstore.MetaDataExtern',
+        'metadata': [(remote['url'], remote['cert'])]
+    })

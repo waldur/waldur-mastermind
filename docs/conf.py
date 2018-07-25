@@ -269,4 +269,4 @@ from django.core.wsgi import get_wsgi_application
 get_wsgi_application()
 
 from waldur_core.core.management.commands.drfdocs import Command
-Command().handle('waldur_mastermind', path='docs/drfapi')
+Command().handle()

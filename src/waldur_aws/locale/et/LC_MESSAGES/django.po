@@ -1,0 +1,155 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-05-03 05:40+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/waldur_aws/models.py:21
+msgid "AWS provider"
+msgstr ""
+
+#: src/waldur_aws/models.py:22
+msgid "AWS providers"
+msgstr ""
+
+#: src/waldur_aws/models.py:44
+msgid "AWS provider project link"
+msgstr ""
+
+#: src/waldur_aws/models.py:45
+msgid "AWS provider project links"
+msgstr ""
+
+#: src/waldur_aws/models.py:85
+msgid "Number of cores in a VM"
+msgstr ""
+
+#: src/waldur_aws/models.py:86
+msgid "Memory size in MiB"
+msgstr ""
+
+#: src/waldur_aws/models.py:87
+msgid "Disk size in MiB"
+msgstr ""
+
+#: src/waldur_aws/models.py:88
+msgid "Hourly price rate"
+msgstr ""
+
+#: src/waldur_aws/models.py:104
+msgid "List of public IP addresses"
+msgstr ""
+
+#: src/waldur_aws/models.py:105
+msgid "List of private IP addresses"
+msgstr ""
+
+#: src/waldur_aws/models.py:156
+msgid "General Purpose SSD"
+msgstr ""
+
+#: src/waldur_aws/models.py:157
+msgid "Provisioned IOPS SSD"
+msgstr ""
+
+#: src/waldur_aws/models.py:158
+msgid "Magnetic volumes"
+msgstr ""
+
+#: src/waldur_aws/models.py:160
+msgid "Size of volume in gigabytes"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:37
+msgid "Regular expression to limit images list"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:142
+#, python-format
+msgid "Image is missing in region %s"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:145
+#, python-format
+msgid "Size is missing in region %s"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:189
+#, python-format
+msgid "Can't find instance with ID %s"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:228
+msgid "New size is not within the same region."
+msgstr ""
+
+#: src/waldur_aws/serializers.py:231
+msgid "New size is the same as current."
+msgstr ""
+
+#: src/waldur_aws/serializers.py:234
+msgid "New disk size should be greater than the previous value"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:240
+#: src/waldur_aws/serializers.py:371
+msgid "Instance runtime state must be in one of offline states."
+msgstr ""
+
+#: src/waldur_aws/serializers.py:309
+#, python-format
+msgid "Can't find volume with ID %s"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:317
+#, python-format
+msgid "You must import instance with ID %s first"
+msgstr ""
+
+#: src/waldur_aws/serializers.py:343
+msgid ""
+"The device name for attachment. For example, use /dev/sd[f-p] for Linux "
+"instances."
+msgstr ""
+
+#: src/waldur_aws/serializers.py:362
+msgid "Volume is already attached to instance."
+msgstr ""
+
+#: src/waldur_aws/serializers.py:365
+msgid "Instance is not within the same region."
+msgstr ""
+
+#: src/waldur_aws/views.py:80
+msgid "start was scheduled"
+msgstr ""
+
+#: src/waldur_aws/views.py:90
+msgid "stop was scheduled"
+msgstr ""
+
+#: src/waldur_aws/views.py:100
+msgid "restart was scheduled"
+msgstr ""
+
+#: src/waldur_aws/views.py:115
+msgid "resize was scheduled"
+msgstr ""
+
+#: src/waldur_aws/views.py:129
+msgid "Volume is already detached."
+msgstr ""

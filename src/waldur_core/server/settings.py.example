@@ -1,0 +1,173 @@
+# Django settings for Waldur Core
+from waldur_core.server.base_settings import *
+
+import logging.handlers
+
+# Debugging
+# See also:
+#  - https://docs.djangoproject.com/en/1.11/ref/settings/#debug
+#  - https://docs.djangoproject.com/en/1.11/ref/settings/#template-debug
+DEBUG = False
+
+# Allowed hosts
+# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#allowed-hosts
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+
+# Secret key
+# SECURITY WARNING: keep the secret key used in production secret!
+# You can use this command to generate a new secret key:
+#
+#   head -c32 /dev/urandom | base64
+#
+# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#secret-key
+SECRET_KEY = '...'
+
+# Databases
+# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#databases
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': 'db.sqlite3',
+    }
+}
+
+# The absolute path to the directory where collectstatic will collect static files for deployment.
+# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#static-root
+STATIC_ROOT = 'static'
+
+# Logging
+# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,  # fixes Celery beat logging
+
+    # Filters
+    # Filter provides additional control over which log records are passed from logger to handler.
+    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#filters
+    'filters': {
+        # Filter out only events (user-facing messages)
+        'is-event': {
+            '()': 'waldur_core.logging.log.RequireEvent',
+        },
+        # Filter out only non-events (not user-facing messages)
+        'is-not-event': {
+            '()': 'waldur_core.logging.log.RequireNotEvent',
+        },
+    },
+
+    # Formatters
+    # Formatter describes the exact format of the log entry.
+    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#formatters
+    'formatters': {
+        'message-only': {
+            'format': '%(message)s',
+        },
+        'simple': {
+            'format': '%(asctime)s %(levelname)s %(message)s',
+        },
+    },
+
+    # Handlers
+    # Handler determines what happens to each message in a logger.
+    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#handlers
+    'handlers': {
+        # Write logs to file
+        # See also: https://docs.python.org/2/library/logging.handlers.html#watchedfilehandler
+        #'file': {
+        #    'class': 'logging.handlers.WatchedFileHandler',
+        #    'filename': '/path/to/logfile.log',
+        #    'formatter': 'simple',
+        #},
+        # Send logs to log server (events only)
+        # Note that waldur_core.logging.log.TCPEventHandler does not support exernal formatters
+        #'tcp': {
+        #    'class': 'waldur_core.logging.log.TCPEventHandler',
+        #    'filters': ['is-event'],
+        #},
+        # Forward logs to syslog (non-events only)
+        # See also: https://docs.python.org/2/library/logging.handlers.html#sysloghandler
+        #'syslog': {
+        #    'class': 'logging.handlers.SysLogHandler',
+        #    'address': '/dev/log',  # /var/log/syslog on OS X
+        #    'facility': logging.handlers.SysLogHandler.LOG_LOCAL0,
+        #    'filters': ['is-not-event'],
+        #    'formatter': 'message-only',
+        #},
+        # Send logs to stderr
+        # See also: https://docs.python.org/2/library/logging.handlers.html#streamhandler
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        # Discard logs
+        # See also: https://docs.python.org/2/library/logging.handlers.html#nullhandler
+        #'null': {
+        #    'class': 'logging.NullHandler',
+        #,
+    },
+
+    # Loggers
+    # A logger is the entry point into the logging system.
+    # Each logger is a named bucket to which messages can be written for processing.
+    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#loggers
+    #
+    # Default logger configuration
+    'root': {
+        'level': 'INFO',
+        'handlers': ['console'],
+    },
+    # Default configuration can be overridden on per-module basis
+    'loggers': {
+        # Celery loggers
+        'celery.worker': {
+            #'handlers': [],
+        },
+        'django': {
+            #'handlers': ['file'],
+            #'level': 'WARNING',
+        },
+        'waldur_core': {
+            #'handlers': ['file', 'tcp'],
+            #'level': 'DEBUG',
+        },
+        # Loggers for plugins
+        'djangosaml2': {
+            #'handlers': ['console'],
+            #'level': 'DEBUG',
+        },
+    },
+}
+
+# Display a login/logout button on the Swagger UI
+SWAGGER_SETTINGS['USE_SESSION_AUTH'] = True
+SWAGGER_SETTINGS['LOGIN_URL'] = 'rest_framework:login'
+SWAGGER_SETTINGS['LOGOUT_URL'] = 'rest_framework:logout'
+
+# Settings, that are related to Waldur Core
+WALDUR_CORE.update({
+    'EXTENSIONS_AUTOREGISTER': True,
+})
+
+# Example of settings for elasticsearch
+WALDUR_CORE['ELASTICSEARCH'] = {
+    'username': 'username',
+    'password': 'password',
+    'host': 'example.com',
+    'port': '9999',
+    'protocol': 'https',
+}
+
+# Enable detection of coordinates of virtual machines
+# Set to False in order to disable this feature
+WALDUR_CORE['ENABLE_GEOIP'] = True
+
+# Seller country code is used for computing VAT charge rate
+WALDUR_CORE['SELLER_COUNTRY_CODE'] = 'EE'
+
+DEFAULT_FROM_EMAIL='noreply@example.com'
+
+WALDUR_CORE['USER_COMPETENCE_LIST'] = (
+    'System administration',
+    'Project management',
+    'Software development',
+)

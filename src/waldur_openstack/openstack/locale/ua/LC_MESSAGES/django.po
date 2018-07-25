@@ -1,0 +1,285 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-07-27 09:00+0000\n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: ua\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/waldur_openstack/openstack/admin.py:30
+msgid "Username"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:35
+msgid "Password"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:57
+msgid "Tenant has to be in state OK to pull security groups."
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:61
+msgid "Pull security groups"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:67
+msgid "Allocate floating IPs"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:72
+msgid "Tenant has to have external network to allocate floating IP."
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:78
+msgid "Attempt to lookup and set external network id of the connected router"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:84
+msgid "Pull floating IPs"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:90
+msgid "Pull quotas"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:96
+msgid "Pull"
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:100
+msgid "Tenant has to be OK or erred."
+msgstr ""
+
+#: src/waldur_openstack/openstack/admin.py:127
+msgid "Tenant"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:33
+msgid "OpenStack provider"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:34
+msgid "OpenStack providers"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:61
+msgid "OpenStack provider project link"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:62
+msgid "OpenStack provider project links"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:76
+msgid "Number of cores in a VM"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:77
+msgid "Memory size in MiB"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:78
+msgid "Root disk size in MiB"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:91
+msgid "Minimum disk size in MiB"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:92
+msgid "Minimum memory size in MiB"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:147
+msgid "Floating IP"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:148
+msgid "Floating IPs"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:196
+msgid ""
+"Optional availability group. Will be used for all instances provisioned in "
+"this tenant"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:227
+#, python-format
+msgid "%s GB"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:268
+msgid "List of DNS name servers associated with the subnet."
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:271
+msgid "Subnet"
+msgstr ""
+
+#: src/waldur_openstack/openstack/models.py:272
+msgid "Subnets"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:33
+msgid "Keystone auth URL (e.g. http://keystone.example.com:5000/v2.0)"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:34
+msgid "Administrative user"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:35
+msgid "Domain name. If not defined default domain will be used."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:40
+msgid "Default availability zone for provisioned instances"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:41
+msgid "ID of OpenStack external network that will be connected to tenants"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:42
+msgid "Latitude of the datacenter (e.g. 40.712784)"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:43
+msgid "Longitude of the datacenter (e.g. -74.005941)"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:44
+msgid "Publicly accessible OpenStack dashboard URL"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:45
+msgid ""
+"Default value for new subnets DNS name servers. Should be defined as list."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:46
+msgid ""
+"Flavors matching this regex expression will not be pulled from the backend."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:80
+msgid "Provided credentials are not for admin tenant."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:84
+msgid "Unable to validate credentials."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:177
+msgid "VLAN or VXLAN ID should be provided."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:179
+msgid "VLAN and VXLAN networks cannot be created simultaneously."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:193
+msgid "Not enough Floating IP Addresses available."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:240
+#: src/waldur_openstack/openstack/serializers.py:305
+#, python-format
+msgid "Cannot add existed rule with id %s to new security group"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:257
+#, python-format
+msgid "Security group does not have rule with id %s."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:337
+#, python-format
+msgid "Can't import tenant with ID %(backend_id)s. Reason: %(reason)s"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:371
+msgid "Tenant should belong to the same project."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:384
+#, python-format
+msgid "Can't import resource with ID %(backend_id)s. Reason: %(reason)s"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:440
+msgid ""
+"You do not have permissions to create tenant in this project using selected "
+"service."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:460
+#, python-format
+msgid "Name \"%s\" is already registered. Please choose another one."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:465
+#, python-format
+msgid "Name \"%s\" cannot be used as tenant user username."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:484
+#, python-format
+msgid "Internal network for tenant %s"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:490
+#, python-format
+msgid "SubNet for tenant %s internal network"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:575
+msgid "Internal network cannot have more than one subnet."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:578
+#, python-format
+msgid "Subnet with cidr \"%s\" is already registered"
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:604
+msgid "New tenant user password."
+msgstr ""
+
+#: src/waldur_openstack/openstack/serializers.py:608
+msgid "New password cannot match the old password."
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:123
+msgid "Invalid tenant UUID"
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:213
+msgid "Rules update was successfully scheduled."
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:324
+msgid "Quota update has been scheduled"
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:345
+msgid "Cannot create floating IP if tenant external network is not defined."
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:410
+msgid "Security groups pull has been scheduled."
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:421
+msgid "Password update has been scheduled."
+msgstr ""
+
+#: src/waldur_openstack/openstack/views.py:429
+msgid "Quotas pull has been scheduled."
+msgstr ""

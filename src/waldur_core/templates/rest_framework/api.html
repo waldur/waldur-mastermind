@@ -1,0 +1,17 @@
+{% extends "rest_framework/base.html" %}
+{% load i18n %}
+
+{% block title %}
+    {% trans 'Waldur MasterMind REST API' %}
+{% endblock %}
+
+{% block branding %}
+    <a class='navbar-brand' rel="nofollow" href='#'>
+        {% trans 'Waldur MasterMind REST API' %} <span class="version">{{ version }}</span>
+    </a>
+{% endblock %}
+
+
+{% block footer %}
+    © 2017 OpenNode
+{% endblock %}

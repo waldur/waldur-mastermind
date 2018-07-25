@@ -1,1 +1,10 @@
-.. include:: setup-backend-atlassian.rst
+.. toctree::
+
+    install-from-rpm.rst
+    install-from-src.rst
+    api.rst
+    background.rst
+    structure.rst
+    events/index.rst
+    resource-actions.rst
+    permissions.rst

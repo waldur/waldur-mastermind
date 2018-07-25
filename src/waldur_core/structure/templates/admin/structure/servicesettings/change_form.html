@@ -1,0 +1,143 @@
+{% extends 'admin/change_form.html' %}
+{% load waldur_structure %}
+{% load static %}
+{% block form_top %}
+<style type="text/css">
+    ul#id_type > li {
+        list-style-type: none;
+        display: inline;
+    }
+    ul#id_type label {
+        padding: 7px 12px;
+        background-image: linear-gradient(#fcfcfc, #eee);
+        border: 1px solid #d5d5d5;
+        float: left;
+        cursor: pointer;
+    }
+    ul#id_type label:hover {
+        background-image: linear-gradient(#eee, #ddd);
+    }
+    ul#id_type > li:first-of-type > label {
+        border-top-left-radius: 8px;
+        border-bottom-left-radius: 8px;
+    }
+    ul#id_type > li:last-of-type > label {
+        border-top-right-radius: 8px;
+        border-bottom-right-radius: 8px;
+    }
+    ul#id_type input[type=radio] {
+        display: none;
+    }
+    ul#id_type input[type=radio]:checked+label {
+        box-shadow: 0 0 5px rgba(81,167,232,0.5);
+        border-color: #51a7e8;
+    }
+</style>
+<div class="module">
+    <a href="#" id="service-settings-toggle">Supported credentials depending on service type</a>
+    <p></p>
+    <div id="service-settings-content">
+        {% service_settings_description %}
+    </div>
+</div>
+<div class="module services">
+    <a href="#">Connected services and projects</a>
+    <div>Loading...</div>
+</div>
+<script type="text/javascript">
+var service_settings_module = (function(self, jQuery) {
+    var $ = jQuery;
+
+    self.initialize = initialize;
+
+    function initialize(service_fields, service_fields_required) {
+        self.service_fields = service_fields;
+        self.service_fields_required = service_fields_required;
+        $(onDocumentReady);
+    }
+
+    function onDocumentReady() {
+        $(".services>div").hide();
+        $(".services>a").click(function(){
+            $(this).next("div").show().load("services/");
+        });
+        $("#service-settings-content").hide();
+        $("#service-settings-toggle").click(function() {
+          $("#service-settings-content").slideToggle("slow");
+        });
+
+        $("ul#id_type input").each(function() {
+            $(this).parent().before(this);
+        });
+
+        $(".field-type").change(function(){
+            var selectedServiceType = $(".field-type input:checked").val();
+            displayOnlyServiceFields(selectedServiceType);
+            diplayOnlyServiceRelatedHints(selectedServiceType);
+            markRequiredFields(selectedServiceType);
+        });
+
+        if ($(".field-type input:checked").val() !== undefined) {
+            $(".field-type").trigger("change");
+        }
+    }
+
+    function diplayOnlyServiceRelatedHints(serviceName) {
+        $(".service-fields").hide();
+        $("#id_" + serviceName).show();
+    }
+
+    function displayOnlyServiceFields(serviceName) {
+        var formFieldset = $("fieldset.module > div");
+
+        formFieldset.show();
+        $.each(formFieldset, function(index, field) {
+            var fieldName = getFieldName(field);
+
+            // field can be hidden if there is no errors on the field and it does not belong to the selected service.
+            if (!fieldHasAnyError(fieldName) && !fieldBelongsToService(fieldName, serviceName)) {
+                $(field).hide();
+            }
+        });
+    }
+
+    function markRequiredFields(serviceName) {
+        var required_class = 'required';
+        var mark_class = 'mark_required';
+        $("." + mark_class).removeClass(required_class).removeClass(mark_class);
+        var fields = self.service_fields_required[serviceName];
+        for (var f in fields)  {
+            $("[for='id_" + fields[f] + "']").addClass(mark_class).addClass(required_class)
+        }
+
+    }
+
+    function getFieldName(fieldElement) {
+        // field element format: "form-row field-name"
+        var fieldName = /field-(\w+)$/.exec(fieldElement.className)[1];
+
+        if (fieldName === null) {
+            console.log('A service settings stylesheet has been changed. Please updated RegExp.')
+        }
+
+        return fieldName;
+    }
+
+    function fieldHasAnyError(fieldName) {
+        var fieldSelector = "fieldset.module > div.field-" + fieldName;
+        return $(fieldSelector + " > ul.errorlist").length !== 0
+    }
+
+    function fieldBelongsToService(fieldName, serviceName) {
+        var serviceFields = self.service_fields[serviceName];
+        return serviceFields.indexOf(fieldName) !== -1;
+    }
+
+    return self;
+}(service_settings_module || {}, django.jQuery));
+
+var service_fields = {{ service_fields|safe }};
+var service_fields_required = {{ service_fields_required|safe }};
+service_settings_module.initialize(service_fields, service_fields_required);
+</script>
+{% endblock %}
