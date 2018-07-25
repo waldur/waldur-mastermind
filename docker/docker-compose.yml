@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  db:
+    build:
+      context: db
+    environment:
+      - POSTGRESQL_DATABASE=test_waldur
+      - POSTGRESQL_USER=root
+      - POSTGRESQL_PASSWORD=waldur
+    ports:
+      - "5432"
+
+  api:
+    build:
+      context: api
+    volumes:
+      - ../:/mnt
+      - ./pip-cache/:/tmp/pip-cache/
+    links:
+      - db

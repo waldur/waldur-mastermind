@@ -1,0 +1,9 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+    {% for link in extra_links %}
+        <li>
+            <a href="{{ link.href }}" class="grp-state-focus" class="addlink">{{ link.label }}</a>
+        </li>
+    {% endfor %}
+    {{ block.super }}
+{% endblock %}

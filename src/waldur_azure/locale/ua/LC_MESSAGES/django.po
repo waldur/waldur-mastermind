@@ -1,0 +1,79 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-08-17 15:27+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: ua\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: waldur_azure/models.py:101
+msgid "List of public IP addresses"
+msgstr ""
+
+#: waldur_azure/models.py:102
+msgid "List of private IP addresses"
+msgstr ""
+
+#: waldur_azure/serializers.py:22
+msgid "In the format of GUID"
+msgstr ""
+
+#: waldur_azure/serializers.py:23
+msgid "X509 certificate in .PEM format"
+msgstr ""
+
+#: waldur_azure/serializers.py:51
+msgid "Azure region where to provision resources (default: \"Central US\")"
+msgstr ""
+
+#: waldur_azure/serializers.py:54
+msgid "Cloud service group to assign all connected SPLs to"
+msgstr ""
+
+#: waldur_azure/serializers.py:58
+msgid "Regular expression to limit images list"
+msgstr ""
+
+#: waldur_azure/serializers.py:67
+msgid "Valid X509 certificate in .PEM format is expected"
+msgstr ""
+
+#: waldur_azure/serializers.py:174
+msgid ""
+"The name can contain only letters, numbers, and hyphens. The name must be "
+"shorter than 15 characters and start with a letter and must end with a "
+"letter or a number."
+msgstr ""
+
+#: waldur_azure/serializers.py:183
+msgid ""
+"The supplied password must be 6-72 characters long and contain 3 of the "
+"following: a lowercase character, an uppercase character, a number, a "
+"special character."
+msgstr ""
+
+#: waldur_azure/serializers.py:188
+msgid "Invalid administrator username."
+msgstr ""
+
+#: waldur_azure/serializers.py:221
+#, python-format
+msgid "Can't find Virtual Machine with ID %s"
+msgstr ""
+
+#: waldur_azure/views.py:69
+msgid "start was scheduled"
+msgstr ""
+
+#: waldur_azure/views.py:79
+msgid "stop was scheduled"
+msgstr ""
+
+#: waldur_azure/views.py:89
+msgid "restart was scheduled"
+msgstr ""

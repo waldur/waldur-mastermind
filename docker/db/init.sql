@@ -1,0 +1,2 @@
+CREATE USER root;
+ALTER USER root CREATEDB;

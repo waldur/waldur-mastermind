@@ -6,6 +6,8 @@
 *.pyc
 *.mo
 db.sqlite3
+*.rpm
+src/waldur_core/server/settings.py
 
 /.idea
 /.project
@@ -21,6 +23,9 @@ db.sqlite3
 # Testing artifacts
 
 TEST-*.xml
+coverage.xml
+test_report.xml
+.cache/
 
 # documentation
 docs/_build/

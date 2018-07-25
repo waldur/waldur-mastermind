@@ -53,7 +53,10 @@ class Invoice(core_models.UuidMixin, models.Model):
                                              validators=[MinValueValidator(1), MaxValueValidator(12)])
     year = models.PositiveSmallIntegerField(default=utils.get_current_year)
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.PENDING)
-    customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'), related_name='+')
+    customer = models.ForeignKey(structure_models.Customer,
+                                 verbose_name=_('organization'),
+                                 related_name='+',
+                                 on_delete=models.CASCADE)
     current_cost = models.DecimalField(default=0, max_digits=10, decimal_places=2,
                                        help_text=_('Cached value for current cost.'),
                                        editable=False)
@@ -233,7 +236,7 @@ class GenericInvoiceItem(InvoiceItem):
     quantity = models.PositiveIntegerField(default=0)
 
     scope = GenericForeignKey('content_type', 'object_id')
-    details = JSONField(default={}, blank=True, help_text=_('Stores data about scope'))
+    details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
 
     objects = managers.GenericInvoiceItemManager()
     tracker = FieldTracker()
@@ -256,7 +259,7 @@ class OfferingItem(InvoiceItem):
     """ OfferingItem stores details for invoices about purchased custom offering item. """
     invoice = models.ForeignKey(Invoice, related_name='offering_items')
     offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
-    offering_details = JSONField(default={}, blank=True, help_text=_('Stores data about offering'))
+    offering_details = JSONField(default=dict, blank=True, help_text=_('Stores data about offering'))
     tracker = FieldTracker()
 
     @property
@@ -273,7 +276,8 @@ class OfferingItem(InvoiceItem):
         if self.offering:
             self.offering_details['offering_type'] = self.offering.type
             self.offering_details['offering_uuid'] = self.offering.uuid.hex
-            self.save(update_fields=['offering_details'])
+            self.offering = None
+            self.save(update_fields=['offering_details', 'offering'])
 
     def get_offering_uuid(self):
         if self.offering:
@@ -294,7 +298,7 @@ class OpenStackItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='openstack_items')
 
     package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
-    package_details = JSONField(default={}, blank=True, help_text=_('Stores data about package'))
+    package_details = JSONField(default=dict, blank=True, help_text=_('Stores data about package'))
     tracker = FieldTracker()
 
     @property

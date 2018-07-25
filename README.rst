@@ -1,21 +1,30 @@
+.. image:: https://travis-ci.org/opennode/waldur-mastermind.svg?branch=develop
+    :target: https://travis-ci.org/opennode/waldur-mastermind
+    :alt: Build status
+
 Waldur MasterMind
 =================
 
-Waldur MasterMind is part of the Waldur suite - https://waldur.com - for managing of hybrid cloud resources.
-It is used for building marketplaces, self-service portals and for managing in-house IT resources.
+Waldur MasterMind is an open-source RESTful server for multi-tenant resource management.
+It provides an easy way for sharing access to external systems.
+It is used as a platform for creating private and public clouds.
 
-License
--------
-Waldur MasterMind is released under MIT license.
+Additional information can be found at http://docs.waldur.com.
+
+Development environment setup
+-----------------------------
+
+Instructions here: https://github.com/opennode/waldur-mastermind/blob/develop/docs/guide/install-from-src.rst.
 
 Documentation
 -------------
 
-Please use `all-in-one bootstrap script <https://github.com/opennode/waldur-mastermind/blob/develop/docs/guide/bootstrap.sh>`_
-to install Waldur core and all plugins in development mode or update them to the latest versions.
-Also it is assumed that you've already activated virtual Python environment before running this script.
-
 Administration and usage guides can be found at http://docs.waldur.com .
+
+License
+-------
+
+Waldur MasterMind is released under MIT license.
 
 Support
 -------

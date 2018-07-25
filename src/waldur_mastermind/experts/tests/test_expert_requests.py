@@ -367,11 +367,6 @@ class ExpertRequestProjectCacheTest(test.APITransactionTestCase):
         self.expert_request.project.delete()
         self.assertTrue(models.ExpertRequest.objects.filter(id=self.expert_request.id))
 
-    def test_request_is_removed_when_customer_is_removed(self):
-        self.expert_request.project.delete()
-        self.expert_request.customer.delete()
-        self.assertFalse(models.ExpertRequest.objects.filter(id=self.expert_request.id))
-
 
 class ExpertRequestUsersTest(test.APITransactionTestCase):
     def setUp(self):

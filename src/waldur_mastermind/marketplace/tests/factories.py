@@ -53,7 +53,7 @@ class OfferingFactory(factory.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'offering-%s' % n)
     category = factory.SubFactory(CategoryFactory)
-    provider = factory.SubFactory(ServiceProviderFactory)
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
 
     @classmethod
     def get_url(cls, offering=None, action=None):
@@ -77,18 +77,16 @@ class SectionFactory(factory.DjangoModelFactory):
     category = factory.SubFactory(CategoryFactory)
 
 
-class AttributesFactory(factory.DjangoModelFactory):
+class AttributeFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Attribute
 
     key = factory.Sequence(lambda n: 'attribute-%s' % n)
     section = factory.SubFactory(SectionFactory)
-    type = 'list'
-    available_values = ["web_chat", "phone"]
 
 
 @factory.django.mute_signals(signals.pre_save, signals.post_save)
-class ScreenshotsFactory(factory.DjangoModelFactory):
+class ScreenshotFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Screenshots
 
@@ -99,7 +97,7 @@ class ScreenshotsFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, screenshot=None, action=None):
         if screenshot is None:
-            screenshot = ScreenshotsFactory()
+            screenshot = ScreenshotFactory()
         url = 'http://testserver' + reverse('marketplace-screenshot-detail',
                                             kwargs={'uuid': screenshot.uuid})
         return url if action is None else url + action + '/'
@@ -108,3 +106,32 @@ class ScreenshotsFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-screenshot-list')
         return url if action is None else url + action + '/'
+
+
+class OrderFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Order
+
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+
+    @classmethod
+    def get_url(cls, order=None, action=None):
+        if order is None:
+            order = OrderFactory()
+        url = 'http://testserver' + reverse('marketplace-order-detail',
+                                            kwargs={'uuid': order.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-order-list')
+        return url if action is None else url + action + '/'
+
+
+class OrderItemFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OrderItem
+
+    order = factory.SubFactory(OrderFactory)
+    offering = factory.SubFactory(OfferingFactory)

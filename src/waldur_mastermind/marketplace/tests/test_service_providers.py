@@ -119,3 +119,21 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
         url = factories.ServiceProviderFactory.get_url(self.service_provider)
         response = self.client.delete(url)
         return response
+
+
+class CustomerSerializerTest(test.APITransactionTestCase):
+    def test_service_provider_is_not_defined(self):
+        customer = structure_factories.CustomerFactory()
+        self.assertFalse(self.get_value(customer))
+
+    def test_service_provider_is_defined(self):
+        customer = factories.ServiceProviderFactory().customer
+        self.assertTrue(self.get_value(customer))
+
+    def get_value(self, customer):
+        user = structure_factories.UserFactory(is_staff=True)
+        url = structure_factories.CustomerFactory.get_url(customer)
+
+        self.client.force_login(user)
+        response = self.client.get(url)
+        return response.data['is_service_provider']

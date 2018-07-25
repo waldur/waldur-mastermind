@@ -263,7 +263,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
     state = serializers.ReadOnlyField(source='get_state_display')
-    report = core_serializers.JSONField(required=False)
+    report = serializers.JSONField(required=False)
 
     class Meta(object):
         model = models.Offering
@@ -292,6 +292,9 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
             raise serializers.ValidationError('Report object should contain at least one section.')
 
         for section in report:
+            if not isinstance(section, dict):
+                raise serializers.ValidationError('Report section should be an object.')
+
             if not section.get('header'):
                 raise serializers.ValidationError('Report section should contain header.')
 
@@ -499,3 +502,30 @@ class AttachmentSerializer(core_serializers.AugmentedSerializerMixin,
             return attrs
 
         raise exceptions.PermissionDenied()
+
+
+class TemplateAttachmentSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.TemplateAttachment
+        fields = ('name', 'file')
+
+
+class TemplateSerializer(serializers.HyperlinkedModelSerializer):
+    attachments = TemplateAttachmentSerializer(many=True)
+
+    class Meta(object):
+        model = models.Template
+        fields = ('url', 'uuid',
+                  'name', 'native_name',
+                  'description', 'native_description',
+                  'issue_type', 'attachments')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-template-detail'},
+        )
+
+    def get_fields(self):
+        fields = super(TemplateSerializer, self).get_fields()
+        if not settings.WALDUR_CORE['NATIVE_NAME_ENABLED']:
+            del fields['native_name']
+            del fields['native_description']
+        return fields

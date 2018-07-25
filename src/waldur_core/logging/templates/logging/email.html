@@ -1,0 +1,16 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Notifications from waldur_core</title>
+</head>
+<body>
+<ul>
+    {% for event in events %}
+    <li>
+        {{ event.message }}
+        <div>{{ event.timestamp|date:"M d H:m e"}}</div>
+    </li>
+    {% endfor %}
+</ul>
+</body>
+</html>

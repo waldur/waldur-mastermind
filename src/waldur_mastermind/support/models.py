@@ -247,3 +247,40 @@ class Attachment(core_models.UuidMixin,
 
     def __str__(self):
         return '{} | {}'.format(self.issue, self.file.name.split('/')[-1])
+
+
+class Template(core_models.UuidMixin,
+               core_models.NameMixin,
+               TimeStampedModel):
+
+    class IssueTypes(object):
+        INFORMATIONAL = 'INFORMATIONAL'
+        SERVICE_REQUEST = 'SERVICE_REQUEST'
+        CHANGE_REQUEST = 'CHANGE_REQUEST'
+        INCIDENT = 'INCIDENT'
+
+        CHOICES = (
+            (INFORMATIONAL, 'Informational'),
+            (SERVICE_REQUEST, 'Service request'),
+            (CHANGE_REQUEST, 'Change request'),
+            (INCIDENT, 'Incident'),
+        )
+
+    native_name = models.CharField(max_length=150, blank=True)
+    description = models.TextField()
+    native_description = models.TextField(blank=True)
+    issue_type = models.CharField(max_length=30, choices=IssueTypes.CHOICES, default=IssueTypes.INFORMATIONAL)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-template'
+
+    def __str__(self):
+        return self.name
+
+
+class TemplateAttachment(core_models.UuidMixin,
+                         core_models.NameMixin,
+                         TimeStampedModel):
+    template = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='support_template_attachments')
