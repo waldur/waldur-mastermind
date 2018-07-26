@@ -23,9 +23,9 @@ def process_event(event):
         customer_uuid = event['context'].get('customer_uuid')
         customer = customer_uuid and structure_models.Customer.objects.get(uuid=customer_uuid)
     except structure_models.Project.DoesNotExist:
-        raise StopIteration()
+        return
     except structure_models.Customer.DoesNotExist:
-        raise StopIteration()
+        return
 
     for hook in SystemNotification.get_hooks(event['type'], project=project, customer=customer):
         if check_event(event, hook):
