@@ -187,7 +187,7 @@ class Offering(core_models.UuidMixin,
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
     type = models.CharField(max_length=255)
-    issue = models.ForeignKey(Issue, null=True, on_delete=models.SET_NULL)
+    issue = models.ForeignKey(Issue, null=True, on_delete=models.PROTECT)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
     report = core_fields.JSONField(blank=True)
