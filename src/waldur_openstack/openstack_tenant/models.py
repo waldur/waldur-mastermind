@@ -99,7 +99,7 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
 
 @python_2_unicode_compatible
 class FloatingIP(structure_models.ServiceProperty):
-    address = models.GenericIPAddressField(protocol='IPv4', null=True)
+    address = models.GenericIPAddressField(protocol='IPv4', null=True, default=None)
     runtime_state = models.CharField(max_length=30)
     backend_network_id = models.CharField(max_length=255, editable=False)
     is_booked = models.BooleanField(default=False,
@@ -107,9 +107,7 @@ class FloatingIP(structure_models.ServiceProperty):
     internal_ip = models.ForeignKey('InternalIP', related_name='floating_ips', null=True, on_delete=models.SET_NULL)
 
     class Meta:
-        # It should be possible to create floating IP dynamically on instance creation
-        # so floating IP with empty backend id can exist.
-        unique_together = tuple()
+        unique_together = ('settings', 'address')
         verbose_name = _('Floating IP')
         verbose_name_plural = _('Floating IPs')
 
