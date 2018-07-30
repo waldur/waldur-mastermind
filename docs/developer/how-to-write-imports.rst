@@ -88,10 +88,7 @@ Right:
     from waldur_core.core import models as core_models, exceptions as core_exceptions
 
 
-Suggestions
------------
-
-1. It is suggested to import whole modules from waldur_core plugin, not only
+3. It is suggested to import whole modules from waldur_core plugin, not only
 separate classes.
 
 Wrong:

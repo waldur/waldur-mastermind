@@ -48,6 +48,10 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not request.user.is_staff and not request.user.is_support:
             raise exceptions.PermissionDenied()
 
+    def check_related_resources(request, view, obj=None):
+        if obj and obj.offering_set.exists():
+            raise exceptions.ValidationError(_('Issue has offering. Please remove it first.'))
+
     @transaction.atomic()
     def perform_create(self, serializer):
         issue = serializer.save()
@@ -65,7 +69,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         backend.get_active_backend().delete_issue(issue)
         issue.delete()
 
-    destroy_permissions = [is_staff_or_support]
+    destroy_permissions = [is_staff_or_support, check_related_resources]
 
     def _comment_permission(request, view, obj=None):
         user = request.user

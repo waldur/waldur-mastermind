@@ -69,6 +69,7 @@ class Category(core_models.UuidMixin,
     class Meta(object):
         verbose_name = _('Category')
         verbose_name_plural = _('Categories')
+        ordering = ('title',)
 
     def __str__(self):
         return six.text_type(self.title)

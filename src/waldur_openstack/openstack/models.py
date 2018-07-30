@@ -133,12 +133,13 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
     service_project_link = models.ForeignKey(
         OpenStackServiceProjectLink, related_name='floating_ips')
     tenant = models.ForeignKey('Tenant', related_name='floating_ips')
-    address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4')
+    address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
     backend_network_id = models.CharField(max_length=255, editable=False)
 
     tracker = FieldTracker()
 
     class Meta:
+        unique_together = ('tenant', 'address')
         verbose_name = _('Floating IP')
         verbose_name_plural = _('Floating IPs')
 

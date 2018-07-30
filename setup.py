@@ -34,7 +34,7 @@ install_requires = [
     'django-taggit>=0.20.2',
     'Django>=1.11,<2.0',
     'djangorestframework>=3.6.3,<3.7.0',
-    'djangosaml2==0.16.9',
+    'djangosaml2==0.17.1',
     'elasticsearch==5.4.0',
     'hiredis>=0.2.0',
     'influxdb>=4.1.0',
@@ -78,7 +78,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.9.8',
+    version='2.9.9',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
