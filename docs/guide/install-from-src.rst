@@ -8,22 +8,22 @@ Additional requirements:
 - ``virtualenv``
 - C compiler and development libraries needed to build dependencies
 
-  - CentOS: ``gcc libffi-devel openssl-devel postgresql-devel libjpeg-devel zlib-devel python-devel``
-  - Ubuntu: ``gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev python-dev``
+  - CentOS: ``gcc libffi-devel openssl-devel postgresql-devel libjpeg-devel zlib-devel python-devel xmlsec1``
+  - Ubuntu: ``gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev python-dev xmlsec1``
 
-**Waldur Core installation**
+**Waldur MasterMind installation**
 
 1. Get the code:
 
   .. code-block:: bash
 
-    git clone https://github.com/opennode/waldur-core.git
+    git clone https://github.com/opennode/waldur-mastermind.git
 
 2. Create a Virtualenv and update Setuptools:
 
   .. code-block:: bash
 
-    cd waldur-core
+    cd waldur-mastermind
     virtualenv venv
     venv/bin/pip install --upgrade setuptools
 
@@ -37,8 +37,8 @@ Additional requirements:
 
   .. code-block:: bash
 
-    cp waldur_core/server/settings.py.example waldur_core/server/settings.py
-    vi waldur_core/server/settings.py
+    cp src/waldur_core/server/settings.py.example src/waldur_core/server/settings.py
+    vi src/waldur_core/server/settings.py
 
 5. Initialise database -- SQLite3 database will be created in ``./db.sqlite3`` unless specified otherwise in settings files:
 
