@@ -1028,7 +1028,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def pull_created_instance_internal_ips(self, instance):
         """
         This method updates already existing internal IPs of the instance
-        which where created in advance during instance provisioning.
+        which were created in advance during instance provisioning.
         """
         neutron = self.neutron_client
         try:
@@ -1112,10 +1112,16 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         new_internal_ips = instance.internal_ips_set.exclude(backend_id__in=[ip['id'] for ip in backend_internal_ips])
         for new_internal_ip in new_internal_ips:
             try:
-                backend_internal_ip = neutron.create_port({'port': {
+                port = {
                     'network_id': new_internal_ip.subnet.network.backend_id,
-                    'device_id': instance.backend_id}
-                })['port']
+                    'device_id': instance.backend_id,
+                    # If you specify only a subnet ID, OpenStack Networking
+                    # allocates an available IP from that subnet to the port.
+                    'fixed_ips': [{
+                        'subnet_id': new_internal_ip.subnet.backend_id,
+                    }],
+                }
+                backend_internal_ip = neutron.create_port({'port': port})['port']
             except neutron_exceptions.NeutronClientException as e:
                 six.reraise(OpenStackBackendError, e)
             new_internal_ip.mac_address = backend_internal_ip['mac_address']
