@@ -275,7 +275,8 @@ class ErrorMessageTask(Task):
             instance.save(update_fields=['error_message'])
             # log exception if instance is not already ERRED.
             if instance.state != models.StateMixin.States.ERRED:
-                message = 'Error: %s.\n' % self.result.result
+                message = 'Instance: %s.\n' % utils.serialize_instance(instance)
+                message += 'Error: %s.\n' % self.result.result
                 message += self.result.traceback
                 logger.exception(message)
 
