@@ -320,6 +320,16 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         # existing internal IPs. However, internal IPs of the created instance does not have backend_ids.
         _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'pull_created_instance_internal_ips'))
 
+        # Consider the case when instance has several internal IPs connected to
+        # different subnets within the same network.
+        # When OpenStack instance is provisioned, network port is created.
+        # This port is pulled into Waldur using the pull_created_instance_internal_ips method.
+        # However, it does not take into account subnets, because OpenStack
+        # does not allow to specify subnet on instance creation.
+        # See also: https://specs.openstack.org/openstack/nova-specs/specs/juno/approved/selecting-subnet-when-creating-vm.html
+        # Therefore we need to push remaining network ports for subnets explicitly.
+        _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'push_instance_internal_ips'))
+
         # Pull instance security groups
         _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'pull_instance_security_groups'))
 
