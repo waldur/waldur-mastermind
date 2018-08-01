@@ -48,15 +48,20 @@ class Issue(core_models.UuidMixin,
     priority = models.CharField(max_length=255, blank=True)
 
     caller = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='created_issues',
-                               help_text=_('Waldur user who has reported the issue.'))
+                               help_text=_('Waldur user who has reported the issue.'),
+                               on_delete=models.PROTECT)
     reporter = models.ForeignKey('SupportUser', related_name='reported_issues', blank=True, null=True,
-                                 help_text=_('Help desk user who have created the issue that is reported by caller.'))
+                                 help_text=_('Help desk user who have created the issue that is reported by caller.'),
+                                 on_delete=models.PROTECT)
     assignee = models.ForeignKey('SupportUser', related_name='issues', blank=True, null=True,
-                                 help_text=_('Help desk user who will implement the issue'))
+                                 help_text=_('Help desk user who will implement the issue'),
+                                 on_delete=models.PROTECT)
 
-    customer = models.ForeignKey(
-        structure_models.Customer, verbose_name=_('organization'), related_name='issues', blank=True, null=True)
-    project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True)
+    customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'),
+                                 related_name='issues', blank=True, null=True,
+                                 on_delete=models.CASCADE)
+    project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True,
+                                on_delete=models.CASCADE)
 
     resource_content_type = models.ForeignKey(ContentType, null=True)
     resource_object_id = models.PositiveIntegerField(null=True)
@@ -96,7 +101,9 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
-
+    is_active = models.BooleanField(_('active'), default=True,
+                                    help_text=_('Designates whether this user should be treated as '
+                                                'active. Unselect this instead of deleting accounts.'))
     objects = managers.SupportUserManager()
 
     @classmethod

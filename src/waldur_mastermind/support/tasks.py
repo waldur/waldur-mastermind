@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 class SupportUserPullTask(CeleryTask):
-    """ Pull support users from backend """
+    """
+    Pull support users from backend.
+    Note that support users are not deleted in JIRA.
+    Instead, they are marked as disabled.
+    Therefore, Waldur replicates the same behaviour.
+    """
     name = 'support.SupportUserPullTask'
 
     def run(self):
@@ -32,7 +37,11 @@ class SupportUserPullTask(CeleryTask):
             if not created and user.name != backend_user.name:
                 user.name = backend_user.name
                 user.save()
-        models.SupportUser.objects.exclude(backend_id__in=[u.backend_id for u in backend_users]).delete()
+            if not user.is_active:
+                user.is_active = True
+                user.save()
+        models.SupportUser.objects.exclude(backend_id__in=[u.backend_id for u in backend_users])\
+            .update(is_active=False)
 
 
 @shared_task(name='waldur_mastermind.support.send_issue_updated_notification')
