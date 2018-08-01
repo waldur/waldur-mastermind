@@ -50,7 +50,7 @@ Requires: python-celery = 4.1.0
 Requires: python-cinderclient >= 3.1.0
 Requires: python-country >= 1.20, python-country < 2.0
 Requires: python-croniter >= 0.3.4, python-croniter < 0.3.6
-Requires: python-cryptography
+Requires: python2-cryptography >= 1.7.2
 Requires: python-digitalocean >= 1.5
 Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-django-admin-tools = 0.8.0
