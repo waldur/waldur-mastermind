@@ -16,7 +16,7 @@ class FlavorAdmin(structure_admin.BackendModelAdmin):
 
 
 class ImageAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings', )
+    list_filter = ('settings',)
     list_display = ('name', 'settings', 'min_disk', 'min_ram')
 
 
@@ -76,7 +76,6 @@ class VolumeAdmin(MetadataMixin,
                   ImageMetadataMixin,
                   ActionDetailsMixin,
                   structure_admin.ResourceAdmin):
-
     exclude = ('metadata', 'image_metadata', 'action_details')
 
     class Pull(ExecutorAdminAction):
@@ -91,7 +90,6 @@ class VolumeAdmin(MetadataMixin,
 
 
 class SnapshotAdmin(structure_admin.ResourceAdmin):
-
     class Pull(ExecutorAdminAction):
         executor = executors.SnapshotPullExecutor
         short_description = _('Pull')
@@ -117,6 +115,8 @@ class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
     actions = structure_admin.VirtualMachineAdmin.actions + ['pull']
     exclude = ('action_details',)
     inlines = [InternalIpInline]
+    list_filter = structure_admin.VirtualMachineAdmin.list_filter + ('runtime_state',)
+    search_fields = structure_admin.VirtualMachineAdmin.search_fields + ('name', 'uuid', 'backend_id', 'runtime_state')
 
     class Pull(ExecutorAdminAction):
         executor = executors.InstancePullExecutor
