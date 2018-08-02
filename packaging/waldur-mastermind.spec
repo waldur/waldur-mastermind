@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 2.9.9
+Version: 3.0.0
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -50,7 +50,7 @@ Requires: python-celery = 4.1.0
 Requires: python-cinderclient >= 3.1.0
 Requires: python-country >= 1.20, python-country < 2.0
 Requires: python-croniter >= 0.3.4, python-croniter < 0.3.6
-Requires: python-cryptography
+Requires: python2-cryptography >= 1.7.2
 Requires: python-digitalocean >= 1.5
 Requires: python-django >= 1.11, python-django < 2.0
 Requires: python-django-admin-tools = 0.8.0
@@ -318,6 +318,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Thu Aug 2 2018 Jenkins <jenkins@opennodecloud.com> - 3.0.0-1.el7
+- New upstream release
+
 * Mon Jul 30 2018 Jenkins <jenkins@opennodecloud.com> - 2.9.9-1.el7
 - New upstream release
 

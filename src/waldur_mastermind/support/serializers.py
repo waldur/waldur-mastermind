@@ -122,7 +122,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         else:
             if not attrs.get('caller'):
                 raise serializers.ValidationError({'caller': _('This field is required.')})
-            reporter = models.SupportUser.objects.filter(user=self.context['request'].user).first()
+            reporter = models.SupportUser.objects.filter(
+                user=self.context['request'].user, is_active=True).first()
             if not reporter:
                 raise serializers.ValidationError(
                     _('You cannot report issues because your help desk account is not connected to profile.'))

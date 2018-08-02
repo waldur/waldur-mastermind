@@ -17,7 +17,7 @@ install_requires = [
     'Celery==4.1.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4,<0.3.6',
-    'cryptography',
+    'cryptography>=1.7.2',
     'defusedxml>=0.4.1',
     'django-admin-tools==0.8.0',
     'django-auth-ldap>=1.3.0',
@@ -78,7 +78,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='2.9.9',
+    version='3.0.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
