@@ -265,16 +265,18 @@ class OfferingItem(InvoiceItem):
     @property
     def name(self):
         if self.offering_details:
-            return '%s (%s)' % (self.project_name, self.offering_details['offering_type'])
+            name = self.offering_details.get('offering_name', self.project_name)
+            return '%s (%s)' % (name, self.offering_details['offering_type'])
 
-        return '%s (%s)' % (self.offering.project.name, self.offering.type)
+        return '%s (%s)' % (self.offering.name, self.offering.type)
 
     def freeze(self):
         """
-        Saves offering type and project name in "offering_details" if offering exists
+        Saves offering type and offering name in "offering_details" if offering exists
         """
         if self.offering:
             self.offering_details['offering_type'] = self.offering.type
+            self.offering_details['offering_name'] = self.offering.name
             self.offering_details['offering_uuid'] = self.offering.uuid.hex
             self.offering = None
             self.save(update_fields=['offering_details', 'offering'])
