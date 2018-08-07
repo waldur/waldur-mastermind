@@ -139,6 +139,10 @@ class InternalIPSynchronizer(object):
                 local_ip.instance = instance
                 local_ip.save()
             else:
+                if local_ip.instance != instance:
+                    local_ip.instance = instance
+                    local_ip.save()
+
                 # Update backend ID for pending internal IP.
                 update_pulled_fields(local_ip, remote_ip,
                                      models.InternalIP.get_backend_fields() + ('backend_id',))
@@ -1027,6 +1031,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     @log_backend_action()
     def pull_created_instance_internal_ips(self, instance):
         """
+        TODO: Port should be created before instance is created. This method should be removed.
         This method updates already existing internal IPs of the instance
         which were created in advance during instance provisioning.
         """
@@ -1036,11 +1041,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             six.reraise(OpenStackBackendError, e)
 
-        subnet_to_ip_mappings = {ip.subnet.backend_id: ip for ip in instance.internal_ips_set.all()}
+        pending_ips = {
+            ip.subnet.backend_id: ip
+            for ip in instance.internal_ips_set.filter(backend_id='')
+        }
 
         for backend_ip in backend_internal_ips:
             imported_internal_ip = backend_internal_ip_to_internal_ip(backend_ip)
-            internal_ip = subnet_to_ip_mappings.get(imported_internal_ip._subnet_backend_id)
+            internal_ip = pending_ips.get(imported_internal_ip._subnet_backend_id)
             if internal_ip is None:
                 logger.warning('Internal IP object does not exist in database for instance %s '
                                'in subnet with backend ID %s', instance.uuid, imported_internal_ip._subnet_backend_id)
@@ -1050,15 +1058,30 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def pull_instance_internal_ips(self, instance):
-        # we assume that instance can be connected to subnet only once.
         neutron = self.neutron_client
         try:
             backend_internal_ips = neutron.list_ports(device_id=instance.backend_id)['ports']
         except neutron_exceptions.NeutronClientException as e:
             six.reraise(OpenStackBackendError, e)
 
-        internal_ip_mappings = {ip.subnet.backend_id: ip for ip in instance.internal_ips_set.all()}
-        subnet_mappings = {subnet.backend_id: subnet for subnet in models.SubNet.objects.filter(settings=self.settings)}
+        existing_ips = {
+            ip.backend_id: ip
+            for ip in instance.internal_ips_set.exclude(backend_id='')
+        }
+
+        pending_ips = {
+            ip.subnet.backend_id: ip
+            for ip in instance.internal_ips_set.filter(backend_id='')
+        }
+
+        local_ips = {
+            ip.backend_id: ip
+            for ip in (models.InternalIP.objects.filter(subnet__settings=self.settings)
+                       .exclude(backend_id=''))
+        }
+
+        subnets = models.SubNet.objects.filter(settings=self.settings)
+        subnet_mappings = {subnet.backend_id: subnet for subnet in subnets}
 
         with transaction.atomic():
             for backend_internal_ip in backend_internal_ips:
@@ -1070,20 +1093,39 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                                    imported_internal_ip.backend_id, imported_internal_ip._subnet_backend_id)
                     continue
 
-                internal_ip = internal_ip_mappings.pop(subnet.backend_id, None)
-                if internal_ip is None:
-                    internal_ip = imported_internal_ip
-                    internal_ip.subnet = subnet
-                    internal_ip.instance = instance
-                    internal_ip.save()
-                else:
+                if imported_internal_ip._subnet_backend_id in pending_ips:
+                    internal_ip = pending_ips[imported_internal_ip._subnet_backend_id]
                     # Update backend ID for pending internal IP
                     update_pulled_fields(internal_ip, imported_internal_ip,
                                          models.InternalIP.get_backend_fields() + ('backend_id',))
 
-            if internal_ip_mappings:
-                # remove stale internal IPs
-                instance.internal_ips_set.filter(subnet__backend_id__in=internal_ip_mappings.keys()).delete()
+                elif imported_internal_ip.backend_id in existing_ips:
+                    internal_ip = existing_ips[imported_internal_ip.backend_id]
+                    update_pulled_fields(internal_ip, imported_internal_ip, models.InternalIP.get_backend_fields())
+
+                elif imported_internal_ip.backend_id in local_ips:
+                    internal_ip = local_ips[imported_internal_ip.backend_id]
+                    if internal_ip.instance != instance:
+                        logger.info('About to reassign shared internal IP from instance %s to instance %s',
+                                    internal_ip.instance, instance)
+                        internal_ip.instance = instance
+                        internal_ip.save()
+
+                else:
+                    logger.debug('About to create internal IP. Instance ID: %s, subnet ID: %s',
+                                 instance.backend_id, subnet.backend_id)
+                    internal_ip = imported_internal_ip
+                    internal_ip.subnet = subnet
+                    internal_ip.instance = instance
+                    internal_ip.save()
+
+            # remove stale internal IPs
+            frontend_ids = set(existing_ips.keys())
+            backend_ids = {internal_ip['id'] for internal_ip in backend_internal_ips}
+            stale_ids = frontend_ids - backend_ids
+            if stale_ids:
+                logger.info('About to delete internal IPs with IDs %s', stale_ids)
+                instance.internal_ips_set.filter(backend_id__in=stale_ids).delete()
 
     def pull_internal_ips(self):
         synchronizer = InternalIPSynchronizer(self.neutron_client, self.tenant_id, self.settings)
@@ -1091,7 +1133,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def push_instance_internal_ips(self, instance):
-        # we assume that instance can be connected to subnet only once
         # we assume that internal IP subnet cannot be changed
         neutron = self.neutron_client
         try:
@@ -1104,6 +1145,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         for backend_internal_ip in backend_internal_ips:
             if backend_internal_ip['id'] not in exist_ids:
                 try:
+                    logger.info('About to delete network port with ID %s.', backend_internal_ip['id'])
                     neutron.delete_port(backend_internal_ip['id'])
                 except neutron_exceptions.NeutronClientException as e:
                     six.reraise(OpenStackBackendError, e)
@@ -1121,6 +1163,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                         'subnet_id': new_internal_ip.subnet.backend_id,
                     }],
                 }
+                logger.debug('About to create network port for instance %s in subnet %s.',
+                             instance.backend_id, new_internal_ip.subnet.backend_id)
                 backend_internal_ip = neutron.create_port({'port': port})['port']
             except neutron_exceptions.NeutronClientException as e:
                 six.reraise(OpenStackBackendError, e)

@@ -562,6 +562,22 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         # Assert
         self.assertEqual(instance.internal_ips_set.count(), 0)
 
+    def test_stale_internal_ips_are_deleted_by_backend_id(self):
+        # Arrange
+        vm = self.fixture.instance
+        subnet = self.fixture.subnet
+
+        factories.InternalIPFactory(subnet=self.fixture.subnet, instance=vm)
+        ip2 = factories.InternalIPFactory(subnet=self.fixture.subnet, instance=vm)
+        self.setup_neutron(ip2.backend_id, vm.backend_id, subnet.backend_id)
+
+        # Act
+        self.tenant_backend.pull_instance_internal_ips(vm)
+
+        # Assert
+        self.assertEqual(vm.internal_ips_set.count(), 1)
+        self.assertEqual(vm.internal_ips_set.first(), ip2)
+
     def test_existing_internal_ips_are_updated(self):
         # Arrange
         instance = self.fixture.instance
@@ -575,6 +591,22 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         internal_ip.refresh_from_db()
         self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
         self.assertEqual(internal_ip.ip4_address, '10.0.0.2')
+
+    def test_shared_internal_ips_are_reassigned(self):
+        # Arrange
+        vm1 = factories.InstanceFactory(service_project_link=self.fixture.spl)
+        vm2 = factories.InstanceFactory(service_project_link=self.fixture.spl)
+
+        subnet = self.fixture.subnet
+        internal_ip = factories.InternalIPFactory(subnet=self.fixture.subnet, instance=vm2)
+        self.setup_neutron(internal_ip.backend_id, vm1.backend_id, subnet.backend_id)
+
+        # Act
+        self.tenant_backend.pull_instance_internal_ips(vm1)
+
+        # Assert
+        self.assertEqual(vm1.internal_ips_set.count(), 1)
+        self.assertEqual(vm2.internal_ips_set.count(), 0)
 
 
 class PullInternalIpsTest(BaseBackendTest):
@@ -670,6 +702,99 @@ class PullInternalIpsTest(BaseBackendTest):
         self.assertEqual(internal_ip.backend_id, 'port_id')
         self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
         self.assertEqual(internal_ip.ip4_address, '10.0.0.2')
+
+    def test_instance_has_several_ports_in_the_same_network_connected_to_the_same_instance(self):
+        # Consider the case when instance has several IP addresses in the same subnet.
+
+        # Arrange
+        instance = self.fixture.instance
+        subnet = self.fixture.subnet
+
+        device_id = instance.backend_id
+        subnet_id = subnet.backend_id
+
+        self.neutron_client_mock.list_ports.return_value = {
+            'ports': [
+                {
+                    'id': 'port1',
+                    'mac_address': 'fa:16:3e:88:d4:69',
+                    'device_id': device_id,
+                    'device_owner': 'compute:nova',
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.2',
+                            'subnet_id': subnet_id,
+                        }
+                    ]
+                },
+                {
+                    'id': 'port2',
+                    'mac_address': 'fa:16:3e:1f:fb:22',
+                    'device_id': device_id,
+                    'device_owner': 'compute:nova',
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.3',
+                            'subnet_id': subnet_id,
+                        }
+                    ]
+                }
+            ]
+        }
+
+        # Act
+        self.tenant_backend.pull_internal_ips()
+
+        # Assert
+        self.assertEqual(2, instance.internal_ips_set.count())
+
+        actual_subnets = set(instance.internal_ips_set.values_list('subnet_id', flat=True))
+        self.assertEqual({subnet.id}, actual_subnets)
+
+        actual_addresses = set(instance.internal_ips_set.values_list('ip4_address', flat=True))
+        self.assertEqual({'10.0.0.2', '10.0.0.3'}, actual_addresses)
+
+        actual_ids = set(instance.internal_ips_set.values_list('backend_id', flat=True))
+        self.assertEqual({'port1', 'port2'}, actual_ids)
+
+    def test_instance_field_of_internal_ip_is_updated(self):
+        # Consider the case when instance has several IP addresses in the same subnet.
+
+        # Arrange
+        instance = self.fixture.instance
+        subnet = self.fixture.subnet
+
+        internal_ip = self.fixture.internal_ip
+        internal_ip.instance = None
+        internal_ip.save()
+
+        device_id = instance.backend_id
+        subnet_id = subnet.backend_id
+
+        self.neutron_client_mock.list_ports.return_value = {
+            'ports': [
+                {
+                    'id': internal_ip.backend_id,
+                    'mac_address': 'fa:16:3e:88:d4:69',
+                    'device_id': device_id,
+                    'device_owner': 'compute:nova',
+                    'fixed_ips': [
+                        {
+                            'ip_address': '10.0.0.2',
+                            'subnet_id': subnet_id,
+                        }
+                    ]
+                }
+            ]
+        }
+
+        # Act
+        self.tenant_backend.pull_internal_ips()
+
+        # Assert
+        internal_ip.refresh_from_db()
+        self.assertEqual(internal_ip.instance, instance)
+        self.assertEqual(1, instance.internal_ips_set.count())
 
 
 class GetInstancesTest(BaseBackendTest):
