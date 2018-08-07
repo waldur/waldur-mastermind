@@ -315,6 +315,9 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
                 update_fields=['runtime_state', 'device']
             ))
 
+        # TODO: Port should be created before instance is created.
+        # The following calls should be removed: pull_created_instance_internal_ips and push_instance_internal_ips.
+
         # Pull instance internal IPs
         # pull_instance_internal_ips method cannot be used, because it requires backend_id to update
         # existing internal IPs. However, internal IPs of the created instance does not have backend_ids.

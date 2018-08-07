@@ -624,9 +624,10 @@ def _validate_instance_internal_ips(internal_ips, settings):
         if subnet.settings != settings:
             message = _('Subnet %s does not belong to the same service settings as service project link.') % subnet
             raise serializers.ValidationError({'internal_ips_set': message})
-    duplicates = [subnet for subnet, count in collections.Counter(subnets).items() if count > 1]
+    pairs = [(internal_ip.subnet, internal_ip.backend_id) for internal_ip in internal_ips]
+    duplicates = [subnet for subnet, count in collections.Counter(pairs).items() if count > 1]
     if duplicates:
-        raise serializers.ValidationError(_('It is impossible to connect to subnet %s twice.') % duplicates[0])
+        raise serializers.ValidationError(_('It is impossible to connect to subnet %s twice.') % duplicates[0][0])
 
 
 def _validate_instance_security_groups(security_groups, settings):
@@ -679,7 +680,7 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
             floating_ip = models.FloatingIP(**kwargs)
             floating_ip.increase_backend_quotas_usage()
     floating_ip.is_booked = True
-    floating_ip.internal_ip = models.InternalIP.objects.get(instance=instance, subnet=subnet)
+    floating_ip.internal_ip = models.InternalIP.objects.filter(instance=instance, subnet=subnet).first()
     floating_ip.save()
     return floating_ip
 
@@ -988,7 +989,9 @@ class InstanceInternalIPsSetUpdateSerializer(serializers.Serializer):
         models.InternalIP.objects.filter(instance=instance).exclude(subnet__in=new_subnets).delete()
         # create new IPs
         for internal_ip in internal_ips_set:
-            models.InternalIP.objects.get_or_create(instance=instance, subnet=internal_ip.subnet)
+            match = models.InternalIP.objects.filter(instance=instance, subnet=internal_ip.subnet).first()
+            if not match:
+                models.InternalIP.objects.create(instance=instance, subnet=internal_ip.subnet)
 
         return instance
 

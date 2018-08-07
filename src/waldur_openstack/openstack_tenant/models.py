@@ -456,11 +456,11 @@ class SubNet(core_models.DescribableMixin, structure_models.ServiceProperty):
 
 
 class InternalIP(openstack_base_models.Port):
+    """
+    Instance may have several IP addresses in the same subnet
+    if shared IPs are implemented using Virtual Router Redundancy Protocol.
+    """
     # Name "internal_ips" is reserved by virtual machine mixin and corresponds to list of internal IPs.
     # So another related name should be used.
     instance = models.ForeignKey(Instance, related_name='internal_ips_set', null=True)
     subnet = models.ForeignKey(SubNet, related_name='internal_ips')
-
-    class Meta:
-        # we assume that instance can be connected to subnet only once.
-        unique_together = ('instance', 'subnet')
