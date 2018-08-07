@@ -19,6 +19,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
 
 
 class OfferingFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr='icontains')
     customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
     attributes = django_filters.CharFilter(name='attributes', method='filter_attributes')
