@@ -10,6 +10,7 @@ from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.common.mixins import UnitPriceMixin
 
 from . import factories
 from .. import serializers
@@ -109,6 +110,19 @@ class OfferingCreateTest(PostgreSQLTest):
         }
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_offering_with_plans(self):
+        plans_request = {
+            'plans': [
+                {'name': 'small',
+                 'description': 'CPU 1',
+                 'unit': UnitPriceMixin.Units.QUANTITY,
+                 'unit_price': 100}
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data['plans']), 1)
 
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)

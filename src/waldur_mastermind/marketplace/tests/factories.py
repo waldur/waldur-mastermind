@@ -1,9 +1,11 @@
+from decimal import Decimal
+
 import factory
 from django.db.models import signals
 from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
-
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from .. import models
 
 
@@ -135,3 +137,26 @@ class OrderItemFactory(factory.DjangoModelFactory):
 
     order = factory.SubFactory(OrderFactory)
     offering = factory.SubFactory(OfferingFactory)
+
+
+class PlanFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Plan
+
+    offering = factory.SubFactory(OfferingFactory)
+    name = factory.Sequence(lambda n: 'plan-%s' % n)
+    unit_price = Decimal(100)
+    unit = UnitPriceMixin.Units.QUANTITY
+
+    @classmethod
+    def get_url(cls, plan=None, action=None):
+        if plan is None:
+            plan = PlanFactory()
+        url = 'http://testserver' + reverse('marketplace-plan-detail',
+                                            kwargs={'uuid': plan.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-plan-list')
+        return url if action is None else url + action + '/'

@@ -49,6 +49,12 @@ class OfferingViewSet(BaseMarketplaceView):
     filter_class = filters.OfferingFilter
 
 
+class PlanViewSet(BaseMarketplaceView):
+    queryset = models.Plan.objects.all()
+    serializer_class = serializers.PlanSerializer
+    filter_class = filters.PlanFilter
+
+
 class ScreenshotViewSet(BaseMarketplaceView):
     queryset = models.Screenshots.objects.all()
     serializer_class = serializers.ScreenshotSerializer
