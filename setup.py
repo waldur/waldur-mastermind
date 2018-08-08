@@ -127,6 +127,7 @@ setup(
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
             'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
+            'waldur_marketplace_packages = waldur_mastermind.marketplace_packages.extension:MarketplacePackagesExtension',
         ),
     },
     include_package_data=True,
