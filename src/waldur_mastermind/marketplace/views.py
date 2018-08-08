@@ -92,6 +92,9 @@ class OrderViewSet(BaseMarketplaceView):
 
     @detail_route(methods=['post'])
     def set_state_executing(self, request, uuid=None):
+        order = self.get_object()
+        for item in order.items.all():
+            item.process(request)
         return self._update_state(request, models.Order.States.EXECUTING)
 
     set_state_executing_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]

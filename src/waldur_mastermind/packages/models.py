@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
+from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
@@ -26,6 +27,7 @@ class PackageTemplate(core_models.UuidMixin,
     # PackageTemplates are visible for all users.
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new packages.'))
+    tracker = FieldTracker()
 
     class Categories(object):
         SMALL = 'small'

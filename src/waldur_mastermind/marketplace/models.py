@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
 import six
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
@@ -17,6 +19,8 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
 
 from .attribute_types import ATTRIBUTE_TYPES
+from .plugins import manager
+from . import managers
 
 
 @python_2_unicode_compatible
@@ -136,6 +140,12 @@ class Offering(core_models.UuidMixin,
     native_name = models.CharField(max_length=160, default='', blank=True)
     native_description = models.CharField(max_length=500, default='', blank=True)
 
+    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+    scope = GenericForeignKey('content_type', 'object_id')
+
+    objects = managers.OfferingManager()
+
     class Permissions(object):
         customer_path = 'customer'
 
@@ -240,6 +250,14 @@ class OrderItem(core_models.UuidMixin,
     attributes = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
 
+    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+    scope = GenericForeignKey('content_type', 'object_id')
+    objects = managers.OrderItemManager('scope')
+
     class Meta(object):
         verbose_name = _('Order item')
         ordering = ('created',)
+
+    def process(self, user):
+        manager.process(self, user)
