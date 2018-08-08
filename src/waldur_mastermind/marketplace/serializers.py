@@ -18,7 +18,7 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.ServiceProvider
-        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'enable_notifications')
+        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description', 'enable_notifications')
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }
