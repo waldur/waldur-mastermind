@@ -318,6 +318,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         # Step 3. Delete stale IPs
         ips_to_delete = set(floating_ips) - set(imported_ips)
+        logger.info('About to delete stale floating IPs: %s', ips_to_delete)
         models.FloatingIP.objects.filter(settings=self.settings,
                                          backend_id__in=ips_to_delete).delete()
 
@@ -819,27 +820,41 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             six.reraise(OpenStackBackendError, e)
 
-        floating_ip_mappings = {ip.backend_id: ip for ip in
-                                instance.floating_ips.filter(is_booked=False).exclude(backend_id='')}
+        backend_ids = {fip['id'] for fip in backend_floating_ips}
+
+        floating_ips = {
+            fip.backend_id: fip
+            for fip in models.FloatingIP.objects.filter(settings=self.settings,
+                                                        is_booked=False,
+                                                        backend_id__in=backend_ids)
+        }
 
         with transaction.atomic():
             for backend_floating_ip in backend_floating_ips:
                 imported_floating_ip = self._backend_floating_ip_to_floating_ip(backend_floating_ip)
+                internal_ip = internal_ip_mappings.get(imported_floating_ip._internal_ip_backend_id)
 
-                floating_ip = floating_ip_mappings.pop(imported_floating_ip.backend_id, None)
+                floating_ip = floating_ips.get(imported_floating_ip.backend_id)
                 if floating_ip is None:
-                    internal_ip = internal_ip_mappings[imported_floating_ip._internal_ip_backend_id]
                     imported_floating_ip.internal_ip = internal_ip
                     imported_floating_ip.save()
                     continue
+
+                if floating_ip.internal_ip != internal_ip:
+                    floating_ip.internal_ip = internal_ip
+                    floating_ip.save()
 
                 # Don't update user defined name.
                 if floating_ip.address != floating_ip.name:
                     imported_floating_ip.name = floating_ip.name
                 update_pulled_fields(floating_ip, imported_floating_ip, models.FloatingIP.get_backend_fields())
 
-            # Detach floating IPs from internal IPs
-            instance.floating_ips.filter(backend_id__in=floating_ip_mappings.keys()).update(internal_ip=None)
+            frontend_ids = set(instance.floating_ips.filter(is_booked=False)
+                               .exclude(backend_id='')
+                               .values_list('backend_id', flat=True))
+            stale_ids = frontend_ids - backend_ids
+            logger.info('About to detach floating IPs from internal IPs: %s', stale_ids)
+            instance.floating_ips.filter(backend_id__in=stale_ids).update(internal_ip=None)
 
     @log_backend_action()
     def push_instance_floating_ips(self, instance):

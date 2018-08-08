@@ -898,3 +898,48 @@ class ImportInstanceTest(BaseBackendTest):
 
         self.assertEquals(instance.backend_id, self.backend_id)
         self.assertEquals(instance.error_message, expected_error_message)
+
+
+class PullInstanceFloatingIpsTest(BaseBackendTest):
+    def test_internal_ip_is_reassigned_for_floating_ip(self):
+        # Arrange
+        subnet = self.fixture.subnet
+        instance = self.fixture.instance
+
+        ip1 = factories.InternalIPFactory(
+            subnet=subnet,
+            backend_id='port_id1',
+            ip4_address='192.168.42.42',
+        )
+
+        ip2 = factories.InternalIPFactory(
+            subnet=subnet,
+            backend_id='port_id2',
+            ip4_address='192.168.42.62',
+            instance=instance
+        )
+
+        fip = factories.FloatingIPFactory(
+            settings=subnet.settings,
+            internal_ip=ip1
+        )
+
+        floatingips = [
+            {
+                'floating_ip_address': fip.address,
+                'floating_network_id': 'new_backend_network_id',
+                'status': 'DOWN',
+                'id': fip.backend_id,
+                'port_id': ip2.backend_id
+            }
+        ]
+        self.neutron_client_mock.list_floatingips.return_value = {'floatingips': floatingips}
+
+        # Act
+        self.tenant_backend.pull_instance_floating_ips(instance)
+
+        # Assert
+        self.assertEqual(1, instance.floating_ips.count())
+
+        fip.refresh_from_db()
+        self.assertEqual(ip2, fip.internal_ip)
