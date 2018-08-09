@@ -109,8 +109,9 @@ class ScheduleMixin(models.Model):
     is_active = models.BooleanField(default=False)
 
     def update_next_trigger_at(self):
-        base_time = django_timezone.now().replace(tzinfo=pytz.timezone(self.timezone))
-        self.next_trigger_at = croniter(self.schedule, base_time).get_next(datetime)
+        tz = pytz.timezone(self.timezone)
+        dt = tz.normalize(django_timezone.now())
+        self.next_trigger_at = croniter(self.schedule, dt).get_next(datetime)
 
     def save(self, *args, **kwargs):
         """
@@ -125,7 +126,8 @@ class ScheduleMixin(models.Model):
             prev_instance = None
 
         if prev_instance is None or (not prev_instance.is_active and self.is_active or
-                                     self.schedule != prev_instance.schedule):
+                                     self.schedule != prev_instance.schedule or
+                                     self.timezone != prev_instance.timezone):
             self.update_next_trigger_at()
 
         super(ScheduleMixin, self).save(*args, **kwargs)

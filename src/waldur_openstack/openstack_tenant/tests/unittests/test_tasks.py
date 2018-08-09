@@ -48,95 +48,123 @@ class DeleteExpiredSnapshotsTaskTest(TestCase):
 class BackupScheduleTaskTest(TestCase):
 
     def setUp(self):
-        self.not_active_schedule = factories.BackupScheduleFactory(is_active=False)
+        self.disabled_schedule = factories.BackupScheduleFactory(is_active=False)
 
-        self.backupable = factories.InstanceFactory(
+        self.instance = factories.InstanceFactory(
             state=models.Instance.States.OK,
         )
-        self.schedule_for_execution = factories.BackupScheduleFactory(instance=self.backupable)
-        self.schedule_for_execution.next_trigger_at = timezone.now() - timedelta(minutes=10)
-        self.schedule_for_execution.save()
+        self.overdue_schedule = factories.BackupScheduleFactory(
+            instance=self.instance, timezone='Europe/Tallinn')
+        self.overdue_schedule.next_trigger_at = timezone.now() - timedelta(minutes=10)
+        self.overdue_schedule.save()
 
-        self.future_schedule = factories.BackupScheduleFactory(instance=self.backupable)
+        self.future_schedule = factories.BackupScheduleFactory(
+            instance=self.instance, timezone='Europe/Tallinn')
         self.future_schedule.next_trigger_at = timezone.now() + timedelta(minutes=2)
         self.future_schedule.save()
 
-    def test_command_does_not_create_backups_created_for_not_active_schedules(self):
+    def test_disabled_schedule_is_skipped(self):
         tasks.ScheduleBackups().run()
-        self.assertEqual(self.not_active_schedule.backups.count(), 0)
+        self.assertEqual(self.disabled_schedule.backups.count(), 0)
 
-    def test_command_create_one_backup_created_for_schedule_with_next_trigger_in_past(self):
+    def test_backup_is_created_for_overdue_schedule(self):
         tasks.ScheduleBackups().run()
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
 
-    def test_command_does_not_create_a_second_backup_if_timedelta_is_less_than_schedule(self):
+    def test_next_trigger_at_is_updated_for_overdue_schedule(self):
+        # Arrange
+        old_dt = self.overdue_schedule.next_trigger_at
+
+        # Act
         tasks.ScheduleBackups().run()
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
+
+        # Assert
+        self.overdue_schedule.refresh_from_db()
+        new_dt = self.overdue_schedule.next_trigger_at
+        self.assertGreater(new_dt, old_dt)
+
+    def test_next_trigger_at_is_updated_if_timezone_is_changed(self):
+        # Arrange
+        old_dt = self.future_schedule.next_trigger_at
+
+        # Act
+        self.future_schedule.timezone = 'Asia/Tokyo'
+        self.future_schedule.save()
+
+        # Assert
+        self.future_schedule.refresh_from_db()
+        new_dt = self.future_schedule.next_trigger_at
+        self.assertGreater(new_dt, old_dt)
+
+    def test_duplicate_backups_are_not_created_for_two_consequent_immediate_calls(self):
+        tasks.ScheduleBackups().run()
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
         # timedelta is 0
         tasks.ScheduleBackups().run()
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
 
-    def test_command_create_two_backups_if_enough_time_has_passed(self):
+    def test_two_backups_are_created_if_enough_time_has_passed(self):
         tasks.ScheduleBackups().run()
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
-        tasks.ScheduleBackups().run()
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
+
         self._trigger_next_backup(timezone.now())
-        self.assertEqual(self.schedule_for_execution.backups.count(), 2)
+        self.assertEqual(self.overdue_schedule.backups.count(), 2)
 
-    def test_command_does_not_create_backups_created_for_schedule_with_next_trigger_in_future(self):
+    def test_future_schedule_is_skipped(self):
         tasks.ScheduleBackups().run()
         self.assertEqual(self.future_schedule.backups.count(), 0)
 
     def test_command_does_not_create_more_backups_than_maximal_number_of_resources(self):
         maximum_number = 3
-        self.schedule_for_execution.maximal_number_of_resources = maximum_number
-        self.schedule_for_execution.save()
+        self.overdue_schedule.maximal_number_of_resources = maximum_number
+        self.overdue_schedule.save()
         tasks.ScheduleBackups().run()
 
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
         base_time = self._trigger_next_backup(timezone.now())
-        self.assertEqual(self.schedule_for_execution.backups.count(), 2)
+        self.assertEqual(self.overdue_schedule.backups.count(), 2)
         base_time = self._trigger_next_backup(base_time)
-        self.assertEqual(self.schedule_for_execution.backups.count(), 3)
+        self.assertEqual(self.overdue_schedule.backups.count(), 3)
         self._trigger_next_backup(base_time)
 
-        self.assertEqual(self.schedule_for_execution.backups.count(), maximum_number)
+        self.assertEqual(self.overdue_schedule.backups.count(), maximum_number)
 
     def test_command_creates_backups_up_to_maximal_number_if_limit_is_updated(self):
-        self.schedule_for_execution.maximal_number_of_resources = 2
-        self.schedule_for_execution.save()
+        self.overdue_schedule.maximal_number_of_resources = 2
+        self.overdue_schedule.save()
         tasks.ScheduleBackups().run()
 
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
         base_time = self._trigger_next_backup(timezone.now())
-        self.assertEqual(self.schedule_for_execution.backups.count(), 2)
+        self.assertEqual(self.overdue_schedule.backups.count(), 2)
         base_time = self._trigger_next_backup(base_time)
-        self.assertEqual(self.schedule_for_execution.backups.count(), 2)
+        self.assertEqual(self.overdue_schedule.backups.count(), 2)
 
-        self.schedule_for_execution.maximal_number_of_resources = 3
-        self.schedule_for_execution.save()
+        self.overdue_schedule.maximal_number_of_resources = 3
+        self.overdue_schedule.save()
         self._trigger_next_backup(base_time)
-        self.assertEqual(self.schedule_for_execution.backups.count(), 3)
+        self.assertEqual(self.overdue_schedule.backups.count(), 3)
 
     def test_command_removes_last_backups_if_their_amount_exceeds_allowed_limit(self):
-        now = timezone.now()
-        todays_backup = factories.BackupFactory(instance=self.backupable, kept_until=now)
-        older_backup = factories.BackupFactory(instance=self.backupable, kept_until=now - timedelta(minutes=30))
-        oldest_backup = factories.BackupFactory(instance=self.backupable, kept_until=now - timedelta(minutes=50))
-        self.schedule_for_execution.backups.add(*[todays_backup, older_backup, oldest_backup])
-        self.schedule_for_execution.maximal_number_of_resources = 1
-        self.schedule_for_execution.save()
+        now = datetime.now()
+        todays_backup = factories.BackupFactory(instance=self.instance, kept_until=now)
+        older_backup = factories.BackupFactory(instance=self.instance, kept_until=now - timedelta(minutes=30))
+        oldest_backup = factories.BackupFactory(instance=self.instance, kept_until=now - timedelta(minutes=50))
+        self.overdue_schedule.backups.add(*[todays_backup, older_backup, oldest_backup])
+        self.overdue_schedule.maximal_number_of_resources = 1
+        self.overdue_schedule.save()
         tasks.ScheduleBackups().run()
 
         old_backup_exist = models.Backup.objects.filter(id__in=[older_backup.id, oldest_backup.id]).exists()
         self.assertFalse(old_backup_exist)
         self.assertTrue(models.Backup.objects.filter(id=todays_backup.id).exists())
-        self.assertEqual(self.schedule_for_execution.backups.count(), 1)
+        self.assertEqual(self.overdue_schedule.backups.count(), 1)
 
-    def _trigger_next_backup(self, base_time):
-        base_time = base_time.replace(tzinfo=pytz.timezone(self.schedule_for_execution.timezone))
-        next_trigger_at = croniter(self.schedule_for_execution.schedule, base_time).get_next(datetime)
-        mocked_now = next_trigger_at + timezone.timedelta(seconds=5)
+    def _trigger_next_backup(self, base_dt):
+        tz = pytz.timezone(self.overdue_schedule.timezone)
+        dt = tz.normalize(base_dt)
+        next_trigger_at = croniter(self.overdue_schedule.schedule, dt).get_next(datetime)
+        mocked_now = next_trigger_at + timedelta(seconds=5)
         with freeze_time(mocked_now):
             tasks.ScheduleBackups().run()
 
