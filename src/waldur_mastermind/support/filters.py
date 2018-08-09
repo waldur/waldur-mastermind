@@ -1,5 +1,4 @@
 import django_filters
-from django.conf import settings
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import models as structure_models, filters as structure_filters
@@ -109,7 +108,10 @@ class SupportUserFilter(django_filters.FilterSet):
 class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     description = django_filters.CharFilter(lookup_expr='icontains')
-    type = django_filters.MultipleChoiceFilter(choices=[(item, item) for item in settings.WALDUR_SUPPORT['OFFERINGS'].keys()])
+    type = django_filters.ModelMultipleChoiceFilter(queryset=models.OfferingTemplate.objects.all(),
+                                                    to_field_name='name',
+                                                    method='offering_template_filter')
+    template = django_filters.ModelMultipleChoiceFilter(queryset=models.OfferingTemplate.objects.all(), )
     issue = core_filters.URLFilter(view_name='support-issue-detail', name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(name='issue__uuid')
     issue_key = django_filters.CharFilter(name='issue__key')
@@ -122,9 +124,14 @@ class OfferingFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(fields=('created', 'modified', 'state'))
 
+    def offering_template_filter(self, queryset, name, value):
+        if value:
+            return queryset.filter(template__in=value)
+        return queryset
+
     class Meta(object):
         model = models.Offering
-        fields = ('name', 'description', 'type', 'issue', 'issue_uuid', 'project', 'project_uuid', 'state')
+        fields = ('name', 'description', 'template', 'issue', 'issue_uuid', 'project', 'project_uuid', 'state')
 
 
 class AttachmentFilter(django_filters.FilterSet):
