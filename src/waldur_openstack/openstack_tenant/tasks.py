@@ -4,10 +4,13 @@ from datetime import timedelta
 import logging
 
 from django.conf import settings
+from django.db.models import Q
 from django.db import transaction
 from django.utils import timezone
 
-from waldur_core.core import tasks as core_tasks, utils as core_utils
+from waldur_core.core import tasks as core_tasks
+from waldur_core.core import utils as core_utils
+from waldur_core.core import models as core_models
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure import (models as structure_models, tasks as structure_tasks,
                                    SupportedServices)
@@ -95,20 +98,71 @@ class VolumeExtendErredTask(core_tasks.ErrorStateTransitionTask):
 
 
 class BaseScheduleTask(core_tasks.BackgroundTask):
+    """
+    This task has several important caveats to consider.
+
+    1. If user has decreased value of maximal_number_of_resources attribute,
+       but exceeding resources have been already created, we would try to automatically delete
+       exceeding resources before creating new resources.
+       However, if new resource creation fails, old resources cannot be restored.
+
+       Therefore, it is strongly advised to modify value of maximal_number_of_resources attribute very carefully.
+       Also it is better to delete exceeding resources manually instead of relying on automatic deletion
+       so that it is easier to explicitly select resources to be removed.
+
+    2. _remove_exceeding_resources method orders resources by value of kept_until attribute in ASC order.
+       It assumes that NULL values come *last* with ascending sort order.
+       Therefore it would work correctly only in PostgreSQL.
+       It would not work correctly in MySQL because in MySQL NULL values come *first*.
+
+    3. Value of kept_until attribute is ignored as long as there are exceeding resources.
+       It means that existing resources are deleted even if it is requested to be kept forever.
+       Essentially, retention_time and maximal_number_of_resources attributes are mutually exclusive.
+
+       Consider, for example, case when value of maximal_number_of_resources is 3 and there are 6 resources,
+       out of which 2 with non-null value of kept_until attribute and 4 resources to be kept forever.
+       As you can see, there are 3 exceeding resources, which should be removed.
+
+       Then, both 2 first resources would be deleted, and 1 resource to be kept forever is deleted as well.
+       Please note that last resource for deletion is chosen by value of *created* attribute.
+       It means that oldest resource is selected for deletion.
+
+    4. Database records for resources are created and deleted synchronously,
+       but actual backend API task are scheduled asynchronously.
+       Therefore, next iteration of schedule task does not wait
+       until previous iteration tasks are completed.
+       That's why there may several concurrent execution of the same schedule.
+
+    5. Actual execution of schedule depends on number of Celery workers and their load.
+       For example, even if schedule is expected to create new resources each hour,
+       but all Celery workers have been overloaded for 2 hours, only one resource would be created.
+
+    6. Schedule is disabled as long as resource quota is exceeded.
+       Schedule is not reactivated automatically whenever quota limit
+       is increased or quota usage is decreased.
+       Instead it is expected that user would manually reactivate schedule in this case.
+
+    7. Schedule is skipped and new resources are not created as long as schedule is disabled or
+       number of resources has reached value of maximal_number_of_resources attribute.
+    """
+
     model = NotImplemented
     resource_attribute = NotImplemented
 
     def is_equal(self, other_task):
         return self.name == other_task.get('name')
 
+    @transaction.atomic()
     def run(self):
         schedules = self.model.objects.filter(is_active=True, next_trigger_at__lt=timezone.now())
         for schedule in schedules:
             existing_resources = self._get_number_of_resources(schedule)
             if existing_resources > schedule.maximal_number_of_resources:
-                self._remove_exceeding_backups(schedule, existing_resources)
+                self._schedule_exceeding_resources_deletion(schedule, existing_resources)
                 continue
             elif existing_resources == schedule.maximal_number_of_resources:
+                logger.debug('Skipping schedule %s because number of resources %s has reached limit %s.',
+                             schedule, existing_resources, schedule.maximal_number_of_resources)
                 continue
 
             kept_until = None
@@ -116,10 +170,10 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 kept_until = timezone.now() + timezone.timedelta(days=schedule.retention_time)
 
             try:
-                with transaction.atomic():
-                    schedule.call_count += 1
-                    schedule.save()
-                    resource = self._create_resource(schedule, kept_until=kept_until)
+                # Value of call_count attribute is used as suffix of new resource name
+                schedule.call_count += 1
+                schedule.save()
+                resource = self._create_resource(schedule, kept_until=kept_until)
             except quotas_exceptions.QuotaValidationError as e:
                 message = 'Failed to schedule "%s" creation. Error: %s' % (self.model.__name__, e)
                 logger.exception(
@@ -135,12 +189,16 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 schedule.update_next_trigger_at()
                 schedule.save()
 
-    def _remove_exceeding_backups(self, schedule, resources_count):
+    def _schedule_exceeding_resources_deletion(self, schedule, resources_count):
         amount_to_remove = resources_count - schedule.maximal_number_of_resources
         self._log_backup_cleanup(schedule, amount_to_remove, resources_count)
-        resources = getattr(schedule, self.resource_attribute)
-        resources_to_remove = resources.order_by('kept_until')[:amount_to_remove]
-        resources.filter(id__in=resources_to_remove).delete()
+        ok_or_erred = Q(state=core_models.StateMixin.States.OK) | Q(state=core_models.StateMixin.States.ERRED)
+        queryset = getattr(schedule, self.resource_attribute)
+        resources = queryset.filter(ok_or_erred).order_by('kept_until', 'created')
+        resources_to_remove = resources[:amount_to_remove]
+        executor = self._get_delete_executor()
+        for resource in resources_to_remove:
+            executor.execute(resource)
 
     def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
         raise NotImplementedError()
@@ -149,6 +207,9 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
         raise NotImplementedError()
 
     def _get_create_executor(self):
+        raise NotImplementedError()
+
+    def _get_delete_executor(self):
         raise NotImplementedError()
 
     def _get_number_of_resources(self, schedule):
@@ -178,6 +239,10 @@ class ScheduleBackups(BaseScheduleTask):
         from . import executors
         return executors.BackupCreateExecutor
 
+    def _get_delete_executor(self):
+        from . import executors
+        return executors.BackupDeleteExecutor
+
     def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
         message_template = ('Maximum resource count "%s" has been reached.'
                             '"%s" from "%s" resources are going to be removed.')
@@ -188,17 +253,31 @@ class ScheduleBackups(BaseScheduleTask):
         )
 
 
-class DeleteExpiredBackups(core_tasks.BackgroundTask):
-    name = 'openstack_tenant.DeleteExpiredBackups'
+class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
+    model = NotImplemented
 
     def is_equal(self, other_task):
         return self.name == other_task.get('name')
 
+    def _get_executor(self):
+        raise NotImplementedError()
+
     @transaction.atomic
     def run(self):
+        executor = self._get_delete_executor()
+        resources = self.model.objects.filter(kept_until__lt=timezone.now(),
+                                              state=core_models.StateMixin.States.OK)
+        for resource in resources:
+            executor.execute(resource)
+
+
+class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
+    name = 'openstack_tenant.DeleteExpiredBackups'
+    model = models.Backup
+
+    def _get_delete_executor(self):
         from . import executors
-        for backup in models.Backup.objects.filter(kept_until__lt=timezone.now(), state=models.Backup.States.OK):
-            executors.BackupDeleteExecutor.execute(backup)
+        return executors.BackupDeleteExecutor
 
 
 class ScheduleSnapshots(BaseScheduleTask):
@@ -224,6 +303,10 @@ class ScheduleSnapshots(BaseScheduleTask):
         from . import executors
         return executors.SnapshotCreateExecutor
 
+    def _get_delete_executor(self):
+        from . import executors
+        return executors.SnapshotDeleteExecutor
+
     def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
         message_template = ('Maximum resource count "%s" has been reached.'
                             '"%s" from "%s" resources are going to be removed.')
@@ -234,16 +317,13 @@ class ScheduleSnapshots(BaseScheduleTask):
         )
 
 
-class DeleteExpiredSnapshots(core_tasks.BackgroundTask):
+class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
     name = 'openstack_tenant.DeleteExpiredSnapshots'
+    model = models.Snapshot
 
-    def is_equal(self, other_task):
-        return self.name == other_task.get('name')
-
-    def run(self):
+    def _get_delete_executor(self):
         from . import executors
-        for snapshot in models.Snapshot.objects.filter(kept_until__lt=timezone.now(), state=models.Snapshot.States.OK):
-            executors.SnapshotDeleteExecutor.execute(snapshot)
+        return executors.SnapshotDeleteExecutor
 
 
 class SetErredStuckResources(core_tasks.BackgroundTask):

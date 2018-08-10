@@ -145,7 +145,7 @@ class BackupScheduleTaskTest(TestCase):
         self._trigger_next_backup(base_time)
         self.assertEqual(self.overdue_schedule.backups.count(), 3)
 
-    def test_command_removes_last_backups_if_their_amount_exceeds_allowed_limit(self):
+    def test_if_backup_amount_exceeds_allowed_limit_deletion_is_scheduled(self):
         now = datetime.now()
         todays_backup = factories.BackupFactory(instance=self.instance, kept_until=now)
         older_backup = factories.BackupFactory(instance=self.instance, kept_until=now - timedelta(minutes=30))
@@ -155,10 +155,14 @@ class BackupScheduleTaskTest(TestCase):
         self.overdue_schedule.save()
         tasks.ScheduleBackups().run()
 
-        old_backup_exist = models.Backup.objects.filter(id__in=[older_backup.id, oldest_backup.id]).exists()
-        self.assertFalse(old_backup_exist)
+        older_backup.refresh_from_db()
+        oldest_backup.refresh_from_db()
+        self.assertEqual(models.Backup.States.DELETION_SCHEDULED, older_backup.state)
+        self.assertEqual(models.Backup.States.DELETION_SCHEDULED, oldest_backup.state)
+
+        tasks.ScheduleBackups().run()
         self.assertTrue(models.Backup.objects.filter(id=todays_backup.id).exists())
-        self.assertEqual(self.overdue_schedule.backups.count(), 1)
+        self.assertEqual(self.overdue_schedule.backups.count(), 3)
 
     def _trigger_next_backup(self, base_dt):
         tz = pytz.timezone(self.overdue_schedule.timezone)
