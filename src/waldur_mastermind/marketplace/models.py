@@ -25,6 +25,7 @@ from . import managers
 
 @python_2_unicode_compatible
 class ServiceProvider(core_models.UuidMixin,
+                      core_models.DescribableMixin,
                       structure_models.StructureModel,
                       structure_models.TimeStampedModel):
     customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
