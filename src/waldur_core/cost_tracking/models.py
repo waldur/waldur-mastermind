@@ -173,7 +173,7 @@ class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.Descendant
             try:
                 total += consumables_prices[(consumable_item.item_type, consumable_item.key)] * usage
             except KeyError:
-                logger.error('Price list item for consumable "%s" does not exist.' % consumable_item)
+                logger.debug('Price list item for consumable "%s" does not exist.' % consumable_item)
         return total
 
     def _check_is_updatable(self):
