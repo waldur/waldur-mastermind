@@ -194,6 +194,7 @@ class DeleteExpiredBackups(core_tasks.BackgroundTask):
     def is_equal(self, other_task):
         return self.name == other_task.get('name')
 
+    @transaction.atomic
     def run(self):
         from . import executors
         for backup in models.Backup.objects.filter(kept_until__lt=timezone.now(), state=models.Backup.States.OK):
