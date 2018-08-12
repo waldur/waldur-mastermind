@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0016_attribute_options'),
+        ('marketplace', '0017_offering_scope'),
     ]
 
     operations = [
