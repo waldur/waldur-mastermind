@@ -68,7 +68,6 @@ fi
 echo '[+] Running unit tests'
 pytest \
     --numprocesses=${NUM_PROCESSES} \
-    --nomigrations \
     --reuse-db \
     --ds=waldur_mastermind.test_settings \
     --junitxml=/mnt/test_report.xml \
