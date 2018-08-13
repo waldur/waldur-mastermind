@@ -18,9 +18,10 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
 
+from . import managers
 from .attribute_types import ATTRIBUTE_TYPES
 from .plugins import manager
-from . import managers
+from ..common import mixins as common_mixins
 
 
 @python_2_unicode_compatible
@@ -250,6 +251,7 @@ class OrderItem(core_models.UuidMixin,
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+    plan = models.ForeignKey('Plan', null=True, blank=True)
 
     content_type = models.ForeignKey(ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
@@ -262,3 +264,18 @@ class OrderItem(core_models.UuidMixin,
 
     def process(self, user):
         manager.process(self, user)
+
+
+class Plan(core_models.UuidMixin,
+           structure_models.TimeStampedModel,
+           core_models.NameMixin,
+           core_models.DescribableMixin,
+           common_mixins.UnitPriceMixin):
+    offering = models.ForeignKey(Offering, related_name='plans')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-plan'
+
+    class Permissions(object):
+        customer_path = 'offering__customer'

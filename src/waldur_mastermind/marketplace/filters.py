@@ -71,3 +71,12 @@ class ItemFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.OrderItem
         fields = []
+
+
+class PlanFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+
+    class Meta(object):
+        model = models.Plan
+        fields = []

@@ -21,8 +21,12 @@ class ScreenshotsInline(admin.TabularInline):
     model = models.Screenshots
 
 
+class PlansInline(admin.TabularInline):
+    model = models.Plan
+
+
 class OfferingAdmin(admin.ModelAdmin):
-    inlines = [ScreenshotsInline]
+    inlines = [ScreenshotsInline, PlansInline]
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
