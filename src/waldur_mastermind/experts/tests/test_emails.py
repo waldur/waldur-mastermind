@@ -8,7 +8,7 @@ from . import factories, fixtures
 from .. import tasks
 
 
-@mock.patch('waldur_mastermind.experts.tasks.send_mail')
+@mock.patch('waldur_core.core.utils.send_mail')
 class NewExpertRequestMailTest(test.APITransactionTestCase):
     def setUp(self):
         self.expert_fixture = fixtures.ExpertsFixture()
@@ -55,7 +55,7 @@ class NewExpertRequestMailTest(test.APITransactionTestCase):
         self.assertTrue('Waldur MasterMind' in message)
 
 
-@mock.patch('waldur_mastermind.experts.tasks.send_mail')
+@mock.patch('waldur_core.core.utils.send_mail')
 class NewExpertBidMailTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ExpertsFixture()
