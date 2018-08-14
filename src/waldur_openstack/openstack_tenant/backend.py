@@ -126,7 +126,11 @@ class InternalIPSynchronizer(object):
             local_ip = self.local_ips.get(remote_ip.backend_id)
             instance = None
 
-            if remote_ip._device_owner == 'compute:nova':
+            # Please note that for different availability zones you may see not
+            # only compute:nova but also, for example, compute:MS-ZONE and compute:RHEL-ZONE
+            # therefore it's safer to check prefix only. See also Neutron source code:
+            # https://github.com/openstack/neutron/blob/2d30981289474c3e08ff1008b76284a993a57e1f/neutron/plugins/ml2/plugin.py#L2012
+            if remote_ip._device_owner.startswith('compute:'):
                 instance = self.instances.get(remote_ip._instance_backend_id)
                 # Check if internal IP is pending.
                 if instance and not local_ip:
@@ -140,6 +144,7 @@ class InternalIPSynchronizer(object):
                 local_ip.save()
             else:
                 if local_ip.instance != instance:
+                    logger.info('About to reassign internal IP from %s to %s', local_ip.instance, instance)
                     local_ip.instance = instance
                     local_ip.save()
 
@@ -147,8 +152,8 @@ class InternalIPSynchronizer(object):
                 update_pulled_fields(local_ip, remote_ip,
                                      models.InternalIP.get_backend_fields() + ('backend_id',))
 
-        # Remove stale internal IPs.
         if self.stale_ips:
+            logger.info('About to remove stale internal IPs: %s', self.stale_ips)
             models.InternalIP.objects.filter(pk__in=self.stale_ips).delete()
 
 
