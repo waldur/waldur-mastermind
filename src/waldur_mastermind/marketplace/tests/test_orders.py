@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import mock
 from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status
@@ -193,6 +194,19 @@ class OrderUpdateTest(PostgreSQLTest):
     def test_not_can_set_terminated_state(self, user):
         response = self.update_offering(user, 'set_state_terminated')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
+    def test_notifications_when_order_approval_is_requested(self, mock_tasks):
+        self.order.set_state_requested_for_approval()
+        self.order.save()
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 1)
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], self.order.uuid)
+
+    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
+    def test_not_send_notification_if_state_is_not_requested_for_approval(self, mock_tasks):
+        self.order.set_state_terminated()
+        self.order.save()
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 0)
 
     def update_offering(self, user, action):
         user = getattr(self.fixture, user)

@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
 import six
+from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
@@ -9,6 +11,7 @@ from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
+from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
@@ -215,6 +218,7 @@ class Order(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     total_cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+    tracker = FieldTracker()
 
     class Permissions(object):
         customer_path = 'project__customer'
@@ -243,6 +247,27 @@ class Order(core_models.UuidMixin,
     @transition(field=state, source='*', target=States.TERMINATED)
     def set_state_terminated(self):
         pass
+
+    def get_approvers(self):
+        User = get_user_model()
+        users = []
+
+        if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
+            users = User.objects.filter(is_staff=True, is_active=True)
+
+        if settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER']:
+            order_owners = self.project.customer.get_owners()
+            users = order_owners if not users else users.union(order_owners)
+
+        if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
+            order_managers = self.project.get_users(models.ProjectRole.MANAGER)
+            users = order_managers if not users else users.union(order_managers)
+
+        if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
+            order_admins = self.project.get_users(models.ProjectRole.ADMINISTRATOR)
+            users = order_admins if not users else users.union(order_admins)
+
+        return users and users.distinct()
 
 
 class OrderItem(core_models.UuidMixin,
