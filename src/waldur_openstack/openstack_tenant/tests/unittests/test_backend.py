@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from ddt import data, ddt
 from django.test import TestCase
 from cinderclient.v2.volumes import Volume
 from novaclient.v2.servers import Server
@@ -609,6 +610,7 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         self.assertEqual(vm2.internal_ips_set.count(), 0)
 
 
+@ddt
 class PullInternalIpsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.neutron_client_mock.list_ports.return_value = {
@@ -757,7 +759,8 @@ class PullInternalIpsTest(BaseBackendTest):
         actual_ids = set(instance.internal_ips_set.values_list('backend_id', flat=True))
         self.assertEqual({'port1', 'port2'}, actual_ids)
 
-    def test_instance_field_of_internal_ip_is_updated(self):
+    @data('compute:nova', 'compute:MS-ZONE')
+    def test_instance_field_of_internal_ip_is_updated(self, device_owner):
         # Consider the case when instance has several IP addresses in the same subnet.
 
         # Arrange
@@ -777,7 +780,7 @@ class PullInternalIpsTest(BaseBackendTest):
                     'id': internal_ip.backend_id,
                     'mac_address': 'fa:16:3e:88:d4:69',
                     'device_id': device_id,
-                    'device_owner': 'compute:nova',
+                    'device_owner': device_owner,
                     'fixed_ips': [
                         {
                             'ip_address': '10.0.0.2',
