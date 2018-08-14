@@ -291,9 +291,9 @@ Next steps:
      systemctl start %{__celerybeat_service_name}
      systemctl start %{__uwsgi_service_name}
 
-7. Create first superuser (if needed and not yet done):
+7. Create first staff user (if needed and not yet done):
 
-     su - %{__user} -c "waldur createsuperuser"
+     su - %{__user} -c "waldur createstaffuser -u staff -p staffSecretPasswordChangeMe"
 
 All done.
 ------------------------------------------------------------------------
