@@ -4,10 +4,9 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.utils import broadcast_mail
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.support.tasks import _send_issue_notification
 
@@ -101,41 +100,6 @@ def send_request_mail(event_type, request, users, extra_context=None):
     ))
 
     broadcast_mail('experts', event_type, context, recipient_list)
-
-
-# TODO: Move to waldur-core
-def broadcast_mail(app, event_type, context, recipient_list):
-    """
-    Shorthand to format email message from template file and sent it to all recipients.
-
-    It is assumed that there are there are 3 templates available for event type in application.
-    For example, if app is 'experts' and event_type is 'new_request', then there should be 3 files:
-
-    1) experts/new_request_subject.txt is template for email subject
-    2) experts/new_request_message.txt is template for email body as text
-    3) experts/new_request_message.html is template for email body as HTML
-
-    By default, built-in Django send_mail is used, all members
-    of the recipient list will see the other recipients in the 'To' field.
-    Contrary to this, we're using explicit loop in order to ensure that
-    recipients would NOT see the other recipients.
-
-    :param app: prefix for template filename.
-    :param event_type: postfix for template filename.
-    :param context: dictionary passed to the template for rendering.
-    :param recipient_list: list of strings, each an email address.
-    """
-
-    subject_template = '%s/%s_subject.txt' % (app, event_type)
-    text_template = '%s/%s_message.txt' % (app, event_type)
-    html_template = '%s/%s_message.html' % (app, event_type)
-
-    subject = render_to_string(subject_template, context).strip()
-    text_message = render_to_string(text_template, context)
-    html_message = render_to_string(html_template, context)
-
-    for recipient in recipient_list:
-        send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [recipient], html_message=html_message)
 
 
 @shared_task

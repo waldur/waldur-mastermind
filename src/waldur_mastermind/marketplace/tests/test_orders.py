@@ -70,7 +70,33 @@ class OrderCreateTest(PostgreSQLTest):
         response = self.create_order(self.fixture.staff, offering)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def create_order(self, user, offering=None):
+    def test_create_order_with_plan(self):
+        offering = factories.OfferingFactory(is_active=True)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': {}
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_not_can_create_order_with_uncorrect_plan(self):
+        offering = factories.OfferingFactory(is_active=True)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': {}
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory()
         self.client.force_authenticate(user)
@@ -84,6 +110,10 @@ class OrderCreateTest(PostgreSQLTest):
                 },
             ]
         }
+
+        if add_payload:
+            payload.update(add_payload)
+
         return self.client.post(url, payload)
 
 

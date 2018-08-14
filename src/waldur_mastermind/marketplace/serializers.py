@@ -79,17 +79,48 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
+class PlanSerializer(core_serializers.AugmentedSerializerMixin,
+                     serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.Plan
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'offering')
+        protected_fields = ('offering',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+        }
+
+    def validate(self, attrs):
+        if not self.instance:
+            structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
+
+        return attrs
+
+
+class PlanWithoutOfferingSerializer(core_serializers.AugmentedSerializerMixin,
+                                    serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.Plan
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+        }
+
+
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
     category_title = serializers.ReadOnlyField(source='category.title')
     order_item_count = serializers.SerializerMethodField()
+    plans = PlanWithoutOfferingSerializer(many=True, required=False)
 
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
-                  'is_active', 'native_name', 'native_description', 'thumbnail', 'order_item_count')
+                  'is_active', 'native_name', 'native_description', 'thumbnail', 'order_item_count', 'plans')
         protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -136,6 +167,22 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                         err = rf_exceptions.ValidationError({'attributes': e.message})
                         raise err
 
+    @transaction.atomic
+    def create(self, validated_data):
+        plans = validated_data.pop('plans', [])
+        offering = super(OfferingSerializer, self).create(validated_data)
+        models.Plan.objects.bulk_create([
+            models.Plan(
+                name=plan['name'],
+                description=plan['description'],
+                unit=plan['unit'],
+                unit_price=plan['unit_price'],
+                offering=offering,
+            )
+            for plan in plans
+        ])
+        return offering
+
 
 class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
@@ -161,17 +208,30 @@ class ItemSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.OrderItem
-        fields = ('offering', 'offering_name', 'attributes', 'cost')
+        fields = ('offering', 'offering_name', 'attributes', 'cost', 'plan',)
         read_only_fields = ('cost',)
         protected_fields = ('offering',)
         extra_kwargs = {
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+            'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
         }
 
     def validate_offering(self, offering):
         if not offering.is_active:
             raise rf_exceptions.ValidationError(_('Offering is not available.'))
         return offering
+
+    def validate(self, attrs):
+        offering = attrs.get('offering')
+        plan = attrs.get('plan')
+
+        if offering and plan:
+            if plan.offering != offering:
+                raise rf_exceptions.ValidationError({
+                    'plan': _('This plan is not available for selected offering.')
+                })
+
+        return attrs
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
