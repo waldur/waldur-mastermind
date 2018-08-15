@@ -407,8 +407,8 @@ class InstanceCreateBackupSchedule(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory.create(is_staff=True)
         self.client.force_authenticate(user=self.user)
-        backupable = factories.InstanceFactory(state=models.Instance.States.OK)
-        self.create_url = factories.InstanceFactory.get_url(backupable, action=self.action_name)
+        self.instance = factories.InstanceFactory(state=models.Instance.States.OK)
+        self.create_url = factories.InstanceFactory.get_url(self.instance, action=self.action_name)
         self.backup_schedule_data = {
             'name': 'test schedule',
             'retention_time': 3,
@@ -423,6 +423,11 @@ class InstanceCreateBackupSchedule(test.APITransactionTestCase):
         self.assertEqual(
             response.data['maximal_number_of_resources'], self.backup_schedule_data['maximal_number_of_resources'])
         self.assertEqual(response.data['schedule'], self.backup_schedule_data['schedule'])
+
+    def test_instance_should_have_bootable_volume(self):
+        self.instance.volumes.filter(bootable=True).delete()
+        response = self.client.post(self.create_url, self.backup_schedule_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_backup_schedule_default_state_is_OK(self):
         response = self.client.post(self.create_url, self.backup_schedule_data)

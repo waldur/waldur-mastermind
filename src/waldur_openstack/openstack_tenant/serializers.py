@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 import collections
 import logging
+
+from django.core.exceptions import ObjectDoesNotExist
 import pytz
 import re
 
@@ -1073,11 +1075,15 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             fields['flavor'].display_name_field = 'name'
             fields['flavor'].view_name = 'openstacktenant-flavor-detail'
             # It is assumed that valid OpenStack Instance has exactly one bootable volume
-            system_volume = backup.instance.volumes.get(bootable=True)
-            fields['flavor'].query_params = {
-                'settings_uuid': backup.service_project_link.service.settings.uuid,
-                'disk__gte': system_volume.size,
-            }
+            try:
+                system_volume = backup.instance.volumes.get(bootable=True)
+                fields['flavor'].query_params = {
+                    'settings_uuid': backup.service_project_link.service.settings.uuid,
+                    'disk__gte': system_volume.size,
+                }
+            except ObjectDoesNotExist:
+                # Validation exception is raised in validate method below
+                pass
 
             floating_ip_field = fields.get('floating_ips')
             if floating_ip_field:
@@ -1110,7 +1116,11 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
     def validate(self, attrs):
         flavor = attrs['flavor']
         backup = self.context['view'].get_object()
-        system_volume = backup.instance.volumes.get(bootable=True)
+        try:
+            system_volume = backup.instance.volumes.get(bootable=True)
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError(_('OpenStack instance should have bootable volume.'))
+
         settings = backup.instance.service_project_link.service.settings
 
         if flavor.settings != settings:
@@ -1305,6 +1315,8 @@ class BackupScheduleSerializer(BaseScheduleSerializer):
             return attrs
 
         instance = self.context['view'].get_object()
+        if not instance.volumes.filter(bootable=True).exists():
+            raise serializers.ValidationError(_('OpenStack instance should have bootable volume.'))
         attrs['instance'] = instance
         attrs['service_project_link'] = instance.service_project_link
         attrs['state'] = instance.States.OK
