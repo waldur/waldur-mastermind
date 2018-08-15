@@ -29,9 +29,20 @@ class OfferingAdmin(admin.ModelAdmin):
     inlines = [ScreenshotsInline, PlansInline]
 
 
+class OrderItemInline(admin.TabularInline):
+    model = models.OrderItem
+
+
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ('uuid', 'project', 'created', 'state', 'total_cost')
+    list_filter = ('state',)
+    inlines = [OrderItemInline]
+
+
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section)
 admin.site.register(models.Attribute, AttributeAdmin)
 admin.site.register(models.Screenshots)
+admin.site.register(models.Order, OrderAdmin)
