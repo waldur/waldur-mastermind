@@ -241,6 +241,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(hours=24),
         'args': (),
     },
+    'structure-set-erred-stuck-resources': {
+        'task': 'waldur_core.structure.SetErredStuckResources',
+        'schedule': timedelta(hours=1),
+        'args': (),
+    },
 }
 
 # Logging

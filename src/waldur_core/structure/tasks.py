@@ -1,15 +1,17 @@
 from __future__ import unicode_literals
 
+from datetime import timedelta
 import logging
 
 from celery import shared_task
 from django.core import exceptions
 from django.db import transaction
 from django.db.utils import DatabaseError
+from django.utils import timezone
 import six
 
 from waldur_core.core import utils as core_utils, tasks as core_tasks, models as core_models
-from waldur_core.structure import SupportedServices, models, utils, ServiceBackendError
+from waldur_core.structure import SupportedServices, models, utils, ServiceBackendError, models as structure_models
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +201,26 @@ class ThrottleProvisionTask(BaseThrottleProvisionTask, core_tasks.BackendMethodT
 
 class ThrottleProvisionStateTask(BaseThrottleProvisionTask, core_tasks.StateTransitionTask):
     pass
+
+
+class SetErredStuckResources(core_tasks.BackgroundTask):
+    """
+    This task marks all resources which have been provisioning for more than 3 hours as erred.
+    """
+    name = 'waldur_core.structure.SetErredStuckResources'
+
+    def is_equal(self, other_task):
+        return self.name == other_task.get('name')
+
+    def run(self):
+        cutoff = timezone.now() - timedelta(hours=3)
+        states = (structure_models.NewResource.States.CREATING,
+                  structure_models.NewResource.States.CREATION_SCHEDULED)
+        for model in structure_models.NewResource.get_all_models():
+            for resource in model.objects.filter(modified__lt=cutoff, state__in=states):
+                resource.set_erred()
+                resource.error_message = 'Provisioning has timed out.'
+                resource.save(update_fields=['state', 'error_message'])
+                logger.warning('Switching resource %s to erred state, '
+                               'because provisioning has timed out.',
+                               core_utils.serialize_instance(resource))
