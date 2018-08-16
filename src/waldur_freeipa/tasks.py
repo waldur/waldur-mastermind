@@ -1,7 +1,13 @@
+import logging
+
 from celery import shared_task
+from django.conf import settings
 
 from . import utils
 from .backend import FreeIPABackend
+
+
+logger = logging.getLogger(__name__)
 
 
 def schedule_sync():
@@ -10,6 +16,11 @@ def schedule_sync():
     The goal is to avoid race conditions during concurrent task execution.
     """
     if utils.is_syncing():
+        logger.debug('Skipping FreeIPA synchronization because synchronization is already in progress.')
+        return
+
+    if not settings.WALDUR_FREEIPA['ENABLED']:
+        logger.debug('Skipping FreeIPA synchronization because plugin is disabled.')
         return
 
     utils.renew_task_status()

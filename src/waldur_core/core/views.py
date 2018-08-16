@@ -22,7 +22,7 @@ from six.moves.urllib.parse import urlencode
 
 from waldur_core import __version__
 from waldur_core.core import permissions, WaldurExtension
-from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.core.exceptions import IncorrectStateException, ExtensionDisabled
 from waldur_core.core.serializers import AuthTokenSerializer
 from waldur_core.logging.loggers import event_logger
 
@@ -366,3 +366,14 @@ def logout_completed():
 def logout_failed(message):
     url_template = settings.WALDUR_CORE['LOGOUT_FAILED_URL']
     return redirect_with(url_template, message=message)
+
+
+class CheckExtensionMixin(object):
+    """ Raise exception if extension is disabled """
+    extension_name = NotImplemented
+
+    def initial(self, request, *args, **kwargs):
+        conf = getattr(settings, self.extension_name, None)
+        if not conf or not conf['ENABLED']:
+            raise ExtensionDisabled()
+        return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)

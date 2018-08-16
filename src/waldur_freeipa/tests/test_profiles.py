@@ -12,6 +12,7 @@ from . import factories
 from ..backend import FreeIPABackend
 
 
+@override_plugin_settings(ENABLED=True)
 class BaseProfileTest(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory(preferred_language='ET')
@@ -36,7 +37,7 @@ class ProfileValidateTest(BaseProfileTest):
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn('username', response.data)
 
-    @override_plugin_settings(BLACKLISTED_USERNAMES=['root'])
+    @override_plugin_settings(ENABLED=True, BLACKLISTED_USERNAMES=['root'])
     def test_blacklisted_username_is_not_allowed(self):
         response = self.client.post(self.url, {
             'username': 'root',
@@ -89,7 +90,7 @@ class ProfileCreateTest(BaseProfileTest):
         self.assertTrue(response.data['is_active'])
         self.assertIsNotNone(response.data['agreement_date'])
 
-    @override_plugin_settings(USERNAME_PREFIX='ipa_')
+    @override_plugin_settings(ENABLED=True, USERNAME_PREFIX='ipa_')
     def test_username_is_prefixed(self, mock_client):
         response = self.client.post(self.url, self.valid_data)
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
@@ -120,6 +121,7 @@ class ProfileCreateTest(BaseProfileTest):
         self.assertItemsEqual(expected_keys, kwargs.get('ssh_key'))
 
 
+@override_plugin_settings(ENABLED=True)
 @mock.patch('python_freeipa.Client')
 class ProfileDisableTest(test.APITransactionTestCase):
     def setUp(self):
@@ -168,6 +170,7 @@ class ProfileDisableTest(test.APITransactionTestCase):
         mock_client().user_disable.assert_not_called()
 
 
+@override_plugin_settings(ENABLED=True)
 @mock.patch('python_freeipa.Client')
 class ProfileEnableTest(test.APITransactionTestCase):
     def setUp(self):
@@ -216,6 +219,7 @@ class ProfileEnableTest(test.APITransactionTestCase):
         mock_client().user_enable.assert_not_called()
 
 
+@override_plugin_settings(ENABLED=True)
 @mock.patch('python_freeipa.Client')
 class ProfileSshKeysTest(test.APITransactionTestCase):
     def setUp(self):
@@ -264,6 +268,7 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
 
 
 @ddt
+@override_plugin_settings(ENABLED=True)
 @mock.patch('python_freeipa.Client')
 class ProfileUpdateTest(test.APITransactionTestCase):
     def setUp(self):

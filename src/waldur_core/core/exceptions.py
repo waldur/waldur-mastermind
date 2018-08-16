@@ -12,3 +12,8 @@ class IncorrectStateException(APIException):
 
 class RuntimeStateException(Exception):
     pass
+
+
+class ExtensionDisabled(APIException):
+    status_code = status.HTTP_424_FAILED_DEPENDENCY
+    default_detail = _('Extension is disabled.')
