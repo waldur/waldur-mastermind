@@ -46,11 +46,6 @@ class OpenStackTenantExtension(WaldurExtension):
                 'schedule': timedelta(minutes=10),
                 'args': (),
             },
-            'openstacktenant-set-erred-stuck-resources': {
-                'task': 'openstack_tenant.SetErredStuckResources',
-                'schedule': timedelta(minutes=10),
-                'args': (),
-            },
         }
 
     @staticmethod

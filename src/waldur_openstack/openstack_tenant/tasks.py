@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-from datetime import timedelta
 import logging
 
 from django.conf import settings
@@ -9,10 +8,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core import tasks as core_tasks
-from waldur_core.core import utils as core_utils
 from waldur_core.core import models as core_models
 from waldur_core.quotas import exceptions as quotas_exceptions
-from waldur_core.structure import (models as structure_models, tasks as structure_tasks,
+from waldur_core.structure import (tasks as structure_tasks,
                                    SupportedServices)
 
 from . import models, serializers, log
@@ -324,25 +322,6 @@ class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
     def _get_delete_executor(self):
         from . import executors
         return executors.SnapshotDeleteExecutor
-
-
-class SetErredStuckResources(core_tasks.BackgroundTask):
-    name = 'openstack_tenant.SetErredStuckResources'
-
-    def is_equal(self, other_task):
-        return self.name == other_task.get('name')
-
-    def run(self):
-        for model in (models.Instance, models.Volume, models.Snapshot):
-            cutoff = timezone.now() - timedelta(minutes=30)
-            for resource in model.objects.filter(modified__lt=cutoff,
-                                                 state=structure_models.NewResource.States.CREATING):
-                resource.set_erred()
-                resource.error_message = 'Provisioning is timed out.'
-                resource.save(update_fields=['state', 'error_message'])
-                logger.warning('Switching resource %s to erred state, '
-                               'because provisioning is timed out.',
-                               core_utils.serialize_instance(resource))
 
 
 class LimitedPerTypeThrottleMixin(object):

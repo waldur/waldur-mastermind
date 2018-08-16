@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from ddt import ddt, data
 from django.test import TestCase
+from django.utils import timezone
 from six.moves import mock
 
 from waldur_core.core import utils
@@ -61,3 +64,36 @@ class ThrottleProvisionTaskTest(TestCase):
             'create',
             state_transition='begin_starting').apply()
         self.assertEqual(mocked_retry.called, params['retried'])
+
+
+class SetErredProvisioningResourcesTaskTest(TestCase):
+    def test_stuck_resource_becomes_erred(self):
+        with mock.patch('model_utils.fields.now') as mocked_now:
+            mocked_now.return_value = timezone.now() - timedelta(hours=4)
+            stuck_vm = factories.TestNewInstanceFactory(state=models.TestNewInstance.States.CREATING)
+            stuck_volume = factories.TestVolumeFactory(state=models.TestVolume.States.CREATING)
+
+        tasks.SetErredStuckResources().run()
+
+        stuck_vm.refresh_from_db()
+        stuck_volume.refresh_from_db()
+
+        self.assertEqual(stuck_vm.state, models.TestNewInstance.States.ERRED)
+        self.assertEqual(stuck_volume.state, models.TestVolume.States.ERRED)
+
+    def test_ok_vm_unchanged(self):
+        ok_vm = factories.TestNewInstanceFactory(
+            state=models.TestNewInstance.States.CREATING,
+            modified=timezone.now() - timedelta(minutes=1)
+        )
+        ok_volume = factories.TestVolumeFactory(
+            state=models.TestVolume.States.CREATING,
+            modified=timezone.now() - timedelta(minutes=1)
+        )
+        tasks.SetErredStuckResources().run()
+
+        ok_vm.refresh_from_db()
+        ok_volume.refresh_from_db()
+
+        self.assertEqual(ok_vm.state, models.TestNewInstance.States.CREATING)
+        self.assertEqual(ok_volume.state, models.TestVolume.States.CREATING)

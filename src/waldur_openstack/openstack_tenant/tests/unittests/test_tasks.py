@@ -201,36 +201,3 @@ class SnapshotScheduleTaskTest(TestCase):
         tasks.ScheduleSnapshots().run()
 
         self.assertEqual(self.future_schedule.snapshots.count(), 0)
-
-
-class SetErredProvisioningResourcesTaskTest(TestCase):
-    def test_stuck_resource_becomes_erred(self):
-        with mock.patch('model_utils.fields.now') as mocked_now:
-            mocked_now.return_value = timezone.now() - timedelta(hours=1)
-            stuck_vm = factories.InstanceFactory(state=models.Instance.States.CREATING)
-            stuck_volume = factories.VolumeFactory(state=models.Volume.States.CREATING)
-
-        tasks.SetErredStuckResources().run()
-
-        stuck_vm.refresh_from_db()
-        stuck_volume.refresh_from_db()
-
-        self.assertEqual(stuck_vm.state, models.Instance.States.ERRED)
-        self.assertEqual(stuck_volume.state, models.Volume.States.ERRED)
-
-    def test_ok_vm_unchanged(self):
-        ok_vm = factories.InstanceFactory(
-            state=models.Instance.States.CREATING,
-            modified=timezone.now() - timedelta(minutes=1)
-        )
-        ok_volume = factories.VolumeFactory(
-            state=models.Volume.States.CREATING,
-            modified=timezone.now() - timedelta(minutes=1)
-        )
-        tasks.SetErredStuckResources().run()
-
-        ok_vm.refresh_from_db()
-        ok_volume.refresh_from_db()
-
-        self.assertEqual(ok_vm.state, models.Instance.States.CREATING)
-        self.assertEqual(ok_volume.state, models.Volume.States.CREATING)

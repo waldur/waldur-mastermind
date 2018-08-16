@@ -271,6 +271,7 @@ class TestSubResourceFactory(factory.DjangoModelFactory):
 
 class TestVolumeFactory(factory.DjangoModelFactory):
     size = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
+    service_project_link = factory.SubFactory(TestServiceProjectLinkFactory)
 
     class Meta(object):
         model = test_models.TestVolume
@@ -278,6 +279,7 @@ class TestVolumeFactory(factory.DjangoModelFactory):
 
 class TestSnapshotFactory(factory.DjangoModelFactory):
     size = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
+    service_project_link = factory.SubFactory(TestServiceProjectLinkFactory)
 
     class Meta(object):
         model = test_models.TestSnapshot
