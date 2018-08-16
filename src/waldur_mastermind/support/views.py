@@ -19,18 +19,8 @@ from waldur_core.structure import views as structure_views
 from . import filters, models, serializers, backend
 
 
-class ExtensionDisabled(exceptions.APIException):
-    status_code = status.HTTP_424_FAILED_DEPENDENCY
-    default_detail = _('Support extension is disabled.')
-
-
-class CheckExtensionMixin(object):
-    """ Raise exception if support extension is disabled """
-
-    def initial(self, request, *args, **kwargs):
-        if not settings.WALDUR_SUPPORT['ENABLED']:
-            raise ExtensionDisabled()
-        return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
+class CheckExtensionMixin(core_views.CheckExtensionMixin):
+    extension_name = 'WALDUR_SUPPORT'
 
 
 class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):

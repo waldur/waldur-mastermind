@@ -9,7 +9,11 @@ from waldur_core.core import views as core_views
 from . import backend, filters, models, serializers, tasks
 
 
-class ProfileViewSet(core_views.ActionsViewSet):
+class CheckExtensionMixin(core_views.CheckExtensionMixin):
+    extension_name = 'WALDUR_FREEIPA'
+
+
+class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Profile.objects.all()
     filter_class = filters.ProfileFilter
     serializer_class = serializers.ProfileSerializer
