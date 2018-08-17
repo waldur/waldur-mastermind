@@ -2,6 +2,7 @@ from __future__ import unicode_literals, division
 
 import functools
 import logging
+import sys
 
 from django.conf import settings
 from django.db import transaction, IntegrityError
@@ -37,13 +38,20 @@ def check_captcha(e):
     return e.response.headers['X-Seraph-LoginReason'] == 'AUTHENTICATED_FAILED'
 
 
+def reraise(exc):
+    """
+    Reraise JiraBackendError while maintaining traceback.
+    """
+    six.reraise(JiraBackendError, exc, sys.exc_info()[2])
+
+
 def reraise_exceptions(func):
     @functools.wraps(func)
     def wrapped(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
         except JIRAError as e:
-            six.reraise(JiraBackendError, e)
+            reraise(e)
 
     return wrapped
 
@@ -84,7 +92,7 @@ class JiraBackend(ServiceBackend):
             self.manager.myself()
         except JIRAError as e:
             if raise_exception:
-                six.reraise(JiraBackendError, e)
+                reraise(e)
             return False
         else:
             return True
@@ -122,7 +130,7 @@ class JiraBackend(ServiceBackend):
             except JIRAError as e:
                 if check_captcha(e):
                     raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
-                six.reraise(JiraBackendError, e)
+                reraise(e)
 
             return self._manager
 
