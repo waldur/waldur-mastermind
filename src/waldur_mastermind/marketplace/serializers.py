@@ -98,8 +98,8 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class PlanWithoutOfferingSerializer(core_serializers.AugmentedSerializerMixin,
-                                    serializers.HyperlinkedModelSerializer):
+class NesterPlanSerializer(core_serializers.AugmentedSerializerMixin,
+                           serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
         model = models.Plan
@@ -109,18 +109,44 @@ class PlanWithoutOfferingSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
+class NestedScreenshotSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.Screenshots
+        fields = ('name', 'description', 'image', 'thumbnail')
+
+
+class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
+                           serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Screenshots
+        fields = ('url', 'uuid', 'name', 'description', 'image', 'thumbnail', 'offering')
+        protected_fields = ('offering', 'image')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+        }
+
+    def validate(self, attrs):
+        if not self.instance:
+            structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
+        return attrs
+
+
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
+                         core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
     category_title = serializers.ReadOnlyField(source='category.title')
     order_item_count = serializers.SerializerMethodField()
-    plans = PlanWithoutOfferingSerializer(many=True, required=False)
+    plans = NesterPlanSerializer(many=True, required=False)
+    screenshots = NestedScreenshotSerializer(many=True, read_only=True)
 
     class Meta(object):
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
-                  'is_active', 'native_name', 'native_description', 'thumbnail', 'order_item_count', 'plans')
+                  'is_active', 'native_name', 'native_description', 'thumbnail', 'order_item_count',
+                  'plans', 'screenshots')
         protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -182,23 +208,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             for plan in plans
         ])
         return offering
-
-
-class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
-                           serializers.HyperlinkedModelSerializer):
-    class Meta(object):
-        model = models.Screenshots
-        fields = ('url', 'uuid', 'name', 'description', 'image', 'thumbnail', 'offering')
-        protected_fields = ('offering', 'image')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
-        }
-
-    def validate(self, attrs):
-        if not self.instance:
-            structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
-        return attrs
 
 
 class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
