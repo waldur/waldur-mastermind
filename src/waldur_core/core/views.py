@@ -23,6 +23,7 @@ from six.moves.urllib.parse import urlencode
 from waldur_core import __version__
 from waldur_core.core import permissions, WaldurExtension
 from waldur_core.core.exceptions import IncorrectStateException, ExtensionDisabled
+from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import AuthTokenSerializer
 from waldur_core.logging.loggers import event_logger
 
@@ -270,6 +271,10 @@ class ActionsViewSet(viewsets.ModelViewSet):
     """
     disabled_actions = []
     permission_classes = (rf_permissions.IsAuthenticated, permissions.ActionsPermission)
+
+    @ensure_atomic_transaction
+    def dispatch(self, request, *args, **kwargs):
+        return super(ActionsViewSet, self).dispatch(request, *args, **kwargs)
 
     def get_serializer_class(self):
         default_serializer_class = super(ActionsViewSet, self).get_serializer_class()

@@ -11,6 +11,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from . import factories
 from ..apps import DigitalOceanConfig
 from ..backend import TokenScopeError
+from .. import executors
 from ..models import Droplet
 from ..views import DropletViewSet
 
@@ -197,8 +198,8 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.droplet_api().create.side_effect = digitalocean.DataReadError(
             'You do not have access for the attempted action.'
         )
-        data = self.get_valid_data(ssh_public_key=self.ssh_url)
-        self.assertRaises(TokenScopeError, self.client.post, self.url, data)
+
+        self.assertRaises(TokenScopeError, self.create_droplet)
         self.assertTrue(Alert.objects.filter(
             alert_type='token_is_read_only',
             content_type=ContentType.objects.get_for_model(self.settings),
@@ -213,10 +214,21 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
             object_id=self.settings.id,
             severity=Alert.SeverityChoices.WARNING
         )
-        self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
+        self.create_droplet()
         self.assertFalse(Alert.objects.filter(
             alert_type='token_is_read_only',
             content_type=ContentType.objects.get_for_model(self.settings),
             object_id=self.settings.id,
             closed__isnull=True
         ).exists())
+
+    def create_droplet(self):
+        instance = factories.DropletFactory(service_project_link__service=self.service,
+                                            state=Droplet.States.CREATION_SCHEDULED)
+        executors.DropletCreateExecutor().execute(
+            instance=instance,
+            async=False,
+            backend_region_id=self.region.backend_id,
+            backend_image_id=self.image.backend_id,
+            backend_size_id=self.size.backend_id
+        )
