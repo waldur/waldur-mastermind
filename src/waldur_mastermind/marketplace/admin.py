@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
 from django.contrib import admin
+from django.forms.models import ModelForm
+from jsoneditor.forms import JSONEditor
 
 from . import models
 
@@ -25,8 +27,21 @@ class PlansInline(admin.TabularInline):
     model = models.Plan
 
 
+class OfferingAdminForm(ModelForm):
+    class Meta:
+        widgets = {
+            'attributes': JSONEditor(),
+            'geolocations': JSONEditor(),
+        }
+
+
 class OfferingAdmin(admin.ModelAdmin):
+    form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline]
+    fields = ('is_active', 'category', 'name', 'native_name',
+              'description', 'native_description', 'full_description',
+              'rating', 'thumbnail', 'attributes', 'geolocations', 'scope')
+    readonly_fields = ('rating', 'scope')
 
 
 class OrderItemInline(admin.TabularInline):

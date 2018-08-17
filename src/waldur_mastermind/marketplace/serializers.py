@@ -201,14 +201,17 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class ItemSerializer(core_serializers.AugmentedSerializerMixin,
-                     serializers.HyperlinkedModelSerializer):
+class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
+                          serializers.HyperlinkedModelSerializer):
 
     offering_name = serializers.ReadOnlyField(source='offering.name')
+    provider_name = serializers.ReadOnlyField(source='offering.customer.name')
+    provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
 
     class Meta(object):
         model = models.OrderItem
-        fields = ('offering', 'offering_name', 'attributes', 'cost', 'plan',)
+        fields = ('offering', 'offering_name', 'provider_name', 'provider_uuid',
+                  'attributes', 'cost', 'plan',)
         read_only_fields = ('cost',)
         protected_fields = ('offering',)
         extra_kwargs = {
@@ -239,7 +242,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                       serializers.HyperlinkedModelSerializer):
 
     state = serializers.ReadOnlyField(source='get_state_display')
-    items = ItemSerializer(many=True)
+    items = OrderItemSerializer(many=True)
 
     class Meta(object):
         model = models.Order
