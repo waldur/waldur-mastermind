@@ -131,6 +131,7 @@ class Offering(core_models.UuidMixin,
                structure_models.TimeStampedModel):
     thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
     full_description = models.TextField(blank=True)
+    vendor_details = models.TextField(blank=True)
     rating = models.IntegerField(null=True,
                                  validators=[MaxValueValidator(5), MinValueValidator(1)],
                                  help_text=_('Rating is value from 1 to 5.'))
