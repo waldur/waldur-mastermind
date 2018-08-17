@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import ssl
+import sys
 import tempfile
 import time
 
@@ -102,6 +103,13 @@ class AzureBackendError(ServiceBackendError):
     pass
 
 
+def reraise(exc):
+    """
+    Reraise AzureBackendError while maintaining traceback.
+    """
+    six.reraise(AzureBackendError, exc, sys.exc_info()[2])
+
+
 class AzureBaseBackend(ServiceBackend):
 
     State = NodeState
@@ -142,7 +150,7 @@ class AzureBaseBackend(ServiceBackend):
                     subscription_id=self.settings.username, key_file=key_file)
             except InvalidCredsError as e:
                 logger.exception("Wrong credentials for service settings %s", self.settings.uuid)
-                six.reraise(AzureBackendError, e)
+                reraise(e)
         return self._manager
 
     def sync(self):
@@ -166,7 +174,7 @@ class AzureBackend(AzureBaseBackend):
             self.manager.list_locations()
         except (AzureBackendError, LibcloudError, ssl.SSLError) as e:
             if raise_exception:
-                six.reraise(AzureBackendError, e)
+                reraise(e)
             return False
         else:
             return True
@@ -284,7 +292,7 @@ class AzureBackend(AzureBaseBackend):
             self.manager.raise_for_response(response, 202)
             self.manager._ex_complete_async_azure_operation(response)
         except Exception as e:
-            six.reraise(AzureBackendError, e)
+            reraise(e)
 
     @log_backend_action()
     def start_vm(self, vm):
@@ -304,7 +312,7 @@ class AzureBackend(AzureBaseBackend):
             self.manager.raise_for_response(response, 202)
             self.manager._ex_complete_async_azure_operation(response)
         except Exception as e:
-            six.reraise(AzureBackendError, e)
+            reraise(e)
 
     @log_backend_action()
     def destroy_vm(self, vm):
@@ -337,7 +345,7 @@ class AzureBackend(AzureBaseBackend):
                 auth=NodeAuthPassword(vm.user_password))
         except LibcloudError as e:
             logger.exception('Failed to provision virtual machine %s', vm.name)
-            six.reraise(AzureBackendError, e)
+            reraise(e)
 
         vm.backend_id = backend_vm.id
         vm.runtime_state = backend_vm.state
@@ -381,7 +389,7 @@ class AzureBackend(AzureBaseBackend):
         try:
             return next(s for s in self.manager.list_sizes() if s.id == size_id)
         except (StopIteration, LibcloudError) as e:
-            six.reraise(AzureBackendError, e)
+            reraise(e)
 
     def get_image(self, image_id):
         try:
@@ -412,7 +420,7 @@ class AzureBackend(AzureBaseBackend):
         try:
             vms = self.manager.list_nodes(self.cloud_service_name)
         except LibcloudError as e:
-            six.reraise(AzureBackendError, e)
+            reraise(e)
 
         return [{
             'id': vm.id,
