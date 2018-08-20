@@ -136,7 +136,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
-    category_title = serializers.ReadOnlyField(source='category.title')
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
@@ -145,11 +144,13 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description',
                   'customer', 'customer_uuid', 'customer_name',
-                  'category', 'category_title', 'rating', 'attributes', 'geolocations',
+                  'category', 'category_uuid', 'category_title',
+                  'rating', 'attributes', 'geolocations',
                   'is_active', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots')
         related_paths = {
-            'customer': ('uuid', 'name')
+            'customer': ('uuid', 'name'),
+            'category': ('uuid', 'title'),
         }
         protected_fields = ('customer',)
         extra_kwargs = {
