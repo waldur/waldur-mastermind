@@ -143,10 +143,14 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'customer',
+        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description',
+                  'customer', 'customer_uuid', 'customer_name',
                   'category', 'category_title', 'rating', 'attributes', 'geolocations',
                   'is_active', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots')
+        related_paths = {
+            'customer': ('uuid', 'name')
+        }
         protected_fields = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
