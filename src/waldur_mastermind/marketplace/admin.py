@@ -17,6 +17,24 @@ class AttributeOptionInline(admin.TabularInline):
 
 class AttributeAdmin(admin.ModelAdmin):
     inlines = [AttributeOptionInline]
+    list_display = ('title', 'section', 'type')
+    ordering = ('section', 'title')
+
+
+class AttributeInline(admin.TabularInline):
+    model = models.Attribute
+
+
+class SectionAdmin(admin.ModelAdmin):
+    inlines = [AttributeInline]
+
+
+class SectionInline(admin.TabularInline):
+    model = models.Section
+
+
+class CategoryAdmin(admin.ModelAdmin):
+    inlines = [SectionInline]
 
 
 class ScreenshotsInline(admin.TabularInline):
@@ -56,9 +74,9 @@ class OrderAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
-admin.site.register(models.Category)
+admin.site.register(models.Category, CategoryAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
-admin.site.register(models.Section)
+admin.site.register(models.Section, SectionAdmin)
 admin.site.register(models.Attribute, AttributeAdmin)
 admin.site.register(models.Screenshots)
 admin.site.register(models.Order, OrderAdmin)
