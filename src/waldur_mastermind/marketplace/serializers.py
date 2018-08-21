@@ -12,6 +12,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models, attribute_types
+from .plugins import manager
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -140,6 +141,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
+    offering_type = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Offering
@@ -148,7 +150,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'geolocations',
                   'is_active', 'native_name', 'native_description', 'vendor_details',
-                  'thumbnail', 'order_item_count', 'plans', 'screenshots')
+                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'offering_type')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -165,6 +167,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             return offering.quotas.get(name='order_item_count').usage
         except ObjectDoesNotExist:
             return 0
+
+    def get_offering_type(self, offering):
+        if not offering.content_type:
+            return None
+        return manager.get_offering_type(offering.content_type.model_class())
 
     def validate(self, attrs):
         if not self.instance:
