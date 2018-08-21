@@ -119,7 +119,6 @@ pycountry==1.20
 pycparser==2.18
 pycryptodomex==3.6.1
 pyflakes==1.6.0
-pygpgme==0.3
 pyinotify==0.9.6
 pyliblzma==0.5.3
 pyOpenSSL==18.0.0
@@ -143,7 +142,6 @@ python-novaclient==10.3.0
 python-openid==2.2.5
 pytz==2018.4
 pyvat==1.3.1
-pyxattr==0.5.1
 PyYAML==3.12
 pyzabbix==0.7.4
 redis==2.10.6
