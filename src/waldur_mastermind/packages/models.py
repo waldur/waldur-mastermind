@@ -97,6 +97,10 @@ class PackageTemplate(core_models.UuidMixin,
     def __str__(self):
         return '%s | %s' % (self.name, self.service_settings.type)
 
+    @classmethod
+    def get_resource_type(cls):
+        return 'Packages.Template'
+
 
 @python_2_unicode_compatible
 class PackageComponent(models.Model):

@@ -140,6 +140,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
+    resource_type = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Offering
@@ -148,7 +149,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'geolocations',
                   'is_active', 'native_name', 'native_description', 'vendor_details',
-                  'thumbnail', 'order_item_count', 'plans', 'screenshots')
+                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'resource_type')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -165,6 +166,12 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             return offering.quotas.get(name='order_item_count').usage
         except ObjectDoesNotExist:
             return 0
+
+    def get_resource_type(self, offering):
+        try:
+            return offering.content_type.model_class().get_resource_type()
+        except AttributeError:
+            return None
 
     def validate(self, attrs):
         if not self.instance:
