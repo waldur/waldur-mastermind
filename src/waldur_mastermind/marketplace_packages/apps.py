@@ -26,4 +26,4 @@ class MarketplacePackageConfig(AppConfig):
                          'sync_offering_attribute_with_template_component',
         )
 
-        manager.register(package_models.PackageTemplate, processor.process_order_item)
+        manager.register(package_models.PackageTemplate, processor.process_order_item, 'Packages.Template')
