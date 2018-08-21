@@ -91,12 +91,6 @@ class OrderViewSet(BaseMarketplaceView):
         raise rf_exceptions.PermissionDenied()
 
     @detail_route(methods=['post'])
-    def set_state_requested_for_approval(self, request, uuid=None):
-        return self._update_state(request, models.Order.States.REQUESTED_FOR_APPROVAL)
-
-    set_state_requested_for_approval_validators = [core_validators.StateValidator(models.Order.States.DRAFT)]
-
-    @detail_route(methods=['post'])
     def set_state_executing(self, request, uuid=None):
         order = self.get_object()
         for item in order.items.all():

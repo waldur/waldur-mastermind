@@ -199,14 +199,12 @@ class Screenshots(core_models.UuidMixin,
 class Order(core_models.UuidMixin,
             structure_models.TimeStampedModel):
     class States(object):
-        DRAFT = 1
-        REQUESTED_FOR_APPROVAL = 2
-        EXECUTING = 3
-        DONE = 4
-        TERMINATED = 5
+        REQUESTED_FOR_APPROVAL = 1
+        EXECUTING = 2
+        DONE = 3
+        TERMINATED = 4
 
         CHOICES = (
-            (DRAFT, 'draft'),
             (REQUESTED_FOR_APPROVAL, 'requested for approval'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
@@ -217,7 +215,7 @@ class Order(core_models.UuidMixin,
     approved_by = models.ForeignKey(core_models.User, blank=True, null=True, related_name='+')
     approved_at = models.DateTimeField(editable=False, null=True, blank=True)
     project = models.ForeignKey(structure_models.Project)
-    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    state = FSMIntegerField(default=States.REQUESTED_FOR_APPROVAL, choices=States.CHOICES)
     total_cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     tracker = FieldTracker()
 
@@ -232,10 +230,6 @@ class Order(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-order'
-
-    @transition(field=state, source=States.DRAFT, target=States.REQUESTED_FOR_APPROVAL)
-    def set_state_requested_for_approval(self):
-        pass
 
     @transition(field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.EXECUTING)
     def set_state_executing(self):
