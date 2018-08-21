@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 from django.contrib import admin
 from django.forms.models import ModelForm
+from django.utils.translation import ugettext_lazy as _
+
 from jsoneditor.forms import JSONEditor
 
 from . import models
@@ -17,8 +19,15 @@ class AttributeOptionInline(admin.TabularInline):
 
 class AttributeAdmin(admin.ModelAdmin):
     inlines = [AttributeOptionInline]
-    list_display = ('title', 'section', 'type')
+    list_display = ('title', 'get_category', 'section', 'type', 'key')
+    list_filter = ('section',)
     ordering = ('section', 'title')
+
+    def get_category(self, obj):
+        return obj.section.category
+
+    get_category.short_description = _('Category')
+    get_category.admin_order_field = 'section__category__title'
 
 
 class AttributeInline(admin.TabularInline):
@@ -27,6 +36,7 @@ class AttributeInline(admin.TabularInline):
 
 class SectionAdmin(admin.ModelAdmin):
     inlines = [AttributeInline]
+    list_display = ('title', 'category', 'key')
 
 
 class SectionInline(admin.TabularInline):
