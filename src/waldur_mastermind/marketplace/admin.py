@@ -66,7 +66,7 @@ class OfferingAdminForm(ModelForm):
 class OfferingAdmin(admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline]
-    fields = ('is_active', 'category', 'name', 'native_name',
+    fields = ('is_active', 'customer', 'category', 'name', 'native_name',
               'description', 'native_description', 'full_description',
               'rating', 'thumbnail', 'attributes', 'geolocations',
               'vendor_details', 'scope')
