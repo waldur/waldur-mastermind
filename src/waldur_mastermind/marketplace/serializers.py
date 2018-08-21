@@ -54,7 +54,7 @@ class NestedSectionSerializer(serializers.ModelSerializer):
 
     class Meta(object):
         model = models.Section
-        fields = ('key', 'title', 'attributes')
+        fields = ('key', 'title', 'attributes', 'is_standalone')
 
 
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,

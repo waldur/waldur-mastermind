@@ -93,6 +93,8 @@ class Section(structure_models.TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
     category = models.ForeignKey(Category, related_name='sections')
+    is_standalone = models.BooleanField(
+        default=False, help_text=_('Whether section is rendered as a separate tab.'))
 
     def __str__(self):
         return six.text_type(self.title)
