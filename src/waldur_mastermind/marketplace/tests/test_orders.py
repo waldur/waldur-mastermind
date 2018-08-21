@@ -127,19 +127,6 @@ class OrderUpdateTest(PostgreSQLTest):
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
 
-    @data('staff', 'owner', 'admin', 'manager')
-    def test_can_set_requested_for_approval_state(self, user):
-        order_state = models.Order.States.REQUESTED_FOR_APPROVAL
-        response = self.update_offering(user, 'set_state_requested_for_approval')
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.order.state, order_state)
-        self.assertTrue(models.Order.objects.filter(state=order_state).exists())
-
-    @data('user')
-    def test_not_can_set_requested_for_approval_state(self, user):
-        response = self.update_offering(user, 'set_state_requested_for_approval')
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
     @data('staff', 'owner')
     def test_can_set_done_state(self, user):
         self.order.state = models.Order.States.EXECUTING
@@ -197,10 +184,9 @@ class OrderUpdateTest(PostgreSQLTest):
 
     @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
     def test_notifications_when_order_approval_is_requested(self, mock_tasks):
-        self.order.set_state_requested_for_approval()
-        self.order.save()
+        order = factories.OrderFactory(project=self.project, created_by=self.manager)
         self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 1)
-        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], self.order.uuid)
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], order.uuid)
 
     @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
     def test_not_send_notification_if_state_is_not_requested_for_approval(self, mock_tasks):

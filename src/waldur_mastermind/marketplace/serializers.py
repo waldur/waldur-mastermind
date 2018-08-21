@@ -222,10 +222,11 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     offering_name = serializers.ReadOnlyField(source='offering.name')
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
+    offering_description = serializers.ReadOnlyField(source='offering.description')
 
     class Meta(object):
         model = models.OrderItem
-        fields = ('offering', 'offering_name', 'provider_name', 'provider_uuid',
+        fields = ('offering', 'offering_name', 'offering_description', 'provider_name', 'provider_uuid',
                   'attributes', 'cost', 'plan',)
         read_only_fields = ('cost',)
         protected_fields = ('offering',)
