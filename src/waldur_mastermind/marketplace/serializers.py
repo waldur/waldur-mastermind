@@ -12,7 +12,6 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models, attribute_types
-from .plugins import manager
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -141,7 +140,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
-    offering_type = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Offering
@@ -149,13 +147,14 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'customer', 'customer_uuid', 'customer_name',
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'geolocations',
-                  'is_active', 'native_name', 'native_description', 'vendor_details',
-                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'offering_type')
+                  'state', 'native_name', 'native_description', 'vendor_details',
+                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
         }
-        protected_fields = ('customer',)
+        protected_fields = ('customer', 'type')
+        read_only_fields = ('state',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
@@ -167,11 +166,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             return offering.quotas.get(name='order_item_count').usage
         except ObjectDoesNotExist:
             return 0
-
-    def get_offering_type(self, offering):
-        if not offering.content_type:
-            return None
-        return manager.get_offering_type(offering.content_type.model_class())
 
     def validate(self, attrs):
         if not self.instance:
@@ -247,7 +241,7 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
     def validate_offering(self, offering):
-        if not offering.is_active:
+        if not offering.state == models.Offering.States.ACTIVE:
             raise rf_exceptions.ValidationError(_('Offering is not available.'))
         return offering
 

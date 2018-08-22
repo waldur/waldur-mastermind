@@ -2,7 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
 
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 logger = logging.getLogger(__name__)
 
 
-def create_offering_for_package_template(template):
+def create_offering_and_plan_for_package_template(template):
     conf = settings.WALDUR_MARKETPLACE_PACKAGES
     customer_id = conf.get('CUSTOMER_ID')
     category_id = conf.get('CATEGORY_ID')
@@ -26,42 +26,55 @@ def create_offering_for_package_template(template):
                      'created because category ID is not defined.')
         return
 
-    attributes = {
-        component.type: component.amount
-        for component in template.components.all()
-    }
-    marketplace_models.Offering.objects.create(
-        name=template.name,
-        description=template.description,
-        customer_id=customer_id,
-        category_id=category_id,
-        geolocations=template.service_settings.geolocations,
-        attributes=attributes,
-        scope=template,
+    service_settings = template.service_settings
+
+    with transaction.atomic():
+        defaults = dict(
+            name=service_settings.name,
+            geolocations=service_settings.geolocations,
+            customer_id=customer_id,
+            category_id=category_id,
+        )
+        offering, _ = marketplace_models.Offering.objects.get_or_create(
+            scope=service_settings,
+            type='Packages.Template',
+            defaults=defaults,
+        )
+        marketplace_models.Plan.objects.create(
+            scope=template,
+            offering=offering,
+            name=template.name,
+            unit_price=template.price,
+            unit=marketplace_models.Plan.Units.PER_DAY,
+            product_code=template.product_code,
+            article_code=template.article_code,
+        )
+
+
+def update_related_object(scope, related_model, field_names):
+    fields = {}
+    changed = set(scope.tracker.changed())
+    for field in field_names:
+        if field in changed:
+            fields[field] = getattr(scope, field)
+    if fields:
+        related_model.objects.filter(scope=scope).update(**fields)
+
+
+def update_offering_for_service_settings(service_settings):
+    update_related_object(
+        service_settings,
+        marketplace_models.Offering,
+        ('name', 'geolocations')
     )
 
 
-def update_offering_for_template(template):
-    fields = {}
-    changed = set(template.tracker.changed())
-    if 'name' in changed:
-        fields['name'] = template.name
-    if 'description' in changed:
-        fields['description'] = template.description
-    if 'archived' in changed:
-        fields['is_active'] = not template.archived
-    if fields:
-        marketplace_models.Offering.objects.filter(scope=template).update(**fields)
-
-
-def sync_offering_attribute_with_template_component(component):
-    try:
-        offering = marketplace_models.Offering.objects.get(scope=component.template)
-    except ObjectDoesNotExist:
-        logger.debug('Skipping offering attributes synchronization because offering is not found.')
-    else:
-        offering.attributes[component.type] = component.amount
-        offering.save(update_fields=['attributes'])
+def update_plan_for_template(template):
+    update_related_object(
+        template,
+        marketplace_models.Plan,
+        ('name', 'archived', 'product_code', 'article_code')
+    )
 
 
 def create_missing_offerings():
@@ -73,4 +86,4 @@ def create_missing_offerings():
 
     missing_templates = package_models.PackageTemplate.objects.filter(pk__in=missing_ids)
     for template in missing_templates:
-        create_offering_for_package_template(template)
+        create_offering_and_plan_for_package_template(template)
