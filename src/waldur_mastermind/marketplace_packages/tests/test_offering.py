@@ -25,30 +25,26 @@ class TemplateOfferingTest(test.APITransactionTestCase):
 
     def test_offering_for_template_is_created(self):
         template = package_factories.PackageTemplateFactory()
-        offering = marketplace_models.Offering.objects.get(scope=template)
-        self.assertEqual(template.name, offering.name)
-        self.assertEqual(template.description, offering.description)
-
-    def test_offering_attributes_are_updated(self):
-        template = package_factories.PackageTemplateFactory()
-        offering = marketplace_models.Offering.objects.get(scope=template)
-        for component in ('cores', 'ram', 'storage'):
-            actual = offering.attributes[component]
-            expected = template.components.get(type=component).amount
-            self.assertEqual(expected, actual)
+        offering = marketplace_models.Offering.objects.get(scope=template.service_settings)
+        self.assertEqual(template.service_settings.name, offering.name)
 
     def test_offering_is_updated(self):
         template = package_factories.PackageTemplateFactory()
         template.name = 'New VPC name'
+        template.save()
+        offering = marketplace_models.Offering.objects.get(scope=template.service_settings)
+        self.assertEqual(template.service_settings.name, offering.name)
+
+    def test_plan_is_updated(self):
+        template = package_factories.PackageTemplateFactory()
         template.archived = True
         template.save()
-        offering = marketplace_models.Offering.objects.get(scope=template)
-        self.assertEqual(template.name, offering.name)
-        self.assertFalse(offering.is_active)
+        plan = marketplace_models.Plan.objects.get(scope=template)
+        self.assertTrue(plan.archived)
 
     def test_missing_offerings_are_created(self):
         template = package_factories.PackageTemplateFactory()
         marketplace_models.Offering.objects.all().delete()
         utils.create_missing_offerings()
-        offering = marketplace_models.Offering.objects.get(scope=template)
-        self.assertEqual(template.name, offering.name)
+        offering = marketplace_models.Offering.objects.get(scope=template.service_settings)
+        self.assertEqual(template.service_settings.name, offering.name)

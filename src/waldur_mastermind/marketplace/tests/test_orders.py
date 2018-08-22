@@ -67,12 +67,12 @@ class OrderCreateTest(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_not_create_item_if_offering_is_not_available(self):
-        offering = factories.OfferingFactory(is_active=False)
+        offering = factories.OfferingFactory(state=models.Offering.States.ARCHIVED)
         response = self.create_order(self.fixture.staff, offering)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_order_with_plan(self):
-        offering = factories.OfferingFactory(is_active=True)
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {'items': [
             {
@@ -84,8 +84,8 @@ class OrderCreateTest(PostgreSQLTest):
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_not_can_create_order_with_uncorrect_plan(self):
-        offering = factories.OfferingFactory(is_active=True)
+    def test_can_not_create_order_with_invalid_plan(self):
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {'items': [
             {
@@ -99,7 +99,7 @@ class OrderCreateTest(PostgreSQLTest):
 
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
-            offering = factories.OfferingFactory()
+            offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
         payload = {

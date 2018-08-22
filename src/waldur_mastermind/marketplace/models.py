@@ -124,13 +124,37 @@ class AttributeOption(models.Model):
         return six.text_type(self.title)
 
 
+class ScopeMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+    scope = GenericForeignKey('content_type', 'object_id')
+
+
 @python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
                quotas_models.QuotaModelMixin,
                structure_models.StructureModel,
-               structure_models.TimeStampedModel):
+               structure_models.TimeStampedModel,
+               ScopeMixin):
+
+    class States(object):
+        DRAFT = 1
+        ACTIVE = 2
+        PAUSED = 3
+        ARCHIVED = 4
+
+        CHOICES = (
+            (DRAFT, 'Draft'),
+            (ACTIVE, 'Active'),
+            (PAUSED, 'Paused'),
+            (ARCHIVED, 'Archived'),
+        )
+
     thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
     full_description = models.TextField(blank=True)
     vendor_details = models.TextField(blank=True)
@@ -143,16 +167,13 @@ class Offering(core_models.UuidMixin,
     geolocations = JSONField(default=list, blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
-    is_active = models.BooleanField(default=True)
 
     native_name = models.CharField(max_length=160, default='', blank=True)
     native_description = models.CharField(max_length=500, default='', blank=True)
 
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
-    object_id = models.PositiveIntegerField(null=True)
-    scope = GenericForeignKey('content_type', 'object_id')
-
-    objects = managers.OfferingManager()
+    type = models.CharField(max_length=100, default='', blank=True)
+    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    objects = managers.MixinManager('scope')
 
     class Permissions(object):
         customer_path = 'customer'
@@ -166,12 +187,43 @@ class Offering(core_models.UuidMixin,
             path_to_scope='offering',
         )
 
+    @transition(field=state, source=States.DRAFT, target=States.ACTIVE)
+    def activate(self):
+        pass
+
+    @transition(field=state, source=States.ACTIVE, target=States.PAUSED)
+    def pause(self):
+        pass
+
+    @transition(field=state, source='*', target=States.ARCHIVED)
+    def archive(self):
+        pass
+
     def __str__(self):
         return six.text_type(self.name)
 
     @classmethod
     def get_url_name(cls):
         return 'marketplace-offering'
+
+
+class Plan(core_models.UuidMixin,
+           structure_models.TimeStampedModel,
+           core_models.NameMixin,
+           core_models.DescribableMixin,
+           common_mixins.UnitPriceMixin,
+           common_mixins.ProductCodeMixin,
+           ScopeMixin):
+    offering = models.ForeignKey(Offering, related_name='plans')
+    archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
+    objects = managers.MixinManager('scope')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-plan'
+
+    class Permissions(object):
+        customer_path = 'offering__customer'
 
 
 @python_2_unicode_compatible
@@ -257,47 +309,29 @@ class Order(core_models.UuidMixin,
             users = order_owners if not users else users.union(order_owners)
 
         if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER']:
-            order_managers = self.project.get_users(models.ProjectRole.MANAGER)
+            order_managers = self.project.get_users(structure_models.ProjectRole.MANAGER)
             users = order_managers if not users else users.union(order_managers)
 
         if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER']:
-            order_admins = self.project.get_users(models.ProjectRole.ADMINISTRATOR)
+            order_admins = self.project.get_users(structure_models.ProjectRole.ADMINISTRATOR)
             users = order_admins if not users else users.union(order_admins)
 
         return users and users.distinct()
 
 
 class OrderItem(core_models.UuidMixin,
-                structure_models.TimeStampedModel):
+                structure_models.TimeStampedModel,
+                ScopeMixin):
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
-
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
-    object_id = models.PositiveIntegerField(null=True)
-    scope = GenericForeignKey('content_type', 'object_id')
-    objects = managers.OrderItemManager('scope')
+    objects = managers.MixinManager('scope')
 
     class Meta(object):
         verbose_name = _('Order item')
         ordering = ('created',)
 
-    def process(self, user):
-        manager.process(self, user)
-
-
-class Plan(core_models.UuidMixin,
-           structure_models.TimeStampedModel,
-           core_models.NameMixin,
-           core_models.DescribableMixin,
-           common_mixins.UnitPriceMixin):
-    offering = models.ForeignKey(Offering, related_name='plans')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'marketplace-plan'
-
-    class Permissions(object):
-        customer_path = 'offering__customer'
+    def process(self, request):
+        manager.process(self, request)

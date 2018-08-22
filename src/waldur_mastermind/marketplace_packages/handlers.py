@@ -1,14 +1,13 @@
-from django.db import transaction
-
 from . import utils
 
 
-def create_offering_for_package_template(sender, instance, created=False, **kwargs):
+def create_offering_and_plan_for_package_template(sender, instance, created=False, **kwargs):
     if created:
-        utils.create_offering_for_package_template(instance)
+        utils.create_offering_and_plan_for_package_template(instance)
     else:
-        utils.update_offering_for_template(instance)
+        utils.update_plan_for_template(instance)
 
 
-def sync_offering_attribute_with_template_component(sender, instance, created=False, **kwargs):
-    transaction.on_commit(lambda: utils.sync_offering_attribute_with_template_component(instance))
+def update_offering_for_service_settings(sender, instance, created=False, **kwargs):
+    if not created:
+        utils.update_offering_for_service_settings(instance)

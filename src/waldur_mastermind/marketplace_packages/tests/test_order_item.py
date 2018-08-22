@@ -11,7 +11,7 @@ class PackageOrderTest(test.APITransactionTestCase):
         # Arrange
         fixture = package_fixtures.PackageFixture()
         template = fixture.openstack_template
-        offering = marketplace_factories.OfferingFactory(scope=template)
+        offering = marketplace_factories.OfferingFactory(scope=template, type='Packages.Template')
         order = marketplace_factories.OrderFactory(
             state=marketplace_models.Order.States.REQUESTED_FOR_APPROVAL)
         attributes = dict(
