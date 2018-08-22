@@ -5,6 +5,7 @@ import re
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -193,7 +194,8 @@ class Offering(core_models.UuidMixin,
 
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
-    type = models.CharField(max_length=255)
+    template = models.ForeignKey('OfferingTemplate')
+    type = models.CharField(max_length=255, editable=False)  # deprecated
     issue = models.ForeignKey(Issue, null=True, on_delete=models.PROTECT)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
@@ -210,9 +212,7 @@ class Offering(core_models.UuidMixin,
 
     @property
     def type_label(self):
-        offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
-        type_settings = offerings.get(self.type, {})
-        return type_settings.get('label', None)
+        return self.template.config.get('label', None)
 
     @classmethod
     def get_url_name(cls):
@@ -220,6 +220,20 @@ class Offering(core_models.UuidMixin,
 
     def __str__(self):
         return '{}: {}'.format(self.type_label or self.name, self.state)
+
+    # Delete this method when type field will be deleted.
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            if self.template:
+                self.type = self.template.name
+            elif self.type:
+                try:
+                    template = OfferingTemplate.objects.get(name=self.type)
+                    self.template = template
+                except OfferingTemplate.DoesNotExist:
+                    pass
+
+        super(Offering, self).save(*args, **kwargs)
 
     @classmethod
     def get_scope_type(cls):
@@ -230,6 +244,20 @@ class Offering(core_models.UuidMixin,
         context['resource_type'] = self.get_scope_type()
         context['resource_uuid'] = self.uuid.hex
         return context
+
+    @property
+    def config(self):
+        return self.template.config if self.template else {}
+
+
+@python_2_unicode_compatible
+class OfferingTemplate(core_models.UuidMixin,
+                       structure_models.TimeStampedModel):
+    name = models.CharField(_('name'), max_length=150, unique=True)
+    config = BetterJSONField()
+
+    def __str__(self):
+        return self.name
 
 
 @python_2_unicode_compatible
@@ -291,3 +319,7 @@ class TemplateAttachment(core_models.UuidMixin,
                          TimeStampedModel):
     template = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='attachments')
     file = models.FileField(upload_to='support_template_attachments')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-offering-template'

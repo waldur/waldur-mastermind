@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from datetime import timedelta
+import unittest
 
 from ddt import ddt, data
 from decimal import Decimal
@@ -11,31 +12,36 @@ import mock
 
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.support.backend import SupportBackendError
-from rest_framework import status, test
+from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.support.tests.base import override_support_settings, override_offerings
+from waldur_core.core.tests.utils import PostgreSQLTest
+from waldur_mastermind.support.tests.base import override_support_settings
 
-from . import base, factories
+from . import factories, fixtures
 from .. import models, tasks
 
 
-@override_offerings()
-class BaseOfferingTest(base.BaseTest):
-    def _get_valid_request(self, project=None):
-        if project is None:
-            project = self.fixture.project
+class BaseTest(PostgreSQLTest):
+    def setUp(self, **kwargs):
+        super(BaseTest, self).setUp(**kwargs)
+        support_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
+        settings.WALDUR_SUPPORT['ENABLED'] = True
+        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = support_backend
+        mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
+        self.mock_get_active_backend = mock_patch.start()
 
-        return {
-            'type': 'custom_vpc',
-            'name': 'Do not reboot it, just patch',
-            'description': 'We got Linux, and there\'s no doubt. Gonna fix',
-            'storage': 20,
-            'ram': 4,
-            'cpu_count': 2,
-            'project': structure_factories.ProjectFactory.get_url(project)
-        }
+    def tearDown(self):
+        mock.patch.stopall()
+
+
+class BaseOfferingTest(BaseTest):
+    def setUp(self, **kwargs):
+        super(BaseOfferingTest, self).setUp(**kwargs)
+        self.fixture = fixtures.SupportFixture()
+        self.offering = self.fixture.offering
+        self.offering_template = self.fixture.offering.template
 
 
 @ddt
@@ -48,15 +54,12 @@ class OfferingRetrieveTest(BaseOfferingTest):
     @data('staff', 'global_support', 'owner', 'admin', 'manager')
     def test_user_can_see_list_of_offerings_if_he_has_project_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        offering = factories.OfferingFactory(issue__project__customer=self.fixture.customer,
-                                             project=self.fixture.project)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(offering.uuid.hex, response.data[0]['uuid'])
+        self.assertEqual(self.offering.uuid.hex, response.data[0]['uuid'])
 
     def test_user_cannot_see_list_of_offerings_if_he_has_no_project_level_permissions(self):
-        self.fixture.offering
         self.client.force_authenticate(self.fixture.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -64,44 +67,47 @@ class OfferingRetrieveTest(BaseOfferingTest):
 
 
 @ddt
-class OfferingCreateTest(BaseOfferingTest):
+class OfferingCreateTest(BaseTest):
     def setUp(self):
         super(OfferingCreateTest, self).setUp()
         self.url = factories.OfferingFactory.get_list_url()
+        self.fixture = structure_fixtures.ServiceFixture()
         self.client.force_authenticate(self.fixture.staff)
+        self.offering_template = factories.OfferingTemplateFactory()
 
-    def test_error_is_raised_if_type_is_not_provided(self):
+    def test_error_is_raised_if_template_is_not_provided(self):
         request_data = self._get_valid_request()
-        del request_data['type']
+        del request_data['template']
 
         response = self.client.post(self.url, data=request_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('type', response.data)
+        self.assertIn('template', response.data)
 
-    def test_field_required_error_is_raised_if_type_is_empty(self):
+    def test_field_required_error_is_raised_if_template_is_empty(self):
         request_data = self._get_valid_request()
-        request_data['type'] = None
+        request_data['template'] = None
 
         response = self.client.post(self.url, data=request_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('type', response.data)
-        self.assertEqual('This field is required.', response.data['type'])
+        self.assertIn('template', response.data)
+        self.assertIn('This field may not be null.', response.data['template'])
 
-    def test_error_is_raised_if_type_is_invalid(self):
+    def test_error_is_raised_if_template_is_invalid(self):
         request_data = self._get_valid_request()
-        request_data['type'] = 'invalid'
+        request_data['template'] = 'invalid'
 
         response = self.client.post(self.url, data=request_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('type', response.data)
+        self.assertIn('template', response.data)
 
+    @unittest.skip('Currently, use both fields - template or type.')
     def test_error_is_raised_if_data_is_not_provided(self):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('type', response.data)
+        self.assertIn('template', response.data)
 
     def test_issue_is_created(self):
         request_data = self._get_valid_request()
@@ -126,16 +132,32 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertEqual(models.Issue.objects.count(), 1)
         self.assertIn(expected_description, models.Issue.objects.first().description)
 
-    def test_offering_type_is_filled(self):
-        expected_type = 'custom_vpc'
+    def test_offering_template_is_filled(self):
         request_data = self._get_valid_request()
-
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Offering.objects.count(), 1)
         offering = models.Offering.objects.first()
-        self.assertIn(offering.type, 'custom_vpc')
-        self.assertIn(offering.type_label, settings.WALDUR_SUPPORT['OFFERINGS'][expected_type]['label'])
+        self.assertEqual(offering.template, self.offering_template)
+        config = offering.config
+        self.assertEqual(offering.type_label, config['label'])
+
+        # Delete this line when type field will be deleted
+        self.assertEqual(offering.type, self.offering_template.name)
+
+    # Delete this test when type field will be deleted.
+    def test_offering_type_is_filled(self):
+        expected_type = self.offering_template.name
+        request_data = self._get_valid_request()
+        request_data.pop('template')
+        request_data['type'] = expected_type
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(models.Offering.objects.count(), 1)
+        offering = models.Offering.objects.first()
+        self.assertIn(offering.type, expected_type)
+        self.assertIn(offering.type_label, self.offering_template.config['label'])
+        self.assertEqual(offering.template, self.offering_template)
 
     def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
         request_data = self._get_valid_request()
@@ -188,33 +210,45 @@ class OfferingCreateTest(BaseOfferingTest):
         self.assertIsNotNone(response.data)
         self.assertEqual(response.data['project_uuid'].hex, self.fixture.project.uuid.hex)
 
+    def _get_valid_request(self, project=None):
+        if project is None:
+            project = self.fixture.project
 
-@override_support_settings(OFFERINGS={
-    'security_package': {
-        'label': 'Custom security package',
-        'article_code': 'WALDUR-SECURITY',
-        'product_code': 'PACK-001',
-        'price': 100,
-        'unit': UnitPriceMixin.Units.PER_DAY,
-        'order': ['vm_count'],
-        'options': {
-            'vm_count': {
-                'type': 'integer',
-                'label': 'Virtual machines count',
-            },
-        },
-    },
-})
+        return {
+            'template': factories.OfferingTemplateFactory.get_url(self.offering_template),
+            'name': 'Do not reboot it, just patch',
+            'description': 'We got Linux, and there\'s no doubt. Gonna fix',
+            'storage': 20,
+            'ram': 4,
+            'cpu_count': 2,
+            'project': structure_factories.ProjectFactory.get_url(project)
+        }
+
+
 @mock.patch('waldur_mastermind.support.backend.get_active_backend')
 class OfferingCreateProductTest(BaseOfferingTest):
     def setUp(self):
         super(OfferingCreateProductTest, self).setUp()
         self.url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.staff)
+        self.offering_template = factories.OfferingTemplateFactory(name='security_package', config={
+            'label': 'Custom security package',
+            'article_code': 'WALDUR-SECURITY',
+            'product_code': 'PACK-001',
+            'price': 100,
+            'unit': UnitPriceMixin.Units.PER_DAY,
+            'order': ['vm_count'],
+            'options': {
+                'vm_count': {
+                    'type': 'integer',
+                    'label': 'Virtual machines count',
+                },
+            },
+        })
 
     def _get_valid_request(self, project=None):
         return {
-            'type': 'security_package',
+            'template': factories.OfferingTemplateFactory.get_url(self.offering_template),
             'name': 'Security package request',
             'vm_count': 1000,
             'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project)
@@ -403,18 +437,8 @@ class OfferingDeleteTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class OfferingGetConfiguredTest(BaseOfferingTest):
-
-    def test_offering_view_returns_configured_offerings(self):
-        self.client.force_authenticate(self.fixture.user)
-        url = factories.OfferingFactory.get_list_action_url(action='configured')
-        response = self.client.get(url)
-        available_offerings = response.data
-        self.assertDictEqual(available_offerings, settings.WALDUR_SUPPORT['OFFERINGS'])
-
-
 @ddt
-class CountersTest(test.APITransactionTestCase):
+class CountersTest(PostgreSQLTest):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 

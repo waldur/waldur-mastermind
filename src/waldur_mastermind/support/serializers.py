@@ -262,18 +262,28 @@ WebHookReceiverSerializer.remove_event(['jira:issue_created'])
 class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+    type = serializers.SerializerMethodField()
+
+    def get_type(self, obj):
+        return obj.template.name
+
+    template = serializers.HyperlinkedRelatedField(
+        queryset=models.OfferingTemplate.objects.all(),
+        view_name='support-offering-template-detail',
+        lookup_field='uuid',
+        required=False,
+    )
     state = serializers.ReadOnlyField(source='get_state_display')
     report = serializers.JSONField(required=False)
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'state', 'type_label', 'unit_price',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'state', 'type_label', 'unit_price',
                   'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
                   'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid', 'product_code', 'article_code', 'report')
         read_only_fields = ('type_label', 'issue', 'unit_price', 'unit', 'state', 'product_code', 'article_code')
-        protected_fields = ('project', 'type')
+        protected_fields = ('project', 'type', 'template')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -308,7 +318,25 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         return ('project',)
 
 
-class ConfigurableSerializerMixin(object):
+class ConfigurableFormDescriptionMixin(object):
+    def _form_description(self, configuration, validated_data):
+        result = []
+
+        for key in configuration['order']:
+            if key not in validated_data:
+                continue
+
+            label = configuration['options'].get(key, {})
+            label_value = label.get('label', key)
+            result.append('%s: \'%s\'' % (label_value, validated_data[key]))
+
+        if 'description' in validated_data:
+            result.append('\n %s' % validated_data['description'])
+
+        return '\n'.join(result)
+
+
+class ConfigurableSerializerMixin(ConfigurableFormDescriptionMixin):
     """
     Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
 
@@ -382,22 +410,6 @@ class ConfigurableSerializerMixin(object):
 
         return field
 
-    def _form_description(self, configuration, validated_data):
-        result = []
-
-        for key in configuration['order']:
-            if key not in validated_data:
-                continue
-
-            label = configuration['options'].get(key, {})
-            label_value = label.get('label', key)
-            result.append('%s: \'%s\'' % (label_value, validated_data[key]))
-
-        if 'description' in validated_data:
-            result.append('\n %s' % validated_data['description'])
-
-        return '\n'.join(result)
-
     def _get_extra(self, configuration, validated_data):
         result = {
             key: validated_data[key]
@@ -409,8 +421,9 @@ class ConfigurableSerializerMixin(object):
         return result
 
 
-class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
+class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMixin):
     description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
+    type = serializers.CharField(required=False)
 
     class Meta(OfferingSerializer.Meta):
         fields = OfferingSerializer.Meta.fields + ('description',)
@@ -434,9 +447,19 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             'description' - combined list of all other fields provided with the request;
         """
         project = validated_data['project']
-        type = validated_data['type']
-        offering_configuration = self._get_configuration(type)
-        type_label = offering_configuration.get('label', type)
+        template = validated_data.get('template')
+        offering_type = validated_data.get('type')
+
+        if not template:
+            try:
+                template = models.OfferingTemplate.objects.get(name=offering_type)
+            except models.OfferingTemplate.DoesNotExist:
+                raise serializers.ValidationError({
+                    'type': _('Type configuration could not be found.'),
+                })
+
+        offering_configuration = template.config
+        type_label = offering_configuration.get('label', template.name)
         issue_details = dict(
             caller=self.context['request'].user,
             project=project,
@@ -452,7 +475,7 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
-            type=type,
+            template=template,
             product_code=offering_configuration.get('product_code', ''),
             article_code=offering_configuration.get('article_code', ''),
             unit_price=offering_configuration.get('price', 0),
@@ -460,6 +483,16 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
         )
 
         return offering
+
+    def validate(self, attrs):
+        offering_type = attrs.get('type')
+        template = attrs.get('template')
+        if not (offering_type or template):
+            raise serializers.ValidationError({
+                'type': _('This field or template are required.'),
+                'template': _('This field or type are required.'),
+            })
+        return attrs
 
 
 class OfferingCompleteSerializer(serializers.Serializer):
@@ -530,3 +563,13 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
             del fields['native_name']
             del fields['native_description']
         return fields
+
+
+class OfferingTemplateSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.OfferingTemplate
+        fields = ('url', 'uuid', 'name', 'config')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-template-detail'},
+        )
