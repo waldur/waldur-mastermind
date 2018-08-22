@@ -28,7 +28,10 @@ class OfferingFilter(django_filters.FilterSet):
         try:
             value = json.loads(value)
         except ValueError:
-            raise rf_exceptions.ValidationError(_('Filter attribute is not valid.'))
+            raise rf_exceptions.ValidationError(_('Filter attribute is not valid json.'))
+
+        if not isinstance(value, dict):
+            raise rf_exceptions.ValidationError(_('Filter attribute should be an dict.'))
 
         for k, v in value.items():
             queryset = queryset.filter(attributes__contains={k: v})
