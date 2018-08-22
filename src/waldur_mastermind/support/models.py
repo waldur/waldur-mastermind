@@ -221,6 +221,20 @@ class Offering(core_models.UuidMixin,
     def __str__(self):
         return '{}: {}'.format(self.type_label or self.name, self.state)
 
+    # Delete this method when type field will be deleted.
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            if self.template:
+                self.type = self.template.name
+            elif self.type:
+                try:
+                    template = OfferingTemplate.objects.get(name=self.type)
+                    self.template = template
+                except OfferingTemplate.DoesNotExist:
+                    pass
+
+        super(Offering, self).save(*args, **kwargs)
+
     @classmethod
     def get_scope_type(cls):
         return 'Support.Offering'

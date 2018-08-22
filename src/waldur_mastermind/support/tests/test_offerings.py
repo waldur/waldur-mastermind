@@ -142,6 +142,23 @@ class OfferingCreateTest(BaseTest):
         config = offering.config
         self.assertEqual(offering.type_label, config['label'])
 
+        # Delete this line when type field will be deleted
+        self.assertEqual(offering.type, self.offering_template.name)
+
+    # Delete this test when type field will be deleted.
+    def test_offering_type_is_filled(self):
+        expected_type = self.offering_template.name
+        request_data = self._get_valid_request()
+        request_data.pop('template')
+        request_data['type'] = expected_type
+        response = self.client.post(self.url, data=request_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(models.Offering.objects.count(), 1)
+        offering = models.Offering.objects.first()
+        self.assertIn(offering.type, expected_type)
+        self.assertIn(offering.type_label, self.offering_template.config['label'])
+        self.assertEqual(offering.template, self.offering_template)
+
     def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
         request_data = self._get_valid_request()
         request_data['project'] = structure_factories.ProjectFactory.get_url()

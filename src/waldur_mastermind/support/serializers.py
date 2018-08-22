@@ -452,8 +452,7 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
 
         if not template:
             try:
-                template_qs = models.OfferingTemplate.objects.get(name=offering_type)
-                template = template_qs[0]
+                template = models.OfferingTemplate.objects.get(name=offering_type)
             except models.OfferingTemplate.DoesNotExist:
                 raise serializers.ValidationError({
                     'type': _('Type configuration could not be found.'),
