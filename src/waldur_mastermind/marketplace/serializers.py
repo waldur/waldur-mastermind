@@ -226,15 +226,19 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
                           serializers.HyperlinkedModelSerializer):
 
-    offering_name = serializers.ReadOnlyField(source='offering.name')
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
-    offering_description = serializers.ReadOnlyField(source='offering.description')
+    offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
 
     class Meta(object):
         model = models.OrderItem
-        fields = ('offering', 'offering_name', 'offering_description', 'provider_name', 'provider_uuid',
+        fields = ('offering', 'offering_name', 'offering_uuid',
+                  'offering_description', 'offering_thumbnail',
+                  'provider_name', 'provider_uuid',
                   'attributes', 'cost', 'plan',)
+        related_paths = {
+            'offering': ('name', 'uuid', 'description'),
+        }
         read_only_fields = ('cost',)
         protected_fields = ('offering',)
         extra_kwargs = {
@@ -292,14 +296,24 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
         validated_data['created_by'] = user
         items = validated_data.pop('items')
         order = super(OrderSerializer, self).create(validated_data)
-        models.OrderItem.objects.bulk_create([
-            models.OrderItem(
+        new_items = []
+        total_cost = 0
+        for item in items:
+            plan = item.get('plan')
+            cost = 0
+            if plan:
+                cost = plan.unit_price
+            total_cost += cost
+            new_items.append(models.OrderItem(
                 order=order,
                 offering=item['offering'],
                 attributes=item.get('attributes', {}),
-            )
-            for item in items
-        ])
+                plan=plan,
+                cost=cost,
+            ))
+        models.OrderItem.objects.bulk_create(new_items)
+        order.total_cost = total_cost
+        order.save()
         return order
 
     def get_filtered_field_names(self):
