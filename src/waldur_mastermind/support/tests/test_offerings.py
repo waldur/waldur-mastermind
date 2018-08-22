@@ -132,7 +132,7 @@ class OfferingCreateTest(BaseTest):
         self.assertEqual(models.Issue.objects.count(), 1)
         self.assertIn(expected_description, models.Issue.objects.first().description)
 
-    def test_offering_filled_is_filled(self):
+    def test_offering_template_is_filled(self):
         request_data = self._get_valid_request()
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
