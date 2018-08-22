@@ -24,6 +24,14 @@ class MarketplaceExtension(WaldurExtension):
         return True
 
     @staticmethod
+    def get_public_settings():
+        return [
+            'OWNER_CAN_APPROVE_ORDER',
+            'MANAGER_CAN_APPROVE_ORDER',
+            'ADMIN_CAN_APPROVE_ORDER',
+        ]
+
+    @staticmethod
     def rest_urls():
         from .urls import register_in
         return register_in
