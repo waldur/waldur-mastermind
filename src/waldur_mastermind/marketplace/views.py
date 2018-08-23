@@ -47,6 +47,7 @@ class OfferingViewSet(BaseMarketplaceView):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingSerializer
     filter_class = filters.OfferingFilter
+    filter_backends = (DjangoFilterBackend, filters.OfferingCustomersFilterBackend)
 
 
 class PlanViewSet(BaseMarketplaceView):

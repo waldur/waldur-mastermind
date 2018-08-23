@@ -173,6 +173,15 @@ class Offering(core_models.UuidMixin,
 
     type = models.CharField(max_length=100, default='', blank=True)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+
+    # If offering is not shared, it is available only to following user categories:
+    # 1) staff user;
+    # 2) global support user;
+    # 3) users with active permission in original customer;
+    # 4) users with active permission in allowed customers and nested projects.
+    shared = models.BooleanField(default=False, help_text=_('Anybody can use it'))
+    allowed_customers = models.ManyToManyField(structure_models.Customer, related_name='+')
+
     objects = managers.MixinManager('scope')
 
     class Permissions(object):
