@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-from django.conf import settings  # noqa: F401
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
