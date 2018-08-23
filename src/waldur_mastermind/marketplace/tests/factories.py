@@ -90,7 +90,7 @@ class AttributeFactory(factory.DjangoModelFactory):
 @factory.django.mute_signals(signals.pre_save, signals.post_save)
 class ScreenshotFactory(factory.DjangoModelFactory):
     class Meta(object):
-        model = models.Screenshots
+        model = models.Screenshot
 
     name = factory.Sequence(lambda n: 'screenshot-%s' % n)
     image = factory.django.ImageField()

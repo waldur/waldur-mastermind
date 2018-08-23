@@ -48,7 +48,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 
 class ScreenshotsInline(admin.TabularInline):
-    model = models.Screenshots
+    model = models.Screenshot
 
 
 class PlansInline(admin.TabularInline):
@@ -90,5 +90,5 @@ admin.site.register(models.Category, CategoryAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section, SectionAdmin)
 admin.site.register(models.Attribute, AttributeAdmin)
-admin.site.register(models.Screenshots)
+admin.site.register(models.Screenshot)
 admin.site.register(models.Order, OrderAdmin)

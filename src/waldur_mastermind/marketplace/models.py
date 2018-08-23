@@ -227,11 +227,11 @@ class Plan(core_models.UuidMixin,
 
 
 @python_2_unicode_compatible
-class Screenshots(core_models.UuidMixin,
-                  structure_models.StructureModel,
-                  core_models.DescribableMixin,
-                  structure_models.TimeStampedModel,
-                  core_models.NameMixin):
+class Screenshot(core_models.UuidMixin,
+                 structure_models.StructureModel,
+                 core_models.DescribableMixin,
+                 structure_models.TimeStampedModel,
+                 core_models.NameMixin):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
     offering = models.ForeignKey(Offering, related_name='screenshots')
