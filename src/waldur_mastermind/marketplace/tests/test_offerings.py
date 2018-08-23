@@ -21,7 +21,7 @@ class OfferingGetTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory()
+        self.offering = factories.OfferingFactory(shared=True)
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_offerings_should_be_visible_to_all_authenticated_users(self, user):
@@ -36,6 +36,104 @@ class OfferingGetTest(PostgreSQLTest):
         url = factories.OfferingFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class OfferingFilterTest(PostgreSQLTest):
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        attributes = {
+            'cloudDeploymentModel': 'private_cloud',
+            'userSupportOption': ['phone'],
+        }
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer,
+                                                  attributes=attributes)
+        self.url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_filter_choice_positive(self):
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'cloudDeploymentModel': 'private_cloud',
+        })})
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_choice_negative(self):
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'cloudDeploymentModel': 'public_cloud',
+        })})
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_list_positive(self):
+        """
+        If attribute is a list it is assumed that all options should be present.
+        Even if some options are present, offerings are filtered out, because none of them has all options.
+        """
+        factories.OfferingFactory(attributes={
+            'userSupportOption': ['phone', 'email', 'fax'],
+        })
+        factories.OfferingFactory(attributes={
+            'userSupportOption': ['email'],
+        })
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'userSupportOption': ['phone', 'email'],
+        })})
+        self.assertEqual(len(response.data), 1)
+
+    def test_shared_offerings_are_available_for_all_users(self):
+        # Arrange
+        factories.OfferingFactory(customer=self.fixture.customer, shared=False)
+        self.offering.shared = True
+        self.offering.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_available_for_users_in_allowed_customers(self):
+        fixture = fixtures.CustomerFixture()
+        self.offering.allowed_customers.add(fixture.customer)
+
+        self.client.force_authenticate(fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_not_available_for_users_in_other_customers(self):
+        fixture = fixtures.CustomerFixture()
+        self.client.force_authenticate(fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
+
+    def test_private_offerings_are_available_for_users_in_allowed_projects(self):
+        fixture = fixtures.ProjectFixture()
+        self.offering.allowed_customers.add(fixture.customer)
+
+        self.client.force_authenticate(fixture.manager)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_not_available_for_users_in_other_projects(self):
+        fixture = fixtures.ProjectFixture()
+        self.client.force_authenticate(fixture.manager)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
+
+    def test_private_offerings_are_available_for_users_in_original_customer(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_available_for_staff(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_available_for_support(self):
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
 
 
 @ddt
@@ -174,7 +272,7 @@ class OfferingUpdateTest(PostgreSQLTest):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(customer=self.customer)
+        offering = factories.OfferingFactory(customer=self.customer, shared=True)
         url = factories.OfferingFactory.get_url(offering)
 
         response = self.client.patch(url, {
@@ -192,7 +290,7 @@ class OfferingDeleteTest(PostgreSQLTest):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_offering(self, user):
@@ -304,27 +402,3 @@ class OfferingQuotaTest(PostgreSQLTest):
         provider = factories.ServiceProviderFactory()
         factories.OfferingFactory.create_batch(3, category=category, customer=provider.customer)
         self.assertEqual(3, self.get_usage(category))
-
-
-class OfferingFilterTest(PostgreSQLTest):
-
-    def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory(attributes={
-            'cloudDeploymentModel': 'private_cloud',
-            'userSupportOption': ['phone'],
-        })
-        self.url = factories.OfferingFactory.get_list_url()
-        self.client.force_authenticate(self.fixture.staff)
-
-    def test_filter_positive(self):
-        response = self.client.get(self.url, {'attributes': json.dumps({
-            'cloudDeploymentModel': 'private_cloud',
-        })})
-        self.assertEqual(len(response.data), 1)
-
-    def test_filter_negative(self):
-        response = self.client.get(self.url, {'attributes': json.dumps({
-            'cloudDeploymentModel': 'private_cloud_1',
-        })})
-        self.assertEqual(len(response.data), 0)
