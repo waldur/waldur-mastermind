@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name='marketplace.create_screenshot_thumbnail')
 def create_screenshot_thumbnail(uuid):
-    screenshot = models.Screenshots.objects.get(uuid=uuid)
+    screenshot = models.Screenshot.objects.get(uuid=uuid)
     utils.create_screenshot_thumbnail(screenshot)
 
 

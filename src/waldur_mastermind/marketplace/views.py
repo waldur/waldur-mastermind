@@ -56,7 +56,7 @@ class PlanViewSet(BaseMarketplaceView):
 
 
 class ScreenshotViewSet(BaseMarketplaceView):
-    queryset = models.Screenshots.objects.all()
+    queryset = models.Screenshot.objects.all()
     serializer_class = serializers.ScreenshotSerializer
     filter_class = filters.ScreenshotFilter
 

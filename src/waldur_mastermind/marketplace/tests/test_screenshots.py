@@ -54,7 +54,7 @@ class ScreenshotsCreateTest(PostgreSQLTest):
     def test_authorized_user_can_create_screenshot(self, user):
         response = self.create_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Screenshots.objects.filter(offering__customer=self.customer).exists())
+        self.assertTrue(models.Screenshot.objects.filter(offering__customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_create_screenshot(self, user):
@@ -95,7 +95,7 @@ class ScreenshotsUpdateTest(PostgreSQLTest):
         response, screenshot = self.update_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(screenshot.name, 'new_screenshot')
-        self.assertTrue(models.Screenshots.objects.filter(name='new_screenshot').exists())
+        self.assertTrue(models.Screenshot.objects.filter(name='new_screenshot').exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_update_screenshot(self, user):
@@ -132,13 +132,13 @@ class ScreenshotsDeleteTest(PostgreSQLTest):
     def test_authorized_user_can_delete_screenshot(self, user):
         response = self.delete_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
-        self.assertFalse(models.Screenshots.objects.filter(offering__customer=self.customer).exists())
+        self.assertFalse(models.Screenshot.objects.filter(offering__customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_delete_screenshot(self, user):
         response = self.delete_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.Screenshots.objects.filter(offering__customer=self.customer).exists())
+        self.assertTrue(models.Screenshot.objects.filter(offering__customer=self.customer).exists())
 
     def delete_screenshot(self, user):
         user = getattr(self.fixture, user)

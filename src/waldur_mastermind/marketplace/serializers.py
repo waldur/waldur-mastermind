@@ -111,14 +111,14 @@ class NesterPlanSerializer(core_serializers.AugmentedSerializerMixin,
 
 class NestedScreenshotSerializer(serializers.ModelSerializer):
     class Meta(object):
-        model = models.Screenshots
+        model = models.Screenshot
         fields = ('name', 'description', 'image', 'thumbnail')
 
 
 class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
     class Meta(object):
-        model = models.Screenshots
+        model = models.Screenshot
         fields = ('url', 'uuid', 'name', 'description', 'image', 'thumbnail', 'offering')
         protected_fields = ('offering', 'image')
         extra_kwargs = {

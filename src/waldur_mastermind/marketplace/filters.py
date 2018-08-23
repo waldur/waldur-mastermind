@@ -49,7 +49,7 @@ class ScreenshotFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     class Meta(object):
-        model = models.Screenshots
+        model = models.Screenshot
         fields = []
 
 
