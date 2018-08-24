@@ -60,6 +60,7 @@ class OfferingAdminForm(ModelForm):
         widgets = {
             'attributes': JSONEditor(),
             'geolocations': JSONEditor(),
+            'options': JSONEditor(),
         }
 
 
@@ -70,7 +71,7 @@ class OfferingAdmin(admin.ModelAdmin):
     list_filter = ('state',)
     fields = ('state', 'customer', 'category', 'name', 'native_name',
               'description', 'native_description', 'full_description',
-              'rating', 'thumbnail', 'attributes', 'geolocations',
+              'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
               'shared', 'allowed_customers', 'type', 'scope', 'vendor_details')
     readonly_fields = ('rating', 'scope')
 

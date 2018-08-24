@@ -163,7 +163,8 @@ class Offering(core_models.UuidMixin,
                                  help_text=_('Rating is value from 1 to 5.'))
     category = models.ForeignKey(Category, related_name='offerings')
     customer = models.ForeignKey(structure_models.Customer, related_name='+', null=True)
-    attributes = BetterJSONField(blank=True, default=dict)
+    attributes = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Category.'))
+    options = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Offering request form.'))
     geolocations = JSONField(default=list, blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
@@ -183,6 +184,7 @@ class Offering(core_models.UuidMixin,
     allowed_customers = models.ManyToManyField(structure_models.Customer, related_name='+')
 
     objects = managers.MixinManager('scope')
+    tracker = FieldTracker()
 
     class Permissions(object):
         customer_path = 'customer'

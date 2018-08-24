@@ -11,7 +11,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 
-from . import models, attribute_types
+from . import models, attribute_types, plugins
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -146,7 +146,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description',
                   'customer', 'customer_uuid', 'customer_name',
                   'category', 'category_uuid', 'category_title',
-                  'rating', 'attributes', 'geolocations',
+                  'rating', 'attributes', 'options', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type')
         related_paths = {
@@ -181,7 +181,14 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
 
+        plugins.manager.validate(attrs)
         return attrs
+
+    def validate_type(self, offering_type):
+        if offering_type:
+            if offering_type not in plugins.manager.backends.keys():
+                raise rf_exceptions.ValidationError(_('Invalid value.'))
+        return offering_type
 
     def _validate_attributes(self, offering_attributes, category):
         offering_attribute_keys = offering_attributes.keys()
