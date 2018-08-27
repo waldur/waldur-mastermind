@@ -49,10 +49,13 @@ class CategoryAdmin(admin.ModelAdmin):
 
 class ScreenshotsInline(admin.TabularInline):
     model = models.Screenshot
+    fields = ('name', 'description', 'image')
 
 
 class PlansInline(admin.TabularInline):
     model = models.Plan
+    fields = ('name', 'description', 'unit_price', 'unit',
+              'product_code', 'article_code', 'archived')
 
 
 class OfferingAdminForm(ModelForm):

@@ -180,7 +180,7 @@ class Offering(core_models.UuidMixin,
     # 3) users with active permission in original customer;
     # 4) users with active permission in allowed customers and nested projects.
     shared = models.BooleanField(default=False, help_text=_('Anybody can use it'))
-    allowed_customers = models.ManyToManyField(structure_models.Customer, related_name='+')
+    allowed_customers = models.ManyToManyField(structure_models.Customer, blank=True)
 
     objects = managers.MixinManager('scope')
 

@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offering',
             name='allowed_customers',
-            field=models.ManyToManyField(related_name='_offering_allowed_customers_+', to='structure.Customer'),
+            field=models.ManyToManyField(blank=True, to='structure.Customer'),
         ),
         migrations.AddField(
             model_name='offering',
