@@ -10,8 +10,11 @@ class TemplateOfferingTest(test.APITransactionTestCase):
 
     def test_create_template_offering(self):
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
-        self.assertTrue(support_models.OfferingTemplate.objects.filter(name=offering.name).exists())
+        offering.refresh_from_db()
+        template = support_models.OfferingTemplate.objects.get(name=offering.name)
+        self.assertTrue(offering.scope, template)
 
     def test_not_create_template_offering(self):
         offering = marketplace_factories.OfferingFactory()
-        self.assertFalse(support_models.OfferingTemplate.objects.filter(name=offering.name).exists())
+        offering.refresh_from_db()
+        self.assertIsNone(offering.scope)
