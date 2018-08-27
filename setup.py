@@ -128,6 +128,7 @@ setup(
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
             'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
             'waldur_marketplace_packages = waldur_mastermind.marketplace_packages.extension:MarketplacePackagesExtension',
+            'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
         ),
     },
     include_package_data=True,
