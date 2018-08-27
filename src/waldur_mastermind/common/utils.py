@@ -1,4 +1,8 @@
+import json
+
 from decimal import Decimal, ROUND_UP
+
+from rest_framework.test import APIRequestFactory
 
 
 def quantize_price(value):
@@ -7,3 +11,11 @@ def quantize_price(value):
     :rtype: Decimal
     """
     return value.quantize(Decimal('0.01'), rounding=ROUND_UP)
+
+
+def internal_api_request(view, user, post_data):
+    factory = APIRequestFactory()
+    request = factory.post('/', data=json.dumps(post_data),
+                           content_type='application/json',
+                           HTTP_AUTHORIZATION='Token %s' % user.auth_token.key)
+    return view(request)

@@ -1,14 +1,10 @@
-import json
-
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers, status
 from rest_framework.reverse import reverse
-from rest_framework.test import APIRequestFactory
 
+from waldur_mastermind.common.utils import internal_api_request
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import views as support_views
-
-factory = APIRequestFactory()
 
 
 def process_support(order_item, request):
@@ -27,11 +23,8 @@ def process_support(order_item, request):
         project=project_url,
         template=template_url,
     )
-    request = factory.post('/', data=json.dumps(post_data), content_type='application/json',
-                           HTTP_AUTHORIZATION='Token %s' % request.user.auth_token.key)
-
     view = support_views.OfferingViewSet.as_view({'post': 'create'})
-    response = view(request)
+    response = internal_api_request(view, request.user, post_data)
     if response.status_code != status.HTTP_201_CREATED:
         raise serializers.ValidationError(response.data)
 
