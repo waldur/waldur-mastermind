@@ -140,6 +140,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
+    state = serializers.ReadOnlyField(source='get_state_display')
 
     class Meta(object):
         model = models.Offering
