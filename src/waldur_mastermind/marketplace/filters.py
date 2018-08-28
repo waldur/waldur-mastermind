@@ -37,7 +37,11 @@ class OfferingFilter(django_filters.FilterSet):
             raise rf_exceptions.ValidationError(_('Filter attribute should be an dict.'))
 
         for k, v in value.items():
-            queryset = queryset.filter(attributes__contains={k: v})
+            if isinstance(v, list):
+                # If a filter value is a list, use multiple choice.
+                queryset = queryset.filter(**{'attributes__{key}__has_any_keys'.format(key=k): v})
+            else:
+                queryset = queryset.filter(attributes__contains={k: v})
         return queryset
 
     class Meta(object):

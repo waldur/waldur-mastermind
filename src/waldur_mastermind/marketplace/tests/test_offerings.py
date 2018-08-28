@@ -65,8 +65,7 @@ class OfferingFilterTest(PostgreSQLTest):
 
     def test_filter_list_positive(self):
         """
-        If attribute is a list it is assumed that all options should be present.
-        Even if some options are present, offerings are filtered out, because none of them has all options.
+        If an attribute is a list, we use multiple choices.
         """
         factories.OfferingFactory(attributes={
             'userSupportOption': ['phone', 'email', 'fax'],
@@ -75,9 +74,9 @@ class OfferingFilterTest(PostgreSQLTest):
             'userSupportOption': ['email'],
         })
         response = self.client.get(self.url, {'attributes': json.dumps({
-            'userSupportOption': ['phone', 'email'],
+            'userSupportOption': ['fax', 'email'],
         })})
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), 2)
 
     def test_shared_offerings_are_available_for_all_users(self):
         # Arrange
