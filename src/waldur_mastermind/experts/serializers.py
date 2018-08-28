@@ -15,6 +15,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import serializers as support_serializers
+from waldur_mastermind.support.serializers import ConfigurableFormDescriptionMixin
 
 from . import models
 
@@ -83,7 +84,97 @@ class ExpertContractSerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
+class ConfigurableSerializerMixin(ConfigurableFormDescriptionMixin):
+    """
+    Each configured field get's converted to serializer field according to field type in the configuration.
+
+    Field types:
+        'integer' - corresponds to 'serializers.IntegerField'
+        'string' - is a default field type even if it is not defined explicitly in configuration.
+                   Corresponds to 'serializers.CharField(max_length=255)'
+
+    Default values:
+        if 'default' key is present in option field configuration it is going to be used in serializer unless
+        the value itself has been provided in the create request.
+    """
+
+    def _get_offerings_configuration(self):
+        return copy.deepcopy(settings.WALDUR_EXPERTS['CONTRACT']['offerings'])
+
+    def _get_configuration(self, type):
+        contract_config = copy.deepcopy(settings.WALDUR_EXPERTS['CONTRACT'])
+        offering_config = contract_config['offerings'].get(type)
+        configured_options = [tab.get('options', {}) for tab in contract_config.get('options').values()]
+        options_order = [tab.get('order', []) for tab in contract_config.get('options').values()]
+        offering_config['order'] = offering_config['order'] + list(itertools.chain(*options_order))
+        [offering_config['options'].update(options) for options in configured_options]
+
+        return offering_config
+
+    def get_fields(self):
+        result = super(ConfigurableSerializerMixin, self).get_fields()
+        if hasattr(self, 'initial_data') and not hasattr(self, '_errors'):
+            type = self.initial_data['type']
+            configuration = self._get_configuration(type)
+            for attr_name in configuration['order']:
+                attr_options = configuration['options'].get(attr_name, {})
+                result[attr_name] = self._get_field_instance(attr_options)
+
+        # choices have to be added dynamically so that unit tests can mock offering configuration.
+        # otherwise it is always going to be a default set up.
+        result['type'] = serializers.ChoiceField(allow_blank=False, choices=self._get_offerings_configuration().keys())
+
+        return result
+
+    def _validate_type(self, type):
+        offering_configuration = self._get_configuration(type)
+        if offering_configuration is None:
+            raise serializers.ValidationError({
+                'type': _('Type configuration could not be found.')
+            })
+
+    def validate_empty_values(self, data):
+        if 'type' not in data or ('type' in data and data['type'] is None):
+            raise serializers.ValidationError({
+                'type': _('This field is required.')
+            })
+        else:
+            self._validate_type(data['type'])
+
+        return super(ConfigurableSerializerMixin, self).validate_empty_values(data)
+
+    def _get_field_instance(self, attr_options):
+        field_type = attr_options.get('type', '').lower()
+
+        if field_type == 'string':
+            field = serializers.CharField(max_length=255, write_only=True)
+        elif field_type == 'integer':
+            field = serializers.IntegerField(write_only=True)
+        else:
+            field = serializers.CharField(write_only=True)
+
+        default_value = attr_options.get('default')
+        if default_value:
+            field.default = default_value
+
+        field.required = attr_options.get('required', False)
+        field.label = attr_options.get('label')
+        field.help_text = attr_options.get('help_text')
+
+        return field
+
+    def _get_extra(self, configuration, validated_data):
+        result = {
+            key: validated_data[key]
+            for key in configuration['order']
+            if key in validated_data
+        }
+        if 'description' in validated_data:
+            result['description'] = validated_data['description']
+        return result
+
+
+class ExpertRequestSerializer(ConfigurableSerializerMixin,
                               core_serializers.AugmentedSerializerMixin,
                               serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=settings.WALDUR_EXPERTS['CONTRACT']['offerings'].keys())
@@ -102,19 +193,6 @@ class ExpertRequestSerializer(support_serializers.ConfigurableSerializerMixin,
 
     def get_type_label(self, instance):
         return self._get_configuration(instance.type).get('label', instance.type)
-
-    def _get_offerings_configuration(self):
-        return copy.deepcopy(settings.WALDUR_EXPERTS['CONTRACT']['offerings'])
-
-    def _get_configuration(self, type):
-        contract_config = copy.deepcopy(settings.WALDUR_EXPERTS['CONTRACT'])
-        offering_config = contract_config['offerings'].get(type)
-        configured_options = [tab.get('options', {}) for tab in contract_config.get('options').values()]
-        options_order = [tab.get('order', []) for tab in contract_config.get('options').values()]
-        offering_config['order'] = offering_config['order'] + list(itertools.chain(*options_order))
-        [offering_config['options'].update(options) for options in configured_options]
-
-        return offering_config
 
     class Meta(object):
         model = models.ExpertRequest

@@ -10,6 +10,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_mastermind.common.serializers import validate_options
 
 from . import models, attribute_types, plugins
 
@@ -303,49 +304,7 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
         if not offering.options:
             return
 
-        options = offering.options['options']
-        fields = {}
-
-        for name, option in options.items():
-            field_type = option.get('type', '')
-
-            if field_type == 'string':
-                field = serializers.CharField()
-
-            elif field_type == 'integer':
-                field = serializers.IntegerField()
-
-            elif field_type == 'money':
-                field = serializers.IntegerField()
-
-            elif field_type == 'boolean':
-                field = serializers.BooleanField()
-
-            else:
-                field = serializers.CharField()
-
-            default_value = option.get('default')
-            if default_value:
-                field.default = default_value
-
-            if 'min' in option:
-                field.min_value = option.get('min')
-
-            if 'max' in option:
-                field.max_value = option.get('max')
-
-            if 'choices' in option:
-                fields.choices = option.get('choices')
-
-            field.required = option.get('required', False)
-            field.label = option.get('label')
-            field.help_text = option.get('help_text')
-
-            fields[name] = field
-
-        serializer_class = type(b'AttributesSerializer', (serializers.Serializer,), fields)
-        serializer = serializer_class(data=attributes.get('attributes'))
-        serializer.is_valid(raise_exception=True)
+        validate_options(offering.options['options'], attributes.get('attributes'))
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
