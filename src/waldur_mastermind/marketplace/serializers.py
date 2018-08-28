@@ -296,15 +296,11 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
                 raise rf_exceptions.ValidationError({
                     'plan': _('This plan is not available for selected offering.')
                 })
-        self._validate_attributes(offering, attrs)
+
+        if offering.options:
+            validate_options(offering.options['options'], attrs.get('attributes'))
 
         return attrs
-
-    def _validate_attributes(self, offering, attributes):
-        if not offering.options:
-            return
-
-        validate_options(offering.options['options'], attributes.get('attributes'))
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
@@ -347,13 +343,15 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
             if plan:
                 cost = plan.unit_price
             total_cost += cost
-            new_items.append(models.OrderItem(
+            order_item = models.OrderItem(
                 order=order,
                 offering=item['offering'],
                 attributes=item.get('attributes', {}),
                 plan=plan,
                 cost=cost,
-            ))
+            )
+            plugins.manager.validate(order_item, self.context['request'])
+            new_items.append(order_item)
         models.OrderItem.objects.bulk_create(new_items)
         order.total_cost = total_cost
         order.save()
