@@ -2,6 +2,7 @@ from rest_framework import status, test
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_packages import PLUGIN_NAME
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 
@@ -11,7 +12,7 @@ class PackageOrderTest(test.APITransactionTestCase):
         # Arrange
         fixture = package_fixtures.PackageFixture()
         template = fixture.openstack_template
-        offering = marketplace_factories.OfferingFactory(scope=template, type='Packages.Template')
+        offering = marketplace_factories.OfferingFactory(scope=template, type=PLUGIN_NAME)
         order = marketplace_factories.OrderFactory(
             state=marketplace_models.Order.States.REQUESTED_FOR_APPROVAL)
         attributes = dict(
