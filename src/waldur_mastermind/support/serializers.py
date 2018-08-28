@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-import copy
 import logging
 import os
 
@@ -15,6 +14,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 from waldur_jira.serializers import WebHookReceiverSerializer as JiraWebHookReceiverSerializer
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import models
@@ -336,97 +336,13 @@ class ConfigurableFormDescriptionMixin(object):
         return '\n'.join(result)
 
 
-class ConfigurableSerializerMixin(ConfigurableFormDescriptionMixin):
-    """
-    Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
-
-    Each configured field get's converted to serializer field according to field type in the configuration.
-
-    Field types:
-        'integer' - corresponds to 'serializers.IntegerField'
-        'string' - is a default field type even if it is not defined explicitly in configuration.
-                   Corresponds to 'serializers.CharField(max_length=255)'
-
-    Default values:
-        if 'default' key is present in option field configuration it is going to be used in serializer unless
-        the value itself has been provided in the create request.
-    """
-
-    def _get_offerings_configuration(self):
-        return copy.deepcopy(settings.WALDUR_SUPPORT['OFFERINGS'])
-
-    def _get_configuration(self, type):
-        return self._get_offerings_configuration().get(type)
-
-    def get_fields(self):
-        result = super(ConfigurableSerializerMixin, self).get_fields()
-        if hasattr(self, 'initial_data') and not hasattr(self, '_errors'):
-            type = self.initial_data['type']
-            configuration = self._get_configuration(type)
-            for attr_name in configuration['order']:
-                attr_options = configuration['options'].get(attr_name, {})
-                result[attr_name] = self._get_field_instance(attr_options)
-
-        # choices have to be added dynamically so that unit tests can mock offering configuration.
-        # otherwise it is always going to be a default set up.
-        result['type'] = serializers.ChoiceField(allow_blank=False, choices=self._get_offerings_configuration().keys())
-
-        return result
-
-    def _validate_type(self, type):
-        offering_configuration = self._get_configuration(type)
-        if offering_configuration is None:
-            raise serializers.ValidationError({
-                'type': _('Type configuration could not be found.')
-            })
-
-    def validate_empty_values(self, data):
-        if 'type' not in data or ('type' in data and data['type'] is None):
-            raise serializers.ValidationError({
-                'type': _('This field is required.')
-            })
-        else:
-            self._validate_type(data['type'])
-
-        return super(ConfigurableSerializerMixin, self).validate_empty_values(data)
-
-    def _get_field_instance(self, attr_options):
-        field_type = attr_options.get('type', '').lower()
-
-        if field_type == 'string':
-            field = serializers.CharField(max_length=255, write_only=True)
-        elif field_type == 'integer':
-            field = serializers.IntegerField(write_only=True)
-        else:
-            field = serializers.CharField(write_only=True)
-
-        default_value = attr_options.get('default')
-        if default_value:
-            field.default = default_value
-
-        field.required = attr_options.get('required', False)
-        field.label = attr_options.get('label')
-        field.help_text = attr_options.get('help_text')
-
-        return field
-
-    def _get_extra(self, configuration, validated_data):
-        result = {
-            key: validated_data[key]
-            for key in configuration['order']
-            if key in validated_data
-        }
-        if 'description' in validated_data:
-            result['description'] = validated_data['description']
-        return result
-
-
 class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMixin):
+    attributes = serializers.JSONField(required=False, write_only=True, allow_null=True)
     description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
     type = serializers.CharField(required=False)
 
     class Meta(OfferingSerializer.Meta):
-        fields = OfferingSerializer.Meta.fields + ('description',)
+        fields = OfferingSerializer.Meta.fields + ('description', 'attributes')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -457,6 +373,15 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 raise serializers.ValidationError({
                     'type': _('Type configuration could not be found.'),
                 })
+
+        attributes = validated_data.get('attributes')
+        if attributes:
+            try:
+                validate_options(template.config['options'], attributes)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError({'attributes': exc})
+            else:
+                validated_data.update(attributes)
 
         offering_configuration = template.config
         type_label = offering_configuration.get('label', template.name)

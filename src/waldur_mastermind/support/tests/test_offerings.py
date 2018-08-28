@@ -113,7 +113,7 @@ class OfferingCreateTest(BaseTest):
         request_data = self._get_valid_request()
 
         response = self.client.post(self.url, data=request_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.Issue.objects.count(), 1)
 
     @override_support_settings(ENABLED=False)
@@ -218,10 +218,12 @@ class OfferingCreateTest(BaseTest):
             'template': factories.OfferingTemplateFactory.get_url(self.offering_template),
             'name': 'Do not reboot it, just patch',
             'description': 'We got Linux, and there\'s no doubt. Gonna fix',
-            'storage': 20,
-            'ram': 4,
-            'cpu_count': 2,
-            'project': structure_factories.ProjectFactory.get_url(project)
+            'project': structure_factories.ProjectFactory.get_url(project),
+            'attributes': {
+                'storage': 20,
+                'ram': 4,
+                'cpu_count': 2,
+            }
         }
 
 
@@ -250,8 +252,10 @@ class OfferingCreateProductTest(BaseOfferingTest):
         return {
             'template': factories.OfferingTemplateFactory.get_url(self.offering_template),
             'name': 'Security package request',
-            'vm_count': 1000,
-            'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project)
+            'project': structure_factories.ProjectFactory.get_url(project or self.fixture.project),
+            'attributes': {
+                'vm_count': 1000,
+            },
         }
 
     def test_product_code_is_copied_from_configuration_to_offering(self, mock_active_backend):
@@ -267,6 +271,12 @@ class OfferingCreateProductTest(BaseOfferingTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Decimal(response.data['unit_price']), Decimal(100))
         self.assertEqual(response.data['unit'], 'day')
+
+    def test_attributes_is_copied_to_offering(self, mock_active_backend):
+        valid_request = self._get_valid_request()
+        response = self.client.post(self.url, valid_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('Virtual machines count: &#39;1000&#39;', response.data['issue_description'])
 
 
 class OfferingUpdateTest(BaseOfferingTest):
