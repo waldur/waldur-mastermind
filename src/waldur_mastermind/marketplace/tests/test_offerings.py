@@ -11,6 +11,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 
 from . import factories
 from .. import serializers
@@ -220,6 +221,20 @@ class OfferingCreateTest(PostgreSQLTest):
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['plans']), 1)
+
+    def test_create_offering_with_options(self):
+        response = self.create_offering('staff', attributes=True, add_payload={'options': OFFERING_OPTIONS})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+        offering = models.Offering.objects.get(customer=self.customer)
+        self.assertEqual(offering.options, OFFERING_OPTIONS)
+
+    def test_create_offering_with_invalid_options(self):
+        options = {
+            'foo': 'bar'
+        }
+        response = self.create_offering('staff', attributes=True, add_payload={'options': options})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
 
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)

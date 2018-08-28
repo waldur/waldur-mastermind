@@ -132,10 +132,39 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
+FIELD_TYPES = (
+    'boolean',
+    'integer',
+    'money'
+    'string',
+    'text',
+    'html_text',
+    'select_string',
+    'select_openstack_tenant',
+)
+
+
+class OptionFieldSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=FIELD_TYPES)
+    label = serializers.CharField()
+    help_text = serializers.CharField(required=False)
+    required = serializers.BooleanField(default=False)
+    choices = serializers.ListField(child=serializers.CharField(), required=False)
+    default = serializers.Field(required=False)
+    min = serializers.IntegerField(required=False)
+    max = serializers.IntegerField(required=False)
+
+
+class OfferingOptionsSerializer(serializers.Serializer):
+    order = serializers.ListField(child=serializers.CharField())
+    options = serializers.DictField(child=OptionFieldSerializer())
+
+
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
+    options = serializers.JSONField(required=False)
     geolocations = serializers.JSONField(required=False)
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
@@ -182,7 +211,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
 
-        plugins.manager.validate(attrs)
         return attrs
 
     def validate_type(self, offering_type):
@@ -207,6 +235,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                     except ValidationError as e:
                         err = rf_exceptions.ValidationError({'attributes': e.message})
                         raise err
+
+    def validate_options(self, options):
+        serializer = OfferingOptionsSerializer(data=options)
+        serializer.is_valid(raise_exception=True)
+        return options
 
     @transaction.atomic
     def create(self, validated_data):
@@ -242,7 +275,7 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
             'offering': ('name', 'uuid', 'description'),
         }
         read_only_fields = ('cost',)
-        protected_fields = ('offering',)
+        protected_fields = ('offering', 'plan')
         extra_kwargs = {
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
             'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
@@ -254,16 +287,65 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
         return offering
 
     def validate(self, attrs):
-        offering = attrs.get('offering')
+        offering = attrs['offering']
         plan = attrs.get('plan')
 
-        if offering and plan:
+        if plan:
             if plan.offering != offering:
                 raise rf_exceptions.ValidationError({
                     'plan': _('This plan is not available for selected offering.')
                 })
+        self._validate_attributes(offering, attrs)
 
         return attrs
+
+    def _validate_attributes(self, offering, attributes):
+        if not offering.options:
+            return
+
+        options = offering.options['options']
+        fields = {}
+
+        for name, option in options.items():
+            field_type = option.get('type', '')
+
+            if field_type == 'string':
+                field = serializers.CharField()
+
+            elif field_type == 'integer':
+                field = serializers.IntegerField()
+
+            elif field_type == 'money':
+                field = serializers.IntegerField()
+
+            elif field_type == 'boolean':
+                field = serializers.BooleanField()
+
+            else:
+                field = serializers.CharField()
+
+            default_value = option.get('default')
+            if default_value:
+                field.default = default_value
+
+            if 'min' in option:
+                field.min_value = option.get('min')
+
+            if 'max' in option:
+                field.max_value = option.get('max')
+
+            if 'choices' in option:
+                fields.choices = option.get('choices')
+
+            field.required = option.get('required', False)
+            field.label = option.get('label')
+            field.help_text = option.get('help_text')
+
+            fields[name] = field
+
+        serializer_class = type(b'AttributesSerializer', (serializers.Serializer,), fields)
+        serializer = serializer_class(data=attributes.get('attributes'))
+        serializer.is_valid(raise_exception=True)
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
