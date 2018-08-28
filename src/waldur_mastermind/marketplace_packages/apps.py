@@ -10,6 +10,7 @@ class MarketplacePackageConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_mastermind.packages import models as package_models
         from waldur_mastermind.marketplace.plugins import manager
+        from waldur_mastermind.marketplace_packages import PLUGIN_NAME
 
         from . import handlers, processor
 
@@ -27,4 +28,4 @@ class MarketplacePackageConfig(AppConfig):
                          'update_offering_for_service_settings',
         )
 
-        manager.register('Packages.Template', processor.process_order_item)
+        manager.register(PLUGIN_NAME, processor.process_order_item)
