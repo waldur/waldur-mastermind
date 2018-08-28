@@ -11,7 +11,7 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
-        from . import handlers, processor, utils
+        from . import handlers, processor
 
         signals.post_save.connect(
             handlers.create_support_template,
@@ -19,4 +19,4 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.create_support_template',
         )
 
-        manager.register(PLUGIN_NAME, processor.process_support, validator=utils.validate_options)
+        manager.register(PLUGIN_NAME, processor.process_support)

@@ -7,6 +7,7 @@ from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 
 from . import factories
 from .. import models, base
@@ -53,7 +54,7 @@ class OrderCreateTest(PostgreSQLTest):
         self.project = self.fixture.project
 
     @data('staff', 'owner', 'admin', 'manager')
-    def test_user_can_create_order_with_relation_project(self, user):
+    def test_user_can_create_order_in_valid_project(self, user):
         user = getattr(self.fixture, user)
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -61,7 +62,7 @@ class OrderCreateTest(PostgreSQLTest):
         self.assertEqual(1, len(response.data['items']))
 
     @data('user')
-    def test_user_can_not_create_order_with_not_relation_project(self, user):
+    def test_user_can_not_create_order_in_invalid_project(self, user):
         user = getattr(self.fixture, user)
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -92,6 +93,41 @@ class OrderCreateTest(PostgreSQLTest):
                 'offering': factories.OfferingFactory.get_url(),
                 'plan': factories.PlanFactory.get_url(plan),
                 'attributes': {}
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_can_create_order_with_valid_attributes_specified_by_options(self):
+        attributes = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': attributes,
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['items'][0]['attributes'], attributes)
+
+    def test_user_can_not_create_order_with_invalid_attributes(self):
+        attributes = {
+            'storage': 'invalid value',
+        }
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': attributes,
             },
         ]}
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
