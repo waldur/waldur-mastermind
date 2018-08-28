@@ -2,6 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.reverse import reverse
 from rest_framework import serializers, status
 
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.utils import internal_api_request
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
@@ -10,19 +11,27 @@ from waldur_openstack.openstack import models as openstack_models
 
 def process_order_item(order_item, request):
     try:
-        template = order_item.offering.scope
+        service_settings = order_item.offering.scope
+    except ObjectDoesNotExist:
+        service_settings = None
+
+    if not isinstance(service_settings, structure_models.ServiceSettings):
+        raise serializers.ValidationError('Offering has invalid scope. Service settings object is expected.')
+
+    try:
+        template = order_item.plan.scope
     except ObjectDoesNotExist:
         template = None
 
     if not isinstance(template, package_models.PackageTemplate):
-        raise serializers.ValidationError('Offering has invalid scope. VPC package template is expected.')
+        raise serializers.ValidationError('Plan has invalid scope. VPC package template is expected.')
 
     project = order_item.order.project
 
     try:
         spl = openstack_models.OpenStackServiceProjectLink.objects.get(
             project=project,
-            service__settings=template.service_settings,
+            service__settings=service_settings,
             service__customer=project.customer,
         )
     except openstack_models.OpenStackServiceProjectLink.DoesNotExist:
