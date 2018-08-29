@@ -30,6 +30,7 @@ class OfferingFilter(django_filters.FilterSet):
         choices=[(representation, representation) for db_value, representation in models.Offering.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
     )
+    category_uuid = django_filters.UUIDFilter(name='category__uuid')
 
     def filter_attributes(self, queryset, name, value):
         try:
