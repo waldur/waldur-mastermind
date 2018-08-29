@@ -10,6 +10,26 @@ from waldur_openstack.openstack import models as openstack_models
 
 
 def process_order_item(order_item, request):
+    view = package_views.OpenStackPackageViewSet.as_view({'post': 'create'})
+    post_data = get_post_data(order_item, request)
+    response = internal_api_request(view, request.user, post_data)
+    if response.status_code != status.HTTP_201_CREATED:
+        raise serializers.ValidationError(response.data)
+
+    package_uuid = response.data['uuid']
+    package = package_models.OpenStackPackage.objects.get(uuid=package_uuid)
+    order_item.scope = package
+    order_item.save()
+
+
+def validate_order_item(order_item, request):
+    post_data = get_post_data(order_item, request)
+    serializer = package_views.OpenStackPackageViewSet.create_serializer_class(
+        data=post_data, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+
+
+def get_post_data(order_item, request):
     try:
         service_settings = order_item.offering.scope
     except ObjectDoesNotExist:
@@ -41,21 +61,22 @@ def process_order_item(order_item, request):
     spl_url = reverse('openstack-spl-detail', kwargs={'pk': spl.pk}, request=request)
     template_url = reverse('package-template-detail', kwargs={'uuid': template.uuid})
 
-    post_data = dict(
-        name=order_item.attributes['name'],
-        description=order_item.attributes.get('description'),
-        user_username=order_item.attributes.get('user_username'),
-        service_project_link=spl_url,
+    payload = dict(
         project=project_url,
+        service_project_link=spl_url,
         template=template_url,
     )
+    fields = (
+        'name',
+        'description',
+        'user_username',
+        'user_password',
+        'subnet_cidr',
+        'skip_connection_extnet',
+        'availability_zone',
+    )
+    for field in fields:
+        if field in order_item.attributes:
+            payload[field] = order_item.attributes.get(field)
 
-    view = package_views.OpenStackPackageViewSet.as_view({'post': 'create'})
-    response = internal_api_request(view, request.user, post_data)
-    if response.status_code != status.HTTP_201_CREATED:
-        raise serializers.ValidationError(response.data)
-
-    package_uuid = response.data['uuid']
-    package = package_models.OpenStackPackage.objects.get(uuid=package_uuid)
-    order_item.scope = package
-    order_item.save()
+    return payload

@@ -39,10 +39,10 @@ class PluginManager(object):
 
         processor(order_item, request)
 
-    def validate(self, attrs):
-        validator = self.get_validator(attrs.get('type'))
+    def validate(self, order_item, request):
+        validator = self.get_validator(order_item.offering.type)
         if validator:
-            validator(attrs)
+            validator(order_item, request)
 
 
 manager = PluginManager()

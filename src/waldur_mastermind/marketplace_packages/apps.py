@@ -28,4 +28,4 @@ class MarketplacePackageConfig(AppConfig):
                          'update_offering_for_service_settings',
         )
 
-        manager.register(PLUGIN_NAME, processor.process_order_item)
+        manager.register(PLUGIN_NAME, processor.process_order_item, processor.validate_order_item)

@@ -1,5 +1,6 @@
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_packages import PLUGIN_NAME
@@ -8,6 +9,55 @@ from waldur_mastermind.packages.tests import fixtures as package_fixtures
 
 
 class PackageOrderTest(test.APITransactionTestCase):
+    def test_when_order_is_created_items_are_validated(self):
+        response = self.create_order()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_mandatory_attributes_are_checked(self):
+        response = self.create_order(dict(user_username=None))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('user_username' in response.data)
+
+    def create_order(self, add_attributes=None):
+        fixture = package_fixtures.PackageFixture()
+        project_url = structure_factories.ProjectFactory.get_url(fixture.project)
+
+        offering = marketplace_factories.OfferingFactory(
+            scope=fixture.openstack_service_settings,
+            type=PLUGIN_NAME,
+            state=marketplace_models.Offering.States.ACTIVE,
+        )
+        offering_url = marketplace_factories.OfferingFactory.get_url(offering)
+
+        plan = marketplace_factories.PlanFactory(scope=fixture.openstack_template, offering=offering)
+        plan_url = marketplace_factories.PlanFactory.get_url(plan)
+
+        # Create SPL
+        fixture.openstack_spl
+
+        attributes = dict(
+            name='My first VPC',
+            description='Database cluster',
+            user_username='admin_user',
+        )
+        if add_attributes:
+            attributes.update(add_attributes)
+
+        payload = {
+            'project': project_url,
+            'items': [
+                {
+                    'offering': offering_url,
+                    'plan': plan_url,
+                    'attributes': attributes,
+                },
+            ]
+        }
+
+        self.client.force_login(fixture.staff)
+        url = marketplace_factories.OrderFactory.get_list_url()
+        return self.client.post(url, payload)
+
     def test_when_order_item_is_approved_openstack_package_is_created(self):
         # Arrange
         fixture = package_fixtures.PackageFixture()

@@ -414,10 +414,10 @@ class TenantSerializer(structure_serializers.PrivateCloudSerializer):
             'user_username', 'user_password', 'quotas', 'subnet_cidr',
         )
         read_only_fields = structure_serializers.PrivateCloudSerializer.Meta.read_only_fields + (
-            'internal_network_id', 'external_network_id', 'user_password',
+            'internal_network_id', 'external_network_id',
         )
         protected_fields = structure_serializers.PrivateCloudSerializer.Meta.protected_fields + (
-            'user_username', 'subnet_cidr',
+            'user_username', 'subnet_cidr', 'user_password',
         )
 
     def get_fields(self):
