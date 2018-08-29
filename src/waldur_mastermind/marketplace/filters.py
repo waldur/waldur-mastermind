@@ -26,6 +26,10 @@ class OfferingFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
     attributes = django_filters.CharFilter(name='attributes', method='filter_attributes')
+    state = core_filters.MappedMultipleChoiceFilter(
+        choices=[(representation, representation) for db_value, representation in models.Offering.States.CHOICES],
+        choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
+    )
 
     def filter_attributes(self, queryset, name, value):
         try:
