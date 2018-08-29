@@ -155,7 +155,10 @@ class Offering(core_models.UuidMixin,
             (ARCHIVED, 'Archived'),
         )
 
-    thumbnail = models.ImageField(upload_to='marketplace_service_offering_thumbnails', blank=True, null=True)
+    thumbnail = models.FileField(upload_to='marketplace_service_offering_thumbnails',
+                                 blank=True,
+                                 null=True,
+                                 validators=[VectorizedImageValidator])
     full_description = models.TextField(blank=True)
     vendor_details = models.TextField(blank=True)
     rating = models.IntegerField(null=True,
