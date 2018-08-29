@@ -382,6 +382,11 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 raise serializers.ValidationError({'attributes': exc})
             else:
                 validated_data.update(attributes)
+        else:
+            if template.config.get('options'):
+                raise serializers.ValidationError({
+                    'attributes': _('This field is required.'),
+                })
 
         offering_configuration = template.config
         type_label = offering_configuration.get('label', template.name)
