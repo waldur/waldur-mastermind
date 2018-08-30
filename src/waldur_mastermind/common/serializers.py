@@ -33,7 +33,7 @@ def validate_options(options, attributes):
             field.max_value = option.get('max')
 
         if 'choices' in option:
-            fields.choices = option.get('choices')
+            field.choices = option.get('choices')
 
         field.required = option.get('required', False)
         field.label = option.get('label')
