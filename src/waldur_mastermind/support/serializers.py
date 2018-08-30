@@ -376,6 +376,8 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
 
         attributes = validated_data.get('attributes')
         if attributes:
+            if not isinstance(template.config, dict) or not(template.config.get('options')):
+                raise serializers.ValidationError({'attributes': _('Extra attributes are not allowed.')})
             try:
                 validate_options(template.config['options'], attributes)
             except serializers.ValidationError as exc:

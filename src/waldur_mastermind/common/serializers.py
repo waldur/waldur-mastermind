@@ -5,41 +5,37 @@ def validate_options(options, attributes):
     fields = {}
 
     for name, option in options.items():
+        params = {}
         field_type = option.get('type', '')
+        field_class = serializers.CharField
 
-        if field_type == 'string':
-            field = serializers.CharField()
-
-        elif field_type == 'integer':
-            field = serializers.IntegerField()
+        if field_type == 'integer':
+            field_class = serializers.IntegerField
 
         elif field_type == 'money':
-            field = serializers.IntegerField()
+            field_class = serializers.IntegerField
 
         elif field_type == 'boolean':
-            field = serializers.BooleanField()
-
-        else:
-            field = serializers.CharField()
+            field_class = serializers.BooleanField
 
         default_value = option.get('default')
         if default_value:
-            field.default = default_value
+            params['default'] = default_value
+        else:
+            params['required'] = option.get('required', False)
 
-        if 'min' in option:
-            field.min_value = option.get('min')
+        if field_class == serializers.IntegerField:
+            if 'min' in option:
+                params['min_value'] = option.get('min')
 
-        if 'max' in option:
-            field.max_value = option.get('max')
+            if 'max' in option:
+                params['max_value'] = option.get('max')
 
         if 'choices' in option:
-            field.choices = option.get('choices')
+            field_class = serializers.ChoiceField
+            params['choices'] = option.get('choices')
 
-        field.required = option.get('required', False)
-        field.label = option.get('label')
-        field.help_text = option.get('help_text')
-
-        fields[name] = field
+        fields[name] = field_class(**params)
 
     serializer_class = type(b'AttributesSerializer', (serializers.Serializer,), fields)
     serializer = serializer_class(data=attributes)

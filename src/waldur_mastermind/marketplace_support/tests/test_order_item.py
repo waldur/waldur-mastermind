@@ -1,6 +1,6 @@
 import mock
 from django.conf import settings
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -33,7 +33,8 @@ class SupportOrderTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_url(order_item.order, 'set_state_executing')
 
         self.client.force_login(self.user)
-        self.client.post(url)
+        response = self.client.post(url)
+        self.assertTrue(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(support_models.Offering.objects.filter(name='item_name').exists())
 
     def test_not_create_offering_if_marketplace_offering_is_not_support_type(self):
@@ -47,5 +48,5 @@ class SupportOrderTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_url(order_item.order, 'set_state_executing')
 
         self.client.force_login(self.user)
-        self.client.post(url)
-        self.assertFalse(support_models.Offering.objects.filter(name='item_name').exists())
+        response = self.client.post(url)
+        self.assertTrue(response.status_code, status.HTTP_400_BAD_REQUEST)
