@@ -8,6 +8,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
+from waldur_core.core.utils import serialize_class
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.serializers import validate_options
@@ -265,13 +266,23 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
     offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
+    resource_uuid = serializers.SerializerMethodField()
+    resource_type = serializers.SerializerMethodField()
+
+    def get_resource_uuid(self, order_item):
+        if order_item.scope:
+            return order_item.scope.uuid
+
+    def get_resource_type(self, order_item):
+        if order_item.scope:
+            return serialize_class(order_item.scope.__class__)
 
     class Meta(object):
         model = models.OrderItem
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail',
                   'provider_name', 'provider_uuid',
-                  'attributes', 'cost', 'plan',)
+                  'attributes', 'cost', 'plan', 'resource_uuid', 'resource_type')
         related_paths = {
             'offering': ('name', 'uuid', 'description'),
         }
