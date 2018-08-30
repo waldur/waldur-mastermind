@@ -236,6 +236,11 @@ class OfferingCreateTest(PostgreSQLTest):
         response = self.create_offering('staff', attributes=True, add_payload={'options': options})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
 
+    def test_create_offering_with_invalid_type(self):
+        response = self.create_offering('staff', attributes=True, add_payload={'type': 'invalid'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('type' in response.data)
+
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -246,6 +251,7 @@ class OfferingCreateTest(PostgreSQLTest):
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
+            'type': 'Support.OfferingTemplate',  # This is used only for testing
         }
 
         if attributes:
