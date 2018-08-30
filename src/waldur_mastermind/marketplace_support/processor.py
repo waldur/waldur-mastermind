@@ -23,7 +23,11 @@ def process_support(order_item, request):
     post_data = dict(
         project=project_url,
         template=template_url,
+        name=order_item.attributes.pop('name'),
+        description=order_item.attributes.pop('description'),
     )
+    if order_item.attributes:
+        post_data['attributes'] = order_item.attributes
     post_data.update(order_item.attributes)
 
     view = support_views.OfferingViewSet.as_view({'post': 'create'})
