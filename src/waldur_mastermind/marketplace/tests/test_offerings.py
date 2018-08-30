@@ -422,3 +422,39 @@ class OfferingQuotaTest(PostgreSQLTest):
         provider = factories.ServiceProviderFactory()
         factories.OfferingFactory.create_batch(3, category=category, customer=provider.customer)
         self.assertEqual(3, self.get_usage(category))
+
+
+@ddt
+class OfferingStateTest(PostgreSQLTest):
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_update_state(self, user):
+        response, offering = self.update_offering_state(user, 'activate')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, offering.States.ACTIVE)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_update_state(self, user):
+        response, offering = self.update_offering_state(user, 'activate')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(offering.state, offering.States.DRAFT)
+
+    def test_invalid_state(self):
+        response, offering = self.update_offering_state('staff', 'pause')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertEqual(offering.state, offering.States.DRAFT)
+
+    def update_offering_state(self, user, state):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        factories.ServiceProviderFactory(customer=self.customer)
+        offering = factories.OfferingFactory(customer=self.customer, shared=True)
+        url = factories.OfferingFactory.get_url(offering, state)
+        response = self.client.post(url)
+        offering.refresh_from_db()
+
+        return response, offering
