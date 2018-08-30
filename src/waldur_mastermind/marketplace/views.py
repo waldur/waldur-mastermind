@@ -4,6 +4,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from django_fsm import TransitionNotAllowed
 from rest_framework import status, exceptions as rf_exceptions
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
@@ -48,6 +49,35 @@ class OfferingViewSet(BaseMarketplaceView):
     serializer_class = serializers.OfferingSerializer
     filter_class = filters.OfferingFilter
     filter_backends = (DjangoFilterBackend, filters.OfferingCustomersFilterBackend)
+
+    @detail_route(methods=['post'])
+    def activate(self, request, uuid=None):
+        return self._update_state('activate')
+
+    @detail_route(methods=['post'])
+    def pause(self, request, uuid=None):
+        return self._update_state('pause')
+
+    @detail_route(methods=['post'])
+    def archive(self, request, uuid=None):
+        return self._update_state('archive')
+
+    def _update_state(self, action):
+        offering = self.get_object()
+
+        try:
+            getattr(offering, action)()
+        except TransitionNotAllowed:
+            raise rf_exceptions.ValidationError(_('Offering state is invalid.'))
+
+        offering.save(update_fields=['state'])
+        return Response({'detail': _('Offering state updated.')},
+                        status=status.HTTP_200_OK)
+
+    activate_permissions = \
+        pause_permissions = \
+        archive_permissions = \
+        [structure_permissions.is_owner]
 
 
 class PlanViewSet(BaseMarketplaceView):
