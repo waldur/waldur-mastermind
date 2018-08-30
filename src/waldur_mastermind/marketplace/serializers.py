@@ -216,9 +216,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
     def validate_type(self, offering_type):
-        if offering_type:
-            if offering_type not in plugins.manager.backends.keys():
-                raise rf_exceptions.ValidationError(_('Invalid value.'))
+        if offering_type not in plugins.manager.backends.keys():
+            raise rf_exceptions.ValidationError(_('Invalid value.'))
         return offering_type
 
     def _validate_attributes(self, offering_attributes, category):
