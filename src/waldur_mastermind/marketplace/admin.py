@@ -19,7 +19,7 @@ class AttributeOptionInline(admin.TabularInline):
 
 class AttributeAdmin(admin.ModelAdmin):
     inlines = [AttributeOptionInline]
-    list_display = ('title', 'get_category', 'section', 'type', 'key')
+    list_display = ('title', 'get_category', 'section', 'type', 'key', 'required',)
     list_filter = ('section',)
     ordering = ('section', 'title')
 
