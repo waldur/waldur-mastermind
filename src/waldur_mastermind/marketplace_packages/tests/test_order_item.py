@@ -6,6 +6,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_packages import PLUGIN_NAME
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
+from waldur_mastermind.packages.tests import factories as package_factories
 
 
 class PackageOrderTest(test.APITransactionTestCase):
@@ -87,3 +88,14 @@ class PackageOrderTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         order_item.refresh_from_db()
         self.assertTrue(isinstance(order_item.scope, package_models.OpenStackPackage))
+
+    def test_order_item_set_state_done(self):
+        openstack_package = package_factories.OpenStackPackageFactory()
+        order_item = marketplace_factories.OrderItemFactory(scope=openstack_package)
+        order_item.set_state('executing')
+        openstack_package.tenant.state = package_models.openstack_models.Tenant.States.CREATION_SCHEDULED
+        openstack_package.tenant.save()
+        openstack_package.tenant.state = package_models.openstack_models.Tenant.States.OK
+        openstack_package.tenant.save()
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.state, order_item.States.DONE)

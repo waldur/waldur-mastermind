@@ -10,6 +10,7 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace_support import PLUGIN_NAME
+        from waldur_mastermind.support import models as support_models
 
         from . import handlers, processor
 
@@ -17,6 +18,12 @@ class MarketplaceSupportConfig(AppConfig):
             handlers.create_support_template,
             sender=marketplace_models.Offering,
             dispatch_uid='waldur_mastermind.marketpace_support.create_support_template',
+        )
+
+        signals.post_save.connect(
+            handlers.change_order_item_state,
+            sender=support_models.Offering,
+            dispatch_uid='waldur_mastermind.marketpace_support.order_item_set_state_done',
         )
 
         manager.register(PLUGIN_NAME, processor.process_support)

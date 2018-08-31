@@ -336,12 +336,28 @@ class Order(core_models.UuidMixin,
 class OrderItem(core_models.UuidMixin,
                 structure_models.TimeStampedModel,
                 ScopeMixin):
+    class States(object):
+        PENDING = 1
+        EXECUTING = 2
+        DONE = 3
+        ERRED = 4
+        TERMINATED = 5
+
+        CHOICES = (
+            (PENDING, 'pending'),
+            (EXECUTING, 'executing'),
+            (DONE, 'done'),
+            (ERRED, 'erred'),
+            (TERMINATED, 'terminated'),
+        )
+
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
     objects = managers.MixinManager('scope')
+    state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
 
     class Meta(object):
         verbose_name = _('Order item')
@@ -349,3 +365,23 @@ class OrderItem(core_models.UuidMixin,
 
     def process(self, request):
         manager.process(self, request)
+
+    @transition(field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING)
+    def set_state_executing(self):
+        pass
+
+    @transition(field=state, source=States.EXECUTING, target=States.DONE)
+    def set_state_done(self):
+        pass
+
+    @transition(field=state, source=States.EXECUTING, target=States.ERRED)
+    def set_state_erred(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATED)
+    def set_state_terminated(self):
+        pass
+
+    def set_state(self, state):
+        getattr(self, 'set_state_' + state)()
+        self.save(update_fields=['state'])
