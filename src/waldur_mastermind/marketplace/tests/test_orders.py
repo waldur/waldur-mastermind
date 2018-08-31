@@ -272,3 +272,26 @@ class OrderDeleteTest(PostgreSQLTest):
         url = factories.OrderFactory.get_url(self.order)
         response = self.client.delete(url)
         return response
+
+
+class OrderStateTest(PostgreSQLTest):
+    def test_switch_order_state_to_done_when_all_order_items_are_processed(self):
+        order_item = factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING)
+        order = order_item.order
+        order.state = models.Order.States.EXECUTING
+        order.save()
+        order_item.state = models.OrderItem.States.DONE
+        order_item.save()
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.DONE)
+
+    def test_not_switch_order_state_to_done_when_not_all_order_items_are_processed(self):
+        order_item = factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING)
+        order = order_item.order
+        factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING, order=order)
+        order.state = models.Order.States.EXECUTING
+        order.save()
+        order_item.state = models.OrderItem.States.DONE
+        order_item.save()
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.EXECUTING)
