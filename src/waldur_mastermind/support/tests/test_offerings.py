@@ -1,39 +1,23 @@
 from __future__ import unicode_literals
 
 from datetime import timedelta
+from decimal import Decimal
 import unittest
 
 from ddt import ddt, data
-from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
 import mock
-
-from waldur_mastermind.common.mixins import UnitPriceMixin
-from waldur_mastermind.support.backend import SupportBackendError
 from rest_framework import status
 
+from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_core.core.tests.utils import PostgreSQLTest
-from waldur_mastermind.support.tests.base import override_support_settings
-
+from waldur_mastermind.support.backend import SupportBackendError
+from waldur_mastermind.support.tests.base import override_support_settings, BaseTest
 from . import factories, fixtures
 from .. import models, tasks
-
-
-class BaseTest(PostgreSQLTest):
-    def setUp(self, **kwargs):
-        super(BaseTest, self).setUp(**kwargs)
-        support_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = support_backend
-        mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
-        self.mock_get_active_backend = mock_patch.start()
-
-    def tearDown(self):
-        mock.patch.stopall()
 
 
 class BaseOfferingTest(BaseTest):
@@ -115,6 +99,33 @@ class OfferingCreateTest(BaseTest):
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.Issue.objects.count(), 1)
+
+    def test_issue_is_created_with_explicit_plan(self):
+        payload = self._get_valid_request()
+        plan = factories.OfferingPlanFactory(template=self.offering_template)
+        plan_url = factories.OfferingPlanFactory.get_url(plan)
+        payload.update(dict(plan=plan_url))
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(plan.unit_price, Decimal(response.data['unit_price']))
+
+    def test_issue_is_created_with_implicit_plan(self):
+        payload = self._get_valid_request()
+        plan = factories.OfferingPlanFactory(template=self.offering_template)
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(plan.unit_price, Decimal(response.data['unit_price']))
+
+    def test_issue_is_not_created_with_invalid_plan(self):
+        payload = self._get_valid_request()
+        plan = factories.OfferingPlanFactory()
+        plan_url = factories.OfferingPlanFactory.get_url(plan)
+        payload.update(dict(plan=plan_url))
+
+        response = self.client.post(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @override_support_settings(ENABLED=False)
     def test_user_can_not_create_issue_if_support_extension_is_disabled(self):
@@ -235,10 +246,6 @@ class OfferingCreateProductTest(BaseOfferingTest):
         self.client.force_authenticate(self.fixture.staff)
         self.offering_template = factories.OfferingTemplateFactory(name='security_package', config={
             'label': 'Custom security package',
-            'article_code': 'WALDUR-SECURITY',
-            'product_code': 'PACK-001',
-            'price': 100,
-            'unit': UnitPriceMixin.Units.PER_DAY,
             'order': ['vm_count'],
             'options': {
                 'vm_count': {
@@ -247,6 +254,14 @@ class OfferingCreateProductTest(BaseOfferingTest):
                 },
             },
         })
+        self.plan = models.OfferingPlan.objects.create(
+            template=self.offering_template,
+            name='Default',
+            unit_price=100,
+            unit=models.OfferingPlan.Units.PER_DAY,
+            article_code='WALDUR-SECURITY',
+            product_code='PACK-001',
+        )
 
     def _get_valid_request(self, project=None):
         return {

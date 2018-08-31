@@ -26,4 +26,10 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.order_item_set_state_done',
         )
 
+        signals.post_save.connect(
+            handlers.create_support_plan,
+            sender=marketplace_models.Plan,
+            dispatch_uid='waldur_mastermind.marketpace_support.create_support_plan',
+        )
+
         manager.register(PLUGIN_NAME, processor.process_support)

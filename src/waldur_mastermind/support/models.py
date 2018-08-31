@@ -260,6 +260,14 @@ class OfferingTemplate(core_models.UuidMixin,
         return self.name
 
 
+class OfferingPlan(core_models.UuidMixin,
+                   core_models.NameMixin,
+                   core_models.DescribableMixin,
+                   common_mixins.ProductCodeMixin,
+                   common_mixins.UnitPriceMixin):
+    template = models.ForeignKey(OfferingTemplate, related_name='plans')
+
+
 @python_2_unicode_compatible
 class Attachment(core_models.UuidMixin,
                  TimeStampedModel,

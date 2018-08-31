@@ -13,7 +13,6 @@ from rest_framework import serializers, exceptions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 from waldur_jira.serializers import WebHookReceiverSerializer as JiraWebHookReceiverSerializer
-from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
@@ -273,17 +272,25 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         lookup_field='uuid',
         required=False,
     )
+    plan = serializers.HyperlinkedRelatedField(
+        queryset=models.OfferingPlan.objects.all(),
+        view_name='support-offering-plan-detail',
+        lookup_field='uuid',
+        required=False,
+        write_only=True,
+    )
     state = serializers.ReadOnlyField(source='get_state_display')
     report = serializers.JSONField(required=False)
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'state', 'type_label', 'unit_price',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'plan',
+                  'state', 'type_label', 'unit_price',
                   'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
                   'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid', 'product_code', 'article_code', 'report')
         read_only_fields = ('type_label', 'issue', 'unit_price', 'unit', 'state', 'product_code', 'article_code')
-        protected_fields = ('project', 'type', 'template')
+        protected_fields = ('project', 'type', 'template', 'plan')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -359,13 +366,14 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
             'project' - a hyperlinked field which must be provided with every request;
             'customer' - customer is extracted from the provided project;
             'caller' - a user who sent a request is considered to be a 'caller' of the issue;
-            'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
+            'summary' - has a format of 'Request for <template_name>' or 'Request for "Support" if empty;
             'description' - combined list of all other fields provided with the request;
         """
         project = validated_data['project']
         template = validated_data.get('template')
         offering_type = validated_data.get('type')
 
+        # Temporary code for backward compatibility
         if not template:
             try:
                 template = models.OfferingTemplate.objects.get(name=offering_type)
@@ -373,6 +381,18 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 raise serializers.ValidationError({
                     'type': _('Type configuration could not be found.'),
                 })
+
+        plan = validated_data.pop('plan', None)
+
+        # Temporary code for backward compatibility
+        if not plan:
+            plan = template.plans.first()
+
+        # It's okay if there's no plan.
+        if plan and plan.template != template:
+            raise serializers.ValidationError({
+                'plan': _('Plan should be related to the same template.'),
+            })
 
         attributes = validated_data.get('attributes')
         if attributes:
@@ -403,16 +423,21 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
         issue_details['description'] = render_issue_template('description', issue_details)
         issue = models.Issue.objects.create(**issue_details)
 
-        offering = models.Offering.objects.create(
+        payload = dict(
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
             template=template,
-            product_code=offering_configuration.get('product_code', ''),
-            article_code=offering_configuration.get('article_code', ''),
-            unit_price=offering_configuration.get('price', 0),
-            unit=offering_configuration.get('unit', UnitPriceMixin.Units.PER_MONTH),
         )
+        if plan:
+            payload.update(dict(
+                product_code=plan.product_code,
+                article_code=plan.article_code,
+                unit_price=plan.unit_price,
+                unit=plan.unit,
+            ))
+
+        offering = models.Offering.objects.create(**payload)
 
         return offering
 
@@ -504,4 +529,14 @@ class OfferingTemplateSerializer(serializers.HyperlinkedModelSerializer):
         fields = ('url', 'uuid', 'name', 'config')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-template-detail'},
+        )
+
+
+class OfferingPlanSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.OfferingPlan
+        fields = ('url', 'uuid', 'product_code', 'article_code', 'unit', 'unit_price')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-plan-detail'},
         )
