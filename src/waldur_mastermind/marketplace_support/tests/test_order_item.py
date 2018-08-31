@@ -4,6 +4,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 
@@ -56,6 +57,8 @@ class SupportOrderTest(test.APITransactionTestCase):
         offering = support_factories.OfferingFactory()
         order_item = marketplace_factories.OrderItemFactory(scope=offering)
         order_item.set_state('executing')
+        order_item.order.state = marketplace_models.Order.States.EXECUTING
+        order_item.order.save()
         offering.state = support_models.Offering.States.OK
         offering.save()
         order_item.refresh_from_db()

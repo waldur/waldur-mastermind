@@ -93,6 +93,8 @@ class PackageOrderTest(test.APITransactionTestCase):
         openstack_package = package_factories.OpenStackPackageFactory()
         order_item = marketplace_factories.OrderItemFactory(scope=openstack_package)
         order_item.set_state('executing')
+        order_item.order.state = marketplace_models.Order.States.EXECUTING
+        order_item.order.save()
         openstack_package.tenant.state = package_models.openstack_models.Tenant.States.CREATION_SCHEDULED
         openstack_package.tenant.save()
         openstack_package.tenant.state = package_models.openstack_models.Tenant.States.OK
