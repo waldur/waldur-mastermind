@@ -267,6 +267,7 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
     resource_uuid = serializers.SerializerMethodField()
     resource_type = serializers.SerializerMethodField()
+    state = serializers.ReadOnlyField(source='get_state_display')
 
     def get_resource_uuid(self, order_item):
         if order_item.scope:
@@ -281,11 +282,12 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail',
                   'provider_name', 'provider_uuid',
-                  'attributes', 'cost', 'plan', 'resource_uuid', 'resource_type')
+                  'attributes', 'cost', 'plan', 'resource_uuid', 'resource_type', 'state',)
+
         related_paths = {
             'offering': ('name', 'uuid', 'description'),
         }
-        read_only_fields = ('cost',)
+        read_only_fields = ('cost', 'state',)
         protected_fields = ('offering', 'plan')
         extra_kwargs = {
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},

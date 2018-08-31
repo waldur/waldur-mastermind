@@ -5,6 +5,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.tests import factories as support_factories
 
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
@@ -50,3 +51,12 @@ class SupportOrderTest(test.APITransactionTestCase):
         self.client.force_login(self.user)
         response = self.client.post(url)
         self.assertTrue(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_order_item_set_state_done(self):
+        offering = support_factories.OfferingFactory()
+        order_item = marketplace_factories.OrderItemFactory(scope=offering)
+        order_item.set_state('executing')
+        offering.state = support_models.Offering.States.OK
+        offering.save()
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.state, order_item.States.DONE)
