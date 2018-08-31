@@ -67,7 +67,7 @@ class OfferingTemplateFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.OfferingTemplate
 
-    name = factory.Sequence(lambda n: 'custom_vpc-%s' % n)
+    name = factory.Sequence(lambda n: 'template-%s' % n)
     config = {
         'label': 'Custom VPC',
         'order': ['storage', 'ram', 'cpu_count'],
@@ -106,6 +106,26 @@ class OfferingTemplateFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-offering-template-list')
+
+
+class OfferingPlanFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OfferingPlan
+
+    name = factory.Sequence(lambda n: 'plan-%s' % n)
+    template = factory.SubFactory(OfferingTemplateFactory)
+    unit_price = fuzzy.FuzzyInteger(1, 10)
+
+    @classmethod
+    def get_url(cls, plan=None, action=None):
+        if plan is None:
+            plan = OfferingPlanFactory()
+        url = 'http://testserver' + reverse('support-offering-plan-detail', kwargs={'uuid': plan.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-offering-plan-list')
 
 
 class OfferingFactory(factory.DjangoModelFactory):

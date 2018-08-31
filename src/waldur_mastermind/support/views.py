@@ -259,6 +259,13 @@ class OfferingTemplateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.OfferingTemplateSerializer
 
 
+class OfferingPlanViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = models.OfferingPlan.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.OfferingPlanSerializer
+
+
 def get_offerings_count(scope):
     return scope.quotas.get(name='nc_offering_count').usage
 
