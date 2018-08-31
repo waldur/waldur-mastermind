@@ -359,6 +359,7 @@ class OrderItem(core_models.UuidMixin,
     plan = models.ForeignKey('Plan', null=True, blank=True)
     objects = managers.MixinManager('scope')
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
+    tracker = FieldTracker()
 
     class Meta(object):
         verbose_name = _('Order item')
