@@ -106,6 +106,7 @@ class Attribute(structure_models.TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
     section = models.ForeignKey(Section, related_name='attributes')
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
+    required = models.BooleanField(default=False, help_text=_('A value must be provided for the attribute.'))
 
     def __str__(self):
         return six.text_type(self.title)

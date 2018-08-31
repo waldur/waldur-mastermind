@@ -47,7 +47,7 @@ class NestedAttributeSerializer(serializers.ModelSerializer):
 
     class Meta(object):
         model = models.Attribute
-        fields = ('key', 'title', 'type', 'options')
+        fields = ('key', 'title', 'type', 'options', 'required',)
 
 
 class NestedSectionSerializer(serializers.ModelSerializer):
