@@ -41,8 +41,8 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
         self.assertEqual(lines[0], expected_header)
 
     def test_offering_items_are_serialized(self):
-        self.offering_item = factories.OfferingItemFactory(invoice=self.invoice)
-        self.offering_item.offering.type = 'OFFERING-001'
+        self.offering_item = factories.OfferingItemFactory(invoice=self.invoice,
+                                                           offering__template__name='OFFERING-001')
         self.offering_item.offering.save()
 
         report = format_invoice_csv(self.invoice)

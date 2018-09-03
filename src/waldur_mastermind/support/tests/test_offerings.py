@@ -2,7 +2,6 @@ from __future__ import unicode_literals
 
 from datetime import timedelta
 from decimal import Decimal
-import unittest
 
 from ddt import ddt, data
 from django.conf import settings
@@ -87,12 +86,6 @@ class OfferingCreateTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('template', response.data)
 
-    @unittest.skip('Currently, use both fields - template or type.')
-    def test_error_is_raised_if_data_is_not_provided(self):
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('template', response.data)
-
     def test_issue_is_created(self):
         request_data = self._get_valid_request()
 
@@ -145,30 +138,14 @@ class OfferingCreateTest(BaseTest):
 
     def test_offering_template_is_filled(self):
         request_data = self._get_valid_request()
+
         response = self.client.post(self.url, data=request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Offering.objects.count(), 1)
+
         offering = models.Offering.objects.first()
         self.assertEqual(offering.template, self.offering_template)
-        config = offering.config
-        self.assertEqual(offering.type_label, config['label'])
-
-        # Delete this line when type field will be deleted
-        self.assertEqual(offering.type, self.offering_template.name)
-
-    # Delete this test when type field will be deleted.
-    def test_offering_type_is_filled(self):
-        expected_type = self.offering_template.name
-        request_data = self._get_valid_request()
-        request_data.pop('template')
-        request_data['type'] = expected_type
-        response = self.client.post(self.url, data=request_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(models.Offering.objects.count(), 1)
-        offering = models.Offering.objects.first()
-        self.assertIn(offering.type, expected_type)
-        self.assertIn(offering.type_label, self.offering_template.config['label'])
-        self.assertEqual(offering.template, self.offering_template)
+        self.assertEqual(offering.type_label, offering.config['label'])
 
     def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
         request_data = self._get_valid_request()
