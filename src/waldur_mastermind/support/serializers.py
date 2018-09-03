@@ -281,10 +281,11 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
     )
     state = serializers.ReadOnlyField(source='get_state_display')
     report = serializers.JSONField(required=False)
+    template_uuid = serializers.ReadOnlyField(source='template.uuid')
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'plan',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'template_uuid', 'plan',
                   'state', 'type_label', 'unit_price',
                   'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
                   'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
