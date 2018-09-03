@@ -494,7 +494,7 @@ class GeoLocationField(serializers.JSONField):
         def geo_location_validator(value):
             if value is not None:
                 if not isinstance(value, list):
-                    raise ValidationError(_('GeoLocationField should be a list of dicts.'))
+                    raise ValidationError(_('GeoLocationField should be a list of dictionaries.'))
                 else:
                     for location in value:
                         if not isinstance(location, dict):
@@ -504,6 +504,6 @@ class GeoLocationField(serializers.JSONField):
                                                     '[{"latitude": 123, "longitude": 345}, '
                                                     '{"latitude": 456, "longitude": 678}]'))
             return value
-        
+
         validators.append(geo_location_validator)
         super(GeoLocationField, self).__init__(validators=validators, *args, **kwargs)
