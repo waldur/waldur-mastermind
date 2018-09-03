@@ -6,9 +6,9 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
-from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.utils import serialize_class
+from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.serializers import validate_options
@@ -167,7 +167,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(required=False)
-    geolocations = serializers.JSONField(required=False)
+    geolocations = core_serializers.GeoLocationField(required=False)
     order_item_count = serializers.SerializerMethodField()
     plans = NesterPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
