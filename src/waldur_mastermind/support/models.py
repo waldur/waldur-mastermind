@@ -194,8 +194,7 @@ class Offering(core_models.UuidMixin,
 
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
-    template = models.ForeignKey('OfferingTemplate')
-    type = models.CharField(max_length=255, editable=False)  # deprecated
+    template = models.ForeignKey('OfferingTemplate', on_delete=models.PROTECT)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.PROTECT)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
@@ -211,6 +210,10 @@ class Offering(core_models.UuidMixin,
         return super(Offering, self).get_log_fields() + ('state', )
 
     @property
+    def type(self):
+        return self.template.name
+
+    @property
     def type_label(self):
         return self.template.config.get('label', None)
 
@@ -220,20 +223,6 @@ class Offering(core_models.UuidMixin,
 
     def __str__(self):
         return '{}: {}'.format(self.type_label or self.name, self.state)
-
-    # Delete this method when type field will be deleted.
-    def save(self, *args, **kwargs):
-        if not self.pk:
-            if self.template:
-                self.type = self.template.name
-            elif self.type:
-                try:
-                    template = OfferingTemplate.objects.get(name=self.type)
-                    self.template = template
-                except OfferingTemplate.DoesNotExist:
-                    pass
-
-        super(Offering, self).save(*args, **kwargs)
 
     @classmethod
     def get_scope_type(cls):

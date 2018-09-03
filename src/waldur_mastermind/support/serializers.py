@@ -261,16 +261,12 @@ WebHookReceiverSerializer.remove_event(['jira:issue_created'])
 class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    type = serializers.SerializerMethodField()
-
-    def get_type(self, obj):
-        return obj.template.name
+    type = serializers.ReadOnlyField(source='template.name')
 
     template = serializers.HyperlinkedRelatedField(
         queryset=models.OfferingTemplate.objects.all(),
         view_name='support-offering-template-detail',
         lookup_field='uuid',
-        required=False,
     )
     plan = serializers.HyperlinkedRelatedField(
         queryset=models.OfferingPlan.objects.all(),
@@ -347,7 +343,6 @@ class ConfigurableFormDescriptionMixin(object):
 class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMixin):
     attributes = serializers.JSONField(required=False, write_only=True, allow_null=True)
     description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
-    type = serializers.CharField(required=False)
 
     class Meta(OfferingSerializer.Meta):
         fields = OfferingSerializer.Meta.fields + ('description', 'attributes')
@@ -371,18 +366,7 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
             'description' - combined list of all other fields provided with the request;
         """
         project = validated_data['project']
-        template = validated_data.get('template')
-        offering_type = validated_data.get('type')
-
-        # Temporary code for backward compatibility
-        if not template:
-            try:
-                template = models.OfferingTemplate.objects.get(name=offering_type)
-            except models.OfferingTemplate.DoesNotExist:
-                raise serializers.ValidationError({
-                    'type': _('Type configuration could not be found.'),
-                })
-
+        template = validated_data['template']
         plan = validated_data.pop('plan', None)
 
         # Temporary code for backward compatibility
@@ -441,16 +425,6 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
         offering = models.Offering.objects.create(**payload)
 
         return offering
-
-    def validate(self, attrs):
-        offering_type = attrs.get('type')
-        template = attrs.get('template')
-        if not (offering_type or template):
-            raise serializers.ValidationError({
-                'type': _('This field or template are required.'),
-                'template': _('This field or type are required.'),
-            })
-        return attrs
 
 
 class OfferingCompleteSerializer(serializers.Serializer):
