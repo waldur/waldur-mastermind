@@ -255,7 +255,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         models.Plan.objects.bulk_create([
             models.Plan(
                 name=plan['name'],
-                description=plan['description'],
+                description=plan.get('description', ''),
                 unit=plan['unit'],
                 unit_price=plan['unit_price'],
                 offering=offering,
