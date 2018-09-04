@@ -51,32 +51,6 @@ def create_offering_and_plan_for_package_template(template):
         )
 
 
-def update_related_object(scope, related_model, field_names):
-    fields = {}
-    changed = set(scope.tracker.changed())
-    for field in field_names:
-        if field in changed:
-            fields[field] = getattr(scope, field)
-    if fields:
-        related_model.objects.filter(scope=scope).update(**fields)
-
-
-def update_offering_for_service_settings(service_settings):
-    update_related_object(
-        service_settings,
-        marketplace_models.Offering,
-        ('name', 'geolocations')
-    )
-
-
-def update_plan_for_template(template):
-    update_related_object(
-        template,
-        marketplace_models.Plan,
-        ('name', 'archived', 'product_code', 'article_code')
-    )
-
-
 def create_missing_offerings():
     offerings = marketplace_models.Offering.objects.filter(type=PLUGIN_NAME)
     front_settings = set(offerings.exclude(object_id=None).values_list('object_id', flat=True))
