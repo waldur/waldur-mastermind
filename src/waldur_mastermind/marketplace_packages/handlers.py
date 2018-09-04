@@ -1,19 +1,55 @@
-from waldur_mastermind.packages import models as package_models
+import logging
+
+from django.db import transaction
+
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_packages import PLUGIN_NAME
+from waldur_mastermind.packages import models as package_models
+from waldur_openstack.openstack.apps import OpenStackConfig
 
-from . import utils
-
-
-def create_offering_and_plan_for_package_template(sender, instance, created=False, **kwargs):
-    if created:
-        utils.create_offering_and_plan_for_package_template(instance)
-    else:
-        utils.update_plan_for_template(instance)
+logger = logging.getLogger(__name__)
 
 
-def update_offering_for_service_settings(sender, instance, created=False, **kwargs):
+def create_template_for_plan(sender, instance, created=False, **kwargs):
+    plan = instance
+
     if not created:
-        utils.update_offering_for_service_settings(instance)
+        return
+
+    if plan.offering.type != PLUGIN_NAME:
+        return
+
+    if not isinstance(plan.offering.scope, structure_models.ServiceSettings):
+        logger.warning('Skipping plan synchronization because offering scope is not service settings. '
+                       'Plan ID: %s', plan.id)
+        return
+
+    if plan.offering.scope.type != OpenStackConfig.service_name:
+        logger.warning('Skipping plan synchronization because service settings type is not OpenStack. '
+                       'Plan ID: %s', plan.id)
+        return
+
+    with transaction.atomic():
+        template = package_models.PackageTemplate.objects.create(
+            service_settings=plan.offering.scope,
+            name=plan.name,
+            description=plan.description,
+            product_code=plan.product_code,
+            article_code=plan.article_code,
+        )
+        components = [
+            package_models.PackageComponent(
+                template=template,
+                type=component.type,
+                amount=component.amount,
+                price=component.price,
+            )
+            for component in plan.components.all()
+        ]
+        package_models.PackageComponent.objects.bulk_create(components)
+        plan.scope = template
+        plan.save()
 
 
 def change_order_item_state(sender, instance, created=False, **kwargs):

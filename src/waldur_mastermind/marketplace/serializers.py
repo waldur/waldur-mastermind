@@ -36,14 +36,14 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class NesterAttributeOptionSerializer(serializers.ModelSerializer):
+class NestedAttributeOptionSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.AttributeOption
         fields = ('key', 'title')
 
 
 class NestedAttributeSerializer(serializers.ModelSerializer):
-    options = NesterAttributeOptionSerializer(many=True)
+    options = NestedAttributeOptionSerializer(many=True)
 
     class Meta(object):
         model = models.Attribute
@@ -81,9 +81,14 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
+class PlanComponentSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.PlanComponent
+        fields = ('type', 'amount', 'price')
+
+
 class PlanSerializer(core_serializers.AugmentedSerializerMixin,
                      serializers.HyperlinkedModelSerializer):
-
     class Meta(object):
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'offering')
@@ -100,12 +105,13 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class NesterPlanSerializer(core_serializers.AugmentedSerializerMixin,
+class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
+    components = PlanComponentSerializer(many=True, required=False)
 
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'components')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
         }
@@ -169,7 +175,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     options = serializers.JSONField(required=False)
     geolocations = serializers.JSONField(required=False)
     order_item_count = serializers.SerializerMethodField()
-    plans = NesterPlanSerializer(many=True, required=False)
+    plans = NestedPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
 

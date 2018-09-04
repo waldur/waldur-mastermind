@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+from decimal import Decimal
+
 import six
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -239,6 +241,23 @@ class Plan(core_models.UuidMixin,
 
     class Permissions(object):
         customer_path = 'offering__customer'
+
+
+class PlanComponent(models.Model):
+    PRICE_MAX_DIGITS = 14
+    PRICE_DECIMAL_PLACES = 10
+
+    class Meta(object):
+        unique_together = ('type', 'plan')
+
+    type = models.CharField(max_length=50)
+    amount = models.PositiveIntegerField(default=0)
+    price = models.DecimalField(default=0,
+                                max_digits=PRICE_MAX_DIGITS,
+                                decimal_places=PRICE_DECIMAL_PLACES,
+                                validators=[MinValueValidator(Decimal('0'))],
+                                verbose_name=_('Price per unit per billing period.'))
+    plan = models.ForeignKey(Plan, related_name='components')
 
 
 @python_2_unicode_compatible
