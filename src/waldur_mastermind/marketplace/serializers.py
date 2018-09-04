@@ -102,7 +102,19 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
         if not self.instance:
             structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
 
+        self._validate_components(attrs)
         return attrs
+
+    def _validate_components(self, attrs):
+        offering = attrs.get('offering', getattr(self.instance, 'offering', None))
+        components = plugins.manager.get_components(offering.type)
+        if components:
+            expected = sorted(components.keys())
+            actual = sorted(component['type'] for component in attrs.get('components', []))
+            if actual != expected:
+                raise serializers.ValidationError({'components': _('Invalid component types.')})
+            attrs['unit_price'] = sum(component['amount'] * component['price']
+                                      for component in attrs.get('components', []))
 
 
 class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
@@ -114,6 +126,7 @@ class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'components')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+            'unit': {'required': True}
         }
 
 
@@ -219,6 +232,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             category = attrs.get('category', getattr(self.instance, 'category', None))
             self._validate_attributes(offering_attributes, category)
 
+        self._validate_plans(attrs)
         return attrs
 
     def validate_type(self, offering_type):
@@ -248,20 +262,34 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         serializer.is_valid(raise_exception=True)
         return options
 
+    def _validate_plans(self, attrs):
+        offering_type = attrs.get('type', getattr(self.instance, 'type', None))
+        components = plugins.manager.get_components(offering_type)
+        if components:
+            expected = sorted(components.keys())
+            plans = attrs.get('plans', [])
+            for plan in plans:
+                actual = sorted(component['type'] for component in plan.get('components', []))
+                if actual != expected:
+                    raise serializers.ValidationError({'plans': _('Invalid plan components.')})
+                plan['unit_price'] = sum(component['amount'] * component['price']
+                                         for component in plan.get('components', []))
+
     @transaction.atomic
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
         offering = super(OfferingSerializer, self).create(validated_data)
-        models.Plan.objects.bulk_create([
-            models.Plan(
-                name=plan['name'],
-                description=plan.get('description', ''),
-                unit=plan['unit'],
-                unit_price=plan['unit_price'],
-                offering=offering,
-            )
-            for plan in plans
-        ])
+        for plan_data in plans:
+            components = plan_data.pop('components', [])
+            plan = models.Plan.objects.create(offering=offering, **plan_data)
+            for component_data in components:
+                models.PlanComponent.objects.create(plan=plan, **component_data)
+        return offering
+
+    def update(self, instance, validated_data):
+        # TODO: Implement support for nested plan update
+        validated_data.pop('plans', [])
+        offering = super(OfferingSerializer, self).update(instance, validated_data)
         return offering
 
 
