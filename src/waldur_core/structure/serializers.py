@@ -864,7 +864,7 @@ class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
     scope = core_serializers.GenericRelatedField(related_models=models.ResourceMixin.get_all_models(), required=False)
     certifications = NestedServiceCertificationSerializer(many=True, read_only=True)
-    geolocations = serializers.JSONField(read_only=True)
+    geolocations = core_serializers.GeoLocationField(read_only=True)
 
     class Meta(object):
         model = models.ServiceSettings
@@ -1010,7 +1010,7 @@ class BaseServiceSerializer(six.with_metaclass(ServiceSerializerMetaclass,
     error_message = serializers.ReadOnlyField(source='settings.error_message')
     terms_of_services = serializers.ReadOnlyField(source='settings.terms_of_services')
     homepage = serializers.ReadOnlyField(source='settings.homepage')
-    geolocations = serializers.JSONField(source='settings.geolocations', read_only=True)
+    geolocations = core_serializers.GeoLocationField(source='settings.geolocations', read_only=True)
     certifications = NestedServiceCertificationSerializer(many=True, read_only=True, source='settings.certifications')
     name = serializers.ReadOnlyField(source='settings.name')
 
