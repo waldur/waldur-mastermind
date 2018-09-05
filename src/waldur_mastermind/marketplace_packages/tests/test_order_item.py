@@ -4,9 +4,9 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_packages import PLUGIN_NAME
-from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests import factories as package_factories
+from waldur_mastermind.packages.tests import fixtures as package_fixtures
+from waldur_openstack.openstack import models as openstack_models
 
 
 class PackageOrderTest(test.APITransactionTestCase):
@@ -87,7 +87,7 @@ class PackageOrderTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         order_item.refresh_from_db()
-        self.assertTrue(isinstance(order_item.scope, package_models.OpenStackPackage))
+        self.assertTrue(isinstance(order_item.scope, openstack_models.Tenant))
 
     def test_order_item_set_state_done(self):
         openstack_package = package_factories.OpenStackPackageFactory()
@@ -95,9 +95,9 @@ class PackageOrderTest(test.APITransactionTestCase):
         order_item.set_state('executing')
         order_item.order.state = marketplace_models.Order.States.EXECUTING
         order_item.order.save()
-        openstack_package.tenant.state = package_models.openstack_models.Tenant.States.CREATION_SCHEDULED
+        openstack_package.tenant.state = openstack_models.Tenant.States.CREATION_SCHEDULED
         openstack_package.tenant.save()
-        openstack_package.tenant.state = package_models.openstack_models.Tenant.States.OK
+        openstack_package.tenant.state = openstack_models.Tenant.States.OK
         openstack_package.tenant.save()
         order_item.refresh_from_db()
         self.assertEqual(order_item.state, order_item.States.DONE)

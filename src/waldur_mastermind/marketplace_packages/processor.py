@@ -18,7 +18,7 @@ def process_order_item(order_item, request):
 
     package_uuid = response.data['uuid']
     package = package_models.OpenStackPackage.objects.get(uuid=package_uuid)
-    order_item.scope = package
+    order_item.scope = package.tenant
     order_item.save()
 
 
