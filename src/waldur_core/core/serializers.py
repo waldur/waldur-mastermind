@@ -498,9 +498,9 @@ class GeoLocationField(serializers.JSONField):
                 else:
                     for location in value:
                         if not isinstance(location, dict):
-                            raise ValidationError(_('GeoLocationField should be a list of dicts.'))
+                            raise ValidationError(_('GeoLocationField should be a list of dictionaries.'))
                         if not {'latitude', 'longitude'}.issubset(location.keys()):
-                            raise ValidationError(_('GeoLocationField should be a list of dicts. For example: '
+                            raise ValidationError(_('GeoLocationField should be a list of dictionaries. For example: '
                                                     '[{"latitude": 123, "longitude": 345}, '
                                                     '{"latitude": 456, "longitude": 678}]'))
             return value
