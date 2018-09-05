@@ -7,7 +7,6 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
 from waldur_core.core import signals as core_signals
-from waldur_core.core.utils import serialize_class
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -314,7 +313,7 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
 
     def get_resource_type(self, order_item):
         if order_item.scope:
-            return serialize_class(order_item.scope.__class__)
+            return order_item.scope.get_scope_type()
 
     class Meta(object):
         model = models.OrderItem

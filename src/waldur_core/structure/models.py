@@ -1102,6 +1102,10 @@ class ResourceMixin(MonitoringModelMixin,
     def service_settings(self):
         return self.service_project_link.service.settings
 
+    @classmethod
+    def get_scope_type(cls):
+        return SupportedServices.get_name_for_model(cls)
+
 
 # TODO: rename to Resource
 class NewResource(ResourceMixin, core_models.StateMixin):
