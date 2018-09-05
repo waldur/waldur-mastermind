@@ -165,13 +165,18 @@ FIELD_TYPES = (
 )
 
 
+class DefaultField(serializers.Field):
+    def to_internal_value(self, data):
+        return data
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
     help_text = serializers.CharField(required=False)
     required = serializers.BooleanField(default=False)
     choices = serializers.ListField(child=serializers.CharField(), required=False)
-    default = serializers.Field(required=False)
+    default = DefaultField(required=False)
     min = serializers.IntegerField(required=False)
     max = serializers.IntegerField(required=False)
 
