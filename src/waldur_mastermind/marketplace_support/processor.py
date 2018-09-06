@@ -24,8 +24,10 @@ def process_support(order_item, request):
         project=project_url,
         template=template_url,
         name=order_item.attributes.pop('name', ''),
-        description=order_item.attributes.pop('description', ''),
     )
+    description = order_item.attributes.pop('description', '')
+    if description:
+        post_data['description'] = description
     if order_item.attributes:
         post_data['attributes'] = order_item.attributes
     post_data.update(order_item.attributes)
