@@ -1,7 +1,10 @@
+from django.test.utils import override_settings
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_packages import PLUGIN_NAME
 from waldur_mastermind.packages.tests import factories as package_factories
@@ -59,13 +62,18 @@ class PackageOrderTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_list_url()
         return self.client.post(url, payload)
 
-    def test_when_order_item_is_approved_openstack_package_is_created(self):
+    @override_settings(ALLOWED_HOSTS=['localhost'])
+    def test_when_order_item_is_approved_openstack_tenant_is_created(self):
         # Arrange
         fixture = package_fixtures.PackageFixture()
-        offering = marketplace_factories.OfferingFactory(scope=fixture.openstack_service_settings,
-                                                         type=PLUGIN_NAME)
+        offering = marketplace_factories.OfferingFactory(
+            scope=fixture.openstack_service_settings,
+            type=PLUGIN_NAME
+        )
         order = marketplace_factories.OrderFactory(
-            state=marketplace_models.Order.States.REQUESTED_FOR_APPROVAL)
+            state=marketplace_models.Order.States.REQUESTED_FOR_APPROVAL,
+            project=fixture.project,
+        )
         plan = marketplace_factories.PlanFactory(scope=fixture.openstack_template)
         attributes = dict(
             name='My first VPC',
@@ -79,13 +87,11 @@ class PackageOrderTest(test.APITransactionTestCase):
             plan=plan
         )
 
-        # Act
-        url = marketplace_factories.OrderFactory.get_url(order, 'set_state_executing')
-        self.client.force_login(fixture.staff)
-        response = self.client.post(url)
+        serialized_order = core_utils.serialize_instance(order)
+        serialized_user = core_utils.serialize_instance(fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         order_item.refresh_from_db()
         self.assertTrue(isinstance(order_item.scope, openstack_models.Tenant))
 

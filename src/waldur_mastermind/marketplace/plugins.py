@@ -1,6 +1,6 @@
 import logging
 
-from rest_framework import exceptions, serializers
+from rest_framework import exceptions
 
 
 logger = logging.getLogger(__name__)
@@ -56,17 +56,19 @@ class PluginManager(object):
 
     def process(self, order_item, request):
         processor = self.get_processor(order_item.offering.type)
-        order_item.set_state('executing')
 
         if not processor:
+            order_item.error_message = 'Skipping order item processing because processor is not found.'
             order_item.set_state('erred')
-            raise exceptions.ValidationError('Skipping order item processing because processor is not found.')
+            return
 
         try:
             processor(order_item, request)
-        except serializers.ValidationError as e:
+        except exceptions.APIException as e:
+            order_item.error_message = e
             order_item.set_state('erred')
-            raise e
+        else:
+            order_item.set_state('executing')
 
     def validate(self, order_item, request):
         validator = self.get_validator(order_item.offering.type)

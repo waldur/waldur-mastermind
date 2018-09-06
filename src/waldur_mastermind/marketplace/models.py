@@ -25,7 +25,6 @@ from waldur_core.structure.images import get_upload_path
 
 from . import managers
 from .attribute_types import ATTRIBUTE_TYPES
-from .plugins import manager
 from ..common import mixins as common_mixins
 
 
@@ -354,6 +353,7 @@ class Order(core_models.UuidMixin,
 
 
 class OrderItem(core_models.UuidMixin,
+                core_models.ErrorMessageMixin,
                 structure_models.TimeStampedModel,
                 ScopeMixin):
     class States(object):
@@ -386,9 +386,6 @@ class OrderItem(core_models.UuidMixin,
         verbose_name = _('Order item')
         ordering = ('created',)
 
-    def process(self, request):
-        manager.process(self, request)
-
     @transition(field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING)
     def set_state_executing(self):
         pass
@@ -397,7 +394,7 @@ class OrderItem(core_models.UuidMixin,
     def set_state_done(self):
         pass
 
-    @transition(field=state, source=States.EXECUTING, target=States.ERRED)
+    @transition(field=state, source='*', target=States.ERRED)
     def set_state_erred(self):
         pass
 

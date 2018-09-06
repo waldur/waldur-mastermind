@@ -5,11 +5,19 @@ import logging
 from celery import shared_task
 from django.conf import settings
 
-from waldur_core.core.utils import broadcast_mail
+from waldur_core.core import utils as core_utils
 
-from . import utils, models
+from . import utils, models, plugins
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name='marketplace.process_order')
+def process_order(serialized_order, serialized_user):
+    order = core_utils.deserialize_instance(serialized_order)
+    user = core_utils.deserialize_instance(serialized_user)
+    for item in order.items.all():
+        plugins.manager.process(item, user)
 
 
 @shared_task(name='marketplace.create_screenshot_thumbnail')
@@ -30,4 +38,4 @@ def notify_order_approvers(uuid):
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
     }
 
-    broadcast_mail('marketplace', 'notification_approval', context, emails)
+    core_utils.broadcast_mail('marketplace', 'notification_approval', context, emails)
