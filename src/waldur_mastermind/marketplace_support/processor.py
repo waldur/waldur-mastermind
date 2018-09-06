@@ -7,7 +7,7 @@ from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import views as support_views
 
 
-def process_support(order_item, request):
+def process_support(order_item, user):
     try:
         template = order_item.offering.scope
     except ObjectDoesNotExist:
@@ -33,7 +33,7 @@ def process_support(order_item, request):
     post_data.update(order_item.attributes)
 
     view = support_views.OfferingViewSet.as_view({'post': 'create'})
-    response = internal_api_request(view, request.user, post_data)
+    response = internal_api_request(view, user, post_data)
     if response.status_code != status.HTTP_201_CREATED:
         raise serializers.ValidationError(response.data)
 

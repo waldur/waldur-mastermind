@@ -1,30 +1,33 @@
+from django.test.utils import override_settings
 from rest_framework import status
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 class SupportOrderTest(BaseTest):
 
+    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_create_offering_if_order_item_is_approved(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.project = self.fixture.project
-        self.user = self.fixture.staff
-        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME,
-                                                              options={'order': []})
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
 
-        order_item = marketplace_factories.OrderItemFactory(offering=self.offering,
-                                                            attributes={'name': 'item_name', 'description': '{}'})
-        url = marketplace_factories.OrderFactory.get_url(order_item.order, 'set_state_executing')
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=offering,
+            attributes={'name': 'item_name', 'description': 'Description'}
+        )
 
-        self.client.force_login(self.user)
-        response = self.client.post(url)
-        self.assertTrue(response.status_code, status.HTTP_201_CREATED)
+        serialized_order = core_utils.serialize_instance(order_item.order)
+        serialized_user = core_utils.serialize_instance(fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
         self.assertTrue(support_models.Offering.objects.filter(name='item_name').exists())
 
     def test_not_create_offering_if_marketplace_offering_is_not_support_type(self):

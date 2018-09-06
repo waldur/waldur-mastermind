@@ -175,12 +175,10 @@ class OrderUpdateTest(PostgreSQLTest):
 
     @freeze_time('2017-01-10 00:00:00')
     def test_approved_fields(self):
-        self.order.state = models.Order.States.EXECUTING
-        self.order.save()
-        response = self.update_offering('staff', 'set_state_done')
+        response = self.update_offering('owner', 'set_state_executing')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.order.approved_at.strftime('%Y-%m-%d %H:%M:%S'), '2017-01-10 00:00:00')
-        self.assertEqual(self.order.approved_by, self.fixture.staff)
+        self.assertEqual(self.order.approved_by, self.fixture.owner)
 
     @data('staff', 'owner')
     def test_not_can_set_done_state_if_current_state_is_wrong(self, user):

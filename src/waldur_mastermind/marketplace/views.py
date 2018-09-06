@@ -10,10 +10,11 @@ from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
 from waldur_core.core import views as core_views, validators as core_validators
+from waldur_core.core import utils as core_utils
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.structure import permissions as structure_permissions, filters as structure_filters
 
-from . import serializers, models, filters
+from . import serializers, models, filters, tasks
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -124,12 +125,14 @@ class OrderViewSet(BaseMarketplaceView):
     @detail_route(methods=['post'])
     def set_state_executing(self, request, uuid=None):
         order = self.get_object()
-        response = self._update_state(request, models.Order.States.EXECUTING, order)
+        order.approved_by = request.user
+        order.approved_at = timezone.now()
+        order.save()
 
-        for item in order.items.all():
-            item.process(request)
-
-        return response
+        serialized_order = core_utils.serialize_instance(order)
+        serialized_user = core_utils.serialize_instance(request.user)
+        tasks.process_order.apply_async(args=(serialized_order, serialized_user))
+        return self._update_state(request, models.Order.States.EXECUTING, order)
 
     set_state_executing_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
     set_state_executing_permissions = [check_permissions_for_state_change]
@@ -138,9 +141,6 @@ class OrderViewSet(BaseMarketplaceView):
     def set_state_done(self, request, uuid=None):
         order = self.get_object()
         response = self._update_state(request, models.Order.States.DONE, order)
-        order.approved_by = request.user
-        order.approved_at = timezone.now()
-        order.save()
         return response
 
     set_state_done_validators = [core_validators.StateValidator(models.Order.States.EXECUTING)]

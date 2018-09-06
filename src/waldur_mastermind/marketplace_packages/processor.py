@@ -9,10 +9,10 @@ from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
 
 
-def process_order_item(order_item, request):
+def process_order_item(order_item, user):
     view = package_views.OpenStackPackageViewSet.as_view({'post': 'create'})
-    post_data = get_post_data(order_item, request)
-    response = internal_api_request(view, request.user, post_data)
+    post_data = get_post_data(order_item)
+    response = internal_api_request(view, user, post_data)
     if response.status_code != status.HTTP_201_CREATED:
         raise serializers.ValidationError(response.data)
 
@@ -23,13 +23,13 @@ def process_order_item(order_item, request):
 
 
 def validate_order_item(order_item, request):
-    post_data = get_post_data(order_item, request)
+    post_data = get_post_data(order_item)
     serializer = package_views.OpenStackPackageViewSet.create_serializer_class(
         data=post_data, context={'request': request})
     serializer.is_valid(raise_exception=True)
 
 
-def get_post_data(order_item, request):
+def get_post_data(order_item):
     try:
         service_settings = order_item.offering.scope
     except ObjectDoesNotExist:
@@ -58,7 +58,7 @@ def get_post_data(order_item, request):
         raise serializers.ValidationError('Project does not have access to the OpenStack service.')
 
     project_url = reverse('project-detail', kwargs={'uuid': project.uuid})
-    spl_url = reverse('openstack-spl-detail', kwargs={'pk': spl.pk}, request=request)
+    spl_url = reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
     template_url = reverse('package-template-detail', kwargs={'uuid': template.uuid})
 
     payload = dict(
