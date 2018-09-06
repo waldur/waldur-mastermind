@@ -155,7 +155,7 @@ class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
 FIELD_TYPES = (
     'boolean',
     'integer',
-    'money'
+    'money',
     'string',
     'text',
     'html_text',
