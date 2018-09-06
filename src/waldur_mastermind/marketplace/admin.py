@@ -81,13 +81,14 @@ class OfferingAdmin(admin.ModelAdmin):
 
 class OrderItemInline(admin.TabularInline):
     model = models.OrderItem
-    fields = ('offering', 'scope', 'attributes', 'cost', 'plan')
+    fields = ('offering', 'scope', 'state', 'attributes', 'cost', 'plan')
     readonly_fields = fields
 
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('uuid', 'project', 'created', 'state', 'total_cost')
+    list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
     list_filter = ('state', 'created')
+    ordering = ('-created',)
     inlines = [OrderItemInline]
 
 

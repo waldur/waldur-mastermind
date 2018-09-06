@@ -371,6 +371,8 @@ class OrderItem(core_models.UuidMixin,
             (TERMINATED, 'terminated'),
         )
 
+        TERMINAL_STATES = set([DONE, ERRED, TERMINATED])
+
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
