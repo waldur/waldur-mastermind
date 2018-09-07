@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+from django.conf.urls import url
+
 from waldur_mastermind.marketplace import views
 
 
@@ -16,3 +18,8 @@ def register_in(router):
                     base_name='marketplace-screenshot')
     router.register(r'marketplace-orders', views.OrderViewSet,
                     base_name='marketplace-order'),
+
+
+urlpatterns = [
+    url(r'^api/customers/(?P<uuid>[^/.]+)/offerings/$', views.CustomerOfferingViewSet.as_view()),
+]

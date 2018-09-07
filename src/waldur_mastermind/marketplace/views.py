@@ -1,16 +1,19 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from rest_framework import status, exceptions as rf_exceptions
+from rest_framework import views
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
 from waldur_core.core import views as core_views, validators as core_validators
 from waldur_core.core.mixins import EagerLoadMixin
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions, filters as structure_filters
 
 from . import serializers, models, filters
@@ -160,3 +163,26 @@ class OrderViewSet(BaseMarketplaceView):
         order.save(update_fields=['state'])
         return Response({'detail': _('Order state updated.')},
                         status=status.HTTP_200_OK)
+
+
+class CustomerOfferingViewSet(views.APIView):
+    serializer_class = serializers.CustomerOfferingSerializer
+
+    def _get_customer(self, request, uuid):
+        user = request.user
+        if not user.is_staff:
+            raise rf_exceptions.PermissionDenied()
+
+        return get_object_or_404(structure_models.Customer, uuid=uuid)
+
+    def get(self, request, uuid):
+        customer = self._get_customer(request, uuid)
+        serializer = self.serializer_class(customer, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, uuid):
+        customer = self._get_customer(request, uuid)
+        serializer = self.serializer_class(instance=customer, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)

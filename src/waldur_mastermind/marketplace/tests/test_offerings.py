@@ -490,3 +490,37 @@ class OfferingStateTest(PostgreSQLTest):
         offering.refresh_from_db()
 
         return response, offering
+
+
+class AllowedCustomersTest(PostgreSQLTest):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+
+    def test_staff_can_update_allowed_customers(self):
+        url = structure_factories.CustomerFactory.get_url(self.customer, 'offerings')
+        user = getattr(self.fixture, 'staff')
+        self.client.force_authenticate(user)
+        response = self.client.post(url, {
+            "offering_set": [
+                factories.OfferingFactory.get_url(),
+                factories.OfferingFactory.get_url(),
+            ]
+        })
+        self.customer.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(self.customer.offering_set.all()), 2)
+
+    def test_other_users_not_can_update_allowed_customers(self):
+        url = structure_factories.CustomerFactory.get_url(self.customer, 'offerings')
+        user = getattr(self.fixture, 'owner')
+        self.client.force_authenticate(user)
+        response = self.client.post(url, {
+            "offering_set": [
+                factories.OfferingFactory.get_url(),
+                factories.OfferingFactory.get_url(),
+            ]
+        })
+        self.customer.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(len(self.customer.offering_set.all()), 0)
