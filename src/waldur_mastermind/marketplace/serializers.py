@@ -10,6 +10,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.serializers import validate_options
 
 from . import models, attribute_types, plugins
@@ -203,7 +204,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'options', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
-                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type')
+                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -409,6 +410,19 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     def get_filtered_field_names(self):
         return 'project',
+
+
+class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
+    offering_set = serializers.HyperlinkedRelatedField(
+        many=True,
+        view_name='marketplace-offering-detail',
+        lookup_field='uuid',
+        queryset=models.Offering.objects.all()
+    )
+
+    class Meta(object):
+        model = structure_models.Customer
+        fields = ('offering_set',)
 
 
 def get_is_service_provider(serializer, scope):
