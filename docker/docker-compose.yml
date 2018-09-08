@@ -10,6 +10,7 @@ services:
       - POSTGRESQL_PASSWORD=waldur
     ports:
       - "5432"
+    tmpfs: /var/lib/postgresql/data
 
   api:
     build:
