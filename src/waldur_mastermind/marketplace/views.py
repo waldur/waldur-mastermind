@@ -75,8 +75,10 @@ class OfferingViewSet(BaseMarketplaceView):
             raise rf_exceptions.ValidationError(_('Offering state is invalid.'))
 
         offering.save(update_fields=['state'])
-        return Response({'detail': _('Offering state updated.')},
-                        status=status.HTTP_200_OK)
+        return Response({
+            'detail': _('Offering state updated.'),
+            'state': offering.state
+        }, status=status.HTTP_200_OK)
 
     activate_permissions = \
         pause_permissions = \
