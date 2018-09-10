@@ -140,6 +140,7 @@ class InternalIPSynchronizer(object):
             if local_ip is None:
                 local_ip = remote_ip
                 local_ip.subnet = subnet
+                local_ip.settings = subnet.settings
                 local_ip.instance = instance
                 local_ip.save()
             else:
@@ -1136,6 +1137,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                                  instance.backend_id, subnet.backend_id)
                     internal_ip = imported_internal_ip
                     internal_ip.subnet = subnet
+                    internal_ip.settings = subnet.settings
                     internal_ip.instance = instance
                     internal_ip.save()
 

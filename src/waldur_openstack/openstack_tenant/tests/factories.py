@@ -369,3 +369,4 @@ class InternalIPFactory(factory.DjangoModelFactory):
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
     instance = factory.SubFactory(InstanceFactory)
     subnet = factory.SubFactory(SubNetFactory)
+    settings = factory.SelfAttribute('subnet.settings')
