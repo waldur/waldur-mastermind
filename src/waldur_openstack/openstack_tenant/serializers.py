@@ -565,7 +565,7 @@ class NestedInternalIPSerializer(core_serializers.AugmentedSerializerMixin, seri
 
     def to_internal_value(self, data):
         internal_value = super(NestedInternalIPSerializer, self).to_internal_value(data)
-        return models.InternalIP(subnet=internal_value['subnet'])
+        return models.InternalIP(subnet=internal_value['subnet'], settings=internal_value['subnet'].settings)
 
 
 class NestedFloatingIPSerializer(core_serializers.AugmentedSerializerMixin,
@@ -993,7 +993,9 @@ class InstanceInternalIPsSetUpdateSerializer(serializers.Serializer):
         for internal_ip in internal_ips_set:
             match = models.InternalIP.objects.filter(instance=instance, subnet=internal_ip.subnet).first()
             if not match:
-                models.InternalIP.objects.create(instance=instance, subnet=internal_ip.subnet)
+                models.InternalIP.objects.create(instance=instance,
+                                                 subnet=internal_ip.subnet,
+                                                 settings=internal_ip.subnet.settings)
 
         return instance
 
