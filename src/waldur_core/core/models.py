@@ -136,8 +136,8 @@ class ScheduleMixin(models.Model):
 @python_2_unicode_compatible
 class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, PermissionsMixin):
     username = models.CharField(
-        _('username'), max_length=30, unique=True,
-        help_text=_('Required. 30 characters or fewer. Letters, numbers and '
+        _('username'), max_length=128, unique=True,
+        help_text=_('Required. 128 characters or fewer. Letters, numbers and '
                     '@/./+/-/_ characters'),
         validators=[
             validators.RegexValidator(re.compile('^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
