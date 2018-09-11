@@ -11,6 +11,7 @@ class MarketplacePackageConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_packages import PLUGIN_NAME
         from waldur_openstack.openstack import models as openstack_models
+        from waldur_core.structure import models as structure_models
 
         from . import handlers, processor
 
@@ -31,4 +32,5 @@ class MarketplacePackageConfig(AppConfig):
         manager.register(offering_type=PLUGIN_NAME,
                          processor=processor.process_order_item,
                          validator=processor.validate_order_item,
-                         components=dict(ram='RAM', cores='Cores', storage='Storage'))
+                         components=dict(ram='RAM', cores='Cores', storage='Storage'),
+                         scope_model=structure_models.ServiceSettings)
