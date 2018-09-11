@@ -32,4 +32,4 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.create_support_plan',
         )
 
-        manager.register(PLUGIN_NAME, processor.process_support)
+        manager.register(PLUGIN_NAME, processor.process_support, scope_model=support_models.Offering)

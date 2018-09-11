@@ -10,7 +10,7 @@ class PluginManager(object):
     def __init__(self):
         self.backends = {}
 
-    def register(self, offering_type, processor, validator=None, components=None):
+    def register(self, offering_type, processor, validator=None, components=None, scope_model=None):
         """
 
         :param offering_type: string which consists of application name and model name,
@@ -22,12 +22,14 @@ class PluginManager(object):
                           and raises validation error if order item is invalid.
                           It is called after order has been created but before it is submitted.
         :param components: optional dictionary of available plan components, for example
+        :param scope_model: available model for an offering scope field
         :return:
         """
         self.backends[offering_type] = {
             'processor': processor,
             'validator': validator,
             'components': components,
+            'scope_model': scope_model,
         }
 
     def get_processor(self, offering_type):
@@ -53,6 +55,9 @@ class PluginManager(object):
         :return: components dict
         """
         return self.backends.get(offering_type, {}).get('components')
+
+    def get_scope_models(self):
+        return [b['scope_model'] for b in self.backends.values() if b['scope_model']]
 
     def process(self, order_item, request):
         processor = self.get_processor(order_item.offering.type)

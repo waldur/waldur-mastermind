@@ -7,11 +7,12 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
-from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models
+from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
+from waldur_openstack.openstack.tests import factories as openstack_factories
 
 from . import factories
 from .. import serializers
@@ -272,6 +273,22 @@ class OfferingCreateTest(PostgreSQLTest):
         response = self.create_offering('staff', attributes=True, add_payload={'type': 'invalid'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('type' in response.data)
+
+    def test_create_offering_with_scope(self):
+        scope_request = {
+            'scope': structure_factories.ServiceSettingsFactory.get_url(),
+            'type': 'Packages.Template',
+        }
+        response = self.create_offering('staff', attributes=True, add_payload=scope_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_not_create_offering_if_scope_model_is_invalid(self):
+        scope_request = {
+            'scope': openstack_factories.FlavorFactory.get_url(),
+            'type': 'Packages.Template',
+        }
+        response = self.create_offering('staff', attributes=True, add_payload=scope_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)

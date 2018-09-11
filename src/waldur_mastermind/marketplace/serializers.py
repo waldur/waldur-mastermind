@@ -6,11 +6,12 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
-from waldur_core.core import signals as core_signals
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import signals as core_signals
+from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.serializers import validate_options
 
 from . import models, attribute_types, plugins
@@ -196,6 +197,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     plans = NestedPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
+    scope = GenericRelatedField(related_models=models.Offering.get_scope_models(), required=False)
 
     class Meta(object):
         model = models.Offering
@@ -204,12 +206,12 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'options', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
-                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared')
+                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'scope')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
         }
-        protected_fields = ('customer', 'type')
+        protected_fields = ('customer', 'type', 'scope')
         read_only_fields = ('state',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},

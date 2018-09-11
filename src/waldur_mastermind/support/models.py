@@ -245,6 +245,10 @@ class OfferingTemplate(core_models.UuidMixin,
     name = models.CharField(_('name'), max_length=150)
     config = BetterJSONField()
 
+    @classmethod
+    def get_url_name(cls):
+        return 'support-offering-template'
+
     def __str__(self):
         return self.name
 
@@ -316,7 +320,3 @@ class TemplateAttachment(core_models.UuidMixin,
                          TimeStampedModel):
     template = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='attachments')
     file = models.FileField(upload_to='support_template_attachments')
-
-    @classmethod
-    def get_url_name(cls):
-        return 'support-offering-template'
