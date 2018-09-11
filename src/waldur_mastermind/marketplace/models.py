@@ -203,7 +203,7 @@ class Offering(core_models.UuidMixin,
             path_to_scope='offering',
         )
 
-    @transition(field=state, source=States.DRAFT, target=States.ACTIVE)
+    @transition(field=state, source=[States.DRAFT, States.PAUSED], target=States.ACTIVE)
     def activate(self):
         pass
 
