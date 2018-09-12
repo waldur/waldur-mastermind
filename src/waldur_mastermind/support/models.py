@@ -241,7 +241,7 @@ class Offering(core_models.UuidMixin,
 
 @python_2_unicode_compatible
 class OfferingTemplate(core_models.UuidMixin,
-                       structure_models.TimeStampedModel):
+                       TimeStampedModel):
     name = models.CharField(_('name'), max_length=150)
     config = BetterJSONField()
 

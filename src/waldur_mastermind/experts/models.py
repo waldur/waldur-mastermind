@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
+from model_utils.models import TimeStampedModel
 import pdfkit
 import six
 
@@ -26,7 +27,7 @@ from . import managers
 
 @python_2_unicode_compatible
 class ExpertProvider(core_models.UuidMixin,
-                     structure_models.TimeStampedModel):
+                     TimeStampedModel):
     customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
     enable_notifications = models.BooleanField(default=True)
 
@@ -56,7 +57,7 @@ class ExpertRequest(core_models.UuidMixin,
                     PriceMixin,
                     common_mixins.ProductCodeMixin,
                     structure_models.StructureLoggableMixin,
-                    structure_models.TimeStampedModel):
+                    TimeStampedModel):
     class States(object):
         PENDING = 'pending'
         ACTIVE = 'active'
@@ -132,7 +133,7 @@ class ExpertBid(core_models.UuidMixin,
                 core_models.DescribableMixin,
                 PriceMixin,
                 structure_models.StructureLoggableMixin,
-                structure_models.TimeStampedModel):
+                TimeStampedModel):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE,
                              help_text=_('The user which has created this bid.'))
     request = models.ForeignKey(ExpertRequest, on_delete=models.CASCADE, related_name='bids')
@@ -154,7 +155,7 @@ class ExpertBid(core_models.UuidMixin,
         return 'expert-bid'
 
 
-class ExpertContract(PriceMixin, core_models.DescribableMixin, structure_models.TimeStampedModel):
+class ExpertContract(PriceMixin, core_models.DescribableMixin, TimeStampedModel):
     request = models.OneToOneField(ExpertRequest, on_delete=models.CASCADE, related_name='contract')
     team = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.SET_NULL, null=True)
 

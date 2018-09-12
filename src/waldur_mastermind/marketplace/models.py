@@ -14,6 +14,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
+from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
@@ -32,7 +33,7 @@ from ..common import mixins as common_mixins
 class ServiceProvider(core_models.UuidMixin,
                       core_models.DescribableMixin,
                       structure_models.StructureModel,
-                      structure_models.TimeStampedModel):
+                      TimeStampedModel):
     customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
     enable_notifications = models.BooleanField(default=True)
 
@@ -62,7 +63,7 @@ VectorizedImageValidator = FileTypeValidator(
 @python_2_unicode_compatible
 class Category(core_models.UuidMixin,
                quotas_models.QuotaModelMixin,
-               structure_models.TimeStampedModel):
+               TimeStampedModel):
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(upload_to='marketplace_category_icons',
                             blank=True,
@@ -90,7 +91,7 @@ class Category(core_models.UuidMixin,
 
 
 @python_2_unicode_compatible
-class Section(structure_models.TimeStampedModel):
+class Section(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
     category = models.ForeignKey(Category, related_name='sections')
@@ -102,7 +103,7 @@ class Section(structure_models.TimeStampedModel):
 
 
 @python_2_unicode_compatible
-class Attribute(structure_models.TimeStampedModel):
+class Attribute(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
     section = models.ForeignKey(Section, related_name='attributes')
@@ -141,7 +142,7 @@ class Offering(core_models.UuidMixin,
                core_models.DescribableMixin,
                quotas_models.QuotaModelMixin,
                structure_models.StructureModel,
-               structure_models.TimeStampedModel,
+               TimeStampedModel,
                ScopeMixin):
 
     class States(object):
@@ -228,7 +229,7 @@ class Offering(core_models.UuidMixin,
 
 
 class Plan(core_models.UuidMixin,
-           structure_models.TimeStampedModel,
+           TimeStampedModel,
            core_models.NameMixin,
            core_models.DescribableMixin,
            common_mixins.UnitPriceMixin,
@@ -279,7 +280,7 @@ class PlanComponent(models.Model):
 class Screenshot(core_models.UuidMixin,
                  structure_models.StructureModel,
                  core_models.DescribableMixin,
-                 structure_models.TimeStampedModel,
+                 TimeStampedModel,
                  core_models.NameMixin):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
@@ -300,7 +301,7 @@ class Screenshot(core_models.UuidMixin,
 
 
 class Order(core_models.UuidMixin,
-            structure_models.TimeStampedModel):
+            TimeStampedModel):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
@@ -370,7 +371,7 @@ class Order(core_models.UuidMixin,
 
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
-                structure_models.TimeStampedModel,
+                TimeStampedModel,
                 ScopeMixin):
     class States(object):
         PENDING = 1
