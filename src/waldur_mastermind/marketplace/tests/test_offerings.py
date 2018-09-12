@@ -255,6 +255,28 @@ class OfferingCreateTest(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['plans'][0]['components'][0]['amount'], 10)
 
+    def test_create_offering_with_usage_based_components(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'small',
+                    'description': 'CPU 1',
+                    'unit': UnitPriceMixin.Units.QUANTITY,
+                    'unit_price': 0,
+                    'components': [
+                        {
+                            'billing_type': 'usage',
+                            'type': 'cores',
+                            'price': 10,
+                        }
+                    ]
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['plans'][0]['components'][0]['billing_type'], 'usage')
+
     def test_create_offering_with_options(self):
         response = self.create_offering('staff', attributes=True, add_payload={'options': OFFERING_OPTIONS})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

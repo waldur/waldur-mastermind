@@ -253,6 +253,18 @@ class PlanComponent(models.Model):
     class Meta(object):
         unique_together = ('type', 'plan')
 
+    class BillingTypes(object):
+        FIXED = 'fixed'
+        USAGE = 'usage'
+
+        CHOICES = (
+            (FIXED, 'Fixed-price'),
+            (USAGE, 'Usage-based'),
+        )
+
+    billing_type = models.CharField(choices=BillingTypes.CHOICES,
+                                    default=BillingTypes.FIXED,
+                                    max_length=5)
     type = models.CharField(max_length=50)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
@@ -375,7 +387,7 @@ class OrderItem(core_models.UuidMixin,
             (TERMINATED, 'terminated'),
         )
 
-        TERMINAL_STATES = set([DONE, ERRED, TERMINATED])
+        TERMINAL_STATES = {DONE, ERRED, TERMINATED}
 
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
