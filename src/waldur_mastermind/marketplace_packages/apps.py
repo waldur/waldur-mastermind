@@ -23,6 +23,13 @@ class MarketplacePackageConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.synchronize_plan_component,
+            sender=marketplace_models.PlanComponent,
+            dispatch_uid='waldur_mastermind.marketpace_packages.'
+                         'synchronize_plan_component',
+        )
+
+        signals.post_save.connect(
             handlers.change_order_item_state,
             sender=openstack_models.Tenant,
             dispatch_uid='waldur_mastermind.marketpace_packages.'
