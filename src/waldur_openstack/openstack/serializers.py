@@ -156,7 +156,8 @@ class FloatingIPSerializer(structure_serializers.BaseResourceSerializer):
             'tenant', 'tenant_name', 'tenant_uuid')
         related_paths = ('tenant',)
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'runtime_state', 'address', 'description', 'name', 'tenant', 'backend_network_id')
+            'runtime_state', 'address', 'description', 'name', 'tenant', 'backend_network_id',
+            'service_settings', 'project')
         extra_kwargs = dict(
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
@@ -294,6 +295,8 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceSerializer):
             'tenant', 'tenant_name', 'tenant_uuid', 'rules',
         )
         related_paths = ('tenant',)
+        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
+            'service_settings', 'project')
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + ('rules',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'openstack-sgp-detail'},
@@ -608,7 +611,7 @@ class NetworkSerializer(structure_serializers.BaseResourceSerializer):
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'tenant', 'tenant_name', 'is_external', 'type', 'segmentation_id', 'subnets')
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'tenant', 'is_external', 'type', 'segmentation_id')
+            'tenant', 'is_external', 'type', 'segmentation_id', 'service_settings', 'project')
         extra_kwargs = dict(
             tenant={'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail'},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
@@ -652,7 +655,7 @@ class SubNetSerializer(structure_serializers.BaseResourceSerializer):
             'gateway_ip', 'allocation_pools', 'ip_version', 'enable_dhcp', 'dns_nameservers')
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + ('cidr',)
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'tenant', 'network', 'gateway_ip', 'ip_version', 'enable_dhcp')
+            'tenant', 'network', 'gateway_ip', 'ip_version', 'enable_dhcp', 'service_settings', 'project')
         extra_kwargs = dict(
             network={'lookup_field': 'uuid', 'view_name': 'openstack-network-detail'},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
