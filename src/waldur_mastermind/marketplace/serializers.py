@@ -85,7 +85,7 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 class PlanComponentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.PlanComponent
-        fields = ('type', 'amount', 'price')
+        fields = ('billing_type', 'type', 'amount', 'price')
 
 
 class PlanSerializer(core_serializers.AugmentedSerializerMixin,
@@ -115,7 +115,8 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
             if actual != expected:
                 raise serializers.ValidationError({'components': _('Invalid component types.')})
             attrs['unit_price'] = sum(component['amount'] * component['price']
-                                      for component in attrs.get('components', []))
+                                      for component in attrs.get('components', [])
+                                      if component.get('billing_type') != models.PlanComponent.BillingTypes.USAGE)
 
 
 class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
@@ -280,7 +281,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 if actual != expected:
                     raise serializers.ValidationError({'plans': _('Invalid plan components.')})
                 plan['unit_price'] = sum(component['amount'] * component['price']
-                                         for component in plan.get('components', []))
+                                         for component in plan.get('components', [])
+                                         if component.get('billing_type') != models.PlanComponent.BillingTypes.USAGE)
 
     @transaction.atomic
     def create(self, validated_data):
