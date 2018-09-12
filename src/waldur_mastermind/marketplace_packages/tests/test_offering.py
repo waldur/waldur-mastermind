@@ -32,7 +32,7 @@ class TemplateOfferingTest(test.APITransactionTestCase):
 
         template = plan.scope
         self.assertTrue(isinstance(template, package_models.PackageTemplate))
-        self.assertEqual(plan.components.get(type='ram').price, 10)
+        self.assertEqual(template.components.get(type='ram').price, 10)
 
     def test_template_for_plan_is_not_created_if_type_is_invalid(self):
         offering = marketplace_factories.OfferingFactory(type='INVALID')

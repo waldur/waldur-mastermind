@@ -38,18 +38,31 @@ def create_template_for_plan(sender, instance, created=False, **kwargs):
             product_code=plan.product_code,
             article_code=plan.article_code,
         )
-        components = [
-            package_models.PackageComponent(
-                template=template,
-                type=component.type,
-                amount=component.amount,
-                price=component.price,
-            )
-            for component in plan.components.all()
-        ]
-        package_models.PackageComponent.objects.bulk_create(components)
         plan.scope = template
         plan.save()
+
+
+def synchronize_plan_component(sender, instance, created=False, **kwargs):
+    component = instance
+
+    if not created:
+        return
+
+    if component.plan.offering.type != PLUGIN_NAME:
+        return
+
+    template = component.plan.scope
+    if not template:
+        logger.warning('Skipping plan component synchronization because offering does not have scope. '
+                       'Offering ID: %s', component.plan.offering.id)
+        return
+
+    package_models.PackageComponent.objects.create(
+        template=template,
+        type=component.type,
+        amount=component.amount,
+        price=component.price,
+    )
 
 
 def change_order_item_state(sender, instance, created=False, **kwargs):
