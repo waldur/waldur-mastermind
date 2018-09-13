@@ -129,6 +129,7 @@ setup(
             'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
             'waldur_marketplace_packages = waldur_mastermind.marketplace_packages.extension:MarketplacePackagesExtension',
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
+            'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',
         ),
     },
     include_package_data=True,
