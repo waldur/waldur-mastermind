@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace_slurm import COMPONENTS
 
 class MarketplaceSlurmConfig(AppConfig):
     name = 'waldur_mastermind.marketplace_slurm'
-    verbose_name = 'Marketplace slurm'
+    verbose_name = 'Marketplace SLURM'
 
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager
