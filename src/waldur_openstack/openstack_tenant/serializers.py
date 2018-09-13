@@ -420,6 +420,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceSerializer):
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'size', 'source_volume', 'metadata', 'runtime_state', 'action', 'snapshot_schedule',
+            'service_settings', 'project',
         )
         extra_kwargs = dict(
             source_volume={'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-detail'},
@@ -1220,7 +1221,7 @@ class BackupSerializer(structure_serializers.BaseResourceSerializer):
             'backup_schedule', 'backup_schedule_uuid',
             'instance_security_groups', 'instance_internal_ips_set', 'instance_floating_ips')
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'instance', 'service_project_link', 'backup_schedule')
+            'instance', 'service_project_link', 'backup_schedule', 'service_settings', 'project')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'instance': {'lookup_field': 'uuid', 'view_name': 'openstacktenant-instance-detail'},
@@ -1292,7 +1293,7 @@ class BaseScheduleSerializer(structure_serializers.BaseResourceSerializer):
             'retention_time', 'timezone', 'maximal_number_of_resources', 'schedule',
             'is_active', 'next_trigger_at')
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'is_active', 'next_trigger_at', 'service_project_link')
+            'is_active', 'next_trigger_at', 'service_project_link', 'service_settings', 'project')
 
 
 class BackupScheduleSerializer(BaseScheduleSerializer):
