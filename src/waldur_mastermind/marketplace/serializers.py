@@ -317,11 +317,13 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail',
                   'provider_name', 'provider_uuid',
-                  'attributes', 'cost', 'plan', 'resource_uuid', 'resource_type', 'state',
+                  'attributes', 'cost', 'plan', 'plan_unit',
+                  'resource_uuid', 'resource_type', 'state',
                   'limits', 'quotas')
 
         related_paths = {
             'offering': ('name', 'uuid', 'description'),
+            'plan': ('unit',)
         }
         read_only_fields = ('cost', 'state', 'quotas')
         protected_fields = ('offering', 'plan')
