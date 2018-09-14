@@ -302,8 +302,33 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         return offering
 
 
+class ComponentQuotaSerializer(serializers.ModelSerializer):
+    type = serializers.ReadOnlyField(source='component.type')
+
+    class Meta(object):
+        model = models.ComponentQuota
+        fields = ('type', 'limit', 'usage')
+
+
 class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
                           serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.OrderItem
+        fields = ('offering', 'offering_name', 'offering_uuid',
+                  'offering_description', 'offering_thumbnail',
+                  'provider_name', 'provider_uuid',
+                  'attributes', 'cost', 'plan', 'resource_uuid', 'resource_type', 'state',
+                  'limits', 'quotas')
+
+        related_paths = {
+            'offering': ('name', 'uuid', 'description'),
+        }
+        read_only_fields = ('cost', 'state', 'quotas')
+        protected_fields = ('offering', 'plan')
+        extra_kwargs = {
+            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+            'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+        }
 
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
@@ -311,6 +336,8 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     resource_uuid = serializers.SerializerMethodField()
     resource_type = serializers.SerializerMethodField()
     state = serializers.ReadOnlyField(source='get_state_display')
+    limits = serializers.DictField(child=serializers.IntegerField(), required=False, write_only=True)
+    quotas = ComponentQuotaSerializer(many=True, read_only=True)
 
     def get_resource_uuid(self, order_item):
         if order_item.scope:
@@ -319,23 +346,6 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     def get_resource_type(self, order_item):
         if order_item.scope:
             return order_item.scope.get_scope_type()
-
-    class Meta(object):
-        model = models.OrderItem
-        fields = ('offering', 'offering_name', 'offering_uuid',
-                  'offering_description', 'offering_thumbnail',
-                  'provider_name', 'provider_uuid',
-                  'attributes', 'cost', 'plan', 'resource_uuid', 'resource_type', 'state',)
-
-        related_paths = {
-            'offering': ('name', 'uuid', 'description'),
-        }
-        read_only_fields = ('cost', 'state',)
-        protected_fields = ('offering', 'plan')
-        extra_kwargs = {
-            'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
-            'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
-        }
 
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
@@ -354,6 +364,15 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
 
         if offering.options:
             validate_options(offering.options['options'], attrs.get('attributes'))
+
+        limits = attrs.get('limits')
+        if limits:
+            valid_component_types = plan.components\
+                .filter(billing_type=models.PlanComponent.BillingTypes.USAGE)\
+                .values_list('type', flat=True)
+            invalid_types = set(limits.keys()) - set(valid_component_types)
+            if invalid_types:
+                raise ValidationError({'limits': _('Invalid types: %s') % ', '.join(invalid_types)})
 
         return attrs
 
@@ -390,7 +409,6 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
         validated_data['created_by'] = user
         items = validated_data.pop('items')
         order = super(OrderSerializer, self).create(validated_data)
-        new_items = []
         total_cost = 0
         for item in items:
             plan = item.get('plan')
@@ -406,8 +424,24 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                 cost=cost,
             )
             plugins.manager.validate(order_item, self.context['request'])
-            new_items.append(order_item)
-        models.OrderItem.objects.bulk_create(new_items)
+
+            order_item.save()
+            limits = item.get('limits')
+            if limits:
+                components = models.PlanComponent.objects.filter(
+                    plan=plan,
+                    billing_type=models.PlanComponent.BillingTypes.USAGE
+                )
+                components_map = {
+                    component.type: component for component in components
+                }
+                for key, value in limits.items():
+                    models.ComponentQuota.objects.create(
+                        order_item=order_item,
+                        component=components_map[key],
+                        limit=value
+                    )
+
         order.total_cost = total_cost
         order.save()
         return order

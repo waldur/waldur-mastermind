@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Item',
+            name='OrderItem',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
@@ -56,16 +56,16 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.AddField(
-            model_name='item',
+            model_name='orderitem',
             name='order',
             field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='items', to='marketplace.Order'),
         ),
         migrations.AlterModelOptions(
-            name='item',
+            name='orderitem',
             options={'ordering': ('created',), 'verbose_name': 'Order item'},
         ),
         migrations.AlterModelOptions(
-            name='order',
+            name='orderitem',
             options={'ordering': ('created',), 'verbose_name': 'Order'},
         ),
     ]
