@@ -422,3 +422,14 @@ class OrderItem(core_models.UuidMixin,
     def set_state(self, state):
         getattr(self, 'set_state_' + state)()
         self.save(update_fields=['state'])
+
+
+class ComponentQuota(models.Model):
+    order_item = models.ForeignKey(OrderItem, related_name='quotas')
+    component = models.ForeignKey(PlanComponent,
+                                  limit_choices_to={'billing_type': PlanComponent.BillingTypes.USAGE})
+    limit = models.PositiveIntegerField(default=-1)
+    usage = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('order_item', 'component')

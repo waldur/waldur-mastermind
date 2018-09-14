@@ -133,6 +133,71 @@ class OrderCreateTest(PostgreSQLTest):
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_user_can_create_order_with_valid_limits(self):
+        limits = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        plan = factories.PlanFactory(offering=offering)
+
+        for key in limits.keys():
+            models.PlanComponent.objects.create(
+                plan=plan,
+                type=key,
+                billing_type=models.PlanComponent.BillingTypes.USAGE
+            )
+
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'limits': limits,
+                    'attributes': {},
+                },
+            ]
+        }
+
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order_item = models.OrderItem.objects.last()
+        self.assertEqual(order_item.quotas.get(component__type='cpu_count').limit, 5)
+
+    def test_user_can_not_create_order_with_invalid_limits(self):
+        limits = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        plan = factories.PlanFactory(offering=offering)
+
+        for key in limits.keys():
+            models.PlanComponent.objects.create(
+                plan=plan,
+                type=key,
+                billing_type=models.PlanComponent.BillingTypes.FIXED
+            )
+
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'limits': limits,
+                    'attributes': {},
+                },
+            ]
+        }
+
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
