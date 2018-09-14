@@ -58,6 +58,17 @@ class PlansInline(admin.TabularInline):
               'product_code', 'article_code', 'archived')
 
 
+class PlanComponentInline(admin.TabularInline):
+    model = models.PlanComponent
+
+
+class PlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'offering', 'archived', 'unit', 'unit_price')
+    list_filter = ('offering', 'archived')
+    search_fields = ('name', 'offering__name')
+    inlines = [PlanComponentInline]
+
+
 class OfferingAdminForm(ModelForm):
     class Meta:
         widgets = {
@@ -99,3 +110,4 @@ admin.site.register(models.Section, SectionAdmin)
 admin.site.register(models.Attribute, AttributeAdmin)
 admin.site.register(models.Screenshot)
 admin.site.register(models.Order, OrderAdmin)
+admin.site.register(models.Plan, PlanAdmin)

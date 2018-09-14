@@ -1,6 +1,8 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
+from waldur_mastermind.marketplace.plugins import Component
+
 
 class MarketplacePackageConfig(AppConfig):
     name = 'waldur_mastermind.marketplace_packages'
@@ -39,5 +41,9 @@ class MarketplacePackageConfig(AppConfig):
         manager.register(offering_type=PLUGIN_NAME,
                          processor=processor.process_order_item,
                          validator=processor.validate_order_item,
-                         components=dict(ram='RAM', cores='Cores', storage='Storage'),
+                         components=(
+                             Component(type='ram', name='RAM', measured_unit='GB'),
+                             Component(type='cores', name='Cores', measured_unit='cores'),
+                             Component(type='storage', name='Storage', measured_unit='GB'),
+                         ),
                          scope_model=structure_models.ServiceSettings)

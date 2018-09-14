@@ -3,10 +3,10 @@ import logging
 from django.db import transaction
 
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_mastermind.slurm_invoices import models as slurm_invoices_models
 from waldur_slurm.apps import SlurmConfig
-from waldur_mastermind.marketplace_slurm import COMPONENTS
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,9 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
                        'Plan ID: %s', plan.id)
         return
 
-    if {c.type for c in plan.components.all()} != set(COMPONENTS.keys()):
+    expected_types = set(manager.get_component_types(PLUGIN_NAME))
+    actual_types = set(plan.components.values_list('type', flat=True))
+    if expected_types != actual_types:
         return
 
     with transaction.atomic():

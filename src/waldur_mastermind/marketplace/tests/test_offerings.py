@@ -225,7 +225,7 @@ class OfferingCreateTest(PostgreSQLTest):
             'plans': [
                 {'name': 'small',
                  'description': 'CPU 1',
-                 'unit': UnitPriceMixin.Units.QUANTITY,
+                 'unit': UnitPriceMixin.Units.PER_MONTH,
                  'unit_price': 100}
             ]
         }
@@ -239,11 +239,13 @@ class OfferingCreateTest(PostgreSQLTest):
                 {
                     'name': 'small',
                     'description': 'CPU 1',
-                    'unit': UnitPriceMixin.Units.QUANTITY,
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
                     'unit_price': 100,
                     'components': [
                         {
                             'type': 'cores',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
                             'amount': 10,
                             'price': 10,
                         }
@@ -261,11 +263,13 @@ class OfferingCreateTest(PostgreSQLTest):
                 {
                     'name': 'small',
                     'description': 'CPU 1',
-                    'unit': UnitPriceMixin.Units.QUANTITY,
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
                     'unit_price': 0,
                     'components': [
                         {
                             'billing_type': 'usage',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
                             'type': 'cores',
                             'price': 10,
                         }
