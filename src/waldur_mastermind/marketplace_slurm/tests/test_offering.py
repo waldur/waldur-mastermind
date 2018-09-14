@@ -32,16 +32,22 @@ class SlurmPackageTest(test.APITransactionTestCase):
                     'components': [
                         {
                             'type': 'cpu',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
                             'amount': 1,
                             'price': 10,
                         },
                         {
                             'type': 'gpu',
+                            'name': 'GPU',
+                            'measured_unit': 'hours',
                             'amount': 1,
                             'price': 100,
                         },
                         {
                             'type': 'ram',
+                            'name': 'RAM',
+                            'measured_unit': 'GB',
                             'amount': 1,
                             'price': 1000,
                         }

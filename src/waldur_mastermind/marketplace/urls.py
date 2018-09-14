@@ -17,9 +17,10 @@ def register_in(router):
     router.register(r'marketplace-screenshots', views.ScreenshotViewSet,
                     base_name='marketplace-screenshot')
     router.register(r'marketplace-orders', views.OrderViewSet,
-                    base_name='marketplace-order'),
+                    base_name='marketplace-order')
 
 
 urlpatterns = [
     url(r'^api/customers/(?P<uuid>[^/.]+)/offerings/$', views.CustomerOfferingViewSet.as_view()),
+    url(r'^api/marketplace-plugins/$', views.PluginViewSet.as_view()),
 ]

@@ -1,8 +1,10 @@
+import collections
 import logging
 
 from rest_framework import exceptions
 
 
+Component = collections.namedtuple('Component', ('type', 'name', 'measured_unit'))
 logger = logging.getLogger(__name__)
 
 
@@ -21,7 +23,8 @@ class PluginManager(object):
         :param validator: optional function which receives order item and request object,
                           and raises validation error if order item is invalid.
                           It is called after order has been created but before it is submitted.
-        :param components: optional dictionary of available plan components, for example
+        :param components: tuple available plan components, for example
+                           Component(type='storage', name='Storage', measured_unit='GB')
         :param scope_model: available model for an offering scope field
         :return:
         """
@@ -31,6 +34,12 @@ class PluginManager(object):
             'components': components,
             'scope_model': scope_model,
         }
+
+    def get_offering_types(self):
+        """
+        Return list of offering types.
+        """
+        return self.backends.keys()
 
     def get_processor(self, offering_type):
         """
@@ -50,11 +59,19 @@ class PluginManager(object):
 
     def get_components(self, offering_type):
         """
-        Return a components dict for given offering_type.
+        Return a list of components for given offering_type.
         :param offering_type: offering type name
-        :return: components dict
+        :return: list of components
         """
-        return self.backends.get(offering_type, {}).get('components')
+        return self.backends.get(offering_type, {}).get('components') or []
+
+    def get_component_types(self, offering_type):
+        """
+        Return a components types for given offering_type.
+        :param offering_type: offering type name
+        :return: list of component types
+        """
+        return [component.type for component in self.get_components(offering_type)]
 
     def get_scope_models(self):
         return [b['scope_model'] for b in self.backends.values() if b['scope_model']]

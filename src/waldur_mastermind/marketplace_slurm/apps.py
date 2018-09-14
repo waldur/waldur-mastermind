@@ -1,6 +1,7 @@
 from django.apps import AppConfig
 from django.db.models import signals
-from waldur_mastermind.marketplace_slurm import COMPONENTS
+
+from waldur_mastermind.marketplace.plugins import Component
 
 
 class MarketplaceSlurmConfig(AppConfig):
@@ -23,4 +24,8 @@ class MarketplaceSlurmConfig(AppConfig):
 
         manager.register(PLUGIN_NAME, processor.process_slurm,
                          scope_model=structure_models.ServiceSettings,
-                         components=COMPONENTS)
+                         components=(
+                             Component(type='cpu', name='CPU', measured_unit='hours'),
+                             Component(type='gpu', name='GPU', measured_unit='hours'),
+                             Component(type='ram', name='RAM', measured_unit='GB'),
+                         ))

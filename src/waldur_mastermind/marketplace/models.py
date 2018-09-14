@@ -247,7 +247,7 @@ class Plan(core_models.UuidMixin,
         customer_path = 'offering__customer'
 
 
-class PlanComponent(models.Model):
+class PlanComponent(core_models.DescribableMixin):
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
@@ -266,7 +266,12 @@ class PlanComponent(models.Model):
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)
-    type = models.CharField(max_length=50)
+    type = models.CharField(max_length=50,
+                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
+    name = models.CharField(max_length=150,
+                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
+    measured_unit = models.CharField(max_length=30,
+                                     help_text=_('Unit of measurement, for example, GB.'))
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
                                 max_digits=PRICE_MAX_DIGITS,

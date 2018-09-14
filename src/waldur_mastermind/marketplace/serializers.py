@@ -85,7 +85,8 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 class PlanComponentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.PlanComponent
-        fields = ('billing_type', 'type', 'amount', 'price')
+        fields = ('billing_type', 'type', 'amount', 'price',
+                  'name', 'description', 'measured_unit',)
 
 
 class PlanSerializer(core_serializers.AugmentedSerializerMixin,
@@ -108,9 +109,9 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
 
     def _validate_components(self, attrs):
         offering = attrs.get('offering', getattr(self.instance, 'offering', None))
-        components = plugins.manager.get_components(offering.type)
+        components = plugins.manager.get_component_types(offering.type)
         if components:
-            expected = sorted(components.keys())
+            expected = sorted(components)
             actual = sorted(component['type'] for component in attrs.get('components', []))
             if actual != expected:
                 raise serializers.ValidationError({'components': _('Invalid component types.')})
@@ -272,9 +273,9 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     def _validate_plans(self, attrs):
         offering_type = attrs.get('type', getattr(self.instance, 'type', None))
-        components = plugins.manager.get_components(offering_type)
+        components = plugins.manager.get_component_types(offering_type)
         if components:
-            expected = sorted(components.keys())
+            expected = sorted(components)
             plans = attrs.get('plans', [])
             for plan in plans:
                 actual = sorted(component['type'] for component in plan.get('components', []))

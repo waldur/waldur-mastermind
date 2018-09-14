@@ -11,13 +11,14 @@ from rest_framework import views
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
-from waldur_core.core import views as core_views, validators as core_validators
 from waldur_core.core import utils as core_utils
+from waldur_core.core import validators as core_validators
+from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions, filters as structure_filters
 
-from . import serializers, models, filters, tasks
+from . import serializers, models, filters, tasks, plugins
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -165,6 +166,26 @@ class OrderViewSet(BaseMarketplaceView):
         order.save(update_fields=['state'])
         return Response({'detail': _('Order state updated.')},
                         status=status.HTTP_200_OK)
+
+
+class PluginViewSet(views.APIView):
+    def get(self, request):
+        offering_types = plugins.manager.get_offering_types()
+        payload = []
+        for offering_type in offering_types:
+            components = [
+                dict(
+                    type=component.type,
+                    name=component.name,
+                    measured_unit=component.measured_unit,
+                )
+                for component in plugins.manager.get_components(offering_type)
+            ]
+            payload.append(dict(
+                offering_type=offering_type,
+                components=components,
+            ))
+        return Response(payload, status=status.HTTP_200_OK)
 
 
 class CustomerOfferingViewSet(views.APIView):

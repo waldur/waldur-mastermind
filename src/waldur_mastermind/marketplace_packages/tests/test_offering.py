@@ -55,16 +55,22 @@ class PlanComponentsTest(test.APITransactionTestCase):
     components = [
         {
             'type': 'cores',
+            'name': 'Cores',
+            'measured_unit': 'cores',
             'amount': 10,
             'price': 10,
         },
         {
             'type': 'ram',
+            'name': 'RAM',
+            'measured_unit': 'GB',
             'amount': 100,
             'price': 100,
         },
         {
             'type': 'storage',
+            'name': 'Storage',
+            'measured_unit': 'GB',
             'amount': 1000,
             'price': 1000,
         }
@@ -72,7 +78,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
 
     def test_plan_components_are_validated(self):
         response = self.create_offering(self.components)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(offering.plans.first().components.count(), 3)
 
