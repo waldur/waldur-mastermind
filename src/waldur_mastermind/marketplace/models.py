@@ -18,7 +18,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
-from waldur_core.core.validators import FileTypeValidator
+from waldur_core.core.validators import ImageValidator
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
@@ -51,15 +51,6 @@ class ServiceProvider(core_models.UuidMixin,
         return 'marketplace-service-provider'
 
 
-VectorizedImageValidator = FileTypeValidator(
-    allowed_types=[
-        'image/png',
-        'image/jpeg',
-        'image/svg+xml',
-    ]
-)
-
-
 @python_2_unicode_compatible
 class Category(core_models.UuidMixin,
                quotas_models.QuotaModelMixin,
@@ -68,7 +59,7 @@ class Category(core_models.UuidMixin,
     icon = models.FileField(upload_to='marketplace_category_icons',
                             blank=True,
                             null=True,
-                            validators=[VectorizedImageValidator])
+                            validators=[ImageValidator])
     description = models.TextField(blank=True)
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
@@ -161,7 +152,7 @@ class Offering(core_models.UuidMixin,
     thumbnail = models.FileField(upload_to='marketplace_service_offering_thumbnails',
                                  blank=True,
                                  null=True,
-                                 validators=[VectorizedImageValidator])
+                                 validators=[ImageValidator])
     full_description = models.TextField(blank=True)
     vendor_details = models.TextField(blank=True)
     rating = models.IntegerField(null=True,

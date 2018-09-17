@@ -16,6 +16,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='offering',
             name='thumbnail',
-            field=models.FileField(blank=True, null=True, upload_to='marketplace_service_offering_thumbnails', validators=[waldur_core.core.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg+xml'])]),
+            field=models.FileField(blank=True, null=True, upload_to='marketplace_service_offering_thumbnails', validators=[waldur_core.core.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg', 'image/svg+xml'])]),
         ),
     ]
