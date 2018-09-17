@@ -179,3 +179,13 @@ class FileTypeValidator(object):
                 detected_type = 'application/vnd.ms-excel'
 
         return detected_type
+
+
+ImageValidator = FileTypeValidator(
+    allowed_types=[
+        'image/png',
+        'image/jpeg',
+        'image/svg',
+        'image/svg+xml',
+    ]
+)
