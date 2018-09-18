@@ -79,15 +79,35 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def update_service_provider(self, user):
+    @data('staff', 'owner')
+    def test_authorized_user_can_update_api_secret_code(self, user):
+        response, service_provider = self.update_service_provider(user, {'api_secret_code': '1234567890987654321'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(service_provider.api_secret_code, '1234567890987654321')
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_not_pass_invalid_api_secret_code(self, user):
+        response, service_provider = self.update_service_provider(user, {'api_secret_code': '12345'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(service_provider.api_secret_code, None)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_update_api_secret_code(self, user):
+        response, service_provider = self.update_service_provider(user, {'api_secret_code': '1234567890987654321'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def update_service_provider(self, user, payload=None):
+        if not payload:
+            payload = {
+                'enable_notifications': False
+            }
+
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.ServiceProviderFactory.get_url(service_provider)
 
-        response = self.client.patch(url, {
-            'enable_notifications': False
-        })
+        response = self.client.patch(url, payload)
         service_provider.refresh_from_db()
 
         return response, service_provider

@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import os
+import hashlib
 
 import six
 from PIL import Image
@@ -34,3 +35,17 @@ def create_screenshot_thumbnail(screenshot):
     temp_thumb.seek(0)
     screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)
     temp_thumb.close()
+
+
+def check_api_signature(data, api_secret_code, signature):
+    return signature == get_api_signature(data, api_secret_code)
+
+
+def get_api_signature(data, api_secret_code):
+    concatenate_string = api_secret_code
+
+    for usage in data['usages']:
+        for key in sorted(usage.keys()):
+            concatenate_string += key + six.text_type(usage[key])
+
+    return hashlib.sha512(concatenate_string).hexdigest()

@@ -4,11 +4,12 @@ from django.conf import settings
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
-from rest_framework import status, exceptions as rf_exceptions
+from rest_framework import status, exceptions as rf_exceptions, viewsets as rf_viewsets
 from rest_framework import views
-from rest_framework.decorators import detail_route
+from rest_framework.decorators import detail_route, list_route
 from rest_framework.response import Response
 
 from waldur_core.core import utils as core_utils
@@ -209,3 +210,49 @@ class CustomerOfferingViewSet(views.APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_200_OK)
+
+
+class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
+    def get_action_class(self):
+        return getattr(self, self.action + '_serializer_class', None)
+
+    permission_classes = ()
+    serializer_class = serializers.ServiceProviderSignatureSerializer
+    set_usage_serializer_class = serializers.PublicListComponentUsageSerializer
+
+    def get_validated_data(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.data['data']
+        sandbox = serializer.validated_data['sandbox']
+        data_serializer_class = self.get_action_class()
+
+        if data_serializer_class:
+            data_serializer = data_serializer_class(data=data)
+            data_serializer.is_valid(raise_exception=True)
+            return data_serializer.validated_data, sandbox
+
+        return serializer.validated_data, sandbox
+
+    @list_route(methods=['post'])
+    @csrf_exempt
+    def check_signature(self, request, *args, **kwargs):
+        self.get_validated_data(request)
+        return Response(status=status.HTTP_200_OK)
+
+    @list_route(methods=['post'])
+    @csrf_exempt
+    def set_usage(self, request, *args, **kwargs):
+        validated_data, sandbox = self.get_validated_data(request)
+
+        if not sandbox:
+            usages = []
+            for usage in validated_data['usages']:
+                usages.append(models.ComponentUsage(order_item=usage['order_item'],
+                                                    component=usage['component'],
+                                                    date=usage['date'],
+                                                    usage=usage['amount']))
+
+            models.ComponentUsage.objects.bulk_create(usages)
+
+        return Response(status=status.HTTP_201_CREATED)
