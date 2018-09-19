@@ -96,7 +96,7 @@ Requires: python-zabbix >= 0.7.2
 Requires: python2-defusedxml >= 0.4.1
 Requires: python2-pdfkit >= 0.6.1
 Requires: PyYAML
-Requires: uwsgi-plugin-python
+Requires: uwsgi-plugin-python2
 Requires: xmlsec1-openssl
 
 Obsoletes: waldur-ansible
