@@ -69,9 +69,9 @@ class PluginManager(object):
         """
         Return a components types for given offering_type.
         :param offering_type: offering type name
-        :return: list of component types
+        :return: set of component types
         """
-        return [component.type for component in self.get_components(offering_type)]
+        return {component.type for component in self.get_components(offering_type)}
 
     def get_scope_models(self):
         return [b['scope_model'] for b in self.backends.values() if b['scope_model']]

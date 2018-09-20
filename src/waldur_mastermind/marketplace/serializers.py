@@ -104,29 +104,34 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
         if not self.instance:
             structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
 
-        self._validate_components(attrs)
         return attrs
 
-    def _validate_components(self, attrs):
-        offering = attrs.get('offering', getattr(self.instance, 'offering', None))
-        components = plugins.manager.get_component_types(offering.type)
-        if components:
-            expected = sorted(components)
-            actual = sorted(component['type'] for component in attrs.get('components', []))
-            if actual != expected:
-                raise serializers.ValidationError({'components': _('Invalid component types.')})
-            attrs['unit_price'] = sum(component['amount'] * component['price']
-                                      for component in attrs.get('components', [])
-                                      if component.get('billing_type') != models.PlanComponent.BillingTypes.USAGE)
+
+PriceSerializer = serializers.DecimalField(
+    min_value=0,
+    max_digits=models.PlanComponent.PRICE_MAX_DIGITS,
+    decimal_places=models.PlanComponent.PRICE_DECIMAL_PLACES,
+)
+
+
+class PlanComponentMetadataSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.PlanComponent
+        fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',)
 
 
 class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
-    components = PlanComponentSerializer(many=True, required=False)
+    components = PlanComponentSerializer(read_only=True, many=True)
+    custom_components = PlanComponentMetadataSerializer(write_only=True, required=False, many=True)
+    prices = serializers.DictField(child=PriceSerializer, write_only=True, required=False)
+    quotas = serializers.DictField(child=serializers.IntegerField(min_value=0),
+                                   write_only=True, required=False)
 
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'components')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'components',
+                  'custom_components', 'prices', 'quotas')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
             'unit': {'required': True}
@@ -273,28 +278,68 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     def _validate_plans(self, attrs):
         offering_type = attrs.get('type', getattr(self.instance, 'type', None))
-        components = plugins.manager.get_component_types(offering_type)
-        if components:
-            expected = sorted(components)
-            plans = attrs.get('plans', [])
-            for plan in plans:
-                actual = sorted(component['type'] for component in plan.get('components', []))
-                if actual != expected:
-                    raise serializers.ValidationError({'plans': _('Invalid plan components.')})
-                plan['unit_price'] = sum(component['amount'] * component['price']
-                                         for component in plan.get('components', [])
-                                         if component.get('billing_type') != models.PlanComponent.BillingTypes.USAGE)
+        fixed_components = plugins.manager.get_component_types(offering_type)
+        valid_components = set()
+
+        for plan in attrs.get('plans', []):
+            if fixed_components and plan.get('custom_components'):
+                raise serializers.ValidationError({
+                    'plans': _('Extra plan components are not allowed.')
+                })
+            elif fixed_components:
+                valid_components = fixed_components
+            elif plan.get('custom_components'):
+                valid_components = {component['type'] for component in plan['custom_components']}
+
+            price_components = set(plan.get('prices', {}).keys())
+            if price_components != valid_components:
+                raise serializers.ValidationError({
+                    'plans': _('Invalid price components.')
+                })
+
+            quota_components = set(plan.get('quotas', {}).keys())
+            if quota_components != valid_components:
+                raise serializers.ValidationError({
+                    'plans': _('Invalid quota components.')
+                })
 
     @transaction.atomic
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
         offering = super(OfferingSerializer, self).create(validated_data)
+        fixed_components = plugins.manager.get_components(offering.type)
+
         for plan_data in plans:
-            components = plan_data.pop('components', [])
-            plan = models.Plan.objects.create(offering=offering, **plan_data)
-            for component_data in components:
-                models.PlanComponent.objects.create(plan=plan, **component_data)
+            self._create_plan(offering, plan_data, fixed_components)
+
         return offering
+
+    def _create_plan(self, offering, plan_data, fixed_components):
+        custom_components = plan_data.pop('custom_components', [])
+        quotas = plan_data.pop('quotas', {})
+        prices = plan_data.pop('prices', {})
+        plan = models.Plan.objects.create(offering=offering, **plan_data)
+
+        if fixed_components:
+            for component_data in fixed_components:
+                models.PlanComponent.objects.create(
+                    type=component_data.type,
+                    name=component_data.name,
+                    measured_unit=component_data.measured_unit,
+                    plan=plan,
+                    amount=quotas[component_data.type],
+                    price=prices[component_data.type],
+                    billing_type=models.PlanComponent.BillingTypes.FIXED,
+                )
+        else:
+            for component_data in custom_components:
+                component_type = component_data['type']
+                models.PlanComponent.objects.create(
+                    plan=plan,
+                    amount=quotas[component_type],
+                    price=prices[component_type],
+                    **component_data
+                )
 
     def update(self, instance, validated_data):
         # TODO: Implement support for nested plan update

@@ -233,7 +233,7 @@ class OfferingCreateTest(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['plans']), 1)
 
-    def test_create_offering_with_plan_components(self):
+    def test_create_offering_with_custom_components(self):
         plans_request = {
             'plans': [
                 {
@@ -241,15 +241,15 @@ class OfferingCreateTest(PostgreSQLTest):
                     'description': 'CPU 1',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
                     'unit_price': 100,
-                    'components': [
+                    'custom_components': [
                         {
                             'type': 'cores',
                             'name': 'Cores',
                             'measured_unit': 'hours',
-                            'amount': 10,
-                            'price': 10,
                         }
-                    ]
+                    ],
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 10},
                 }
             ]
         }
@@ -265,15 +265,16 @@ class OfferingCreateTest(PostgreSQLTest):
                     'description': 'CPU 1',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
                     'unit_price': 0,
-                    'components': [
+                    'custom_components': [
                         {
                             'billing_type': 'usage',
                             'name': 'Cores',
                             'measured_unit': 'hours',
                             'type': 'cores',
-                            'price': 10,
                         }
-                    ]
+                    ],
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 10},
                 }
             ]
         }
