@@ -29,29 +29,16 @@ class SlurmPackageTest(test.APITransactionTestCase):
                     'description': 'default plan',
                     'unit': UnitPriceMixin.Units.QUANTITY,
                     'unit_price': 100,
-                    'components': [
-                        {
-                            'type': 'cpu',
-                            'name': 'Cores',
-                            'measured_unit': 'hours',
-                            'amount': 1,
-                            'price': 10,
-                        },
-                        {
-                            'type': 'gpu',
-                            'name': 'GPU',
-                            'measured_unit': 'hours',
-                            'amount': 1,
-                            'price': 100,
-                        },
-                        {
-                            'type': 'ram',
-                            'name': 'RAM',
-                            'measured_unit': 'GB',
-                            'amount': 1,
-                            'price': 1000,
-                        }
-                    ]
+                    'prices': {
+                        'cpu': 10,
+                        'gpu': 100,
+                        'ram': 1000,
+                    },
+                    'quotas': {
+                        'cpu': 1,
+                        'gpu': 1,
+                        'ram': 1,
+                    }
                 }
             ]
         }

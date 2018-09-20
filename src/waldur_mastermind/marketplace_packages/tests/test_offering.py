@@ -52,47 +52,30 @@ class TemplateOfferingTest(test.APITransactionTestCase):
 
 
 class PlanComponentsTest(test.APITransactionTestCase):
-    components = [
-        {
-            'type': 'cores',
-            'name': 'Cores',
-            'measured_unit': 'cores',
-            'amount': 10,
-            'price': 10,
-        },
-        {
-            'type': 'ram',
-            'name': 'RAM',
-            'measured_unit': 'GB',
-            'amount': 100,
-            'price': 100,
-        },
-        {
-            'type': 'storage',
-            'name': 'Storage',
-            'measured_unit': 'GB',
-            'amount': 1000,
-            'price': 1000,
-        }
-    ]
+    prices = {
+        'cores': 10,
+        'ram': 100,
+        'storage': 1000,
+    }
+    quotas = prices
 
     def test_plan_components_are_validated(self):
-        response = self.create_offering(self.components)
+        response = self.create_offering()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(offering.plans.first().components.count(), 3)
 
     def test_plan_without_components_is_invalid(self):
-        response = self.create_offering()
+        response = self.create_offering(False)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('plans' in response.data)
 
     def test_total_price_is_calculated_from_components(self):
-        response = self.create_offering(self.components)
+        response = self.create_offering()
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(offering.plans.first().unit_price, 10 * 10 + 100 * 100 + 1000 * 1000)
 
-    def create_offering(self, components=None):
+    def create_offering(self, components=True):
         fixture = structure_fixtures.ProjectFixture()
         url = marketplace_factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(fixture.owner)
@@ -106,10 +89,11 @@ class PlanComponentsTest(test.APITransactionTestCase):
                     'name': 'small',
                     'description': 'CPU 1',
                     'unit': UnitPriceMixin.Units.PER_DAY,
-                    'unit_price': 100,
+                    'unit_price': 1010100,
                 }
             ]
         }
         if components:
-            payload['plans'][0]['components'] = components
+            payload['plans'][0]['prices'] = self.prices
+            payload['plans'][0]['quotas'] = self.quotas
         return self.client.post(url, payload)
