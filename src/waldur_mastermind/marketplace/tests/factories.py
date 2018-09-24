@@ -6,6 +6,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
+
 from .. import models
 
 
@@ -185,3 +186,13 @@ class PlanFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-plan-list')
         return url if action is None else url + action + '/'
+
+
+class PlanComponentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.PlanComponent
+
+    plan = factory.SubFactory(PlanFactory)
+    price = Decimal(10)
+    amount = 1
+    type = 'cpu'

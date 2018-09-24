@@ -1,8 +1,11 @@
 from __future__ import unicode_literals
 
+import datetime
+
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
+from django.core.validators import MinLengthValidator
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 
@@ -12,16 +15,20 @@ from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
 
-from . import models, attribute_types, plugins
+from . import models, attribute_types, plugins, utils
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
+    api_secret_code = serializers.CharField(write_only=True, required=False, validators=[MinLengthValidator(16)])
+
     class Meta(object):
         model = models.ServiceProvider
-        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description', 'enable_notifications')
+        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description',
+                  'enable_notifications', 'api_secret_code')
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }
@@ -509,6 +516,73 @@ class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = structure_models.Customer
         fields = ('offering_set',)
+
+
+class ServiceProviderSignatureSerializer(serializers.Serializer):
+    signature = serializers.CharField()
+    customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
+    data = serializers.JSONField()
+    sandbox = serializers.BooleanField(default=False, required=False)
+
+    def validate(self, attrs):
+        customer = attrs['customer']
+        service_provider = getattr(customer, 'serviceprovider', None)
+        api_secret_code = service_provider and service_provider.api_secret_code
+
+        if not api_secret_code:
+            raise rf_exceptions.ValidationError(_('An API secret code is not set.'))
+
+        if utils.check_api_signature(data=attrs['data'],
+                                     api_secret_code=api_secret_code,
+                                     signature=attrs['signature']):
+            return attrs
+        else:
+            raise rf_exceptions.ValidationError(_('Wrong signature.'))
+
+
+class PublicComponentUsageSerializer(serializers.Serializer):
+    order_item = serializers.SlugRelatedField(queryset=models.OrderItem.objects.all(), slug_field='uuid')
+    date = serializers.DateField()
+    type = serializers.CharField()
+    amount = serializers.IntegerField()
+
+    def validate(self, attrs):
+        order_item = attrs['order_item']
+        date = attrs['date']
+        plan = order_item.plan
+
+        if date > datetime.date.today():
+            raise rf_exceptions.ValidationError({'date': _('Date can not be in the future.')})
+
+        try:
+            component = models.PlanComponent.objects.get(plan=plan, type=attrs['type'])
+        except models.PlanComponent.DoesNotExist:
+            raise rf_exceptions.ValidationError(_('This plan component not found.'))
+
+        if component.billing_type != models.PlanComponent.BillingTypes.USAGE:
+            raise rf_exceptions.ValidationError(_('Billing type of a plan component is not usage.'))
+
+        if models.ComponentUsage.objects.filter(order_item=order_item,
+                                                component=component,
+                                                date=attrs['date']).exists():
+            raise rf_exceptions.ValidationError(_('This usage was be saved.'))
+
+        attrs['component'] = component
+
+        if plan.unit == UnitPriceMixin.Units.PER_MONTH:
+            attrs['date'] = datetime.date(year=date.year, month=date.month, day=1)
+
+        if plan.unit == UnitPriceMixin.Units.PER_HALF_MONTH:
+            if date.day < 16:
+                attrs['date'] = datetime.date(year=date.year, month=date.month, day=1)
+            else:
+                attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
+
+        return attrs
+
+
+class PublicListComponentUsageSerializer(serializers.Serializer):
+    usages = PublicComponentUsageSerializer(many=True)
 
 
 def get_is_service_provider(serializer, scope):

@@ -34,8 +34,9 @@ class ServiceProvider(core_models.UuidMixin,
                       core_models.DescribableMixin,
                       structure_models.StructureModel,
                       TimeStampedModel):
-    customer = models.OneToOneField(structure_models.Customer, related_name='+', on_delete=models.CASCADE)
+    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
     enable_notifications = models.BooleanField(default=True)
+    api_secret_code = models.CharField(max_length=255, null=True, blank=True)
 
     class Permissions(object):
         customer_path = 'customer'
@@ -429,3 +430,14 @@ class ComponentQuota(models.Model):
 
     class Meta:
         unique_together = ('order_item', 'component')
+
+
+class ComponentUsage(TimeStampedModel):
+    order_item = models.ForeignKey(OrderItem, related_name='usages')
+    component = models.ForeignKey(PlanComponent,
+                                  limit_choices_to={'billing_type': PlanComponent.BillingTypes.USAGE})
+    usage = models.PositiveIntegerField(default=0)
+    date = models.DateField()
+
+    class Meta:
+        unique_together = ('order_item', 'component', 'date')
