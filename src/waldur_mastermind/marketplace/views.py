@@ -212,6 +212,21 @@ class CustomerOfferingViewSet(views.APIView):
         return Response(status=status.HTTP_200_OK)
 
 
+class OrderItemViewSet(BaseMarketplaceView):
+    queryset = models.OrderItem.objects.all()
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = serializers.OrderItemSerializer
+    filter_class = filters.OrderItemFilter
+
+    def check_permissions_for_order_items_change(request, view, order_item=None):
+        if not order_item:
+            return
+        if order_item.order.state != models.Order.States.REQUESTED_FOR_APPROVAL:
+            raise rf_exceptions.PermissionDenied()
+
+    destroy_permissions = [check_permissions_for_order_items_change]
+
+
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def get_action_class(self):
         return getattr(self, self.action + '_serializer_class', None)
