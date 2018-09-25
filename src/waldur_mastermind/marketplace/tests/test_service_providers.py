@@ -6,6 +6,7 @@ from waldur_core.structure.tests import fixtures, factories as structure_factori
 from waldur_mastermind.marketplace import models
 
 from . import factories
+from .. import base
 
 
 @ddt
@@ -37,14 +38,36 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff', 'owner')
-    def test_authorized_user_can_register_an_service_provider(self, user):
+    @data('staff')
+    def test_staff_can_register_a_service_provider(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_register_an_service_provider(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
+    @data('owner')
+    def test_owner_can_register_service_provider_with_settings_enabled(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('owner')
+    def test_owner_can_not_register_service_provider_with_settings_disabled(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_register_service_provider_with_settings_disabled(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
