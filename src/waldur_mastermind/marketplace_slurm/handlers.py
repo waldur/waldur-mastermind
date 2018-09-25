@@ -39,6 +39,8 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
         slurm_package = slurm_invoices_models.SlurmPackage.objects.create(
             service_settings=plan.offering.scope,
             name=plan.name,
+            product_code=plan.product_code,
+            article_code=plan.article_code,
             cpu_price=plan.components.get(type='cpu').price,
             gpu_price=plan.components.get(type='gpu').price,
             ram_price=plan.components.get(type='ram').price,

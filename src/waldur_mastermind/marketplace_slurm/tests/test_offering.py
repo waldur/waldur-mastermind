@@ -44,4 +44,9 @@ class SlurmPackageTest(test.APITransactionTestCase):
         }
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(slurm_invoices_models.SlurmPackage.objects.filter(service_settings=service_settings).exists())
+
+        package = slurm_invoices_models.SlurmPackage.objects.last()
+        self.assertEqual(package.service_settings, service_settings)
+        self.assertEqual(package.cpu_price, 10)
+        self.assertEqual(package.gpu_price, 100)
+        self.assertEqual(package.ram_price, 1000)
