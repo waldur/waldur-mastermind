@@ -12,6 +12,7 @@ class MarketplaceExtension(WaldurExtension):
             'MANAGER_CAN_APPROVE_ORDER': False,
             'ADMIN_CAN_APPROVE_ORDER': False,
             'NOTIFY_STAFF_ABOUT_APPROVALS': False,
+            'OWNER_CAN_REGISTER_SERVICE_PROVIDER': False,
         }
         ORDER_LINK_TEMPLATE = 'https://www.example.com/#/projects/{order.project.uuid}/marketplace-order-list/'
 
@@ -29,6 +30,7 @@ class MarketplaceExtension(WaldurExtension):
             'OWNER_CAN_APPROVE_ORDER',
             'MANAGER_CAN_APPROVE_ORDER',
             'ADMIN_CAN_APPROVE_ORDER',
+            'OWNER_CAN_REGISTER_SERVICE_PROVIDER',
         ]
 
     @staticmethod

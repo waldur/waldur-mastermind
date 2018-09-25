@@ -18,7 +18,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
 
-from . import models, attribute_types, plugins, utils
+from . import models, attribute_types, plugins, utils, permissions
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -40,7 +40,7 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
     def validate(self, attrs):
         if not self.instance:
-            structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
+            permissions.can_register_service_provider(self.context['request'], attrs['customer'])
         return attrs
 
 
