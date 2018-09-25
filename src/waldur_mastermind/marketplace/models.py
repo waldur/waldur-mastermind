@@ -396,9 +396,17 @@ class OrderItem(core_models.UuidMixin,
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
 
+    class Permissions(object):
+        customer_path = 'order__project__customer'
+        project_path = 'order__project'
+
     class Meta(object):
         verbose_name = _('Order item')
         ordering = ('created',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-order-item'
 
     @transition(field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING)
     def set_state_executing(self):

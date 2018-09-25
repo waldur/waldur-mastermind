@@ -157,14 +157,6 @@ class OrderFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class OrderItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
-        model = models.OrderItem
-
-    order = factory.SubFactory(OrderFactory)
-    offering = factory.SubFactory(OfferingFactory)
-
-
 class PlanFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Plan
@@ -196,3 +188,25 @@ class PlanComponentFactory(factory.DjangoModelFactory):
     price = Decimal(10)
     amount = 1
     type = 'cpu'
+
+
+class OrderItemFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OrderItem
+
+    order = factory.SubFactory(OrderFactory)
+    offering = factory.SubFactory(OfferingFactory)
+    plan = factory.SubFactory(PlanFactory)
+
+    @classmethod
+    def get_url(cls, order_item=None, action=None):
+        if order_item is None:
+            order_item = OrderItemFactory()
+        url = 'http://testserver' + reverse('marketplace-order-item-detail',
+                                            kwargs={'uuid': order_item.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-order-item-list')
+        return url if action is None else url + action + '/'

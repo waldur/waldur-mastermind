@@ -94,9 +94,11 @@ class OrderFilter(django_filters.FilterSet):
         fields = ['state']
 
 
-class ItemFilter(django_filters.FilterSet):
+class OrderItemFilter(django_filters.FilterSet):
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+    project_uuid = django_filters.UUIDFilter(name='order__project__uuid')
+    category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
 
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
     order_uuid = django_filters.UUIDFilter(name='order__uuid')

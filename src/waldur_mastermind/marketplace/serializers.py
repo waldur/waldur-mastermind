@@ -364,12 +364,14 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
 
 
 class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
-                          serializers.HyperlinkedModelSerializer):
+                          serializers.HyperlinkedModelSerializer,
+                          core_serializers.RestrictedSerializerMixin):
     class Meta(object):
         model = models.OrderItem
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail',
                   'provider_name', 'provider_uuid',
+                  'category_title', 'category_uuid',
                   'attributes', 'cost', 'plan', 'plan_unit',
                   'resource_uuid', 'resource_type', 'state',
                   'limits', 'quotas')
@@ -387,6 +389,8 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
 
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
+    category_title = serializers.ReadOnlyField(source='offering.category.title')
+    category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
     offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
     resource_uuid = serializers.SerializerMethodField()
     resource_type = serializers.SerializerMethodField()
