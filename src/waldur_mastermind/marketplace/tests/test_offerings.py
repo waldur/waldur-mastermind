@@ -513,11 +513,19 @@ class OfferingQuotaTest(PostgreSQLTest):
     def test_empty_category(self):
         self.assertEqual(0, self.get_usage(factories.CategoryFactory()))
 
-    def test_offering_count_quota_is_populated(self):
+    def test_active_offerings_are_counted(self):
         category = factories.CategoryFactory()
         provider = factories.ServiceProviderFactory()
-        factories.OfferingFactory.create_batch(3, category=category, customer=provider.customer)
+        factories.OfferingFactory.create_batch(
+            3, category=category, customer=provider.customer, state=models.Offering.States.ACTIVE)
         self.assertEqual(3, self.get_usage(category))
+
+    def test_draft_offerings_are_not_counted(self):
+        category = factories.CategoryFactory()
+        provider = factories.ServiceProviderFactory()
+        factories.OfferingFactory.create_batch(
+            2, category=category, customer=provider.customer, state=models.Offering.States.DRAFT)
+        self.assertEqual(0, self.get_usage(category))
 
 
 @ddt

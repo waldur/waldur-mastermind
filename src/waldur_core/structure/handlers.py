@@ -392,3 +392,9 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
         msg,
         event_type='user_profile_changed',
         event_context={'affected_user': user})
+
+
+def update_customer_users_count(sender, **kwargs):
+    for customer in Customer.objects.all():
+        usage = len(set(customer.get_users()))
+        customer.set_quota_usage(Customer.Quotas.nc_user_count, usage)
