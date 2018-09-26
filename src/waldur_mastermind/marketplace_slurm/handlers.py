@@ -1,9 +1,12 @@
 import logging
+import datetime
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
+from django.core import exceptions as django_exceptions
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace.plugins import manager
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_mastermind.slurm_invoices import models as slurm_invoices_models
 from waldur_slurm.apps import SlurmConfig
@@ -47,3 +50,72 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
         )
         plan.scope = slurm_package
         plan.save()
+
+
+def create_slurm_usage(sender, instance, created=False, **kwargs):
+    allocation_usage = instance
+    allocation = allocation_usage.allocation
+
+    try:
+        order_item = marketplace_models.OrderItem.objects.get(scope=allocation)
+    except django_exceptions.ObjectDoesNotExist:
+        return
+
+    date = datetime.date(year=allocation_usage.year, month=allocation_usage.month, day=1)
+
+    for component in manager.get_components(PLUGIN_NAME):
+        usage = getattr(allocation_usage, component.type + '_usage')
+
+        try:
+            plan_component = marketplace_models.PlanComponent.objects.get(plan=order_item.plan, type=component.type)
+            marketplace_models.ComponentUsage.objects.create(
+                order_item=order_item,
+                component=plan_component,
+                usage=usage,
+                date=date,
+            )
+        except django_exceptions.ObjectDoesNotExist:
+            logger.warning('Skipping AllocationUsage synchronization because this '
+                           'marketplace.PlanComponent does not exist.'
+                           'AllocationUsage ID: %s', allocation_usage.id)
+        except IntegrityError:
+            logger.warning('Skipping AllocationUsage synchronization because this marketplace.ComponentUsage exists.'
+                           'AllocationUsage ID: %s', allocation_usage.id)
+
+
+def update_component_quota(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    allocation = instance
+
+    try:
+        order_item = marketplace_models.OrderItem.objects.get(scope=allocation)
+    except django_exceptions.ObjectDoesNotExist:
+        return
+
+    for component in manager.get_components(PLUGIN_NAME):
+        usage = getattr(allocation, component.type + '_usage')
+        limit = getattr(allocation, component.type + '_limit')
+
+        try:
+            plan_component = marketplace_models.PlanComponent.objects.get(plan=order_item.plan, type=component.type)
+            component_quota = marketplace_models.ComponentQuota.objects.get(
+                order_item=order_item,
+                component=plan_component,
+            )
+            component_quota.limit = limit
+            component_quota.usage = usage
+            component_quota.save()
+
+        except marketplace_models.PlanComponent.DoesNotExist:
+            logger.warning('Skipping Allocation synchronization because this '
+                           'marketplace.PlanComponent does not exist.'
+                           'Allocation ID: %s', allocation.id)
+        except marketplace_models.ComponentQuota.DoesNotExist:
+            marketplace_models.ComponentQuota.objects.create(
+                order_item=order_item,
+                component=plan_component,
+                limit=limit,
+                usage=usage
+            )
