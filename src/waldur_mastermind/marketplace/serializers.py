@@ -263,6 +263,14 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     def _validate_attributes(self, offering_attributes, category):
         offering_attribute_keys = offering_attributes.keys()
+        required_category_attributes = list(models.Attribute.objects.filter(section__category=category,
+                                                                            required=True))
+        unfilled_attributes = {attr.key for attr in required_category_attributes} - set(offering_attribute_keys)
+
+        if unfilled_attributes:
+            raise rf_exceptions.ValidationError(
+                {'attributes': _('Required fields %s are not filled' % list(unfilled_attributes))})
+
         category_attributes = list(models.Attribute.objects.filter(section__category=category,
                                                                    key__in=offering_attribute_keys))
         for key, value in offering_attributes.items():

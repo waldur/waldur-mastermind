@@ -317,6 +317,26 @@ class OfferingCreateTest(PostgreSQLTest):
         response = self.create_offering('staff', attributes=True, add_payload=scope_request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_validate_required_attribute(self):
+        user = getattr(self.fixture, 'staff')
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_list_url()
+        factories.ServiceProviderFactory(customer=self.customer)
+        category = factories.CategoryFactory()
+        section = factories.SectionFactory(category=category)
+        factories.AttributeFactory(section=section, key='required_attribute', required=True)
+        payload = {
+            'name': 'offering',
+            'category': factories.CategoryFactory.get_url(category),
+            'customer': structure_factories.CustomerFactory.get_url(self.customer),
+            'type': 'Support.OfferingTemplate',
+            'attributes': {'vendorType': 'reseller'},
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('required_attribute' in response.content)
+
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
