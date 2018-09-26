@@ -15,6 +15,7 @@ class StructureConfig(AppConfig):
         from waldur_core.structure.models import ResourceMixin, Service, TagMixin, VirtualMachine
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
+        from waldur_core.quotas import signals as quota_signals
 
         from django.core import checks
         checks.register(check_cleanup_executors)
@@ -206,4 +207,9 @@ class StructureConfig(AppConfig):
             handlers.notify_about_user_profile_changes,
             sender=User,
             dispatch_uid='waldur_core.structure.handlers.notify_about_user_profile_changes',
+        )
+
+        quota_signals.recalculate_quotas.connect(
+            handlers.update_customer_users_count,
+            dispatch_uid='waldur_core.structure.handlers.update_customer_users_count',
         )

@@ -64,10 +64,7 @@ class Category(core_models.UuidMixin,
     description = models.TextField(blank=True)
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
-        offering_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: [Offering],
-            path_to_scope='category',
-        )
+        offering_count = quotas_fields.QuotaField(is_backend=True)
 
     class Meta(object):
         verbose_name = _('Category')
