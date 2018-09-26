@@ -110,7 +110,9 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         A new customer can only be created:
 
          - by users with staff privilege (is_staff=True);
-         - by organization owners if OWNER_CAN_MANAGE_CUSTOMER is set to True;
+         - by any user if OWNER_CAN_MANAGE_CUSTOMER is set to True;
+
+        If user who has created new organization is not staff, he is granted owner permission.
 
         Example of a valid request:
 
