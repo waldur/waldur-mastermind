@@ -378,15 +378,18 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.OrderItem
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail',
+                  'customer_name', 'customer_uuid',
+                  'project_name', 'project_uuid',
                   'provider_name', 'provider_uuid',
                   'category_title', 'category_uuid',
-                  'attributes', 'cost', 'plan', 'plan_unit',
+                  'attributes', 'cost',
+                  'plan', 'plan_unit', 'plan_name', 'plan_uuid',
                   'resource_uuid', 'resource_type', 'state',
-                  'limits', 'quotas')
+                  'limits', 'quotas', 'uuid', 'created')
 
         related_paths = {
             'offering': ('name', 'uuid', 'description'),
-            'plan': ('unit',)
+            'plan': ('unit', 'uuid', 'name',)
         }
         read_only_fields = ('cost', 'state', 'quotas')
         protected_fields = ('offering', 'plan')
@@ -395,6 +398,10 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
             'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
         }
 
+    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
+    project_name = serializers.ReadOnlyField(source='order.project.name')
+    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
     category_title = serializers.ReadOnlyField(source='offering.category.title')
