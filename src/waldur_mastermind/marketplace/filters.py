@@ -86,12 +86,15 @@ class ScreenshotFilter(django_filters.FilterSet):
 class OrderFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
-
+    state = core_filters.MappedMultipleChoiceFilter(
+        choices=[(representation, representation) for db_value, representation in models.Order.States.CHOICES],
+        choice_mappings={representation: db_value for db_value, representation in models.Order.States.CHOICES},
+    )
     o = django_filters.OrderingFilter(fields=('created', 'approved_at', 'total_cost', 'state'))
 
     class Meta(object):
         model = models.Order
-        fields = ['state']
+        fields = []
 
 
 class OrderItemFilter(django_filters.FilterSet):
@@ -100,6 +103,11 @@ class OrderItemFilter(django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(name='order__project__uuid')
     category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(name='offering__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='order__project__customer__uuid')
+    state = core_filters.MappedMultipleChoiceFilter(
+        choices=[(representation, representation) for db_value, representation in models.OrderItem.States.CHOICES],
+        choice_mappings={representation: db_value for db_value, representation in models.OrderItem.States.CHOICES},
+    )
 
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
     order_uuid = django_filters.UUIDFilter(name='order__uuid')
