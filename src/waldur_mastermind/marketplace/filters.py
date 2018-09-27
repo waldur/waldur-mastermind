@@ -99,6 +99,7 @@ class OrderItemFilter(django_filters.FilterSet):
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
     project_uuid = django_filters.UUIDFilter(name='order__project__uuid')
     category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
+    provider_uuid = django_filters.UUIDFilter(name='offering__customer__uuid')
 
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
     order_uuid = django_filters.UUIDFilter(name='order__uuid')
