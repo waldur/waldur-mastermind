@@ -110,7 +110,9 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         A new customer can only be created:
 
          - by users with staff privilege (is_staff=True);
-         - by organization owners if OWNER_CAN_MANAGE_CUSTOMER is set to True;
+         - by any user if OWNER_CAN_MANAGE_CUSTOMER is set to True;
+
+        If user who has created new organization is not staff, he is granted owner permission.
 
         Example of a valid request:
 
@@ -1832,6 +1834,11 @@ class ImportableResourceViewSet(BaseResourceViewSet):
             resource = serializer.save()
         except IntegrityError:
             raise rf_serializers.ValidationError(_('Resource is already registered.'))
+        else:
+            resource_imported.send(
+                sender=resource.__class__,
+                instance=resource,
+            )
         if self.import_resource_executor:
             self.import_resource_executor.execute(resource)
 

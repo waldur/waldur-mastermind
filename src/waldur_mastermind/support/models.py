@@ -5,6 +5,7 @@ import re
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -193,7 +194,7 @@ class Offering(core_models.UuidMixin,
 
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
-    type = models.CharField(max_length=255)
+    template = models.ForeignKey('OfferingTemplate', on_delete=models.PROTECT)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.PROTECT)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)
@@ -209,10 +210,12 @@ class Offering(core_models.UuidMixin,
         return super(Offering, self).get_log_fields() + ('state', )
 
     @property
+    def type(self):
+        return self.template.name
+
+    @property
     def type_label(self):
-        offerings = settings.WALDUR_SUPPORT.get('OFFERINGS', {})
-        type_settings = offerings.get(self.type, {})
-        return type_settings.get('label', None)
+        return self.template.config.get('label', None)
 
     @classmethod
     def get_url_name(cls):
@@ -230,6 +233,32 @@ class Offering(core_models.UuidMixin,
         context['resource_type'] = self.get_scope_type()
         context['resource_uuid'] = self.uuid.hex
         return context
+
+    @property
+    def config(self):
+        return self.template.config if self.template else {}
+
+
+@python_2_unicode_compatible
+class OfferingTemplate(core_models.UuidMixin,
+                       TimeStampedModel):
+    name = models.CharField(_('name'), max_length=150)
+    config = BetterJSONField()
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-offering-template'
+
+    def __str__(self):
+        return self.name
+
+
+class OfferingPlan(core_models.UuidMixin,
+                   core_models.NameMixin,
+                   core_models.DescribableMixin,
+                   common_mixins.ProductCodeMixin,
+                   common_mixins.UnitPriceMixin):
+    template = models.ForeignKey(OfferingTemplate, related_name='plans')
 
 
 @python_2_unicode_compatible

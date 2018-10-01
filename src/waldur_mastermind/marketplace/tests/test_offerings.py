@@ -7,10 +7,12 @@ from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
-from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models
+from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
+from waldur_openstack.openstack.tests import factories as openstack_factories
 
 from . import factories
 from .. import serializers
@@ -21,7 +23,7 @@ class OfferingGetTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory()
+        self.offering = factories.OfferingFactory(shared=True)
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_offerings_should_be_visible_to_all_authenticated_users(self, user):
@@ -38,6 +40,103 @@ class OfferingGetTest(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class OfferingFilterTest(PostgreSQLTest):
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        attributes = {
+            'cloudDeploymentModel': 'private_cloud',
+            'userSupportOption': ['phone'],
+        }
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer,
+                                                  attributes=attributes)
+        self.url = factories.OfferingFactory.get_list_url()
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_filter_choice_positive(self):
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'cloudDeploymentModel': 'private_cloud',
+        })})
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_choice_negative(self):
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'cloudDeploymentModel': 'public_cloud',
+        })})
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_list_positive(self):
+        """
+        If an attribute is a list, we use multiple choices.
+        """
+        factories.OfferingFactory(attributes={
+            'userSupportOption': ['phone', 'email', 'fax'],
+        })
+        factories.OfferingFactory(attributes={
+            'userSupportOption': ['email'],
+        })
+        response = self.client.get(self.url, {'attributes': json.dumps({
+            'userSupportOption': ['fax', 'email'],
+        })})
+        self.assertEqual(len(response.data), 2)
+
+    def test_shared_offerings_are_available_for_all_users(self):
+        # Arrange
+        factories.OfferingFactory(customer=self.fixture.customer, shared=False)
+        self.offering.shared = True
+        self.offering.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_available_for_users_in_allowed_customers(self):
+        fixture = fixtures.CustomerFixture()
+        self.offering.allowed_customers.add(fixture.customer)
+
+        self.client.force_authenticate(fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_not_available_for_users_in_other_customers(self):
+        fixture = fixtures.CustomerFixture()
+        self.client.force_authenticate(fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
+
+    def test_private_offerings_are_available_for_users_in_allowed_projects(self):
+        fixture = fixtures.ProjectFixture()
+        self.offering.allowed_customers.add(fixture.customer)
+
+        self.client.force_authenticate(fixture.manager)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_not_available_for_users_in_other_projects(self):
+        fixture = fixtures.ProjectFixture()
+        self.client.force_authenticate(fixture.manager)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 0)
+
+    def test_private_offerings_are_available_for_users_in_original_customer(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_available_for_staff(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+    def test_private_offerings_are_available_for_support(self):
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+
+
 @ddt
 class OfferingCreateTest(PostgreSQLTest):
 
@@ -50,6 +149,16 @@ class OfferingCreateTest(PostgreSQLTest):
         response = self.create_offering(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+
+    def test_validate_correct_geolocations(self):
+        response = self.create_offering('staff', add_payload={'geolocations': [{'latitude': 123, 'longitude': 345}]})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+
+    def test_validate_uncorrect_geolocations(self):
+        response = self.create_offering('staff', add_payload={'geolocations': [{'longitude': 345}]})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('geolocations' in response.data.keys())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_create_offering(self, user):
@@ -114,15 +223,149 @@ class OfferingCreateTest(PostgreSQLTest):
     def test_create_offering_with_plans(self):
         plans_request = {
             'plans': [
-                {'name': 'small',
-                 'description': 'CPU 1',
-                 'unit': UnitPriceMixin.Units.QUANTITY,
-                 'unit_price': 100}
+                {
+                    'name': 'small',
+                    'description': 'CPU 1'
+                }
             ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['plans']), 1)
+
+    def test_create_offering_with_custom_components(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'small',
+                    'description': 'CPU 1',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'custom_components': [
+                        {
+                            'type': 'cores',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
+                            'billing_type': 'fixed',
+                        }
+                    ],
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 10},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering = models.Offering.objects.get(uuid=response.data['uuid'])
+        plan = offering.plans.first()
+        component = plan.components.get(type='cores')
+
+        self.assertEqual(plan.unit_price, 100)
+        self.assertEqual(component.amount, 10)
+
+    def test_usage_based_components_are_ignored_for_unit_price_computing(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'small',
+                    'description': 'CPU 1',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'custom_components': [
+                        {
+                            'type': 'cores',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
+                            'billing_type': 'usage',
+                        }
+                    ],
+                    'prices': {'cores': 10},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering = models.Offering.objects.get(uuid=response.data['uuid'])
+        plan = offering.plans.first()
+        self.assertEqual(plan.unit_price, 0)
+
+    def test_quotas_are_not_allowed_for_usage_based_components(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'small',
+                    'description': 'CPU 1',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'custom_components': [
+                        {
+                            'billing_type': 'usage',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
+                            'type': 'cores',
+                        }
+                    ],
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 10},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_offering_with_options(self):
+        response = self.create_offering('staff', attributes=True, add_payload={'options': OFFERING_OPTIONS})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+        offering = models.Offering.objects.get(customer=self.customer)
+        self.assertEqual(offering.options, OFFERING_OPTIONS)
+
+    def test_create_offering_with_invalid_options(self):
+        options = {
+            'foo': 'bar'
+        }
+        response = self.create_offering('staff', attributes=True, add_payload={'options': options})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+
+    def test_create_offering_with_invalid_type(self):
+        response = self.create_offering('staff', attributes=True, add_payload={'type': 'invalid'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('type' in response.data)
+
+    def test_create_offering_with_scope(self):
+        scope_request = {
+            'scope': structure_factories.ServiceSettingsFactory.get_url(),
+            'type': 'Packages.Template',
+        }
+        response = self.create_offering('staff', attributes=True, add_payload=scope_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_not_create_offering_if_scope_model_is_invalid(self):
+        scope_request = {
+            'scope': openstack_factories.FlavorFactory.get_url(),
+            'type': 'Packages.Template',
+        }
+        response = self.create_offering('staff', attributes=True, add_payload=scope_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validate_required_attribute(self):
+        user = getattr(self.fixture, 'staff')
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_list_url()
+        factories.ServiceProviderFactory(customer=self.customer)
+        category = factories.CategoryFactory()
+        section = factories.SectionFactory(category=category)
+        factories.AttributeFactory(section=section, key='required_attribute', required=True)
+        payload = {
+            'name': 'offering',
+            'category': factories.CategoryFactory.get_url(category),
+            'customer': structure_factories.CustomerFactory.get_url(self.customer),
+            'type': 'Support.OfferingTemplate',
+            'attributes': {'vendorType': 'reseller'},
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('required_attribute' in response.content)
 
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)
@@ -134,6 +377,7 @@ class OfferingCreateTest(PostgreSQLTest):
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
+            'type': 'Support.OfferingTemplate',  # This is used only for testing
         }
 
         if attributes:
@@ -174,7 +418,7 @@ class OfferingUpdateTest(PostgreSQLTest):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(customer=self.customer)
+        offering = factories.OfferingFactory(customer=self.customer, shared=True)
         url = factories.OfferingFactory.get_url(offering)
 
         response = self.client.patch(url, {
@@ -192,7 +436,7 @@ class OfferingDeleteTest(PostgreSQLTest):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
-        self.offering = factories.OfferingFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_offering(self, user):
@@ -299,32 +543,86 @@ class OfferingQuotaTest(PostgreSQLTest):
     def test_empty_category(self):
         self.assertEqual(0, self.get_usage(factories.CategoryFactory()))
 
-    def test_offering_count_quota_is_populated(self):
+    def test_active_offerings_are_counted(self):
         category = factories.CategoryFactory()
         provider = factories.ServiceProviderFactory()
-        factories.OfferingFactory.create_batch(3, category=category, customer=provider.customer)
+        factories.OfferingFactory.create_batch(
+            3, category=category, customer=provider.customer, state=models.Offering.States.ACTIVE)
         self.assertEqual(3, self.get_usage(category))
 
+    def test_draft_offerings_are_not_counted(self):
+        category = factories.CategoryFactory()
+        provider = factories.ServiceProviderFactory()
+        factories.OfferingFactory.create_batch(
+            2, category=category, customer=provider.customer, state=models.Offering.States.DRAFT)
+        self.assertEqual(0, self.get_usage(category))
 
-class OfferingFilterTest(PostgreSQLTest):
+
+@ddt
+class OfferingStateTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.offering = factories.OfferingFactory(attributes={
-            'cloudDeploymentModel': 'private_cloud',
-            'userSupportOption': ['phone'],
+        self.customer = self.fixture.customer
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_update_state(self, user):
+        response, offering = self.update_offering_state(user, 'activate')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, offering.States.ACTIVE)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_update_state(self, user):
+        response, offering = self.update_offering_state(user, 'activate')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(offering.state, offering.States.DRAFT)
+
+    def test_invalid_state(self):
+        response, offering = self.update_offering_state('staff', 'pause')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        self.assertEqual(offering.state, offering.States.DRAFT)
+
+    def update_offering_state(self, user, state):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        factories.ServiceProviderFactory(customer=self.customer)
+        offering = factories.OfferingFactory(customer=self.customer, shared=True)
+        url = factories.OfferingFactory.get_url(offering, state)
+        response = self.client.post(url)
+        offering.refresh_from_db()
+
+        return response, offering
+
+
+class AllowedCustomersTest(PostgreSQLTest):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+
+    def test_staff_can_update_allowed_customers(self):
+        url = structure_factories.CustomerFactory.get_url(self.customer, 'offerings')
+        user = getattr(self.fixture, 'staff')
+        self.client.force_authenticate(user)
+        response = self.client.post(url, {
+            "offering_set": [
+                factories.OfferingFactory.get_url(),
+                factories.OfferingFactory.get_url(),
+            ]
         })
-        self.url = factories.OfferingFactory.get_list_url()
-        self.client.force_authenticate(self.fixture.staff)
+        self.customer.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(self.customer.offering_set.all()), 2)
 
-    def test_filter_positive(self):
-        response = self.client.get(self.url, {'attributes': json.dumps({
-            'cloudDeploymentModel': 'private_cloud',
-        })})
-        self.assertEqual(len(response.data), 1)
-
-    def test_filter_negative(self):
-        response = self.client.get(self.url, {'attributes': json.dumps({
-            'cloudDeploymentModel': 'private_cloud_1',
-        })})
-        self.assertEqual(len(response.data), 0)
+    def test_other_users_not_can_update_allowed_customers(self):
+        url = structure_factories.CustomerFactory.get_url(self.customer, 'offerings')
+        user = getattr(self.fixture, 'owner')
+        self.client.force_authenticate(user)
+        response = self.client.post(url, {
+            "offering_set": [
+                factories.OfferingFactory.get_url(),
+                factories.OfferingFactory.get_url(),
+            ]
+        })
+        self.customer.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
+        self.assertEqual(len(self.customer.offering_set.all()), 0)

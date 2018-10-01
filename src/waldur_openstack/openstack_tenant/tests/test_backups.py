@@ -133,6 +133,12 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.valid_flavor = factories.FlavorFactory(disk=self.disk_size + 10, settings=self.service_settings)
         self.subnet = factories.SubNetFactory(settings=self.service_settings)
 
+    def test_instance_should_have_bootable_volume(self):
+        self.backup.instance.volumes.filter(bootable=True).delete()
+        response = self.client.post(self.url, self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_flavor_disk_size_should_match_system_volume_size(self):
         response = self.client.post(self.url, self._get_valid_payload())
 

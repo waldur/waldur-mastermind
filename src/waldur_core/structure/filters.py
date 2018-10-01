@@ -31,7 +31,7 @@ User = auth.get_user_model()
 
 class NameFilterSet(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
-    name_exact = django_filters.CharFilter(lookup_expr='exact')
+    name_exact = django_filters.CharFilter(name='name', lookup_expr='exact')
 
 
 class ScopeTypeFilterBackend(DjangoFilterBackend):

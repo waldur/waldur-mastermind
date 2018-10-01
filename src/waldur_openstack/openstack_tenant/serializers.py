@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 import collections
 import logging
+
+from django.core.exceptions import ObjectDoesNotExist
 import pytz
 import re
 
@@ -418,6 +420,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceSerializer):
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'size', 'source_volume', 'metadata', 'runtime_state', 'action', 'snapshot_schedule',
+            'service_settings', 'project',
         )
         extra_kwargs = dict(
             source_volume={'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-detail'},
@@ -563,7 +566,7 @@ class NestedInternalIPSerializer(core_serializers.AugmentedSerializerMixin, seri
 
     def to_internal_value(self, data):
         internal_value = super(NestedInternalIPSerializer, self).to_internal_value(data)
-        return models.InternalIP(subnet=internal_value['subnet'])
+        return models.InternalIP(subnet=internal_value['subnet'], settings=internal_value['subnet'].settings)
 
 
 class NestedFloatingIPSerializer(core_serializers.AugmentedSerializerMixin,
@@ -991,7 +994,9 @@ class InstanceInternalIPsSetUpdateSerializer(serializers.Serializer):
         for internal_ip in internal_ips_set:
             match = models.InternalIP.objects.filter(instance=instance, subnet=internal_ip.subnet).first()
             if not match:
-                models.InternalIP.objects.create(instance=instance, subnet=internal_ip.subnet)
+                models.InternalIP.objects.create(instance=instance,
+                                                 subnet=internal_ip.subnet,
+                                                 settings=internal_ip.subnet.settings)
 
         return instance
 
@@ -1073,11 +1078,15 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             fields['flavor'].display_name_field = 'name'
             fields['flavor'].view_name = 'openstacktenant-flavor-detail'
             # It is assumed that valid OpenStack Instance has exactly one bootable volume
-            system_volume = backup.instance.volumes.get(bootable=True)
-            fields['flavor'].query_params = {
-                'settings_uuid': backup.service_project_link.service.settings.uuid,
-                'disk__gte': system_volume.size,
-            }
+            try:
+                system_volume = backup.instance.volumes.get(bootable=True)
+                fields['flavor'].query_params = {
+                    'settings_uuid': backup.service_project_link.service.settings.uuid,
+                    'disk__gte': system_volume.size,
+                }
+            except ObjectDoesNotExist:
+                # Validation exception is raised in validate method below
+                pass
 
             floating_ip_field = fields.get('floating_ips')
             if floating_ip_field:
@@ -1110,7 +1119,11 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
     def validate(self, attrs):
         flavor = attrs['flavor']
         backup = self.context['view'].get_object()
-        system_volume = backup.instance.volumes.get(bootable=True)
+        try:
+            system_volume = backup.instance.volumes.get(bootable=True)
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError(_('OpenStack instance should have bootable volume.'))
+
         settings = backup.instance.service_project_link.service.settings
 
         if flavor.settings != settings:
@@ -1208,7 +1221,7 @@ class BackupSerializer(structure_serializers.BaseResourceSerializer):
             'backup_schedule', 'backup_schedule_uuid',
             'instance_security_groups', 'instance_internal_ips_set', 'instance_floating_ips')
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'instance', 'service_project_link', 'backup_schedule')
+            'instance', 'service_project_link', 'backup_schedule', 'service_settings', 'project')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'instance': {'lookup_field': 'uuid', 'view_name': 'openstacktenant-instance-detail'},
@@ -1280,7 +1293,7 @@ class BaseScheduleSerializer(structure_serializers.BaseResourceSerializer):
             'retention_time', 'timezone', 'maximal_number_of_resources', 'schedule',
             'is_active', 'next_trigger_at')
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'is_active', 'next_trigger_at', 'service_project_link')
+            'is_active', 'next_trigger_at', 'service_project_link', 'service_settings', 'project')
 
 
 class BackupScheduleSerializer(BaseScheduleSerializer):
@@ -1305,6 +1318,8 @@ class BackupScheduleSerializer(BaseScheduleSerializer):
             return attrs
 
         instance = self.context['view'].get_object()
+        if not instance.volumes.filter(bootable=True).exists():
+            raise serializers.ValidationError(_('OpenStack instance should have bootable volume.'))
         attrs['instance'] = instance
         attrs['service_project_link'] = instance.service_project_link
         attrs['state'] = instance.States.OK

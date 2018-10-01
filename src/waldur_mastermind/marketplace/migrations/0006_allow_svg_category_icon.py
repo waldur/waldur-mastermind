@@ -16,6 +16,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='category',
             name='icon',
-            field=models.FileField(blank=True, null=True, upload_to='marketplace_category_icons', validators=[waldur_core.core.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg+xml'])]),
+            field=models.FileField(blank=True, null=True, upload_to='marketplace_category_icons', validators=[waldur_core.core.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg', 'image/svg+xml'])]),
         ),
     ]

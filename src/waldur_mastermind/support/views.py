@@ -1,15 +1,14 @@
 from __future__ import unicode_literals
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
-from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
 
-from waldur_core.core import views as core_views
 from waldur_core.core import validators as core_validators
+from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import metadata as structure_metadata
 from waldur_core.structure import models as structure_models
@@ -19,18 +18,8 @@ from waldur_core.structure import views as structure_views
 from . import filters, models, serializers, backend
 
 
-class ExtensionDisabled(exceptions.APIException):
-    status_code = status.HTTP_424_FAILED_DEPENDENCY
-    default_detail = _('Support extension is disabled.')
-
-
-class CheckExtensionMixin(object):
-    """ Raise exception if support extension is disabled """
-
-    def initial(self, request, *args, **kwargs):
-        if not settings.WALDUR_SUPPORT['ENABLED']:
-            raise ExtensionDisabled()
-        return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
+class CheckExtensionMixin(core_views.CheckExtensionMixin):
+    extension_name = 'WALDUR_SUPPORT'
 
 
 class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -174,7 +163,10 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @decorators.list_route()
     def configured(self, request):
-        return response.Response(settings.WALDUR_SUPPORT['OFFERINGS'], status=status.HTTP_200_OK)
+        summary_config = {}
+        for template in models.OfferingTemplate.objects.all():
+            summary_config[template.name] = template.config
+        return response.Response(summary_config, status=status.HTTP_200_OK)
 
     @transaction.atomic()
     def create(self, request, *args, **kwargs):
@@ -258,6 +250,20 @@ class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.Template.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.TemplateSerializer
+
+
+class OfferingTemplateViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = models.OfferingTemplate.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.OfferingTemplateSerializer
+
+
+class OfferingPlanViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = (permissions.IsAuthenticated,)
+    queryset = models.OfferingPlan.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.OfferingPlanSerializer
 
 
 def get_offerings_count(scope):

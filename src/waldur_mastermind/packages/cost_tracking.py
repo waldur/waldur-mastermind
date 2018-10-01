@@ -24,7 +24,7 @@ class TenantStrategy(CostTrackingStrategy):
         configuration = {}
         if tenant.state != tenant.States.ERRED:
             if 'package_name' not in tenant.extra_configuration:
-                logger.warning(
+                logger.debug(
                     'Package name is not defined in configuration of tenant %s, (PK: %s)', tenant.name, tenant.pk)
             else:
                 package_name = tenant.extra_configuration['package_name']

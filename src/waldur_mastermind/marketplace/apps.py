@@ -9,10 +9,41 @@ class MarketplaceConfig(AppConfig):
     verbose_name = 'Marketplace'
 
     def ready(self):
+        from waldur_core.quotas import signals as quota_signals
+
         from . import handlers, models
 
         signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
-            sender=models.Screenshots,
+            sender=models.Screenshot,
             dispatch_uid='waldur_mastermind.marketplace.create_screenshot_thumbnail',
+        )
+
+        signals.post_save.connect(
+            handlers.notifications_order_approval,
+            sender=models.Order,
+            dispatch_uid='waldur_mastermind.marketplace.notifications_order_approval',
+        )
+
+        signals.post_save.connect(
+            handlers.order_set_state_done,
+            sender=models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketplace.order_set_state_done',
+        )
+
+        signals.post_save.connect(
+            handlers.update_category_quota_when_offering_is_created,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.update_category_quota_when_offering_is_created',
+        )
+
+        signals.post_delete.connect(
+            handlers.update_category_quota_when_offering_is_deleted,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.marketplace.update_category_quota_when_offering_is_deleted',
+        )
+
+        quota_signals.recalculate_quotas.connect(
+            handlers.update_category_offerings_count,
+            dispatch_uid='waldur_mastermind.marketplace.update_category_offerings_count',
         )

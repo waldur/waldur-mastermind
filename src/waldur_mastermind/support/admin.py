@@ -39,10 +39,21 @@ class OfferingAdminForm(forms.ModelForm):
 
 
 class OfferingAdmin(admin.ModelAdmin):
-    list_display = ('type', 'name', 'unit_price', 'unit', 'state')
-    fields = ('name', 'unit_price', 'unit', 'type', 'issue',
+    list_display = ('template', 'name', 'unit_price', 'unit', 'state')
+    fields = ('name', 'unit_price', 'unit', 'template', 'issue',
               'project', 'state', 'product_code', 'article_code', 'report')
     form = OfferingAdminForm
+
+
+class OfferingTemplateAdminForm(forms.ModelForm):
+    class Meta:
+        widgets = {
+            'config': JSONEditor(),
+        }
+
+
+class OfferingTemplateAdmin(admin.ModelAdmin):
+    form = OfferingTemplateAdminForm
 
 
 class IssueAdmin(structure_admin.BackendModelAdmin):
@@ -77,3 +88,4 @@ admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
 admin.site.register(models.Attachment)
 admin.site.register(models.SupportUser, SupportUserAdmin)
 admin.site.register(models.Template, TemplateAdmin)
+admin.site.register(models.OfferingTemplate, OfferingTemplateAdmin)

@@ -1,15 +1,14 @@
-import sys
-import logging
-import pyzabbix
-import requests
-import warnings
-
 from datetime import date, timedelta
 from decimal import Decimal
+import logging
+import sys
+import warnings
 
 from django.conf import settings as django_settings
 from django.db import connections, DatabaseError
 from django.utils import six, timezone
+import pyzabbix
+import requests
 from requests.exceptions import RequestException
 from requests.packages.urllib3 import exceptions
 
@@ -38,6 +37,13 @@ pyzabbix.logger.addFilter(ZabbixLogsFilter())
 
 class ZabbixBackendError(ServiceBackendError):
     pass
+
+
+def reraise(exc):
+    """
+    Reraise ZabbixBackendError while maintaining traceback.
+    """
+    six.reraise(ZabbixBackendError, exc, sys.exc_info()[2])
 
 
 class QuietSession(requests.Session):
@@ -114,7 +120,7 @@ class ZabbixBackend(ServiceBackend):
             self.api.api_version()
         except Exception as e:
             if raise_exception:
-                six.reraise(ZabbixBackendError, e)
+                reraise(e)
             return False
         else:
             return True
@@ -168,14 +174,14 @@ class ZabbixBackend(ServiceBackend):
                 'status': host.status,
             })
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     @log_backend_action()
     def delete_host(self, host):
         try:
             self.api.host.delete(host.backend_id)
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     @log_backend_action()
     def create_itservice(self, itservice):
@@ -196,7 +202,7 @@ class ZabbixBackend(ServiceBackend):
             data = self.api.service.create(creation_kwargs)
             service_id = data['serviceids'][0]
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
         except (IndexError, KeyError) as e:
             raise ZabbixBackendError('ITService create request returned unexpected response: %s', data)
         else:
@@ -212,7 +218,7 @@ class ZabbixBackend(ServiceBackend):
         try:
             self.api.service.delete(itservice.backend_id)
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     def pull_templates(self):
         """ Update existing Waldur templates and their items """
@@ -408,7 +414,7 @@ class ZabbixBackend(ServiceBackend):
                 passwd=user.password,
                 usrgrps=[{'usrgrpid': group.backend_id for group in user.groups.all()}])
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
         user.backend_id = zabbix_user['userids'][0]
         user.save(update_fields=['backend_id'])
 
@@ -424,14 +430,14 @@ class ZabbixBackend(ServiceBackend):
                 passwd=user.password,
                 usrgrps=[{'usrgrpid': group.backend_id for group in user.groups.all()}])
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     @log_backend_action()
     def delete_user(self, user):
         try:
             self.api.user.delete(user.backend_id)
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     # XXX: This method is hotfix for user group permissions management. We
     #      should create models for permissions. NC-1564.
@@ -444,7 +450,7 @@ class ZabbixBackend(ServiceBackend):
                 rights=[{'id': host_group_id, 'permission': permission_id}]
             )
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     def _get_triggers_map(self, zabbix_services):
         """
@@ -457,7 +463,7 @@ class ZabbixBackend(ServiceBackend):
             zabbix_triggers = self.api.trigger.get(triggerids=trigger_ids, output=['triggerid', 'templateid'])
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
             logger.exception('Unable to fetch Zabbix triggers')
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
         template_ids = self._map_keys(zabbix_triggers, 'templateid')
         nc_triggers = models.Trigger.objects.filter(
@@ -502,7 +508,7 @@ class ZabbixBackend(ServiceBackend):
                 return host[0]['hostid']
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
             logger.error('Cannot get host id by name: %s. Exception: %s', host_name, six.text_type(e))
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     def _create_host(self, host_name, visible_name, group_id, templates_ids, interface_parameters, status):
         host_parameters = {
@@ -520,7 +526,7 @@ class ZabbixBackend(ServiceBackend):
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
             logger.error('Cannot create host with parameters: %s. Exception: %s',
                          host_parameters, six.text_type(e))
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     def _get_showsla(self, algorithm):
         if algorithm == models.ITService.Algorithm.ANY:
@@ -545,7 +551,7 @@ class ZabbixBackend(ServiceBackend):
             return data[0]['triggerid']
         except (pyzabbix.ZabbixAPIException, RequestException, IndexError, KeyError) as e:
             logger.exception('No trigger for host %s and description %s', host_id, description)
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     def get_sla(self, service_id, start_time, end_time):
         try:
@@ -786,7 +792,7 @@ class ZabbixBackend(ServiceBackend):
             return cursor
         except DatabaseError as e:
             logger.exception('Can not execute query the Zabbix DB.')
-            six.reraise(ZabbixBackendError, e, sys.exc_info()[2])
+            reraise(e)
 
     def import_host(self, host_backend_id, service_project_link=None, save=True):
         if save and not service_project_link:
@@ -798,7 +804,7 @@ class ZabbixBackend(ServiceBackend):
         except IndexError:
             raise ZabbixBackendError('Host with id %s does not exist at backend' % host_backend_id)
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
         host = models.Host()
         host.name = backend_host['host']
@@ -825,7 +831,7 @@ class ZabbixBackend(ServiceBackend):
         try:
             backend_templates = self.api.template.get(hostids=[host.backend_id], output=['templateid'])
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
         return models.Template.objects.filter(
             backend_id__in=[t['templateid'] for t in backend_templates],
             settings=host.service_project_link.service.settings)
@@ -920,7 +926,7 @@ class ZabbixBackend(ServiceBackend):
             return triggers
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
             logger.exception('Unable to fetch Zabbix triggers')
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)
 
     def _parse_trigger(self, backend_trigger, backend_events=None, trigger_hosts=None):
         trigger = {}
@@ -958,4 +964,4 @@ class ZabbixBackend(ServiceBackend):
             return int(self.api.trigger.get(countOutput=True, **request))
         except (pyzabbix.ZabbixAPIException, RequestException) as e:
             logger.exception('Unable to fetch Zabbix triggers')
-            six.reraise(ZabbixBackendError, e)
+            reraise(e)

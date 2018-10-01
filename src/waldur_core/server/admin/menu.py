@@ -48,6 +48,7 @@ class CustomMenu(Menu):
         'waldur_digitalocean.*',
         'waldur_slurm.*',
         'waldur_mastermind.slurm_invoices.*',
+        'waldur_rijkscloud.*',
     )
 
     USERS = (
@@ -58,6 +59,7 @@ class CustomMenu(Menu):
     ACCOUNTING = (
         'waldur_mastermind.invoices.*',
         'waldur_core.cost_tracking.*',
+        'waldur_paypal.*',
     )
 
     APPLICATION_PROVIDERS = (
@@ -68,6 +70,12 @@ class CustomMenu(Menu):
 
     SUPPORT_MODULES = (
         'waldur_mastermind.support.*',
+    )
+
+    MARKETPLACE = (
+        'waldur_mastermind.marketplace.*',
+        'waldur_mastermind.marketplace_packages.*',
+        'waldur_mastermind.marketplace_support.*',
     )
 
     EXTRA_MODELS = (
@@ -96,7 +104,10 @@ class CustomMenu(Menu):
                 _('Accounting'),
                 models=self.ACCOUNTING,
             ),
-
+            CustomAppList(
+                _('Marketplace'),
+                models=self.MARKETPLACE,
+            ),
             CustomAppList(
                 _('Providers'),
                 models=self.IAAS_CLOUDS,
@@ -118,6 +129,7 @@ class CustomMenu(Menu):
                     self.SUPPORT_MODULES,
                     self.ACCOUNTING,
                     self.USERS,
+                    self.MARKETPLACE,
                 )
             ),
         ]

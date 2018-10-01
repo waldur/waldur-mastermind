@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from waldur_core.quotas import models, fields, exceptions
+from waldur_core.quotas import models, fields, exceptions, signals
 from waldur_core.quotas.utils import get_models_with_quotas
 
 
@@ -20,7 +20,7 @@ class Command(BaseCommand):
         self.recalculate_aggregator_quotas()
         self.stdout.write('XXX: Second time to make sure that aggregators of aggregators where calculated properly.')
         self.recalculate_aggregator_quotas()
-        self.recalculate_customers_user_count()
+        self.recalculate_custom_quotas()
 
     def delete_stale_quotas(self):
         self.stdout.write('Deleting stale quotas')
@@ -68,11 +68,7 @@ class Command(BaseCommand):
                     aggregator_field.recalculate(scope=instance)
         self.stdout.write('...done')
 
-    # XXX: With current permissions structure it easier to handle customer quota separately.
-    def recalculate_customers_user_count(self):
-        self.stdout.write('Recalculating customers user count')
-        from waldur_core.structure.models import Customer
-        for customer in Customer.objects.all():
-            usage = len(set(customer.get_users()))
-            customer.set_quota_usage(Customer.Quotas.nc_user_count, usage)
+    def recalculate_custom_quotas(self):
+        self.stdout.write('Recalculating custom quotas')
+        signals.recalculate_quotas.send(sender=self)
         self.stdout.write('...done')

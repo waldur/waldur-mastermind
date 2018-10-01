@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-import copy
 import logging
 import os
 
@@ -14,7 +13,7 @@ from rest_framework import serializers, exceptions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
 from waldur_jira.serializers import WebHookReceiverSerializer as JiraWebHookReceiverSerializer
-from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import models
@@ -262,18 +261,33 @@ WebHookReceiverSerializer.remove_event(['jira:issue_created'])
 class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    type = serializers.ChoiceField(choices=settings.WALDUR_SUPPORT['OFFERINGS'].keys())
+    type = serializers.ReadOnlyField(source='template.name')
+
+    template = serializers.HyperlinkedRelatedField(
+        queryset=models.OfferingTemplate.objects.all(),
+        view_name='support-offering-template-detail',
+        lookup_field='uuid',
+    )
+    plan = serializers.HyperlinkedRelatedField(
+        queryset=models.OfferingPlan.objects.all(),
+        view_name='support-offering-plan-detail',
+        lookup_field='uuid',
+        required=False,
+        write_only=True,
+    )
     state = serializers.ReadOnlyField(source='get_state_display')
     report = serializers.JSONField(required=False)
+    template_uuid = serializers.ReadOnlyField(source='template.uuid')
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'state', 'type_label', 'unit_price',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'template_uuid', 'plan',
+                  'state', 'type_label', 'unit_price',
                   'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
                   'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
                   'project_name', 'project_uuid', 'product_code', 'article_code', 'report')
         read_only_fields = ('type_label', 'issue', 'unit_price', 'unit', 'state', 'product_code', 'article_code')
-        protected_fields = ('project', 'type')
+        protected_fields = ('project', 'type', 'template', 'plan')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -308,80 +322,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         return ('project',)
 
 
-class ConfigurableSerializerMixin(object):
-    """
-    Serializer is built on top WALDUR_SUPPORT['OFFERINGS'] configuration.
-
-    Each configured field get's converted to serializer field according to field type in the configuration.
-
-    Field types:
-        'integer' - corresponds to 'serializers.IntegerField'
-        'string' - is a default field type even if it is not defined explicitly in configuration.
-                   Corresponds to 'serializers.CharField(max_length=255)'
-
-    Default values:
-        if 'default' key is present in option field configuration it is going to be used in serializer unless
-        the value itself has been provided in the create request.
-    """
-
-    def _get_offerings_configuration(self):
-        return copy.deepcopy(settings.WALDUR_SUPPORT['OFFERINGS'])
-
-    def _get_configuration(self, type):
-        return self._get_offerings_configuration().get(type)
-
-    def get_fields(self):
-        result = super(ConfigurableSerializerMixin, self).get_fields()
-        if hasattr(self, 'initial_data') and not hasattr(self, '_errors'):
-            type = self.initial_data['type']
-            configuration = self._get_configuration(type)
-            for attr_name in configuration['order']:
-                attr_options = configuration['options'].get(attr_name, {})
-                result[attr_name] = self._get_field_instance(attr_options)
-
-        # choices have to be added dynamically so that unit tests can mock offering configuration.
-        # otherwise it is always going to be a default set up.
-        result['type'] = serializers.ChoiceField(allow_blank=False, choices=self._get_offerings_configuration().keys())
-
-        return result
-
-    def _validate_type(self, type):
-        offering_configuration = self._get_configuration(type)
-        if offering_configuration is None:
-            raise serializers.ValidationError({
-                'type': _('Type configuration could not be found.')
-            })
-
-    def validate_empty_values(self, data):
-        if 'type' not in data or ('type' in data and data['type'] is None):
-            raise serializers.ValidationError({
-                'type': _('This field is required.')
-            })
-        else:
-            self._validate_type(data['type'])
-
-        return super(ConfigurableSerializerMixin, self).validate_empty_values(data)
-
-    def _get_field_instance(self, attr_options):
-        field_type = attr_options.get('type', '').lower()
-
-        if field_type == 'string':
-            field = serializers.CharField(max_length=255, write_only=True)
-        elif field_type == 'integer':
-            field = serializers.IntegerField(write_only=True)
-        else:
-            field = serializers.CharField(write_only=True)
-
-        default_value = attr_options.get('default')
-        if default_value:
-            field.default = default_value
-
-        field.required = attr_options.get('required', False)
-        field.label = attr_options.get('label')
-        field.help_text = attr_options.get('help_text')
-
-        return field
-
+class ConfigurableFormDescriptionMixin(object):
     def _form_description(self, configuration, validated_data):
         result = []
 
@@ -398,22 +339,13 @@ class ConfigurableSerializerMixin(object):
 
         return '\n'.join(result)
 
-    def _get_extra(self, configuration, validated_data):
-        result = {
-            key: validated_data[key]
-            for key in configuration['order']
-            if key in validated_data
-        }
-        if 'description' in validated_data:
-            result['description'] = validated_data['description']
-        return result
 
-
-class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
+class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMixin):
+    attributes = serializers.JSONField(required=False, write_only=True, allow_null=True)
     description = serializers.CharField(required=False, help_text=_('Description to add to the issue.'))
 
     class Meta(OfferingSerializer.Meta):
-        fields = OfferingSerializer.Meta.fields + ('description',)
+        fields = OfferingSerializer.Meta.fields + ('description', 'attributes')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
             issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
@@ -430,13 +362,41 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
             'project' - a hyperlinked field which must be provided with every request;
             'customer' - customer is extracted from the provided project;
             'caller' - a user who sent a request is considered to be a 'caller' of the issue;
-            'summary' - has a format of 'Request for "OFFERING[name][label]' or 'Request for "Support" if empty;
+            'summary' - has a format of 'Request for <template_name>' or 'Request for "Support" if empty;
             'description' - combined list of all other fields provided with the request;
         """
         project = validated_data['project']
-        type = validated_data['type']
-        offering_configuration = self._get_configuration(type)
-        type_label = offering_configuration.get('label', type)
+        template = validated_data['template']
+        plan = validated_data.pop('plan', None)
+
+        # Temporary code for backward compatibility
+        if not plan:
+            plan = template.plans.first()
+
+        # It's okay if there's no plan.
+        if plan and plan.template != template:
+            raise serializers.ValidationError({
+                'plan': _('Plan should be related to the same template.'),
+            })
+
+        attributes = validated_data.get('attributes')
+        if attributes:
+            if not isinstance(template.config, dict) or not(template.config.get('options')):
+                raise serializers.ValidationError({'attributes': _('Extra attributes are not allowed.')})
+            try:
+                validate_options(template.config['options'], attributes)
+            except serializers.ValidationError as exc:
+                raise serializers.ValidationError({'attributes': exc})
+            else:
+                validated_data.update(attributes)
+        else:
+            if template.config.get('options'):
+                raise serializers.ValidationError({
+                    'attributes': _('This field is required.'),
+                })
+
+        offering_configuration = template.config
+        type_label = offering_configuration.get('label', template.name)
         issue_details = dict(
             caller=self.context['request'].user,
             project=project,
@@ -448,16 +408,21 @@ class OfferingCreateSerializer(ConfigurableSerializerMixin, OfferingSerializer):
         issue_details['description'] = render_issue_template('description', issue_details)
         issue = models.Issue.objects.create(**issue_details)
 
-        offering = models.Offering.objects.create(
+        payload = dict(
             issue=issue,
             project=issue.project,
             name=validated_data.get('name'),
-            type=type,
-            product_code=offering_configuration.get('product_code', ''),
-            article_code=offering_configuration.get('article_code', ''),
-            unit_price=offering_configuration.get('price', 0),
-            unit=offering_configuration.get('unit', UnitPriceMixin.Units.PER_MONTH),
+            template=template,
         )
+        if plan:
+            payload.update(dict(
+                product_code=plan.product_code,
+                article_code=plan.article_code,
+                unit_price=plan.unit_price,
+                unit=plan.unit,
+            ))
+
+        offering = models.Offering.objects.create(**payload)
 
         return offering
 
@@ -530,3 +495,23 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
             del fields['native_name']
             del fields['native_description']
         return fields
+
+
+class OfferingTemplateSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.OfferingTemplate
+        fields = ('url', 'uuid', 'name', 'config')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-template-detail'},
+        )
+
+
+class OfferingPlanSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.OfferingPlan
+        fields = ('url', 'uuid', 'product_code', 'article_code', 'unit', 'unit_price')
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid', 'view_name': 'support-offering-plan-detail'},
+        )

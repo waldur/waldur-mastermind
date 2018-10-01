@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from functools import wraps
 
+from django.conf import settings
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status, response
@@ -12,7 +13,7 @@ from waldur_core.core import models
 def ensure_atomic_transaction(func):
     @wraps(func)
     def wrapped(self, *args, **kwargs):
-        if self.use_atomic_transaction:
+        if settings.WALDUR_CORE['USE_ATOMIC_TRANSACTION']:
             with transaction.atomic():
                 return func(self, *args, **kwargs)
         else:
@@ -22,7 +23,6 @@ def ensure_atomic_transaction(func):
 
 class AsyncExecutor(object):
     async_executor = True
-    use_atomic_transaction = False
 
 
 class CreateExecutorMixin(AsyncExecutor):
@@ -65,7 +65,7 @@ class DeleteExecutorMixin(AsyncExecutor):
 
 
 class ExecutorMixin(CreateExecutorMixin, UpdateExecutorMixin, DeleteExecutorMixin):
-    """ Executer create/update/delete operation with executor """
+    """ Execute create/update/delete operation with executor """
     pass
 
 

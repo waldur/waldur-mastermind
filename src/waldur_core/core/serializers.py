@@ -10,6 +10,7 @@ from django.urls import reverse, Resolver404
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.fields import Field, ReadOnlyField
+from rest_framework.exceptions import ValidationError
 import six
 
 from waldur_core.core import utils as core_utils
@@ -484,3 +485,25 @@ class BaseSummarySerializer(serializers.Serializer):
     def to_representation(self, instance):
         serializer = self.get_serializer(instance.__class__)
         return serializer(instance, context=self.context).data
+
+
+class GeoLocationField(serializers.JSONField):
+    def __init__(self, *args, **kwargs):
+        validators = kwargs.get('validators', [])
+
+        def geo_location_validator(value):
+            if value is not None:
+                if not isinstance(value, list):
+                    raise ValidationError(_('GeoLocationField should be a list of dictionaries.'))
+                else:
+                    for location in value:
+                        if not isinstance(location, dict):
+                            raise ValidationError(_('GeoLocationField should be a list of dictionaries.'))
+                        if not {'latitude', 'longitude'}.issubset(location.keys()):
+                            raise ValidationError(_('GeoLocationField should be a list of dictionaries. For example: '
+                                                    '[{"latitude": 123, "longitude": 345}, '
+                                                    '{"latitude": 456, "longitude": 678}]'))
+            return value
+
+        validators.append(geo_location_validator)
+        super(GeoLocationField, self).__init__(validators=validators, *args, **kwargs)

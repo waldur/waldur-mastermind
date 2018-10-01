@@ -6,6 +6,7 @@ from waldur_core.structure.tests import fixtures, factories as structure_factori
 from waldur_mastermind.marketplace import models
 
 from . import factories
+from .. import base
 
 
 @ddt
@@ -37,14 +38,36 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff', 'owner')
-    def test_authorized_user_can_register_an_service_provider(self, user):
+    @data('staff')
+    def test_staff_can_register_a_service_provider(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_register_an_service_provider(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
+    @data('owner')
+    def test_owner_can_register_service_provider_with_settings_enabled(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @base.override_marketplace_settings(OWNER_CAN_REGISTER_SERVICE_PROVIDER=True)
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_register_service_provider_with_settings_enabled(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('owner')
+    def test_owner_can_not_register_service_provider_with_settings_disabled(self, user):
+        response = self.create_service_provider(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_register_service_provider_with_settings_disabled(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -79,15 +102,35 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def update_service_provider(self, user):
+    @data('staff', 'owner')
+    def test_authorized_user_can_update_api_secret_code(self, user):
+        response, service_provider = self.update_service_provider(user, {'api_secret_code': '1234567890987654321'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(service_provider.api_secret_code, '1234567890987654321')
+
+    @data('staff', 'owner')
+    def test_authorized_user_can_not_pass_invalid_api_secret_code(self, user):
+        response, service_provider = self.update_service_provider(user, {'api_secret_code': '12345'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(service_provider.api_secret_code, None)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_unauthorized_user_can_not_update_api_secret_code(self, user):
+        response, service_provider = self.update_service_provider(user, {'api_secret_code': '1234567890987654321'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def update_service_provider(self, user, payload=None):
+        if not payload:
+            payload = {
+                'enable_notifications': False
+            }
+
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.ServiceProviderFactory.get_url(service_provider)
 
-        response = self.client.patch(url, {
-            'enable_notifications': False
-        })
+        response = self.client.patch(url, payload)
         service_provider.refresh_from_db()
 
         return response, service_provider

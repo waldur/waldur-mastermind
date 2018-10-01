@@ -31,7 +31,8 @@ Additional requirements:
 
   .. code-block:: bash
 
-    venv/bin/python setup.py develop
+    venv/bin/pip install --requirement docker/api/requirements.txt
+    venv/bin/pip install --editable .
 
 4. Create and edit settings file (see 'Configuration' section for details):
 
@@ -40,10 +41,12 @@ Additional requirements:
     cp src/waldur_core/server/settings.py.example src/waldur_core/server/settings.py
     vi src/waldur_core/server/settings.py
 
-5. Initialise database -- SQLite3 database will be created in ``./db.sqlite3`` unless specified otherwise in settings files:
+5. Initialise PostgeSQL database:
 
   .. code-block:: bash
 
+    createdb waldur
+    createuser waldur
     venv/bin/waldur migrate --noinput
 
 6. Collect static data -- static files will be copied to ``./static/`` in the same directory:

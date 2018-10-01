@@ -1,11 +1,13 @@
 from __future__ import unicode_literals
 
+import mock
 from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 
 from . import factories
 from .. import models, base
@@ -52,7 +54,7 @@ class OrderCreateTest(PostgreSQLTest):
         self.project = self.fixture.project
 
     @data('staff', 'owner', 'admin', 'manager')
-    def test_user_can_create_order_with_relation_project(self, user):
+    def test_user_can_create_order_in_valid_project(self, user):
         user = getattr(self.fixture, user)
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -60,18 +62,18 @@ class OrderCreateTest(PostgreSQLTest):
         self.assertEqual(1, len(response.data['items']))
 
     @data('user')
-    def test_user_can_not_create_order_with_not_relation_project(self, user):
+    def test_user_can_not_create_order_in_invalid_project(self, user):
         user = getattr(self.fixture, user)
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_not_create_item_if_offering_is_not_available(self):
-        offering = factories.OfferingFactory(is_active=False)
+        offering = factories.OfferingFactory(state=models.Offering.States.ARCHIVED)
         response = self.create_order(self.fixture.staff, offering)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_order_with_plan(self):
-        offering = factories.OfferingFactory(is_active=True)
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {'items': [
             {
@@ -83,8 +85,8 @@ class OrderCreateTest(PostgreSQLTest):
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_not_can_create_order_with_uncorrect_plan(self):
-        offering = factories.OfferingFactory(is_active=True)
+    def test_can_not_create_order_with_invalid_plan(self):
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {'items': [
             {
@@ -96,9 +98,109 @@ class OrderCreateTest(PostgreSQLTest):
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_user_can_create_order_with_valid_attributes_specified_by_options(self):
+        attributes = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': attributes,
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['items'][0]['attributes'], attributes)
+
+    def test_user_can_not_create_order_with_invalid_attributes(self):
+        attributes = {
+            'storage': 'invalid value',
+        }
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': attributes,
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_can_create_order_with_valid_limits(self):
+        limits = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        plan = factories.PlanFactory(offering=offering)
+
+        for key in limits.keys():
+            models.PlanComponent.objects.create(
+                plan=plan,
+                type=key,
+                billing_type=models.PlanComponent.BillingTypes.USAGE
+            )
+
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'limits': limits,
+                    'attributes': {},
+                },
+            ]
+        }
+
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order_item = models.OrderItem.objects.last()
+        self.assertEqual(order_item.quotas.get(component__type='cpu_count').limit, 5)
+
+    def test_user_can_not_create_order_with_invalid_limits(self):
+        limits = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        plan = factories.PlanFactory(offering=offering)
+
+        for key in limits.keys():
+            models.PlanComponent.objects.create(
+                plan=plan,
+                type=key,
+                billing_type=models.PlanComponent.BillingTypes.FIXED
+            )
+
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'plan': factories.PlanFactory.get_url(plan),
+                    'limits': limits,
+                    'attributes': {},
+                },
+            ]
+        }
+
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
-            offering = factories.OfferingFactory()
+            offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
         payload = {
@@ -126,19 +228,6 @@ class OrderUpdateTest(PostgreSQLTest):
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
 
-    @data('staff', 'owner', 'admin', 'manager')
-    def test_can_set_requested_for_approval_state(self, user):
-        order_state = models.Order.States.REQUESTED_FOR_APPROVAL
-        response = self.update_offering(user, 'set_state_requested_for_approval')
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.order.state, order_state)
-        self.assertTrue(models.Order.objects.filter(state=order_state).exists())
-
-    @data('user')
-    def test_not_can_set_requested_for_approval_state(self, user):
-        response = self.update_offering(user, 'set_state_requested_for_approval')
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
     @data('staff', 'owner')
     def test_can_set_done_state(self, user):
         self.order.state = models.Order.States.EXECUTING
@@ -151,12 +240,10 @@ class OrderUpdateTest(PostgreSQLTest):
 
     @freeze_time('2017-01-10 00:00:00')
     def test_approved_fields(self):
-        self.order.state = models.Order.States.EXECUTING
-        self.order.save()
-        response = self.update_offering('staff', 'set_state_done')
+        response = self.update_offering('owner', 'set_state_executing')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.order.approved_at.strftime('%Y-%m-%d %H:%M:%S'), '2017-01-10 00:00:00')
-        self.assertEqual(self.order.approved_by, self.fixture.staff)
+        self.assertEqual(self.order.approved_by, self.fixture.owner)
 
     @data('staff', 'owner')
     def test_not_can_set_done_state_if_current_state_is_wrong(self, user):
@@ -193,6 +280,18 @@ class OrderUpdateTest(PostgreSQLTest):
     def test_not_can_set_terminated_state(self, user):
         response = self.update_offering(user, 'set_state_terminated')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
+    def test_notifications_when_order_approval_is_requested(self, mock_tasks):
+        order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 1)
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], order.uuid)
+
+    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
+    def test_not_send_notification_if_state_is_not_requested_for_approval(self, mock_tasks):
+        self.order.set_state_terminated()
+        self.order.save()
+        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 0)
 
     def update_offering(self, user, action):
         user = getattr(self.fixture, user)
@@ -236,3 +335,26 @@ class OrderDeleteTest(PostgreSQLTest):
         url = factories.OrderFactory.get_url(self.order)
         response = self.client.delete(url)
         return response
+
+
+class OrderStateTest(PostgreSQLTest):
+    def test_switch_order_state_to_done_when_all_order_items_are_processed(self):
+        order_item = factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING)
+        order = order_item.order
+        order.state = models.Order.States.EXECUTING
+        order.save()
+        order_item.state = models.OrderItem.States.DONE
+        order_item.save()
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.DONE)
+
+    def test_not_switch_order_state_to_done_when_not_all_order_items_are_processed(self):
+        order_item = factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING)
+        order = order_item.order
+        factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING, order=order)
+        order.state = models.Order.States.EXECUTING
+        order.save()
+        order_item.state = models.OrderItem.States.DONE
+        order_item.save()
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.EXECUTING)

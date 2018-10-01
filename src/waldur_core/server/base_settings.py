@@ -241,6 +241,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(hours=24),
         'args': (),
     },
+    'structure-set-erred-stuck-resources': {
+        'task': 'waldur_core.structure.SetErredStuckResources',
+        'schedule': timedelta(hours=1),
+        'args': (),
+    },
 }
 
 # Logging
@@ -284,6 +289,7 @@ WALDUR_CORE = {
     'NOTIFICATIONS_PROFILE_CHANGES': {'ENABLED': True, 'FIELDS': ('email', 'phone_number', 'job_title')},
     # 'COUNTRIES': ['EE', 'LV', 'LT'],
     'ENABLE_ACCOUNTING_START_DATE': False,
+    'USE_ATOMIC_TRANSACTION': True,
 }
 
 WALDUR_CORE_PUBLIC_SETTINGS = [

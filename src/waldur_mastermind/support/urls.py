@@ -12,6 +12,8 @@ def register_in(router):
     router.register(r'support-offerings', views.OfferingViewSet, base_name='support-offering')
     router.register(r'support-attachments', views.AttachmentViewSet, base_name='support-attachment')
     router.register(r'support-templates', views.TemplateViewSet, base_name='support-template')
+    router.register(r'support-offering-templates', views.OfferingTemplateViewSet, base_name='support-offering-template')
+    router.register(r'support-offering-plans', views.OfferingPlanViewSet, base_name='support-offering-plan')
 
 
 urlpatterns = [

@@ -6,7 +6,33 @@ from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
+
 from .. import models
+
+
+OFFERING_OPTIONS = {
+    'order': ['storage', 'ram', 'cpu_count'],
+    'options': {
+        'storage': {
+            'type': 'integer',
+            'label': 'Max storage, GB',
+            'required': True,
+            'help_text': 'VPC storage limit in GB.',
+        },
+        'ram': {
+            'type': 'integer',
+            'label': 'Max RAM, GB',
+            'required': True,
+            'help_text': 'VPC RAM limit in GB.',
+        },
+        'cpu_count': {
+            'type': 'integer',
+            'label': 'Max vCPU',
+            'required': True,
+            'help_text': 'VPC CPU count limit.',
+        },
+    },
+}
 
 
 class ServiceProviderFactory(factory.DjangoModelFactory):
@@ -90,7 +116,7 @@ class AttributeFactory(factory.DjangoModelFactory):
 @factory.django.mute_signals(signals.pre_save, signals.post_save)
 class ScreenshotFactory(factory.DjangoModelFactory):
     class Meta(object):
-        model = models.Screenshots
+        model = models.Screenshot
 
     name = factory.Sequence(lambda n: 'screenshot-%s' % n)
     image = factory.django.ImageField()
@@ -131,21 +157,12 @@ class OrderFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class OrderItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
-        model = models.OrderItem
-
-    order = factory.SubFactory(OrderFactory)
-    offering = factory.SubFactory(OfferingFactory)
-
-
 class PlanFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Plan
 
     offering = factory.SubFactory(OfferingFactory)
     name = factory.Sequence(lambda n: 'plan-%s' % n)
-    unit_price = Decimal(100)
     unit = UnitPriceMixin.Units.QUANTITY
 
     @classmethod
@@ -159,4 +176,36 @@ class PlanFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-plan-list')
+        return url if action is None else url + action + '/'
+
+
+class PlanComponentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.PlanComponent
+
+    plan = factory.SubFactory(PlanFactory)
+    price = Decimal(10)
+    amount = 1
+    type = 'cpu'
+
+
+class OrderItemFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OrderItem
+
+    order = factory.SubFactory(OrderFactory)
+    offering = factory.SubFactory(OfferingFactory)
+    plan = factory.SubFactory(PlanFactory)
+
+    @classmethod
+    def get_url(cls, order_item=None, action=None):
+        if order_item is None:
+            order_item = OrderItemFactory()
+        url = 'http://testserver' + reverse('marketplace-order-item-detail',
+                                            kwargs={'uuid': order_item.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-order-item-list')
         return url if action is None else url + action + '/'

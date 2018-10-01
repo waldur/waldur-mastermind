@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import logging
+import sys
 
 from ceilometerclient import client as ceilometer_client
 from ceilometerclient import exc as ceilometer_exceptions
@@ -39,6 +40,13 @@ class OpenStackSessionExpired(OpenStackBackendError):
 
 class OpenStackAuthorizationFailed(OpenStackBackendError):
     pass
+
+
+def reraise(exc):
+    """
+    Reraise OpenStackBackendError while maintaining traceback.
+    """
+    six.reraise(OpenStackBackendError, exc, sys.exc_info()[2])
 
 
 class OpenStackSession(dict):
@@ -107,7 +115,7 @@ class OpenStackClient(object):
                 self.session = OpenStackSession(verify_ssl=verify_ssl, **credentials)
             except AttributeError as e:
                 logger.error('Failed to create OpenStack session.')
-                six.reraise(OpenStackBackendError, e)
+                reraise(e)
 
     @property
     def keystone(self):
@@ -119,7 +127,7 @@ class OpenStackClient(object):
             return nova_client.Client(version='2', session=self.session.keystone_session, endpoint_type='publicURL')
         except nova_exceptions.ClientException as e:
             logger.exception('Failed to create nova client: %s', e)
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
     @property
     def neutron(self):
@@ -127,7 +135,7 @@ class OpenStackClient(object):
             return neutron_client.Client(session=self.session.keystone_session)
         except neutron_exceptions.NeutronClientException as e:
             logger.exception('Failed to create neutron client: %s', e)
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
     @property
     def cinder(self):
@@ -135,7 +143,7 @@ class OpenStackClient(object):
             return cinder_client.Client(session=self.session.keystone_session)
         except cinder_exceptions.ClientException as e:
             logger.exception('Failed to create cinder client: %s', e)
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
     @property
     def glance(self):
@@ -143,7 +151,7 @@ class OpenStackClient(object):
             return glance_client.Client(session=self.session.keystone_session)
         except glance_exceptions.ClientException as e:
             logger.exception('Failed to create glance client: %s', e)
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
     @property
     def ceilometer(self):
@@ -151,7 +159,7 @@ class OpenStackClient(object):
             return ceilometer_client.Client('2', session=self.session.keystone_session)
         except ceilometer_exceptions.BaseException as e:
             logger.exception('Failed to create ceilometer client: %s', e)
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
 
 class BaseOpenStackBackend(ServiceBackend):
@@ -223,7 +231,7 @@ class BaseOpenStackBackend(ServiceBackend):
             self.keystone_client
         except keystone_exceptions.ClientException as e:
             if raise_exception:
-                six.reraise(OpenStackBackendError, e)
+                reraise(e)
             return False
         else:
             return True
@@ -254,7 +262,7 @@ class BaseOpenStackBackend(ServiceBackend):
         except (nova_exceptions.ClientException,
                 cinder_exceptions.ClientException,
                 neutron_exceptions.NeutronClientException) as e:
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
         return {
             Tenant.Quotas.ram: nova_quotas.ram,
@@ -299,7 +307,7 @@ class BaseOpenStackBackend(ServiceBackend):
         except (nova_exceptions.ClientException,
                 cinder_exceptions.ClientException,
                 neutron_exceptions.NeutronClientException) as e:
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
         volumes_size = sum(self.gb2mb(v.size) for v in volumes)
         snapshots_size = sum(self.gb2mb(v.size) for v in snapshots)
@@ -364,7 +372,7 @@ class BaseOpenStackBackend(ServiceBackend):
         try:
             images = glance.images.list()
         except glance_exceptions.ClientException as e:
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
 
         images = [image for image in images if not image['status'] == 'deleted']
         if filter_function:
@@ -392,4 +400,4 @@ class BaseOpenStackBackend(ServiceBackend):
         except neutron_exceptions.NotFound:
             logger.debug("Floating IP %s is already gone from tenant %s", backend_id, tenant_backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            six.reraise(OpenStackBackendError, e)
+            reraise(e)
