@@ -102,6 +102,7 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'offering')
         protected_fields = ('offering',)
+        read_ony_fields = ('unit_price',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -125,6 +126,9 @@ class PlanComponentMetadataSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.PlanComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',)
+        extra_kwargs = {
+            'billing_type': {'required': True},
+        }
 
 
 class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
@@ -139,9 +143,9 @@ class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'components',
                   'custom_components', 'prices', 'quotas')
+        read_ony_fields = ('unit_price',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
-            'unit': {'required': True}
         }
 
 
@@ -293,30 +297,38 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     def _validate_plans(self, attrs):
         offering_type = attrs.get('type', getattr(self.instance, 'type', None))
-        fixed_components = plugins.manager.get_component_types(offering_type)
-        valid_components = set()
+        builtin_types = plugins.manager.get_component_types(offering_type)
+        valid_types = set()
 
         for plan in attrs.get('plans', []):
-            if fixed_components and plan.get('custom_components'):
+            fixed_types = set()
+            if builtin_types and plan.get('custom_components'):
                 raise serializers.ValidationError({
                     'plans': _('Extra plan components are not allowed.')
                 })
-            elif fixed_components:
-                valid_components = fixed_components
+            elif builtin_types:
+                fixed_types = valid_types = builtin_types
             elif plan.get('custom_components'):
-                valid_components = {component['type'] for component in plan['custom_components']}
+                valid_types = {component['type'] for component in plan['custom_components']}
+                fixed_types = {component['type'] for component in plan['custom_components']
+                               if component['billing_type'] == models.PlanComponent.BillingTypes.FIXED}
 
-            price_components = set(plan.get('prices', {}).keys())
-            if price_components != valid_components:
+            prices = plan.get('prices', {})
+            price_components = set(prices.keys())
+            if price_components != valid_types:
                 raise serializers.ValidationError({
                     'plans': _('Invalid price components.')
                 })
 
-            quota_components = set(plan.get('quotas', {}).keys())
-            if quota_components != valid_components:
+            quotas = plan.get('quotas', {})
+            quota_components = set(quotas.keys())
+            if quota_components != fixed_types:
                 raise serializers.ValidationError({
                     'plans': _('Invalid quota components.')
                 })
+
+            plan['unit_price'] = sum(prices[component] * quotas[component]
+                                     for component in fixed_types)
 
     @transaction.atomic
     def create(self, validated_data):
@@ -351,7 +363,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 component_type = component_data['type']
                 models.PlanComponent.objects.create(
                     plan=plan,
-                    amount=quotas[component_type],
+                    amount=quotas.get(component_type) or 0,
                     price=prices[component_type],
                     **component_data
                 )

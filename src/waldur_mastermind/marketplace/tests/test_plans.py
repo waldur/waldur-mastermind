@@ -64,7 +64,6 @@ class PlanCreateTest(PostgreSQLTest):
             'offering': factories.OfferingFactory.get_url(self.offering),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
             'unit': UnitPriceMixin.Units.QUANTITY,
-            'unit_price': 100
         }
         return self.client.post(url, payload)
 

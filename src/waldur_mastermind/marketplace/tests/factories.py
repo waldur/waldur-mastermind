@@ -163,7 +163,6 @@ class PlanFactory(factory.DjangoModelFactory):
 
     offering = factory.SubFactory(OfferingFactory)
     name = factory.Sequence(lambda n: 'plan-%s' % n)
-    unit_price = Decimal(100)
     unit = UnitPriceMixin.Units.QUANTITY
 
     @classmethod

@@ -223,10 +223,10 @@ class OfferingCreateTest(PostgreSQLTest):
     def test_create_offering_with_plans(self):
         plans_request = {
             'plans': [
-                {'name': 'small',
-                 'description': 'CPU 1',
-                 'unit': UnitPriceMixin.Units.PER_MONTH,
-                 'unit_price': 100}
+                {
+                    'name': 'small',
+                    'description': 'CPU 1'
+                }
             ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
@@ -240,12 +240,12 @@ class OfferingCreateTest(PostgreSQLTest):
                     'name': 'small',
                     'description': 'CPU 1',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'unit_price': 100,
                     'custom_components': [
                         {
                             'type': 'cores',
                             'name': 'Cores',
                             'measured_unit': 'hours',
+                            'billing_type': 'fixed',
                         }
                     ],
                     'prices': {'cores': 10},
@@ -255,16 +255,47 @@ class OfferingCreateTest(PostgreSQLTest):
         }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['plans'][0]['components'][0]['amount'], 10)
 
-    def test_create_offering_with_usage_based_components(self):
+        offering = models.Offering.objects.get(uuid=response.data['uuid'])
+        plan = offering.plans.first()
+        component = plan.components.get(type='cores')
+
+        self.assertEqual(plan.unit_price, 100)
+        self.assertEqual(component.amount, 10)
+
+    def test_usage_based_components_are_ignored_for_unit_price_computing(self):
         plans_request = {
             'plans': [
                 {
                     'name': 'small',
                     'description': 'CPU 1',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'unit_price': 0,
+                    'custom_components': [
+                        {
+                            'type': 'cores',
+                            'name': 'Cores',
+                            'measured_unit': 'hours',
+                            'billing_type': 'usage',
+                        }
+                    ],
+                    'prices': {'cores': 10},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering = models.Offering.objects.get(uuid=response.data['uuid'])
+        plan = offering.plans.first()
+        self.assertEqual(plan.unit_price, 0)
+
+    def test_quotas_are_not_allowed_for_usage_based_components(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'small',
+                    'description': 'CPU 1',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
                     'custom_components': [
                         {
                             'billing_type': 'usage',
@@ -279,8 +310,7 @@ class OfferingCreateTest(PostgreSQLTest):
             ]
         }
         response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['plans'][0]['components'][0]['billing_type'], 'usage')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_offering_with_options(self):
         response = self.create_offering('staff', attributes=True, add_payload={'options': OFFERING_OPTIONS})
