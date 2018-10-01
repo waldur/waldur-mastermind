@@ -1061,12 +1061,13 @@ class ResourceMixin(MonitoringModelMixin,
 
         # XXX: a hack for IaaS / PaaS / SaaS tags
         # XXX: should be moved to itacloud assembly
-        if self.tags.filter(name='IaaS').exists():
-            context['resource_delivery_model'] = 'IaaS'
-        elif self.tags.filter(name='PaaS').exists():
-            context['resource_delivery_model'] = 'PaaS'
-        elif self.tags.filter(name='SaaS').exists():
-            context['resource_delivery_model'] = 'SaaS'
+        if self.pk:
+            if self.tags.filter(name='IaaS').exists():
+                context['resource_delivery_model'] = 'IaaS'
+            elif self.tags.filter(name='PaaS').exists():
+                context['resource_delivery_model'] = 'PaaS'
+            elif self.tags.filter(name='SaaS').exists():
+                context['resource_delivery_model'] = 'SaaS'
 
         return context
 

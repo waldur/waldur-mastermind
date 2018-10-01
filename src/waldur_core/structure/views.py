@@ -1834,6 +1834,11 @@ class ImportableResourceViewSet(BaseResourceViewSet):
             resource = serializer.save()
         except IntegrityError:
             raise rf_serializers.ValidationError(_('Resource is already registered.'))
+        else:
+            resource_imported.send(
+                sender=resource.__class__,
+                instance=resource,
+            )
         if self.import_resource_executor:
             self.import_resource_executor.execute(resource)
 

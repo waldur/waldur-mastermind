@@ -1,3 +1,4 @@
+from collections import namedtuple
 import itertools
 
 from ddt import data, ddt
@@ -7,10 +8,11 @@ from mock import patch
 from rest_framework import test, status
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.structure.models import PrivateServiceSettings
+from waldur_core.structure.models import ServiceSettings, PrivateServiceSettings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests.helpers import override_openstack_settings
+from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
 
 from . import factories, fixtures
 from .. import executors
@@ -25,17 +27,6 @@ class BaseTenantActionsTest(test.APITransactionTestCase):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.spl = self.fixture.openstack_spl
-
-    def _generate_backend_tenants(self, count=1):
-        tenants = []
-        for i in range(0, count):
-            tenant = factories.TenantFactory()
-            tenant.delete()
-            tenant.user_username = ''
-            tenant.user_password = ''
-            tenants.append(tenant)
-
-        return tenants
 
 
 class TenantGetTest(BaseTenantActionsTest):
@@ -735,7 +726,7 @@ class TenantImportableResourcesTest(BaseTenantActionsTest):
     @patch('waldur_openstack.openstack.backend.OpenStackBackend.get_tenants_for_import')
     def test_user_can_list_importable_resources(self, get_tenants_for_import_mock):
         self.client.force_authenticate(self.fixture.staff)
-        backend_tenants = self._generate_backend_tenants(2)
+        backend_tenants = [factories.TenantFactory.build(service_project_link=self.spl)]
         get_tenants_for_import_mock.return_value = backend_tenants
         url = factories.TenantFactory.get_list_url('importable_resources')
         payload = {'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(self.spl)}
@@ -761,84 +752,67 @@ class TenantImportableResourcesTest(BaseTenantActionsTest):
 
 
 @ddt
-class TenantImportTest(BaseTenantActionsTest):
+class TenantImportTest(BaseBackendTestCase):
 
     def setUp(self):
         super(TenantImportTest, self).setUp()
-        self.backend_tenant = self._generate_backend_tenants()[0]
-        self.url = factories.TenantFactory.get_list_url('import_resource')
+        self.fixture = fixtures.OpenStackFixture()
+        self.backend_tenant = factories.TenantFactory.build(service_project_link=self.fixture.openstack_spl)
 
-    def _form_payload(self, backend_id):
-        return {
-            'backend_id': backend_id,
-            'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(self.spl),
-        }
-
-    def _setup_import_tenant(self, import_tenant_mock):
-
-        def import_instance(backend_id, service_project_link=None, save=True):
-            return factories.TenantFactory(backend_id=backend_id)
-
-        import_tenant_mock.side_effect = import_instance
-
-    @patch('waldur_openstack.openstack.backend.OpenStackBackend.import_tenant')
-    def test_tenant_is_imported(self, import_tenant_mock):
-        self.client.force_authenticate(self.fixture.staff)
-        self._setup_import_tenant(import_tenant_mock)
-        payload = self._form_payload(self.backend_tenant.backend_id)
-
-        response = self.client.post(self.url, payload)
+    def test_tenant_is_imported(self):
+        response = self.import_tenant()
 
         self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEquals(response.data['backend_id'], self.backend_tenant.backend_id)
         self.assertTrue(models.Tenant.objects.filter(backend_id=self.backend_tenant.backend_id).exists())
-        import_tenant_mock.assert_called()
+
+    @patch('waldur_core.structure.handlers.event_logger')
+    def test_event_is_emitted(self, logger_mock):
+        self.import_tenant()
+
+        actual = logger_mock.resource.info.call_args[0][0]
+        expected = 'Resource {resource_full_name} has been imported.'
+        self.assertEqual(expected, actual)
 
     @data('admin', 'manager', 'owner')
     def test_user_cannot_import_tenant(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        payload = self._form_payload(self.backend_tenant.backend_id)
-
-        response = self.client.post(self.url, payload)
-
+        response = self.import_tenant(user)
         self.assertEquals(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
 
     def test_tenant_cannot_be_imported_if_backend_id_exists_already(self):
-        self.client.force_authenticate(self.fixture.staff)
         self.backend_tenant.save()
-        payload = self._form_payload(self.backend_tenant.backend_id)
-
-        response = self.client.post(self.url, payload)
-
+        response = self.import_tenant()
         self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
 
-    @patch('waldur_openstack.openstack.backend.OpenStackBackend.import_tenant')
-    def test_imported_tenant_has_user_password_and_username(self, import_tenant_mock):
-        self.client.force_authenticate(self.fixture.staff)
-        self._setup_import_tenant(import_tenant_mock)
-        payload = self._form_payload(self.backend_tenant.backend_id)
-
-        response = self.client.post(self.url, payload)
+    def test_imported_tenant_has_user_password_and_username(self):
+        response = self.import_tenant()
 
         self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEquals(response.data['backend_id'], self.backend_tenant.backend_id)
+
         self.assertIsNotNone(response.data['user_username'])
         self.assertIsNotNone(response.data['user_password'])
 
-    @patch('waldur_openstack.openstack.backend.OpenStackBackend.import_tenant')
-    def test_imported_tenant_settings_have_username_and_password_set(self, import_tenant_mock):
-        self.client.force_authenticate(self.fixture.staff)
-        self._setup_import_tenant(import_tenant_mock)
-        payload = self._form_payload(self.backend_tenant.backend_id)
-
-        response = self.client.post(self.url, payload)
-
+    def test_imported_tenant_settings_have_username_and_password_set(self):
+        response = self.import_tenant()
         self.assertEquals(response.status_code, status.HTTP_201_CREATED, response.data)
+
         tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
-        from waldur_core.structure.models import ServiceSettings
         service_settings = ServiceSettings.objects.get(scope=tenant)
+
         self.assertEquals(tenant.user_username, service_settings.username)
         self.assertEquals(tenant.user_password, service_settings.password)
+
+    def import_tenant(self, user='staff'):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        payload = {
+            'backend_id': self.backend_tenant.backend_id,
+            'service_project_link': factories.OpenStackServiceProjectLinkFactory.get_url(self.fixture.openstack_spl),
+        }
+        url = factories.TenantFactory.get_list_url('import_resource')
+        FakeProject = namedtuple('Project', 'name description')
+        self.mocked_keystone.return_value.projects.get.return_value = FakeProject('admin', 'default')
+        return self.client.post(url, payload)
 
 
 @ddt
