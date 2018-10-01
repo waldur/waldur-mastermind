@@ -13,6 +13,6 @@ class OfferingPlanTest(test.APITransactionTestCase):
         plan.refresh_from_db()
 
         self.assertTrue(isinstance(plan.scope, support_models.OfferingPlan))
-        self.assertTrue(plan.unit_price, plan.scope.unit_price)
+        self.assertEqual(plan.unit_price, plan.scope.unit_price)
         self.assertTrue(plan.unit, plan.scope.unit)
         self.assertTrue(plan.name, plan.scope.name)
