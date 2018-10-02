@@ -144,10 +144,10 @@ class OrderCreateTest(PostgreSQLTest):
         plan = factories.PlanFactory(offering=offering)
 
         for key in limits.keys():
-            models.PlanComponent.objects.create(
-                plan=plan,
+            models.OfferingComponent.objects.create(
+                offering=offering,
                 type=key,
-                billing_type=models.PlanComponent.BillingTypes.USAGE
+                billing_type=models.OfferingComponent.BillingTypes.USAGE
             )
 
         add_payload = {
@@ -178,10 +178,10 @@ class OrderCreateTest(PostgreSQLTest):
         plan = factories.PlanFactory(offering=offering)
 
         for key in limits.keys():
-            models.PlanComponent.objects.create(
-                plan=plan,
+            models.OfferingComponent.objects.create(
+                offering=offering,
                 type=key,
-                billing_type=models.PlanComponent.BillingTypes.FIXED
+                billing_type=models.OfferingComponent.BillingTypes.FIXED
             )
 
         add_payload = {

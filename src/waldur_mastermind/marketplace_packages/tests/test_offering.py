@@ -22,9 +22,13 @@ class TemplateOfferingTest(test.APITransactionTestCase):
             scope=fixture.openstack_service_settings
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
+        component = marketplace_models.OfferingComponent.objects.create(
+            offering=offering,
+            type='ram',
+        )
         marketplace_models.PlanComponent.objects.create(
             plan=plan,
-            type='ram',
+            component=component,
             amount=10240,
             price=10,
         )
