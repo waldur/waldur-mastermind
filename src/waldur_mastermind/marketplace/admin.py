@@ -78,9 +78,13 @@ class OfferingAdminForm(ModelForm):
         }
 
 
+class OfferingComponentInline(admin.TabularInline):
+    model = models.OfferingComponent
+
+
 class OfferingAdmin(admin.ModelAdmin):
     form = OfferingAdminForm
-    inlines = [ScreenshotsInline, PlansInline]
+    inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
     list_display = ('name', 'customer', 'state')
     list_filter = ('state',)
     fields = ('state', 'customer', 'category', 'name', 'native_name',

@@ -4,7 +4,7 @@ import logging
 from rest_framework import exceptions
 
 
-Component = collections.namedtuple('Component', ('type', 'name', 'measured_unit'))
+Component = collections.namedtuple('Component', ('type', 'name', 'measured_unit', 'billing_type'))
 logger = logging.getLogger(__name__)
 
 

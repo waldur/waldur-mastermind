@@ -34,9 +34,12 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
         return
 
     expected_types = set(manager.get_component_types(PLUGIN_NAME))
-    actual_types = set(plan.components.values_list('type', flat=True))
+    actual_types = set(plan.components.values_list('component__type', flat=True))
     if expected_types != actual_types:
         return
+
+    prices = {component.component.type: component.price
+              for component in plan.components.all()}
 
     with transaction.atomic():
         slurm_package = slurm_invoices_models.SlurmPackage.objects.create(
@@ -44,9 +47,9 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
             name=plan.name,
             product_code=plan.product_code,
             article_code=plan.article_code,
-            cpu_price=plan.components.get(type='cpu').price,
-            gpu_price=plan.components.get(type='gpu').price,
-            ram_price=plan.components.get(type='ram').price,
+            cpu_price=prices.get('cpu'),
+            gpu_price=prices.get('gpu'),
+            ram_price=prices.get('ram'),
         )
         plan.scope = slurm_package
         plan.save()
@@ -67,7 +70,10 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
         usage = getattr(allocation_usage, component.type + '_usage')
 
         try:
-            plan_component = marketplace_models.PlanComponent.objects.get(plan=order_item.plan, type=component.type)
+            plan_component = marketplace_models.OfferingComponent.objects.get(
+                offering=order_item.plan.offering,
+                type=component.type
+            )
             marketplace_models.ComponentUsage.objects.create(
                 order_item=order_item,
                 component=plan_component,
@@ -76,7 +82,7 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
             )
         except django_exceptions.ObjectDoesNotExist:
             logger.warning('Skipping AllocationUsage synchronization because this '
-                           'marketplace.PlanComponent does not exist.'
+                           'marketplace.OfferingComponent does not exist.'
                            'AllocationUsage ID: %s', allocation_usage.id)
         except IntegrityError:
             logger.warning('Skipping AllocationUsage synchronization because this marketplace.ComponentUsage exists.'
@@ -99,7 +105,10 @@ def update_component_quota(sender, instance, created=False, **kwargs):
         limit = getattr(allocation, component.type + '_limit')
 
         try:
-            plan_component = marketplace_models.PlanComponent.objects.get(plan=order_item.plan, type=component.type)
+            plan_component = marketplace_models.OfferingComponent.objects.get(
+                offering=order_item.plan.offering,
+                type=component.type
+            )
             component_quota = marketplace_models.ComponentQuota.objects.get(
                 order_item=order_item,
                 component=plan_component,
@@ -108,9 +117,9 @@ def update_component_quota(sender, instance, created=False, **kwargs):
             component_quota.usage = usage
             component_quota.save()
 
-        except marketplace_models.PlanComponent.DoesNotExist:
+        except marketplace_models.OfferingComponent.DoesNotExist:
             logger.warning('Skipping Allocation synchronization because this '
-                           'marketplace.PlanComponent does not exist.'
+                           'marketplace.OfferingComponent does not exist.'
                            'Allocation ID: %s', allocation.id)
         except marketplace_models.ComponentQuota.DoesNotExist:
             marketplace_models.ComponentQuota.objects.create(

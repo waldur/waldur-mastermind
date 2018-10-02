@@ -224,8 +224,8 @@ class OfferingCreateTest(PostgreSQLTest):
         plans_request = {
             'plans': [
                 {
-                    'name': 'small',
-                    'description': 'CPU 1'
+                    'name': 'Small',
+                    'description': 'Basic plan',
                 }
             ]
         }
@@ -235,19 +235,18 @@ class OfferingCreateTest(PostgreSQLTest):
 
     def test_create_offering_with_custom_components(self):
         plans_request = {
+            'components': [
+                {
+                    'type': 'cores',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'billing_type': 'fixed',
+                }
+            ],
             'plans': [
                 {
                     'name': 'small',
-                    'description': 'CPU 1',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'custom_components': [
-                        {
-                            'type': 'cores',
-                            'name': 'Cores',
-                            'measured_unit': 'hours',
-                            'billing_type': 'fixed',
-                        }
-                    ],
                     'prices': {'cores': 10},
                     'quotas': {'cores': 10},
                 }
@@ -258,26 +257,25 @@ class OfferingCreateTest(PostgreSQLTest):
 
         offering = models.Offering.objects.get(uuid=response.data['uuid'])
         plan = offering.plans.first()
-        component = plan.components.get(type='cores')
+        component = plan.components.get(component__type='cores')
 
         self.assertEqual(plan.unit_price, 100)
         self.assertEqual(component.amount, 10)
 
     def test_usage_based_components_are_ignored_for_unit_price_computing(self):
         plans_request = {
+            'components': [
+                {
+                    'type': 'cores',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'billing_type': 'usage',
+                }
+            ],
             'plans': [
                 {
-                    'name': 'small',
-                    'description': 'CPU 1',
+                    'name': 'Small',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'custom_components': [
-                        {
-                            'type': 'cores',
-                            'name': 'Cores',
-                            'measured_unit': 'hours',
-                            'billing_type': 'usage',
-                        }
-                    ],
                     'prices': {'cores': 10},
                 }
             ]
@@ -291,19 +289,18 @@ class OfferingCreateTest(PostgreSQLTest):
 
     def test_quotas_are_not_allowed_for_usage_based_components(self):
         plans_request = {
+            'components': [
+                {
+                    'billing_type': 'usage',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'type': 'cores',
+                }
+            ],
             'plans': [
                 {
-                    'name': 'small',
-                    'description': 'CPU 1',
+                    'name': 'Small',
                     'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'custom_components': [
-                        {
-                            'billing_type': 'usage',
-                            'name': 'Cores',
-                            'measured_unit': 'hours',
-                            'type': 'cores',
-                        }
-                    ],
                     'prices': {'cores': 10},
                     'quotas': {'cores': 10},
                 }

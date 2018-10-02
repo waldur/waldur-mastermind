@@ -16,8 +16,9 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         self.secret_code = 'secret_code'
         self.service_provider = factories.ServiceProviderFactory(api_secret_code=self.secret_code)
         self.plan = factories.PlanFactory(unit=UnitPriceMixin.Units.PER_DAY)
-        self.component = factories.PlanComponentFactory(plan=self.plan,
-                                                        billing_type=models.PlanComponent.BillingTypes.USAGE)
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
+        self.component = factories.PlanComponentFactory(plan=self.plan, component=self.offering_component)
         self.order_item = factories.OrderItemFactory(plan=self.plan)
 
     def test_validate_correct_signature(self):
@@ -36,7 +37,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.ComponentUsage.objects.filter(order_item=self.order_item,
-                                                             component=self.component,
+                                                             component=self.offering_component,
                                                              date=datetime.date.today()).exists())
 
     def test_not_create_usage_if_component_not_exists(self):

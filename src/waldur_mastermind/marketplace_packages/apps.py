@@ -38,12 +38,13 @@ class MarketplacePackageConfig(AppConfig):
                          'change_order_item_state',
         )
 
+        FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(offering_type=PLUGIN_NAME,
                          processor=processor.process_order_item,
                          validator=processor.validate_order_item,
                          components=(
-                             Component(type='ram', name='RAM', measured_unit='GB'),
-                             Component(type='cores', name='Cores', measured_unit='cores'),
-                             Component(type='storage', name='Storage', measured_unit='GB'),
+                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=FIXED),
+                             Component(type='cores', name='Cores', measured_unit='cores', billing_type=FIXED),
+                             Component(type='storage', name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
                          scope_model=structure_models.ServiceSettings)

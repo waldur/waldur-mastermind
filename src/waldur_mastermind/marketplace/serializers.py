@@ -89,13 +89,6 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class PlanComponentSerializer(serializers.ModelSerializer):
-    class Meta(object):
-        model = models.PlanComponent
-        fields = ('billing_type', 'type', 'amount', 'price',
-                  'name', 'description', 'measured_unit',)
-
-
 class PlanSerializer(core_serializers.AugmentedSerializerMixin,
                      serializers.HyperlinkedModelSerializer):
     class Meta(object):
@@ -122,31 +115,33 @@ PriceSerializer = serializers.DecimalField(
 )
 
 
-class PlanComponentMetadataSerializer(serializers.ModelSerializer):
-    class Meta(object):
-        model = models.PlanComponent
-        fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',)
-        extra_kwargs = {
-            'billing_type': {'required': True},
-        }
-
-
 class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
-    components = PlanComponentSerializer(read_only=True, many=True)
-    custom_components = PlanComponentMetadataSerializer(write_only=True, required=False, many=True)
     prices = serializers.DictField(child=PriceSerializer, write_only=True, required=False)
     quotas = serializers.DictField(child=serializers.IntegerField(min_value=0),
                                    write_only=True, required=False)
 
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'components',
-                  'custom_components', 'prices', 'quotas')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'prices', 'quotas')
         read_ony_fields = ('unit_price',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
         }
+
+    def get_fields(self):
+        fields = super(NestedPlanSerializer, self).get_fields()
+        method = self.context['view'].request.method
+        if method == 'GET':
+            fields['prices'] = serializers.SerializerMethodField()
+            fields['quotas'] = serializers.SerializerMethodField()
+        return fields
+
+    def get_prices(self, plan):
+        return {item.component.type: item.price for item in plan.components.all()}
+
+    def get_quotas(self, plan):
+        return {item.component.type: item.amount for item in plan.components.all()}
 
 
 class NestedScreenshotSerializer(serializers.ModelSerializer):
@@ -205,11 +200,21 @@ class OfferingOptionsSerializer(serializers.Serializer):
     options = serializers.DictField(child=OptionFieldSerializer())
 
 
+class OfferingComponentSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.OfferingComponent
+        fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',)
+        extra_kwargs = {
+            'billing_type': {'required': True},
+        }
+
+
 class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(required=False)
+    components = OfferingComponentSerializer(required=False, many=True)
     geolocations = core_serializers.GeoLocationField(required=False)
     order_item_count = serializers.SerializerMethodField()
     plans = NestedPlanSerializer(many=True, required=False)
@@ -222,7 +227,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description',
                   'customer', 'customer_uuid', 'customer_name',
                   'category', 'category_uuid', 'category_title',
-                  'rating', 'attributes', 'options', 'geolocations',
+                  'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'scope')
         related_paths = {
@@ -251,7 +256,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         if offering_attributes is not None:
             if not isinstance(offering_attributes, dict):
                 raise rf_exceptions.ValidationError({
-                    'attributes': 'Dictionary is expected.'
+                    'attributes': _('Dictionary is expected.'),
                 })
 
             category = attrs.get('category', getattr(self.instance, 'category', None))
@@ -296,23 +301,31 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         return options
 
     def _validate_plans(self, attrs):
+        custom_components = attrs.get('components')
+
         offering_type = attrs.get('type', getattr(self.instance, 'type', None))
-        builtin_types = plugins.manager.get_component_types(offering_type)
+        builtin_components = plugins.manager.get_components(offering_type)
+
         valid_types = set()
+        fixed_types = set()
+
+        if builtin_components and custom_components:
+            raise serializers.ValidationError({
+                'components': _('Extra components are not allowed.')
+            })
+
+        elif builtin_components:
+            valid_types = {component.type for component in builtin_components}
+            fixed_types = {component.type
+                           for component in plugins.manager.get_components(offering_type)
+                           if component.billing_type == models.OfferingComponent.BillingTypes.FIXED}
+
+        elif custom_components:
+            valid_types = {component['type'] for component in custom_components}
+            fixed_types = {component['type'] for component in custom_components
+                           if component['billing_type'] == models.OfferingComponent.BillingTypes.FIXED}
 
         for plan in attrs.get('plans', []):
-            fixed_types = set()
-            if builtin_types and plan.get('custom_components'):
-                raise serializers.ValidationError({
-                    'plans': _('Extra plan components are not allowed.')
-                })
-            elif builtin_types:
-                fixed_types = valid_types = builtin_types
-            elif plan.get('custom_components'):
-                valid_types = {component['type'] for component in plan['custom_components']}
-                fixed_types = {component['type'] for component in plan['custom_components']
-                               if component['billing_type'] == models.PlanComponent.BillingTypes.FIXED}
-
             prices = plan.get('prices', {})
             price_components = set(prices.keys())
             if price_components != valid_types:
@@ -333,40 +346,38 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     @transaction.atomic
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
+        custom_components = validated_data.pop('components', [])
+
         offering = super(OfferingSerializer, self).create(validated_data)
         fixed_components = plugins.manager.get_components(offering.type)
 
+        for component_data in fixed_components:
+            models.OfferingComponent.objects.create(
+                offering=offering,
+                **component_data._asdict()
+            )
+
+        for component_data in custom_components:
+            models.OfferingComponent.objects.create(offering=offering, **component_data)
+
+        components = {component.type: component for component in offering.components.all()}
         for plan_data in plans:
-            self._create_plan(offering, plan_data, fixed_components)
+            self._create_plan(offering, plan_data, components)
 
         return offering
 
-    def _create_plan(self, offering, plan_data, fixed_components):
-        custom_components = plan_data.pop('custom_components', [])
+    def _create_plan(self, offering, plan_data, components):
         quotas = plan_data.pop('quotas', {})
         prices = plan_data.pop('prices', {})
         plan = models.Plan.objects.create(offering=offering, **plan_data)
 
-        if fixed_components:
-            for component_data in fixed_components:
-                models.PlanComponent.objects.create(
-                    type=component_data.type,
-                    name=component_data.name,
-                    measured_unit=component_data.measured_unit,
-                    plan=plan,
-                    amount=quotas[component_data.type],
-                    price=prices[component_data.type],
-                    billing_type=models.PlanComponent.BillingTypes.FIXED,
-                )
-        else:
-            for component_data in custom_components:
-                component_type = component_data['type']
-                models.PlanComponent.objects.create(
-                    plan=plan,
-                    amount=quotas.get(component_type) or 0,
-                    price=prices[component_type],
-                    **component_data
-                )
+        for name, component in components.items():
+            models.PlanComponent.objects.create(
+                plan=plan,
+                component=component,
+                amount=quotas.get(name) or 0,
+                price=prices[name],
+            )
 
     def update(self, instance, validated_data):
         # TODO: Implement support for nested plan update
@@ -453,8 +464,8 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
 
         limits = attrs.get('limits')
         if limits:
-            valid_component_types = plan.components\
-                .filter(billing_type=models.PlanComponent.BillingTypes.USAGE)\
+            valid_component_types = offering.components\
+                .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE)\
                 .values_list('type', flat=True)
             invalid_types = set(limits.keys()) - set(valid_component_types)
             if invalid_types:
@@ -501,7 +512,6 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
             cost = 0
             if plan:
                 cost = plan.unit_price
-            total_cost += cost
             order_item = models.OrderItem(
                 order=order,
                 offering=item['offering'],
@@ -511,16 +521,27 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
             )
             plugins.manager.validate(order_item, self.context['request'])
 
-            order_item.save()
+            components_map = {}
             limits = item.get('limits')
             if limits:
-                components = models.PlanComponent.objects.filter(
-                    plan=plan,
-                    billing_type=models.PlanComponent.BillingTypes.USAGE
+                components = models.OfferingComponent.objects.filter(
+                    offering=plan.offering,
+                    billing_type=models.OfferingComponent.BillingTypes.USAGE
                 )
                 components_map = {
                     component.type: component for component in components
                 }
+                component_prices = {
+                    c.component.type: c.price for c in plan.components.all()
+                }
+                for key in components_map.keys():
+                    cost += component_prices.get(key, 0) * limits.get(key, 0)
+                order_item.cost = cost
+
+            total_cost += cost
+
+            order_item.save()
+            if limits:
                 for key, value in limits.items():
                     models.ComponentQuota.objects.create(
                         order_item=order_item,
@@ -561,14 +582,14 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
         api_secret_code = service_provider and service_provider.api_secret_code
 
         if not api_secret_code:
-            raise rf_exceptions.ValidationError(_('An API secret code is not set.'))
+            raise rf_exceptions.ValidationError(_('API secret code is not set.'))
 
         if utils.check_api_signature(data=attrs['data'],
                                      api_secret_code=api_secret_code,
                                      signature=attrs['signature']):
             return attrs
         else:
-            raise rf_exceptions.ValidationError(_('Wrong signature.'))
+            raise rf_exceptions.ValidationError(_('Invalid signature.'))
 
 
 class PublicComponentUsageSerializer(serializers.Serializer):
@@ -581,22 +602,26 @@ class PublicComponentUsageSerializer(serializers.Serializer):
         order_item = attrs['order_item']
         date = attrs['date']
         plan = order_item.plan
+        offering = plan.offering
 
         if date > datetime.date.today():
-            raise rf_exceptions.ValidationError({'date': _('Date can not be in the future.')})
+            raise rf_exceptions.ValidationError({'date': _('Invalid date value.')})
 
         try:
-            component = models.PlanComponent.objects.get(plan=plan, type=attrs['type'])
-        except models.PlanComponent.DoesNotExist:
-            raise rf_exceptions.ValidationError(_('This plan component not found.'))
-
-        if component.billing_type != models.PlanComponent.BillingTypes.USAGE:
-            raise rf_exceptions.ValidationError(_('Billing type of a plan component is not usage.'))
+            component = models.OfferingComponent.objects.get(
+                offering=offering,
+                type=attrs['type'],
+                billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            )
+        except models.OfferingComponent.DoesNotExist:
+            raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % attrs['type'])
 
         if models.ComponentUsage.objects.filter(order_item=order_item,
                                                 component=component,
                                                 date=attrs['date']).exists():
-            raise rf_exceptions.ValidationError(_('This usage was be saved.'))
+            raise rf_exceptions.ValidationError({
+                'date': _('Component usage for provided billing period already exists.')
+            })
 
         attrs['component'] = component
 

@@ -179,6 +179,7 @@ class PluginViewSet(views.APIView):
                     type=component.type,
                     name=component.name,
                     measured_unit=component.measured_unit,
+                    billing_type=component.billing_type,
                 )
                 for component in plugins.manager.get_components(offering_type)
             ]

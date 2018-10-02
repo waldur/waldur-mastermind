@@ -217,6 +217,31 @@ class Offering(core_models.UuidMixin,
         return plugins.manager.get_scope_models()
 
 
+class OfferingComponent(core_models.DescribableMixin):
+    class Meta(object):
+        unique_together = ('type', 'offering')
+
+    class BillingTypes(object):
+        FIXED = 'fixed'
+        USAGE = 'usage'
+
+        CHOICES = (
+            (FIXED, 'Fixed-price'),
+            (USAGE, 'Usage-based'),
+        )
+
+    offering = models.ForeignKey(Offering, related_name='components')
+    billing_type = models.CharField(choices=BillingTypes.CHOICES,
+                                    default=BillingTypes.FIXED,
+                                    max_length=5)
+    type = models.CharField(max_length=50,
+                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
+    name = models.CharField(max_length=150,
+                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
+    measured_unit = models.CharField(max_length=30,
+                                     help_text=_('Unit of measurement, for example, GB.'))
+
+
 class Plan(core_models.UuidMixin,
            TimeStampedModel,
            core_models.NameMixin,
@@ -236,38 +261,21 @@ class Plan(core_models.UuidMixin,
         customer_path = 'offering__customer'
 
 
-class PlanComponent(core_models.DescribableMixin):
+class PlanComponent(models.Model):
+    class Meta(object):
+        unique_together = ('plan', 'component')
+
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
-    class Meta(object):
-        unique_together = ('type', 'plan')
-
-    class BillingTypes(object):
-        FIXED = 'fixed'
-        USAGE = 'usage'
-
-        CHOICES = (
-            (FIXED, 'Fixed-price'),
-            (USAGE, 'Usage-based'),
-        )
-
-    billing_type = models.CharField(choices=BillingTypes.CHOICES,
-                                    default=BillingTypes.FIXED,
-                                    max_length=5)
-    type = models.CharField(max_length=50,
-                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
-    name = models.CharField(max_length=150,
-                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
-    measured_unit = models.CharField(max_length=30,
-                                     help_text=_('Unit of measurement, for example, GB.'))
+    plan = models.ForeignKey(Plan, related_name='components')
+    component = models.ForeignKey(OfferingComponent, related_name='components', null=True)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
                                 max_digits=PRICE_MAX_DIGITS,
                                 decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit per billing period.'))
-    plan = models.ForeignKey(Plan, related_name='components')
 
 
 @python_2_unicode_compatible
@@ -428,8 +436,8 @@ class OrderItem(core_models.UuidMixin,
 
 class ComponentQuota(models.Model):
     order_item = models.ForeignKey(OrderItem, related_name='quotas')
-    component = models.ForeignKey(PlanComponent,
-                                  limit_choices_to={'billing_type': PlanComponent.BillingTypes.USAGE})
+    component = models.ForeignKey(OfferingComponent,
+                                  limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
     usage = models.PositiveIntegerField(default=0)
 
@@ -439,8 +447,8 @@ class ComponentQuota(models.Model):
 
 class ComponentUsage(TimeStampedModel):
     order_item = models.ForeignKey(OrderItem, related_name='usages')
-    component = models.ForeignKey(PlanComponent,
-                                  limit_choices_to={'billing_type': PlanComponent.BillingTypes.USAGE})
+    component = models.ForeignKey(OfferingComponent,
+                                  limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
 
