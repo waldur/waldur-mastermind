@@ -67,6 +67,7 @@ class NestedSectionSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,
+                         core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     offering_count = serializers.SerializerMethodField()
     sections = NestedSectionSerializer(many=True, read_only=True)
