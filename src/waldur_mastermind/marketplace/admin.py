@@ -43,8 +43,13 @@ class SectionInline(admin.TabularInline):
     model = models.Section
 
 
+class CategoryColumnInline(admin.TabularInline):
+    model = models.CategoryColumn
+    list_display = ('index', 'title', 'attribute', 'widget')
+
+
 class CategoryAdmin(admin.ModelAdmin):
-    inlines = [SectionInline]
+    inlines = [SectionInline, CategoryColumnInline]
 
 
 class ScreenshotsInline(admin.TabularInline):

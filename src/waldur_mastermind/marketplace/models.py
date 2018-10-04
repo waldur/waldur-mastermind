@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 
-import six
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -15,6 +15,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+import six
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
@@ -77,6 +78,36 @@ class Category(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-category'
+
+
+@python_2_unicode_compatible
+class CategoryColumn(models.Model):
+    """
+    This model is needed in order to render resources table with extra columns.
+    Usually each column corresponds to specific resource attribute.
+    However, one table column may correspond to several resource attributes.
+    In this case custom widget should be specified.
+    If attribute field is specified, it is possible to filter and sort resources by it's value.
+    """
+
+    class Meta(object):
+        ordering = ('category', 'index')
+
+    category = models.ForeignKey(Category, related_name='columns')
+    index = models.PositiveSmallIntegerField(help_text=_('Index allows to reorder columns.'))
+    title = models.CharField(blank=False, max_length=255,
+                             help_text=_('Title is rendered as column header.'))
+    attribute = models.CharField(blank=True, max_length=255,
+                                 help_text=_('Resource attribute is rendered as table cell.'))
+    widget = models.CharField(blank=True, max_length=255,
+                              help_text=_('Widget field allows to customise table cell rendering.'))
+
+    def __str__(self):
+        return six.text_type(self.title)
+
+    def clean(self):
+        if not self.attribute and not self.widget:
+            raise ValidationError(_('Either attribute or widget field should be specified.'))
 
 
 @python_2_unicode_compatible
