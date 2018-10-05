@@ -1187,10 +1187,15 @@ class BaseCounterView(viewsets.GenericViewSet):
     # Fix for schema generation
     queryset = []
     extra_counters = {}
+    dynamic_counters = set()
 
     @classmethod
     def register_counter(cls, name, func):
         cls.extra_counters[name] = func
+
+    @classmethod
+    def register_dynamic_counter(cls, func):
+        cls.dynamic_counters.add(func)
 
     def get_counters(self):
         counters = self.get_fields()
@@ -1201,11 +1206,13 @@ class BaseCounterView(viewsets.GenericViewSet):
     def list(self, request, uuid=None):
         result = {}
         counters = self.get_counters()
-        fields = request.query_params.getlist('fields') or counters.keys()
         for field, func in counters.items():
-            if field in fields:
-                result[field] = func()
-
+            result[field] = func()
+        for func in self.dynamic_counters:
+            result.update(func(self.object))
+        fields = request.query_params.getlist('fields')
+        if fields:
+            result = {k: v for k, v in result.items() if k in fields}
         return Response(result)
 
     def get_fields(self):
