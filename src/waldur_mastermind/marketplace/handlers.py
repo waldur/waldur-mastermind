@@ -3,8 +3,6 @@ from __future__ import unicode_literals
 from django.db.models import Count
 from django.db import transaction
 
-from waldur_core.structure import models as structure_models
-
 from . import tasks, models
 
 
@@ -65,12 +63,23 @@ def update_category_offerings_count(sender, **kwargs):
         category.set_quota_usage(models.Category.Quotas.offering_count, value)
 
 
-def update_project_resources_count_when_resource_is_created(sender, instance, created=False, **kwargs):
-    pass
+def update_project_resources_count_when_order_item_is_updated(sender, instance, created=False, **kwargs):
+    def apply_change(delta):
+        counter, _ = models.ProjectResourceCount.objects.get_or_create(
+            project=instance.order.project,
+            category=instance.offering.category,
+        )
+        if delta == 1:
+            counter.count += 1
+        elif delta == -1:
+            counter.count = max(0, counter.count - 1)
 
+        counter.save(update_fields=['count'])
 
-def update_project_resources_count_when_resource_is_deleted(sender, instance, **kwargs):
-    pass
+    if instance.scope and (created or not instance.tracker.previous('object_id')):
+        apply_change(1)
+    elif not instance.scope and instance.tracker.previous('object_id'):
+        apply_change(-1)
 
 
 def update_project_resources_count(sender, **kwargs):
@@ -79,7 +88,7 @@ def update_project_resources_count(sender, **kwargs):
             .values('order__project', 'offering__category')\
             .annotate(count=Count('order__project', 'offering__category'))
     for row in rows:
-        models.ProjectResourceCount.objects.get_or_create(
+        models.ProjectResourceCount.objects.update_or_create(
             project_id=row['order__project'],
             category_id=row['offering__category'],
             defaults={'count': row['count']},
