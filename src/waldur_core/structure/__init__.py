@@ -306,6 +306,13 @@ class SupportedServices(object):
 
     @classmethod
     @lru_cache(maxsize=20)
+    def get_resource_serializers(cls):
+        return [resource['serializer']
+                for provider in cls._registry.values()
+                for resource in provider['resources'].values()]
+
+    @classmethod
+    @lru_cache(maxsize=20)
     def get_service_name_resources(cls, service_name):
         """ Get resource models by service name """
         from django.apps import apps

@@ -12,11 +12,12 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.serializers import GenericRelatedField
-from waldur_core.structure import models as structure_models
+from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions
 
@@ -659,7 +660,30 @@ def add_service_provider(sender, fields, **kwargs):
     setattr(sender, 'get_is_service_provider', get_is_service_provider)
 
 
+def get_marketplace_offering_uuid(serializer, scope):
+    try:
+        return models.OrderItem.objects.get(scope=scope).offering.uuid
+    except ObjectDoesNotExist:
+        return
+
+
+def add_marketplace_offering(sender, fields, **kwargs):
+    fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_service_provider,
 )
+
+core_signals.pre_serializer_fields.connect(
+    sender=support_serializers.OfferingSerializer,
+    receiver=add_marketplace_offering,
+)
+
+for resource_serializer in SupportedServices.get_resource_serializers():
+    core_signals.pre_serializer_fields.connect(
+        sender=resource_serializer,
+        receiver=add_marketplace_offering,
+    )
