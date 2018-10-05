@@ -485,3 +485,15 @@ class ComponentUsage(TimeStampedModel):
 
     class Meta:
         unique_together = ('order_item', 'component', 'date')
+
+
+class ProjectResourceCount(models.Model):
+    """
+    This model allows to count current number of project resources by category.
+    """
+    project = models.ForeignKey(structure_models.Project, related_name='+')
+    category = models.ForeignKey(Category, related_name='+')
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('project', 'category')
