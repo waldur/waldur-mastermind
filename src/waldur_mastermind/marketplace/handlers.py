@@ -84,9 +84,9 @@ def update_project_resources_count_when_order_item_is_updated(sender, instance, 
 
 def update_project_resources_count(sender, **kwargs):
     rows = models.OrderItem.objects\
-            .exclude(object_id=None)\
-            .values('order__project', 'offering__category')\
-            .annotate(count=Count('order__project', 'offering__category'))
+        .exclude(object_id=None)\
+        .values('order__project', 'offering__category')\
+        .annotate(count=Count('order__project', 'offering__category'))
     for row in rows:
         models.ProjectResourceCount.objects.update_or_create(
             project_id=row['order__project'],
