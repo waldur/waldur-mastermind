@@ -47,3 +47,22 @@ class MarketplaceConfig(AppConfig):
             handlers.update_category_offerings_count,
             dispatch_uid='waldur_mastermind.marketplace.update_category_offerings_count',
         )
+
+        signals.post_save.connect(
+            handlers.update_project_resources_count_when_resource_is_created,
+            sender=models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_project_resources_count_when_resource_is_created',
+        )
+
+        signals.post_save.connect(
+            handlers.update_project_resources_count_when_resource_is_deleted,
+            sender=models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_project_resources_count_when_resource_is_deleted',
+        )
+
+        quota_signals.recalculate_quotas.connect(
+            handlers.update_project_resources_count,
+            dispatch_uid='waldur_mastermind.marketplace.update_project_resources_count',
+        )
