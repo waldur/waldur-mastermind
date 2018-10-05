@@ -1247,6 +1247,7 @@ class CustomerCountersView(BaseCounterView):
     """
     lookup_field = 'uuid'
     extra_counters = {}
+    dynamic_counters = set()
 
     def get_queryset(self):
         return filter_queryset_for_user(models.Customer.objects.all().only('pk', 'uuid'), self.request.user)
@@ -1298,6 +1299,7 @@ class ProjectCountersView(BaseCounterView):
     """
     lookup_field = 'uuid'
     extra_counters = {}
+    dynamic_counters = set()
 
     def get_queryset(self):
         return filter_queryset_for_user(models.Project.objects.all().only('pk', 'uuid'), self.request.user)
