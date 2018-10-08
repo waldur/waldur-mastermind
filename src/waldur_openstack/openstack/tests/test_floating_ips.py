@@ -1,9 +1,10 @@
 from rest_framework import test, status
 
+from .. import models
 from . import factories, fixtures
 
 
-class FloatingIPListRetreiveTestCase(test.APITransactionTestCase):
+class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
@@ -94,3 +95,32 @@ class FloatingIPListRetreiveTestCase(test.APITransactionTestCase):
         response = self.client.get(factories.FloatingIPFactory.get_url(self.other_ip))
         # then
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_floating_ip_metadata(self):
+        self.active_ip.state = models.FloatingIP.States.OK
+        self.active_ip.save()
+
+        url = factories.FloatingIPFactory.get_url(self.active_ip)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.options(url)
+        actions = dict(response.data['actions'])
+        self.assertEqual(actions, {
+            "destroy": {
+                "title": "Destroy",
+                "url": url,
+                "enabled": True,
+                "reason": None,
+                "destructive": True,
+                "type": "button",
+                "method": "DELETE"
+            },
+            "pull": {
+                "title": "Pull",
+                "url": url + "pull/",
+                "enabled": True,
+                "reason": None,
+                "destructive": False,
+                "type": "button",
+                "method": "POST"
+            }
+        })

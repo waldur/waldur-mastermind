@@ -395,7 +395,7 @@ class SnapshotRestorationSerializer(core_serializers.AugmentedSerializerMixin, s
         return super(SnapshotRestorationSerializer, self).create(validated_data)
 
 
-class SnapshotSerializer(structure_serializers.BaseResourceSerializer):
+class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='openstacktenant-detail',
@@ -1191,7 +1191,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
         return backup_restoration
 
 
-class BackupSerializer(structure_serializers.BaseResourceSerializer):
+class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     # Serializer requires OpenStack Instance in context on creation
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -1274,7 +1274,7 @@ class BackupSerializer(structure_serializers.BaseResourceSerializer):
             backup.snapshots.add(snapshot)
 
 
-class BaseScheduleSerializer(structure_serializers.BaseResourceSerializer):
+class BaseScheduleSerializer(structure_serializers.BaseResourceActionSerializer):
     timezone = serializers.ChoiceField(choices=[(t, t) for t in pytz.all_timezones],
                                        initial=timezone.get_current_timezone_name(),
                                        default=timezone.get_current_timezone_name())

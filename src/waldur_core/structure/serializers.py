@@ -1466,8 +1466,9 @@ class BaseResourceSerializer(six.with_metaclass(ResourceSerializerMetaclass,
         # skip validation on object update
         if not self.instance:
             service_type = SupportedServices.get_model_key(self.Meta.model)
-            queryset = fields['service_settings'].queryset.filter(type=service_type)
-            fields['service_settings'].queryset = queryset
+            if not fields['service_settings'].read_only:
+                queryset = fields['service_settings'].queryset.filter(type=service_type)
+                fields['service_settings'].queryset = queryset
         return fields
 
     def validate(self, attrs):
@@ -1517,6 +1518,22 @@ class BaseResourceSerializer(six.with_metaclass(ResourceSerializerMetaclass,
         resource = super(BaseResourceSerializer, self).create(data)
         resource.increase_backend_quotas_usage()
         return resource
+
+
+class BaseResourceActionSerializer(BaseResourceSerializer):
+    project = serializers.HyperlinkedRelatedField(
+        view_name='project-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+    service_settings = serializers.HyperlinkedRelatedField(
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    class Meta(BaseResourceSerializer.Meta):
+        pass
 
 
 class SummaryResourceSerializer(core_serializers.BaseSummarySerializer):
