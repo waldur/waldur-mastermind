@@ -23,11 +23,15 @@ class SlurmOrderTest(test.APITransactionTestCase):
             offering=offering,
         )
         for component in manager.get_components(PLUGIN_NAME):
-            component = marketplace_models.PlanComponent.objects.create(
-                plan=plan,
+            component = marketplace_models.OfferingComponent.objects.create(
+                offering=offering,
                 type=component.type,
                 name=component.name,
                 measured_unit=component.measured_unit,
+            )
+            marketplace_models.PlanComponent.objects.create(
+                plan=plan,
+                component=component,
             )
             marketplace_models.ComponentQuota.objects.create(
                 order_item=order_item,

@@ -179,14 +179,23 @@ class PlanFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
+class OfferingComponentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OfferingComponent
+
+    offering = factory.SubFactory(OfferingFactory)
+    type = 'cpu'
+    billing_type = models.OfferingComponent.BillingTypes.FIXED
+
+
 class PlanComponentFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.PlanComponent
 
     plan = factory.SubFactory(PlanFactory)
+    component = factory.SubFactory(OfferingComponentFactory)
     price = Decimal(10)
     amount = 1
-    type = 'cpu'
 
 
 class OrderItemFactory(factory.DjangoModelFactory):

@@ -35,10 +35,11 @@ class MarketplaceSlurmConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_slurm.update_component_quota',
         )
 
+        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(PLUGIN_NAME, processor.process_slurm,
                          scope_model=structure_models.ServiceSettings,
                          components=(
-                             Component(type='cpu', name='CPU', measured_unit='hours'),
-                             Component(type='gpu', name='GPU', measured_unit='hours'),
-                             Component(type='ram', name='RAM', measured_unit='GB'),
+                             Component(type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE),
+                             Component(type='gpu', name='GPU', measured_unit='hours', billing_type=USAGE),
+                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE),
                          ))

@@ -300,9 +300,9 @@ class CustomerPermission(BasePermission):
 
 
 def get_next_agreement_number():
-    inital_number = settings.WALDUR_CORE['INITIAL_CUSTOMER_AGREEMENT_NUMBER']
+    initial_number = settings.WALDUR_CORE['INITIAL_CUSTOMER_AGREEMENT_NUMBER']
     last_number = Customer.objects.aggregate(models.Max('agreement_number')).get('agreement_number__max')
-    return (last_number or inital_number) + 1
+    return (last_number or initial_number) + 1
 
 
 @python_2_unicode_compatible

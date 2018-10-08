@@ -7,6 +7,7 @@ from rest_framework import status
 
 from waldur_core.structure.tests import fixtures
 from waldur_core.core.tests.utils import PostgreSQLTest
+from waldur_core.quotas import signals as quota_signals
 
 from . import factories
 from .. import models
@@ -188,3 +189,36 @@ class ItemDeleteTest(PostgreSQLTest):
         url = factories.OrderItemFactory.get_url(self.order_item)
         response = self.client.delete(url)
         return response
+
+
+class ProjectResourceCountTest(PostgreSQLTest):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.order = factories.OrderFactory(project=self.project)
+        self.order_item = factories.OrderItemFactory(order=self.order)
+        self.category = self.order_item.offering.category
+
+    def test_when_order_item_scope_is_updated_resource_count_is_increased(self):
+        self.order_item.scope = self.fixture.resource
+        self.order_item.save()
+        self.assertEqual(models.ProjectResourceCount.objects.get(
+            project=self.project, category=self.category).count, 1)
+
+    def test_when_order_item_scope_is_updated_resource_count_is_decreased(self):
+        self.order_item.scope = self.fixture.resource
+        self.order_item.save()
+        self.order_item.scope = None
+        self.order_item.save()
+
+        self.assertEqual(models.ProjectResourceCount.objects.get(
+            project=self.project, category=self.category).count, 0)
+
+    def test_recalculate_count(self):
+        self.order_item.scope = self.fixture.resource
+        self.order_item.save()
+        models.ProjectResourceCount.objects.all().delete()
+        quota_signals.recalculate_quotas.send(sender=self)
+
+        self.assertEqual(models.ProjectResourceCount.objects.get(
+            project=self.project, category=self.category).count, 1)

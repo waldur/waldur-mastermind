@@ -3,8 +3,8 @@ import json
 from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions as rf_exceptions
-from rest_framework.filters import DjangoFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import models as structure_models

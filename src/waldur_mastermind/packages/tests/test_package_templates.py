@@ -22,7 +22,7 @@ class PackageTemplateListTest(test.APITransactionTestCase):
 
 
 @ddt
-class PackageTemplateRetreiveTest(test.APITransactionTestCase):
+class PackageTemplateRetrieveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.PackageFixture()
         self.package_template = self.fixture.openstack_template

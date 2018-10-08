@@ -24,12 +24,12 @@ class BaseTest(test.APITransactionTestCase):
             plan=plan,
         )
         for component in manager.get_components(PLUGIN_NAME):
-            marketplace_models.PlanComponent.objects.create(
-                plan=plan,
+            marketplace_models.OfferingComponent.objects.create(
+                offering=offering,
                 type=component.type,
                 name=component.name,
                 measured_unit=component.measured_unit,
-                billing_type=marketplace_models.PlanComponent.BillingTypes.USAGE,
+                billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
             )
 
 

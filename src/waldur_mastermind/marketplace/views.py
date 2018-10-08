@@ -17,7 +17,9 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import permissions as structure_permissions, filters as structure_filters
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import views as structure_views
 
 from . import serializers, models, filters, tasks, plugins
 
@@ -179,6 +181,7 @@ class PluginViewSet(views.APIView):
                     type=component.type,
                     name=component.name,
                     measured_unit=component.measured_unit,
+                    billing_type=component.billing_type,
                 )
                 for component in plugins.manager.get_components(offering_type)
             ]
@@ -271,3 +274,13 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
             models.ComponentUsage.objects.bulk_create(usages)
 
         return Response(status=status.HTTP_201_CREATED)
+
+
+def inject_project_resources_counter(project):
+    return {
+        'marketplace_category_{}'.format(counter.category.uuid): counter.count
+        for counter in models.ProjectResourceCount.objects.filter(project=project).only('count', 'category')
+    }
+
+
+structure_views.ProjectCountersView.register_dynamic_counter(inject_project_resources_counter)

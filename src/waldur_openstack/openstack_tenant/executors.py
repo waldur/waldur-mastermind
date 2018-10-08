@@ -265,18 +265,31 @@ class SnapshotPullExecutor(core_executors.ActionExecutor):
 
 
 class InstanceCreateExecutor(core_executors.CreateExecutor):
-    """ First - create instance volumes in parallel, after - create instance based on created volumes """
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, ssh_key=None, flavor=None):
-        """ Create all instance volumes in parallel and wait for them to provision """
         serialized_volumes = [core_utils.serialize_instance(volume) for volume in instance.volumes.all()]
-
         _tasks = [tasks.ThrottleProvisionStateTask().si(serialized_instance, state_transition='begin_creating')]
+        _tasks += cls.create_volumes(serialized_volumes)
+        _tasks += cls.create_internal_ips(serialized_instance)
+        _tasks += cls.create_instance(serialized_instance, flavor, ssh_key)
+        _tasks += cls.pull_volumes(serialized_volumes)
+        _tasks += cls.pull_security_groups(serialized_instance)
+        _tasks += cls.create_floating_ips(instance, serialized_instance)
+        return chain(*_tasks)
+
+    @classmethod
+    def create_volumes(cls, serialized_volumes):
+        """
+        Create all instance volumes and wait for them to provision.
+        """
+        _tasks = []
+
         # Create volumes
         for serialized_volume in serialized_volumes:
             _tasks.append(tasks.ThrottleProvisionTask().si(
                 serialized_volume, 'create_volume', state_transition='begin_creating'))
+
         for index, serialized_volume in enumerate(serialized_volumes):
             # Wait for volume creation
             _tasks.append(core_tasks.PollRuntimeStateTask().si(
@@ -285,16 +298,38 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
                 success_state='available',
                 erred_state='error',
             ).set(countdown=30 if index == 0 else 0))
+
             # Pull volume to sure that it is bootable
             _tasks.append(core_tasks.BackendMethodTask().si(serialized_volume, 'pull_volume'))
+
             # Mark volume as OK
             _tasks.append(core_tasks.StateTransitionTask().si(serialized_volume, state_transition='set_ok'))
-        # Create instance based on volumes
+
+        return _tasks
+
+    @classmethod
+    def create_internal_ips(cls, serialized_instance):
+        """
+        Create all network ports for an OpenStack instance.
+        Although OpenStack Nova REST API allows to create network ports implicitly,
+        we're not using it, because it does not take into account subnets.
+        See also: https://specs.openstack.org/openstack/nova-specs/specs/juno/approved/selecting-subnet-when-creating-vm.html
+        Therefore we're creating network ports beforehand with correct subnet.
+        """
+        return [core_tasks.BackendMethodTask().si(serialized_instance, 'create_instance_internal_ips')]
+
+    @classmethod
+    def create_instance(cls, serialized_instance, flavor, ssh_key=None):
+        """
+        It is assumed that volumes and network ports have been created beforehand.
+        """
+        _tasks = []
         kwargs = {
             'backend_flavor_id': flavor.backend_id,
         }
         if ssh_key is not None:
             kwargs['public_key'] = ssh_key.public_key
+
         # Wait 10 seconds after volume creation due to OpenStack restrictions.
         _tasks.append(core_tasks.BackendMethodTask().si(
             serialized_instance, 'create_instance', **kwargs).set(countdown=10))
@@ -306,42 +341,38 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
             success_state=models.Instance.RuntimeStates.ACTIVE,
             erred_state=models.Instance.RuntimeStates.ERROR,
         ))
+        return _tasks
 
-        # Update volumes runtime state and device name
+    @classmethod
+    def pull_volumes(cls, serialized_volumes):
+        """
+        Update volumes runtime state and device name
+        """
+        _tasks = []
         for serialized_volume in serialized_volumes:
             _tasks.append(core_tasks.BackendMethodTask().si(
                 serialized_volume,
                 backend_method='pull_volume',
                 update_fields=['runtime_state', 'device']
             ))
+        return _tasks
 
-        # TODO: Port should be created before instance is created.
-        # The following calls should be removed: pull_created_instance_internal_ips and push_instance_internal_ips.
+    @classmethod
+    def pull_security_groups(cls, serialized_instance):
+        return [core_tasks.BackendMethodTask().si(serialized_instance, 'pull_instance_security_groups')]
 
-        # Pull instance internal IPs
-        # pull_instance_internal_ips method cannot be used, because it requires backend_id to update
-        # existing internal IPs. However, internal IPs of the created instance does not have backend_ids.
-        _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'pull_created_instance_internal_ips'))
-
-        # Consider the case when instance has several internal IPs connected to
-        # different subnets within the same network.
-        # When OpenStack instance is provisioned, network port is created.
-        # This port is pulled into Waldur using the pull_created_instance_internal_ips method.
-        # However, it does not take into account subnets, because OpenStack
-        # does not allow to specify subnet on instance creation.
-        # See also: https://specs.openstack.org/openstack/nova-specs/specs/juno/approved/selecting-subnet-when-creating-vm.html
-        # Therefore we need to push remaining network ports for subnets explicitly.
-        _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'push_instance_internal_ips'))
-
-        # Pull instance security groups
-        _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'pull_instance_security_groups'))
+    @classmethod
+    def create_floating_ips(cls, instance, serialized_instance):
+        _tasks = []
 
         # Create non-existing floating IPs
         for floating_ip in instance.floating_ips.filter(backend_id=''):
             serialized_floating_ip = core_utils.serialize_instance(floating_ip)
             _tasks.append(core_tasks.BackendMethodTask().si(serialized_floating_ip, 'create_floating_ip'))
+
         # Push instance floating IPs
         _tasks.append(core_tasks.BackendMethodTask().si(serialized_instance, 'push_instance_floating_ips'))
+
         # Wait for operation completion
         for index, floating_ip in enumerate(instance.floating_ips):
             _tasks.append(core_tasks.PollRuntimeStateTask().si(
@@ -356,7 +387,8 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
             serialized_executor = core_utils.serialize_class(openstack_executors.TenantPullFloatingIPsExecutor)
             serialized_tenant = core_utils.serialize_instance(shared_tenant)
             _tasks.append(core_tasks.ExecutorTask().si(serialized_executor, serialized_tenant))
-        return chain(*_tasks)
+
+        return _tasks
 
     @classmethod
     def get_success_signature(cls, instance, serialized_instance, **kwargs):

@@ -34,11 +34,6 @@ class SlurmPackageTest(test.APITransactionTestCase):
                         'gpu': 100,
                         'ram': 1000,
                     },
-                    'quotas': {
-                        'cpu': 1,
-                        'gpu': 1,
-                        'ram': 1,
-                    }
                 }
             ]
         }

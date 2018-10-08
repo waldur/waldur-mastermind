@@ -47,3 +47,15 @@ class MarketplaceConfig(AppConfig):
             handlers.update_category_offerings_count,
             dispatch_uid='waldur_mastermind.marketplace.update_category_offerings_count',
         )
+
+        signals.post_save.connect(
+            handlers.update_project_resources_count_when_order_item_is_updated,
+            sender=models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_project_resources_count_when_order_item_is_updated',
+        )
+
+        quota_signals.recalculate_quotas.connect(
+            handlers.update_project_resources_count,
+            dispatch_uid='waldur_mastermind.marketplace.update_project_resources_count',
+        )

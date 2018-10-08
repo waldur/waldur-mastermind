@@ -59,7 +59,7 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
 
     package_models.PackageComponent.objects.create(
         template=template,
-        type=component.type,
+        type=component.component.type,
         amount=component.amount,
         price=component.price,
     )

@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 from decimal import Decimal
 
-import six
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -15,6 +15,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+import six
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
@@ -77,6 +78,36 @@ class Category(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-category'
+
+
+@python_2_unicode_compatible
+class CategoryColumn(models.Model):
+    """
+    This model is needed in order to render resources table with extra columns.
+    Usually each column corresponds to specific resource attribute.
+    However, one table column may correspond to several resource attributes.
+    In this case custom widget should be specified.
+    If attribute field is specified, it is possible to filter and sort resources by it's value.
+    """
+
+    class Meta(object):
+        ordering = ('category', 'index')
+
+    category = models.ForeignKey(Category, related_name='columns')
+    index = models.PositiveSmallIntegerField(help_text=_('Index allows to reorder columns.'))
+    title = models.CharField(blank=False, max_length=255,
+                             help_text=_('Title is rendered as column header.'))
+    attribute = models.CharField(blank=True, max_length=255,
+                                 help_text=_('Resource attribute is rendered as table cell.'))
+    widget = models.CharField(blank=True, max_length=255,
+                              help_text=_('Widget field allows to customise table cell rendering.'))
+
+    def __str__(self):
+        return six.text_type(self.title)
+
+    def clean(self):
+        if not self.attribute and not self.widget:
+            raise ValidationError(_('Either attribute or widget field should be specified.'))
 
 
 @python_2_unicode_compatible
@@ -217,6 +248,31 @@ class Offering(core_models.UuidMixin,
         return plugins.manager.get_scope_models()
 
 
+class OfferingComponent(core_models.DescribableMixin):
+    class Meta(object):
+        unique_together = ('type', 'offering')
+
+    class BillingTypes(object):
+        FIXED = 'fixed'
+        USAGE = 'usage'
+
+        CHOICES = (
+            (FIXED, 'Fixed-price'),
+            (USAGE, 'Usage-based'),
+        )
+
+    offering = models.ForeignKey(Offering, related_name='components')
+    billing_type = models.CharField(choices=BillingTypes.CHOICES,
+                                    default=BillingTypes.FIXED,
+                                    max_length=5)
+    type = models.CharField(max_length=50,
+                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
+    name = models.CharField(max_length=150,
+                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
+    measured_unit = models.CharField(max_length=30,
+                                     help_text=_('Unit of measurement, for example, GB.'))
+
+
 class Plan(core_models.UuidMixin,
            TimeStampedModel,
            core_models.NameMixin,
@@ -236,38 +292,21 @@ class Plan(core_models.UuidMixin,
         customer_path = 'offering__customer'
 
 
-class PlanComponent(core_models.DescribableMixin):
+class PlanComponent(models.Model):
+    class Meta(object):
+        unique_together = ('plan', 'component')
+
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
-    class Meta(object):
-        unique_together = ('type', 'plan')
-
-    class BillingTypes(object):
-        FIXED = 'fixed'
-        USAGE = 'usage'
-
-        CHOICES = (
-            (FIXED, 'Fixed-price'),
-            (USAGE, 'Usage-based'),
-        )
-
-    billing_type = models.CharField(choices=BillingTypes.CHOICES,
-                                    default=BillingTypes.FIXED,
-                                    max_length=5)
-    type = models.CharField(max_length=50,
-                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
-    name = models.CharField(max_length=150,
-                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
-    measured_unit = models.CharField(max_length=30,
-                                     help_text=_('Unit of measurement, for example, GB.'))
+    plan = models.ForeignKey(Plan, related_name='components')
+    component = models.ForeignKey(OfferingComponent, related_name='components', null=True)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
                                 max_digits=PRICE_MAX_DIGITS,
                                 decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit per billing period.'))
-    plan = models.ForeignKey(Plan, related_name='components')
 
 
 @python_2_unicode_compatible
@@ -428,8 +467,8 @@ class OrderItem(core_models.UuidMixin,
 
 class ComponentQuota(models.Model):
     order_item = models.ForeignKey(OrderItem, related_name='quotas')
-    component = models.ForeignKey(PlanComponent,
-                                  limit_choices_to={'billing_type': PlanComponent.BillingTypes.USAGE})
+    component = models.ForeignKey(OfferingComponent,
+                                  limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
     usage = models.PositiveIntegerField(default=0)
 
@@ -439,10 +478,22 @@ class ComponentQuota(models.Model):
 
 class ComponentUsage(TimeStampedModel):
     order_item = models.ForeignKey(OrderItem, related_name='usages')
-    component = models.ForeignKey(PlanComponent,
-                                  limit_choices_to={'billing_type': PlanComponent.BillingTypes.USAGE})
+    component = models.ForeignKey(OfferingComponent,
+                                  limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
 
     class Meta:
         unique_together = ('order_item', 'component', 'date')
+
+
+class ProjectResourceCount(models.Model):
+    """
+    This model allows to count current number of project resources by category.
+    """
+    project = models.ForeignKey(structure_models.Project, related_name='+')
+    category = models.ForeignKey(Category, related_name='+')
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('project', 'category')
