@@ -139,7 +139,7 @@ class TenantQuotaSerializer(serializers.Serializer):
     security_group_rule_count = serializers.IntegerField(min_value=1, required=False)
 
 
-class FloatingIPSerializer(structure_serializers.BaseResourceSerializer):
+class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='openstack-detail',
@@ -278,7 +278,7 @@ class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
         return rules
 
 
-class SecurityGroupSerializer(structure_serializers.BaseResourceSerializer):
+class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='openstack-detail',
@@ -594,7 +594,7 @@ class _NestedSubNetSerializer(serializers.ModelSerializer):
         fields = ('name', 'description', 'cidr', 'gateway_ip', 'allocation_pools', 'ip_version', 'enable_dhcp')
 
 
-class NetworkSerializer(structure_serializers.BaseResourceSerializer):
+class NetworkSerializer(structure_serializers.BaseResourceActionSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='openstack-detail',
@@ -627,7 +627,7 @@ class NetworkSerializer(structure_serializers.BaseResourceSerializer):
         return super(NetworkSerializer, self).validate(attrs)
 
 
-class SubNetSerializer(structure_serializers.BaseResourceSerializer):
+class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='openstack-detail',
