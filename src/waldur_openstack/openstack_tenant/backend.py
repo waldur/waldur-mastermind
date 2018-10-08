@@ -1169,6 +1169,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             new_internal_ip.save()
 
     @log_backend_action
+    def create_instance_internal_ips(self, instance):
+        for internal_ip in instance.internal_ips_set.all():
+            self.create_internal_ip(internal_ip)
+
+    @log_backend_action
     def create_internal_ip(self, internal_ip):
         neutron = self.neutron_client
 

@@ -271,7 +271,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         serialized_volumes = [core_utils.serialize_instance(volume) for volume in instance.volumes.all()]
         _tasks = [tasks.ThrottleProvisionStateTask().si(serialized_instance, state_transition='begin_creating')]
         _tasks += cls.create_volumes(serialized_volumes)
-        _tasks += cls.create_internal_ips(instance)
+        _tasks += cls.create_internal_ips(serialized_instance)
         _tasks += cls.create_instance(serialized_instance, flavor, ssh_key)
         _tasks += cls.pull_volumes(serialized_volumes)
         _tasks += cls.pull_security_groups(serialized_instance)
@@ -308,7 +308,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         return _tasks
 
     @classmethod
-    def create_internal_ips(cls, instance):
+    def create_internal_ips(cls, serialized_instance):
         """
         Create all network ports for an OpenStack instance.
         Although OpenStack Nova REST API allows to create network ports implicitly,
@@ -316,12 +316,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         See also: https://specs.openstack.org/openstack/nova-specs/specs/juno/approved/selecting-subnet-when-creating-vm.html
         Therefore we're creating network ports beforehand with correct subnet.
         """
-        _tasks = []
-        for internal_ip in instance.internal_ips_set.all():
-            serialized_internal_ip = core_utils.serialize_instance(internal_ip)
-            _tasks.append(core_tasks.BackendMethodTask().si(
-                serialized_internal_ip, 'create_internal_ip'))
-        return _tasks
+        return [core_tasks.BackendMethodTask().si(serialized_instance, 'create_instance_internal_ips')]
 
     @classmethod
     def create_instance(cls, serialized_instance, flavor, ssh_key=None):
