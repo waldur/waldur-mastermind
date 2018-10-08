@@ -523,7 +523,7 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         # Arrange
         instance = self.fixture.instance
         internal_ip = self.fixture.internal_ip
-        internal_ip.backend_id = ''
+        internal_ip.backend_id = None
         internal_ip.save()
         self.setup_neutron('port_id', instance.backend_id, internal_ip.subnet.backend_id)
 
@@ -634,7 +634,7 @@ class PullInternalIpsTest(BaseBackendTest):
         # Arrange
         instance = self.fixture.instance
         internal_ip = self.fixture.internal_ip
-        internal_ip.backend_id = ''
+        internal_ip.backend_id = None
         internal_ip.save()
         self.setup_neutron('port_id', instance.backend_id, internal_ip.subnet.backend_id)
 

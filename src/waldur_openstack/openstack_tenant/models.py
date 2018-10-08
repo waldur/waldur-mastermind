@@ -467,7 +467,7 @@ class InternalIP(openstack_base_models.Port):
 
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
+    backend_id = models.CharField(max_length=255, null=True)
     settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
 
     class Meta:
