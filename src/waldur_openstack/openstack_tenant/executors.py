@@ -433,10 +433,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
 
         # Case 1. Instance does not exist at backend
         if not instance.backend_id:
-            return core_tasks.StateTransitionTask().si(
-                serialized_instance,
-                state_transition='begin_deleting'
-            )
+            return chain(cls.get_delete_incomplete_instance_tasks(instance, serialized_instance))
 
         # Case 2. Instance exists at backend.
         # Data volumes are deleted by OpenStack because delete_on_termination=True
@@ -448,6 +445,35 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         else:
             detach_volumes = cls.get_detach_data_volumes_tasks(instance, serialized_instance)
             return chain(detach_volumes + delete_instance)
+
+    @classmethod
+    def get_delete_incomplete_instance_tasks(cls, instance, serialized_instance):
+        _tasks = []
+
+        _tasks.append(core_tasks.StateTransitionTask().si(
+            serialized_instance,
+            state_transition='begin_deleting'
+        ))
+
+        _tasks.append(core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            backend_method='delete_instance_internal_ips',
+        ))
+
+        for volume in instance.volumes.all():
+            if volume.backend_id:
+                serialized_volume = core_utils.serialize_instance(volume)
+                _tasks.append(core_tasks.BackendMethodTask().si(
+                    serialized_volume,
+                    'delete_volume',
+                    state_transition='begin_deleting'
+                ))
+                _tasks.append(core_tasks.PollBackendCheckTask().si(
+                    serialized_volume,
+                    'is_volume_deleted'
+                ))
+
+        return _tasks
 
     @classmethod
     def get_delete_instance_tasks(cls, instance, serialized_instance, release_floating_ips):
