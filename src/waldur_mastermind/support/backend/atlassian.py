@@ -70,6 +70,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         super(ServiceDeskBackend, self).create_issue(issue)
 
     def create_user(self, user):
+        # Temporary workaround as JIRA returns 500 error if user already exists
+        if self.manager.search_users(user.email):
+            logger.debug('Skipping user %s creation because it already exists', user.email)
+            return
         return self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
 
     @reraise_exceptions
