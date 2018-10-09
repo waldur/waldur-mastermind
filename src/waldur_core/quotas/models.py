@@ -359,7 +359,7 @@ class SharedQuotaMixin(object):
                     scope.add_quota_usage(name, delta * mult, validate=validate)
 
     def increase_backend_quotas_usage(self, validate=True):
-        self.apply_quota_changes(validate=True)
+        self.apply_quota_changes(validate=validate)
 
     def decrease_backend_quotas_usage(self):
         self.apply_quota_changes(mult=-1)
