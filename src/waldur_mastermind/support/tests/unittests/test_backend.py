@@ -81,8 +81,8 @@ class IssueCreateTest(BaseBackendTest):
         self.mocked_jira.create_issue.return_value.permalink.return_value = 'http://example.com/TST-101'
 
     def test_user_for_caller_is_created(self):
+        self.mocked_jira.search_users.return_value = []
         self.backend.create_issue(self.issue)
-
         self.mocked_jira.add_user.assert_called_once_with(
             self.issue.caller.email, self.issue.caller.email,
             fullname=self.issue.caller.full_name, ignore_existing=True
