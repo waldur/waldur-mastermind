@@ -1196,6 +1196,22 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         internal_ip.save()
 
     @log_backend_action()
+    def delete_instance_internal_ips(self, instance):
+        for internal_ip in instance.internal_ips_set.all():
+            if internal_ip.backend_id:
+                self.delete_internal_ip(internal_ip)
+
+    def delete_internal_ip(self, internal_ip):
+        neutron = self.neutron_client
+
+        logger.debug('About to delete network port. Port ID: %s.', internal_ip.backend_id)
+        try:
+            neutron.delete_port(internal_ip.backend_id)
+        except neutron_exceptions.NeutronClientException as e:
+            reraise(e)
+        internal_ip.delete()
+
+    @log_backend_action()
     def pull_instance_security_groups(self, instance):
         nova = self.nova_client
         server_id = instance.backend_id
