@@ -326,3 +326,40 @@ class ExtendableQuotaModelMixin(QuotaModelMixin):
         # For counter quotas we need to register signals explicitly
         if isinstance(quota_field, fields.CounterQuotaField):
             QuotasConfig.register_counter_field_signals(model=cls, counter_field=quota_field)
+
+
+class SharedQuotaMixin(object):
+    """
+    This mixin updates quotas for several scopes.
+    """
+
+    def get_quota_deltas(self):
+        """
+        This method should return dict where key is quota name and value is quota diff.
+        For example:
+        {
+            'storage': 1024,
+            'volumes': 1,
+        }
+        """
+        raise NotImplementedError()
+
+    def get_quota_scopes(self):
+        """
+        This method should return list of quota model mixins.
+        """
+        raise NotImplementedError()
+
+    def apply_quota_changes(self, validate=False, mult=1):
+        scopes = self.get_quota_scopes()
+        deltas = self.get_quota_deltas()
+        for name, delta in deltas.items():
+            for scope in scopes:
+                if scope:
+                    scope.add_quota_usage(name, delta * mult, validate=validate)
+
+    def increase_backend_quotas_usage(self, validate=True):
+        self.apply_quota_changes(validate=validate)
+
+    def decrease_backend_quotas_usage(self):
+        self.apply_quota_changes(mult=-1)
