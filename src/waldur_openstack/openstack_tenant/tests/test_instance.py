@@ -57,9 +57,14 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(self.openstack_settings.quotas.get(name=Quotas.vcpu).usage, instance.cores)
         self.assertEqual(self.openstack_settings.quotas.get(name=Quotas.instances).usage, 1)
 
-        self.assertEqual(self.openstack_spl.quotas.get(name=self.openstack_spl.Quotas.ram).usage, instance.ram)
-        self.assertEqual(self.openstack_spl.quotas.get(name=self.openstack_spl.Quotas.storage).usage, instance.disk)
-        self.assertEqual(self.openstack_spl.quotas.get(name=self.openstack_spl.Quotas.vcpu).usage, instance.cores)
+        self.assertEqual(self.openstack_spl.quotas.get(name=Quotas.ram).usage, instance.ram)
+        self.assertEqual(self.openstack_spl.quotas.get(name=Quotas.storage).usage, instance.disk)
+        self.assertEqual(self.openstack_spl.quotas.get(name=Quotas.vcpu).usage, instance.cores)
+
+        self.assertEqual(self.openstack_settings.scope.quotas.get(name=Quotas.ram).usage, instance.ram)
+        self.assertEqual(self.openstack_settings.scope.quotas.get(name=Quotas.storage).usage, instance.disk)
+        self.assertEqual(self.openstack_settings.scope.quotas.get(name=Quotas.vcpu).usage, instance.cores)
+        self.assertEqual(self.openstack_settings.scope.quotas.get(name=Quotas.instances).usage, 1)
 
     def test_project_quotas_updated_when_instance_is_created(self):
         response = self.client.post(self.url, self.get_valid_data())
@@ -316,13 +321,15 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
         self.instance.service_project_link.service.settings.refresh_from_db()
         quotas = self.instance.service_project_link.service.settings.quotas
+        tenant_quotas = self.instance.service_project_link.service.settings.scope.quotas
 
-        self.assert_quota_usage(quotas, 'instances', 0)
-        self.assert_quota_usage(quotas, 'vcpu', 0)
-        self.assert_quota_usage(quotas, 'ram', 0)
+        for scope in (quotas, tenant_quotas):
+            self.assert_quota_usage(scope, 'instances', 0)
+            self.assert_quota_usage(scope, 'vcpu', 0)
+            self.assert_quota_usage(scope, 'ram', 0)
 
-        self.assert_quota_usage(quotas, 'volumes', 0)
-        self.assert_quota_usage(quotas, 'storage', 0)
+            self.assert_quota_usage(scope, 'volumes', 0)
+            self.assert_quota_usage(scope, 'storage', 0)
 
     def test_backend_methods_are_called_if_instance_is_deleted_without_volumes(self):
         self.mock_volumes(False)

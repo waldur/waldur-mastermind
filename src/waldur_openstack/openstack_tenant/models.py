@@ -15,6 +15,10 @@ from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas import models as quotas_models, fields as quotas_fields
 from waldur_core.structure import models as structure_models, utils as structure_utils
 from waldur_openstack.openstack_base import models as openstack_base_models
+from waldur_openstack.openstack import models as openstack_models
+
+
+TenantQuotas = openstack_models.Tenant.Quotas
 
 
 class OpenStackTenantService(structure_models.Service):
@@ -97,6 +101,16 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
     security_group = models.ForeignKey(SecurityGroup, related_name='rules')
 
 
+class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
+    """
+    It allows to update both service settings and shared tenant quotas.
+    """
+
+    def get_quota_scopes(self):
+        service_settings = self.service_project_link.service.settings
+        return service_settings, service_settings.scope
+
+
 @python_2_unicode_compatible
 class FloatingIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4', null=True, default=None)
@@ -132,7 +146,7 @@ class FloatingIP(structure_models.ServiceProperty):
         return super(FloatingIP, cls).get_backend_fields() + ('address', 'runtime_state', 'backend_network_id')
 
 
-class Volume(structure_models.Volume):
+class Volume(TenantQuotaMixin, structure_models.Volume):
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, blank=True, null=True)
@@ -162,15 +176,12 @@ class Volume(structure_models.Volume):
     class Meta(object):
         unique_together = ('service_project_link', 'backend_id')
 
-    def increase_backend_quotas_usage(self, validate=True):
-        settings = self.service_project_link.service.settings
-        settings.add_quota_usage(settings.Quotas.volumes, 1, validate=validate)
-        settings.add_quota_usage(settings.Quotas.storage, self.size, validate=validate)
-
-    def decrease_backend_quotas_usage(self):
-        settings = self.service_project_link.service.settings
-        settings.add_quota_usage(settings.Quotas.volumes, -1)
-        settings.add_quota_usage(settings.Quotas.storage, -self.size)
+    def get_quota_deltas(self):
+        return {
+            TenantQuotas.volumes: 1,
+            TenantQuotas.volumes_size: self.size,
+            TenantQuotas.storage: self.size,
+        }
 
     @classmethod
     def get_url_name(cls):
@@ -182,7 +193,7 @@ class Volume(structure_models.Volume):
                                                           'runtime_state', 'device')
 
 
-class Snapshot(structure_models.Snapshot):
+class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, blank=True, null=True)
@@ -214,15 +225,12 @@ class Snapshot(structure_models.Snapshot):
     def get_url_name(cls):
         return 'openstacktenant-snapshot'
 
-    def increase_backend_quotas_usage(self, validate=True):
-        settings = self.service_project_link.service.settings
-        settings.add_quota_usage(settings.Quotas.snapshots, 1, validate=validate)
-        settings.add_quota_usage(settings.Quotas.storage, self.size, validate=validate)
-
-    def decrease_backend_quotas_usage(self):
-        settings = self.service_project_link.service.settings
-        settings.add_quota_usage(settings.Quotas.snapshots, -1)
-        settings.add_quota_usage(settings.Quotas.storage, -self.size)
+    def get_quota_deltas(self):
+        return {
+            TenantQuotas.snapshots: 1,
+            TenantQuotas.snapshots_size: self.size,
+            TenantQuotas.storage: self.size,
+        }
 
     @classmethod
     def get_backend_fields(cls):
@@ -239,7 +247,7 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
         project_path = 'snapshot__service_project_link__project'
 
 
-class Instance(structure_models.VirtualMachine):
+class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     class RuntimeStates(object):
         # All possible OpenStack Instance states on backend.
@@ -311,17 +319,12 @@ class Instance(structure_models.VirtualMachine):
             if hostname:
                 return structure_utils.get_coordinates_by_ip(hostname)
 
-    def increase_backend_quotas_usage(self, validate=True):
-        settings = self.service_project_link.service.settings
-        settings.add_quota_usage(settings.Quotas.instances, 1, validate=validate)
-        settings.add_quota_usage(settings.Quotas.ram, self.ram, validate=validate)
-        settings.add_quota_usage(settings.Quotas.vcpu, self.cores, validate=validate)
-
-    def decrease_backend_quotas_usage(self):
-        settings = self.service_project_link.service.settings
-        settings.add_quota_usage(settings.Quotas.instances, -1)
-        settings.add_quota_usage(settings.Quotas.ram, -self.ram)
-        settings.add_quota_usage(settings.Quotas.vcpu, -self.cores)
+    def get_quota_deltas(self):
+        return {
+            TenantQuotas.instances: 1,
+            TenantQuotas.ram: self.ram,
+            TenantQuotas.vcpu: self.cores,
+        }
 
     @property
     def floating_ips(self):
