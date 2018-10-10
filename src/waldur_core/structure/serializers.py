@@ -295,21 +295,12 @@ class ProjectSerializer(core_serializers.RestrictedSerializerMixin,
         return services
 
 
-class CustomerImageSerializer(serializers.ModelSerializer):
-    image = serializers.ImageField()
-
-    class Meta:
-        model = models.Customer
-        fields = ['image']
-
-
 class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer, ):
     projects = PermissionProjectSerializer(many=True, read_only=True)
     owners = BasicUserSerializer(source='get_owners', many=True, read_only=True)
     support_users = BasicUserSerializer(source='get_support_users', many=True, read_only=True)
-    image = serializers.SerializerMethodField()
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
 
     COUNTRIES = core_fields.CountryField.COUNTRIES
@@ -340,11 +331,6 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
-
-    def get_image(self, customer):
-        if not customer.image:
-            return settings.WALDUR_CORE.get('DEFAULT_CUSTOMER_LOGO')
-        return reverse('customer_image', kwargs={'uuid': customer.uuid}, request=self.context['request'])
 
     @staticmethod
     def eager_load(queryset):

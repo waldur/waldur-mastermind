@@ -9,13 +9,11 @@ from django.conf import settings as django_settings
 from django.contrib import auth
 from django.db import transaction, IntegrityError
 from django.db.models import Q
-from django.http import Http404
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
-from django.views.static import serve
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as rf_filters
-from rest_framework import generics, mixins, views, viewsets, status
+from rest_framework import mixins, views, viewsets, status
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
 from rest_framework.decorators import detail_route, list_route
@@ -212,30 +210,6 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(queryset, many=True)
         return self.get_paginated_response(serializer.data)
-
-
-class CustomerImageView(generics.RetrieveAPIView, generics.UpdateAPIView, generics.DestroyAPIView):
-
-    queryset = models.Customer.objects.all()
-    lookup_field = 'uuid'
-    serializer_class = serializers.CustomerImageSerializer
-
-    def retrieve(self, request, uuid=None):
-        image = self.get_object().image
-        if not image:
-            raise Http404
-        return serve(request, image.path, document_root='/')
-
-    def perform_destroy(self, instance):
-        instance.image = None
-        instance.save()
-
-    def check_object_permissions(self, request, customer):
-        if request.user.is_staff:
-            return
-        if customer.has_user(request.user, models.CustomerRole.OWNER):
-            return
-        raise PermissionDenied()
 
 
 class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
