@@ -60,6 +60,11 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
 
 
 class ServiceDowntimeAdmin(admin.ModelAdmin):
+    list_display = ('settings', 'start', 'end')
+    list_display_links = ('settings',)
+    list_filter = ('settings',)
+    date_hierarchy = 'start'
+
     def get_readonly_fields(self, request, obj=None):
         # Downtime record is protected from modifications
         if obj is not None:
