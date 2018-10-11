@@ -59,4 +59,12 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     send_invoice_report.short_description = _('Update current cost for invoices')
 
 
+class ServiceDowntimeAdmin(admin.ModelAdmin):
+    def get_readonly_fields(self, request, obj=None):
+        # Downtime record is protected from modifications
+        if obj:
+            return 'start', 'end', 'settings'
+
+
 admin.site.register(models.Invoice, InvoiceAdmin)
+admin.site.register(models.ServiceDowntime, ServiceDowntimeAdmin)
