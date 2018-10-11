@@ -138,3 +138,30 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
         )
         self.item.refresh_from_db()
         self.assertEqual(self.item.end, parse_datetime('2018-10-12'))
+
+    def test_invoice_is_not_affected_because_downtime_and_item_do_not_intersect(self):
+        self.item.start = parse_datetime('2018-10-11')
+        self.item.end = parse_datetime('2018-10-15')
+        self.item.save()
+        models.ServiceDowntime.objects.create(
+            start=parse_datetime('2018-10-01'),
+            end=parse_datetime('2018-10-07'),
+            settings=self.package_settings
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.start, parse_datetime('2018-10-11'))
+        self.assertEqual(self.item.end, parse_datetime('2018-10-15'))
+
+    def test_invoice_is_not_affected_because_package_has_been_removed(self):
+        self.item.start = parse_datetime('2018-10-11')
+        self.item.end = parse_datetime('2018-10-15')
+        self.item.save()
+        self.package.delete()
+        models.ServiceDowntime.objects.create(
+            start=parse_datetime('2018-10-01'),
+            end=parse_datetime('2018-10-20'),
+            settings=self.package_settings
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.start, parse_datetime('2018-10-11'))
+        self.assertEqual(self.item.end, parse_datetime('2018-11-01'))

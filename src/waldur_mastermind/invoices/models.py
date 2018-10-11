@@ -26,6 +26,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.support import models as support_models
+from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import managers, utils, registrators
 
@@ -416,7 +417,10 @@ class ServiceDowntime(models.Model):
         structure_models.ServiceSettings,
         on_delete=models.CASCADE,
         help_text=_('Private OpenStackTenant service settings.'),
-        limit_choices_to={'shared': False, 'type': 'OpenStackTenant'},
+        limit_choices_to={
+            'shared': False,
+            'type': openstack_tenant_apps.OpenStackTenantConfig.service_name
+        },
     )
 
     def clean(self):
