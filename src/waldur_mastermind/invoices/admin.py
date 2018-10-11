@@ -62,8 +62,9 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
 class ServiceDowntimeAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         # Downtime record is protected from modifications
-        if obj:
-            return 'start', 'end', 'settings'
+        if obj is not None:
+            return self.readonly_fields + ('start', 'end', 'settings')
+        return self.readonly_fields
 
 
 admin.site.register(models.Invoice, InvoiceAdmin)

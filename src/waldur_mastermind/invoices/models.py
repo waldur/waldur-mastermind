@@ -404,11 +404,20 @@ def get_default_downtime_start():
 
 
 class ServiceDowntime(models.Model):
-    start = models.DateTimeField(default=get_default_downtime_start,
-                                 help_text=_('Date and time when downtime has started.'))
-    end = models.DateTimeField(default=timezone.now,
-                               help_text=_('Date and time when downtime has ended.'))
-    settings = models.ForeignKey(structure_models.ServiceSettings)
+    start = models.DateTimeField(
+        default=get_default_downtime_start,
+        help_text=_('Date and time when downtime has started.')
+    )
+    end = models.DateTimeField(
+        default=timezone.now,
+        help_text=_('Date and time when downtime has ended.')
+    )
+    settings = models.ForeignKey(
+        structure_models.ServiceSettings,
+        on_delete=models.CASCADE,
+        help_text=_('Private OpenStackTenant service settings.'),
+        limit_choices_to={'shared': False, 'type': 'OpenStackTenant'},
+    )
 
     def clean(self):
         self._validate_duration()
@@ -431,7 +440,7 @@ class ServiceDowntime(models.Model):
             )
 
     def _validate_offset(self):
-        if self.start - timezone.now() > 0 or self.end - timezone.now() > 0:
+        if self.start > timezone.now() or self.end > timezone.now():
             raise ValidationError(
                 _('Future downtime is not supported yet. '
                   'Please select date in the past instead.')
@@ -447,7 +456,7 @@ class ServiceDowntime(models.Model):
     def _validate_intersection(self):
         qs = ServiceDowntime.objects.filter(self.get_intersection_subquery(), settings=self.settings)
         if qs.exists():
-            ids = ', '.join(qs.values_list('id', flat=True))
+            ids = ', '.join(str(item.id) for item in qs)
             raise ValidationError(
                 _('Downtime period intersects with another period with ID: %s.') % ids
             )

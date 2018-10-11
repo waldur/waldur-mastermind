@@ -147,6 +147,7 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
 def adjust_openstack_items_for_downtime(downtime):
     """
     NB! OpenStack invoice item is skipped as long as it does not have package.
+    Currently only private service settings are handled.
     """
     items = models.OpenStackItem.objects.filter(
         downtime.get_intersection_subquery(),
@@ -160,9 +161,9 @@ def adjust_openstack_items_for_downtime(downtime):
 
         # inside
         elif item.start <= downtime.start and downtime.end <= item.end:
+            item.clone_item(start=downtime.end)
             item.end = downtime.start
             item.save()
-            item.clone_item(start=downtime.end)
 
         # left
         elif downtime.end >= item.start and downtime.end <= item.end:
@@ -181,4 +182,4 @@ def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs)
         logger.warning('Invoice items are not adjusted when downtime record is changed. '
                        'Record ID: %s', downtime.id)
 
-    transaction.on_commit(adjust_openstack_items_for_downtime, downtime)
+    adjust_openstack_items_for_downtime(downtime)
