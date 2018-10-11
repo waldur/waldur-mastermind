@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 from django.contrib import admin
-from django.forms import ModelForm, ChoiceField, ModelChoiceField
+from django.forms import ModelForm, ModelChoiceField
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
@@ -70,8 +70,7 @@ class ServiceSettingsChoiceField(ModelChoiceField):
 
 class ServiceDowntimeForm(ModelForm):
     settings = ServiceSettingsChoiceField(
-        queryset=
-        structure_models.ServiceSettings.objects.filter(
+        queryset=structure_models.ServiceSettings.objects.filter(
             shared=False,
             type=openstack_tenant_apps.OpenStackTenantConfig.service_name
         ).order_by('customer__name', 'name'))
