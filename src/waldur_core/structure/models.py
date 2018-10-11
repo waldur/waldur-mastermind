@@ -343,6 +343,7 @@ class Customer(core_models.UuidMixin,
 
     class Meta(object):
         verbose_name = _('organization')
+        ordering = ('name',)
 
     GLOBAL_COUNT_QUOTA_NAME = 'nc_global_customer_count'
 
@@ -454,10 +455,13 @@ class Customer(core_models.UuidMixin,
         return {'customer_uuid': filter_queryset_for_user(customer_queryset, user).values_list('uuid', flat=True)}
 
     def __str__(self):
-        return '%(name)s (%(abbreviation)s)' % {
-            'name': self.name,
-            'abbreviation': self.abbreviation
-        }
+        if self.abbreviation:
+            return '%(name)s (%(abbreviation)s)' % {
+                'name': self.name,
+                'abbreviation': self.abbreviation
+            }
+        else:
+            return self.name
 
 
 class ProjectRole(models.CharField):
@@ -666,6 +670,7 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
     class Meta:
         verbose_name = "Service settings"
         verbose_name_plural = "Service settings"
+        ordering = ('name',)
 
     class Permissions(object):
         customer_path = 'customer'

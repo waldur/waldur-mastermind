@@ -1,11 +1,15 @@
 from __future__ import unicode_literals
 
 from django.contrib import admin
+from django.forms import ModelForm, ChoiceField, ModelChoiceField
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core.admin_filters import RelatedDropdownFilter
+from waldur_core.structure import models as structure_models
+from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import models, tasks
 
@@ -59,17 +63,47 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     send_invoice_report.short_description = _('Update current cost for invoices')
 
 
+class ServiceSettingsChoiceField(ModelChoiceField):
+    def label_from_instance(self, obj):
+        return '%s - %s' % (obj.customer, obj.name)
+
+
+class ServiceDowntimeForm(ModelForm):
+    settings = ServiceSettingsChoiceField(
+        queryset=
+        structure_models.ServiceSettings.objects.filter(
+            shared=False,
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name
+        ).order_by('customer__name', 'name'))
+
+
 class ServiceDowntimeAdmin(admin.ModelAdmin):
-    list_display = ('settings', 'start', 'end')
-    list_display_links = ('settings',)
-    list_filter = ('settings',)
+    list_display = ('get_customer', 'get_settings', 'start', 'end')
+    list_display_links = ('get_settings',)
+    list_filter = (
+        ('settings__customer', RelatedDropdownFilter),
+        ('settings', RelatedDropdownFilter),
+    )
     date_hierarchy = 'start'
+    form = ServiceDowntimeForm
 
     def get_readonly_fields(self, request, obj=None):
         # Downtime record is protected from modifications
         if obj is not None:
             return self.readonly_fields + ('start', 'end', 'settings')
         return self.readonly_fields
+
+    def get_customer(self, downtime):
+        return downtime.settings.customer
+
+    get_customer.short_description = _('Organization')
+    get_customer.admin_order_field = 'settings__customer'
+
+    def get_settings(self, downtime):
+        return downtime.settings.name
+
+    get_settings.short_description = _('Service settings')
+    get_settings.admin_order_field = 'settings'
 
 
 admin.site.register(models.Invoice, InvoiceAdmin)
