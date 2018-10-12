@@ -7,9 +7,8 @@ from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core.admin_filters import RelatedDropdownFilter
-from waldur_core.structure import models as structure_models
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
+from waldur_mastermind.packages import models as package_models
 
 from . import models, tasks
 
@@ -63,46 +62,59 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     send_invoice_report.short_description = _('Update current cost for invoices')
 
 
-class ServiceSettingsChoiceField(ModelChoiceField):
+class PackageChoiceField(ModelChoiceField):
     def label_from_instance(self, obj):
-        return '%s - %s' % (obj.customer, obj.name)
+        return '%s > %s > %s' % (
+            obj.tenant.service_project_link.project.customer,
+            obj.tenant.service_project_link.project.name,
+            obj.tenant.name
+        )
 
 
 class ServiceDowntimeForm(ModelForm):
-    settings = ServiceSettingsChoiceField(
-        queryset=structure_models.ServiceSettings.objects.filter(
-            shared=False,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name
-        ).order_by('customer__name', 'name'))
+    package = PackageChoiceField(
+        queryset=package_models.OpenStackPackage.objects.order_by(
+            'tenant__service_project_link__project__customer__name',
+            'tenant__service_project_link__project__name',
+            'tenant__name',
+        )
+    )
 
 
 class ServiceDowntimeAdmin(admin.ModelAdmin):
-    list_display = ('get_customer', 'get_settings', 'start', 'end')
-    list_display_links = ('get_settings',)
+    list_display = ('get_customer', 'get_project', 'get_name', 'start', 'end')
+    list_display_links = ('get_name',)
     list_filter = (
-        ('settings__customer', RelatedDropdownFilter),
-        ('settings', RelatedDropdownFilter),
+        ('package__tenant__service_project_link__project__customer', RelatedOnlyDropdownFilter),
+        ('package__tenant__service_project_link__project', RelatedOnlyDropdownFilter),
     )
+    search_fields = ('package__tenant__name',)
     date_hierarchy = 'start'
     form = ServiceDowntimeForm
 
     def get_readonly_fields(self, request, obj=None):
         # Downtime record is protected from modifications
         if obj is not None:
-            return self.readonly_fields + ('start', 'end', 'settings')
+            return self.readonly_fields + ('start', 'end', 'package')
         return self.readonly_fields
 
     def get_customer(self, downtime):
-        return downtime.settings.customer
+        return downtime.package.tenant.service_project_link.project.customer
 
     get_customer.short_description = _('Organization')
-    get_customer.admin_order_field = 'settings__customer'
+    get_customer.admin_order_field = 'package__tenant__service_project_link__project__customer'
 
-    def get_settings(self, downtime):
-        return downtime.settings.name
+    def get_project(self, downtime):
+        return downtime.package.tenant.service_project_link.project
 
-    get_settings.short_description = _('Service settings')
-    get_settings.admin_order_field = 'settings'
+    get_project.short_description = _('Project')
+    get_project.admin_order_field = 'package__tenant__service_project_link__project'
+
+    def get_name(self, downtime):
+        return downtime.package.tenant.name
+
+    get_name.short_description = _('Resource')
+    get_name.admin_order_field = 'package__tenant__name'
 
 
 admin.site.register(models.Invoice, InvoiceAdmin)

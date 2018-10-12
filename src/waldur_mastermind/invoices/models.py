@@ -26,7 +26,6 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.support import models as support_models
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import managers, utils, registrators
 
@@ -231,6 +230,30 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     def __str__(self):
         return self.name
 
+    def create_compensation(self, name, **kwargs):
+        FIELDS = (
+            'invoice',
+            'project',
+            'project_name',
+            'project_uuid',
+            'product_code',
+            'article_code',
+            'unit',
+            'unit_price',
+            'start',
+            'end',
+        )
+
+        params = {field: getattr(self, field) for field in FIELDS}
+        params.update(kwargs)
+        if params['unit_price'] > 0:
+            params['unit_price'] *= -1
+        params['details'] = {
+            'name': _('Compensation for downtime. Resource name: %s') % name
+        }
+
+        return GenericInvoiceItem.objects.create(**params)
+
 
 class GenericInvoiceItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='generic_items')
@@ -380,31 +403,16 @@ class OpenStackItem(InvoiceItem):
 
             return template_category
 
-    def clone_item(self, **kwargs):
-        FIELDS = (
-            'invoice',
-            'package',
-            'project',
-            'project_name',
-            'project_uuid',
-            'product_code',
-            'article_code',
-            'unit',
-            'unit_price',
-            'start',
-            'end',
-        )
-
-        params = {field: getattr(self, field) for field in FIELDS}
-        params.update(kwargs)
-        return OpenStackItem.objects.create(**params)
-
 
 def get_default_downtime_start():
     return timezone.now() - settings.WALDUR_INVOICES['DOWNTIME_DURATION_MINIMAL']
 
 
 class ServiceDowntime(models.Model):
+    """
+    Currently this model is restricted to OpenStack package only.
+    It is expected that implementation would be generalized to support other resources as well.
+    """
     start = models.DateTimeField(
         default=get_default_downtime_start,
         help_text=_('Date and time when downtime has started.')
@@ -413,15 +421,7 @@ class ServiceDowntime(models.Model):
         default=timezone.now,
         help_text=_('Date and time when downtime has ended.')
     )
-    settings = models.ForeignKey(
-        structure_models.ServiceSettings,
-        on_delete=models.CASCADE,
-        help_text=_('Private OpenStackTenant service settings.'),
-        limit_choices_to={
-            'shared': False,
-            'type': openstack_tenant_apps.OpenStackTenantConfig.service_name
-        },
-    )
+    package = models.ForeignKey(package_models.OpenStackPackage)
 
     def clean(self):
         self._validate_duration()
@@ -458,7 +458,7 @@ class ServiceDowntime(models.Model):
         return Q(left | right | inside | outside)
 
     def _validate_intersection(self):
-        qs = ServiceDowntime.objects.filter(self.get_intersection_subquery(), settings=self.settings)
+        qs = ServiceDowntime.objects.filter(self.get_intersection_subquery(), package=self.package)
         if qs.exists():
             ids = ', '.join(str(item.id) for item in qs)
             raise ValidationError(
