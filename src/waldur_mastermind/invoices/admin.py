@@ -32,7 +32,8 @@ class OfferingItemInline(InvoiceItemInline):
 
 class GenericItemInline(InvoiceItemInline):
     model = models.GenericInvoiceItem
-    readonly_fields = InvoiceItemInline.readonly_fields + ('scope', 'details')
+    readonly_fields = InvoiceItemInline.readonly_fields + ('details', 'quantity')
+    exclude = InvoiceItemInline.exclude + ('content_type', 'object_id')
 
 
 class InvoiceAdmin(core_admin.ExtraActionsMixin,
