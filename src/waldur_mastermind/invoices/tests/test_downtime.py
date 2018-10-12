@@ -98,8 +98,11 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-01'),
             end=parse_datetime('2018-10-20'),
         )
-        self.assertTrue(models.GenericInvoiceItem.objects.filter(
-            start=self.item.start, end=self.item.end).exists())
+        compensation = models.GenericInvoiceItem.objects.filter(
+            start=self.item.start, end=self.item.end).get()
+        self.assertEqual(compensation.price, -1 * self.item.price)
+        self.assertEqual(compensation.details['name'],
+                         'Compensation for downtime. Resource name: %s' % self.item.name)
 
     def test_downtime_inside_of_invoice_item_billing_period(self):
         downtime = models.ServiceDowntime.objects.create(
