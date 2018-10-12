@@ -30,10 +30,15 @@ class OfferingItemInline(InvoiceItemInline):
     readonly_fields = InvoiceItemInline.readonly_fields + ('offering', 'offering_details')
 
 
+class GenericItemInline(InvoiceItemInline):
+    model = models.GenericInvoiceItem
+    readonly_fields = InvoiceItemInline.readonly_fields + ('scope', 'details')
+
+
 class InvoiceAdmin(core_admin.ExtraActionsMixin,
                    core_admin.UpdateOnlyModelAdmin,
                    admin.ModelAdmin):
-    inlines = [OpenStackItemInline, OfferingItemInline]
+    inlines = [OpenStackItemInline, OfferingItemInline, GenericItemInline]
     readonly_fields = ('customer', 'state', 'total', 'year', 'month')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
