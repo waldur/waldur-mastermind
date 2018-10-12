@@ -57,6 +57,14 @@ class PluginManager(object):
         """
         return self.backends.get(offering_type, {}).get('validator')
 
+    def get_scope_model(self, offering_type):
+        """
+        Return a scope model class for given offering_type.
+        :param offering_type: offering type name
+        :return: scope model class
+        """
+        return self.backends.get(offering_type, {}).get('scope_model')
+
     def get_components(self, offering_type):
         """
         Return a list of components for given offering_type.

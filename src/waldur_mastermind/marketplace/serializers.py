@@ -272,6 +272,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             self._validate_attributes(offering_attributes, category)
 
         self._validate_plans(attrs)
+        self._validate_scope(attrs)
         return attrs
 
     def validate_type(self, offering_type):
@@ -351,6 +352,19 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
             plan['unit_price'] = sum(prices[component] * quotas[component]
                                      for component in fixed_types)
+
+    def _validate_scope(self, attrs):
+        offering_scope = attrs.get('scope')
+        offering_type = attrs.get('type')
+
+        if offering_scope:
+            offering_scope_model = plugins.manager.get_scope_model(offering_type)
+
+            if offering_scope_model:
+                if not isinstance(offering_scope, offering_scope_model):
+                    raise serializers.ValidationError({
+                        'scope': _('Invalid scope model.')
+                    })
 
     @transaction.atomic
     def create(self, validated_data):

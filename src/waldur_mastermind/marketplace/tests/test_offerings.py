@@ -13,6 +13,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_openstack.openstack.tests import factories as openstack_factories
+from waldur_mastermind.support.tests import factories as support_factories
 
 from . import factories
 from .. import serializers
@@ -390,6 +391,17 @@ class OfferingCreateTest(PostgreSQLTest):
             payload.update(add_payload)
 
         return self.client.post(url, payload)
+
+    def test_create_offering_if_scope_is_valid(self):
+        response = self.create_offering('staff',
+                                        add_payload={'scope': support_factories.OfferingFactory.get_url()})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_not_create_offering_if_scope_is_not_valid(self):
+        response = self.create_offering('staff',
+                                        add_payload={'scope': structure_factories.ServiceSettingsFactory.get_url()})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('scope' in response.data.keys())
 
 
 @ddt
