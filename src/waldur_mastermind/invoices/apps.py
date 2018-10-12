@@ -103,3 +103,9 @@ class InvoiceConfig(AppConfig):
             sender=structure_models.Customer,
             dispatch_uid='waldur_mastermind.invoices.prevent_deletion_of_customer_with_invoice',
         )
+
+        signals.post_save.connect(
+            handlers.adjust_invoice_items_for_downtime,
+            sender=models.ServiceDowntime,
+            dispatch_uid='waldur_mastermind.invoices.adjust_invoice_items_for_downtime',
+        )

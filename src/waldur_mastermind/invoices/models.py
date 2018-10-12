@@ -8,8 +8,10 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
@@ -228,6 +230,30 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     def __str__(self):
         return self.name
 
+    def create_compensation(self, name, **kwargs):
+        FIELDS = (
+            'invoice',
+            'project',
+            'project_name',
+            'project_uuid',
+            'product_code',
+            'article_code',
+            'unit',
+            'unit_price',
+            'start',
+            'end',
+        )
+
+        params = {field: getattr(self, field) for field in FIELDS}
+        params.update(kwargs)
+        if params['unit_price'] > 0:
+            params['unit_price'] *= -1
+        params['details'] = {
+            'name': _('Compensation for downtime. Resource name: %s') % name
+        }
+
+        return GenericInvoiceItem.objects.create(**params)
+
 
 class GenericInvoiceItem(InvoiceItem):
     invoice = models.ForeignKey(Invoice, related_name='generic_items')
@@ -245,7 +271,8 @@ class GenericInvoiceItem(InvoiceItem):
     def name(self):
         if self.details:
             return self.details['name']
-        return registrators.RegistrationManager.get_name(self.scope)
+        if self.scope:
+            return registrators.RegistrationManager.get_name(self.scope)
 
     def freeze(self):
         if self.scope:
@@ -376,3 +403,65 @@ class OpenStackItem(InvoiceItem):
                 template_category = categories[template_category]
 
             return template_category
+
+
+def get_default_downtime_start():
+    return timezone.now() - settings.WALDUR_INVOICES['DOWNTIME_DURATION_MINIMAL']
+
+
+class ServiceDowntime(models.Model):
+    """
+    Currently this model is restricted to OpenStack package only.
+    It is expected that implementation would be generalized to support other resources as well.
+    """
+    start = models.DateTimeField(
+        default=get_default_downtime_start,
+        help_text=_('Date and time when downtime has started.')
+    )
+    end = models.DateTimeField(
+        default=timezone.now,
+        help_text=_('Date and time when downtime has ended.')
+    )
+    package = models.ForeignKey(package_models.OpenStackPackage)
+
+    def clean(self):
+        self._validate_duration()
+        self._validate_offset()
+        self._validate_intersection()
+
+    def _validate_duration(self):
+        duration = self.end - self.start
+
+        duration_min = settings.WALDUR_INVOICES['DOWNTIME_DURATION_MINIMAL']
+        if duration_min is not None and duration < duration_min:
+            raise ValidationError(
+                _('Downtime duration is too small. Minimal duration is %s') % duration_min
+            )
+
+        duration_max = settings.WALDUR_INVOICES['DOWNTIME_DURATION_MAXIMAL']
+        if duration_max is not None and duration > duration_max:
+            raise ValidationError(
+                _('Downtime duration is too big. Maximal duration is %s') % duration_max
+            )
+
+    def _validate_offset(self):
+        if self.start > timezone.now() or self.end > timezone.now():
+            raise ValidationError(
+                _('Future downtime is not supported yet. '
+                  'Please select date in the past instead.')
+            )
+
+    def get_intersection_subquery(self):
+        left = Q(start__gte=self.start, start__lte=self.end)
+        right = Q(end__gte=self.start, end__lte=self.end)
+        inside = Q(start__gte=self.start, end__lte=self.end)
+        outside = Q(start__lte=self.start, end__gte=self.end)
+        return Q(left | right | inside | outside)
+
+    def _validate_intersection(self):
+        qs = ServiceDowntime.objects.filter(self.get_intersection_subquery(), package=self.package)
+        if qs.exists():
+            ids = ', '.join(str(item.id) for item in qs)
+            raise ValidationError(
+                _('Downtime period intersects with another period with ID: %s.') % ids
+            )
