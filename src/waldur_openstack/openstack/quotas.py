@@ -9,6 +9,7 @@ TENANT_QUOTAS = (
     ('vpc_ram_size', 'ram'),
     ('vpc_storage_size', 'storage'),
     ('vpc_floating_ip_count', 'floating_ip_count'),
+    ('vpc_instance_count', 'instances'),
 )
 
 TENANT_PATHS = {
