@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions
+from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions as rf_exceptions
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -15,7 +15,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
-from . import filters, models, serializers, backend
+from . import filters, models, serializers, backend, exceptions
 
 
 class CheckExtensionMixin(core_views.CheckExtensionMixin):
@@ -35,16 +35,19 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def is_staff_or_support(request, view, obj=None):
         if not request.user.is_staff and not request.user.is_support:
-            raise exceptions.PermissionDenied()
+            raise rf_exceptions.PermissionDenied()
 
     def check_related_resources(request, view, obj=None):
         if obj and obj.offering_set.exists():
-            raise exceptions.ValidationError(_('Issue has offering. Please remove it first.'))
+            raise rf_exceptions.ValidationError(_('Issue has offering. Please remove it first.'))
 
     @transaction.atomic()
     def perform_create(self, serializer):
         issue = serializer.save()
-        backend.get_active_backend().create_issue(issue)
+        try:
+            backend.get_active_backend().create_issue(issue)
+        except exceptions.SupportUserInactive:
+            raise rf_exceptions.ValidationError({'caller': _('Caller is inactive.')})
 
     @transaction.atomic()
     def perform_update(self, serializer):
@@ -70,7 +73,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if (issue.project and (issue.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR) or
                                issue.project.has_user(user, structure_models.ProjectRole.MANAGER))):
             return
-        raise exceptions.PermissionDenied()
+        raise rf_exceptions.PermissionDenied()
 
     @decorators.detail_route(methods=['post'])
     def comment(self, request, uuid=None):
@@ -183,7 +186,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
-            raise exceptions.ValidationError(_('Offering must be in requested state.'))
+            raise rf_exceptions.ValidationError(_('Offering must be in requested state.'))
 
     @decorators.detail_route(methods=['post'])
     def complete(self, request, uuid=None):
