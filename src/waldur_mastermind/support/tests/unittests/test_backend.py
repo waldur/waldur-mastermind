@@ -8,6 +8,7 @@ import mock
 from waldur_core.core.utils import datetime_to_timestamp
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import fixtures
+from waldur_mastermind.support.tests.base import load_resource
 
 
 class BaseBackendTest(TestCase):
@@ -21,24 +22,7 @@ class BaseBackendTest(TestCase):
         jira_patcher = mock.patch('waldur_jira.backend.JIRA')
         self.mocked_jira = jira_patcher.start()()
 
-        self.mocked_jira.fields.return_value = [
-            {
-                'clauseNames': 'Caller',
-                'id': 'field101',
-            },
-            {
-                'clauseNames': 'Original Reporter',
-                'id': 'field102',
-            },
-            {
-                'clauseNames': 'Time to first response',
-                'id': 'field103',
-            },
-            {
-                'clauseNames': 'Impact',
-                'id': 'field104',
-            },
-        ]
+        self.mocked_jira.fields.return_value = json.loads(load_resource('jira_fields.json'))
 
     def tearDown(self):
         super(BaseBackendTest, self).tearDown()

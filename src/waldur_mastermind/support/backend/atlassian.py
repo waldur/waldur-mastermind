@@ -108,6 +108,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             "name": issue.caller.email,
             "key": issue.caller.email
         }]
+
+        if issue.reporter.user.organization and self.issue_settings.get('organisation_field'):
+            args[self.get_field_id_by_name(self.issue_settings['organisation_field'])] = \
+                issue.reporter.user.organization
+
         return args
 
     def _get_first_sla_field(self, backend_issue):

@@ -1,10 +1,13 @@
 import json
 
+import mock
 from ddt import ddt, data
 from rest_framework import status
+from jira import Issue
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.tests.base import override_support_settings
+from waldur_mastermind.support.tests.base import load_resource
 
 from . import factories, base
 from .. import models
@@ -225,6 +228,20 @@ class IssueCreateTest(base.BaseTest):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, data=self._get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+
+    def test_fill_organization_field(self):
+        mock.patch.stopall()
+        mock_patch = mock.patch('waldur_jira.backend.JIRA')
+        self.mock_jira = mock_patch.start()
+        self.mock_jira().fields.return_value = json.loads(load_resource('jira_fields.json'))
+        issue_raw = json.loads(load_resource('jira_issue_raw.json'))
+        self.mock_jira().create_issue.return_value = Issue({'server': ''}, None, raw=issue_raw)
+
+        user = self.fixture.staff
+        factories.SupportUserFactory(user=user)
+        self.client.force_authenticate(user)
+        self.client.post(self.url, data=self._get_valid_payload())
+        self.assertEqual(user.organization, self.mock_jira().create_issue.call_args[1]['field105'])
 
     def _get_valid_payload(self, **additional):
         payload = {
