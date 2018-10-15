@@ -28,6 +28,7 @@ class SupportExtension(WaldurExtension):
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
+                # 'organisation_field': 'Reporter organization',
                 'summary': '{{issue.summary}}',
                 'description': (
                     '{{issue.description}}\n\n'

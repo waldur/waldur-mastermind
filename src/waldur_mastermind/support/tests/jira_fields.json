@@ -1,0 +1,22 @@
+[
+  {
+    "clauseNames": "Caller",
+    "id": "field101"
+  },
+  {
+    "clauseNames": "Original Reporter",
+    "id": "field102"
+  },
+  {
+    "clauseNames": "Time to first response",
+    "id": "field103"
+  },
+  {
+    "clauseNames": "Impact",
+    "id": "field104"
+  },
+  {
+    "clauseNames": "Reporter organization",
+    "id": "field105"
+  }
+]
