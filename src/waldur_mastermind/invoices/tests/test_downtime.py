@@ -1,16 +1,11 @@
 from django.core.exceptions import ValidationError
-from dateutil import parser
-from django.utils.timezone import get_current_timezone
 from freezegun import freeze_time
 from rest_framework import test
 
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 
 from .. import models
-
-
-def parse_datetime(timestr):
-    return parser.parse(timestr).replace(tzinfo=get_current_timezone())
 
 
 @freeze_time('2018-11-01')

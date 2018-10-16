@@ -95,6 +95,8 @@ class QuotaViewSet(mixins.UpdateModelMixin,
     @decorators.detail_route()
     def history(self, request, uuid=None):
         """
+        Warning! This endpoint is deprecated. Please use daily-quotas endpoint instead.
+
         Historical data endpoints could be available for any objects (currently
         implemented for quotas and events count). The data is available at *<object_endpoint>/history/*,
         for example: */api/quotas/<uuid>/history/*.
