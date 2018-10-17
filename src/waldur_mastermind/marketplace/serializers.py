@@ -423,19 +423,19 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.OrderItem
         fields = ('offering', 'offering_name', 'offering_uuid',
-                  'offering_description', 'offering_thumbnail',
+                  'offering_description', 'offering_thumbnail', 'offering_type',
                   'customer_name', 'customer_uuid',
                   'project_name', 'project_uuid',
                   'provider_name', 'provider_uuid',
                   'category_title', 'category_uuid',
                   'attributes', 'cost',
-                  'plan', 'plan_unit', 'plan_name', 'plan_uuid',
+                  'plan', 'plan_unit', 'plan_name', 'plan_uuid', 'plan_description',
                   'resource_uuid', 'resource_type', 'state',
                   'limits', 'quotas', 'uuid', 'created')
 
         related_paths = {
-            'offering': ('name', 'uuid', 'description'),
-            'plan': ('unit', 'uuid', 'name',)
+            'offering': ('name', 'uuid', 'description', 'type'),
+            'plan': ('unit', 'uuid', 'name', 'description')
         }
         read_only_fields = ('cost', 'state', 'quotas')
         protected_fields = ('offering', 'plan')
