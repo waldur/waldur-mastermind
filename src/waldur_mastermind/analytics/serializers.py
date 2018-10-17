@@ -17,14 +17,14 @@ class DailyHistoryQuotaSerializer(serializers.Serializer):
     end = serializers.DateField(format='%Y-%m-%d', required=False)
 
     def validate(self, attrs):
-        if attrs['start'] >= attrs['end']:
-            raise serializers.ValidationError(
-                _('Invalid period specified. `start` should be lesser than `end`.')
-            )
         if 'quota_names' not in attrs:
             attrs['quota_names'] = attrs['scope'].get_quotas_names
         if 'end' not in attrs:
             attrs['end'] = timezone.now().date()
         if 'start' not in attrs:
             attrs['start'] = timezone.now().date() - timedelta(days=30)
+        if attrs['start'] >= attrs['end']:
+            raise serializers.ValidationError(
+                _('Invalid period specified. `start` should be lesser than `end`.')
+            )
         return attrs
