@@ -28,5 +28,7 @@ def sync_daily_quotas():
     for model in (structure_models.Project, structure_models.Customer):
         content_type = ct_models.ContentType.objects.get_for_model(model)
         for quota in quota_models.Quota.objects.filter(content_type=content_type):
+            if not quota.scope:
+                continue
             models.DailyQuotaHistory.objects.update_or_create_quota(
                 quota.scope, quota.name, date, quota.usage)
