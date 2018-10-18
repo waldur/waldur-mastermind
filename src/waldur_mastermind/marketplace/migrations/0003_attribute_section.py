@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('key', models.CharField(max_length=255, primary_key=True, serialize=False)),
                 ('title', models.CharField(max_length=255)),
-                ('type', models.CharField(choices=[('boolean', b'boolean'), ('string', b'string'), ('integer', b'integer'), ('choice', b'choice'), ('list', b'list')], max_length=255)),
+                ('type', models.CharField(choices=[('boolean', b'boolean'), ('string', b'string'), ('text', b'text'), ('integer', b'integer'), ('choice', b'choice'), ('list', b'list')], max_length=255)),
                 ('available_values', waldur_core.core.fields.JSONField(blank=True, null=True)),
             ],
             options={
