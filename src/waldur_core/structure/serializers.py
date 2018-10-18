@@ -840,6 +840,7 @@ class ServiceCertificationSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
+                                core_serializers.RestrictedSerializerMixin,
                                 core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
     customer_native_name = serializers.ReadOnlyField(source='customer.native_name')
