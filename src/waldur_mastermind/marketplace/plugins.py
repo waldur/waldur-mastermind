@@ -82,7 +82,7 @@ class PluginManager(object):
         return {component.type for component in self.get_components(offering_type)}
 
     def get_scope_models(self):
-        return [b['scope_model'] for b in self.backends.values() if b['scope_model']]
+        return {b['scope_model'] for b in self.backends.values() if b['scope_model']}
 
     def process(self, order_item, request):
         processor = self.get_processor(order_item.offering.type)
