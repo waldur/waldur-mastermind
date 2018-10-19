@@ -229,7 +229,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     plans = NestedPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
-    scope = GenericRelatedField(related_models=models.Offering.get_scope_models(), required=False)
+    scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
 
     class Meta(object):
         model = models.Offering
@@ -405,6 +405,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     def update(self, instance, validated_data):
         # TODO: Implement support for nested plan update
         validated_data.pop('plans', [])
+        validated_data.pop('components', [])
         offering = super(OfferingSerializer, self).update(instance, validated_data)
         return offering
 

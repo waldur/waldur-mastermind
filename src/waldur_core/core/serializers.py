@@ -78,7 +78,12 @@ class GenericRelatedField(Field):
 
     def __init__(self, related_models=(), **kwargs):
         super(GenericRelatedField, self).__init__(**kwargs)
-        self.related_models = related_models
+        self._related_models = related_models
+
+    @property
+    def related_models(self):
+        val = self._related_models
+        return callable(val) and val() or val
 
     def _get_url(self, obj):
         """
@@ -128,8 +133,12 @@ class GenericRelatedField(Field):
             raise serializers.ValidationError(_('URL is invalid: %s.') % data)
         except (Resolver404, AttributeError, MultipleObjectsReturned, ObjectDoesNotExist):
             raise serializers.ValidationError(_("Can't restore object from url: %s") % data)
+
         if model not in self.related_models:
-            raise serializers.ValidationError(_('%s object does not support such relationship.') % six.text_type(obj))
+            context = (model, ', '.join(six.text_type(model) for model in self.related_models))
+            message = _('%s is not valid. Valid models are: %s') % context
+            raise serializers.ValidationError(message)
+
         return obj
 
 
