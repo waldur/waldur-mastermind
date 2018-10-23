@@ -63,7 +63,7 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
         url = reverse('daily-quotas-list')
         scope = structure_factories.ProjectFactory.get_url(self.project)
         request = {
-            'start': '2018-10-01',
+            'start': '2018-09-30',
             'end': '2018-10-04',
             'scope': scope,
             'quota_names': ['nc_volume_count', 'nc_snapshot_count'],
@@ -72,8 +72,8 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         expected = {
-            'nc_volume_count': [10, 11, 12, 0],
-            'nc_snapshot_count': [5, 6, 7, 0],
+            'nc_volume_count': [0, 10, 11, 12, 12],
+            'nc_snapshot_count': [0, 5, 6, 7, 7],
         }
         self.assertDictEqual(response.data, expected)
 
