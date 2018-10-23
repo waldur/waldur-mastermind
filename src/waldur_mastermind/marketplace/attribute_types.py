@@ -77,6 +77,7 @@ class ListAttribute(AttributeType):
 ATTRIBUTE_TYPES = (
     ('boolean', 'boolean'),
     ('string', 'string'),
+    ('text', 'text'),
     ('integer', 'integer'),
     ('choice', 'choice'),
     ('list', 'list'),
@@ -87,6 +88,7 @@ def get_attribute_type(name):
     attribute_type = {
         'boolean': BooleanAttribute,
         'string': StringAttribute,
+        'text': StringAttribute,
         'integer': IntegerAttribute,
         'choice': ChoiceAttribute,
         'list': ListAttribute,

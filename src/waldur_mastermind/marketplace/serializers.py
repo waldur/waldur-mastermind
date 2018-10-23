@@ -229,7 +229,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     plans = NestedPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
-    scope = GenericRelatedField(related_models=models.Offering.get_scope_models(), required=False)
+    scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
 
     class Meta(object):
         model = models.Offering
@@ -272,6 +272,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             self._validate_attributes(offering_attributes, category)
 
         self._validate_plans(attrs)
+        self._validate_scope(attrs)
         return attrs
 
     def validate_type(self, offering_type):
@@ -352,6 +353,19 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             plan['unit_price'] = sum(prices[component] * quotas[component]
                                      for component in fixed_types)
 
+    def _validate_scope(self, attrs):
+        offering_scope = attrs.get('scope')
+        offering_type = attrs.get('type')
+
+        if offering_scope:
+            offering_scope_model = plugins.manager.get_scope_model(offering_type)
+
+            if offering_scope_model:
+                if not isinstance(offering_scope, offering_scope_model):
+                    raise serializers.ValidationError({
+                        'scope': _('Invalid scope model.')
+                    })
+
     @transaction.atomic
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
@@ -391,6 +405,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     def update(self, instance, validated_data):
         # TODO: Implement support for nested plan update
         validated_data.pop('plans', [])
+        validated_data.pop('components', [])
         offering = super(OfferingSerializer, self).update(instance, validated_data)
         return offering
 
@@ -409,19 +424,19 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.OrderItem
         fields = ('offering', 'offering_name', 'offering_uuid',
-                  'offering_description', 'offering_thumbnail',
+                  'offering_description', 'offering_thumbnail', 'offering_type',
                   'customer_name', 'customer_uuid',
                   'project_name', 'project_uuid',
                   'provider_name', 'provider_uuid',
                   'category_title', 'category_uuid',
                   'attributes', 'cost',
-                  'plan', 'plan_unit', 'plan_name', 'plan_uuid',
+                  'plan', 'plan_unit', 'plan_name', 'plan_uuid', 'plan_description',
                   'resource_uuid', 'resource_type', 'state',
                   'limits', 'quotas', 'uuid', 'created')
 
         related_paths = {
-            'offering': ('name', 'uuid', 'description'),
-            'plan': ('unit', 'uuid', 'name',)
+            'offering': ('name', 'uuid', 'description', 'type'),
+            'plan': ('unit', 'uuid', 'name', 'description')
         }
         read_only_fields = ('cost', 'state', 'quotas')
         protected_fields = ('offering', 'plan')

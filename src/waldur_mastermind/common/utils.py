@@ -2,6 +2,9 @@ import json
 
 from decimal import Decimal, ROUND_UP
 
+from dateutil import parser
+from django.utils.timezone import get_current_timezone
+
 from rest_framework.test import APIRequestFactory
 
 
@@ -24,3 +27,11 @@ def internal_api_request(view, user, post_data):
                            HTTP_AUTHORIZATION='Token %s' % user.auth_token.key,
                            SERVER_NAME='localhost')
     return view(request)
+
+
+def parse_datetime(timestr):
+    return parser.parse(timestr).replace(tzinfo=get_current_timezone())
+
+
+def parse_date(timestr):
+    return parse_datetime(timestr).date()

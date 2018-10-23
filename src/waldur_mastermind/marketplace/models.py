@@ -25,7 +25,7 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
 
-from . import managers, plugins
+from . import managers
 from .attribute_types import ATTRIBUTE_TYPES
 from ..common import mixins as common_mixins
 
@@ -242,10 +242,6 @@ class Offering(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-offering'
-
-    @staticmethod
-    def get_scope_models():
-        return plugins.manager.get_scope_models()
 
 
 class OfferingComponent(core_models.DescribableMixin):

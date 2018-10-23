@@ -14,6 +14,7 @@ from six.moves.html_parser import HTMLParser
 
 from waldur_jira.backend import reraise_exceptions, JiraBackend
 from waldur_mastermind.support import models
+from waldur_mastermind.support.exceptions import SupportUserInactive
 
 from . import SupportBackend
 
@@ -70,6 +71,16 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         super(ServiceDeskBackend, self).create_issue(issue)
 
     def create_user(self, user):
+        # Temporary workaround as JIRA returns 500 error if user already exists
+        exist_support_user = self.manager.search_users(user.email, includeInactive=True)
+
+        if exist_support_user:
+            if not exist_support_user[0].active:
+                raise SupportUserInactive()
+
+            logger.debug('Skipping user %s creation because it already exists', user.email)
+            return
+
         return self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
 
     @reraise_exceptions
@@ -97,6 +108,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             "name": issue.caller.email,
             "key": issue.caller.email
         }]
+
+        if issue.reporter.user.organization and self.issue_settings.get('organisation_field'):
+            args[self.get_field_id_by_name(self.issue_settings['organisation_field'])] = \
+                issue.reporter.user.organization
+
         return args
 
     def _get_first_sla_field(self, backend_issue):

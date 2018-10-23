@@ -78,7 +78,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.0.9',
+    version='3.1.0',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -130,6 +130,7 @@ setup(
             'waldur_marketplace_packages = waldur_mastermind.marketplace_packages.extension:MarketplacePackagesExtension',
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
             'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',
+            'waldur_support_invoices = waldur_mastermind.support_invoices.extension:SupportInvoicesExtension',
         ),
     },
     include_package_data=True,

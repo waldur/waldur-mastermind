@@ -30,8 +30,9 @@ def order_set_state_done(sender, instance, created=False, **kwargs):
         # check if there are any non-finished OrderItems left and finish order if none is found
         if not models.OrderItem.objects.filter(order=order).\
                 exclude(state__in=models.OrderItem.States.TERMINAL_STATES).exists():
-            order.set_state_done()
-            order.save(update_fields=['state'])
+            if order.state != models.Order.States.DONE:
+                order.set_state_done()
+                order.save(update_fields=['state'])
 
 
 def update_category_quota_when_offering_is_created(sender, instance, created=False, **kwargs):

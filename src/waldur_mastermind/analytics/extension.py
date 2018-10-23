@@ -30,11 +30,21 @@ class AnalyticsExtension(WaldurExtension):
         return True
 
     @staticmethod
+    def rest_urls():
+        from .urls import register_in
+        return register_in
+
+    @staticmethod
     def celery_tasks():
         return {
             'waldur-push-analytics': {
                 'task': 'analytics.push_points',
                 'schedule': timedelta(minutes=30),
+                'args': (),
+            },
+            'waldur-sync-daily-quotas': {
+                'task': 'analytics.sync_daily_quotas',
+                'schedule': timedelta(hours=24),
                 'args': (),
             },
         }

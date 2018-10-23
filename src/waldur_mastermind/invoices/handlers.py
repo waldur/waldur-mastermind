@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import logging
+
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -11,6 +13,9 @@ from rest_framework.exceptions import ValidationError
 from waldur_core.cost_tracking import signals as cost_signals
 from waldur_mastermind.support import models as support_models
 from . import models, log, registrators
+
+
+logger = logging.getLogger(__name__)
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
@@ -136,3 +141,37 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
             pass
 
     transaction.on_commit(update_invoice)
+
+
+@transaction.atomic()
+def adjust_openstack_items_for_downtime(downtime):
+    items = models.OpenStackItem.objects.filter(
+        downtime.get_intersection_subquery(),
+        package=downtime.package,
+    )
+
+    for item in items:
+        # outside
+        if downtime.start <= item.start and item.end <= downtime.end:
+            item.create_compensation(item.name, start=item.start, end=item.end)
+
+        # inside
+        elif item.start <= downtime.start and downtime.end <= item.end:
+            item.create_compensation(item.name, start=downtime.start, end=downtime.end)
+
+        # left
+        elif downtime.end >= item.start and downtime.end <= item.end:
+            item.create_compensation(item.name, start=item.start, end=downtime.end)
+
+        # right
+        elif downtime.start >= item.start and downtime.start <= item.end:
+            item.create_compensation(item.name, start=downtime.start, end=item.end)
+
+
+def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs):
+    downtime = instance
+    if not created:
+        logger.warning('Invoice items are not adjusted when downtime record is changed. '
+                       'Record ID: %s', downtime.id)
+
+    adjust_openstack_items_for_downtime(downtime)

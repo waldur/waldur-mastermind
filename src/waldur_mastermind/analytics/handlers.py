@@ -1,6 +1,10 @@
 from __future__ import unicode_literals
 
-from . import utils
+from django.utils import timezone
+
+from waldur_core.structure import models as structure_models
+
+from . import models, utils
 
 
 def format_event(tags):
@@ -36,3 +40,18 @@ def log_resource_deleted(sender, instance, **kwargs):
         'type': 'resource_deleted',
     })
     utils.write_points(client, [point])
+
+
+def update_daily_quotas(sender, instance, created=False, **kwargs):
+    if not isinstance(instance.scope, (structure_models.Project, structure_models.Customer)):
+        return
+
+    if not created and not instance.tracker.has_changed('usage'):
+        return
+
+    models.DailyQuotaHistory.objects.update_or_create_quota(
+        scope=instance.scope,
+        name=instance.name,
+        date=timezone.now().date(),
+        usage=instance.usage,
+    )
