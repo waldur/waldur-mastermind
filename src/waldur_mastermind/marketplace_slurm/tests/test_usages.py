@@ -1,4 +1,3 @@
-from django.test.utils import override_settings
 from rest_framework import test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures, factories as structure_factories
@@ -34,7 +33,6 @@ class BaseTest(test.APITransactionTestCase):
 
 
 class ComponentUsageTest(BaseTest):
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_create_component_usage(self):
         slurm_factories.AllocationUsageFactory(allocation=self.allocation)
         self.assertTrue(marketplace_models.ComponentUsage.objects
@@ -44,7 +42,6 @@ class ComponentUsageTest(BaseTest):
         self.assertTrue(marketplace_models.ComponentUsage.objects
                         .filter(order_item=self.order_item, component__type='ram').exists())
 
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_not_create_component_usage_if_creat_other_allocation_usage(self):
         slurm_factories.AllocationUsageFactory()
         self.assertFalse(marketplace_models.ComponentUsage.objects
@@ -56,7 +53,6 @@ class ComponentUsageTest(BaseTest):
 
 
 class ComponentQuotaTest(BaseTest):
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_create_component_quota(self):
         self.allocation.cpu_usage = 1
         self.allocation.gpu_usage = 10

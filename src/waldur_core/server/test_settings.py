@@ -16,3 +16,5 @@ DATABASES = {
         'NAME': 'waldur',
     }
 }
+
+ALLOWED_HOSTS = ['localhost']

@@ -72,7 +72,7 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     if not instance.tracker.has_changed('state'):
         return
 
-    if instance.tracker.previous('state') != instance.States.CREATION_SCHEDULED:
+    if instance.tracker.previous('state') != instance.States.CREATING:
         return
 
     if instance.state in [instance.States.OK, instance.States.ERRED]:
@@ -85,7 +85,9 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
             return
 
         if instance.state == instance.States.OK:
-            order_item.set_state('done')
+            order_item.set_state_done()
+            order_item.save(update_fields=['state'])
 
         if instance.state == instance.States.ERRED:
-            order_item.set_state('erred')
+            order_item.set_state_erred()
+            order_item.save(update_fields=['state'])

@@ -1,4 +1,3 @@
-from django.test.utils import override_settings
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -62,7 +61,6 @@ class PackageOrderTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_list_url()
         return self.client.post(url, payload)
 
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_when_order_item_is_approved_openstack_tenant_is_created(self):
         # Arrange
         fixture = package_fixtures.PackageFixture()
@@ -97,13 +95,19 @@ class PackageOrderTest(test.APITransactionTestCase):
 
     def test_order_item_set_state_done(self):
         openstack_package = package_factories.OpenStackPackageFactory()
+
         order_item = marketplace_factories.OrderItemFactory(scope=openstack_package)
-        order_item.set_state('executing')
+        order_item.set_state_executing()
+        order_item.save()
+
         order_item.order.state = marketplace_models.Order.States.EXECUTING
         order_item.order.save()
-        openstack_package.tenant.state = openstack_models.Tenant.States.CREATION_SCHEDULED
+
+        openstack_package.tenant.state = openstack_models.Tenant.States.CREATING
         openstack_package.tenant.save()
+
         openstack_package.tenant.state = openstack_models.Tenant.States.OK
         openstack_package.tenant.save()
+
         order_item.refresh_from_db()
         self.assertEqual(order_item.state, order_item.States.DONE)

@@ -456,10 +456,6 @@ class OrderItem(core_models.UuidMixin,
     def set_state_terminated(self):
         pass
 
-    def set_state(self, state):
-        getattr(self, 'set_state_' + state)()
-        self.save(update_fields=['state'])
-
 
 class ComponentQuota(models.Model):
     order_item = models.ForeignKey(OrderItem, related_name='quotas')
