@@ -1,4 +1,3 @@
-from django.test.utils import override_settings
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
@@ -11,7 +10,6 @@ from waldur_slurm.tests import fixtures as slurm_fixtures
 
 
 class SlurmOrderTest(test.APITransactionTestCase):
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_create_allocation_if_order_item_is_approved(self):
         fixture = slurm_fixtures.SlurmFixture()
         service_settings = fixture.service.settings
@@ -48,7 +46,6 @@ class SlurmOrderTest(test.APITransactionTestCase):
 
         self.assertTrue(slurm_models.Allocation.objects.filter(name=offering.name).exists())
 
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_not_create_allocation_if_scope_is_invalid(self):
         fixture = slurm_fixtures.SlurmFixture()
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)

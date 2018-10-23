@@ -1,4 +1,3 @@
-from django.test.utils import override_settings
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
@@ -14,7 +13,6 @@ from waldur_mastermind.support.tests.base import BaseTest
 
 class SupportOrderTest(BaseTest):
 
-    @override_settings(ALLOWED_HOSTS=['localhost'])
     def test_create_offering_if_order_item_is_approved(self):
         fixture = fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
@@ -46,11 +44,16 @@ class SupportOrderTest(BaseTest):
 
     def test_order_item_set_state_done(self):
         offering = support_factories.OfferingFactory()
+
         order_item = marketplace_factories.OrderItemFactory(scope=offering)
-        order_item.set_state('executing')
+        order_item.set_state_executing()
+        order_item.save()
+
         order_item.order.state = marketplace_models.Order.States.EXECUTING
         order_item.order.save()
+
         offering.state = support_models.Offering.States.OK
         offering.save()
+
         order_item.refresh_from_db()
         self.assertEqual(order_item.state, order_item.States.DONE)

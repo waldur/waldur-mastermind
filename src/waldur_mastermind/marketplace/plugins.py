@@ -1,6 +1,7 @@
 import collections
 import logging
 
+from django.utils import six
 from rest_framework import exceptions
 
 
@@ -89,16 +90,19 @@ class PluginManager(object):
 
         if not processor:
             order_item.error_message = 'Skipping order item processing because processor is not found.'
-            order_item.set_state('erred')
+            order_item.set_state_erred()
+            order_item.save(update_fields=['state', 'error_message '])
             return
 
         try:
             processor(order_item, request)
         except exceptions.APIException as e:
-            order_item.error_message = e
-            order_item.set_state('erred')
+            order_item.error_message = six.text_type(e)
+            order_item.set_state_erred()
+            order_item.save(update_fields=['state', 'error_message'])
         else:
-            order_item.set_state('executing')
+            order_item.set_state_executing()
+            order_item.save(update_fields=['state'])
 
     def validate(self, order_item, request):
         validator = self.get_validator(order_item.offering.type)
