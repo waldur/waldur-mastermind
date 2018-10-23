@@ -45,8 +45,10 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
         values = collections.defaultdict(list)
         day = timedelta(days=1)
         days = (end - start).days
-        for i in range(days + 1):
-            date = start + i * day
-            for name in quota_names:
-                values[name].append(charts[name].get(date, 0))
+        for name in quota_names:
+            usage = 0
+            for i in range(days + 1):
+                date = start + i * day
+                usage = charts[name].get(date, usage)
+                values[name].append(usage)
         return values
