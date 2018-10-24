@@ -39,3 +39,9 @@ def notify_order_approvers(uuid):
     }
 
     core_utils.broadcast_mail('marketplace', 'notification_approval', context, emails)
+
+
+@shared_task
+def create_order_pdf(order_id):
+    order = models.Order.objects.get(pk=order_id)
+    utils.create_order_pdf(order)
