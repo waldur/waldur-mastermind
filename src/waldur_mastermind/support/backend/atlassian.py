@@ -134,6 +134,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         issue.summary = backend_issue.fields.summary
         issue.description = backend_issue.fields.description or ''
         issue.type = backend_issue.fields.issuetype.name
+        issue.resolution_date = backend_issue.fields.resolutiondate or None
 
         def get_support_user_by_field(fields, field_name):
             support_user = None
