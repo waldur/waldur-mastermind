@@ -15,6 +15,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
+from waldur_core.core.validators import validate_name
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 
@@ -69,6 +70,7 @@ class Issue(core_models.UuidMixin,
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
     first_response_sla = models.DateTimeField(blank=True, null=True)
+    resolution_date = models.DateTimeField(blank=True, null=True)
 
     tracker = FieldTracker()
 
@@ -320,3 +322,20 @@ class TemplateAttachment(core_models.UuidMixin,
                          TimeStampedModel):
     template = models.ForeignKey(Template, on_delete=models.CASCADE, related_name='attachments')
     file = models.FileField(upload_to='support_template_attachments')
+
+
+class IgnoredIssueStatus(models.Model):
+    name = models.CharField(_('name'), max_length=150, validators=[validate_name], unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class TemplateStatusNotification(models.Model):
+    status = models.CharField(max_length=255, validators=[validate_name], unique=True)
+    html = models.TextField(validators=[validate_name])
+    text = models.TextField(validators=[validate_name])
+    subject = models.CharField(max_length=255, validators=[validate_name])
+
+    def __str__(self):
+        return self.status

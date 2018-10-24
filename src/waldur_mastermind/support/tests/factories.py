@@ -173,3 +173,20 @@ class AttachmentFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-attachment-list')
+
+
+class IgnoredIssueStatusFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.IgnoredIssueStatus
+
+    name = factory.Sequence(lambda n: 'status_%s' % n)
+
+
+class TemplateStatusNotificationFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.TemplateStatusNotification
+
+    status = factory.Sequence(lambda n: 'status_%s' % n)
+    html = 'Test template {{issue.summary}}'
+    text = 'Test template {{issue.summary}}'
+    subject = 'Test template {{issue.summary}}'
