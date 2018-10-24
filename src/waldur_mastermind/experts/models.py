@@ -199,7 +199,7 @@ class ExpertContract(PriceMixin, core_models.DescribableMixin, TimeStampedModel)
             'remuneration': {
                 'type': 'regular payment' if self.request.recurring_billing else 'one-time payment',
                 'value': common_utils.quantize_price(self.price),
-                'currency': settings.WALDUR_EXPERTS['CURRENCY_NAME']
+                'currency': settings.WALDUR_CORE['CURRENCY_NAME']
             },
             'period': ''
         }

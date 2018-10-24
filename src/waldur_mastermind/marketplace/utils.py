@@ -1,13 +1,16 @@
 from __future__ import unicode_literals
 
+import base64
 import os
 import hashlib
 
+import pdfkit
 import six
 from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
+from django.template.loader import render_to_string
 
 
 def create_screenshot_thumbnail(screenshot):
@@ -49,3 +52,26 @@ def get_api_signature(data, api_secret_code):
             concatenate_string += key + six.text_type(usage[key])
 
     return hashlib.sha512(concatenate_string).hexdigest()
+
+
+def create_order_pdf(order):
+    logo_path = settings.WALDUR_CORE['SITE_LOGO']
+    if logo_path:
+        with open(logo_path, 'r') as image_file:
+            deployment_logo = base64.b64encode(image_file.read())
+    else:
+        deployment_logo = None
+
+    context = dict(
+        order=order,
+        currency=settings.WALDUR_CORE['CURRENCY_NAME'],
+        deployment_name=settings.WALDUR_CORE['SITE_NAME'],
+        deployment_address=settings.WALDUR_CORE['SITE_ADDRESS'],
+        deployment_email=settings.WALDUR_CORE['SITE_EMAIL'],
+        deployment_phone=settings.WALDUR_CORE['SITE_PHONE'],
+        deployment_logo=deployment_logo,
+    )
+    html = render_to_string('marketplace/order.html', context)
+    pdf = pdfkit.from_string(html, False)
+    order.file = base64.b64encode(pdf)
+    order.save()

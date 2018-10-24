@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -169,6 +170,17 @@ class OrderViewSet(BaseMarketplaceView):
         order.save(update_fields=['state'])
         return Response({'detail': _('Order state updated.')},
                         status=status.HTTP_200_OK)
+
+    @detail_route()
+    def pdf(self, request, uuid=None):
+        order = self.get_object()
+        if not order.has_file():
+            raise Http404()
+
+        file_response = HttpResponse(order.file, content_type='application/pdf')
+        filename = order.get_filename()
+        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        return file_response
 
 
 class PluginViewSet(views.APIView):

@@ -1,0 +1,129 @@
+{% load i18n %}
+{% load humanize %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>{% trans "Marketplace Order Details" %}</title>
+  <style>
+    {% include "./font.css" %}
+    {% include "./style.css" %}
+  </style>
+</head>
+
+<body>
+<header class="clearfix">
+  <div id="logo">
+    {% if deployment_logo %}
+      <img src="data:image/png;base64,{{ deployment_logo }}">
+    {% endif %}
+  </div>
+  <div id="company">
+    <h2 class="name">{{ deployment_name }}</h2>
+    {% if deployment_address %}
+      <div>{{ deployment_address }}</div>
+    {% endif %}
+    {% if deployment_phone %}
+      <div>{{ deployment_phone }}</div>
+    {% endif %}
+    {% if deployment_email %}
+      <div>{{ deployment_email }}</div>
+    {% endif %}
+  </div>
+</header>
+<main>
+  <div id="details" class="clearfix">
+    <div id="client">
+      <div>
+        <span>{% trans "Requested by" %}:</span>
+        {{ order.created_by.full_name }}
+        ({{ order.created_by.email }})
+      </div>
+      <div>
+        <span>{% trans "Requester registered via" %}:</span>
+        {{ order.created_by.registration_method }} {% trans "registration method" %}
+      </div>
+      {% if order.approved_by %}
+      <div>
+        <span>{% trans "Approved by" %}:</span>
+        {{ order.approved_by.full_name }}
+        ({{ order.approved_by.email }})
+      </div>
+      <div>
+        <span>{% trans "Approver registered via" %}:</span>
+        {{ order.approved_by.registration_method }} {% trans "registration method" %}
+      </div>
+      {% endif %}
+      {% if order.approved_at %}
+      <div>
+        <span>{% trans "Approved at" %}:</span>
+        {{ order.approved_at|date:"SHORT_DATE_FORMAT" }}
+      </div>
+      {% endif %}
+    </div>
+    <div id="invoice">
+      <h1>{% trans "Marketplace order" %}</h1>
+      <div class="date">
+        UUID: {{ order.uuid|upper }}
+      </div>
+      <div class="date">
+        {% trans "Status" %}: {{ order.get_state_display }}
+      </div>
+      <div class="date">
+        {% trans "Created at" %}:
+        {{ order.created|date:"SHORT_DATE_FORMAT" }}
+        {{ order.created|time:"H:i" }}
+      </div>
+    </div>
+  </div>
+  <table border="0" cellspacing="0" cellpadding="0">
+    <thead>
+    <tr>
+      <th class="no">#</th>
+      <th class="desc">{% trans "DESCRIPTION" %}</th>
+      <th class="unit">{% trans "PLAN" %}</th>
+      <th class="total">{% trans "PRICE" %}</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for item in order.items.all %}
+    <tr>
+      <td class="no">
+        {{ forloop.counter }}
+      </td>
+      <td class="desc">
+        <h3>
+          {% if item.attributes.name %}
+          {{ item.attributes.name }}
+          {% elif item.offering.name %}
+          {{ item.offering.name }}
+          {% endif %}
+        </h3>
+
+        {% if item.attributes.description %}
+        {{ item.attributes.description }}
+        {% elif item.offering.description %}
+        {{ item.offering.description }}
+        {% endif %}
+      </td>
+      <td class="unit">
+        {{ item.plan.name }}
+      </td>
+      <td class="total">
+        {{ currency }} {{ item.cost | floatformat:2 | intcomma }}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot>
+    <tr>
+      <td colspan="3">{% trans "TOTAL" %}</td>
+      <td>{{ currency }} {{ order.total_cost | floatformat:2 | intcomma}}</td>
+    </tr>
+    </tfoot>
+  </table>
+</main>
+</body>
+</html>
