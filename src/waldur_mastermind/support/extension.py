@@ -29,6 +29,8 @@ class SupportExtension(WaldurExtension):
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
                 # 'organisation_field': 'Reporter organization',
+                # 'project_field': 'Waldur project',
+                # 'affected_resource_field': 'Affected resource',
                 'summary': '{{issue.summary}}',
                 'description': (
                     '{{issue.description}}\n\n'
