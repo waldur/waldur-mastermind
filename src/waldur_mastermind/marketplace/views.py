@@ -39,6 +39,14 @@ class ServiceProviderViewSet(BaseMarketplaceView):
     serializer_class = serializers.ServiceProviderSerializer
     filter_class = filters.ServiceProviderFilter
 
+    def check_related_resources(request, view, obj=None):
+        if obj and obj.has_active_offerings:
+            raise rf_exceptions.ValidationError(_(
+                'Service provider has active offerings. Please archive them first.'
+            ))
+
+    destroy_permissions = [structure_permissions.is_owner, check_related_resources]
+
 
 class CategoryViewSet(EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Category.objects.all()
