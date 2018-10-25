@@ -150,6 +150,18 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
         self.assertFalse(models.ServiceProvider.objects.filter(customer=self.customer).exists())
 
+    def test_service_provider_could_not_be_deleted_if_it_has_active_offerings(self):
+        factories.OfferingFactory(customer=self.customer, state=models.Offering.States.ACTIVE)
+        response = self.delete_service_provider('staff')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+
+    def test_service_provider_is_deleted_if_it_has_archived_offering(self):
+        factories.OfferingFactory(customer=self.customer, state=models.Offering.States.ARCHIVED)
+        response = self.delete_service_provider('staff')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT, response.data)
+        self.assertFalse(models.ServiceProvider.objects.filter(customer=self.customer).exists())
+
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_delete_service_provider(self, user):
         response = self.delete_service_provider(user)

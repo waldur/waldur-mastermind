@@ -54,6 +54,10 @@ class ServiceProvider(core_models.UuidMixin,
     def get_url_name(cls):
         return 'marketplace-service-provider'
 
+    @property
+    def has_active_offerings(self):
+        return Offering.objects.filter(customer=self.customer).exclude(state=Offering.States.ARCHIVED).exists()
+
 
 @python_2_unicode_compatible
 class Category(core_models.UuidMixin,
