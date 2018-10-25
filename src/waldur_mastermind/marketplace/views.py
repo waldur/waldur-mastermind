@@ -38,6 +38,25 @@ class ServiceProviderViewSet(BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all()
     serializer_class = serializers.ServiceProviderSerializer
     filter_class = filters.ServiceProviderFilter
+    api_secret_code_permissions = [structure_permissions.is_owner]
+
+    @detail_route(methods=['GET', 'POST'])
+    def api_secret_code(self, request, uuid=None):
+        """ On GET request - return service provider api_secret_code.
+            On POST - generate new service provider api_secret_code.
+        """
+        service_provider = self.get_object()
+        if request.method == 'GET':
+            return Response({
+                'api_secret_code': service_provider.api_secret_code
+            }, status=status.HTTP_200_OK)
+        else:
+            service_provider.generate_api_secret_code()
+            service_provider.save()
+            return Response({
+                'detail': _('Api secret code updated.'),
+                'api_secret_code': service_provider.api_secret_code
+            }, status=status.HTTP_200_OK)
 
     def check_related_resources(request, view, obj=None):
         if obj and obj.has_active_offerings:

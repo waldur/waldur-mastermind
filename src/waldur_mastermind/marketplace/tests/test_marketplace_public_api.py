@@ -13,8 +13,8 @@ from waldur_mastermind.marketplace import models
 @freeze_time('2017-01-10 00:00:00')
 class TestPublicComponentUsageApi(PostgreSQLTest):
     def setUp(self):
-        self.secret_code = 'secret_code'
-        self.service_provider = factories.ServiceProviderFactory(api_secret_code=self.secret_code)
+        self.service_provider = factories.ServiceProviderFactory()
+        self.secret_code = self.service_provider.api_secret_code
         self.plan = factories.PlanFactory(unit=UnitPriceMixin.Units.PER_DAY)
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
