@@ -18,5 +18,13 @@
   {
     "clauseNames": "Reporter organization",
     "id": "field105"
+  },
+  {
+    "clauseNames": "Waldur project",
+    "id": "field106"
+  },
+  {
+    "clauseNames": "Affected resource",
+    "id": "field107"
   }
 ]
