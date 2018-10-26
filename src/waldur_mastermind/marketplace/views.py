@@ -281,15 +281,15 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data['data']
-        sandbox = serializer.validated_data['sandbox']
+        dry_run = serializer.validated_data['dry_run']
         data_serializer_class = self.get_action_class()
 
         if data_serializer_class:
             data_serializer = data_serializer_class(data=data)
             data_serializer.is_valid(raise_exception=True)
-            return data_serializer.validated_data, sandbox
+            return data_serializer.validated_data, dry_run
 
-        return serializer.validated_data, sandbox
+        return serializer.validated_data, dry_run
 
     @list_route(methods=['post'])
     @csrf_exempt
@@ -300,9 +300,9 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     @list_route(methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
-        validated_data, sandbox = self.get_validated_data(request)
+        validated_data, dry_run = self.get_validated_data(request)
 
-        if not sandbox:
+        if not dry_run:
             usages = []
             for usage in validated_data['usages']:
                 usages.append(models.ComponentUsage(order_item=usage['order_item'],

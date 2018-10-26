@@ -63,9 +63,9 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         usage = models.ComponentUsage.objects.first()
         self.assertEqual(usage.date.day, 16)
 
-    def test_sandbox_mode(self):
+    def test_dry_run_mode(self):
         payload = self.get_valid_payload()
-        payload['sandbox'] = True
+        payload['dry_run'] = True
         response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertFalse(models.ComponentUsage.objects.filter().exists())

@@ -606,7 +606,7 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
     signature = serializers.CharField()
     customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
     data = serializers.JSONField()
-    sandbox = serializers.BooleanField(default=False, required=False)
+    dry_run = serializers.BooleanField(default=False, required=False)
 
     def validate(self, attrs):
         customer = attrs['customer']
