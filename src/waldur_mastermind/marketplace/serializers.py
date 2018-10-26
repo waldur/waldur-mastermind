@@ -5,7 +5,6 @@ import datetime
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
-from django.core.validators import MinLengthValidator
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -25,12 +24,10 @@ from . import models, attribute_types, plugins, utils, permissions
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
-    api_secret_code = serializers.CharField(write_only=True, required=False, validators=[MinLengthValidator(16)])
-
     class Meta(object):
         model = models.ServiceProvider
         fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description',
-                  'enable_notifications', 'api_secret_code')
+                  'enable_notifications',)
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }

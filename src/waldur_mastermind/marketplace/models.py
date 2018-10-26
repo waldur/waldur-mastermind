@@ -19,7 +19,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 import six
 
-from waldur_core.core import models as core_models
+from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.validators import ImageValidator
 from waldur_core.quotas import fields as quotas_fields
@@ -57,6 +57,14 @@ class ServiceProvider(core_models.UuidMixin,
     @property
     def has_active_offerings(self):
         return Offering.objects.filter(customer=self.customer).exclude(state=Offering.States.ARCHIVED).exists()
+
+    def generate_api_secret_code(self):
+        self.api_secret_code = core_utils.pwgen()
+
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            self.generate_api_secret_code()
+        super(ServiceProvider, self).save(*args, **kwargs)
 
 
 @python_2_unicode_compatible

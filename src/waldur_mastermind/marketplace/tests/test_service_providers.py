@@ -14,7 +14,7 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.service_provider = factories.ServiceProviderFactory()
+        self.service_provider = factories.ServiceProviderFactory(customer=self.fixture.customer)
 
     @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
     def test_service_provider_should_be_visible_to_all_authenticated_users(self, user):
@@ -29,6 +29,23 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         url = factories.ServiceProviderFactory.get_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @data('staff', 'owner')
+    def test_service_provider_api_secret_code_is_visible(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.ServiceProviderFactory.get_url(self.service_provider, 'api_secret_code')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('api_secret_code' in response.data.keys())
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_service_provider_api_secret_code_is_invisible(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.ServiceProviderFactory.get_url(self.service_provider, 'api_secret_code')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
@@ -102,23 +119,6 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data('staff', 'owner')
-    def test_authorized_user_can_update_api_secret_code(self, user):
-        response, service_provider = self.update_service_provider(user, {'api_secret_code': '1234567890987654321'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(service_provider.api_secret_code, '1234567890987654321')
-
-    @data('staff', 'owner')
-    def test_authorized_user_can_not_pass_invalid_api_secret_code(self, user):
-        response, service_provider = self.update_service_provider(user, {'api_secret_code': '12345'})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(service_provider.api_secret_code, None)
-
-    @data('user', 'customer_support', 'admin', 'manager')
-    def test_unauthorized_user_can_not_update_api_secret_code(self, user):
-        response, service_provider = self.update_service_provider(user, {'api_secret_code': '1234567890987654321'})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     def update_service_provider(self, user, payload=None):
         if not payload:
             payload = {
@@ -134,6 +134,29 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         service_provider.refresh_from_db()
 
         return response, service_provider
+
+    @data('staff', 'owner')
+    def test_generate_api_secret_code(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        url = factories.ServiceProviderFactory.get_url(service_provider, 'api_secret_code')
+        old_secret_code = service_provider.api_secret_code
+        response = self.client.post(url)
+        service_provider.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(service_provider.api_secret_code, old_secret_code)
+
+    @data('user', 'customer_support', 'admin', 'manager')
+    def test_not_generate_api_secret_code(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
+        url = factories.ServiceProviderFactory.get_url(service_provider, 'api_secret_code')
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
