@@ -5,9 +5,9 @@ import datetime
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
-from django.core.validators import MinLengthValidator
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
+from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -24,12 +24,10 @@ from . import models, attribute_types, plugins, utils, permissions
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
-    api_secret_code = serializers.CharField(write_only=True, required=False, validators=[MinLengthValidator(16)])
-
     class Meta(object):
         model = models.ServiceProvider
         fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description',
-                  'enable_notifications', 'api_secret_code')
+                  'enable_notifications',)
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }
@@ -510,7 +508,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
         fields = ('url', 'uuid',
                   'created', 'created_by', 'created_by_username', 'created_by_full_name',
                   'approved_by', 'approved_at', 'approved_by_username', 'approved_by_full_name',
-                  'project', 'state', 'items', 'total_cost',)
+                  'project', 'state', 'items', 'total_cost', 'file')
         read_only_fields = ('created_by', 'approved_by', 'approved_at', 'state', 'total_cost')
         protected_fields = ('project', 'items')
         related_paths = {
@@ -523,6 +521,16 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
             'approved_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
         }
+
+    file = serializers.SerializerMethodField()
+
+    def get_file(self, obj):
+        if not obj.has_file():
+            return None
+
+        return reverse('marketplace-order-pdf',
+                       kwargs={'uuid': obj.uuid},
+                       request=self.context['request'])
 
     @transaction.atomic
     def create(self, validated_data):
@@ -598,7 +606,7 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
     signature = serializers.CharField()
     customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
     data = serializers.JSONField()
-    sandbox = serializers.BooleanField(default=False, required=False)
+    dry_run = serializers.BooleanField(default=False, required=False)
 
     def validate(self, attrs):
         customer = attrs['customer']

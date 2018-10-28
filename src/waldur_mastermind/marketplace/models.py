@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
+import base64
 from decimal import Decimal
+import StringIO
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
@@ -17,7 +19,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 import six
 
-from waldur_core.core import models as core_models
+from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.validators import ImageValidator
 from waldur_core.quotas import fields as quotas_fields
@@ -51,6 +53,18 @@ class ServiceProvider(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-service-provider'
+
+    @property
+    def has_active_offerings(self):
+        return Offering.objects.filter(customer=self.customer).exclude(state=Offering.States.ARCHIVED).exists()
+
+    def generate_api_secret_code(self):
+        self.api_secret_code = core_utils.pwgen()
+
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            self.generate_api_secret_code()
+        super(ServiceProvider, self).save(*args, **kwargs)
 
 
 @python_2_unicode_compatible
@@ -351,6 +365,7 @@ class Order(core_models.UuidMixin,
     state = FSMIntegerField(default=States.REQUESTED_FOR_APPROVAL, choices=States.CHOICES)
     total_cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     tracker = FieldTracker()
+    _file = models.TextField(blank=True, editable=False)
 
     class Permissions(object):
         customer_path = 'project__customer'
@@ -396,6 +411,24 @@ class Order(core_models.UuidMixin,
             users = order_admins if not users else users.union(order_admins)
 
         return users and users.distinct()
+
+    @property
+    def file(self):
+        if not self._file:
+            return
+
+        content = base64.b64decode(self._file)
+        return StringIO.StringIO(content)
+
+    @file.setter
+    def file(self, value):
+        self._file = value
+
+    def has_file(self):
+        return bool(self._file)
+
+    def get_filename(self):
+        return 'marketplace_order_{}.pdf'.format(self.uuid)
 
 
 class OrderItem(core_models.UuidMixin,
@@ -455,10 +488,6 @@ class OrderItem(core_models.UuidMixin,
     @transition(field=state, source='*', target=States.TERMINATED)
     def set_state_terminated(self):
         pass
-
-    def set_state(self, state):
-        getattr(self, 'set_state_' + state)()
-        self.save(update_fields=['state'])
 
 
 class ComponentQuota(models.Model):

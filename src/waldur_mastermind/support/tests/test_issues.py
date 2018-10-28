@@ -229,7 +229,7 @@ class IssueCreateTest(base.BaseTest):
         response = self.client.post(self.url, data=self._get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
-    def test_fill_organization_field(self):
+    def test_fill_custom_fields(self):
         mock.patch.stopall()
         mock_patch = mock.patch('waldur_jira.backend.JIRA')
         self.mock_jira = mock_patch.start()
@@ -240,8 +240,13 @@ class IssueCreateTest(base.BaseTest):
         user = self.fixture.staff
         factories.SupportUserFactory(user=user)
         self.client.force_authenticate(user)
-        self.client.post(self.url, data=self._get_valid_payload())
+        response = self.client.post(self.url, data=self._get_valid_payload(
+            project=structure_factories.ProjectFactory.get_url(self.fixture.project),
+            resource=structure_factories.TestNewInstanceFactory.get_url()))
+        issue = response.data
         self.assertEqual(user.organization, self.mock_jira().create_issue.call_args[1]['field105'])
+        self.assertEqual(issue['project_name'], self.mock_jira().create_issue.call_args[1]['field106'])
+        self.assertEqual(issue['resource_name'], self.mock_jira().create_issue.call_args[1]['field107'].name)
 
     def _get_valid_payload(self, **additional):
         payload = {

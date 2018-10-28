@@ -39,7 +39,10 @@ class TestImageUsageStats(test.APITransactionTestCase):
             name='Ubuntu 16.04',
             settings=self.fixture.openstack_tenant_service_settings)
         factories.ImageFactory(
-            name='Centos 10.04',
+            name='CentOS 10.04',
+            settings=self.fixture.openstack_tenant_service_settings)
+        factories.ImageFactory(
+            name='Windows 10',
             settings=self.fixture.openstack_tenant_service_settings)
         factories.ImageFactory(
             name='Windows 10',
@@ -48,19 +51,19 @@ class TestImageUsageStats(test.APITransactionTestCase):
     def test_usage_stats(self):
         expected = [
             {
-                'name': 'Centos 10.04',
+                'name': 'CentOS 10.04',
                 'running_instances_count': 0,
                 'created_instances_count': 0
             },
             {
                 'name': 'Windows 10',
                 'running_instances_count': 1,
-                'created_instances_count': 0
+                'created_instances_count': 1,
             },
             {
                 'name': 'Ubuntu 16.04',
                 'running_instances_count': 1,
-                'created_instances_count': 1
+                'created_instances_count': 2,
             }
         ]
         self.client.force_authenticate(user=self.admin)
@@ -96,12 +99,14 @@ class TestFlavorUsageStats(test.APITransactionTestCase):
                                 settings=self.fixture.openstack_tenant_service_settings)
         factories.FlavorFactory(name='Large',
                                 settings=self.fixture.openstack_tenant_service_settings)
+        factories.FlavorFactory(name='Large',
+                                settings=self.fixture.openstack_tenant_service_settings)
 
     def test_usage_stats(self):
         expected = [
             {
                 'running_instances_count': 1,
-                'created_instances_count': 0,
+                'created_instances_count': 1,
                 'name': 'Large'
             },
             {
@@ -111,7 +116,7 @@ class TestFlavorUsageStats(test.APITransactionTestCase):
             },
             {
                 'running_instances_count': 1,
-                'created_instances_count': 1,
+                'created_instances_count': 2,
                 'name': 'Small'
             }
         ]

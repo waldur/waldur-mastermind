@@ -8,6 +8,7 @@ from celery.task import Task as CeleryTask
 from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
+from django.template import Template, Context
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -75,11 +76,18 @@ def _send_issue_notification(issue, template, receiver=None):
     context = {
         'issue_url': settings.ISSUE_LINK_TEMPLATE.format(uuid=issue.uuid),
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
+        'issue': issue,
     }
 
-    subject = render_to_string('support/notification_%s_subject.txt' % template).strip()
-    text_message = render_to_string('support/notification_%s.txt' % template, context)
-    html_message = render_to_string('support/notification_%s.html' % template, context)
+    try:
+        notification_template = models.TemplateStatusNotification.objects.get(status=issue.status)
+        html_message = Template(notification_template.html).render(Context(context))
+        text_message = Template(notification_template.text).render(Context(context))
+        subject = Template(notification_template.subject).render(Context(context))
+    except models.TemplateStatusNotification.DoesNotExist:
+        html_message = render_to_string('support/notification_%s.html' % template, context)
+        text_message = render_to_string('support/notification_%s.txt' % template, context)
+        subject = render_to_string('support/notification_%s_subject.txt' % template, context).strip()
 
     logger.debug('About to send an issue update notification to %s' % receiver.email)
 

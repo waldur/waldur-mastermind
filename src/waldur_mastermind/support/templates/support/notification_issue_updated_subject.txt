@@ -1,1 +1,1 @@
-The issue you have has been updated
+Updated issue: {{issue.key}} {{issue.summary}}

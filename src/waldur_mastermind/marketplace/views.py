@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -37,6 +38,33 @@ class ServiceProviderViewSet(BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all()
     serializer_class = serializers.ServiceProviderSerializer
     filter_class = filters.ServiceProviderFilter
+    api_secret_code_permissions = [structure_permissions.is_owner]
+
+    @detail_route(methods=['GET', 'POST'])
+    def api_secret_code(self, request, uuid=None):
+        """ On GET request - return service provider api_secret_code.
+            On POST - generate new service provider api_secret_code.
+        """
+        service_provider = self.get_object()
+        if request.method == 'GET':
+            return Response({
+                'api_secret_code': service_provider.api_secret_code
+            }, status=status.HTTP_200_OK)
+        else:
+            service_provider.generate_api_secret_code()
+            service_provider.save()
+            return Response({
+                'detail': _('Api secret code updated.'),
+                'api_secret_code': service_provider.api_secret_code
+            }, status=status.HTTP_200_OK)
+
+    def check_related_resources(request, view, obj=None):
+        if obj and obj.has_active_offerings:
+            raise rf_exceptions.ValidationError(_(
+                'Service provider has active offerings. Please archive them first.'
+            ))
+
+    destroy_permissions = [structure_permissions.is_owner, check_related_resources]
 
 
 class CategoryViewSet(EagerLoadMixin, core_views.ActionsViewSet):
@@ -170,6 +198,17 @@ class OrderViewSet(BaseMarketplaceView):
         return Response({'detail': _('Order state updated.')},
                         status=status.HTTP_200_OK)
 
+    @detail_route()
+    def pdf(self, request, uuid=None):
+        order = self.get_object()
+        if not order.has_file():
+            raise Http404()
+
+        file_response = HttpResponse(order.file, content_type='application/pdf')
+        filename = order.get_filename()
+        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        return file_response
+
 
 class PluginViewSet(views.APIView):
     def get(self, request):
@@ -242,15 +281,15 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.data['data']
-        sandbox = serializer.validated_data['sandbox']
+        dry_run = serializer.validated_data['dry_run']
         data_serializer_class = self.get_action_class()
 
         if data_serializer_class:
             data_serializer = data_serializer_class(data=data)
             data_serializer.is_valid(raise_exception=True)
-            return data_serializer.validated_data, sandbox
+            return data_serializer.validated_data, dry_run
 
-        return serializer.validated_data, sandbox
+        return serializer.validated_data, dry_run
 
     @list_route(methods=['post'])
     @csrf_exempt
@@ -261,9 +300,9 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     @list_route(methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
-        validated_data, sandbox = self.get_validated_data(request)
+        validated_data, dry_run = self.get_validated_data(request)
 
-        if not sandbox:
+        if not dry_run:
             usages = []
             for usage in validated_data['usages']:
                 usages.append(models.ComponentUsage(order_item=usage['order_item'],

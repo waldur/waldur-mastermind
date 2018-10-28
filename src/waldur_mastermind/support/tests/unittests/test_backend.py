@@ -146,6 +146,16 @@ class IssueUpdateTest(BaseBackendTest):
         issue.refresh_from_db()
         self.assertEqual(issue.reporter.backend_id, 'bob@lebowski.com')
 
+    def test_issue_is_resolved(self):
+        issue = self.fixture.issue
+        resolution_date = timezone.now()
+        self.mocked_jira.issue.return_value.fields.status.name = 'Resolved'
+        self.mocked_jira.issue.return_value.fields.resolutiondate = resolution_date
+
+        self.backend.update_issue_from_jira(issue)
+        issue.refresh_from_db()
+        self.assertEqual(issue.resolution_date, resolution_date)
+
 
 class CommentCreateTest(BaseBackendTest):
     def setUp(self):

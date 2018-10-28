@@ -97,6 +97,13 @@ class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkV
 
 
 class UsageReporter(object):
+    """
+    This class implements service for counting number of instances grouped
+    by image and flavor name and by instance runtime status.
+    Please note that even when flavors have different UUIDs they are treated
+    as the same as long as they have the same name.
+    This is needed because in OpenStack UUID is not stable for images and flavors.
+    """
     def __init__(self, view, request):
         self.view = view
         self.request = request
@@ -106,22 +113,21 @@ class UsageReporter(object):
         if self.request.query_params:
             self.query = self.parse_query(self.request)
 
-        active_stats = self.get_stats(models.Instance.RuntimeStates.ACTIVE)
-        shutoff_stats = self.get_stats(models.Instance.RuntimeStates.SHUTOFF)
-        qs = self.get_initial_queryset().values_list('name', 'uuid')
+        running_stats = self.get_stats(models.Instance.RuntimeStates.ACTIVE)
+        created_stats = self.get_stats()
+        qs = self.get_initial_queryset().values_list('name', flat=True).distinct()
 
         page = self.view.paginate_queryset(qs)
-        result = self.serialize_result(page, active_stats, shutoff_stats)
+        result = self.serialize_result(page, running_stats, created_stats)
         return self.view.get_paginated_response(result)
 
-    def serialize_result(self, queryset, active_stats, shutoff_stats):
+    def serialize_result(self, queryset, running_stats, created_stats):
         result = []
-        for (name, uuid) in queryset:
+        for name in queryset:
             result.append({
                 'name': name,
-                'uuid': uuid,
-                'running_instances_count': active_stats.get(name, 0),
-                'created_instances_count': shutoff_stats.get(name, 0),
+                'running_instances_count': running_stats.get(name, 0),
+                'created_instances_count': created_stats.get(name, 0),
             })
         return result
 
@@ -146,7 +152,7 @@ class UsageReporter(object):
     def get_initial_queryset(self):
         raise NotImplementedError
 
-    def get_stats(self, runtime_state):
+    def get_stats(self, runtime_state=None):
         raise NotImplementedError
 
 
@@ -155,8 +161,10 @@ class ImageUsageReporter(UsageReporter):
     def get_initial_queryset(self):
         return models.Image.objects.all()
 
-    def get_stats(self, runtime_state):
-        volumes = models.Volume.objects.filter(bootable=True, instance__runtime_state=runtime_state)
+    def get_stats(self, runtime_state=None):
+        volumes = models.Volume.objects.filter(bootable=True)
+        if runtime_state:
+            volumes = volumes.filter(instance__runtime_state=runtime_state)
         rows = self.apply_filters(volumes).values('image_name').annotate(count=Count('image_name'))
         return {row['image_name']: row['count'] for row in rows}
 
@@ -166,8 +174,10 @@ class FlavorUsageReporter(UsageReporter):
     def get_initial_queryset(self):
         return models.Flavor.objects.all()
 
-    def get_stats(self, runtime_state):
-        instances = models.Instance.objects.filter(runtime_state=runtime_state)
+    def get_stats(self, runtime_state=None):
+        instances = models.Instance.objects.all()
+        if runtime_state:
+            instances = instances.filter(runtime_state=runtime_state)
         rows = self.apply_filters(instances)\
             .values('flavor_name').annotate(count=Count('flavor_name'))
         return {row['flavor_name']: row['count'] for row in rows}

@@ -88,7 +88,7 @@ def send_request_mail(event_type, request, users, extra_context=None):
         request=request,
         customer_name=request.project.customer.name,
         project_name=request.project.name,
-        currency_name=settings.WALDUR_EXPERTS['CURRENCY_NAME'],
+        currency_name=settings.WALDUR_CORE['CURRENCY_NAME'],
         site_name=settings.WALDUR_CORE['SITE_NAME'],
     )
     if extra_context:

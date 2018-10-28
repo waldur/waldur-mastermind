@@ -109,10 +109,14 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             "key": issue.caller.email
         }]
 
-        if issue.reporter.user.organization and self.issue_settings.get('organisation_field'):
-            args[self.get_field_id_by_name(self.issue_settings['organisation_field'])] = \
-                issue.reporter.user.organization
+        def set_custom_field(field_name, value):
+            if value and self.issue_settings.get(field_name):
+                args[self.get_field_id_by_name(self.issue_settings[field_name])] = value
 
+        set_custom_field('organisation_field', issue.reporter.user.organization)
+        if issue.project:
+            set_custom_field('project_field', issue.project.name)
+        set_custom_field('affected_resource_field', issue.resource)
         return args
 
     def _get_first_sla_field(self, backend_issue):
@@ -134,6 +138,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         issue.summary = backend_issue.fields.summary
         issue.description = backend_issue.fields.description or ''
         issue.type = backend_issue.fields.issuetype.name
+        issue.resolution_date = backend_issue.fields.resolutiondate or None
 
         def get_support_user_by_field(fields, field_name):
             support_user = None

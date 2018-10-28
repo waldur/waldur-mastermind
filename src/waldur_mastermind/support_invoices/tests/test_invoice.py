@@ -1,7 +1,6 @@
 import datetime
 from decimal import Decimal
 
-from django.test.utils import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
 
@@ -15,7 +14,6 @@ from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests.base import BaseTest
 
 
-@override_settings(ALLOWED_HOSTS=['localhost'])
 @freeze_time('2018-01-01 00:00:00')
 class InvoicesTest(BaseTest):
     def setUp(self):

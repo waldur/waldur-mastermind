@@ -94,3 +94,7 @@ def update_project_resources_count(sender, **kwargs):
             category_id=row['offering__category'],
             defaults={'count': row['count']},
         )
+
+
+def create_order_pdf(sender, instance, **kwargs):
+    tasks.create_order_pdf.delay(instance.pk)
