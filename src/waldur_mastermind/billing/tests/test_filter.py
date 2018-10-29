@@ -14,6 +14,7 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
         models.PriceEstimate.objects.filter(scope=structure_factories.CustomerFactory()).update(total=200)
         models.PriceEstimate.objects.filter(scope=structure_factories.CustomerFactory()).update(total=100)
         models.PriceEstimate.objects.filter(scope=structure_factories.CustomerFactory()).update(total=300)
+        structure_factories.CustomerFactory()
 
     def execute_request(self, ordering_param=None):
         fixture = structure_fixtures.CustomerFixture()
@@ -29,15 +30,15 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
 
     def test_ascending_ordering(self):
         actual = self.execute_request('estimated_cost')
-        self.assertEqual([100, 200, 300], actual)
+        self.assertEqual([0, 100, 200, 300], actual)
 
     def test_descending_ordering(self):
         actual = self.execute_request('-estimated_cost')
-        self.assertEqual([300, 200, 100], actual)
+        self.assertEqual([300, 200, 100, 0], actual)
 
     def test_default_ordering(self):
         actual = self.execute_request()
-        self.assertEqual([200, 100, 300], actual)
+        self.assertEqual([200, 100, 300, 0], actual)
 
 
 class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
@@ -52,6 +53,7 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
                 quantity=1,
                 unit=invoice_models.InvoiceItem.Units.QUANTITY
             )
+        structure_factories.CustomerFactory()
 
     def execute_request(self, ordering_param=None):
         fixture = structure_fixtures.CustomerFixture()
@@ -67,12 +69,12 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
 
     def test_ascending_ordering(self):
         actual = self.execute_request('current_cost')
-        self.assertEqual([100, 200, 300], actual)
+        self.assertEqual([0, 100, 200, 300], actual)
 
     def test_descending_ordering(self):
         actual = self.execute_request('-current_cost')
-        self.assertEqual([300, 200, 100], actual)
+        self.assertEqual([300, 200, 100, 0], actual)
 
     def test_default_ordering(self):
         actual = self.execute_request()
-        self.assertEqual([200, 100, 300], actual)
+        self.assertEqual([200, 100, 300, 0], actual)
