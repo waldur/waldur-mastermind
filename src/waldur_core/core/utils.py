@@ -13,12 +13,15 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.core.management import call_command
+from django.db.models import F
+from django.db.models.sql.query import get_order_dir
 from django.http import QueryDict
 from django.template.loader import render_to_string
 from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.encoding import force_text
+from rest_framework.settings import api_settings
 
 
 def flatten(*xs):
@@ -243,3 +246,24 @@ def broadcast_mail(app, event_type, context, recipient_list):
 
     for recipient in recipient_list:
         send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [recipient], html_message=html_message)
+
+
+def get_ordering(request):
+    """
+    Extract ordering from HTTP request.
+    """
+    return request.query_params.get(api_settings.ORDERING_PARAM)
+
+
+def order_with_nulls(queryset, field):
+    """
+    If sorting order is ascending, then NULL values come first,
+    if sorting order is descending, then NULL values come last.
+    """
+    col, order = get_order_dir(field)
+    descending = True if order == 'DESC' else False
+
+    if descending:
+        return queryset.order_by(F(col).desc(nulls_last=True))
+    else:
+        return queryset.order_by(F(col).asc(nulls_first=True))
