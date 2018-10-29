@@ -8,6 +8,7 @@ from jira import Issue
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.tests.base import override_support_settings
 from waldur_mastermind.support.tests.base import load_resource
+from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
 from . import factories, base
 from .. import models
@@ -230,12 +231,7 @@ class IssueCreateTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
     def test_fill_custom_fields(self):
-        mock.patch.stopall()
-        mock_patch = mock.patch('waldur_jira.backend.JIRA')
-        self.mock_jira = mock_patch.start()
-        self.mock_jira().fields.return_value = json.loads(load_resource('jira_fields.json'))
-        issue_raw = json.loads(load_resource('jira_issue_raw.json'))
-        self.mock_jira().create_issue.return_value = Issue({'server': ''}, None, raw=issue_raw)
+        self._mock_jira()
 
         user = self.fixture.staff
         factories.SupportUserFactory(user=user)
@@ -247,6 +243,21 @@ class IssueCreateTest(base.BaseTest):
         self.assertEqual(user.organization, self.mock_jira().create_issue.call_args[1]['field105'])
         self.assertEqual(issue['project_name'], self.mock_jira().create_issue.call_args[1]['field106'])
         self.assertEqual(issue['resource_name'], self.mock_jira().create_issue.call_args[1]['field107'].name)
+
+    def test_if_issue_does_not_have_reporter_organisation_field_not_fill(self):
+        self._mock_jira()
+
+        issue = factories.IssueFactory(reporter=None, backend_id=None)
+        ServiceDeskBackend().create_issue(issue)
+        self.assertTrue('field105' not in self.mock_jira.return_value.create_issue.call_args[1].keys())
+
+    def _mock_jira(self):
+        mock.patch.stopall()
+        mock_patch = mock.patch('waldur_jira.backend.JIRA')
+        self.mock_jira = mock_patch.start()
+        self.mock_jira().fields.return_value = json.loads(load_resource('jira_fields.json'))
+        issue_raw = json.loads(load_resource('jira_issue_raw.json'))
+        self.mock_jira().create_issue.return_value = Issue({'server': ''}, None, raw=issue_raw)
 
     def _get_valid_payload(self, **additional):
         payload = {
