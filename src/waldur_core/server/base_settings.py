@@ -295,6 +295,7 @@ WALDUR_CORE = {
     # 'COUNTRIES': ['EE', 'LV', 'LT'],
     'ENABLE_ACCOUNTING_START_DATE': False,
     'USE_ATOMIC_TRANSACTION': True,
+    'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
 }
 
 WALDUR_CORE_PUBLIC_SETTINGS = [
