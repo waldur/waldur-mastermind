@@ -7,6 +7,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import loggers
 from waldur_core.logging.tests.factories import WebHookFactory, PushHookFactory
 from waldur_core.structure.tests import factories as structure_factories, fixtures as structure_fixtures
@@ -215,3 +216,10 @@ class SystemNotificationTest(PostgreSQLTest):
         tasks.process_event(self.event)
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(self.admin.email in mail.outbox[0].to)
+
+    @override_waldur_core_settings(NOTIFICATION_SUBJECT='Test Subject')
+    def test_notification_subject(self):
+        self.assertFalse(models.EmailHook.objects.count())
+        tasks.process_event(self.event)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject[0], 'Test Subject')
