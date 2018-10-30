@@ -11,7 +11,7 @@ from rest_framework.serializers import ValidationError
 
 from waldur_core.core import serializers as core_serializers, filters as core_filters
 from waldur_core.core.filters import ExternalFilterBackend
-from waldur_core.core.utils import camel_case_to_underscore
+from waldur_core.core.utils import camel_case_to_underscore, get_ordering
 from waldur_core.logging import models, utils
 from waldur_core.logging.elasticsearch_client import EmptyQueryset
 from waldur_core.logging.loggers import event_logger, expand_event_groups, expand_alert_groups
@@ -149,7 +149,7 @@ class EventFilterBackend(filters.BaseFilterBackend):
                                    start=filter_data.get('start'),
                                    end=filter_data.get('end'))
 
-        order_by = request.query_params.get('o', '-@timestamp')
+        order_by = get_ordering(request) or '-@timestamp'
         if order_by:
             queryset = queryset.order_by(order_by)
 

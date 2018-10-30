@@ -21,6 +21,7 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core.filters import BaseExternalFilter, ExternalFilterBackend
+from waldur_core.core.utils import order_with_nulls, get_ordering
 from waldur_core.logging.filters import ExternalAlertFilterBackend
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models
@@ -643,7 +644,7 @@ class TagsFilter(BaseFilterBackend):
         return queryset
 
     def _order(self, request, queryset):
-        order_by = request.query_params.get('o')
+        order_by = get_ordering(request)
         item_name = self._get_item_name(order_by)
         if item_name:
             filter_kwargs = {self.db_field + '__name__startswith': item_name}
@@ -657,24 +658,12 @@ class TagsFilter(BaseFilterBackend):
 
 
 class StartTimeFilter(BaseFilterBackend):
-    """
-    In PostgreSQL NULL values come *last* with ascending sort order.
-    In MySQL NULL values come *first* with ascending sort order.
-    This filter provides unified sorting for both databases.
-    """
 
     def filter_queryset(self, request, queryset, view):
-        order = request.query_params.get('o', None)
-        if order == 'start_time':
-            queryset = queryset.extra(select={
-                'is_null': 'CASE WHEN start_time IS NULL THEN 0 ELSE 1 END'}) \
-                .order_by('is_null', 'start_time')
-        elif order == '-start_time':
-            queryset = queryset.extra(select={
-                'is_null': 'CASE WHEN start_time IS NULL THEN 0 ELSE 1 END'}) \
-                .order_by('-is_null', '-start_time')
-
-        return queryset
+        order_by = get_ordering(request)
+        if order_by not in ('start_time', '-start_time'):
+            return queryset
+        return order_with_nulls(queryset, order_by)
 
 
 class BaseServicePropertyFilter(NameFilterSet):

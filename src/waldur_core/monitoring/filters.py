@@ -2,6 +2,7 @@ import django_filters
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.utils import get_ordering
 from waldur_core.structure import models as structure_models
 
 from .models import ResourceSlaStateTransition
@@ -51,7 +52,7 @@ class SlaFilter(BaseFilterBackend):
             value = request.query_params.get('actual_sla')
             return queryset.filter(sla_items__value=value, sla_items__period=period)
 
-        elif request.query_params.get('o') == 'actual_sla':
+        elif get_ordering(request) == 'actual_sla':
             return queryset.filter(sla_items__period=period).order_by('sla_items__value')
 
         else:
@@ -96,7 +97,7 @@ class MonitoringItemFilter(BaseFilterBackend):
                 queryset = queryset.filter(monitoring_items__name=item_name,
                                            monitoring_items__value=value)
 
-        order_by = request.query_params.get('o')
+        order_by = get_ordering(request)
         item_name = self._get_item_name(order_by)
         if item_name:
             queryset = queryset.filter(monitoring_items__name=item_name)\
