@@ -31,6 +31,7 @@ class SupportExtension(WaldurExtension):
                 # 'organisation_field': 'Reporter organization',
                 # 'project_field': 'Waldur project',
                 # 'affected_resource_field': 'Affected resource',
+                # 'template_field': 'Waldur template',
                 'summary': '{{issue.summary}}',
                 'description': (
                     '{{issue.description}}\n\n'

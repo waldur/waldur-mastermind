@@ -26,5 +26,9 @@
   {
     "clauseNames": "Affected resource",
     "id": "field107"
+  },
+  {
+    "clauseNames": "Waldur template",
+    "id": "field108"
   }
 ]

@@ -175,6 +175,25 @@ class AttachmentFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('support-attachment-list')
 
 
+class TemplateFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Template
+
+    name = factory.Sequence(lambda n: 'template_%s' % n)
+    description = factory.Sequence(lambda n: 'template_description_%s' % n)
+
+    @classmethod
+    def get_url(cls, template=None, action=None):
+        if template is None:
+            template = TemplateFactory()
+        url = 'http://testserver' + reverse('support-template-detail', kwargs={'uuid': template.uuid.hex})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-template-list')
+
+
 class IgnoredIssueStatusFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.IgnoredIssueStatus

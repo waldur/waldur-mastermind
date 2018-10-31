@@ -71,6 +71,7 @@ class Issue(core_models.UuidMixin,
 
     first_response_sla = models.DateTimeField(blank=True, null=True)
     resolution_date = models.DateTimeField(blank=True, null=True)
+    template = models.ForeignKey('Template', related_name='issues', blank=True, null=True, on_delete=models.PROTECT)
 
     tracker = FieldTracker()
 
