@@ -122,6 +122,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if issue.resource:
             set_custom_field('affected_resource_field', issue.resource)
 
+        if issue.template:
+            set_custom_field('template_field', issue.template.name)
+
         return args
 
     def _get_first_sla_field(self, backend_issue):

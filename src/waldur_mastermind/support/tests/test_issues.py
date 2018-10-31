@@ -238,11 +238,13 @@ class IssueCreateTest(base.BaseTest):
         self.client.force_authenticate(user)
         response = self.client.post(self.url, data=self._get_valid_payload(
             project=structure_factories.ProjectFactory.get_url(self.fixture.project),
-            resource=structure_factories.TestNewInstanceFactory.get_url()))
+            resource=structure_factories.TestNewInstanceFactory.get_url(),
+            template=factories.TemplateFactory.get_url()))
         issue = response.data
         self.assertEqual(user.organization, self.mock_jira().create_issue.call_args[1]['field105'])
         self.assertEqual(issue['project_name'], self.mock_jira().create_issue.call_args[1]['field106'])
         self.assertEqual(issue['resource_name'], self.mock_jira().create_issue.call_args[1]['field107'].name)
+        self.assertEqual(issue['template'].name, self.mock_jira().create_issue.call_args[1]['field108'])
 
     def test_if_issue_does_not_have_reporter_organisation_field_not_fill(self):
         self._mock_jira()
