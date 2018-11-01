@@ -58,3 +58,14 @@ def log_profile_deleted(sender, instance, **kwargs):
             'username': profile.username,
         }
     )
+
+
+def schedule_ssh_key_sync_when_key_is_created(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    tasks.sync_ssh_key.delay(instance.pk)
+
+
+def schedule_ssh_key_sync_when_key_is_deleted(sender, instance, **kwargs):
+    tasks.sync_ssh_key.delay(instance.pk)

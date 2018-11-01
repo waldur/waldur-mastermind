@@ -2,8 +2,12 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from python_freeipa import exceptions as freeipa_exceptions
 
-from . import utils
+from waldur_core.core import models as core_models
+
+from . import models, utils
 from .backend import FreeIPABackend
 
 
@@ -61,3 +65,29 @@ def schedule_sync_gecos():
 @shared_task()
 def _sync_gecos():
     FreeIPABackend().synchronize_gecos()
+
+
+@shared_task(name='waldur_freeipa.sync_ssh_key')
+def sync_ssh_key(key_id):
+    try:
+        ssh_key = core_models.SshPublicKey.objects.get(id=key_id)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping SSH key synchronization because key has been deleted. '
+                     'Key ID: %s', key_id)
+        return
+
+    try:
+        profile = models.Profile.objects.get(user=ssh_key.user)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping SSH key synchronization because '
+                     'FreeIPA profile does not exist. '
+                     'User ID: %s', ssh_key.user.id)
+        return
+
+    try:
+        FreeIPABackend().update_ssh_keys(profile)
+    except freeipa_exceptions.NotFound:
+        logger.warning('Skipping SSH key synchronization because '
+                       'FreeIPA profile has been removed on backend. '
+                       'User ID: %s', ssh_key.user.id)
+        return

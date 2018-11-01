@@ -9,6 +9,7 @@ class FreeIPAConfig(AppConfig):
     verbose_name = 'FreeIPA'
 
     def ready(self):
+        from waldur_core.core import models as core_models
         from waldur_core.quotas.fields import QuotaField
         from waldur_core.quotas import models as quota_models
         from waldur_core.structure import models as structure_models
@@ -45,6 +46,18 @@ class FreeIPAConfig(AppConfig):
             handlers.schedule_sync_on_quota_change,
             sender=quota_models.Quota,
             dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_quota_save',
+        )
+
+        signals.post_save.connect(
+            handlers.schedule_ssh_key_sync_when_key_is_created,
+            sender=core_models.SshPublicKey,
+            dispatch_uid='waldur_freeipa.handlers.schedule_ssh_key_sync_when_key_is_created',
+        )
+
+        signals.pre_delete.connect(
+            handlers.schedule_ssh_key_sync_when_key_is_deleted,
+            sender=core_models.SshPublicKey,
+            dispatch_uid='waldur_freeipa.handlers.schedule_ssh_key_sync_when_key_is_deleted',
         )
 
         structure_models.Customer.add_quota_field(
