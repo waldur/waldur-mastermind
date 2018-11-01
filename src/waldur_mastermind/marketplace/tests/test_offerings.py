@@ -50,7 +50,8 @@ class OfferingFilterTest(PostgreSQLTest):
             'userSupportOption': ['phone'],
         }
         self.offering = factories.OfferingFactory(customer=self.fixture.customer,
-                                                  attributes=attributes)
+                                                  attributes=attributes,
+                                                  shared=False)
         self.url = factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(self.fixture.staff)
 
