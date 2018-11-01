@@ -88,7 +88,7 @@ def send_invoice_report():
 
     # Report should include only organizations that had accounting running during the invoice period.
     if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
-        invoices = invoices.filter(customer__accounting_start_date__lte=date)
+        invoices = invoices.filter(customer__accounting_start_date__lte=core_utils.month_end(date))
 
     # Report should not include customers with 0 invoice sum.
     invoices = [invoice for invoice in invoices if invoice.total > 0]
