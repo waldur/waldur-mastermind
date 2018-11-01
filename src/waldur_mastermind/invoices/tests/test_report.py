@@ -42,6 +42,7 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
 
     def test_offering_items_are_serialized(self):
         self.offering_item = factories.OfferingItemFactory(invoice=self.invoice,
+                                                           unit_price=100,
                                                            offering__template__name='OFFERING-001')
         self.offering_item.offering.save()
 
@@ -129,6 +130,20 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.customer.save()
         for item in self.invoice.items:
             item.delete()
+
+        tasks.send_invoice_report()
+        message = send_mail_mock.call_args[1]['attach_text']
+        lines = message.splitlines()
+        self.assertEqual(0, len(lines))
+
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
+    def test_empty_invoice_item_is_skipped(self, send_mail_mock):
+        self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
+        self.customer.save()
+        for item in self.invoice.items:
+            item.unit_price = 0
+            item.save()
 
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attach_text']
