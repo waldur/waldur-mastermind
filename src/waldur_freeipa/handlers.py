@@ -1,5 +1,13 @@
-from . import tasks, utils
+import logging
+
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+
+from . import models, tasks, utils
 from .log import event_logger
+
+
+logger = logging.getLogger(__name__)
 
 
 def schedule_sync(*args, **kwargs):
@@ -58,3 +66,24 @@ def log_profile_deleted(sender, instance, **kwargs):
             'username': profile.username,
         }
     )
+
+
+def schedule_ssh_key_sync_when_key_is_created(sender, instance, created=False, **kwargs):
+    if created:
+        schedule_ssh_key_sync(instance)
+
+
+def schedule_ssh_key_sync_when_key_is_deleted(sender, instance, **kwargs):
+    schedule_ssh_key_sync(instance)
+
+
+def schedule_ssh_key_sync(ssh_key):
+    try:
+        profile = models.Profile.objects.get(user=ssh_key.user)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping SSH key synchronization because '
+                     'FreeIPA profile does not exist. '
+                     'User ID: %s', ssh_key.user.id)
+    else:
+        transaction.on_commit(lambda:
+                              tasks.sync_profile_ssh_keys.delay(profile.pk))
