@@ -125,6 +125,16 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
     @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
+    def test_active_customer_is_not_skipped_if_it_has_been_actived_in_previous_month(self, send_mail_mock):
+        self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=15)
+        self.customer.save()
+        tasks.send_invoice_report()
+        message = send_mail_mock.call_args[1]['attach_text']
+        lines = message.splitlines()
+        self.assertEqual(2, len(lines))
+
+    @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
+    @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
     def test_empty_invoice_is_skipped(self, send_mail_mock):
         self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
         self.customer.save()
