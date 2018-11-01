@@ -2,11 +2,14 @@ from __future__ import unicode_literals
 
 from django.contrib import admin
 from django.forms.models import ModelForm
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-
 from jsoneditor.forms import JSONEditor
 
-from . import models
+from waldur_core.core import admin as core_admin
+
+from . import models, tasks
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
@@ -105,11 +108,24 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = fields
 
 
-class OrderAdmin(admin.ModelAdmin):
+class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
     list_filter = ('state', 'created')
     ordering = ('-created',)
     inlines = [OrderItemInline]
+
+    def get_extra_actions(self):
+        return [
+            self.create_pdf_for_all,
+        ]
+
+    def create_pdf_for_all(self, request):
+        tasks.create_pdf_for_all.delay()
+        message = _('PDF creation has been scheduled')
+        self.message_user(request, message)
+        return redirect(reverse('admin:marketplace_order_changelist'))
+
+    create_pdf_for_all.name = _('Create PDF for all orders')
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)

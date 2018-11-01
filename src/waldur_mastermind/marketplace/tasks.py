@@ -45,3 +45,9 @@ def notify_order_approvers(uuid):
 def create_order_pdf(order_id):
     order = models.Order.objects.get(pk=order_id)
     utils.create_order_pdf(order)
+
+
+@shared_task
+def create_pdf_for_all():
+    for order in models.Order.objects.all():
+        utils.create_order_pdf(order)
