@@ -88,7 +88,7 @@ def send_invoice_report():
 
     # Report should include only organizations that had accounting running during the invoice period.
     if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
-        invoices = invoices.filter(customer__accounting_start_date__lte=date)
+        invoices = invoices.filter(customer__accounting_start_date__lte=core_utils.month_end(date))
 
     # Report should not include customers with 0 invoice sum.
     invoices = [invoice for invoice in invoices if invoice.total > 0]
@@ -128,16 +128,22 @@ def format_invoice_csv(invoices):
     writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
     writer.writeheader()
 
+    def filter_invoice_items(items):
+        return [item for item in items if item.total > 0]
+
     for invoice in invoices:
         openstack_items = invoice.openstack_items.all().select_related('invoice__customer')
+        openstack_items = filter_invoice_items(openstack_items)
         openstack_serializer = serializers.OpenStackItemReportSerializer(openstack_items, many=True)
         writer.writerows(openstack_serializer.data)
 
         offering_items = invoice.offering_items.all().select_related('invoice__customer')
+        offering_items = filter_invoice_items(offering_items)
         offering_serializer = serializers.OfferingItemReportSerializer(offering_items, many=True)
         writer.writerows(offering_serializer.data)
 
         generic_items = invoice.generic_items.all().select_related('invoice__customer')
+        generic_items = filter_invoice_items(generic_items)
         generic_serializer = serializers.GenericItemReportSerializer(generic_items, many=True)
         writer.writerows(generic_serializer.data)
 

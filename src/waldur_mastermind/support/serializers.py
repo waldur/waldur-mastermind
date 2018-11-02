@@ -55,6 +55,13 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         required=False,
         allow_null=True,
     )
+    template = serializers.HyperlinkedRelatedField(
+        view_name='support-template-detail',
+        lookup_field='uuid',
+        queryset=models.Template.objects.all(),
+        required=False,
+        allow_null=True,
+    )
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
     type = serializers.ChoiceField(
@@ -77,10 +84,10 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'project', 'project_uuid', 'project_name',
             'resource', 'resource_type', 'resource_name',
             'created', 'modified', 'is_reported_manually',
-            'first_response_sla',
+            'first_response_sla', 'template'
         )
         read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
-        protected_fields = ('customer', 'project', 'resource', 'type', 'caller')
+        protected_fields = ('customer', 'project', 'resource', 'type', 'caller', 'template')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
             customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},

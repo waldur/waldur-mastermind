@@ -18,6 +18,7 @@ class BaseTest(test.APITransactionTestCase):
         settings.WALDUR_SUPPORT['ISSUE']['organisation_field'] = 'Reporter organization'
         settings.WALDUR_SUPPORT['ISSUE']['project_field'] = 'Waldur project'
         settings.WALDUR_SUPPORT['ISSUE']['affected_resource_field'] = 'Affected resource'
+        settings.WALDUR_SUPPORT['ISSUE']['template_field'] = 'Waldur template'
         self.fixture = fixtures.SupportFixture()
         mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
         self.mock_get_active_backend = mock_patch.start()
