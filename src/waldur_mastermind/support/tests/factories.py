@@ -209,3 +209,20 @@ class TemplateStatusNotificationFactory(factory.DjangoModelFactory):
     html = 'Test template {{issue.summary}}'
     text = 'Test template {{issue.summary}}'
     subject = 'Test template {{issue.summary}}'
+
+
+class RequestTypeFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.RequestType
+
+    backend_id = factory.Sequence(lambda n: n)
+    name = factory.Sequence(lambda n: 'request_type_%s' % n)
+    issue_type_name = factory.Sequence(lambda n: 'issue_type_%s' % n)
+
+
+class SupportCustomerFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.SupportCustomer
+
+    user = factory.SubFactory(structure_factories.UserFactory)
+    backend_id = factory.Sequence(lambda n: 'qm:%s' % n)

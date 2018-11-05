@@ -4,8 +4,10 @@ import mock
 from ddt import ddt, data
 from rest_framework import status
 from jira import Issue
+from jira.resources import RequestType, IssueType
 
 from waldur_core.structure.tests import factories as structure_factories
+from django.conf import settings
 from waldur_mastermind.support.tests.base import override_support_settings
 from waldur_mastermind.support.tests.base import load_resource
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
@@ -241,17 +243,34 @@ class IssueCreateTest(base.BaseTest):
             resource=structure_factories.TestNewInstanceFactory.get_url(),
             template=factories.TemplateFactory.get_url()))
         issue = response.data
-        self.assertEqual(user.organization, self.mock_jira().create_issue.call_args[1]['field105'])
-        self.assertEqual(issue['project_name'], self.mock_jira().create_issue.call_args[1]['field106'])
-        self.assertEqual(issue['resource_name'], self.mock_jira().create_issue.call_args[1]['field107'].name)
-        self.assertEqual(issue['template'].name, self.mock_jira().create_issue.call_args[1]['field108'])
+        kwargs = self.mock_jira().create_customer_request.return_value.update.call_args[1]
+        self.assertEqual(user.organization, kwargs['field105'])
+        self.assertEqual(issue['project_name'], kwargs['field106'])
+        self.assertEqual(issue['resource_name'], kwargs['field107'].name)
+        self.assertEqual(issue['template'].name, kwargs['field108'])
 
     def test_if_issue_does_not_have_reporter_organisation_field_not_fill(self):
         self._mock_jira()
 
         issue = factories.IssueFactory(reporter=None, backend_id=None)
+        factories.SupportCustomerFactory(user=issue.caller)
+        factories.RequestTypeFactory(issue_type_name=issue.type)
         ServiceDeskBackend().create_issue(issue)
-        self.assertTrue('field105' not in self.mock_jira.return_value.create_issue.call_args[1].keys())
+        kwargs = self.mock_jira().create_customer_request.return_value.update.call_args[1]
+        self.assertTrue('field105' not in kwargs.keys())
+
+    def test_pull_request_types(self):
+        self._mock_jira()
+        self.mock_jira().request_types.return_value = [
+            RequestType({'server': ''}, None, raw={'name': 'Help', 'id': '1', 'issueTypeId': '10101'})
+        ]
+        self.mock_jira().issue_type.return_value = IssueType({'server': ''}, None,
+                                                             raw={'name': 'Service Request', 'id': '1'})
+
+        issue = factories.IssueFactory(reporter=None, backend_id=None)
+        factories.SupportCustomerFactory(user=issue.caller)
+        ServiceDeskBackend().create_issue(issue)
+        self.assertEqual(models.RequestType.objects.count(), 1)
 
     def _mock_jira(self):
         mock.patch.stopall()
@@ -259,12 +278,19 @@ class IssueCreateTest(base.BaseTest):
         self.mock_jira = mock_patch.start()
         self.mock_jira().fields.return_value = json.loads(load_resource('jira_fields.json'))
         issue_raw = json.loads(load_resource('jira_issue_raw.json'))
-        self.mock_jira().create_issue.return_value = Issue({'server': ''}, None, raw=issue_raw)
+        mock_backend_issue = Issue({'server': ''}, None, raw=issue_raw)
+        mock_backend_issue.update = mock.MagicMock()
+        self.mock_jira().create_customer_request.return_value = mock_backend_issue
 
     def _get_valid_payload(self, **additional):
+        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
+        factories.RequestTypeFactory(issue_type_name=issue_type)
+        caller = structure_factories.UserFactory()
+        factories.SupportCustomerFactory(user=caller)
         payload = {
             'summary': 'test_issue',
-            'caller': structure_factories.UserFactory.get_url(),
+            'type': issue_type,
+            'caller': structure_factories.UserFactory.get_url(user=caller),
         }
         payload.update(additional)
         return payload
