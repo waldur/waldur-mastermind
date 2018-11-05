@@ -82,6 +82,11 @@ class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin,
         return []
 
 
+class RequestTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'issue_type_name', 'backend_id')
+    search_fields = ('name',)
+
+
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
@@ -91,3 +96,4 @@ admin.site.register(models.Template, TemplateAdmin)
 admin.site.register(models.OfferingTemplate, OfferingTemplateAdmin)
 admin.site.register(models.TemplateStatusNotification)
 admin.site.register(models.IgnoredIssueStatus)
+admin.site.register(models.RequestType, RequestTypeAdmin)

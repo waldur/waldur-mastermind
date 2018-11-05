@@ -7,7 +7,7 @@ import mock
 
 from waldur_core.core.utils import datetime_to_timestamp
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
-from waldur_mastermind.support.tests import fixtures
+from waldur_mastermind.support.tests import fixtures, factories
 from waldur_mastermind.support.tests.base import load_resource
 
 
@@ -37,8 +37,9 @@ class IssueCreateTest(BaseBackendTest):
         issue.priority = 'Major'
         issue.save()
         self.issue = issue
+        factories.RequestTypeFactory(issue_type_name=issue.type)
 
-        self.mocked_jira.create_issue.return_value = mock.Mock(**{
+        self.mocked_jira.create_customer_request.return_value = mock.Mock(**{
             'key': 'TST-101',
             'fields.assignee.key': '',
             'fields.assignee.name': '',
@@ -60,32 +61,25 @@ class IssueCreateTest(BaseBackendTest):
             'fields.priority.name': 'Major',
             'fields.issuetype.name': 'Task',
             'fields.field103.ongoingCycle.breachTime.epochMillis': 1000,  # SLA
-            'fields.field104': 'Critical'  # Impact
+            'fields.field104': 'Critical',  # Impact
+            'permalink()': ''
         })
-        self.mocked_jira.create_issue.return_value.permalink.return_value = 'http://example.com/TST-101'
+        self.mocked_jira.create_customer_request.return_value.permalink.return_value = 'http://example.com/TST-101'
 
     def test_user_for_caller_is_created(self):
         self.mocked_jira.search_users.return_value = []
         self.backend.create_issue(self.issue)
-        self.mocked_jira.add_user.assert_called_once_with(
-            self.issue.caller.email, self.issue.caller.email,
-            fullname=self.issue.caller.full_name, ignore_existing=True
-        )
+        self.mocked_jira.create_customer.assert_called_once_with(self.issue.caller.email, self.issue.caller.full_name)
 
     def test_caller_is_specified_in_custom_field(self):
         self.backend.create_issue(self.issue)
 
-        kwargs = self.mocked_jira.create_issue.call_args[1]
-        self.assertEqual(kwargs['field101'], [
-            {
-                'name': self.issue.caller.email,
-                'key': self.issue.caller.email
-            }
-        ])
+        kwargs = self.mocked_jira.create_customer_request.call_args[0][0]
+        self.assertEqual(kwargs['requestParticipants'], [self.issue.caller.supportcustomer.backend_id])
 
     def test_original_reporter_is_specified_in_custom_field(self):
         self.backend.create_issue(self.issue)
-        kwargs = self.mocked_jira.create_issue.call_args[1]
+        kwargs = self.mocked_jira.create_customer_request.return_value.update.call_args[1]
         self.assertEqual(kwargs['field102'], self.issue.reporter.name)
 
 
@@ -114,7 +108,7 @@ class IssueUpdateTest(BaseBackendTest):
             'fields.priority.name': 'Major',
             'fields.issuetype.name': 'Task',
             'fields.field103.ongoingCycle.breachTime.epochMillis': 1000,  # SLA
-            'fields.field104': 'Critical'  # Impact
+            'fields.field104': 'Critical',  # Impact
         })
         self.mocked_jira.issue.return_value.permalink.return_value = 'http://example.com/TST-101'
 
