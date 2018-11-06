@@ -234,7 +234,7 @@ class ProjectSerializer(core_serializers.RestrictedSerializerMixin,
         protected_fields = ('certifications',)
 
     @staticmethod
-    def eager_load(queryset):
+    def eager_load(queryset, request=None):
         related_fields = (
             'uuid',
             'name',
@@ -333,7 +333,7 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
         }
 
     @staticmethod
-    def eager_load(queryset):
+    def eager_load(queryset, request=None):
         return queryset.prefetch_related('quotas', 'projects')
 
     def validate(self, attrs):
@@ -879,7 +879,7 @@ class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
         return 'customer',
 
     @staticmethod
-    def eager_load(queryset):
+    def eager_load(queryset, request=None):
         return queryset.select_related('customer').prefetch_related('quotas', 'certifications')
 
     def get_fields(self):
@@ -1027,7 +1027,7 @@ class BaseServiceSerializer(six.with_metaclass(ServiceSerializerMetaclass,
         return super(BaseServiceSerializer, cls).__new__(cls, *args, **kwargs)
 
     @staticmethod
-    def eager_load(queryset):
+    def eager_load(queryset, request=None):
         queryset = queryset.select_related('customer', 'settings')
         projects = models.Project.objects.all().only('uuid', 'name')
         return queryset.prefetch_related(django_models.Prefetch('projects', queryset=projects), 'quotas')
@@ -1435,7 +1435,7 @@ class BaseResourceSerializer(six.with_metaclass(ResourceSerializerMetaclass,
         return obj.get_access_url()
 
     @staticmethod
-    def eager_load(queryset):
+    def eager_load(queryset, request=None):
         return (
             queryset
             .select_related(

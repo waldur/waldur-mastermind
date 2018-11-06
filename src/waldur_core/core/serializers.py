@@ -483,11 +483,11 @@ class BaseSummarySerializer(serializers.Serializer):
         raise NotImplementedError('Method `get_serializer` should be implemented for SummarySerializer.')
 
     @classmethod
-    def eager_load(cls, summary_queryset):
+    def eager_load(cls, summary_queryset, request):
         optimized_querysets = []
         for queryset in summary_queryset.querysets:
             serializer = cls.get_serializer(queryset.model)
-            optimized_querysets.append(serializer.eager_load(queryset))
+            optimized_querysets.append(serializer.eager_load(queryset, request))
         summary_queryset.querysets = optimized_querysets
         return summary_queryset
 

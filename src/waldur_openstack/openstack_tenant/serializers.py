@@ -754,8 +754,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         return fields
 
     @staticmethod
-    def eager_load(queryset):
-        queryset = structure_serializers.VirtualMachineSerializer.eager_load(queryset)
+    def eager_load(queryset, request):
+        queryset = structure_serializers.VirtualMachineSerializer.eager_load(queryset, request)
         return queryset.prefetch_related(
             'security_groups',
             'security_groups__rules',

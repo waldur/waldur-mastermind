@@ -80,5 +80,5 @@ class EagerLoadMixin(object):
         queryset = super(EagerLoadMixin, self).get_queryset()
         serializer_class = self.get_serializer_class()
         if self.action in ('list', 'retrieve') and hasattr(serializer_class, 'eager_load'):
-            queryset = serializer_class.eager_load(queryset)
+            queryset = serializer_class.eager_load(queryset, self.request)
         return queryset
