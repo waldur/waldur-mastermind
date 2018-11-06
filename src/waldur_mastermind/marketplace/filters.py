@@ -1,13 +1,11 @@
 import json
 
-from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
-from waldur_core.structure import models as structure_models
 
 from . import models
 
@@ -57,19 +55,7 @@ class OfferingFilter(django_filters.FilterSet):
 
 class OfferingCustomersFilterBackend(DjangoFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        user = request.user
-
-        if not user.is_staff and not user.is_support:
-            connected_customers = set(structure_models.Customer.objects.all().filter(
-                Q(permissions__user=user, permissions__is_active=True) |
-                Q(projects__permissions__user=user, projects__permissions__is_active=True)
-            ).distinct())
-            queryset = queryset.filter(
-                Q(shared=True) |
-                Q(shared=False, allowed_customers__in=connected_customers) |
-                Q(shared=False, customer__in=connected_customers)
-            )
-        return queryset
+        return queryset.filter_for_user(request.user)
 
 
 class ScreenshotFilter(django_filters.FilterSet):

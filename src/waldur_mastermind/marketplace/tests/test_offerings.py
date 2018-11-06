@@ -569,6 +569,40 @@ class OfferingQuotaTest(PostgreSQLTest):
 
 
 @ddt
+class OfferingCountTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.provider = factories.ServiceProviderFactory(customer=self.customer)
+        self.category = factories.CategoryFactory()
+        self.url = factories.CategoryFactory.get_url(self.category)
+
+    def assert_count(self, user, value, shared=False):
+        factories.OfferingFactory.create_batch(
+            2,
+            customer=self.customer,
+            category=self.category,
+            shared=shared,
+            state=models.Offering.States.ACTIVE
+        )
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(value, response.data['offering_count'])
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_authorized_user_can_see_private_offering(self, user):
+        self.assert_count(getattr(self.fixture, user), 2)
+
+    @data('owner', 'admin', 'manager')
+    def test_unauthorized_user_can_not_see_private_offering(self, user):
+        self.assert_count(getattr(fixtures.ProjectFixture(), user), 0)
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_anyone_can_see_public_offering(self, user):
+        self.assert_count(getattr(fixtures.ProjectFixture(), user), 2, shared=True)
+
+
+@ddt
 class OfferingStateTest(PostgreSQLTest):
 
     def setUp(self):

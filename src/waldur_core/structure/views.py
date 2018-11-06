@@ -971,7 +971,7 @@ class ResourceSummaryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         resource_models = self._filter_resources(resource_models)
 
         queryset = managers.ResourceSummaryQuerySet(resource_models.values())
-        return serializers.SummaryResourceSerializer.eager_load(queryset)
+        return serializers.SummaryResourceSerializer.eager_load(queryset, self.request)
 
     def _filter_by_types(self, resource_models):
         types = self.request.query_params.getlist('resource_type', None)
@@ -1137,7 +1137,7 @@ class ServicesViewSet(mixins.ListModelMixin,
         service_models = self._filter_by_types(service_models)
         # TODO: filter models by service type.
         queryset = managers.ServiceSummaryQuerySet(service_models.values())
-        return serializers.SummaryServiceSerializer.eager_load(queryset)
+        return serializers.SummaryServiceSerializer.eager_load(queryset, self.request)
 
     def _filter_by_types(self, service_models):
         types = self.request.query_params.getlist('service_type', None)

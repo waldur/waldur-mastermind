@@ -223,7 +223,7 @@ class Offering(core_models.UuidMixin,
     shared = models.BooleanField(default=True, help_text=_('Anybody can use it'))
     allowed_customers = models.ManyToManyField(structure_models.Customer, blank=True)
 
-    objects = managers.MixinManager('scope')
+    objects = managers.OfferingManager()
     tracker = FieldTracker()
 
     class Permissions(object):
