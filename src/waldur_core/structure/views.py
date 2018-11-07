@@ -1760,6 +1760,9 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
     @detail_route(methods=['post'])
     def pull(self, request, uuid=None):
+        if not self.pull_executor:
+            return Response({'detail': _('Pull operation is not implemented.')},
+                            status=status.HTTP_409_CONFLICT)
         self.pull_executor.execute(self.get_object())
         return Response({'detail': _('Pull operation was successfully scheduled.')}, status=status.HTTP_202_ACCEPTED)
 
