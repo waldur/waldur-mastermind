@@ -12,7 +12,7 @@ class StructureConfig(AppConfig):
     def ready(self):
         from waldur_core.core.models import CoordinatesMixin, User
         from waldur_core.structure.executors import check_cleanup_executors
-        from waldur_core.structure.models import ResourceMixin, Service, TagMixin, VirtualMachine
+        from waldur_core.structure.models import ResourceMixin, SubResource, Service, TagMixin, VirtualMachine
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
         from waldur_core.quotas import signals as quota_signals
@@ -111,7 +111,8 @@ class StructureConfig(AppConfig):
             dispatch_uid='waldur_core.structure.handlers.revoke_roles_on_project_deletion',
         )
 
-        for index, model in enumerate(ResourceMixin.get_all_models()):
+        resource_and_subresources = ResourceMixin.get_all_models() + SubResource.get_all_models()
+        for index, model in enumerate(resource_and_subresources):
             signals.pre_delete.connect(
                 handlers.log_resource_deleted,
                 sender=model,
