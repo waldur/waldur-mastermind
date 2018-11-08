@@ -234,7 +234,9 @@ class SnapshotScheduleTaskTest(TestCase):
 
     @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
     def test_if_quota_is_exceeded_snapshot_is_not_created_and_schedule_is_paused(self, event_logger):
-        schedule = factories.SnapshotScheduleFactory(next_trigger_at=timezone.now() - timedelta(minutes=10))
+        schedule = factories.SnapshotScheduleFactory()
+        schedule.next_trigger_at = timezone.now() - timedelta(minutes=10)
+        schedule.save()
         scope = schedule.source_volume.service_project_link.service.settings
 
         # Usage is equal to limit
