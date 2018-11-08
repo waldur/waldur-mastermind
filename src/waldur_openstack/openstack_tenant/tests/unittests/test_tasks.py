@@ -7,8 +7,12 @@ from django.utils import timezone
 from freezegun import freeze_time
 import pytz
 
+from waldur_openstack.openstack import models as openstack_models
+
 from ... import tasks, models
 from ...tests import factories
+
+TenantQuotas = openstack_models.Tenant.Quotas
 
 
 class DeleteExpiredBackupsTaskTest(TestCase):
@@ -70,6 +74,23 @@ class BackupScheduleTaskTest(TestCase):
     def test_backup_is_created_for_overdue_schedule(self):
         tasks.ScheduleBackups().run()
         self.assertEqual(self.overdue_schedule.backups.count(), 1)
+
+    def test_if_quota_is_exceeded_backup_is_not_created_and_schedule_is_paused(self):
+        # Arrange
+        schedule = self.overdue_schedule
+        scope = self.instance.service_project_link.service.settings
+
+        scope.set_quota_limit(TenantQuotas.snapshots, 2)
+        scope.set_quota_usage(TenantQuotas.snapshots, 2)
+
+        # Act
+        tasks.ScheduleBackups().run()
+
+        # Assert
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.backups.count(), 0)
+        self.assertFalse(schedule.is_active)
+        self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
 
     def test_next_trigger_at_is_updated_for_overdue_schedule(self):
         # Arrange
@@ -201,3 +222,20 @@ class SnapshotScheduleTaskTest(TestCase):
         tasks.ScheduleSnapshots().run()
 
         self.assertEqual(self.future_schedule.snapshots.count(), 0)
+
+    def test_if_quota_is_exceeded_snapshot_is_not_created_and_schedule_is_paused(self):
+        # Arrange
+        schedule = factories.SnapshotScheduleFactory(next_trigger_at=timezone.now() - timedelta(minutes=10))
+        scope = schedule.service_project_link.service.settings
+
+        scope.set_quota_limit(TenantQuotas.snapshots, 2)
+        scope.set_quota_usage(TenantQuotas.snapshots, 2)
+
+        # Act
+        tasks.ScheduleSnapshots().run()
+
+        # Assert
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.snapshots.count(), 0)
+        self.assertFalse(schedule.is_active)
+        self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
