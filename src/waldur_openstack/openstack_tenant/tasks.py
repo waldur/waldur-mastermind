@@ -174,7 +174,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 resource = self._create_resource(schedule, kept_until=kept_until)
             except quotas_exceptions.QuotaValidationError as e:
                 message = 'Failed to schedule "%s" creation. Error: %s' % (self.model.__name__, e)
-                logger.exception(
+                logger.debug(
                     'Resource schedule (PK: %s), (Name: %s) execution failed. %s' % (schedule.pk,
                                                                                      schedule.name,
                                                                                      message))
@@ -220,6 +220,7 @@ class ScheduleBackups(BaseScheduleTask):
     model = models.BackupSchedule
     resource_attribute = 'backups'
 
+    @transaction.atomic()
     def _create_resource(self, schedule, kept_until):
         backup = models.Backup.objects.create(
             name='Backup#%s of %s' % (schedule.call_count, schedule.instance.name),
@@ -283,6 +284,7 @@ class ScheduleSnapshots(BaseScheduleTask):
     model = models.SnapshotSchedule
     resource_attribute = 'snapshots'
 
+    @transaction.atomic()
     def _create_resource(self, schedule, kept_until):
         snapshot = models.Snapshot.objects.create(
             name='Snapshot#%s of %s' % (schedule.call_count, schedule.source_volume.name),

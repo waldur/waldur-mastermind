@@ -7,8 +7,12 @@ from django.utils import timezone
 from freezegun import freeze_time
 import pytz
 
+from waldur_openstack.openstack import models as openstack_models
+
 from ... import tasks, models
 from ...tests import factories
+
+TenantQuotas = openstack_models.Tenant.Quotas
 
 
 class DeleteExpiredBackupsTaskTest(TestCase):
@@ -70,6 +74,32 @@ class BackupScheduleTaskTest(TestCase):
     def test_backup_is_created_for_overdue_schedule(self):
         tasks.ScheduleBackups().run()
         self.assertEqual(self.overdue_schedule.backups.count(), 1)
+
+    @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
+    def test_if_quota_is_exceeded_backup_is_not_created_and_schedule_is_paused(self, event_logger):
+        schedule = self.overdue_schedule
+        scope = self.instance.service_project_link.service.settings
+
+        # Usage is equal to limit
+        scope.set_quota_limit(TenantQuotas.snapshots, 2)
+        scope.set_quota_usage(TenantQuotas.snapshots, 2)
+
+        # Trigger task
+        tasks.ScheduleBackups().run()
+        schedule.refresh_from_db()
+
+        # Backup is not created
+        self.assertEqual(schedule.backups.count(), 0)
+
+        # Schedule is deactivated
+        self.assertFalse(schedule.is_active)
+
+        # Error message is persisted in schedule
+        self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
+
+        # Event is triggered for hooks
+        event_type = event_logger.openstack_backup_schedule.warning.call_args[1]['event_type']
+        self.assertEqual(event_type, 'resource_backup_schedule_deactivated')
 
     def test_next_trigger_at_is_updated_for_overdue_schedule(self):
         # Arrange
@@ -201,3 +231,31 @@ class SnapshotScheduleTaskTest(TestCase):
         tasks.ScheduleSnapshots().run()
 
         self.assertEqual(self.future_schedule.snapshots.count(), 0)
+
+    @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
+    def test_if_quota_is_exceeded_snapshot_is_not_created_and_schedule_is_paused(self, event_logger):
+        schedule = factories.SnapshotScheduleFactory()
+        schedule.next_trigger_at = timezone.now() - timedelta(minutes=10)
+        schedule.save()
+        scope = schedule.source_volume.service_project_link.service.settings
+
+        # Usage is equal to limit
+        scope.set_quota_limit(TenantQuotas.snapshots, 2)
+        scope.set_quota_usage(TenantQuotas.snapshots, 2)
+
+        # Trigger task
+        tasks.ScheduleSnapshots().run()
+        schedule.refresh_from_db()
+
+        # Snapshot is not created
+        self.assertEqual(schedule.snapshots.count(), 0)
+
+        # Schedule is deactivated
+        self.assertFalse(schedule.is_active)
+
+        # Error message is persisted in schedule
+        self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
+
+        # Event is triggered for hooks
+        event_type = event_logger.openstack_snapshot_schedule.warning.call_args[1]['event_type']
+        self.assertEqual(event_type, 'resource_snapshot_schedule_deactivated')
