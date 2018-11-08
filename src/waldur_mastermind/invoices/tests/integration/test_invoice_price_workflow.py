@@ -1,7 +1,11 @@
+from __future__ import unicode_literals, division
+
 from datetime import datetime
+import decimal
 from freezegun import freeze_time
 from rest_framework import test, status
 import pytz
+from calendar import monthrange
 
 from django.utils import timezone
 
@@ -160,23 +164,27 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
 
     def test_invoice_item_with_monthly_price(self):
         start_date = timezone.datetime(2017, 7, 20)
+        month_days = monthrange(2017, 7)[1]
+        usage_days = month_days - start_date.day + 1
         offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_MONTH)
         with freeze_time(start_date):
             offering.state = support_models.Offering.States.OK
             offering.save(update_fields=['state'])
 
-        expected_price = offering.unit_price
+        expected_price = offering.unit_price * decimal.Decimal((usage_days / month_days))
         offering_item = models.OfferingItem.objects.get(offering=offering)
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
         start_date = timezone.datetime(2017, 7, 14)
+        usage_days = 2
         offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
         with freeze_time(start_date):
             offering.state = support_models.Offering.States.OK
             offering.save(update_fields=['state'])
 
-        expected_price = offering.unit_price * 2
+        month_days = monthrange(2017, 7)[1]
+        expected_price = offering.unit_price * decimal.Decimal(1 + (usage_days / (month_days / 2)))
         offering_item = models.OfferingItem.objects.get(offering=offering)
         self.assertEqual(offering_item.price, expected_price)
 
@@ -194,23 +202,39 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
     def test_invoice_item_with_half_monthly_price_with_end_in_first_half(self):
         start_date = timezone.datetime(2017, 7, 10)
         end_date = timezone.datetime(2017, 7, 14)
-        offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
-        with freeze_time(start_date):
-            offering.state = support_models.Offering.States.OK
-            offering.save(update_fields=['state'])
-            offering_item = models.OfferingItem.objects.get(offering=offering)
-
-        with freeze_time(end_date):
-            offering.state = support_models.Offering.States.TERMINATED
-            offering.save(update_fields=['state'])
-            offering_item.refresh_from_db()
-
-        expected_price = offering.unit_price
+        usage_days = 5
+        offering, offering_item = self._start_end_offering(start_date, end_date)
+        month_days = monthrange(2017, 7)[1]
+        expected_price = offering.unit_price * decimal.Decimal((usage_days / (month_days / 2)))
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_end_in_second_half(self):
         start_date = timezone.datetime(2017, 7, 10)
         end_date = timezone.datetime(2017, 7, 20)
+        usage_days = 11
+        offering, offering_item = self._start_end_offering(start_date, end_date)
+        month_days = monthrange(2017, 7)[1]
+        expected_price = offering.unit_price * decimal.Decimal((usage_days / (month_days / 2)))
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_both_halves(self):
+        start_date = timezone.datetime(2017, 7, 1)
+        month_days = monthrange(2017, 7)[1]
+        end_date = timezone.datetime(2017, 7, month_days)
+        offering, offering_item = self._start_end_offering(start_date, end_date)
+        expected_price = offering.unit_price * 2
+        self.assertEqual(offering_item.price, expected_price)
+
+    def test_invoice_item_with_start_in_first_day_and_end_in_second_half(self):
+        start_date = timezone.datetime(2017, 7, 1)
+        month_days = monthrange(2017, 7)[1]
+        end_date = timezone.datetime(2017, 7, 20)
+        usage_days = 5
+        offering, offering_item = self._start_end_offering(start_date, end_date)
+        expected_price = offering.unit_price * decimal.Decimal(1 + (usage_days / (month_days / 2)))
+        self.assertEqual(offering_item.price, expected_price)
+
+    def _start_end_offering(self, start_date, end_date):
         offering = support_factories.OfferingFactory(unit=common_mixins.UnitPriceMixin.Units.PER_HALF_MONTH)
 
         with freeze_time(start_date):
@@ -223,5 +247,4 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             offering.save(update_fields=['state'])
             offering_item.refresh_from_db()
 
-        expected_price = offering.unit_price * 2
-        self.assertEqual(offering_item.price, expected_price)
+        return offering, offering_item
