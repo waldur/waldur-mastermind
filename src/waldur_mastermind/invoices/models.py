@@ -1,8 +1,10 @@
-from __future__ import unicode_literals
+from __future__ import unicode_literals, division
 
 import datetime
+import decimal
 import itertools
 import logging
+from calendar import monthrange
 
 from django.apps import apps
 from django.conf import settings
@@ -180,9 +182,11 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         return self.price + self.tax
 
     def _price(self, current=False):
-        return self.unit_price * self.get_factor(current)
+        return self.unit_price * decimal.Decimal(self.get_factor(current))
 
     def get_factor(self, current=False):
+        month_days = monthrange(self.start.year, self.start.month)[1]
+
         if self.unit == self.Units.QUANTITY:
             return self.quantity
         elif self.unit == self.Units.PER_DAY:
@@ -191,13 +195,23 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             else:
                 return self.usage_days
         elif self.unit == self.Units.PER_HALF_MONTH:
-            if self.start.day >= 15 or self.end.day <= 15:
+            if (self.start.day == 1 and self.end.day == 15) or (self.start.day == 16 and self.end.day == month_days):
                 return 1
-            else:
+            elif (self.start.day == 1 and self.end.day == month_days):
                 return 2
+            elif (self.start.day == 1 and self.end.day > 15):
+                return 1 + (self.end.day - 15) / (month_days / 2)
+            elif (self.start.day < 16 and self.end.day == month_days):
+                return 1 + (16 - self.start.day) / (month_days / 2)
+            else:
+                return (self.end.day - self.start.day + 1) / (month_days / 2)
         # By default PER_MONTH
         else:
-            return 1
+            if self.start.day == 1 and self.end.day == month_days:
+                return 1
+
+            use_days = (self.end - self.start).days + 1
+            return use_days / month_days
 
     @property
     def price(self):
