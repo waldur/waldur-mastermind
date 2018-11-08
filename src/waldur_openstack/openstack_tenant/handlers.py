@@ -106,7 +106,7 @@ def log_snapshot_schedule_action(sender, instance, created=False, **kwargs):
                 snapshot_schedule.name, snapshot_schedule.error_message)
         else:
             message = 'Snapshot schedule "%s" has been deactivated' % snapshot_schedule.name
-        log.event_logger.openstack_snapshot_schedule.info(
+        log.event_logger.openstack_snapshot_schedule.warning(
             message,
             event_type='resource_snapshot_schedule_deactivated',
             event_context=context,
@@ -152,7 +152,7 @@ def log_backup_schedule_action(sender, instance, created=False, **kwargs):
                 backup_schedule.name, backup_schedule.error_message)
         else:
             message = 'Backup schedule "%s" has been deactivated' % backup_schedule.name
-        log.event_logger.openstack_backup_schedule.info(
+        log.event_logger.openstack_backup_schedule.warning(
             message,
             event_type='resource_backup_schedule_deactivated',
             event_context=context,

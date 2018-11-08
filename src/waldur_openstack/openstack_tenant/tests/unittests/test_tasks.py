@@ -75,22 +75,31 @@ class BackupScheduleTaskTest(TestCase):
         tasks.ScheduleBackups().run()
         self.assertEqual(self.overdue_schedule.backups.count(), 1)
 
-    def test_if_quota_is_exceeded_backup_is_not_created_and_schedule_is_paused(self):
-        # Arrange
+    @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
+    def test_if_quota_is_exceeded_backup_is_not_created_and_schedule_is_paused(self, event_logger):
         schedule = self.overdue_schedule
         scope = self.instance.service_project_link.service.settings
 
+        # Usage is equal to limit
         scope.set_quota_limit(TenantQuotas.snapshots, 2)
         scope.set_quota_usage(TenantQuotas.snapshots, 2)
 
-        # Act
+        # Trigger task
         tasks.ScheduleBackups().run()
-
-        # Assert
         schedule.refresh_from_db()
+
+        # Backup is not created
         self.assertEqual(schedule.backups.count(), 0)
+
+        # Schedule is deactivated
         self.assertFalse(schedule.is_active)
+
+        # Error message is persisted in schedule
         self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
+
+        # Event is triggered for hooks
+        event_type = event_logger.openstack_backup_schedule.warning.call_args[1]['event_type']
+        self.assertEqual(event_type, 'resource_backup_schedule_deactivated')
 
     def test_next_trigger_at_is_updated_for_overdue_schedule(self):
         # Arrange
@@ -223,19 +232,28 @@ class SnapshotScheduleTaskTest(TestCase):
 
         self.assertEqual(self.future_schedule.snapshots.count(), 0)
 
-    def test_if_quota_is_exceeded_snapshot_is_not_created_and_schedule_is_paused(self):
-        # Arrange
+    @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
+    def test_if_quota_is_exceeded_snapshot_is_not_created_and_schedule_is_paused(self, event_logger):
         schedule = factories.SnapshotScheduleFactory(next_trigger_at=timezone.now() - timedelta(minutes=10))
-        scope = schedule.service_project_link.service.settings
+        scope = schedule.source_volume.service_project_link.service.settings
 
+        # Usage is equal to limit
         scope.set_quota_limit(TenantQuotas.snapshots, 2)
         scope.set_quota_usage(TenantQuotas.snapshots, 2)
 
-        # Act
+        # Trigger task
         tasks.ScheduleSnapshots().run()
-
-        # Assert
         schedule.refresh_from_db()
+
+        # Snapshot is not created
         self.assertEqual(schedule.snapshots.count(), 0)
+
+        # Schedule is deactivated
         self.assertFalse(schedule.is_active)
+
+        # Error message is persisted in schedule
         self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
+
+        # Event is triggered for hooks
+        event_type = event_logger.openstack_snapshot_schedule.warning.call_args[1]['event_type']
+        self.assertEqual(event_type, 'resource_snapshot_schedule_deactivated')
