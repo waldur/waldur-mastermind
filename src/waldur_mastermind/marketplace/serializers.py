@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import datetime
 
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
+from django.db.models import OuterRef, Subquery, Count, IntegerField
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -74,19 +75,27 @@ class NestedColumnSerializer(serializers.ModelSerializer):
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
-    offering_count = serializers.SerializerMethodField()
+    offering_count = serializers.ReadOnlyField()
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
 
     @staticmethod
-    def eager_load(queryset):
-        return queryset.prefetch_related('sections', 'sections__attributes')
+    def eager_load(queryset, request):
+        offerings = models.Offering.objects \
+            .filter(state=models.Offering.States.ACTIVE) \
+            .filter(category=OuterRef('pk')) \
+            .filter_for_user(request.user) \
+            .annotate(count=Count('*'))\
+            .values('count')
 
-    def get_offering_count(self, category):
-        try:
-            return category.quotas.get(name='offering_count').usage
-        except ObjectDoesNotExist:
-            return 0
+        # Workaround for Django bug:
+        # https://code.djangoproject.com/ticket/28296
+        # It allows to remove extra GROUP BY clause from the subquery.
+        offerings.query.group_by = []
+
+        offering_count = Subquery(offerings[:1], output_field=IntegerField())
+        queryset = queryset.annotate(offering_count=offering_count)
+        return queryset.prefetch_related('sections', 'sections__attributes')
 
     class Meta(object):
         model = models.Category

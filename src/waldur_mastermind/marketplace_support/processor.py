@@ -25,7 +25,13 @@ def process_support(order_item, user):
         template=template_url,
         name=order_item.attributes.pop('name', ''),
     )
+
     description = order_item.attributes.pop('description', '')
+
+    for quota in order_item.quotas.all():
+        description += "\n%s (%s): %s %s" % \
+                       (quota.component.name, quota.component.type, quota.limit, quota.component.measured_unit)
+
     if description:
         post_data['description'] = description
     if order_item.attributes:

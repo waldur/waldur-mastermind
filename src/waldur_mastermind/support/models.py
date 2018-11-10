@@ -340,3 +340,16 @@ class TemplateStatusNotification(models.Model):
 
     def __str__(self):
         return self.status
+
+
+class SupportCustomer(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    backend_id = models.CharField(max_length=255, unique=True)
+
+
+class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    backend_id = models.IntegerField(unique=True)
+    issue_type_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.name

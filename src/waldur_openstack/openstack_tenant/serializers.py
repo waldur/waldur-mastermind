@@ -17,6 +17,7 @@ from rest_framework.reverse import reverse
 from waldur_core.core import (serializers as core_serializers,
                               utils as core_utils,
                               signals as core_signals)
+from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
@@ -41,6 +42,10 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'flavor_exclude_regex': _('Flavors matching this regex expression will not be pulled from the backend.'),
         'external_network_id': _('It is used to automatically assign floating IP to your virtual machine.'),
     }
+
+    # Expose service settings quotas as service quotas as a temporary workaround.
+    # It is needed in order to render quotas table in service provider details dialog.
+    quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True, source='settings.quotas')
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.OpenStackTenantService
@@ -754,8 +759,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         return fields
 
     @staticmethod
-    def eager_load(queryset):
-        queryset = structure_serializers.VirtualMachineSerializer.eager_load(queryset)
+    def eager_load(queryset, request):
+        queryset = structure_serializers.VirtualMachineSerializer.eager_load(queryset, request)
         return queryset.prefetch_related(
             'security_groups',
             'security_groups__rules',
