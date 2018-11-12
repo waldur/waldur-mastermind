@@ -294,6 +294,9 @@ class Plan(core_models.UuidMixin,
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
 
+    class Meta(object):
+        ordering = ('name',)
+
     @classmethod
     def get_url_name(cls):
         return 'marketplace-plan'
