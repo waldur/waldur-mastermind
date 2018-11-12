@@ -55,6 +55,7 @@ class SizeViewSet(viewsets.ReadOnlyModelViewSet):
 
 class InstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all()
+    filter_class = filters.InstanceFilter
     serializer_class = serializers.InstanceSerializer
     create_executor = executors.InstanceCreateExecutor
 

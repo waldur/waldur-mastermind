@@ -27,3 +27,10 @@ class RegionFilter(structure_filters.BaseServicePropertyFilter):
 
     class Meta(structure_filters.BaseServicePropertyFilter.Meta):
         model = models.Region
+
+
+class InstanceFilter(structure_filters.BaseResourceFilter):
+    external_ip = django_filters.CharFilter(name='public_ips')
+
+    class Meta(structure_filters.BaseResourceFilter.Meta):
+        model = models.Instance

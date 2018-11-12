@@ -38,6 +38,7 @@ class SizeViewSet(viewsets.ReadOnlyModelViewSet):
 
 class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
+    filter_class = filters.VirtualMachineFilter
     serializer_class = serializers.VirtualMachineSerializer
     delete_executor = executors.VirtualMachineDeleteExecutor
 

@@ -583,6 +583,7 @@ class BaseResourceFilter(six.with_metaclass(ResourceFilterMetaclass,
         queryset=taggit.models.Tag.objects.all(),
         conjoined=True,
     )
+    external_ip = core_filters.EmptyFilter()
 
     ORDERING_FIELDS = (
         ('name', 'name'),

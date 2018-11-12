@@ -30,6 +30,8 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
 
 
 class InstanceFilter(structure_filters.BaseResourceFilter):
+    external_ip = django_filters.CharFilter(name='floating_ip__address')
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Instance
         fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
