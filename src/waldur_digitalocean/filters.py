@@ -1,4 +1,4 @@
-from django_filters import OrderingFilter
+from django_filters import OrderingFilter, CharFilter
 
 from waldur_core.structure import filters as structure_filters
 
@@ -27,5 +27,7 @@ class RegionFilter(structure_filters.BaseServicePropertyFilter):
 
 
 class DropletFilter(structure_filters.BaseResourceFilter):
+    external_ip = CharFilter(name='ip_address')
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Droplet
