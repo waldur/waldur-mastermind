@@ -283,3 +283,16 @@ class SummaryFilter(DjangoFilterBackend):
 
         summary_queryset.querysets = filtered_querysets
         return summary_queryset
+
+
+class EmptyFilter(django_filters.CharFilter):
+    """
+    This filter always returns empty queryset for non-empty value.
+    It is used when model does not support particular filter field yet it
+    should not simply ignore unknown field and instead should return empty queryset.
+    """
+    def filter(self, qs, value):
+        if value in EMPTY_VALUES:
+            return qs
+        else:
+            return qs.none()

@@ -12,7 +12,8 @@ class StructureConfig(AppConfig):
     def ready(self):
         from waldur_core.core.models import CoordinatesMixin, User
         from waldur_core.structure.executors import check_cleanup_executors
-        from waldur_core.structure.models import ResourceMixin, SubResource, Service, TagMixin, VirtualMachine
+        from waldur_core.structure.models import ResourceMixin, SubResource, Service, TagMixin, VirtualMachine, \
+            ServiceProjectLink
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
         from waldur_core.quotas import signals as quota_signals
@@ -214,3 +215,20 @@ class StructureConfig(AppConfig):
             handlers.update_customer_users_count,
             dispatch_uid='waldur_core.structure.handlers.update_customer_users_count',
         )
+
+        for index, spl_model in enumerate(ServiceProjectLink.get_all_models()):
+            signals.post_save.connect(
+                handlers.log_spl_create,
+                sender=spl_model,
+                dispatch_uid='waldur_core.structure.handlers.log_spl_{}_create_{}'.format(
+                    spl_model.__name__, index
+                ),
+            )
+
+            signals.pre_delete.connect(
+                handlers.log_spl_delete,
+                sender=spl_model,
+                dispatch_uid='waldur_core.structure.handlers.log_spl_{}_delete_{}'.format(
+                    spl_model.__name__, index
+                ),
+            )

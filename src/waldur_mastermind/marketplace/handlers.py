@@ -96,5 +96,6 @@ def update_project_resources_count(sender, **kwargs):
         )
 
 
-def create_order_pdf(sender, instance, **kwargs):
-    tasks.create_order_pdf.delay(instance.pk)
+def create_order_pdf(sender, instance, created=False, **kwargs):
+    if created or not instance.tracker.has_changed('_file'):
+        tasks.create_order_pdf.delay(instance.pk)

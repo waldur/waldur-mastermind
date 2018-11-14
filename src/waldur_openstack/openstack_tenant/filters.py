@@ -90,9 +90,11 @@ class SnapshotFilter(structure_filters.BaseResourceFilter):
 
 
 class InstanceFilter(structure_filters.BaseResourceFilter):
+    external_ip = django_filters.CharFilter(name='internal_ips_set__floating_ips__address')
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Instance
-        fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
+        fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state', 'external_ip')
 
     ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
         ('internal_ips_set__ip4_address', 'internal_ips'),

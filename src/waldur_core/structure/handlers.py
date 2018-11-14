@@ -398,3 +398,28 @@ def update_customer_users_count(sender, **kwargs):
     for customer in Customer.objects.all():
         usage = len(set(customer.get_users()))
         customer.set_quota_usage(Customer.Quotas.nc_user_count, usage)
+
+
+def log_spl_create(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.spl.info(
+            'ServiceProjectLink for project \'{project_name}\' '
+            '(service: \'{service_type}\', settings name: \'{settings_name}\', '
+            'settings type: \'{service_settings_type}\') '
+            'has been created.',
+            event_type='spl_creation_succeeded',
+            event_context={
+                'spl': instance,
+            })
+
+
+def log_spl_delete(sender, instance, **kwargs):
+    event_logger.spl.info(
+        'ServiceProjectLink for project \'{project_name}\' '
+        '(service: \'{service_type}\', settings name: \'{settings_name}\', '
+        'settings type: \'{service_settings_type}\') '
+        'has been deleted.',
+        event_type='spl_deletion_succeeded',
+        event_context={
+            'spl': instance,
+        })

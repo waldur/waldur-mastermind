@@ -94,8 +94,17 @@ class ResourceEventLogger(EventLogger):
         }
 
 
+class ServiceProjectLinkEventLogger(EventLogger):
+    spl = models.ServiceProjectLink
+
+    class Meta:
+        event_types = ('spl_deletion_succeeded',
+                       'spl_creation_succeeded')
+
+
 event_logger.register('customer_role', CustomerRoleEventLogger)
 event_logger.register('project_role', ProjectRoleEventLogger)
 event_logger.register('customer', CustomerEventLogger)
 event_logger.register('project', ProjectEventLogger)
 event_logger.register('resource', ResourceEventLogger)
+event_logger.register('spl', ServiceProjectLinkEventLogger)
