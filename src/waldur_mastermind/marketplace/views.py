@@ -269,6 +269,25 @@ class OrderItemViewSet(BaseMarketplaceView):
     destroy_permissions = [check_permissions_for_order_items_change]
 
 
+class CartItemViewSet(core_views.ActionsViewSet):
+    queryset = models.CartItem.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.CartItemSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+
+    @list_route(methods=['post'])
+    def submit(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
+        order_serializer = serializers.OrderSerializer(instance=order, context={'request': self.request})
+        return Response(order_serializer.data)
+
+    submit_serializer_class = serializers.CartSubmitSerializer
+
+
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def get_action_class(self):
         return getattr(self, self.action + '_serializer_class', None)

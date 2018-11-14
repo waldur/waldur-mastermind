@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import datetime
 
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
-from django.db.models import OuterRef, Subquery, Count, IntegerField
+from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -84,7 +84,13 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         offerings = models.Offering.objects \
             .filter(state=models.Offering.States.ACTIVE) \
             .filter(category=OuterRef('pk')) \
-            .filter_for_user(request.user) \
+            .filter_for_user(request.user)
+
+        allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')
+        if allowed_customer_uuid:
+            offerings = offerings.filter(Q(customer__uuid=allowed_customer_uuid) | Q(allowed_customers__uuid=allowed_customer_uuid))
+
+        offerings = offerings \
             .annotate(count=Count('*'))\
             .values('count')
 
@@ -425,55 +431,32 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
         fields = ('type', 'limit', 'usage')
 
 
-class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
-                          serializers.HyperlinkedModelSerializer,
-                          core_serializers.RestrictedSerializerMixin):
+class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer,
+                         core_serializers.RestrictedSerializerMixin):
+
     class Meta(object):
-        model = models.OrderItem
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail', 'offering_type',
-                  'customer_name', 'customer_uuid',
-                  'project_name', 'project_uuid',
                   'provider_name', 'provider_uuid',
                   'category_title', 'category_uuid',
-                  'attributes', 'cost',
                   'plan', 'plan_unit', 'plan_name', 'plan_uuid', 'plan_description',
-                  'resource_uuid', 'resource_type', 'state',
-                  'limits', 'quotas', 'uuid', 'created')
-
+                  'attributes', 'limits', 'uuid', 'created')
         related_paths = {
             'offering': ('name', 'uuid', 'description', 'type'),
             'plan': ('unit', 'uuid', 'name', 'description')
         }
-        read_only_fields = ('cost', 'state', 'quotas')
-        protected_fields = ('offering', 'plan')
+        protected_fields = ('offering',)
         extra_kwargs = {
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
             'plan': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
         }
 
-    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
-    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
-    project_name = serializers.ReadOnlyField(source='order.project.name')
-    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
     provider_name = serializers.ReadOnlyField(source='offering.customer.name')
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
     category_title = serializers.ReadOnlyField(source='offering.category.title')
     category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
     offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
-    resource_uuid = serializers.SerializerMethodField()
-    resource_type = serializers.SerializerMethodField()
-    state = serializers.ReadOnlyField(source='get_state_display')
-    limits = serializers.DictField(child=serializers.IntegerField(), required=False, write_only=True)
-    quotas = ComponentQuotaSerializer(many=True, read_only=True)
-
-    def get_resource_uuid(self, order_item):
-        if order_item.scope:
-            return order_item.scope.uuid
-
-    def get_resource_type(self, order_item):
-        if order_item.scope:
-            return order_item.scope.get_scope_type()
 
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
@@ -495,14 +478,94 @@ class OrderItemSerializer(core_serializers.AugmentedSerializerMixin,
 
         limits = attrs.get('limits')
         if limits:
-            valid_component_types = offering.components\
-                .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE)\
+            valid_component_types = offering.components \
+                .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE) \
                 .values_list('type', flat=True)
             invalid_types = set(limits.keys()) - set(valid_component_types)
             if invalid_types:
                 raise ValidationError({'limits': _('Invalid types: %s') % ', '.join(invalid_types)})
-
         return attrs
+
+
+class OrderItemSerializer(BaseItemSerializer):
+    class Meta(BaseItemSerializer.Meta):
+        model = models.OrderItem
+        fields = BaseItemSerializer.Meta.fields + (
+            'customer_name', 'customer_uuid',
+            'project_name', 'project_uuid',
+            'resource_uuid', 'resource_type',
+            'cost', 'state', 'quotas',
+        )
+
+        read_only_fields = ('cost', 'state', 'quotas')
+        protected_fields = ('offering', 'plan')
+
+    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
+    project_name = serializers.ReadOnlyField(source='order.project.name')
+    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
+    resource_uuid = serializers.SerializerMethodField()
+    resource_type = serializers.SerializerMethodField()
+    state = serializers.ReadOnlyField(source='get_state_display')
+    limits = serializers.DictField(child=serializers.IntegerField(), required=False, write_only=True)
+    quotas = ComponentQuotaSerializer(many=True, read_only=True)
+
+    def get_resource_uuid(self, order_item):
+        if order_item.scope:
+            return order_item.scope.uuid
+
+    def get_resource_type(self, order_item):
+        if order_item.scope:
+            return order_item.scope.get_scope_type()
+
+
+class CartItemSerializer(BaseItemSerializer):
+    limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+
+    class Meta(BaseItemSerializer.Meta):
+        model = models.CartItem
+        fields = BaseItemSerializer.Meta.fields + ('estimate',)
+
+    def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
+        return super(CartItemSerializer, self).create(validated_data)
+
+
+class CartSubmitSerializer(serializers.Serializer):
+    project = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.Project.objects.all(),
+        view_name='project-detail',
+        lookup_field='uuid',
+        required=True,
+    )
+
+    @transaction.atomic()
+    def create(self, validated_data):
+        user = self.context['request'].user
+
+        items = models.CartItem.objects.filter(user=user)
+        if items.count() == 0:
+            raise serializers.ValidationError(_('Shopping cart is empty'))
+
+        project = validated_data['project']
+        order = models.Order.objects.create(project=project, created_by=user)
+
+        for item in items:
+            try:
+                order_item = order.add_item(
+                    offering=item.offering,
+                    attributes=item.attributes,
+                    plan=item.plan,
+                )
+            except ValidationError as e:
+                raise rf_exceptions.ValidationError(e)
+            plugins.manager.validate(order_item, self.context['request'])
+
+        order.init_total_cost()
+        order.save()
+
+        items.delete()
+        return order
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
@@ -547,50 +610,19 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
         validated_data['created_by'] = user
         items = validated_data.pop('items')
         order = super(OrderSerializer, self).create(validated_data)
-        total_cost = 0
         for item in items:
-            plan = item.get('plan')
-            cost = 0
-            if plan:
-                cost = plan.unit_price
-            order_item = models.OrderItem(
-                order=order,
-                offering=item['offering'],
-                attributes=item.get('attributes', {}),
-                plan=plan,
-                cost=cost,
-            )
+            try:
+                order_item = order.add_item(
+                    offering=item['offering'],
+                    plan=item.get('plan'),
+                    attributes=item.get('attributes', {}),
+                    limits=item.get('limits'),
+                )
+            except ValidationError as e:
+                raise rf_exceptions.ValidationError(e)
             plugins.manager.validate(order_item, self.context['request'])
 
-            components_map = {}
-            limits = item.get('limits')
-            if limits:
-                components = models.OfferingComponent.objects.filter(
-                    offering=plan.offering,
-                    billing_type=models.OfferingComponent.BillingTypes.USAGE
-                )
-                components_map = {
-                    component.type: component for component in components
-                }
-                component_prices = {
-                    c.component.type: c.price for c in plan.components.all()
-                }
-                for key in components_map.keys():
-                    cost += component_prices.get(key, 0) * limits.get(key, 0)
-                order_item.cost = cost
-
-            total_cost += cost
-
-            order_item.save()
-            if limits:
-                for key, value in limits.items():
-                    models.ComponentQuota.objects.create(
-                        order_item=order_item,
-                        component=components_map[key],
-                        limit=value
-                    )
-
-        order.total_cost = total_cost
+        order.init_total_cost()
         order.save()
         return order
 

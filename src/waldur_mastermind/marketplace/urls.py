@@ -16,6 +16,8 @@ def register_in(router):
                     base_name='marketplace-plan')
     router.register(r'marketplace-screenshots', views.ScreenshotViewSet,
                     base_name='marketplace-screenshot')
+    router.register(r'marketplace-cart-items', views.CartItemViewSet,
+                    base_name='marketplace-cart-item')
     router.register(r'marketplace-orders', views.OrderViewSet,
                     base_name='marketplace-order')
     router.register(r'marketplace-order-items', views.OrderItemViewSet,
