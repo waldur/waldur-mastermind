@@ -7,7 +7,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
-from . import PLUGIN_NAME
+from . import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     parent_offering = order_item.offering
     payload = dict(
         type=PLUGIN_NAME,
-        name='Virtual machine in %s' % parent_offering.name,
+        name=utils.get_offering_name_for_tenant(parent_offering),
         scope=service_settings,
         shared=False,
     )
