@@ -257,6 +257,10 @@ class Offering(core_models.UuidMixin,
     def get_url_name(cls):
         return 'marketplace-offering'
 
+    def get_usage_components(self):
+        components = self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE)
+        return {component.type: component for component in components}
+
 
 class OfferingComponent(core_models.DescribableMixin):
     class Meta(object):
@@ -304,6 +308,17 @@ class Plan(core_models.UuidMixin,
     class Permissions(object):
         customer_path = 'offering__customer'
 
+    def get_estimate(self, limits=None):
+        cost = self.unit_price
+
+        if limits:
+            components_map = self.offering.get_usage_components()
+            component_prices = {c.component.type: c.price for c in self.components.all()}
+            for key in components_map.keys():
+                cost += component_prices.get(key, 0) * limits.get(key, 0)
+
+        return cost
+
 
 class PlanComponent(models.Model):
     class Meta(object):
@@ -344,6 +359,21 @@ class Screenshot(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-screenshot'
+
+
+class CartItem(core_models.UuidMixin, TimeStampedModel):
+    user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
+    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
+    plan = models.ForeignKey('Plan', null=True, blank=True)
+    attributes = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, default=dict)
+
+    class Meta(object):
+        ordering = ('created',)
+
+    @property
+    def estimate(self):
+        return self.plan.get_estimate(self.limits)
 
 
 class Order(core_models.UuidMixin,
@@ -433,6 +463,18 @@ class Order(core_models.UuidMixin,
     def get_filename(self):
         return 'marketplace_order_{}.pdf'.format(self.uuid)
 
+    def add_item(self, **kwargs):
+        limits = kwargs.pop('limits', None)
+        order_item = OrderItem(order=self, **kwargs)
+        order_item.clean()
+        order_item.init_cost(limits)
+        order_item.save()
+        order_item.init_quotas(limits)
+        return order_item
+
+    def init_total_cost(self):
+        self.total_cost = sum(item.cost or 0 for item in self.items.all())
+
 
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
@@ -491,6 +533,37 @@ class OrderItem(core_models.UuidMixin,
     @transition(field=state, source='*', target=States.TERMINATED)
     def set_state_terminated(self):
         pass
+
+    def clean(self):
+        offering = self.offering
+        customer = self.order.project.customer
+
+        if offering.shared:
+            return
+
+        if offering.customer == customer:
+            return
+
+        if offering.allowed_customers.filter(pk=customer.pk).exists():
+            return
+
+        raise ValidationError(
+            _('Offering "%s" is not allowed in organization "%s".') % (offering.name, customer.name)
+        )
+
+    def init_cost(self, limits=None):
+        if self.plan:
+            self.cost = self.plan.get_estimate(limits)
+
+    def init_quotas(self, limits=None):
+        if limits and self.plan:
+            components_map = self.offering.get_usage_components()
+            for key, value in limits.items():
+                ComponentQuota.objects.create(
+                    order_item=self,
+                    component=components_map[key],
+                    limit=value
+                )
 
 
 class ComponentQuota(models.Model):

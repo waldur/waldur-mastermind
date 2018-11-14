@@ -6,6 +6,7 @@ from freezegun import freeze_time
 from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
+from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import fixtures, factories as structure_factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 
@@ -84,6 +85,20 @@ class OrderCreateTest(PostgreSQLTest):
         ]}
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_can_not_create_order_if_offering_is_not_available_to_customer(self):
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, shared=False)
+        offering.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': {}
+            },
+        ]}
+        response = self.create_order(self.fixture.owner, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_can_not_create_order_with_invalid_plan(self):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)

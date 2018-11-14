@@ -1,5 +1,6 @@
 import json
 
+from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -23,6 +24,7 @@ class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
+    allowed_customer_uuid = django_filters.UUIDFilter(name='customer__uuid', method='filter_allowed_customer')
     attributes = django_filters.CharFilter(name='attributes', method='filter_attributes')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[(representation, representation) for db_value, representation in models.Offering.States.CHOICES],
@@ -30,6 +32,9 @@ class OfferingFilter(django_filters.FilterSet):
     )
     category_uuid = django_filters.UUIDFilter(name='category__uuid')
     o = django_filters.OrderingFilter(fields=('name', 'created'))
+
+    def filter_allowed_customer(self, queryset, name, value):
+        return queryset.filter(Q(customer__uuid=value) | Q(allowed_customers__uuid=value))
 
     def filter_attributes(self, queryset, name, value):
         try:
