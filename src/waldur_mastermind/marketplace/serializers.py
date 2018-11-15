@@ -88,7 +88,9 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
         allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')
         if allowed_customer_uuid:
-            offerings = offerings.filter(Q(customer__uuid=allowed_customer_uuid) | Q(allowed_customers__uuid=allowed_customer_uuid))
+            offerings = offerings.filter(Q(shared=True) |
+                                         Q(customer__uuid=allowed_customer_uuid) |
+                                         Q(allowed_customers__uuid=allowed_customer_uuid))
 
         offerings = offerings \
             .annotate(count=Count('*'))\
