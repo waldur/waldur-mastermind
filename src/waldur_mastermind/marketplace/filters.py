@@ -34,7 +34,9 @@ class OfferingFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     def filter_allowed_customer(self, queryset, name, value):
-        return queryset.filter(Q(customer__uuid=value) | Q(allowed_customers__uuid=value))
+        return queryset.filter(Q(shared=True) |
+                               Q(customer__uuid=value) |
+                               Q(allowed_customers__uuid=value))
 
     def filter_attributes(self, queryset, name, value):
         try:
