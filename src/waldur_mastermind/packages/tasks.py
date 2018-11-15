@@ -1,7 +1,9 @@
 from __future__ import unicode_literals
 
-from waldur_core.core import tasks as core_tasks
+from waldur_core.core import tasks as core_tasks, utils as core_utils
 from waldur_openstack.openstack import models as openstack_models
+
+from .log import event_logger
 
 
 class OpenStackPackageErrorTask(core_tasks.ErrorStateTransitionTask):
@@ -39,3 +41,20 @@ class OpenStackPackageSettingsPopulationTask(core_tasks.Task):
         package.service_settings.options['external_network_id'] = package.tenant.external_network_id
         package.service_settings.options['internal_network_id'] = package.tenant.internal_network_id
         package.service_settings.save()
+
+
+class LogOpenStackPackageChange(core_tasks.Task):
+
+    def execute(self, tenant, event, new_package, old_package, service_settings, *args, **kwargs):
+        service_settings = core_utils.deserialize_instance(service_settings)
+        event_type = 'openstack_package_change_succeeded' if event == 'succeeded' else 'openstack_package_change_failed'
+
+        event_logger.openstack_package.info(
+            'Tenant package changing is %s. '
+            'Old value: %s, new value: {package_template_name}' % (event, old_package),
+            event_type=event_type,
+            event_context={
+                'tenant': tenant,
+                'package_template_name': new_package,
+                'service_settings': service_settings,
+            })

@@ -302,6 +302,21 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         new_component.amount = new_limit
         new_component.save(update_fields=['amount'])
 
+    @mock.patch('waldur_mastermind.packages.serializers.event_logger')
+    def test_logger_called_when_package_change_scheduled(self, logger_mock):
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.post(self.change_url, data=self.get_valid_payload())
+
+        logger_mock.openstack_package.info.assert_called_once_with(
+            'Tenant package change has been scheduled. '
+            'Old value: %s, new value: {package_template_name}' % self.fixture.openstack_package.template.name,
+            event_type='openstack_package_change_scheduled',
+            event_context={
+                'tenant': self.package.tenant,
+                'package_template_name': self.new_template.name,
+                'service_settings': self.package.service_settings,
+            })
+
     # Helper methods
     def get_valid_payload(self, template=None, package=None):
         return {
