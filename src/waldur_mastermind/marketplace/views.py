@@ -168,7 +168,8 @@ class OrderViewSet(BaseMarketplaceView):
 
         serialized_order = core_utils.serialize_instance(order)
         serialized_user = core_utils.serialize_instance(request.user)
-        tasks.process_order.apply_async(args=(serialized_order, serialized_user))
+        tasks.process_order.delay(serialized_order, serialized_user)
+        tasks.create_order_pdf.delay(order.pk)
         return self._update_state(request, models.Order.States.EXECUTING, order)
 
     set_state_executing_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]

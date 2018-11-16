@@ -59,9 +59,3 @@ class MarketplaceConfig(AppConfig):
             handlers.update_project_resources_count,
             dispatch_uid='waldur_mastermind.marketplace.update_project_resources_count',
         )
-
-        signals.post_save.connect(
-            handlers.create_order_pdf,
-            sender=models.Order,
-            dispatch_uid='waldur_mastermind.marketplace.create_order_pdf',
-        )
