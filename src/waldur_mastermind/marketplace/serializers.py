@@ -558,6 +558,7 @@ class CartSubmitSerializer(serializers.Serializer):
                     offering=item.offering,
                     attributes=item.attributes,
                     plan=item.plan,
+                    limits=item.limits,
                 )
             except ValidationError as e:
                 raise rf_exceptions.ValidationError(e)

@@ -218,3 +218,19 @@ class OrderItemFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-order-item-list')
         return url if action is None else url + action + '/'
+
+
+class CartItemFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CartItem
+
+    @classmethod
+    def get_url(cls, item=None):
+        if item is None:
+            item = CartItemFactory()
+        return reverse('marketplace-cart-item-detail', kwargs={'uuid': item.uuid})
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = reverse('marketplace-cart-item-list')
+        return url if action is None else url + action + '/'
