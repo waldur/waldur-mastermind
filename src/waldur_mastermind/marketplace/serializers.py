@@ -14,6 +14,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure import models as structure_models, SupportedServices
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -540,6 +541,13 @@ class CartSubmitSerializer(serializers.Serializer):
         lookup_field='uuid',
         required=True,
     )
+
+    def get_fields(self):
+        fields = super(CartSubmitSerializer, self).get_fields()
+        project_field = fields['project']
+        project_field.queryset = filter_queryset_for_user(
+            project_field.queryset, self.context['request'].user)
+        return fields
 
     @transaction.atomic()
     def create(self, validated_data):

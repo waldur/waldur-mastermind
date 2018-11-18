@@ -7,6 +7,20 @@ from . import factories
 
 
 class CartSubmitTest(test.APITransactionTestCase):
+    def test_user_can_not_submit_shopping_cart_in_project_without_permissions(self):
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+
+        self.client.force_authenticate(fixture.user)
+
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(offering),
+        })
+        response = self.client.post(factories.CartItemFactory.get_list_url('submit'), {
+            'project': structure_factories.ProjectFactory.get_url(fixture.project)
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_cart_item_limits_are_propagated_to_order_item(self):
         limits = {
             'storage': 1000,
