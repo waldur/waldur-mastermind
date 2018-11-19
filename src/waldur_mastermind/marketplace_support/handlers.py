@@ -60,3 +60,21 @@ def create_support_plan(sender, instance, created=False, **kwargs):
         )
         plan.scope = offering_plan
         plan.save()
+
+
+def offering_set_state_ok(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if instance.tracker.has_changed('resolution'):
+        issue = instance
+        try:
+            offering = support_models.Offering.objects.get(issue=issue)
+        except support_models.Offering.DoesNotExist:
+            logger.warning('Skipping issue state synchronization '
+                           'because related support offering is not found. Issue ID: %s', issue.id)
+            return
+
+        if issue.resolution:
+            offering.state = support_models.Offering.States.OK
+            offering.save()
