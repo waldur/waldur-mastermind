@@ -7,7 +7,12 @@ class OpenStackPackageLogger(EventLogger):
     package_template_name = basestring
 
     class Meta:
-        event_types = ('openstack_package_created', 'openstack_package_deleted')
+        event_types = (
+            'openstack_package_created',
+            'openstack_package_change_scheduled',
+            'openstack_package_change_succeeded',
+            'openstack_package_change_failed',
+            'openstack_package_deleted')
         event_groups = {
             'customers': event_types,
             'packages': event_types,

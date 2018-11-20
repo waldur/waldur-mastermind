@@ -39,7 +39,21 @@ class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
 class OpenStackPackageChangeExecutor(core_executors.BaseExecutor):
 
     @classmethod
-    def get_task_signature(cls, tenant, serialized_tenant):
+    def get_success_signature(cls, tenant, serialized_tenant, new_package, old_package, service_settings, **kwargs):
+        service_settings = core_utils.serialize_instance(service_settings)
+        return tasks.LogOpenStackPackageChange().si(serialized_tenant, event='succeeded',
+                                                    new_package=new_package, old_package=old_package,
+                                                    service_settings=service_settings)
+
+    @classmethod
+    def get_failure_signature(cls, tenant, serialized_tenant, new_package, old_package, service_settings, **kwargs):
+        service_settings = core_utils.serialize_instance(service_settings)
+        return tasks.LogOpenStackPackageChange().si(serialized_tenant, event='failed',
+                                                    new_package=new_package, old_package=old_package,
+                                                    service_settings=service_settings)
+
+    @classmethod
+    def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
         serialized_executor = core_utils.serialize_class(openstack_executors.TenantPushQuotasExecutor)
         quotas = tenant.quotas.all()
         quotas = {q.name: int(q.limit) for q in quotas}

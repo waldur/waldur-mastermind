@@ -51,8 +51,11 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        new_package = serializer.save()
-        executors.OpenStackPackageChangeExecutor.execute(new_package.tenant)
+        old_package, new_package, service_settings = serializer.save()
+        executors.OpenStackPackageChangeExecutor.execute(new_package.tenant,
+                                                         new_package=new_package.template.name,
+                                                         old_package=old_package.template.name,
+                                                         service_settings=service_settings)
 
         return response.Response({'detail': _('OpenStack package extend has been scheduled')},
                                  status=status.HTTP_202_ACCEPTED)

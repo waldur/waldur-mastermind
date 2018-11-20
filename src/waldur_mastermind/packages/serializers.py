@@ -12,6 +12,7 @@ from waldur_openstack.openstack import (
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import models
+from .log import event_logger
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
@@ -241,7 +242,17 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
             tenant=tenant
         )
 
-        return new_package
+        event_logger.openstack_package.info(
+            'Tenant package change has been scheduled. '
+            'Old value: %s, new value: {package_template_name}' % package.template.name,
+            event_type='openstack_package_change_scheduled',
+            event_context={
+                'tenant': tenant,
+                'package_template_name': new_template.name,
+                'service_settings': service_settings,
+            })
+
+        return package, new_package, service_settings
 
 
 class OpenStackPackageAssignSerializer(serializers.Serializer):
