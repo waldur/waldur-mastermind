@@ -96,7 +96,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
     allocation = instance
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(scope=allocation)
+        resource = marketplace_models.Resource.objects.get(scope=allocation)
     except django_exceptions.ObjectDoesNotExist:
         return
 
@@ -106,11 +106,11 @@ def update_component_quota(sender, instance, created=False, **kwargs):
 
         try:
             plan_component = marketplace_models.OfferingComponent.objects.get(
-                offering=order_item.plan.offering,
+                offering=resource.plan.offering,
                 type=component.type
             )
             component_quota = marketplace_models.ComponentQuota.objects.get(
-                order_item=order_item,
+                resource=resource,
                 component=plan_component,
             )
             component_quota.limit = limit
@@ -123,7 +123,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                            'Allocation ID: %s', allocation.id)
         except marketplace_models.ComponentQuota.DoesNotExist:
             marketplace_models.ComponentQuota.objects.create(
-                order_item=order_item,
+                resource=resource,
                 component=plan_component,
                 limit=limit,
                 usage=usage

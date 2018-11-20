@@ -464,12 +464,10 @@ class Order(core_models.UuidMixin,
         return 'marketplace_order_{}.pdf'.format(self.uuid)
 
     def add_item(self, **kwargs):
-        limits = kwargs.pop('limits', None)
         order_item = OrderItem(order=self, **kwargs)
         order_item.clean()
-        order_item.init_cost(limits)
+        order_item.init_cost()
         order_item.save()
-        order_item.init_quotas(limits)
         return order_item
 
     def init_total_cost(self):
@@ -500,6 +498,7 @@ class OrderItem(core_models.UuidMixin,
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
     objects = managers.MixinManager('scope')
@@ -551,50 +550,49 @@ class OrderItem(core_models.UuidMixin,
             _('Offering "%s" is not allowed in organization "%s".') % (offering.name, customer.name)
         )
 
-    def init_cost(self, limits=None):
+    def init_cost(self):
         if self.plan:
-            self.cost = self.plan.get_estimate(limits)
-
-    def init_quotas(self, limits=None):
-        if limits and self.plan:
-            components_map = self.offering.get_usage_components()
-            for key, value in limits.items():
-                ComponentQuota.objects.create(
-                    order_item=self,
-                    component=components_map[key],
-                    limit=value
-                )
+            self.cost = self.plan.get_estimate(self.limits)
 
 
 class Resource(core_models.UuidMixin, ScopeMixin):
     project = models.ForeignKey(structure_models.Project)
     plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, default=dict)
     objects = managers.MixinManager('scope')
+
+    def init_quotas(self):
+        if self.limits and self.plan:
+            components_map = self.plan.offering.get_usage_components()
+            for key, value in self.limits.items():
+                ComponentQuota.objects.create(
+                    resource=self,
+                    component=components_map[key],
+                    limit=value
+                )
 
 
 class ComponentQuota(models.Model):
-    order_item = models.ForeignKey(OrderItem, related_name='quotas')
-    resource = models.ForeignKey(Resource, null=True, blank=True)
+    resource = models.ForeignKey(Resource, related_name='quotas')
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
     usage = models.PositiveIntegerField(default=0)
 
     class Meta:
-        unique_together = ('order_item', 'component')
+        unique_together = ('resource', 'component')
 
 
 class ComponentUsage(TimeStampedModel):
-    order_item = models.ForeignKey(OrderItem, related_name='usages')
-    resource = models.ForeignKey(Resource, null=True, blank=True)
+    resource = models.ForeignKey(Resource, related_name='usages')
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
 
     class Meta:
-        unique_together = ('order_item', 'component', 'date')
+        unique_together = ('resource', 'component', 'date')
 
 
 class ProjectResourceCount(models.Model):

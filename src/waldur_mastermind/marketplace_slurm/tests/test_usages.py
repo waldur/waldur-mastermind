@@ -14,13 +14,11 @@ class BaseTest(test.APITransactionTestCase):
         service_settings = structure_factories.ServiceSettingsFactory(type='SLURM')
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, scope=service_settings)
         plan = marketplace_factories.PlanFactory(offering=offering)
-        order = marketplace_factories.OrderFactory(project=fixture.project)
         self.allocation = slurm_factories.AllocationFactory()
-        self.order_item = marketplace_factories.OrderItemFactory(
-            order=order,
-            offering=offering,
+        self.resource = marketplace_models.Resource.objects.create(
             scope=self.allocation,
             plan=plan,
+            project=fixture.project,
         )
         for component in manager.get_components(PLUGIN_NAME):
             marketplace_models.OfferingComponent.objects.create(
@@ -36,20 +34,20 @@ class ComponentUsageTest(BaseTest):
     def test_create_component_usage(self):
         slurm_factories.AllocationUsageFactory(allocation=self.allocation)
         self.assertTrue(marketplace_models.ComponentUsage.objects
-                        .filter(order_item=self.order_item, component__type='cpu').exists())
+                        .filter(order_item=self.resource, component__type='cpu').exists())
         self.assertTrue(marketplace_models.ComponentUsage.objects
-                        .filter(order_item=self.order_item, component__type='gpu').exists())
+                        .filter(order_item=self.resource, component__type='gpu').exists())
         self.assertTrue(marketplace_models.ComponentUsage.objects
-                        .filter(order_item=self.order_item, component__type='ram').exists())
+                        .filter(order_item=self.resource, component__type='ram').exists())
 
-    def test_not_create_component_usage_if_creat_other_allocation_usage(self):
+    def test_not_create_component_usage_if_create_other_allocation_usage(self):
         slurm_factories.AllocationUsageFactory()
         self.assertFalse(marketplace_models.ComponentUsage.objects
-                         .filter(order_item=self.order_item, component__type='cpu').exists())
+                         .filter(order_item=self.resource, component__type='cpu').exists())
         self.assertFalse(marketplace_models.ComponentUsage.objects
-                         .filter(order_item=self.order_item, component__type='gpu').exists())
+                         .filter(order_item=self.resource, component__type='gpu').exists())
         self.assertFalse(marketplace_models.ComponentUsage.objects
-                         .filter(order_item=self.order_item, component__type='ram').exists())
+                         .filter(order_item=self.resource, component__type='ram').exists())
 
 
 class ComponentQuotaTest(BaseTest):
@@ -61,8 +59,8 @@ class ComponentQuotaTest(BaseTest):
 
         for component in manager.get_components(PLUGIN_NAME):
             self.assertTrue(marketplace_models.ComponentQuota.objects
-                            .filter(order_item=self.order_item, component__type=component.type).exists())
+                            .filter(resource=self.resource, component__type=component.type).exists())
             quota = marketplace_models.ComponentQuota.objects\
-                .get(order_item=self.order_item, component__type=component.type)
+                .get(resource=self.resource, component__type=component.type)
             self.assertEqual(quota.limit, getattr(self.allocation, component.type + '_limit'))
             self.assertEqual(quota.usage, getattr(self.allocation, component.type + '_usage'))
