@@ -33,10 +33,10 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def _create_item(self, source, invoice, start, end):
         offering = source
-        order_item = self.get_order_item(offering)
-        for offering_component in order_item.offering.components.all():
+        resource = self.get_order_item(offering)
+        for offering_component in resource.plan.offering.components.all():
             try:
-                plan_component = offering_component.components.get(plan=order_item.plan)
+                plan_component = offering_component.components.get(plan=resource.plan)
                 invoice_models.GenericInvoiceItem.objects.get_or_create(
                     scope=offering,
                     project=offering.project,
@@ -48,7 +48,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                               'article_code': offering.article_code,
                               'unit_price': plan_component.price,
                               'unit': invoice_models.GenericInvoiceItem.Units.QUANTITY,
-                              'quantity': utils.get_quantity(plan_component, order_item, start, end),
+                              'quantity': utils.get_quantity(plan_component, resource, start, end),
                               }
                 )
             except marketplace_models.PlanComponent.DoesNotExist:
@@ -56,6 +56,6 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def get_order_item(self, offering):
         try:
-            return marketplace_models.OrderItem.objects.get(scope=offering)
-        except marketplace_models.OrderItem.DoesNotExist:
+            return marketplace_models.Resource.objects.get(scope=offering)
+        except marketplace_models.Resource.DoesNotExist:
             logger.debug('Skip support invoice.')

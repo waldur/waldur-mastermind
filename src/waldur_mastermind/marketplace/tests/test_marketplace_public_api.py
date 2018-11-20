@@ -19,7 +19,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
         self.component = factories.PlanComponentFactory(plan=self.plan, component=self.offering_component)
-        self.order_item = factories.OrderItemFactory(plan=self.plan)
+        self.resource = models.Resource.objects.create(plan=self.plan)
 
     def test_validate_correct_signature(self):
         payload = self.get_valid_payload()
@@ -36,7 +36,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         payload = self.get_valid_payload()
         response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.ComponentUsage.objects.filter(order_item=self.order_item,
+        self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
                                                              component=self.offering_component,
                                                              date=datetime.date.today()).exists())
 

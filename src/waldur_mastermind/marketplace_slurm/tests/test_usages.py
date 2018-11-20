@@ -34,20 +34,20 @@ class ComponentUsageTest(BaseTest):
     def test_create_component_usage(self):
         slurm_factories.AllocationUsageFactory(allocation=self.allocation)
         self.assertTrue(marketplace_models.ComponentUsage.objects
-                        .filter(order_item=self.resource, component__type='cpu').exists())
+                        .filter(resource=self.resource, component__type='cpu').exists())
         self.assertTrue(marketplace_models.ComponentUsage.objects
-                        .filter(order_item=self.resource, component__type='gpu').exists())
+                        .filter(resource=self.resource, component__type='gpu').exists())
         self.assertTrue(marketplace_models.ComponentUsage.objects
-                        .filter(order_item=self.resource, component__type='ram').exists())
+                        .filter(resource=self.resource, component__type='ram').exists())
 
     def test_not_create_component_usage_if_create_other_allocation_usage(self):
         slurm_factories.AllocationUsageFactory()
         self.assertFalse(marketplace_models.ComponentUsage.objects
-                         .filter(order_item=self.resource, component__type='cpu').exists())
+                         .filter(resource=self.resource, component__type='cpu').exists())
         self.assertFalse(marketplace_models.ComponentUsage.objects
-                         .filter(order_item=self.resource, component__type='gpu').exists())
+                         .filter(resource=self.resource, component__type='gpu').exists())
         self.assertFalse(marketplace_models.ComponentUsage.objects
-                         .filter(order_item=self.resource, component__type='ram').exists())
+                         .filter(resource=self.resource, component__type='ram').exists())
 
 
 class ComponentQuotaTest(BaseTest):

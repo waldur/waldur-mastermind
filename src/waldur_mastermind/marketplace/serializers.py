@@ -677,15 +677,15 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
 
 
 class PublicComponentUsageSerializer(serializers.Serializer):
-    order_item = serializers.SlugRelatedField(queryset=models.OrderItem.objects.all(), slug_field='uuid')
+    resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
     date = serializers.DateField()
     type = serializers.CharField()
     amount = serializers.IntegerField()
 
     def validate(self, attrs):
-        order_item = attrs['order_item']
+        resource = attrs['resource']
         date = attrs['date']
-        plan = order_item.plan
+        plan = resource.plan
         offering = plan.offering
 
         if date > datetime.date.today():
@@ -700,7 +700,7 @@ class PublicComponentUsageSerializer(serializers.Serializer):
         except models.OfferingComponent.DoesNotExist:
             raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % attrs['type'])
 
-        if models.ComponentUsage.objects.filter(order_item=order_item,
+        if models.ComponentUsage.objects.filter(resource=resource,
                                                 component=component,
                                                 date=attrs['date']).exists():
             raise rf_exceptions.ValidationError({

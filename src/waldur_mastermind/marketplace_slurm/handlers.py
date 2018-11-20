@@ -60,7 +60,7 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
     allocation = allocation_usage.allocation
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(scope=allocation)
+        resource = marketplace_models.Resource.objects.get(scope=allocation)
     except django_exceptions.ObjectDoesNotExist:
         return
 
@@ -71,11 +71,11 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
 
         try:
             plan_component = marketplace_models.OfferingComponent.objects.get(
-                offering=order_item.plan.offering,
+                offering=resource.plan.offering,
                 type=component.type
             )
             marketplace_models.ComponentUsage.objects.create(
-                order_item=order_item,
+                resource=resource,
                 component=plan_component,
                 usage=usage,
                 date=date,
