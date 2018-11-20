@@ -566,8 +566,16 @@ class OrderItem(core_models.UuidMixin,
                 )
 
 
+class Resource(core_models.UuidMixin, ScopeMixin):
+    project = models.ForeignKey(structure_models.Project)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    attributes = BetterJSONField(blank=True, default=dict)
+    objects = managers.MixinManager('scope')
+
+
 class ComponentQuota(models.Model):
     order_item = models.ForeignKey(OrderItem, related_name='quotas')
+    resource = models.ForeignKey(Resource, null=True, blank=True)
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
@@ -579,6 +587,7 @@ class ComponentQuota(models.Model):
 
 class ComponentUsage(TimeStampedModel):
     order_item = models.ForeignKey(OrderItem, related_name='usages')
+    resource = models.ForeignKey(Resource, null=True, blank=True)
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
