@@ -50,7 +50,7 @@ class LogOpenStackPackageChange(core_tasks.Task):
         event_type = 'openstack_package_change_succeeded' if event == 'succeeded' else 'openstack_package_change_failed'
 
         event_logger.openstack_package.info(
-            'Tenant package changing is %s. '
+            'Tenant package changing has %s. '
             'Old value: %s, new value: {package_template_name}' % (event, old_package),
             event_type=event_type,
             event_context={
