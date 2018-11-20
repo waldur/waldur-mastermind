@@ -4,6 +4,7 @@ from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
@@ -100,6 +101,12 @@ class OrderItemFilter(django_filters.FilterSet):
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[(representation, representation) for db_value, representation in models.OrderItem.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.OrderItem.States.CHOICES},
+    )
+    has_resource = django_filters.BooleanFilter(
+        name='object_id',
+        lookup_expr='isnull',
+        exclude=True,
+        widget=BooleanWidget,
     )
 
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
