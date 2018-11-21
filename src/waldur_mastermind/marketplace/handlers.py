@@ -64,10 +64,10 @@ def update_category_offerings_count(sender, **kwargs):
         category.set_quota_usage(models.Category.Quotas.offering_count, value)
 
 
-def update_project_resources_count_when_order_item_is_updated(sender, instance, created=False, **kwargs):
+def update_project_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
     def apply_change(delta):
         counter, _ = models.ProjectResourceCount.objects.get_or_create(
-            project=instance.order.project,
+            project=instance.project,
             category=instance.offering.category,
         )
         if delta == 1:
@@ -84,13 +84,13 @@ def update_project_resources_count_when_order_item_is_updated(sender, instance, 
 
 
 def update_project_resources_count(sender, **kwargs):
-    rows = models.OrderItem.objects\
-        .exclude(object_id=None)\
-        .values('order__project', 'offering__category')\
-        .annotate(count=Count('order__project', 'offering__category'))
+    rows = models.Resource.objects\
+        .exclude(state=models.Resource.States.TERMINATED)\
+        .values('project', 'offering__category')\
+        .annotate(count=Count('project', 'offering__category'))
     for row in rows:
         models.ProjectResourceCount.objects.update_or_create(
-            project_id=row['order__project'],
+            project_id=row['project'],
             category_id=row['offering__category'],
             defaults={'count': row['count']},
         )

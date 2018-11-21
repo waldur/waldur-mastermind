@@ -71,7 +71,7 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
 
         try:
             plan_component = marketplace_models.OfferingComponent.objects.get(
-                offering=resource.plan.offering,
+                offering=resource.offering,
                 type=component.type
             )
             marketplace_models.ComponentUsage.objects.create(
@@ -106,7 +106,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
 
         try:
             plan_component = marketplace_models.OfferingComponent.objects.get(
-                offering=resource.plan.offering,
+                offering=resource.offering,
                 type=component.type
             )
             component_quota = marketplace_models.ComponentQuota.objects.get(

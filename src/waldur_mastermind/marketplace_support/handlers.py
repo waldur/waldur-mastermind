@@ -1,10 +1,11 @@
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.marketplace.models import OrderItem
+from waldur_mastermind.marketplace.models import OrderItem, Resource
 
 
 logger = logging.getLogger(__name__)
@@ -28,8 +29,15 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
 
     if instance.tracker.has_changed('state'):
         try:
-            order_item = OrderItem.objects.get(scope=instance)
-        except OrderItem.DoesNotExist:
+            resource = Resource.objects.get(scope=instance)
+        except ObjectDoesNotExist:
+            logger.warning('Skipping support offering state synchronization '
+                           'because related order item is not found. Offering ID: %s', instance.id)
+            return
+
+        try:
+            order_item = OrderItem.objects.get(resource=resource, state=OrderItem.States.EXECUTING)
+        except ObjectDoesNotExist:
             logger.warning('Skipping support offering state synchronization '
                            'because related order item is not found. Offering ID: %s', instance.id)
             return

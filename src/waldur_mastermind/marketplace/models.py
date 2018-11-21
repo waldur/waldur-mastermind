@@ -498,6 +498,7 @@ class Resource(core_models.UuidMixin, ScopeMixin):
     plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
     limits = BetterJSONField(blank=True, default=dict)
+    tracker = FieldTracker()
     objects = managers.MixinManager('scope')
 
     @transition(field=state, source=[States.CREATING, States.UPDATING], target=States.OK)

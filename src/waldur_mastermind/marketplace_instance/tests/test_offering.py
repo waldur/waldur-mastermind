@@ -69,7 +69,8 @@ class OpenStackInstanceOfferingTest(test.APITransactionTestCase):
             service_project_link=fixture.openstack_spl,
             state=openstack_models.Tenant.States.CREATING,
         )
-        marketplace_factories.OrderItemFactory(resource__scope=tenant)
+        resource = marketplace_factories.ResourceFactory(scope=tenant)
+        marketplace_factories.OrderItemFactory(resource=resource)
 
         tenant.set_ok()
         tenant.save()

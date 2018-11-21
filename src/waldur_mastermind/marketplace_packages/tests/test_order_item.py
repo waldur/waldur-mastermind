@@ -95,8 +95,9 @@ class PackageOrderTest(test.APITransactionTestCase):
 
     def test_order_item_set_state_done(self):
         openstack_package = package_factories.OpenStackPackageFactory()
+        resource = marketplace_factories.ResourceFactory(scope=openstack_package)
 
-        order_item = marketplace_factories.OrderItemFactory(resource__scope=openstack_package)
+        order_item = marketplace_factories.OrderItemFactory(resource=resource)
         order_item.set_state_executing()
         order_item.save()
 

@@ -87,15 +87,15 @@ class OrderItemProcessor(object):
     def __init__(self, order_item):
         self.order_item = order_item
 
-    def process_order_item(self, request):
+    def process_order_item(self, user):
         """
-        This method receives request object and creates plugin's resource corresponding
+        This method receives user object and creates plugin's resource corresponding
         to provided order item. It is called after order has been approved.
         """
         viewset = self.get_viewset()
         view = viewset.as_view({'post': 'create'})
         post_data = self.get_post_data()
-        response = internal_api_request(view, request.user, post_data)
+        response = internal_api_request(view, user, post_data)
         if response.status_code != status.HTTP_201_CREATED:
             raise serializers.ValidationError(response.data)
 
@@ -114,7 +114,7 @@ class OrderItemProcessor(object):
 
     @transaction.atomic()
     def create_resource_from_order_item(self, scope):
-        resource = models.Resource.create(
+        resource = models.Resource.objects.create(
             project=self.order_item.order.project,
             offering=self.order_item.offering,
             plan=self.order_item.plan,

@@ -28,7 +28,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     tenant = instance
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(scope=tenant)
+        resource = marketplace_models.Resource.objects.get(scope=tenant)
     except ObjectDoesNotExist:
         logger.debug('Skipping offering creation for tenant because order '
                      'item does not exist. OpenStack tenant ID: %s', tenant.id)
@@ -44,7 +44,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
                      'object does not exist. OpenStack tenant ID: %s', tenant.id)
         return
 
-    parent_offering = order_item.offering
+    parent_offering = resource.offering
     payload = dict(
         type=PLUGIN_NAME,
         name=utils.get_offering_name_for_tenant(parent_offering),

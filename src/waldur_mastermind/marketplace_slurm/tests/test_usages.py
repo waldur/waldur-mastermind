@@ -17,6 +17,7 @@ class BaseTest(test.APITransactionTestCase):
         self.allocation = slurm_factories.AllocationFactory()
         self.resource = marketplace_models.Resource.objects.create(
             scope=self.allocation,
+            offering=offering,
             plan=plan,
             project=fixture.project,
         )

@@ -66,6 +66,7 @@ class InvoicesTest(BaseTest):
         )
         resource = marketplace_models.Resource.objects.create(
             project=self.order_item.order.project,
+            offering=self.offering,
             plan=self.order_item.plan,
         )
         usage = marketplace_models.ComponentUsage(

@@ -47,7 +47,7 @@ def get_post_data(order_item):
     description += "\n[Order item|%s]." % order_item_url
 
     if order_item.limits:
-        components_map = order_item.plan.offering.get_usage_components()
+        components_map = order_item.offering.get_usage_components()
         for key, value in order_item.limits.items():
             component = components_map[key]
             description += "\n%s (%s): %s %s" % \

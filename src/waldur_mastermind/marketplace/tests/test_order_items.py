@@ -33,10 +33,12 @@ class ItemGetTest(PostgreSQLTest):
         self.assertEqual(len(response.json()), 1)
 
     def test_filter_order_items_with_resources(self):
-        order_item_with_resource = factories.OrderItemFactory(
-            order=self.order,
-            resource__scope=structure_factories.TestNewInstanceFactory(),
+        resource = models.Resource.objects.create(
+            offering=factories.OfferingFactory(),
+            project=self.project,
+            scope=structure_factories.TestNewInstanceFactory()
         )
+        order_item_with_resource = factories.OrderItemFactory(order=self.order, resource=resource)
 
         self.client.force_authenticate(self.fixture.staff)
         url = factories.OrderItemFactory.get_list_url()
@@ -219,16 +221,20 @@ class ProjectResourceCountTest(PostgreSQLTest):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
         self.plan = factories.PlanFactory()
-        self.resource = models.Resource(project=self.project, plan=self.plan)
+        self.resource = models.Resource.objects.create(
+            project=self.project,
+            offering=self.plan.offering,
+            plan=self.plan,
+        )
         self.category = self.plan.offering.category
 
-    def test_when_order_item_scope_is_updated_resource_count_is_increased(self):
+    def test_when_resource_scope_is_updated_resource_count_is_increased(self):
         self.resource.scope = self.fixture.resource
         self.resource.save()
         self.assertEqual(models.ProjectResourceCount.objects.get(
             project=self.project, category=self.category).count, 1)
 
-    def test_when_order_item_scope_is_updated_resource_count_is_decreased(self):
+    def test_when_resource_scope_is_updated_resource_count_is_decreased(self):
         self.resource.scope = self.fixture.resource
         self.resource.save()
         self.resource.scope = None

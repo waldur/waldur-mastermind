@@ -10,7 +10,7 @@ class RequestBasedManager(models.Manager):
     def get_queryset(self):
         offering_model_type = ContentType.objects.get_for_model(support_models.Offering)
         offering_ids = [item.object_id for item in
-                        marketplace_models.OrderItem.objects.filter(content_type=offering_model_type.id)]
+                        marketplace_models.Resource.objects.filter(content_type=offering_model_type.id)]
         return super(RequestBasedManager, self).get_queryset().filter(pk__in=offering_ids)
 
 

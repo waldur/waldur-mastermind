@@ -71,7 +71,7 @@ class PluginManager(object):
     def get_scope_models(self):
         return {b['scope_model'] for b in self.backends.values() if b['scope_model']}
 
-    def process(self, order_item, request):
+    def process(self, order_item, user):
         processor = self.get_processor(order_item.offering.type)
 
         if not processor:
@@ -81,7 +81,7 @@ class PluginManager(object):
             return
 
         try:
-            processor(order_item).process_order_item(request)
+            processor(order_item).process_order_item(user)
         except exceptions.APIException as e:
             order_item.error_message = six.text_type(e)
             order_item.set_state_erred()

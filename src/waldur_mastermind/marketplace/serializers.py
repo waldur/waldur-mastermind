@@ -678,6 +678,11 @@ class PublicComponentUsageSerializer(serializers.Serializer):
         resource = attrs['resource']
         date = attrs['date']
         plan = resource.plan
+        if not plan:
+            raise rf_exceptions.ValidationError({
+                'resource': _('Resource does not have billing plan.')
+            })
+
         offering = plan.offering
 
         if date > datetime.date.today():
@@ -729,7 +734,7 @@ def add_service_provider(sender, fields, **kwargs):
 
 def get_marketplace_offering_uuid(serializer, scope):
     try:
-        return models.OrderItem.objects.get(scope=scope).offering.uuid
+        return models.Resource.objects.get(scope=scope).offering.uuid
     except ObjectDoesNotExist:
         return
 
