@@ -557,7 +557,7 @@ class OrderItem(core_models.UuidMixin,
     limits = BetterJSONField(blank=True, null=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
-    resource = models.ForeignKey(Resource)
+    resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
 

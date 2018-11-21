@@ -20,7 +20,11 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
         self.component = factories.PlanComponentFactory(plan=self.plan, component=self.offering_component)
-        self.resource = models.Resource.objects.create(plan=self.plan, project=structure_factories.ProjectFactory())
+        self.resource = models.Resource.objects.create(
+            offering=self.plan.offering,
+            plan=self.plan,
+            project=structure_factories.ProjectFactory()
+        )
 
     def test_validate_correct_signature(self):
         payload = self.get_valid_payload()

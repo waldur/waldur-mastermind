@@ -28,12 +28,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterField(
             model_name='orderitem',
-            name='resource',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
-                                    to='marketplace.Resource'),
-        ),
-        migrations.AlterField(
-            model_name='orderitem',
             name='state',
             field=django_fsm.FSMIntegerField(choices=[(1, 'pending'), (2, 'executing'), (3, 'done'), (4, 'erred')],
                                              default=1),

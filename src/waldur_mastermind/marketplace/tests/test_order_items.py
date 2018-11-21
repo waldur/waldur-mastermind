@@ -35,7 +35,7 @@ class ItemGetTest(PostgreSQLTest):
     def test_filter_order_items_with_resources(self):
         order_item_with_resource = factories.OrderItemFactory(
             order=self.order,
-            scope=structure_factories.TestNewInstanceFactory(),
+            resource__scope=structure_factories.TestNewInstanceFactory(),
         )
 
         self.client.force_authenticate(self.fixture.staff)

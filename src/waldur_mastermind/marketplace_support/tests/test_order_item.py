@@ -46,7 +46,7 @@ class SupportOrderTest(BaseTest):
     def test_order_item_set_state_done(self):
         offering = support_factories.OfferingFactory()
 
-        order_item = marketplace_factories.OrderItemFactory(scope=offering)
+        order_item = marketplace_factories.OrderItemFactory(resource__scope=offering)
         order_item.set_state_executing()
         order_item.save()
 
