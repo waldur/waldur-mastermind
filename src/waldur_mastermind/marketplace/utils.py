@@ -11,7 +11,6 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
-from rest_framework.reverse import reverse
 from rest_framework import serializers, status
 
 from waldur_mastermind.common.utils import internal_api_request

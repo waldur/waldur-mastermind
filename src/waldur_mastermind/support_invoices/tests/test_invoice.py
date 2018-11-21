@@ -82,14 +82,14 @@ class InvoicesTest(BaseTest):
         self.assertEqual(invoice.total, test_price)
 
     def test_terminate_offering(self):
-        offering = self.order_item.scope
+        offering = self.order_item.resource.scope
         offering.state = support_models.Offering.States.TERMINATED
         offering.save()
         invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=offering)
         self.assertEqual(invoice_item.end, timezone.now())
 
     def test_delete_offering(self):
-        offering = self.order_item.scope
+        offering = self.order_item.resource.scope
         invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=offering)
         offering.delete()
         invoice_item.refresh_from_db()
@@ -104,8 +104,8 @@ class InvoicesTest(BaseTest):
         order_item.order.set_state_executing()
         order_item.order.save()
 
-        order_item.scope.state = support_models.Offering.States.OK
-        order_item.scope.save()
+        order_item.resource.scope.state = support_models.Offering.States.OK
+        order_item.resource.scope.save()
 
     def get_invoice(self):
         date = datetime.date.today()

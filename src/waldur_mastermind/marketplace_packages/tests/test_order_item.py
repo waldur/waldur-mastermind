@@ -91,12 +91,12 @@ class PackageOrderTest(test.APITransactionTestCase):
 
         # Assert
         order_item.refresh_from_db()
-        self.assertTrue(isinstance(order_item.scope, openstack_models.Tenant))
+        self.assertTrue(isinstance(order_item.resource.scope, openstack_models.Tenant))
 
     def test_order_item_set_state_done(self):
         openstack_package = package_factories.OpenStackPackageFactory()
 
-        order_item = marketplace_factories.OrderItemFactory(scope=openstack_package)
+        order_item = marketplace_factories.OrderItemFactory(resource__scope=openstack_package)
         order_item.set_state_executing()
         order_item.save()
 

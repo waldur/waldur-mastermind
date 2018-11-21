@@ -23,7 +23,7 @@ class OpenStackInstanceOrderItemTest(test.APITransactionTestCase):
 
     def test_instance_state_is_synchronized(self):
         order_item = self.trigger_instance_creation()
-        instance = order_item.scope
+        instance = order_item.resource.scope
 
         instance.begin_creating()
         instance.save()
