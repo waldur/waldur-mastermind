@@ -4,6 +4,7 @@ import base64
 import os
 import hashlib
 
+from django.db import transaction
 import pdfkit
 import six
 from PIL import Image
@@ -111,13 +112,17 @@ class OrderItemProcessor(object):
         serializer = serializer_class(data=post_data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
+    @transaction.atomic()
     def create_resource_from_order_item(self, scope):
         resource = models.Resource.create(
             project=self.order_item.order.project,
             offering=self.order_item.offering,
             plan=self.order_item.plan,
+            limits=self.order_item.limits,
+            attributes=self.order_item.attributes,
             scope=scope,
         )
+        resource.init_quotas()
         self.order_item.resource = resource
         self.order_item.save()
 

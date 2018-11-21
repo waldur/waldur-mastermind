@@ -12,6 +12,7 @@ def fill_order_item(Resource, obj, order_item):
         scope=order_item.scope,
         plan=order_item.plan,
         attributes=order_item.attributes,
+        offering=order_item.offering,
     )
     obj.resource = resource
     obj.save()

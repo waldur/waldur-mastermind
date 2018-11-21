@@ -30,6 +30,7 @@ class Migration(migrations.Migration):
                 ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='structure.Project')),
                 ('limits', django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict)),
                 ('state', django_fsm.FSMIntegerField(choices=[(1, 'Creating'), (2, 'OK'), (3, 'Erred'), (4, 'Updating'), (5, 'Terminating'), (6, 'Terminated')], default=1)),
+                ('offering', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='marketplace.Offering')),
             ],
             options={
                 'abstract': False,

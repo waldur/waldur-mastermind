@@ -494,6 +494,7 @@ class Resource(core_models.UuidMixin, ScopeMixin):
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project)
+    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
     plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
     limits = BetterJSONField(blank=True, default=dict)
