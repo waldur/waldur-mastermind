@@ -498,7 +498,7 @@ class OrderItem(core_models.UuidMixin,
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, null=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
     objects = managers.MixinManager('scope')

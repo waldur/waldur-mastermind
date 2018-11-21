@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
+
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -33,7 +35,12 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def _create_item(self, source, invoice, start, end):
         offering = source
-        resource = self.get_order_item(offering)
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=offering)
+        except ObjectDoesNotExist:
+            logger.debug('Skip support invoice.')
+            return
+
         for offering_component in resource.plan.offering.components.all():
             try:
                 plan_component = offering_component.components.get(plan=resource.plan)
@@ -53,9 +60,3 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 )
             except marketplace_models.PlanComponent.DoesNotExist:
                 pass
-
-    def get_order_item(self, offering):
-        try:
-            return marketplace_models.Resource.objects.get(scope=offering)
-        except marketplace_models.Resource.DoesNotExist:
-            logger.debug('Skip support invoice.')

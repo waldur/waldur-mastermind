@@ -32,9 +32,12 @@ def process_support(order_item, user):
                                                               customer_uuid=order_item.order.project.customer.uuid)
     description += "\n[Order item|%s]." % order_item_url
 
-    for quota in order_item.quotas.all():
-        description += "\n%s (%s): %s %s" % \
-                       (quota.component.name, quota.component.type, quota.limit, quota.component.measured_unit)
+    if order_item.limits:
+        components_map = order_item.plan.offering.get_usage_components()
+        for key, value in order_item.limits.items():
+            component = components_map[key]
+            description += "\n%s (%s): %s %s" % \
+                           (component.name, component.type, value, component.measured_unit)
 
     if description:
         post_data['description'] = description

@@ -4,6 +4,7 @@ from freezegun import freeze_time
 from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import factories
@@ -19,7 +20,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
         self.component = factories.PlanComponentFactory(plan=self.plan, component=self.offering_component)
-        self.resource = models.Resource.objects.create(plan=self.plan)
+        self.resource = models.Resource.objects.create(plan=self.plan, project=structure_factories.ProjectFactory())
 
     def test_validate_correct_signature(self):
         payload = self.get_valid_payload()
@@ -76,7 +77,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
                 'date': datetime.date.today(),
                 'type': 'cpu',
                 'amount': 5,
-                'order_item': self.order_item.uuid
+                'resource': self.resource.uuid
             }]
         }
 

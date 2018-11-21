@@ -40,10 +40,13 @@ def process_slurm(order_item, user):
         service_project_link=spl_url,
     )
 
+    if not order_item.limits:
+        raise serializers.ValidationError('Quota are not defined.')
+
     for component_type in manager.get_component_types(PLUGIN_NAME):
         try:
-            limit = order_item.quotas.get(component__type=component_type).limit
-        except ObjectDoesNotExist:
+            limit = order_item.limits[component_type]
+        except KeyError:
             raise serializers.ValidationError('%s component quota is not defined' % component_type)
         else:
             payload[component_type + '_limit'] = limit

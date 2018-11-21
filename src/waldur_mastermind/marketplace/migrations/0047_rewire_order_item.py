@@ -34,20 +34,20 @@ class Migration(migrations.Migration):
             name='resource',
             field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='usages', to='marketplace.Resource'),
         ),
-        migrations.RemoveField(
-            model_name='componentquota',
-            name='order_item',
-        ),
         migrations.AlterUniqueTogether(
             name='componentquota',
             unique_together=set([('resource', 'component')]),
+        ),
+        migrations.AlterUniqueTogether(
+            name='componentusage',
+            unique_together=set([('resource', 'component', 'date')]),
         ),
         migrations.RemoveField(
             model_name='componentusage',
             name='order_item',
         ),
-        migrations.AlterUniqueTogether(
-            name='componentusage',
-            unique_together=set([('resource', 'component', 'date')]),
+        migrations.RemoveField(
+            model_name='componentquota',
+            name='order_item',
         ),
     ]

@@ -64,8 +64,12 @@ class InvoicesTest(BaseTest):
             component=offering_component_usage,
             price=Decimal(7)
         )
+        resource = marketplace_models.Resource.objects.create(
+            project=self.order_item.order.project,
+            plan=self.order_item.plan,
+        )
         usage = marketplace_models.ComponentUsage(
-            order_item=self.order_item,
+            resource=resource,
             component=offering_component_usage,
             usage=10,
             date=datetime.date.today(),
