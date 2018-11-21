@@ -33,7 +33,7 @@ def notify_order_approvers(uuid):
     emails = [u.email for u in users if u.email]
 
     context = {
-        'order_url': settings.ORDER_LINK_TEMPLATE.format(order=order),
+        'order_url': settings.ORDER_LINK_TEMPLATE.format(project_uuid=order.project.uuid),
         'order': order,
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
     }

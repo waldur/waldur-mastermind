@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
 from rest_framework import serializers, status
 from rest_framework.reverse import reverse
 
@@ -27,6 +28,9 @@ def process_support(order_item, user):
     )
 
     description = order_item.attributes.pop('description', '')
+    order_item_url = settings.ORDER_ITEM_LINK_TEMPLATE.format(order_item_uuid=order_item.uuid,
+                                                              customer_uuid=order_item.order.project.customer.uuid)
+    description += "\n[Order item|%s]." % order_item_url
 
     for quota in order_item.quotas.all():
         description += "\n%s (%s): %s %s" % \
