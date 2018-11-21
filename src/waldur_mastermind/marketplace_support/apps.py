@@ -38,4 +38,4 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.offering_set_state_ok',
         )
 
-        manager.register(PLUGIN_NAME, processor.process_support, scope_model=support_models.Offering)
+        manager.register(PLUGIN_NAME, processor.OrderItemProcessor, scope_model=support_models.Offering)

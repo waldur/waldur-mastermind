@@ -14,25 +14,23 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='orderitem',
-            name='limits',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict),
-        ),
-        migrations.AddField(
-            model_name='resource',
-            name='limits',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict),
-        ),
         migrations.AlterField(
             model_name='componentquota',
             name='resource',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='quotas', to='marketplace.Resource'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quotas',
+                                    to='marketplace.Resource'),
         ),
         migrations.AlterField(
             model_name='componentusage',
             name='resource',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='usages', to='marketplace.Resource'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='usages',
+                                    to='marketplace.Resource'),
+        ),
+        migrations.AlterField(
+            model_name='orderitem',
+            name='resource',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                                    to='marketplace.Resource'),
         ),
         migrations.AlterUniqueTogether(
             name='componentquota',
@@ -41,6 +39,14 @@ class Migration(migrations.Migration):
         migrations.AlterUniqueTogether(
             name='componentusage',
             unique_together=set([('resource', 'component', 'date')]),
+        ),
+        migrations.RemoveField(
+            model_name='orderitem',
+            name='content_type',
+        ),
+        migrations.RemoveField(
+            model_name='orderitem',
+            name='object_id',
         ),
         migrations.RemoveField(
             model_name='componentusage',

@@ -27,6 +27,7 @@ class Migration(migrations.Migration):
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType')),
                 ('plan', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='marketplace.Plan')),
                 ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='structure.Project')),
+                ('limits', django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict)),
             ],
             options={
                 'abstract': False,
@@ -41,5 +42,16 @@ class Migration(migrations.Migration):
             model_name='componentusage',
             name='resource',
             field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='marketplace.Resource'),
+        ),
+        migrations.AddField(
+            model_name='orderitem',
+            name='resource',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE,
+                                    to='marketplace.Resource'),
+        ),
+        migrations.AddField(
+            model_name='orderitem',
+            name='limits',
+            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict, null=True),
         ),
     ]

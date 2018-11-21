@@ -507,19 +507,11 @@ class OrderItemSerializer(BaseItemSerializer):
     customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
     project_name = serializers.ReadOnlyField(source='order.project.name')
     project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
-    resource_uuid = serializers.SerializerMethodField()
-    resource_type = serializers.SerializerMethodField()
+    resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
+    resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
     limits = serializers.DictField(child=serializers.IntegerField(), required=False, write_only=True)
     quotas = ComponentQuotaSerializer(many=True, read_only=True)
-
-    def get_resource_uuid(self, order_item):
-        if order_item.scope:
-            return order_item.scope.uuid
-
-    def get_resource_type(self, order_item):
-        if order_item.scope:
-            return order_item.scope.get_scope_type()
 
 
 class CartItemSerializer(BaseItemSerializer):

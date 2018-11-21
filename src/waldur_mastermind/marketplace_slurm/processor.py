@@ -1,9 +1,9 @@
 from django.core.exceptions import ObjectDoesNotExist
-from rest_framework import serializers, status
+from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.common.utils import internal_api_request
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
@@ -11,7 +11,21 @@ from waldur_slurm import views as slurm_views
 from waldur_slurm.apps import SlurmConfig
 
 
-def process_slurm(order_item, user):
+class OrderItemProcessor(marketplace_utils.OrderItemProcessor):
+    def get_serializer_class(self):
+        return slurm_views.AllocationViewSet.serializer_class
+
+    def get_viewset(self):
+        return slurm_views.AllocationViewSet
+
+    def get_post_data(self):
+        return get_post_data(self.order_item)
+
+    def get_scope_from_response(self, response):
+        return slurm_models.Allocation.objects.get(uuid=response.data['uuid'])
+
+
+def get_post_data(order_item):
     try:
         service_settings = order_item.offering.scope
     except ObjectDoesNotExist:
@@ -50,13 +64,4 @@ def process_slurm(order_item, user):
             raise serializers.ValidationError('%s component quota is not defined' % component_type)
         else:
             payload[component_type + '_limit'] = limit
-
-    view = slurm_views.AllocationViewSet.as_view({'post': 'create'})
-    response = internal_api_request(view, user, payload)
-    if response.status_code != status.HTTP_201_CREATED:
-        raise serializers.ValidationError(response.data)
-
-    allocation_uuid = response.data['uuid']
-    allocation = slurm_models.Allocation.objects.get(uuid=allocation_uuid)
-    order_item.scope = allocation
-    order_item.save()
+    return payload

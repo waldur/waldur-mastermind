@@ -2,8 +2,6 @@ from django.utils import timezone
 
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 from . import models
 

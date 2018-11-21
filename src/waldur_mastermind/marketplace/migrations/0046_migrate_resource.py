@@ -5,27 +5,32 @@ from __future__ import unicode_literals
 from django.db import migrations
 
 
-def fill_resources(Resource, queryset):
-    for obj in queryset:
-        order_item = obj.order_item
-        if not hasattr(order_item, 'scope'):
-            continue
-        resource, _ = Resource.objects.get_or_create(
-            scope=order_item.scope,
-            plan=order_item.plan,
-            attributes=order_item.attributes,
-        )
-        obj.resource = resource
-        obj.save()
+def fill_order_item(Resource, obj, order_item):
+    if not hasattr(order_item, 'scope'):
+        return
+    resource, _ = Resource.objects.get_or_create(
+        scope=order_item.scope,
+        plan=order_item.plan,
+        attributes=order_item.attributes,
+    )
+    obj.resource = resource
+    obj.save()
 
 
 def migrate_resource(apps, schema_editor):
-    ComponentQuota = apps.get_model('marketplace', 'ComponentQuota')
-    ComponentUsage = apps.get_model('marketplace', 'ComponentUsage')
     Resource = apps.get_model('marketplace', 'Resource')
 
-    fill_resources(Resource, ComponentQuota.objects.all())
-    fill_resources(Resource, ComponentUsage.objects.all())
+    OrderItem = apps.get_model('marketplace', 'OrderItem')
+    for obj in OrderItem.objects.all():
+        fill_order_item(Resource, obj, obj)
+
+    ComponentQuota = apps.get_model('marketplace', 'ComponentQuota')
+    for obj in ComponentQuota.objects.all():
+        fill_order_item(Resource, obj, obj.order_item)
+
+    ComponentUsage = apps.get_model('marketplace', 'ComponentUsage')
+    for obj in ComponentUsage.objects.all():
+        fill_order_item(Resource, obj, obj.order_item)
 
 
 class Migration(migrations.Migration):

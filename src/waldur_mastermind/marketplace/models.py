@@ -474,26 +474,51 @@ class Order(core_models.UuidMixin,
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
 
 
+class Resource(core_models.UuidMixin, ScopeMixin):
+    project = models.ForeignKey(structure_models.Project)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    attributes = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, default=dict)
+    objects = managers.MixinManager('scope')
+
+    @property
+    def backend_uuid(self):
+        if self.scope:
+            return self.scope.uuid
+
+    @property
+    def backend_type(self):
+        if self.scope:
+            return self.scope.get_scope_type()
+
+    def init_quotas(self):
+        if self.limits and self.plan:
+            components_map = self.plan.offering.get_usage_components()
+            for key, value in self.limits.items():
+                ComponentQuota.objects.create(
+                    resource=self,
+                    component=components_map[key],
+                    limit=value
+                )
+
+
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
-                TimeStampedModel,
-                ScopeMixin):
+                TimeStampedModel):
     class States(object):
         PENDING = 1
         EXECUTING = 2
         DONE = 3
         ERRED = 4
-        TERMINATED = 5
 
         CHOICES = (
             (PENDING, 'pending'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (ERRED, 'erred'),
-            (TERMINATED, 'terminated'),
         )
 
-        TERMINAL_STATES = {DONE, ERRED, TERMINATED}
+        TERMINAL_STATES = {DONE, ERRED}
 
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
@@ -501,7 +526,7 @@ class OrderItem(core_models.UuidMixin,
     limits = BetterJSONField(blank=True, null=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
-    objects = managers.MixinManager('scope')
+    resource = models.ForeignKey(Resource)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
 
@@ -529,10 +554,6 @@ class OrderItem(core_models.UuidMixin,
     def set_state_erred(self):
         pass
 
-    @transition(field=state, source='*', target=States.TERMINATED)
-    def set_state_terminated(self):
-        pass
-
     def clean(self):
         offering = self.offering
         customer = self.order.project.customer
@@ -553,24 +574,6 @@ class OrderItem(core_models.UuidMixin,
     def init_cost(self):
         if self.plan:
             self.cost = self.plan.get_estimate(self.limits)
-
-
-class Resource(core_models.UuidMixin, ScopeMixin):
-    project = models.ForeignKey(structure_models.Project)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
-    attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
-    objects = managers.MixinManager('scope')
-
-    def init_quotas(self):
-        if self.limits and self.plan:
-            components_map = self.plan.offering.get_usage_components()
-            for key, value in self.limits.items():
-                ComponentQuota.objects.create(
-                    resource=self,
-                    component=components_map[key],
-                    limit=value
-                )
 
 
 class ComponentQuota(models.Model):

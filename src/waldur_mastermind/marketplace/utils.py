@@ -11,6 +11,12 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
+from rest_framework.reverse import reverse
+from rest_framework import serializers, status
+
+from waldur_mastermind.common.utils import internal_api_request
+
+from . import models
 
 
 def create_screenshot_thumbnail(screenshot):
@@ -75,3 +81,59 @@ def create_order_pdf(order):
     pdf = pdfkit.from_string(html, False)
     order.file = base64.b64encode(pdf)
     order.save()
+
+
+class OrderItemProcessor(object):
+    def __init__(self, order_item):
+        self.order_item = order_item
+
+    def process_order_item(self, request):
+        """
+        This method receives request object and creates plugin's resource corresponding
+        to provided order item. It is called after order has been approved.
+        """
+        viewset = self.get_viewset()
+        view = viewset.as_view({'post': 'create'})
+        post_data = self.get_post_data()
+        response = internal_api_request(view, request.user, post_data)
+        if response.status_code != status.HTTP_201_CREATED:
+            raise serializers.ValidationError(response.data)
+
+        scope = self.get_scope_from_response(response)
+        self.create_resource_from_order_item(scope)
+
+    def validate_order_item(self, request):
+        """
+        This method receives order item and request object, and raises validation error
+        if order item is invalid. It is called after order has been created but before it is submitted.
+        """
+        post_data = self.get_post_data()
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(data=post_data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+
+    def create_resource_from_order_item(self, scope):
+        resource = models.Resource.create(
+            project=self.order_item.order.project,
+            offering=self.order_item.offering,
+            plan=self.order_item.plan,
+            scope=scope,
+        )
+        self.order_item.resource = resource
+        self.order_item.save()
+
+    """
+    The following methods should be implemented in inherited classes.
+    """
+
+    def get_serializer_class(self):
+        raise NotImplementedError
+
+    def get_viewset(self):
+        raise NotImplementedError
+
+    def get_post_data(self):
+        raise NotImplementedError
+
+    def get_scope_from_response(self, response):
+        raise NotImplementedError

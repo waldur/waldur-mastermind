@@ -40,8 +40,7 @@ class MarketplacePackageConfig(AppConfig):
 
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(offering_type=PLUGIN_NAME,
-                         processor=processor.process_order_item,
-                         validator=processor.validate_order_item,
+                         processor=processor.OrderItemProcessor,
                          components=(
                              Component(type='ram', name='RAM', measured_unit='GB', billing_type=FIXED),
                              Component(type='cores', name='Cores', measured_unit='cores', billing_type=FIXED),
