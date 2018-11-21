@@ -38,10 +38,16 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         try:
             resource = marketplace_models.Resource.objects.get(scope=offering)
         except ObjectDoesNotExist:
-            logger.debug('Skip support invoice.')
+            logger.warning('Skipping support invoice creation because resource does not exist. '
+                           'Offering ID: %s', offering.id)
             return
 
-        for offering_component in resource.plan.offering.components.all():
+        if not resource.plan:
+            logger.warning('Skipping support invoice creation because resource does not have plan. '
+                           'Resource ID: %s', resource.id)
+            return
+
+        for offering_component in resource.offering.components.all():
             try:
                 plan_component = offering_component.components.get(plan=resource.plan)
                 invoice_models.GenericInvoiceItem.objects.get_or_create(

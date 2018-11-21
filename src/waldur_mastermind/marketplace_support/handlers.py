@@ -30,12 +30,6 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     if instance.tracker.has_changed('state'):
         try:
             resource = Resource.objects.get(scope=instance)
-        except ObjectDoesNotExist:
-            logger.warning('Skipping support offering state synchronization '
-                           'because related order item is not found. Offering ID: %s', instance.id)
-            return
-
-        try:
             order_item = OrderItem.objects.get(resource=resource, state=OrderItem.States.EXECUTING)
         except ObjectDoesNotExist:
             logger.warning('Skipping support offering state synchronization '

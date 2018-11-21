@@ -1,5 +1,6 @@
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.structure import models as structure_models
@@ -78,10 +79,10 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     if instance.state in [instance.States.OK, instance.States.ERRED]:
         try:
             openstack_package = package_models.OpenStackPackage.objects.get(tenant=instance)
-            order_item = marketplace_models.OrderItem.objects.get(scope=openstack_package)
-        except package_models.OpenStackPackage.DoesNotExist:
-            return
-        except marketplace_models.OrderItem.DoesNotExist:
+            resource = marketplace_models.Resource.objects.get(scope=openstack_package)
+            order_item = marketplace_models.OrderItem.objects.get(
+                resource=resource, state=marketplace_models.OrderItem.States.EXECUTING)
+        except ObjectDoesNotExist:
             return
 
         if instance.state == instance.States.OK:

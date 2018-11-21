@@ -1,5 +1,4 @@
 import datetime
-from decimal import Decimal
 
 from django.utils import timezone
 from freezegun import freeze_time
@@ -51,36 +50,6 @@ class InvoicesTest(BaseTest):
         invoice = self.get_invoice()
         self.assertTrue(invoice.total)
         self.assertEqual(invoice.total, (self.plan_component.price * self.plan_component.amount) * 2)
-
-    @freeze_time('2018-02-01 00:00:00')
-    def test_create_invoice_with_usage(self):
-        offering_component_usage = marketplace_factories.OfferingComponentFactory(
-            type='gpu',
-            offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE
-        )
-        plan_component_usage = marketplace_factories.PlanComponentFactory(
-            plan=self.order_item.plan,
-            component=offering_component_usage,
-            price=Decimal(7)
-        )
-        resource = marketplace_models.Resource.objects.create(
-            project=self.order_item.order.project,
-            offering=self.offering,
-            plan=self.order_item.plan,
-        )
-        usage = marketplace_models.ComponentUsage(
-            resource=resource,
-            component=offering_component_usage,
-            usage=10,
-            date=datetime.date.today(),
-        )
-        usage.save()
-        invoice = self.get_invoice()
-
-        test_price = plan_component_usage.price * usage.usage + self.plan_component.amount * self.plan_component.price
-        self.assertTrue(invoice.total)
-        self.assertEqual(invoice.total, test_price)
 
     def test_terminate_offering(self):
         offering = self.order_item.resource.scope

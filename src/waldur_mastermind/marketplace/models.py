@@ -524,14 +524,16 @@ class Resource(core_models.UuidMixin, ScopeMixin):
             return self.scope.get_scope_type()
 
     def init_quotas(self):
-        if self.limits and self.plan:
-            components_map = self.plan.offering.get_usage_components()
+        if self.limits:
+            components_map = self.offering.get_usage_components()
             for key, value in self.limits.items():
-                ComponentQuota.objects.create(
-                    resource=self,
-                    component=components_map[key],
-                    limit=value
-                )
+                component = components_map.get(key)
+                if component:
+                    ComponentQuota.objects.create(
+                        resource=self,
+                        component=component,
+                        limit=value
+                    )
 
 
 class OrderItem(core_models.UuidMixin,

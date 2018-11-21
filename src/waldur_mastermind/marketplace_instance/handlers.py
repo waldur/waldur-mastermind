@@ -99,10 +99,12 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
 
     if instance.state in [instance.States.OK, instance.States.ERRED]:
         try:
-            order_item = marketplace_models.OrderItem.objects.get(scope=instance)
+            resource = marketplace_models.Resource.objects.get(scope=instance)
+            order_item = marketplace_models.OrderItem.objects.get(
+                resource=resource, state=marketplace_models.OrderItem.States.EXECUTING)
         except ObjectDoesNotExist:
-            logger.debug('Skipping OpenStack instance state synchronization with marketplace '
-                         'because order item does not exist. OpenStack instance ID: %s', instance.id)
+            logger.warning('Skipping OpenStack instance state synchronization '
+                           'because related order item is not found. Offering ID: %s', instance.id)
             return
 
         if instance.state == instance.States.OK:
