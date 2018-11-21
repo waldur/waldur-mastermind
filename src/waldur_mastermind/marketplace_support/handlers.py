@@ -39,8 +39,8 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
             order_item.save(update_fields=['state'])
 
         if instance.state == support_models.Offering.States.TERMINATED:
-            order_item.set_state_terminated()
-            order_item.save(update_fields=['state'])
+            order_item.resource.set_state_terminated()
+            order_item.resource.save(update_fields=['state'])
 
 
 def create_support_plan(sender, instance, created=False, **kwargs):

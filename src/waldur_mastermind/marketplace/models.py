@@ -475,11 +475,41 @@ class Order(core_models.UuidMixin,
 
 
 class Resource(core_models.UuidMixin, ScopeMixin):
+    class States(object):
+        CREATING = 1
+        OK = 2
+        ERRED = 3
+        UPDATING = 4
+        TERMINATING = 5
+        TERMINATED = 6
+
+        CHOICES = (
+            (CREATING, 'Creating'),
+            (OK, 'OK'),
+            (ERRED, 'Erred'),
+            (UPDATING, 'Updating'),
+            (TERMINATING, 'Terminating'),
+            (TERMINATED, 'Terminated'),
+        )
+
+    state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project)
     plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
     limits = BetterJSONField(blank=True, default=dict)
     objects = managers.MixinManager('scope')
+
+    @transition(field=state, source=[States.CREATING, States.UPDATING], target=States.OK)
+    def set_state_ok(self):
+        pass
+
+    @transition(field=state, source='*', target=States.ERRED)
+    def set_state_erred(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATED)
+    def set_state_terminated(self):
+        pass
 
     @property
     def backend_uuid(self):
