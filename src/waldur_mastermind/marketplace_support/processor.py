@@ -3,12 +3,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
-from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.utils import InternalOrderItemProcessor
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import views as support_views
 
 
-class OrderItemProcessor(marketplace_utils.OrderItemProcessor):
+class OrderItemProcessor(InternalOrderItemProcessor):
     def get_serializer_class(self):
         return support_views.OfferingViewSet.create_serializer_class
 

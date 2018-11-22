@@ -3,13 +3,13 @@ from rest_framework.reverse import reverse
 from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.utils import InternalOrderItemProcessor
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
 
 
-class OrderItemProcessor(marketplace_utils.OrderItemProcessor):
+class OrderItemProcessor(InternalOrderItemProcessor):
     def get_serializer_class(self):
         return package_views.OpenStackPackageViewSet.create_serializer_class
 

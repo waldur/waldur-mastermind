@@ -35,7 +35,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='resource',
             name='offering',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='+',
                                     to='marketplace.Offering'),
         ),
         migrations.AlterUniqueTogether(

@@ -83,7 +83,7 @@ def create_order_pdf(order):
     order.save()
 
 
-class OrderItemProcessor(object):
+class BaseOrderItemProcessor(object):
     def __init__(self, order_item):
         self.order_item = order_item
 
@@ -92,52 +92,84 @@ class OrderItemProcessor(object):
         This method receives user object and creates plugin's resource corresponding
         to provided order item. It is called after order has been approved.
         """
-        viewset = self.get_viewset()
-        view = viewset.as_view({'post': 'create'})
-        post_data = self.get_post_data()
-        response = internal_api_request(view, user, post_data)
-        if response.status_code != status.HTTP_201_CREATED:
-            raise serializers.ValidationError(response.data)
-
-        scope = self.get_scope_from_response(response)
-        self.create_resource_from_order_item(scope)
+        raise NotImplementedError()
 
     def validate_order_item(self, request):
         """
-        This method receives order item and request object, and raises validation error
-        if order item is invalid. It is called after order has been created but before it is submitted.
+        This method receives request object, and raises
+        validation error if provided order item is invalid.
+        It is called after order has been created but before it is submitted.
         """
+        raise NotImplementedError()
+
+
+class InternalOrderItemProcessor(BaseOrderItemProcessor):
+    """
+    This class implements order processing using internal API requests.
+
+    Order item validation flow looks as following:
+    1) Convert order item to HTTP POST request data expected by DRF serializer.
+    2) Pass request data to serializer and check if data is valid.
+
+    Order item processing flow looks as following:
+    1) Convert order item to HTTP POST request data expected by DRF serializer.
+    2) Issue internal API request to DRF viewset.
+    3) Extract Django model for created resource from HTTP response.
+    4) Create marketplace resource object from order item and plugin resource.
+    5) Store link from order item to the resource.
+
+    Therefore this class implements template method design pattern.
+    """
+
+    def validate_order_item(self, request):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(data=post_data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-    @transaction.atomic()
-    def create_resource_from_order_item(self, scope):
-        resource = models.Resource.objects.create(
-            project=self.order_item.order.project,
-            offering=self.order_item.offering,
-            plan=self.order_item.plan,
-            limits=self.order_item.limits,
-            attributes=self.order_item.attributes,
-            scope=scope,
-        )
-        resource.init_quotas()
-        self.order_item.resource = resource
-        self.order_item.save()
+    def process_order_item(self, user):
+        post_data = self.get_post_data()
+        view = self.get_viewset().as_view({'post': 'create'})
+        response = internal_api_request(view, user, post_data)
+        if response.status_code != status.HTTP_201_CREATED:
+            raise serializers.ValidationError(response.data)
 
-    """
-    The following methods should be implemented in inherited classes.
-    """
+        with transaction.atomic():
+            scope = self.get_scope_from_response(response)
+            resource = models.Resource.objects.create(
+                project=self.order_item.order.project,
+                offering=self.order_item.offering,
+                plan=self.order_item.plan,
+                limits=self.order_item.limits,
+                attributes=self.order_item.attributes,
+                scope=scope,
+            )
+            resource.init_quotas()
+            self.order_item.resource = resource
+            self.order_item.save()
 
     def get_serializer_class(self):
+        """
+        This method should return DRF serializer class which
+        validates request data to provision new resources.
+        """
         raise NotImplementedError
 
     def get_viewset(self):
+        """
+        This method should return DRF viewset class which
+        processes request to provision new resources.
+        """
         raise NotImplementedError
 
     def get_post_data(self):
+        """
+        This method converts order item to request data expected by DRF serializer.
+        """
         raise NotImplementedError
 
     def get_scope_from_response(self, response):
+        """
+        This method extracts Django model from response returned by DRF viewset.
+        """
         raise NotImplementedError

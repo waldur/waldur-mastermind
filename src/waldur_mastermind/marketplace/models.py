@@ -376,8 +376,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel):
         return self.plan.get_estimate(self.limits)
 
 
-class Order(core_models.UuidMixin,
-            TimeStampedModel):
+class Order(core_models.UuidMixin, TimeStampedModel):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
@@ -474,7 +473,20 @@ class Order(core_models.UuidMixin,
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
 
 
-class Resource(core_models.UuidMixin, ScopeMixin):
+class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
+    """
+    Core resource is abstract model, marketplace resource is not abstract,
+    therefore we don't need to compromise database query efficiency when
+    we are getting a list of all resources.
+
+    While migration from ad-hoc resources to marketplace as single entry point is pending,
+    the core resource model may continue to be used in plugins and referenced via
+    generic foreign key, and marketplace resource is going to be used as consolidated
+    model for synchronization with external plugins.
+
+    Eventually it is expected that core resource model is going to be superseded by
+    marketplace resource model as a primary mean.
+    """
     class States(object):
         CREATING = 1
         OK = 2
@@ -493,8 +505,8 @@ class Resource(core_models.UuidMixin, ScopeMixin):
         )
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
-    project = models.ForeignKey(structure_models.Project)
-    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
+    project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
     plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
     limits = BetterJSONField(blank=True, default=dict)
