@@ -289,6 +289,14 @@ class CartItemViewSet(core_views.ActionsViewSet):
     submit_serializer_class = serializers.CartSubmitSerializer
 
 
+class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_class = filters.ResourceFilter
+    lookup_field = 'uuid'
+    serializer_class = serializers.ResourceSerializer
+
+
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def get_action_class(self):
         return getattr(self, self.action + '_serializer_class', None)

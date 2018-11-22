@@ -5,33 +5,55 @@ from __future__ import unicode_literals
 from django.db import migrations
 
 
-def fill_order_item(Resource, obj, order_item):
-    if not hasattr(order_item, 'scope'):
-        return
-    resource, _ = Resource.objects.get_or_create(
-        scope=order_item.scope,
-        plan=order_item.plan,
-        attributes=order_item.attributes,
-        offering=order_item.offering,
-    )
-    obj.resource = resource
-    obj.save()
-
-
 def migrate_resource(apps, schema_editor):
     Resource = apps.get_model('marketplace', 'Resource')
-
     OrderItem = apps.get_model('marketplace', 'OrderItem')
-    for obj in OrderItem.objects.all():
-        fill_order_item(Resource, obj, obj)
-
     ComponentQuota = apps.get_model('marketplace', 'ComponentQuota')
-    for obj in ComponentQuota.objects.all():
-        fill_order_item(Resource, obj, obj.order_item)
-
     ComponentUsage = apps.get_model('marketplace', 'ComponentUsage')
+
+    class OrderItemStates(object):
+        PENDING = 1
+        EXECUTING = 2
+        DONE = 3
+        ERRED = 4
+
+    class ResourceStates(object):
+        CREATING = 1
+        OK = 2
+        ERRED = 3
+        UPDATING = 4
+        TERMINATING = 5
+        TERMINATED = 6
+
+    StatesMap = {
+        OrderItemStates.PENDING: ResourceStates.CREATING,
+        OrderItemStates.EXECUTING: ResourceStates.CREATING,
+        OrderItemStates.DONE: ResourceStates.OK,
+        OrderItemStates.ERRED: ResourceStates.ERRED,
+    }
+
+    for item in OrderItem.objects.all():
+        item.limits = {q.component.type: q.limit for q in item.quotas.all()}
+        resource, _ = Resource.objects.get_or_create(
+            object_id=item.object_id,
+            content_type=item.content_type,
+            plan=item.plan,
+            attributes=item.attributes,
+            project=item.order.project,
+            offering=item.offering,
+            limits=item.limits,
+            state=StatesMap[item.state],
+        )
+        item.resource = resource
+        item.save()
+
+    for obj in ComponentQuota.objects.all():
+        obj.resource = obj.order_item.resource
+        obj.save()
+
     for obj in ComponentUsage.objects.all():
-        fill_order_item(Resource, obj, obj.order_item)
+        obj.resource = obj.order_item.resource
+        obj.save()
 
 
 class Migration(migrations.Migration):

@@ -81,13 +81,15 @@ def update_project_resources_count_when_resource_is_updated(sender, instance, cr
         apply_change(1)
     elif not instance.scope and instance.tracker.previous('object_id'):
         apply_change(-1)
+    elif instance.tracker.has_changed('state') and instance.state == models.Resource.States.TERMINATED:
+        apply_change(-1)
 
 
 def update_project_resources_count(sender, **kwargs):
     rows = models.Resource.objects\
         .exclude(state=models.Resource.States.TERMINATED)\
         .values('project', 'offering__category')\
-        .annotate(count=Count('project', 'offering__category'))
+        .annotate(count=Count('*'))
     for row in rows:
         models.ProjectResourceCount.objects.update_or_create(
             project_id=row['project'],
