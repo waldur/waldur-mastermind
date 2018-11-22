@@ -13,17 +13,12 @@ class PluginManager(object):
     def __init__(self):
         self.backends = {}
 
-    def register(self, offering_type, processor, validator=None, components=None, scope_model=None):
+    def register(self, offering_type, processor, components=None, scope_model=None):
         """
 
         :param offering_type: string which consists of application name and model name,
                               for example Support.OfferingTemplate
-        :param processor: function which receives order item and request object,
-                          and creates plugin's resource corresponding to provided order item.
-                          It is called after order has been approved.
-        :param validator: optional function which receives order item and request object,
-                          and raises validation error if order item is invalid.
-                          It is called after order has been created but before it is submitted.
+        :param processor: class which receives order item
         :param components: tuple available plan components, for example
                            Component(type='storage', name='Storage', measured_unit='GB')
         :param scope_model: available model for an offering scope field
@@ -31,7 +26,6 @@ class PluginManager(object):
         """
         self.backends[offering_type] = {
             'processor': processor,
-            'validator': validator,
             'components': components,
             'scope_model': scope_model,
         }
@@ -49,14 +43,6 @@ class PluginManager(object):
         :return: processor function
         """
         return self.backends.get(offering_type, {}).get('processor')
-
-    def get_validator(self, offering_type):
-        """
-        Return a validator function for given offering_type.
-        :param offering_type: offering type name
-        :return: validator function
-        """
-        return self.backends.get(offering_type, {}).get('validator')
 
     def get_scope_model(self, offering_type):
         """
@@ -85,7 +71,7 @@ class PluginManager(object):
     def get_scope_models(self):
         return {b['scope_model'] for b in self.backends.values() if b['scope_model']}
 
-    def process(self, order_item, request):
+    def process(self, order_item, user):
         processor = self.get_processor(order_item.offering.type)
 
         if not processor:
@@ -95,7 +81,7 @@ class PluginManager(object):
             return
 
         try:
-            processor(order_item, request)
+            processor(order_item).process_order_item(user)
         except exceptions.APIException as e:
             order_item.error_message = six.text_type(e)
             order_item.set_state_erred()
@@ -105,9 +91,9 @@ class PluginManager(object):
             order_item.save(update_fields=['state'])
 
     def validate(self, order_item, request):
-        validator = self.get_validator(order_item.offering.type)
-        if validator:
-            validator(order_item, request)
+        processor = self.get_processor(order_item.offering.type)
+        if processor:
+            processor(order_item).validate_order_item(request)
 
 
 manager = PluginManager()

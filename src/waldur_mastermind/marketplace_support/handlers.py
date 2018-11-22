@@ -1,10 +1,11 @@
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.marketplace.models import OrderItem
+from waldur_mastermind.marketplace.models import OrderItem, Resource
 
 
 logger = logging.getLogger(__name__)
@@ -28,8 +29,9 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
 
     if instance.tracker.has_changed('state'):
         try:
-            order_item = OrderItem.objects.get(scope=instance)
-        except OrderItem.DoesNotExist:
+            resource = Resource.objects.get(scope=instance)
+            order_item = OrderItem.objects.get(resource=resource, state=OrderItem.States.EXECUTING)
+        except ObjectDoesNotExist:
             logger.warning('Skipping support offering state synchronization '
                            'because related order item is not found. Offering ID: %s', instance.id)
             return
@@ -39,8 +41,8 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
             order_item.save(update_fields=['state'])
 
         if instance.state == support_models.Offering.States.TERMINATED:
-            order_item.set_state_terminated()
-            order_item.save(update_fields=['state'])
+            order_item.resource.set_state_terminated()
+            order_item.resource.save(update_fields=['state'])
 
 
 def create_support_plan(sender, instance, created=False, **kwargs):

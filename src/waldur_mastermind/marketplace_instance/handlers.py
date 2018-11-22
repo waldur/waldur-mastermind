@@ -28,7 +28,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     tenant = instance
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(scope=tenant)
+        resource = marketplace_models.Resource.objects.get(scope=tenant)
     except ObjectDoesNotExist:
         logger.debug('Skipping offering creation for tenant because order '
                      'item does not exist. OpenStack tenant ID: %s', tenant.id)
@@ -44,7 +44,7 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
                      'object does not exist. OpenStack tenant ID: %s', tenant.id)
         return
 
-    parent_offering = order_item.offering
+    parent_offering = resource.offering
     payload = dict(
         type=PLUGIN_NAME,
         name=utils.get_offering_name_for_tenant(parent_offering),
@@ -99,10 +99,12 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
 
     if instance.state in [instance.States.OK, instance.States.ERRED]:
         try:
-            order_item = marketplace_models.OrderItem.objects.get(scope=instance)
+            resource = marketplace_models.Resource.objects.get(scope=instance)
+            order_item = marketplace_models.OrderItem.objects.get(
+                resource=resource, state=marketplace_models.OrderItem.States.EXECUTING)
         except ObjectDoesNotExist:
-            logger.debug('Skipping OpenStack instance state synchronization with marketplace '
-                         'because order item does not exist. OpenStack instance ID: %s', instance.id)
+            logger.warning('Skipping OpenStack instance state synchronization '
+                           'because related order item is not found. Offering ID: %s', instance.id)
             return
 
         if instance.state == instance.States.OK:

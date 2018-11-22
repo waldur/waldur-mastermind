@@ -507,19 +507,11 @@ class OrderItemSerializer(BaseItemSerializer):
     customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
     project_name = serializers.ReadOnlyField(source='order.project.name')
     project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
-    resource_uuid = serializers.SerializerMethodField()
-    resource_type = serializers.SerializerMethodField()
+    resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
+    resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
     limits = serializers.DictField(child=serializers.IntegerField(), required=False, write_only=True)
     quotas = ComponentQuotaSerializer(many=True, read_only=True)
-
-    def get_resource_uuid(self, order_item):
-        if order_item.scope:
-            return order_item.scope.uuid
-
-    def get_resource_type(self, order_item):
-        if order_item.scope:
-            return order_item.scope.get_scope_type()
 
 
 class CartItemSerializer(BaseItemSerializer):
@@ -677,15 +669,20 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
 
 
 class PublicComponentUsageSerializer(serializers.Serializer):
-    order_item = serializers.SlugRelatedField(queryset=models.OrderItem.objects.all(), slug_field='uuid')
+    resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
     date = serializers.DateField()
     type = serializers.CharField()
     amount = serializers.IntegerField()
 
     def validate(self, attrs):
-        order_item = attrs['order_item']
+        resource = attrs['resource']
         date = attrs['date']
-        plan = order_item.plan
+        plan = resource.plan
+        if not plan:
+            raise rf_exceptions.ValidationError({
+                'resource': _('Resource does not have billing plan.')
+            })
+
         offering = plan.offering
 
         if date > datetime.date.today():
@@ -700,7 +697,7 @@ class PublicComponentUsageSerializer(serializers.Serializer):
         except models.OfferingComponent.DoesNotExist:
             raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % attrs['type'])
 
-        if models.ComponentUsage.objects.filter(order_item=order_item,
+        if models.ComponentUsage.objects.filter(resource=resource,
                                                 component=component,
                                                 date=attrs['date']).exists():
             raise rf_exceptions.ValidationError({
@@ -737,7 +734,7 @@ def add_service_provider(sender, fields, **kwargs):
 
 def get_marketplace_offering_uuid(serializer, scope):
     try:
-        return models.OrderItem.objects.get(scope=scope).offering.uuid
+        return models.Resource.objects.get(scope=scope).offering.uuid
     except ObjectDoesNotExist:
         return
 

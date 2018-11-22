@@ -33,6 +33,5 @@ class MarketplaceInstanceConfig(AppConfig):
         )
 
         manager.register(offering_type=PLUGIN_NAME,
-                         processor=processor.process_order_item,
-                         validator=processor.validate_order_item,
+                         processor=processor.OrderItemProcessor,
                          scope_model=structure_models.ServiceSettings)

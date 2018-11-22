@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
+
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -33,10 +35,21 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def _create_item(self, source, invoice, start, end):
         offering = source
-        order_item = self.get_order_item(offering)
-        for offering_component in order_item.offering.components.all():
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=offering)
+        except ObjectDoesNotExist:
+            logger.warning('Skipping support invoice creation because resource does not exist. '
+                           'Offering ID: %s', offering.id)
+            return
+
+        if not resource.plan:
+            logger.warning('Skipping support invoice creation because resource does not have plan. '
+                           'Resource ID: %s', resource.id)
+            return
+
+        for offering_component in resource.offering.components.all():
             try:
-                plan_component = offering_component.components.get(plan=order_item.plan)
+                plan_component = offering_component.components.get(plan=resource.plan)
                 invoice_models.GenericInvoiceItem.objects.get_or_create(
                     scope=offering,
                     project=offering.project,
@@ -48,14 +61,8 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                               'article_code': offering.article_code,
                               'unit_price': plan_component.price,
                               'unit': invoice_models.GenericInvoiceItem.Units.QUANTITY,
-                              'quantity': utils.get_quantity(plan_component, order_item, start, end),
+                              'quantity': utils.get_quantity(plan_component, resource, start, end),
                               }
                 )
             except marketplace_models.PlanComponent.DoesNotExist:
                 pass
-
-    def get_order_item(self, offering):
-        try:
-            return marketplace_models.OrderItem.objects.get(scope=offering)
-        except marketplace_models.OrderItem.DoesNotExist:
-            logger.debug('Skip support invoice.')

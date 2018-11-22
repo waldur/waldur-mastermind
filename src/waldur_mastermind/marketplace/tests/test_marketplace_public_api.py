@@ -4,6 +4,7 @@ from freezegun import freeze_time
 from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import factories
@@ -19,7 +20,11 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
         self.component = factories.PlanComponentFactory(plan=self.plan, component=self.offering_component)
-        self.order_item = factories.OrderItemFactory(plan=self.plan)
+        self.resource = models.Resource.objects.create(
+            offering=self.plan.offering,
+            plan=self.plan,
+            project=structure_factories.ProjectFactory()
+        )
 
     def test_validate_correct_signature(self):
         payload = self.get_valid_payload()
@@ -36,7 +41,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         payload = self.get_valid_payload()
         response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.ComponentUsage.objects.filter(order_item=self.order_item,
+        self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
                                                              component=self.offering_component,
                                                              date=datetime.date.today()).exists())
 
@@ -76,7 +81,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
                 'date': datetime.date.today(),
                 'type': 'cpu',
                 'amount': 5,
-                'order_item': self.order_item.uuid
+                'resource': self.resource.uuid
             }]
         }
 

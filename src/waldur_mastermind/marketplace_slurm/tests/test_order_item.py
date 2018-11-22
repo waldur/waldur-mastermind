@@ -15,10 +15,12 @@ class SlurmOrderTest(test.APITransactionTestCase):
         service_settings = fixture.service.settings
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, scope=service_settings)
         plan = marketplace_factories.PlanFactory(offering=offering)
-        order = marketplace_factories.OrderFactory(project=fixture.project)
+        order = marketplace_factories.OrderFactory(project=fixture.project,
+                                                   state=marketplace_models.Order.States.EXECUTING)
         order_item = marketplace_factories.OrderItemFactory(
             order=order,
             offering=offering,
+            limits={component.type: 10 for component in manager.get_components(PLUGIN_NAME)}
         )
         for component in manager.get_components(PLUGIN_NAME):
             component = marketplace_models.OfferingComponent.objects.create(
@@ -30,11 +32,6 @@ class SlurmOrderTest(test.APITransactionTestCase):
             marketplace_models.PlanComponent.objects.create(
                 plan=plan,
                 component=component,
-            )
-            marketplace_models.ComponentQuota.objects.create(
-                order_item=order_item,
-                component=component,
-                limit=10,
             )
 
         # Create SPL

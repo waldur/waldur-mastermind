@@ -376,8 +376,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel):
         return self.plan.get_estimate(self.limits)
 
 
-class Order(core_models.UuidMixin,
-            TimeStampedModel):
+class Order(core_models.UuidMixin, TimeStampedModel):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
@@ -464,45 +463,116 @@ class Order(core_models.UuidMixin,
         return 'marketplace_order_{}.pdf'.format(self.uuid)
 
     def add_item(self, **kwargs):
-        limits = kwargs.pop('limits', None)
         order_item = OrderItem(order=self, **kwargs)
         order_item.clean()
-        order_item.init_cost(limits)
+        order_item.init_cost()
         order_item.save()
-        order_item.init_quotas(limits)
         return order_item
 
     def init_total_cost(self):
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
 
 
+class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
+    """
+    Core resource is abstract model, marketplace resource is not abstract,
+    therefore we don't need to compromise database query efficiency when
+    we are getting a list of all resources.
+
+    While migration from ad-hoc resources to marketplace as single entry point is pending,
+    the core resource model may continue to be used in plugins and referenced via
+    generic foreign key, and marketplace resource is going to be used as consolidated
+    model for synchronization with external plugins.
+
+    Eventually it is expected that core resource model is going to be superseded by
+    marketplace resource model as a primary mean.
+    """
+    class States(object):
+        CREATING = 1
+        OK = 2
+        ERRED = 3
+        UPDATING = 4
+        TERMINATING = 5
+        TERMINATED = 6
+
+        CHOICES = (
+            (CREATING, 'Creating'),
+            (OK, 'OK'),
+            (ERRED, 'Erred'),
+            (UPDATING, 'Updating'),
+            (TERMINATING, 'Terminating'),
+            (TERMINATED, 'Terminated'),
+        )
+
+    state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
+    project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    attributes = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, default=dict)
+    tracker = FieldTracker()
+    objects = managers.MixinManager('scope')
+
+    @transition(field=state, source=[States.CREATING, States.UPDATING], target=States.OK)
+    def set_state_ok(self):
+        pass
+
+    @transition(field=state, source='*', target=States.ERRED)
+    def set_state_erred(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATED)
+    def set_state_terminated(self):
+        pass
+
+    @property
+    def backend_uuid(self):
+        if self.scope:
+            return self.scope.uuid
+
+    @property
+    def backend_type(self):
+        if self.scope:
+            return self.scope.get_scope_type()
+
+    def init_quotas(self):
+        if self.limits:
+            components_map = self.offering.get_usage_components()
+            for key, value in self.limits.items():
+                component = components_map.get(key)
+                if component:
+                    ComponentQuota.objects.create(
+                        resource=self,
+                        component=component,
+                        limit=value
+                    )
+
+
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
-                TimeStampedModel,
-                ScopeMixin):
+                TimeStampedModel):
     class States(object):
         PENDING = 1
         EXECUTING = 2
         DONE = 3
         ERRED = 4
-        TERMINATED = 5
 
         CHOICES = (
             (PENDING, 'pending'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (ERRED, 'erred'),
-            (TERMINATED, 'terminated'),
         )
 
-        TERMINAL_STATES = {DONE, ERRED, TERMINATED}
+        TERMINAL_STATES = {DONE, ERRED}
 
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
+    limits = BetterJSONField(blank=True, null=True, default=dict)
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     plan = models.ForeignKey('Plan', null=True, blank=True)
-    objects = managers.MixinManager('scope')
+    resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
 
@@ -530,10 +600,6 @@ class OrderItem(core_models.UuidMixin,
     def set_state_erred(self):
         pass
 
-    @transition(field=state, source='*', target=States.TERMINATED)
-    def set_state_terminated(self):
-        pass
-
     def clean(self):
         offering = self.offering
         customer = self.order.project.customer
@@ -551,41 +617,31 @@ class OrderItem(core_models.UuidMixin,
             _('Offering "%s" is not allowed in organization "%s".') % (offering.name, customer.name)
         )
 
-    def init_cost(self, limits=None):
+    def init_cost(self):
         if self.plan:
-            self.cost = self.plan.get_estimate(limits)
-
-    def init_quotas(self, limits=None):
-        if limits and self.plan:
-            components_map = self.offering.get_usage_components()
-            for key, value in limits.items():
-                ComponentQuota.objects.create(
-                    order_item=self,
-                    component=components_map[key],
-                    limit=value
-                )
+            self.cost = self.plan.get_estimate(self.limits)
 
 
 class ComponentQuota(models.Model):
-    order_item = models.ForeignKey(OrderItem, related_name='quotas')
+    resource = models.ForeignKey(Resource, related_name='quotas')
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
     usage = models.PositiveIntegerField(default=0)
 
     class Meta:
-        unique_together = ('order_item', 'component')
+        unique_together = ('resource', 'component')
 
 
 class ComponentUsage(TimeStampedModel):
-    order_item = models.ForeignKey(OrderItem, related_name='usages')
+    resource = models.ForeignKey(Resource, related_name='usages')
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
 
     class Meta:
-        unique_together = ('order_item', 'component', 'date')
+        unique_together = ('resource', 'component', 'date')
 
 
 class ProjectResourceCount(models.Model):

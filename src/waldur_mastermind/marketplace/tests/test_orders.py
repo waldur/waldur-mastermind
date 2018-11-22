@@ -180,7 +180,7 @@ class OrderCreateTest(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         order_item = models.OrderItem.objects.last()
-        self.assertEqual(order_item.quotas.get(component__type='cpu_count').limit, 5)
+        self.assertEqual(order_item.limits['cpu_count'], 5)
 
     def test_user_can_not_create_order_with_invalid_limits(self):
         limits = {

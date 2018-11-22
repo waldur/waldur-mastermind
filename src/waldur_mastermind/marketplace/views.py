@@ -325,7 +325,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         if not dry_run:
             usages = []
             for usage in validated_data['usages']:
-                usages.append(models.ComponentUsage(order_item=usage['order_item'],
+                usages.append(models.ComponentUsage(resource=usage['resource'],
                                                     component=usage['component'],
                                                     date=usage['date'],
                                                     usage=usage['amount']))

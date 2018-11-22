@@ -103,7 +103,7 @@ class OrderItemFilter(django_filters.FilterSet):
         choice_mappings={representation: db_value for db_value, representation in models.OrderItem.States.CHOICES},
     )
     has_resource = django_filters.BooleanFilter(
-        name='object_id',
+        name='resource',
         lookup_expr='isnull',
         exclude=True,
         widget=BooleanWidget,

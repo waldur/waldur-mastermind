@@ -234,3 +234,11 @@ class CartItemFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = reverse('marketplace-cart-item-list')
         return url if action is None else url + action + '/'
+
+
+class ResourceFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Resource
+
+    offering = factory.SubFactory(OfferingFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)

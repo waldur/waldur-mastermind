@@ -2,8 +2,6 @@ from django.utils import timezone
 
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 from . import models
 
@@ -36,10 +34,3 @@ def terminate_invoice_when_offering_cancelled(sender, instance, created=False, *
     if instance.tracker.has_changed('state') and (instance.state == support_models.Offering.States.TERMINATED):
         request_based_offering = models.RequestBasedOffering.objects.get(pk=instance.pk)
         registrators.RegistrationManager.terminate(request_based_offering, timezone.now())
-
-
-def update_invoice_item_on_component_usage_create(sender, instance, created=False, **kwargs):
-    component_usage = instance
-    if component_usage.order_item.offering.type == PLUGIN_NAME and \
-            component_usage.order_item.state == marketplace_models.OrderItem.States.EXECUTING:
-        registrators.RegistrationManager.register(component_usage.order_item.scope, timezone.now())

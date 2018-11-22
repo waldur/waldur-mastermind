@@ -1,32 +1,26 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.reverse import reverse
-from rest_framework import serializers, status
+from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.common.utils import internal_api_request
+from waldur_mastermind.marketplace.utils import InternalOrderItemProcessor
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
 
 
-def process_order_item(order_item, user):
-    view = package_views.OpenStackPackageViewSet.as_view({'post': 'create'})
-    post_data = get_post_data(order_item)
-    response = internal_api_request(view, user, post_data)
-    if response.status_code != status.HTTP_201_CREATED:
-        raise serializers.ValidationError(response.data)
+class OrderItemProcessor(InternalOrderItemProcessor):
+    def get_serializer_class(self):
+        return package_views.OpenStackPackageViewSet.create_serializer_class
 
-    package_uuid = response.data['uuid']
-    package = package_models.OpenStackPackage.objects.get(uuid=package_uuid)
-    order_item.scope = package.tenant
-    order_item.save()
+    def get_viewset(self):
+        return package_views.OpenStackPackageViewSet
 
+    def get_post_data(self):
+        return get_post_data(self.order_item)
 
-def validate_order_item(order_item, request):
-    post_data = get_post_data(order_item)
-    serializer = package_views.OpenStackPackageViewSet.create_serializer_class(
-        data=post_data, context={'request': request})
-    serializer.is_valid(raise_exception=True)
+    def get_scope_from_response(self, response):
+        return package_models.OpenStackPackage.objects.get(uuid=response.data['uuid']).tenant
 
 
 def get_post_data(order_item):

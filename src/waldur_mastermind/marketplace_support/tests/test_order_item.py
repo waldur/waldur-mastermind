@@ -44,9 +44,11 @@ class SupportOrderTest(BaseTest):
         self.assertTrue(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_order_item_set_state_done(self):
+        fixture = fixtures.ProjectFixture()
         offering = support_factories.OfferingFactory()
+        resource = marketplace_factories.ResourceFactory(project=fixture.project, scope=offering)
 
-        order_item = marketplace_factories.OrderItemFactory(scope=offering)
+        order_item = marketplace_factories.OrderItemFactory(resource=resource)
         order_item.set_state_executing()
         order_item.save()
 
