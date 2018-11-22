@@ -4,7 +4,6 @@ from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
@@ -102,18 +101,29 @@ class OrderItemFilter(django_filters.FilterSet):
         choices=[(representation, representation) for db_value, representation in models.OrderItem.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.OrderItem.States.CHOICES},
     )
-    has_resource = django_filters.BooleanFilter(
-        name='resource',
-        lookup_expr='isnull',
-        exclude=True,
-        widget=BooleanWidget,
-    )
 
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
     order_uuid = django_filters.UUIDFilter(name='order__uuid')
 
     class Meta(object):
         model = models.OrderItem
+        fields = []
+
+
+class ResourceFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+    project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
+    category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
+    provider_uuid = django_filters.UUIDFilter(name='offering__customer__uuid')
+    state = core_filters.MappedMultipleChoiceFilter(
+        choices=[(representation, representation) for db_value, representation in models.Resource.States.CHOICES],
+        choice_mappings={representation: db_value for db_value, representation in models.Resource.States.CHOICES},
+    )
+
+    class Meta(object):
+        model = models.Resource
         fields = []
 
 

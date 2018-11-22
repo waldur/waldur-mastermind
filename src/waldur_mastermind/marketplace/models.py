@@ -504,6 +504,10 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
             (TERMINATED, 'Terminated'),
         )
 
+    class Permissions(object):
+        customer_path = 'project__customer'
+        project_path = 'project'
+
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)

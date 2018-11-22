@@ -22,6 +22,8 @@ def register_in(router):
                     base_name='marketplace-order')
     router.register(r'marketplace-order-items', views.OrderItemViewSet,
                     base_name='marketplace-order-item')
+    router.register(r'marketplace-resources', views.ResourceViewSet,
+                    base_name='marketplace-resource')
     router.register(r'marketplace-public-api', views.MarketplaceAPIViewSet,
                     base_name='marketplace-public-api'),
 

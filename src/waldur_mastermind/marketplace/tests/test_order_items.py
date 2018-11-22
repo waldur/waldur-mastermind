@@ -5,7 +5,7 @@ import unittest
 from ddt import data, ddt
 from rest_framework import status
 
-from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_core.structure.tests import fixtures
 from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.quotas import signals as quota_signals
 
@@ -31,31 +31,6 @@ class ItemGetTest(PostgreSQLTest):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
-
-    def test_filter_order_items_with_resources(self):
-        resource = models.Resource.objects.create(
-            offering=factories.OfferingFactory(),
-            project=self.project,
-            scope=structure_factories.TestNewInstanceFactory()
-        )
-        order_item_with_resource = factories.OrderItemFactory(order=self.order, resource=resource)
-
-        self.client.force_authenticate(self.fixture.staff)
-        url = factories.OrderItemFactory.get_list_url()
-        response = self.client.get(url, {'has_resource': True})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], order_item_with_resource.uuid.hex)
-
-    def test_filter_order_items_without_resources(self):
-        self.client.force_authenticate(self.fixture.staff)
-        url = factories.OrderItemFactory.get_list_url()
-        response = self.client.get(url, {'has_resource': False})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], self.order_item.uuid.hex)
 
     @data('user')
     def test_items_should_be_invisible_to_other_users(self, user):

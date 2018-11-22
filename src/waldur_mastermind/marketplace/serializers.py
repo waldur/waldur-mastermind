@@ -497,10 +497,10 @@ class OrderItemSerializer(BaseItemSerializer):
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'resource_uuid', 'resource_type',
-            'cost', 'state', 'quotas',
+            'cost', 'state',
         )
 
-        read_only_fields = ('cost', 'state', 'quotas')
+        read_only_fields = ('cost', 'state')
         protected_fields = ('offering', 'plan')
 
     customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
@@ -510,8 +510,7 @@ class OrderItemSerializer(BaseItemSerializer):
     resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
-    limits = serializers.DictField(child=serializers.IntegerField(), required=False, write_only=True)
-    quotas = ComponentQuotaSerializer(many=True, read_only=True)
+    limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
 
 class CartItemSerializer(BaseItemSerializer):
@@ -644,6 +643,16 @@ class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = structure_models.Customer
         fields = ('offering_set',)
+
+
+class ResourceSerializer(BaseItemSerializer):
+    class Meta(BaseItemSerializer.Meta):
+        model = models.Resource
+        fields = BaseItemSerializer.Meta.fields + ('state', 'resource_uuid', 'resource_type')
+
+    state = serializers.ReadOnlyField(source='get_state_display')
+    resource_uuid = serializers.ReadOnlyField(source='backend_uuid')
+    resource_type = serializers.ReadOnlyField(source='backend_type')
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
