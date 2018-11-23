@@ -3,12 +3,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
-from waldur_mastermind.marketplace.utils import InternalOrderItemProcessor
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import views as support_views
 
 
-class OrderItemProcessor(InternalOrderItemProcessor):
+class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
     def get_serializer_class(self):
         return support_views.OfferingViewSet.create_serializer_class
 
@@ -20,6 +20,14 @@ class OrderItemProcessor(InternalOrderItemProcessor):
 
     def get_scope_from_response(self, response):
         return support_models.Offering.objects.get(uuid=response.data['uuid'])
+
+
+class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
+    def get_view_name(self):
+        return 'support-offering-detail'
+
+    def get_viewset(self):
+        return support_views.OfferingViewSet
 
 
 def get_post_data(order_item):

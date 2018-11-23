@@ -3,15 +3,15 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace.utils import InternalOrderItemProcessor
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
 from waldur_slurm import views as slurm_views
 from waldur_slurm.apps import SlurmConfig
 
 
-class OrderItemProcessor(InternalOrderItemProcessor):
+class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
     def get_serializer_class(self):
         return slurm_views.AllocationViewSet.serializer_class
 
@@ -23,6 +23,14 @@ class OrderItemProcessor(InternalOrderItemProcessor):
 
     def get_scope_from_response(self, response):
         return slurm_models.Allocation.objects.get(uuid=response.data['uuid'])
+
+
+class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
+    def get_view_name(self):
+        return 'slurm-allocation-detail'
+
+    def get_viewset(self):
+        return slurm_views.AllocationViewSet
 
 
 def get_post_data(order_item):

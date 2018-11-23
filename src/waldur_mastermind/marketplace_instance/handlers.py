@@ -6,6 +6,7 @@ from django.db import transaction
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import callbacks
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack import models as openstack_models
 
@@ -82,29 +83,24 @@ def archive_offering(sender, instance, **kwargs):
 
 
 def change_order_item_state(sender, instance, created=False, **kwargs):
-    if created:
+    if created or not instance.tracker.has_changed('state'):
         return
 
-    if not instance.tracker.has_changed('state'):
-        return
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.warning('Skipping OpenStack instance state synchronization '
+                       'because related resource is not found. Instance ID: %s', instance.id)
+    else:
+        callbacks.sync_resource_state(instance, resource)
 
-    if instance.tracker.previous('state') != instance.States.CREATING:
-        return
 
-    if instance.state in [instance.States.OK, instance.States.ERRED]:
-        try:
-            resource = marketplace_models.Resource.objects.get(scope=instance)
-            order_item = marketplace_models.OrderItem.objects.get(
-                resource=resource, state=marketplace_models.OrderItem.States.EXECUTING)
-        except ObjectDoesNotExist:
-            logger.warning('Skipping OpenStack instance state synchronization '
-                           'because related order item is not found. Offering ID: %s', instance.id)
-            return
-
-        if instance.state == instance.States.OK:
-            order_item.set_state_done()
-            order_item.save(update_fields=['state'])
-
-        if instance.state == instance.States.ERRED:
-            order_item.set_state_erred()
-            order_item.save(update_fields=['state'])
+def terminate_resource(sender, instance, **kwargs):
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping resource terminate for OpenStack instance'
+                     'because related resource does not exist. '
+                     'Instance ID: %s', instance.id)
+    else:
+        callbacks.resource_deletion_succeeded(resource)

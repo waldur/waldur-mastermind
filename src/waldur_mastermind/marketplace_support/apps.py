@@ -26,6 +26,12 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.order_item_set_state_done',
         )
 
+        signals.pre_delete.connect(
+            handlers.terminate_resource,
+            sender=support_models.Offering,
+            dispatch_uid='waldur_mastermind.marketpace_support.terminate_resource',
+        )
+
         signals.post_save.connect(
             handlers.create_support_plan,
             sender=marketplace_models.Plan,
@@ -38,4 +44,7 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.offering_set_state_ok',
         )
 
-        manager.register(PLUGIN_NAME, processor.OrderItemProcessor, scope_model=support_models.Offering)
+        manager.register(PLUGIN_NAME,
+                         create_resource_processor=processor.CreateResourceProcessor,
+                         delete_resource_processor=processor.DeleteResourceProcessor,
+                         scope_model=support_models.Offering)

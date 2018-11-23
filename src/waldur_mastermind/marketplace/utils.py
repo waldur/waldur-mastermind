@@ -12,9 +12,10 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
+from django.urls import reverse
 from rest_framework import serializers, status
 
-from waldur_mastermind.common.utils import internal_api_request
+from waldur_mastermind.common import utils as common_utils
 
 from . import models
 
@@ -103,7 +104,7 @@ class BaseOrderItemProcessor(object):
         raise NotImplementedError()
 
 
-class InternalOrderItemProcessor(BaseOrderItemProcessor):
+class CreateResourceProcessor(BaseOrderItemProcessor):
     """
     This class implements order processing using internal API requests.
 
@@ -130,7 +131,7 @@ class InternalOrderItemProcessor(BaseOrderItemProcessor):
     def process_order_item(self, user):
         post_data = self.get_post_data()
         view = self.get_viewset().as_view({'post': 'create'})
-        response = internal_api_request(view, user, post_data)
+        response = common_utils.create_request(view, user, post_data)
         if response.status_code != status.HTTP_201_CREATED:
             raise serializers.ValidationError(response.data)
 
@@ -146,7 +147,7 @@ class InternalOrderItemProcessor(BaseOrderItemProcessor):
             )
             resource.init_quotas()
             self.order_item.resource = resource
-            self.order_item.save()
+            self.order_item.save(update_fields=['resource'])
 
     def get_serializer_class(self):
         """
@@ -173,3 +174,50 @@ class InternalOrderItemProcessor(BaseOrderItemProcessor):
         This method extracts Django model from response returned by DRF viewset.
         """
         raise NotImplementedError
+
+
+class UpdateResourceProcessor(BaseOrderItemProcessor):
+    def validate_order_item(self, request):
+        pass
+
+    def process_order_item(self, user):
+        resource = self.order_item.resource
+        resource.set_state_updating()
+        resource.save(update_fields=['state'])
+
+
+class DeleteResourceProcessor(BaseOrderItemProcessor):
+    def validate_order_item(self, request):
+        pass
+
+    def process_order_item(self, user):
+        resource = self.get_resource()
+        url = reverse(self.get_view_name, kwargs={'uuid': resource.uuid})
+        view = self.get_viewset().as_view({'delete': 'destroy'})
+        response = common_utils.delete_request(view, user, url)
+        if response.status_code != status.HTTP_202_ACCEPTED:
+            raise serializers.ValidationError(response.data)
+
+        with transaction.atomic():
+            resource = self.order_item.resource
+            resource.set_state_terminating()
+            resource.save(update_fields=['state'])
+
+    def get_resource(self):
+        """
+        This method should return related resource of order item.
+        """
+        return self.order_item.resource
+
+    def get_view_name(self):
+        """
+        This method should return Django view name as it is specified in router.
+        """
+        raise NotImplementedError()
+
+    def get_viewset(self):
+        """
+        This method should return DRF viewset class which
+        processes request to delete existing resource.
+        """
+        raise NotImplementedError()

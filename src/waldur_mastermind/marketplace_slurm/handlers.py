@@ -5,6 +5,7 @@ from django.db import transaction, IntegrityError
 from django.core import exceptions as django_exceptions
 
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
@@ -128,3 +129,27 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                 limit=limit,
                 usage=usage
             )
+
+
+def change_order_item_state(sender, instance, created=False, **kwargs):
+    if created or not instance.tracker.has_changed('state'):
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except django_exceptions.ObjectDoesNotExist:
+        logger.warning('Skipping SLIRM allocation state synchronization '
+                       'because related resource is not found. Allocation ID: %s', instance.id)
+    else:
+        callbacks.sync_resource_state(instance, resource)
+
+
+def terminate_resource(sender, instance, **kwargs):
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except django_exceptions.ObjectDoesNotExist:
+        logger.debug('Skipping resource terminate for SLURM allocation '
+                     'because related resource does not exist. '
+                     'Allocation ID: %s', instance.id)
+    else:
+        callbacks.resource_deletion_succeeded(resource)

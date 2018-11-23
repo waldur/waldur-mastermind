@@ -361,7 +361,25 @@ class Screenshot(core_models.UuidMixin,
         return 'marketplace-screenshot'
 
 
-class CartItem(core_models.UuidMixin, TimeStampedModel):
+class RequestTypeMixin(models.Model):
+    class Types(object):
+        CREATE = 1
+        UPDATE = 2
+        TERMINATE = 3
+
+        CHOICES = (
+            (CREATE, 'Create'),
+            (UPDATE, 'Update'),
+            (TERMINATE, 'Terminate'),
+        )
+
+    type = models.PositiveSmallIntegerField(choices=Types.CHOICES, default=Types.CREATE)
+
+    class Meta(object):
+        abstract = True
+
+
+class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
     plan = models.ForeignKey('Plan', null=True, blank=True)
@@ -525,6 +543,14 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     def set_state_erred(self):
         pass
 
+    @transition(field=state, source='*', target=States.UPDATING)
+    def set_state_updating(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATING)
+    def set_state_terminating(self):
+        pass
+
     @transition(field=state, source='*', target=States.TERMINATED)
     def set_state_terminated(self):
         pass
@@ -554,6 +580,7 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
 
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
+                RequestTypeMixin,
                 TimeStampedModel):
     class States(object):
         PENDING = 1
