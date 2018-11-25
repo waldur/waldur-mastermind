@@ -41,6 +41,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.verify = settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('verify_ssl')
         self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+        self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
 
     def sync(self):
         super(ServiceDeskBackend, self).sync()
@@ -74,6 +75,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             return
 
         self.create_user(issue.caller)
+
+        if self.use_old_api:
+            return super(ServiceDeskBackend, self).create_issue(issue)
+
         args = self._issue_to_dict(issue)
         args['serviceDeskId'] = self.manager.service_desk(self.project_settings['key'])
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
@@ -102,6 +107,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
             logger.debug('Skipping user %s creation because it already exists', user.email)
             return
+
+        if self.use_old_api:
+            return self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
 
         return self.manager.create_customer(user.email, user.full_name)
 
@@ -140,6 +148,22 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def _issue_to_dict(self, issue):
         parser = HTMLParser()
+
+        if self.use_old_api:
+            parser = HTMLParser()
+            args = {
+                'project': self.project_settings['key'],
+                'summary': parser.unescape(issue.summary),
+                'description': parser.unescape(issue.description),
+                'issuetype': {'name': issue.type},
+            }
+            args.update(self._get_custom_fields(issue))
+            args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [{
+                "name": issue.caller.email,
+                "key": issue.caller.email
+            }]
+            return args
+
         args = {
             'requestFieldValues': {
                 'summary': parser.unescape(issue.summary),
