@@ -22,7 +22,7 @@ class MarketplaceVolumeConfig(AppConfig):
 
         signals.pre_delete.connect(
             handlers.archive_offering,
-            sender=openstack_models.Tenant,
+            sender=structure_models.ServiceSettings,
             dispatch_uid='waldur_mastermind.marketpace_volume.archive_offering',
         )
 
