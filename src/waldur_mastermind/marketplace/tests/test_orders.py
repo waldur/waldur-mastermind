@@ -264,7 +264,9 @@ class OrderApproveTest(PostgreSQLTest):
     def test_user_can_not_reapprove_active_order(self):
         self.order.state = models.Order.States.EXECUTING
         self.order.save()
-        self.ensure_user_can_not_approve_order(self.fixture.owner)
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(self.order.approved_by, None)
 
     @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
     def test_notifications_are_issued_when_order_is_created(self, mock_tasks):
@@ -286,7 +288,7 @@ class OrderApproveTest(PostgreSQLTest):
 
     def ensure_user_can_not_approve_order(self, user):
         response = self.approve_order(user)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.order.approved_by, None)
 
 
