@@ -99,7 +99,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def create_user(self, user):
         # Temporary workaround as JIRA returns 500 error if user already exists
-        existing_support_user = self.manager.search_users(user.email, includeInactive=True)
+        if self.use_old_api:
+            # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
+            existing_support_user = self.manager.search_users(user.email)
+        else:
+            existing_support_user = self.manager.search_users(user.email, includeInactive=True)
 
         if existing_support_user:
             if not existing_support_user[0].active:
