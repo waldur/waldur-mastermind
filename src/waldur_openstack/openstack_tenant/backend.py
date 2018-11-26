@@ -291,8 +291,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                         for ip in (self._backend_floating_ip_to_floating_ip(ip)
                                    for ip in backend_floating_ips)}
 
+        # Floating IP is identified either by backend ID or address
+        # Backend ID is preferred way of identification, because ID is unique across the whole deployment.
+        # However, initially we're creating new floating IP without backend ID.
+        # It is expected that it's backend ID is filled up from actual backend data later.
+        # Therefore we need to use address as a transient way of floating IP identification.
         floating_ips = {ip.backend_id: ip for ip in models.FloatingIP.objects.filter(
             settings=self.settings).exclude(backend_id='')}
+        floating_ips_map = {ip.address: ip for ip in models.FloatingIP.objects.filter(
+            settings=self.settings) if ip.address}
         booked_ips = [backend_id for backend_id, ip in floating_ips.items() if ip.is_booked]
 
         # all imported IPs except those which are booked.
@@ -304,7 +311,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         # Step 2. Update or create imported IPs
         for backend_id in ips_to_update:
             imported_ip = imported_ips[backend_id]
-            floating_ip = floating_ips.get(backend_id)
+            floating_ip = floating_ips.get(backend_id) or floating_ips_map.get(imported_ip.address)
 
             internal_ip = internal_ips.get(imported_ip._internal_ip_backend_id)
             if imported_ip._internal_ip_backend_id and internal_ip is None:

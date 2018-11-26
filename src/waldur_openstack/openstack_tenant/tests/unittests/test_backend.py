@@ -188,6 +188,25 @@ class PullFloatingIPTest(BaseBackendTest):
         backend_ip_address = backend_ip['floating_ip_address']
         self.assertEqual(models.FloatingIP.objects.filter(address=backend_ip_address).count(), 1)
 
+    def test_backend_id_is_filled_up_when_floating_ip_is_looked_up_by_address(self):
+        backend_floating_ips = self._get_valid_new_backend_ip(self.fixture.internal_ip)
+        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        backend_ip = backend_floating_ips['floatingips'][0]
+        factories.FloatingIPFactory(
+            is_booked=True,
+            settings=self.settings,
+            name='booked ip',
+            address=backend_ip['floating_ip_address'],
+            runtime_state='booked_state')
+
+        self.tenant_backend.pull_floating_ips()
+
+        backend_ip_address = backend_ip['floating_ip_address']
+        self.assertEqual(models.FloatingIP.objects.filter(address=backend_ip_address).count(), 1)
+
+        floating_ip = models.FloatingIP.objects.filter(address=backend_ip_address).get()
+        self.assertEqual(floating_ip.backend_id, backend_ip['id'])
+
     def test_floating_ip_name_is_not_update_if_it_was_set_by_user(self):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
