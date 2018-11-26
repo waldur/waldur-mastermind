@@ -1,11 +1,13 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_openstack.openstack import models as openstack_models
 
 from . import PLUGIN_NAME, utils
 
@@ -70,21 +72,13 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
 
 
 def archive_offering(sender, instance, **kwargs):
-    tenant = instance
+    service_settings = instance
 
-    try:
-        service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
+    if service_settings.type == openstack_tenant_apps.OpenStackTenantConfig.service_name and \
+            service_settings.content_type == ContentType.objects.get_for_model(openstack_models.Tenant):
+        marketplace_models.Offering.objects.filter(scope=service_settings).update(
+            state=marketplace_models.Offering.States.ARCHIVED
         )
-    except ObjectDoesNotExist:
-        logger.debug('Skipping offering creation for tenant because service settings '
-                     'object does not exist. OpenStack tenant ID: %s', tenant.id)
-        return
-
-    marketplace_models.Offering.objects.filter(scope=service_settings).update(
-        state=marketplace_models.Offering.States.ARCHIVED
-    )
 
 
 def change_order_item_state(sender, instance, created=False, **kwargs):
