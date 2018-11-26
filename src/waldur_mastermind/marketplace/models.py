@@ -412,15 +412,15 @@ class Order(core_models.UuidMixin, TimeStampedModel):
         return 'marketplace-order'
 
     @transition(field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.EXECUTING)
-    def set_state_executing(self):
+    def approve(self):
         pass
 
     @transition(field=state, source=States.EXECUTING, target=States.DONE)
-    def set_state_done(self):
+    def complete(self):
         pass
 
     @transition(field=state, source='*', target=States.TERMINATED)
-    def set_state_terminated(self):
+    def terminate(self):
         pass
 
     def get_approvers(self):

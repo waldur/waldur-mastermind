@@ -26,9 +26,9 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.order_set_state_done,
+            handlers.complete_order_when_all_items_are_done,
             sender=models.OrderItem,
-            dispatch_uid='waldur_mastermind.marketplace.order_set_state_done',
+            dispatch_uid='waldur_mastermind.marketplace.complete_order_when_all_items_are_done',
         )
 
         signals.post_save.connect(

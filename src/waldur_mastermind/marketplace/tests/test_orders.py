@@ -2,16 +2,16 @@ from __future__ import unicode_literals
 
 import mock
 from ddt import data, ddt
-from freezegun import freeze_time
 from rest_framework import status
 
 from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_mastermind.marketplace.base import override_marketplace_settings
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 
 from . import factories
-from .. import models, base
+from .. import models
 
 
 @ddt
@@ -235,86 +235,61 @@ class OrderCreateTest(PostgreSQLTest):
 
 
 @ddt
-class OrderUpdateTest(PostgreSQLTest):
+class OrderApproveTest(PostgreSQLTest):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.url = factories.OrderFactory.get_url(self.order, 'approve')
 
-    @data('staff', 'owner')
-    def test_can_set_done_state(self, user):
+    def test_owner_can_approve_order(self):
+        self.ensure_user_can_approve_order(self.fixture.owner)
+
+    def test_by_default_manager_can_not_approve_order(self):
+        self.ensure_user_can_not_approve_order(self.fixture.manager)
+
+    def test_by_default_admin_can_not_approve_order(self):
+        self.ensure_user_can_not_approve_order(self.fixture.admin)
+
+    @override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
+    def test_manager_can_approve_order_if_feature_is_enabled(self):
+        self.ensure_user_can_approve_order(self.fixture.manager)
+
+    @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
+    def test_admin_can_approve_order_if_feature_is_enabled(self):
+        self.ensure_user_can_approve_order(self.fixture.admin)
+
+    def test_user_can_not_reapprove_active_order(self):
         self.order.state = models.Order.States.EXECUTING
         self.order.save()
-        order_state = models.Order.States.DONE
-        response = self.update_offering(user, 'set_state_done')
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.order.state, order_state)
-        self.assertTrue(models.Order.objects.filter(state=order_state).exists())
-
-    @freeze_time('2017-01-10 00:00:00')
-    def test_approved_fields(self):
-        response = self.update_offering('owner', 'set_state_executing')
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.order.approved_at.strftime('%Y-%m-%d %H:%M:%S'), '2017-01-10 00:00:00')
-        self.assertEqual(self.order.approved_by, self.fixture.owner)
-
-    @data('staff', 'owner')
-    def test_not_can_set_done_state_if_current_state_is_wrong(self, user):
-        self.order.state = models.Order.States.REQUESTED_FOR_APPROVAL
-        self.order.save()
-        response = self.update_offering(user, 'set_state_done')
+        response = self.approve_order(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-
-    @data('admin', 'manager')
-    def test_not_can_set_done_state(self, user):
-        response = self.update_offering(user, 'set_state_done')
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    @base.override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
-    @data('manager')
-    def test_can_set_done_state_if_this_is_enabled_by_settings(self, user):
-        self.order.state = models.Order.States.EXECUTING
-        self.order.save()
-        order_state = models.Order.States.DONE
-        response = self.update_offering(user, 'set_state_done')
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.order.state, order_state)
-        self.assertTrue(models.Order.objects.filter(state=order_state).exists())
-
-    @data('staff', 'owner', 'admin', 'manager')
-    def test_can_set_terminated_state(self, user):
-        order_state = models.Order.States.TERMINATED
-        response = self.update_offering(user, 'set_state_terminated')
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.order.state, order_state)
-        self.assertTrue(models.Order.objects.filter(state=order_state).exists())
-
-    @data('user')
-    def test_not_can_set_terminated_state(self, user):
-        response = self.update_offering(user, 'set_state_terminated')
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.order.approved_by, None)
 
     @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
-    def test_notifications_when_order_approval_is_requested(self, mock_tasks):
+    def test_notifications_are_issued_when_order_is_created(self, mock_tasks):
         order = factories.OrderFactory(project=self.project, created_by=self.manager)
         self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 1)
         self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], order.uuid)
 
-    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
-    def test_not_send_notification_if_state_is_not_requested_for_approval(self, mock_tasks):
-        self.order.set_state_terminated()
-        self.order.save()
-        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 0)
-
-    def update_offering(self, user, action):
-        user = getattr(self.fixture, user)
+    def approve_order(self, user):
         self.client.force_authenticate(user)
-        url = factories.OrderFactory.get_url(self.order, action=action)
-        response = self.client.post(url)
+
+        response = self.client.post(self.url)
         self.order.refresh_from_db()
         return response
+
+    def ensure_user_can_approve_order(self, user):
+        response = self.approve_order(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.approved_by, user)
+
+    def ensure_user_can_not_approve_order(self, user):
+        response = self.approve_order(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.order.approved_by, None)
 
 
 @ddt

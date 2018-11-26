@@ -42,8 +42,9 @@ def get_post_data(order_item):
     )
 
     description = order_item.attributes.pop('description', '')
-    order_item_url = settings.ORDER_ITEM_LINK_TEMPLATE.format(order_item_uuid=order_item.uuid,
-                                                              customer_uuid=order_item.order.project.customer.uuid)
+    link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
+    order_item_url = link_template.format(order_item_uuid=order_item.uuid,
+                                          project_uuid=order_item.order.project.uuid)
     description += "\n[Order item|%s]." % order_item_url
 
     if order_item.limits:

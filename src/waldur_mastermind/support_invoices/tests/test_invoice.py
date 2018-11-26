@@ -71,7 +71,7 @@ class InvoicesTest(BaseTest):
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         order_item.refresh_from_db()
-        order_item.order.set_state_executing()
+        order_item.order.approve()
         order_item.order.save()
 
         order_item.resource.scope.state = support_models.Offering.States.OK

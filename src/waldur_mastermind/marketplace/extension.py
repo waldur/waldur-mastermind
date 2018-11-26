@@ -13,10 +13,11 @@ class MarketplaceExtension(WaldurExtension):
             'ADMIN_CAN_APPROVE_ORDER': False,
             'NOTIFY_STAFF_ABOUT_APPROVALS': False,
             'OWNER_CAN_REGISTER_SERVICE_PROVIDER': False,
+            'ORDER_LINK_TEMPLATE': 'https://www.example.com/#/projects/'
+                                   '{project_uuid}/marketplace-order-list/',
+            'ORDER_ITEM_LINK_TEMPLATE': 'https://www.example.com/#/projects/{project_uuid}/'
+                                        'marketplace-order-item-details/{order_item_uuid}/'
         }
-        ORDER_LINK_TEMPLATE = 'https://www.example.com/#/projects/{project_uuid}/marketplace-order-list/'
-        ORDER_ITEM_LINK_TEMPLATE = 'https://www.example.com/#/organizations/{customer_uuid}' \
-                                   '/marketplace-order-item-details/{order_item_uuid}/'
 
     @staticmethod
     def django_app():

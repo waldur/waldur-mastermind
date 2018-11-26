@@ -58,7 +58,7 @@ class OpenStackInstanceOrderItemTest(test.APITransactionTestCase):
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, scope=service_settings)
 
         order_item = marketplace_factories.OrderItemFactory(offering=offering, attributes=attributes)
-        order_item.order.set_state_executing()
+        order_item.order.approve()
         order_item.order.save()
 
         service = openstack_tenant_models.OpenStackTenantService.objects.create(

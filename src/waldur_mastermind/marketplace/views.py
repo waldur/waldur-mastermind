@@ -160,8 +160,9 @@ class OrderViewSet(BaseMarketplaceView):
         raise rf_exceptions.PermissionDenied()
 
     @detail_route(methods=['post'])
-    def set_state_executing(self, request, uuid=None):
+    def approve(self, request, uuid=None):
         order = self.get_object()
+        order.approve()
         order.approved_by = request.user
         order.approved_at = timezone.now()
         order.save()
@@ -170,34 +171,11 @@ class OrderViewSet(BaseMarketplaceView):
         serialized_user = core_utils.serialize_instance(request.user)
         tasks.process_order.delay(serialized_order, serialized_user)
         tasks.create_order_pdf.delay(order.pk)
-        return self._update_state(request, models.Order.States.EXECUTING, order)
 
-    set_state_executing_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
-    set_state_executing_permissions = [check_permissions_for_state_change]
+        return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
-    def set_state_done(self, request, uuid=None):
-        order = self.get_object()
-        response = self._update_state(request, models.Order.States.DONE, order)
-        return response
-
-    set_state_done_validators = [core_validators.StateValidator(models.Order.States.EXECUTING)]
-    set_state_done_permissions = [check_permissions_for_state_change]
-
-    @detail_route(methods=['post'])
-    def set_state_terminated(self, request, uuid=None):
-        return self._update_state(request, models.Order.States.TERMINATED)
-
-    def _update_state(self, request, state, order=None):
-        if not order:
-            order = self.get_object()
-
-        state_name = filter(lambda x: x[0] == state, models.Order.States.CHOICES)[0][1]
-        state_name = state_name.replace(' ', '_')
-        getattr(order, 'set_state_' + state_name)()
-        order.save(update_fields=['state'])
-        return Response({'detail': _('Order state updated.')},
-                        status=status.HTTP_200_OK)
+    approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
+    approve_permissions = [check_permissions_for_state_change]
 
     @detail_route()
     def pdf(self, request, uuid=None):
