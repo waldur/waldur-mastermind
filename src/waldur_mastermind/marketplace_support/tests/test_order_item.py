@@ -77,5 +77,5 @@ class SupportOrderTest(BaseTest):
         offering = support_models.Offering.objects.get(name='item_name')
         link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
         order_item_url = link_template.format(order_item_uuid=order_item.uuid,
-                                              customer_uuid=order_item.order.project.customer.uuid)
+                                              project_uuid=order_item.order.project.uuid)
         self.assertTrue(order_item_url in offering.issue.description)
