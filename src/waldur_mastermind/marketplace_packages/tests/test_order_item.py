@@ -101,7 +101,7 @@ class PackageOrderTest(test.APITransactionTestCase):
         order_item.set_state_executing()
         order_item.save()
 
-        order_item.order.state = marketplace_models.Order.States.EXECUTING
+        order_item.order.approve()
         order_item.order.save()
 
         openstack_package.tenant.state = openstack_models.Tenant.States.CREATING

@@ -20,7 +20,7 @@ def notifications_order_approval(sender, instance, created=False, **kwargs):
     transaction.on_commit(lambda: tasks.notify_order_approvers.delay(instance.uuid))
 
 
-def order_set_state_done(sender, instance, created=False, **kwargs):
+def complete_order_when_all_items_are_done(sender, instance, created=False, **kwargs):
     if created:
         return
 
@@ -31,7 +31,7 @@ def order_set_state_done(sender, instance, created=False, **kwargs):
         if not models.OrderItem.objects.filter(order=order).\
                 exclude(state__in=models.OrderItem.States.TERMINAL_STATES).exists():
             if order.state != models.Order.States.DONE:
-                order.set_state_done()
+                order.complete()
                 order.save(update_fields=['state'])
 
 

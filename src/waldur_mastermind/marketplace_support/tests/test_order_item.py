@@ -37,7 +37,7 @@ class SupportOrderTest(BaseTest):
 
         order_item = marketplace_factories.OrderItemFactory(offering=self.offering,
                                                             attributes={'name': 'item_name', 'description': '{}'})
-        url = marketplace_factories.OrderFactory.get_url(order_item.order, 'set_state_executing')
+        url = marketplace_factories.OrderFactory.get_url(order_item.order, 'approve')
 
         self.client.force_login(self.user)
         response = self.client.post(url)
@@ -75,6 +75,7 @@ class SupportOrderTest(BaseTest):
         marketplace_tasks.process_order(serialized_order, serialized_user)
         self.assertTrue(support_models.Offering.objects.filter(name='item_name').exists())
         offering = support_models.Offering.objects.get(name='item_name')
-        order_item_url = settings.ORDER_ITEM_LINK_TEMPLATE.format(order_item_uuid=order_item.uuid,
-                                                                  customer_uuid=order_item.order.project.customer.uuid)
+        link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
+        order_item_url = link_template.format(order_item_uuid=order_item.uuid,
+                                              customer_uuid=order_item.order.project.customer.uuid)
         self.assertTrue(order_item_url in offering.issue.description)
