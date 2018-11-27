@@ -84,7 +84,7 @@ def set_tax_percent_on_invoice_creation(sender, instance, **kwargs):
 
 
 def set_project_name_on_invoice_item_creation(sender, instance, created=False, **kwargs):
-    if created:
+    if created and instance.project:
         item = instance
         item.project_name = item.project.name
         item.project_uuid = item.project.uuid.hex

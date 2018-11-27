@@ -270,6 +270,10 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
 
 
 class GenericInvoiceItem(InvoiceItem):
+    """
+    It is expected that get_scope_type method is defined as class method in scope class
+    as it is used in generic invoice item serializer.
+    """
     invoice = models.ForeignKey(Invoice, related_name='generic_items')
     content_type = models.ForeignKey(ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
