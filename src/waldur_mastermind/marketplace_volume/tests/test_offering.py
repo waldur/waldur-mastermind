@@ -12,7 +12,7 @@ from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from .. import PLUGIN_NAME, utils
 
 
-class OpenStackInstanceOfferingTest(test.APITransactionTestCase):
+class OpenStackVolumeOfferingTest(test.APITransactionTestCase):
     def test_offering_is_created_when_tenant_creation_is_completed(self):
         tenant = self.trigger_offering_creation()
 

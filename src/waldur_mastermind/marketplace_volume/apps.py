@@ -2,9 +2,9 @@ from django.apps import AppConfig
 from django.db.models import signals
 
 
-class MarketplaceInstanceConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_instance'
-    verbose_name = 'Marketplace OpenStack Instance'
+class MarketplaceVolumeConfig(AppConfig):
+    name = 'waldur_mastermind.marketplace_volume'
+    verbose_name = 'Marketplace OpenStack Volume'
 
     def ready(self):
         from waldur_core.structure import models as structure_models
@@ -17,19 +17,19 @@ class MarketplaceInstanceConfig(AppConfig):
         signals.post_save.connect(
             handlers.create_offering_from_tenant,
             sender=openstack_models.Tenant,
-            dispatch_uid='waldur_mastermind.marketpace_instance.create_offering_from_tenant',
+            dispatch_uid='waldur_mastermind.marketpace_volume.create_offering_from_tenant',
         )
 
         signals.pre_delete.connect(
             handlers.archive_offering,
             sender=structure_models.ServiceSettings,
-            dispatch_uid='waldur_mastermind.marketpace_instance.archive_offering',
+            dispatch_uid='waldur_mastermind.marketpace_volume.archive_offering',
         )
 
         signals.post_save.connect(
             handlers.change_order_item_state,
-            sender=tenant_models.Instance,
-            dispatch_uid='waldur_mastermind.marketpace_instance.change_order_item_state',
+            sender=tenant_models.Volume,
+            dispatch_uid='waldur_mastermind.marketpace_volume.change_order_item_state',
         )
 
         manager.register(offering_type=PLUGIN_NAME,
