@@ -138,7 +138,7 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except django_exceptions.ObjectDoesNotExist:
-        logger.warning('Skipping SLIRM allocation state synchronization '
+        logger.warning('Skipping SLURM allocation state synchronization '
                        'because related resource is not found. Allocation ID: %s', instance.id)
     else:
         callbacks.sync_resource_state(instance, resource)

@@ -491,14 +491,25 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class OrderItemSerializer(BaseItemSerializer):
+class BaseRequestSerializer(BaseItemSerializer):
+    type = NaturalChoiceField(
+        choices=models.RequestTypeMixin.Types.CHOICES,
+        required=False,
+        default=models.RequestTypeMixin.Types.CREATE,
+    )
+
     class Meta(BaseItemSerializer.Meta):
+        fields = BaseItemSerializer.Meta.fields + ('type',)
+
+
+class OrderItemSerializer(BaseRequestSerializer):
+    class Meta(BaseRequestSerializer.Meta):
         model = models.OrderItem
-        fields = BaseItemSerializer.Meta.fields + (
+        fields = BaseRequestSerializer.Meta.fields + (
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'resource_uuid', 'resource_type',
-            'cost', 'state', 'marketplace_resource_uuid', 'type',
+            'cost', 'state', 'marketplace_resource_uuid',
         )
 
         read_only_fields = ('cost', 'state')
@@ -512,17 +523,15 @@ class OrderItemSerializer(BaseItemSerializer):
     resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
-    type = NaturalChoiceField(choices=models.RequestTypeMixin.Types.CHOICES, required=False)
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
 
-class CartItemSerializer(BaseItemSerializer):
+class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
-    type = NaturalChoiceField(choices=models.RequestTypeMixin.Types.CHOICES, required=False)
 
-    class Meta(BaseItemSerializer.Meta):
+    class Meta(BaseRequestSerializer.Meta):
         model = models.CartItem
-        fields = BaseItemSerializer.Meta.fields + ('estimate', 'type')
+        fields = BaseRequestSerializer.Meta.fields + ('estimate',)
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
