@@ -497,7 +497,7 @@ class OrderItemSerializer(BaseItemSerializer):
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'resource_uuid', 'resource_type',
-            'cost', 'state',
+            'cost', 'state', 'marketplace_resource_uuid',
         )
 
         read_only_fields = ('cost', 'state')
@@ -507,6 +507,7 @@ class OrderItemSerializer(BaseItemSerializer):
     customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
     project_name = serializers.ReadOnlyField(source='order.project.name')
     project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
+    marketplace_resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
