@@ -84,7 +84,10 @@ class GenericItemSerializer(InvoiceItemSerializer):
         fields = InvoiceItemSerializer.Meta.fields + ('quantity',)
 
     def get_scope_type(self, item):
-        return SupportedServices.get_name_for_model(item.content_type.model_class())
+        try:
+            return item.content_type.model_class().get_scope_type()
+        except AttributeError:
+            return None
 
     def get_scope_uuid(self, item):
         if item.scope:

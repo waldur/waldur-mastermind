@@ -5,6 +5,7 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
+from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
 from . import factories, fixtures
@@ -166,6 +167,17 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
         self.scope.delete()
         self.item.refresh_from_db()
         self.check_output()
+
+    def test_scope_type_is_rendered_for_support_request(self):
+        fixture = support_fixtures.SupportFixture()
+        invoice = factories.InvoiceFactory(customer=fixture.customer)
+        models.GenericInvoiceItem.objects.create(scope=fixture.offering, invoice=invoice)
+        url = factories.InvoiceFactory.get_url(invoice)
+
+        self.client.force_authenticate(fixture.owner)
+        response = self.client.get(url)
+        item = response.data['generic_items'][0]
+        self.assertEqual(item['scope_type'], 'Support.Offering')
 
 
 class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
