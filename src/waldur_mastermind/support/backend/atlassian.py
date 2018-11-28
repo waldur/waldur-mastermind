@@ -162,9 +162,16 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 'issuetype': {'name': issue.type},
             }
             args.update(self._get_custom_fields(issue))
+
+            try:
+                support_user = models.SupportUser.objects.get(user=issue.caller)
+                key = support_user.backend_id or issue.caller.email
+            except models.SupportUser.DoesNotExist:
+                key = issue.caller.email
+
             args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [{
                 "name": issue.caller.email,
-                "key": issue.caller.email
+                "key": key,
             }]
             return args
 
