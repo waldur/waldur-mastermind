@@ -93,12 +93,47 @@ class IssueRetrieveTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
 
-@ddt
-class IssueCreateTest(base.BaseTest):
+class IssueCreateBaseTest(base.BaseTest):
+    def setUp(self):
+        super(IssueCreateBaseTest, self).setUp()
+        self.url = factories.IssueFactory.get_list_url()
+        self.caller = structure_factories.UserFactory()
 
+    def _mock_jira(self):
+        mock.patch.stopall()
+        mock_patch = mock.patch('waldur_jira.backend.JIRA')
+        self.mock_jira = mock_patch.start()
+        self.mock_jira().fields.return_value = json.loads(load_resource('jira_fields.json'))
+        issue_raw = json.loads(load_resource('jira_issue_raw.json'))
+        mock_backend_issue = Issue({'server': ''}, None, raw=issue_raw)
+        mock_backend_issue.update = mock.MagicMock()
+        self.mock_jira().create_customer_request.return_value = mock_backend_issue
+
+        self.mock_jira().create_issue.return_value = mock_backend_issue
+
+    def _get_valid_payload(self, **additional):
+        is_reported_manually = additional.get('is_reported_manually')
+        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
+        factories.RequestTypeFactory(issue_type_name=issue_type)
+        payload = {
+            'summary': 'test_issue',
+            'type': issue_type,
+        }
+
+        if is_reported_manually:
+            payload['is_reported_manually'] = True
+        else:
+            payload['caller'] = structure_factories.UserFactory.get_url(user=self.caller)
+
+        payload.update(additional)
+        return payload
+
+
+@ddt
+class IssueCreateTest(IssueCreateBaseTest):
     def setUp(self):
         super(IssueCreateTest, self).setUp()
-        self.url = factories.IssueFactory.get_list_url()
+        factories.SupportCustomerFactory(user=self.caller)
 
     @data('staff', 'global_support')
     def test_staff_or_support_can_create_issue_if_he_has_support_user(self, user):
@@ -272,28 +307,32 @@ class IssueCreateTest(base.BaseTest):
         ServiceDeskBackend().create_issue(issue)
         self.assertEqual(models.RequestType.objects.count(), 1)
 
-    def _mock_jira(self):
-        mock.patch.stopall()
-        mock_patch = mock.patch('waldur_jira.backend.JIRA')
-        self.mock_jira = mock_patch.start()
-        self.mock_jira().fields.return_value = json.loads(load_resource('jira_fields.json'))
-        issue_raw = json.loads(load_resource('jira_issue_raw.json'))
-        mock_backend_issue = Issue({'server': ''}, None, raw=issue_raw)
-        mock_backend_issue.update = mock.MagicMock()
-        self.mock_jira().create_customer_request.return_value = mock_backend_issue
 
-    def _get_valid_payload(self, **additional):
-        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
-        factories.RequestTypeFactory(issue_type_name=issue_type)
-        caller = structure_factories.UserFactory()
-        factories.SupportCustomerFactory(user=caller)
-        payload = {
-            'summary': 'test_issue',
-            'type': issue_type,
-            'caller': structure_factories.UserFactory.get_url(user=caller),
-        }
-        payload.update(additional)
-        return payload
+@override_support_settings(USE_OLD_API=True)
+class IssueCreateOldAPITest(IssueCreateBaseTest):
+    def setUp(self):
+        super(IssueCreateOldAPITest, self).setUp()
+        self._mock_jira()
+
+    def test_identification_from_email_if_caller_not_exists(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        self.client.post(self.url, data=self._get_valid_payload(
+            is_reported_manually=True
+        ))
+        kwargs = self.mock_jira().create_issue.call_args[1]
+        self.assertEqual(user.email, kwargs['field101'][0]['key'])
+
+    def test_identification_from_backend_id_if_caller_exists(self):
+        user = self.fixture.staff
+        backend_id = 'admin'
+        factories.SupportUserFactory(user=user, backend_id=backend_id)
+        self.client.force_authenticate(user)
+        self.client.post(self.url, data=self._get_valid_payload(
+            caller=structure_factories.UserFactory.get_url(user=user),
+        ))
+        kwargs = self.mock_jira().create_issue.call_args[1]
+        self.assertEqual(backend_id, kwargs['field101'][0]['key'])
 
 
 @ddt
