@@ -4,11 +4,13 @@ from django.test import TestCase
 from django.utils import timezone
 import json
 import mock
+import jira
 
 from waldur_core.core.utils import datetime_to_timestamp
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import fixtures, factories
 from waldur_mastermind.support.tests.base import load_resource
+from waldur_mastermind.support import models
 
 
 class BaseBackendTest(TestCase):
@@ -195,13 +197,22 @@ class CommentCreateTest(BaseBackendTest):
         expected = [{'key': 'sd.public.comment', 'value': {'internal': True}}]
         self.assertEqual(expected, data['properties'])
 
+    def test_of_author_when_create_comment_from_jira(self):
+        issue = factories.IssueFactory()
+        backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
+        self.backend_comment = jira.resources.Comment({'server': 'example.com'}, None, backend_comment_raw)
+        self.mocked_jira.comment.return_value = self.backend_comment
+        self.backend.create_comment_from_jira(issue, self.backend_comment.id)
+        comment = models.Comment.objects.get(issue=issue)
+        self.assertEqual(comment.author.backend_id, 'user')
+
 
 class CommentUpdateTest(BaseBackendTest):
     def setUp(self):
         super(CommentUpdateTest, self).setUp()
         self.mocked_jira.comment.return_value = mock.Mock(**{
             'body': '[Alice Lebowski]: New comment description',
-            'author.key': 'alice@lebowski.com',
+            'raw': {'author': {'key': 'alice@lebowski.com'}},
         })
         self.mocked_jira._session.get.return_value.json.return_value = {
             'value': {
