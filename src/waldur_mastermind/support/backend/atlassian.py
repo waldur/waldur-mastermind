@@ -235,15 +235,20 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if reporter:
             issue.reporter = reporter
 
+    def _get_author(self, resource):
+        backend_id = resource.raw.get('author', {}).get('key')
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_id)
+        return author
+
     def _backend_comment_to_comment(self, backend_comment, comment):
         comment.update_message(backend_comment.body)
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment.author.key)
+        author = self._get_author(backend_comment)
         comment.author = author
         internal = self._get_property('comment', backend_comment.id, 'sd.public.comment')
         comment.is_public = not internal.get('value', {}).get('internal', False)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
+        author = self._get_author(backend_attachment)
         attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
         attachment.file_size = backend_attachment.size
         attachment.created = dateutil.parser.parse(backend_attachment.created)
