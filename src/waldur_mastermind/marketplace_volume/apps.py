@@ -35,7 +35,7 @@ class MarketplaceVolumeConfig(AppConfig):
         signals.pre_delete.connect(
             handlers.terminate_resource,
             sender=tenant_models.Volume,
-            dispatch_uid='waldur_mastermind.marketpace_instance.terminate_resource',
+            dispatch_uid='waldur_mastermind.marketpace_volume.terminate_resource',
         )
 
         manager.register(offering_type=PLUGIN_NAME,

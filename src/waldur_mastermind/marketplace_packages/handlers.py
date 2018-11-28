@@ -83,7 +83,8 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
 
 def terminate_resource(sender, instance, **kwargs):
     try:
-        resource = marketplace_models.Resource.objects.get(scope=instance)
+        openstack_package = package_models.OpenStackPackage.objects.get(tenant=instance)
+        resource = marketplace_models.Resource.objects.get(scope=openstack_package)
     except ObjectDoesNotExist:
         logger.debug('Skipping resource terminate for OpenStack tenant '
                      'because related resource does not exist. '

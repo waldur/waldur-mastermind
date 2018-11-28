@@ -192,22 +192,32 @@ class DeleteResourceProcessor(BaseOrderItemProcessor):
 
     def process_order_item(self, user):
         resource = self.get_resource()
-        url = reverse(self.get_view_name, kwargs={'uuid': resource.uuid})
-        view = self.get_viewset().as_view({'delete': 'destroy'})
-        response = common_utils.delete_request(view, user, url)
-        if response.status_code != status.HTTP_202_ACCEPTED:
-            raise serializers.ValidationError(response.data)
+        if not resource:
+            raise serializers.ValidationError('Resource is not found.')
 
-        with transaction.atomic():
-            resource = self.order_item.resource
-            resource.set_state_terminating()
-            resource.save(update_fields=['state'])
+        view = self.get_viewset().as_view({'delete': 'destroy'})
+        response = common_utils.delete_request(view, user, uuid=resource.uuid)
+
+        if response.status_code == status.HTTP_204_NO_CONTENT:
+            with transaction.atomic():
+                self.order_item.resource.set_state_terminated()
+                self.order_item.resource.save(update_fields=['state'])
+
+                self.order_item.state = models.OrderItem.States.DONE
+                self.order_item.save(update_fields=['state'])
+
+        elif response.status_code == status.HTTP_202_ACCEPTED:
+            with transaction.atomic():
+                self.order_item.resource.set_state_terminating()
+                self.order_item.resource.save(update_fields=['state'])
+        else:
+            raise serializers.ValidationError(response.data)
 
     def get_resource(self):
         """
         This method should return related resource of order item.
         """
-        return self.order_item.resource
+        return self.order_item.resource.scope
 
     def get_view_name(self):
         """

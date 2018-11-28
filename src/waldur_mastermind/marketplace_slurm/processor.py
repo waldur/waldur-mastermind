@@ -26,9 +26,6 @@ class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
 
 
 class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
-    def get_view_name(self):
-        return 'slurm-allocation-detail'
-
     def get_viewset(self):
         return slurm_views.AllocationViewSet
 

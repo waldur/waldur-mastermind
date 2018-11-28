@@ -25,14 +25,11 @@ class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
 
 
 class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
-    def get_view_name(self):
-        return 'openstack-tenant-detail'
-
     def get_viewset(self):
         return openstack_views.TenantViewSet
 
     def get_resource(self):
-        return self.order_item.resource.tenant
+        return self.order_item.resource.scope.tenant
 
 
 def get_post_data(order_item):

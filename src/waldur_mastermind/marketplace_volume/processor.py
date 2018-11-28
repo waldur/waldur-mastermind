@@ -24,9 +24,6 @@ class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
 
 
 class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
-    def get_view_name(self):
-        return 'openstacktenant-volume-detail'
-
     def get_viewset(self):
         return tenant_views.VolumeViewSet
 

@@ -51,8 +51,11 @@ class PluginManager(object):
         """
         Return a processor class for given order item.
         """
-        offering_type = order_item.offering.type
-        backend = self.backends.get(offering_type, {})
+        if order_item.resource:
+            offering = order_item.resource.offering
+        else:
+            offering = order_item.offering
+        backend = self.backends.get(offering.type, {})
 
         if order_item.type == models.RequestTypeMixin.Types.CREATE:
             return backend.get('create_resource_processor')
@@ -95,7 +98,7 @@ class PluginManager(object):
         if not processor:
             order_item.error_message = 'Skipping order item processing because processor is not found.'
             order_item.set_state_erred()
-            order_item.save(update_fields=['state', 'error_message '])
+            order_item.save(update_fields=['state', 'error_message'])
             return
 
         try:
@@ -105,8 +108,9 @@ class PluginManager(object):
             order_item.set_state_erred()
             order_item.save(update_fields=['state', 'error_message'])
         else:
-            order_item.set_state_executing()
-            order_item.save(update_fields=['state'])
+            if order_item.state != models.OrderItem.States.DONE:
+                order_item.set_state_executing()
+                order_item.save(update_fields=['state'])
 
     def validate(self, order_item, request):
         processor = self.get_processor(order_item)

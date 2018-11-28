@@ -34,10 +34,10 @@ def create_request(view, user, post_data):
     return view(request)
 
 
-def delete_request(view, user, url):
+def delete_request(view, user, **extra):
     factory = APIRequestFactory()
-    request = factory.delete(url, **get_headers(user))
-    return view(request)
+    request = factory.delete('', **get_headers(user))
+    return view(request, **extra)
 
 
 def parse_datetime(timestr):

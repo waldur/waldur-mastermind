@@ -23,9 +23,6 @@ class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
 
 
 class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
-    def get_view_name(self):
-        return 'support-offering-detail'
-
     def get_viewset(self):
         return support_views.OfferingViewSet
 
