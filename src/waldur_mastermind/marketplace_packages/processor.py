@@ -3,13 +3,14 @@ from rest_framework.reverse import reverse
 from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace.utils import InternalOrderItemProcessor
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack import views as openstack_views
 
 
-class OrderItemProcessor(InternalOrderItemProcessor):
+class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
     def get_serializer_class(self):
         return package_views.OpenStackPackageViewSet.create_serializer_class
 
@@ -21,6 +22,14 @@ class OrderItemProcessor(InternalOrderItemProcessor):
 
     def get_scope_from_response(self, response):
         return package_models.OpenStackPackage.objects.get(uuid=response.data['uuid']).tenant
+
+
+class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
+    def get_viewset(self):
+        return openstack_views.TenantViewSet
+
+    def get_resource(self):
+        return self.order_item.resource.scope.tenant
 
 
 def get_post_data(order_item):

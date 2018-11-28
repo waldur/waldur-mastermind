@@ -4,8 +4,9 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_mastermind.support import models as support_models
+from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.marketplace.models import OrderItem, Resource
 
 
 logger = logging.getLogger(__name__)
@@ -27,22 +28,31 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if instance.tracker.has_changed('state'):
-        try:
-            resource = Resource.objects.get(scope=instance)
-            order_item = OrderItem.objects.get(resource=resource, state=OrderItem.States.EXECUTING)
-        except ObjectDoesNotExist:
-            logger.warning('Skipping support offering state synchronization '
-                           'because related order item is not found. Offering ID: %s', instance.id)
-            return
+    if not instance.tracker.has_changed('state'):
+        return
 
-        if instance.state == support_models.Offering.States.OK:
-            order_item.set_state_done()
-            order_item.save(update_fields=['state'])
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.warning('Skipping support offering state synchronization '
+                       'because related order item is not found. Offering ID: %s', instance.id)
+        return
 
-        if instance.state == support_models.Offering.States.TERMINATED:
-            order_item.resource.set_state_terminated()
-            order_item.resource.save(update_fields=['state'])
+    if instance.state == support_models.Offering.States.OK:
+        callbacks.resource_creation_succeeded(resource)
+    elif instance.state == support_models.Offering.States.TERMINATED:
+        callbacks.resource_deletion_succeeded(resource)
+
+
+def terminate_resource(sender, instance, **kwargs):
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping resource terminate for support request '
+                     'because related resource does not exist. '
+                     'Request ID: %s', instance.id)
+    else:
+        callbacks.resource_deletion_succeeded(resource)
 
 
 def create_support_plan(sender, instance, created=False, **kwargs):

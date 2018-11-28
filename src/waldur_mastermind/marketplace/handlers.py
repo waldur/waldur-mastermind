@@ -24,15 +24,23 @@ def complete_order_when_all_items_are_done(sender, instance, created=False, **kw
     if created:
         return
 
-    if instance.tracker.has_changed('state') and instance.state in models.OrderItem.States.TERMINAL_STATES:
-        order = instance.order
+    if not instance.tracker.has_changed('state'):
+        return
 
-        # check if there are any non-finished OrderItems left and finish order if none is found
-        if not models.OrderItem.objects.filter(order=order).\
-                exclude(state__in=models.OrderItem.States.TERMINAL_STATES).exists():
-            if order.state != models.Order.States.DONE:
-                order.complete()
-                order.save(update_fields=['state'])
+    if instance.state not in models.OrderItem.States.TERMINAL_STATES:
+        return
+
+    if instance.order.state != models.Order.States.EXECUTING:
+        return
+
+    order = instance.order
+    # check if there are any non-finished OrderItems left and finish order if none is found
+    if models.OrderItem.objects.filter(order=order).\
+            exclude(state__in=models.OrderItem.States.TERMINAL_STATES).exists():
+        return
+
+    order.complete()
+    order.save(update_fields=['state'])
 
 
 def update_category_quota_when_offering_is_created(sender, instance, created=False, **kwargs):

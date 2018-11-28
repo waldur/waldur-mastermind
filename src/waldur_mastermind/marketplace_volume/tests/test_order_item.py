@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
@@ -11,13 +12,13 @@ from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant
 from .. import PLUGIN_NAME
 
 
-class OpenStackVolumeOrderItemTest(test.APITransactionTestCase):
-    def test_openstack_volume_is_created_when_order_item_is_processed(self):
+class VolumeOrderItemTest(test.APITransactionTestCase):
+    def test_volume_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_volume_creation()
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
         self.assertTrue(openstack_tenant_models.Volume.objects.filter(name='Volume').exists())
 
-    def test_volume_creation_request_payload_is_validated(self):
+    def test_request_payload_is_validated(self):
         order_item = self.trigger_volume_creation(size=100)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
 
@@ -73,3 +74,49 @@ class OpenStackVolumeOrderItemTest(test.APITransactionTestCase):
 
         order_item.refresh_from_db()
         return order_item
+
+
+class VolumeDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+
+        self.volume = self.fixture.volume
+        self.volume.runtime_state = 'available'
+        self.volume.save()
+
+        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        self.resource = marketplace_factories.ResourceFactory(scope=self.volume, offering=self.offering)
+        self.order = marketplace_factories.OrderFactory(
+            project=self.fixture.project,
+            state=marketplace_models.Order.States.EXECUTING,
+        )
+        self.order_item = marketplace_factories.OrderItemFactory(
+            resource=self.resource,
+            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+        )
+
+    def test_deletion_is_scheduled(self):
+        self.trigger_deletion()
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
+        self.assertEqual(self.volume.state, openstack_tenant_models.Volume.States.DELETION_SCHEDULED)
+
+    def test_deletion_is_completed(self):
+        self.trigger_deletion()
+        self.volume.delete()
+
+        self.order_item.refresh_from_db()
+        self.resource.refresh_from_db()
+
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertRaises(ObjectDoesNotExist, self.volume.refresh_from_db)
+
+    def trigger_deletion(self):
+        serialized_order = core_utils.serialize_instance(self.order_item.order)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
+        self.order_item.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.volume.refresh_from_db()

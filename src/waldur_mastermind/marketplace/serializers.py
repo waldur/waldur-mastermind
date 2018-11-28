@@ -12,6 +12,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
+from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -490,10 +491,21 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
         return attrs
 
 
-class OrderItemSerializer(BaseItemSerializer):
+class BaseRequestSerializer(BaseItemSerializer):
+    type = NaturalChoiceField(
+        choices=models.RequestTypeMixin.Types.CHOICES,
+        required=False,
+        default=models.RequestTypeMixin.Types.CREATE,
+    )
+
     class Meta(BaseItemSerializer.Meta):
+        fields = BaseItemSerializer.Meta.fields + ('type',)
+
+
+class OrderItemSerializer(BaseRequestSerializer):
+    class Meta(BaseRequestSerializer.Meta):
         model = models.OrderItem
-        fields = BaseItemSerializer.Meta.fields + (
+        fields = BaseRequestSerializer.Meta.fields + (
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'resource_uuid', 'resource_type',
@@ -514,12 +526,12 @@ class OrderItemSerializer(BaseItemSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
 
-class CartItemSerializer(BaseItemSerializer):
+class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
-    class Meta(BaseItemSerializer.Meta):
+    class Meta(BaseRequestSerializer.Meta):
         model = models.CartItem
-        fields = BaseItemSerializer.Meta.fields + ('estimate',)
+        fields = BaseRequestSerializer.Meta.fields + ('estimate',)
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
@@ -559,6 +571,7 @@ class CartSubmitSerializer(serializers.Serializer):
                     attributes=item.attributes,
                     plan=item.plan,
                     limits=item.limits,
+                    type=item.type,
                 )
             except ValidationError as e:
                 raise rf_exceptions.ValidationError(e)
@@ -620,6 +633,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                     plan=item.get('plan'),
                     attributes=item.get('attributes', {}),
                     limits=item.get('limits'),
+                    type=item.get('type'),
                 )
             except ValidationError as e:
                 raise rf_exceptions.ValidationError(e)

@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
@@ -11,13 +12,13 @@ from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant
 from .. import PLUGIN_NAME
 
 
-class OpenStackInstanceOrderItemTest(test.APITransactionTestCase):
-    def test_openstack_instance_is_created_when_order_item_is_processed(self):
+class InstanceCreateTest(test.APITransactionTestCase):
+    def test_instance_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_instance_creation()
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
         self.assertTrue(openstack_tenant_models.Instance.objects.filter(name='Virtual machine').exists())
 
-    def test_instance_creation_request_payload_is_validated(self):
+    def test_request_payload_is_validated(self):
         order_item = self.trigger_instance_creation(system_volume_size=100)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
 
@@ -33,6 +34,12 @@ class OpenStackInstanceOrderItemTest(test.APITransactionTestCase):
 
         order_item.refresh_from_db()
         self.assertEqual(order_item.state, order_item.States.DONE)
+
+        order_item.resource.refresh_from_db()
+        self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.OK)
+
+        order_item.order.refresh_from_db()
+        self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
 
     def trigger_instance_creation(self, **kwargs):
         fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
@@ -56,19 +63,16 @@ class OpenStackInstanceOrderItemTest(test.APITransactionTestCase):
         attributes.update(kwargs)
 
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, scope=service_settings)
-
-        order_item = marketplace_factories.OrderItemFactory(offering=offering, attributes=attributes)
-        order_item.order.approve()
-        order_item.order.save()
-
-        service = openstack_tenant_models.OpenStackTenantService.objects.create(
-            customer=order_item.order.project.customer,
-            settings=service_settings,
+        # Ensure that SPL exists
+        fixture.spl
+        order = marketplace_factories.OrderFactory(
+            project=fixture.project,
+            state=marketplace_models.Order.States.EXECUTING,
         )
-
-        openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.create(
-            project=order_item.order.project,
-            service=service,
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=offering,
+            attributes=attributes,
+            order=order,
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
@@ -77,3 +81,45 @@ class OpenStackInstanceOrderItemTest(test.APITransactionTestCase):
 
         order_item.refresh_from_db()
         return order_item
+
+
+class InstanceDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.instance = self.fixture.instance
+        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        self.resource = marketplace_factories.ResourceFactory(scope=self.instance, offering=self.offering)
+        self.order = marketplace_factories.OrderFactory(
+            project=self.fixture.project,
+            state=marketplace_models.Order.States.EXECUTING,
+        )
+        self.order_item = marketplace_factories.OrderItemFactory(
+            resource=self.resource,
+            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
+        )
+
+    def test_deletion_is_scheduled(self):
+        self.trigger_deletion()
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
+        self.assertEqual(self.instance.state, openstack_tenant_models.Instance.States.DELETION_SCHEDULED)
+
+    def test_deletion_is_completed(self):
+        self.trigger_deletion()
+        self.instance.delete()
+
+        self.order_item.refresh_from_db()
+        self.resource.refresh_from_db()
+
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertRaises(ObjectDoesNotExist, self.instance.refresh_from_db)
+
+    def trigger_deletion(self):
+        serialized_order = core_utils.serialize_instance(self.order_item.order)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
+        self.order_item.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.instance.refresh_from_db()
