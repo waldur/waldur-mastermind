@@ -68,8 +68,8 @@ def create_offering_and_plan_for_package_template(category, customer, template):
         defaults = dict(
             name=service_settings.name,
             geolocations=service_settings.geolocations,
-            customer_id=customer,
-            category_id=category,
+            customer=customer,
+            category=category,
         )
         offering, _ = marketplace_models.Offering.objects.get_or_create(
             scope=service_settings,
