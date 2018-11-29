@@ -1,12 +1,12 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.core.exceptions import ObjectDoesNotExist
 
-from waldur_mastermind.marketplace_instance import utils
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_openstack import utils
 
 
 class Command(BaseCommand):
-    help = 'Init marketplace offerings for provisioning virtual machines.'
+    help = 'Init marketplace offerings for provisioning OpenStack virtual machines and volumes.'
 
     def add_arguments(self, parser):
         parser.add_argument('-c', '--category', dest='category_uuid', required=True)
