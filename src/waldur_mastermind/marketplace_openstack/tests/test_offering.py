@@ -53,7 +53,7 @@ class TemplateOfferingTest(test.APITransactionTestCase):
         category = marketplace_models.Category.objects.create(title='VPC')
         template = package_factories.PackageTemplateFactory()
         marketplace_models.Offering.objects.all().delete()
-        utils.create_package_missing_offerings(customer, category)
+        utils.create_package_missing_offerings(category, customer)
         offering = marketplace_models.Offering.objects.get(scope=template.service_settings)
         self.assertEqual(template.service_settings.name, offering.name)
 
