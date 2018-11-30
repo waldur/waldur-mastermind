@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 3.1.7
+Version: 3.1.8
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -75,7 +75,7 @@ Requires: python-glanceclient >= 1:2.8.0
 Requires: python-hiredis >= 0.2.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-iptools >= 0.6.1
-Requires: python-jira >= 1.0.7
+Requires: python-jira >= 1.0.15-2
 Requires: python-keystoneclient >= 1:3.13.0
 Requires: python-libcloud >= 1.1.0, python-libcloud < 2.2.0
 Requires: python-lxml >= 3.2.0
@@ -318,6 +318,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Fri Nov 30 2018 Jenkins <jenkins@opennodecloud.com> - 3.1.8-1.el7
+- New upstream release
+
 * Wed Nov 14 2018 Jenkins <jenkins@opennodecloud.com> - 3.1.7-1.el7
 - New upstream release
 

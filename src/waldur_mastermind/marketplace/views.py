@@ -160,43 +160,22 @@ class OrderViewSet(BaseMarketplaceView):
         raise rf_exceptions.PermissionDenied()
 
     @detail_route(methods=['post'])
-    def set_state_executing(self, request, uuid=None):
+    def approve(self, request, uuid=None):
         order = self.get_object()
+        order.approve()
         order.approved_by = request.user
         order.approved_at = timezone.now()
         order.save()
 
         serialized_order = core_utils.serialize_instance(order)
         serialized_user = core_utils.serialize_instance(request.user)
-        tasks.process_order.apply_async(args=(serialized_order, serialized_user))
-        return self._update_state(request, models.Order.States.EXECUTING, order)
+        tasks.process_order.delay(serialized_order, serialized_user)
+        tasks.create_order_pdf.delay(order.pk)
 
-    set_state_executing_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
-    set_state_executing_permissions = [check_permissions_for_state_change]
+        return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
-    def set_state_done(self, request, uuid=None):
-        order = self.get_object()
-        response = self._update_state(request, models.Order.States.DONE, order)
-        return response
-
-    set_state_done_validators = [core_validators.StateValidator(models.Order.States.EXECUTING)]
-    set_state_done_permissions = [check_permissions_for_state_change]
-
-    @detail_route(methods=['post'])
-    def set_state_terminated(self, request, uuid=None):
-        return self._update_state(request, models.Order.States.TERMINATED)
-
-    def _update_state(self, request, state, order=None):
-        if not order:
-            order = self.get_object()
-
-        state_name = filter(lambda x: x[0] == state, models.Order.States.CHOICES)[0][1]
-        state_name = state_name.replace(' ', '_')
-        getattr(order, 'set_state_' + state_name)()
-        order.save(update_fields=['state'])
-        return Response({'detail': _('Order state updated.')},
-                        status=status.HTTP_200_OK)
+    approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
+    approve_permissions = [check_permissions_for_state_change]
 
     @detail_route()
     def pdf(self, request, uuid=None):
@@ -269,6 +248,33 @@ class OrderItemViewSet(BaseMarketplaceView):
     destroy_permissions = [check_permissions_for_order_items_change]
 
 
+class CartItemViewSet(core_views.ActionsViewSet):
+    queryset = models.CartItem.objects.all()
+    lookup_field = 'uuid'
+    serializer_class = serializers.CartItemSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
+
+    @list_route(methods=['post'])
+    def submit(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
+        order_serializer = serializers.OrderSerializer(instance=order, context={'request': self.request})
+        return Response(order_serializer.data, status=status.HTTP_201_CREATED)
+
+    submit_serializer_class = serializers.CartSubmitSerializer
+
+
+class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_class = filters.ResourceFilter
+    lookup_field = 'uuid'
+    serializer_class = serializers.ResourceSerializer
+
+
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def get_action_class(self):
         return getattr(self, self.action + '_serializer_class', None)
@@ -305,7 +311,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         if not dry_run:
             usages = []
             for usage in validated_data['usages']:
-                usages.append(models.ComponentUsage(order_item=usage['order_item'],
+                usages.append(models.ComponentUsage(resource=usage['resource'],
                                                     component=usage['component'],
                                                     date=usage['date'],
                                                     usage=usage['amount']))

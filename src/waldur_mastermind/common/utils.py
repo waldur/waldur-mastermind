@@ -16,17 +16,28 @@ def quantize_price(value):
     return value.quantize(Decimal('0.01'), rounding=ROUND_UP)
 
 
-def internal_api_request(view, user, post_data):
+def get_headers(user):
     """
     It is assumed that localhost is specified in ALLOWED_HOSTS Django setting
     so that internal API requests are allowed.
     """
+    return dict(
+        content_type='application/json',
+        HTTP_AUTHORIZATION='Token %s' % user.auth_token.key,
+        SERVER_NAME='localhost'
+    )
+
+
+def create_request(view, user, post_data):
     factory = APIRequestFactory()
-    request = factory.post('/', data=json.dumps(post_data),
-                           content_type='application/json',
-                           HTTP_AUTHORIZATION='Token %s' % user.auth_token.key,
-                           SERVER_NAME='localhost')
+    request = factory.post('/', data=json.dumps(post_data), **get_headers(user))
     return view(request)
+
+
+def delete_request(view, user, **extra):
+    factory = APIRequestFactory()
+    request = factory.delete('', **get_headers(user))
+    return view(request, **extra)
 
 
 def parse_datetime(timestr):

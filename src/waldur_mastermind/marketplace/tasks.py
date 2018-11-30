@@ -31,9 +31,10 @@ def notify_order_approvers(uuid):
     order = models.Order.objects.get(uuid=uuid)
     users = order.get_approvers()
     emails = [u.email for u in users if u.email]
+    link_template = settings.WALDUR_MARKETPLACE['ORDER_LINK_TEMPLATE']
 
     context = {
-        'order_url': settings.ORDER_LINK_TEMPLATE.format(order=order),
+        'order_url': link_template.format(project_uuid=order.project.uuid),
         'order': order,
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
     }

@@ -1,5 +1,4 @@
 import datetime
-from decimal import Decimal
 
 from django.utils import timezone
 from freezegun import freeze_time
@@ -52,40 +51,15 @@ class InvoicesTest(BaseTest):
         self.assertTrue(invoice.total)
         self.assertEqual(invoice.total, (self.plan_component.price * self.plan_component.amount) * 2)
 
-    @freeze_time('2018-02-01 00:00:00')
-    def test_create_invoice_with_usage(self):
-        offering_component_usage = marketplace_factories.OfferingComponentFactory(
-            type='gpu',
-            offering=self.offering,
-            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE
-        )
-        plan_component_usage = marketplace_factories.PlanComponentFactory(
-            plan=self.order_item.plan,
-            component=offering_component_usage,
-            price=Decimal(7)
-        )
-        usage = marketplace_models.ComponentUsage(
-            order_item=self.order_item,
-            component=offering_component_usage,
-            usage=10,
-            date=datetime.date.today(),
-        )
-        usage.save()
-        invoice = self.get_invoice()
-
-        test_price = plan_component_usage.price * usage.usage + self.plan_component.amount * self.plan_component.price
-        self.assertTrue(invoice.total)
-        self.assertEqual(invoice.total, test_price)
-
     def test_terminate_offering(self):
-        offering = self.order_item.scope
+        offering = self.order_item.resource.scope
         offering.state = support_models.Offering.States.TERMINATED
         offering.save()
         invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=offering)
         self.assertEqual(invoice_item.end, timezone.now())
 
     def test_delete_offering(self):
-        offering = self.order_item.scope
+        offering = self.order_item.resource.scope
         invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=offering)
         offering.delete()
         invoice_item.refresh_from_db()
@@ -97,11 +71,11 @@ class InvoicesTest(BaseTest):
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         order_item.refresh_from_db()
-        order_item.order.set_state_executing()
+        order_item.order.approve()
         order_item.order.save()
 
-        order_item.scope.state = support_models.Offering.States.OK
-        order_item.scope.save()
+        order_item.resource.scope.state = support_models.Offering.States.OK
+        order_item.resource.scope.save()
 
     def get_invoice(self):
         date = datetime.date.today()

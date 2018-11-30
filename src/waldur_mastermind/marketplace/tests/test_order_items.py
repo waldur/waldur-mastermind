@@ -195,28 +195,32 @@ class ProjectResourceCountTest(PostgreSQLTest):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
-        self.order = factories.OrderFactory(project=self.project)
-        self.order_item = factories.OrderItemFactory(order=self.order)
-        self.category = self.order_item.offering.category
+        self.plan = factories.PlanFactory()
+        self.resource = models.Resource.objects.create(
+            project=self.project,
+            offering=self.plan.offering,
+            plan=self.plan,
+        )
+        self.category = self.plan.offering.category
 
-    def test_when_order_item_scope_is_updated_resource_count_is_increased(self):
-        self.order_item.scope = self.fixture.resource
-        self.order_item.save()
+    def test_when_resource_scope_is_updated_resource_count_is_increased(self):
+        self.resource.scope = self.fixture.resource
+        self.resource.save()
         self.assertEqual(models.ProjectResourceCount.objects.get(
             project=self.project, category=self.category).count, 1)
 
-    def test_when_order_item_scope_is_updated_resource_count_is_decreased(self):
-        self.order_item.scope = self.fixture.resource
-        self.order_item.save()
-        self.order_item.scope = None
-        self.order_item.save()
+    def test_when_resource_scope_is_updated_resource_count_is_decreased(self):
+        self.resource.scope = self.fixture.resource
+        self.resource.save()
+        self.resource.scope = None
+        self.resource.save()
 
         self.assertEqual(models.ProjectResourceCount.objects.get(
             project=self.project, category=self.category).count, 0)
 
     def test_recalculate_count(self):
-        self.order_item.scope = self.fixture.resource
-        self.order_item.save()
+        self.resource.scope = self.fixture.resource
+        self.resource.save()
         models.ProjectResourceCount.objects.all().delete()
         quota_signals.recalculate_quotas.send(sender=self)
 

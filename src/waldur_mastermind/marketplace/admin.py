@@ -104,7 +104,7 @@ class OfferingAdmin(admin.ModelAdmin):
 
 class OrderItemInline(admin.TabularInline):
     model = models.OrderItem
-    fields = ('offering', 'scope', 'state', 'attributes', 'cost', 'plan')
+    fields = ('offering', 'state', 'attributes', 'cost', 'plan')
     readonly_fields = fields
 
 

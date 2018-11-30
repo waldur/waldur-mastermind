@@ -41,6 +41,15 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if obj and obj.offering_set.exists():
             raise rf_exceptions.ValidationError(_('Issue has offering. Please remove it first.'))
 
+    def can_create_user(request, view, obj=None):
+        if not request.user.email:
+            raise rf_exceptions.ValidationError(_('Current user does not have email, '
+                                                  'therefore he is not allowed to create issues.'))
+
+        if not request.user.full_name:
+            raise rf_exceptions.ValidationError(_('Current user does not have full_name, '
+                                                  'therefore he is not allowed to create issues.'))
+
     @transaction.atomic()
     def perform_create(self, serializer):
         issue = serializer.save()
@@ -48,6 +57,8 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             backend.get_active_backend().create_issue(issue)
         except exceptions.SupportUserInactive:
             raise rf_exceptions.ValidationError({'caller': _('Caller is inactive.')})
+
+    create_permissions = [can_create_user]
 
     @transaction.atomic()
     def perform_update(self, serializer):

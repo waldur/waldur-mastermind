@@ -39,10 +39,15 @@ class OfferingAdminForm(forms.ModelForm):
 
 
 class OfferingAdmin(admin.ModelAdmin):
-    list_display = ('template', 'name', 'unit_price', 'unit', 'state')
+    list_display = ('template', 'name', 'unit_price', 'unit', 'state',
+                    'created', 'modified', 'issue_key')
+    search_fields = ('name', 'template__name', 'issue__key')
     fields = ('name', 'unit_price', 'unit', 'template', 'issue',
               'project', 'state', 'product_code', 'article_code', 'report')
     form = OfferingAdminForm
+
+    def issue_key(self, offering):
+        return offering.issue and offering.issue.key or 'N/A'
 
 
 class OfferingTemplateAdminForm(forms.ModelForm):

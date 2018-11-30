@@ -41,6 +41,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.verify = settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('verify_ssl')
         self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
+        self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
 
     def sync(self):
         super(ServiceDeskBackend, self).sync()
@@ -74,6 +75,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             return
 
         self.create_user(issue.caller)
+
+        if self.use_old_api:
+            return super(ServiceDeskBackend, self).create_issue(issue)
+
         args = self._issue_to_dict(issue)
         args['serviceDeskId'] = self.manager.service_desk(self.project_settings['key'])
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
@@ -94,7 +99,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def create_user(self, user):
         # Temporary workaround as JIRA returns 500 error if user already exists
-        existing_support_user = self.manager.search_users(user.email, includeInactive=True)
+        if self.use_old_api:
+            # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
+            existing_support_user = self.manager.search_users(user.email)
+        else:
+            existing_support_user = self.manager.search_users(user.email, includeInactive=True)
 
         if existing_support_user:
             if not existing_support_user[0].active:
@@ -102,6 +111,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
             logger.debug('Skipping user %s creation because it already exists', user.email)
             return
+
+        if self.use_old_api:
+            return self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
 
         return self.manager.create_customer(user.email, user.full_name)
 
@@ -140,6 +152,29 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def _issue_to_dict(self, issue):
         parser = HTMLParser()
+
+        if self.use_old_api:
+            parser = HTMLParser()
+            args = {
+                'project': self.project_settings['key'],
+                'summary': parser.unescape(issue.summary),
+                'description': parser.unescape(issue.description),
+                'issuetype': {'name': issue.type},
+            }
+            args.update(self._get_custom_fields(issue))
+
+            try:
+                support_user = models.SupportUser.objects.get(user=issue.caller)
+                key = support_user.backend_id or issue.caller.email
+            except models.SupportUser.DoesNotExist:
+                key = issue.caller.email
+
+            args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [{
+                "name": issue.caller.email,
+                "key": key,
+            }]
+            return args
+
         args = {
             'requestFieldValues': {
                 'summary': parser.unescape(issue.summary),
@@ -207,15 +242,20 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if reporter:
             issue.reporter = reporter
 
+    def _get_author(self, resource):
+        backend_id = resource.raw.get('author', {}).get('key')
+        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_id)
+        return author
+
     def _backend_comment_to_comment(self, backend_comment, comment):
         comment.update_message(backend_comment.body)
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_comment.author.key)
+        author = self._get_author(backend_comment)
         comment.author = author
         internal = self._get_property('comment', backend_comment.id, 'sd.public.comment')
         comment.is_public = not internal.get('value', {}).get('internal', False)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_attachment.author.key)
+        author = self._get_author(backend_attachment)
         attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
         attachment.file_size = backend_attachment.size
         attachment.created = dateutil.parser.parse(backend_attachment.created)

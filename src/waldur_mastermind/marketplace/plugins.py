@@ -4,6 +4,8 @@ import logging
 from django.utils import six
 from rest_framework import exceptions
 
+from . import models
+
 
 Component = collections.namedtuple('Component', ('type', 'name', 'measured_unit', 'billing_type'))
 logger = logging.getLogger(__name__)
@@ -13,25 +15,28 @@ class PluginManager(object):
     def __init__(self):
         self.backends = {}
 
-    def register(self, offering_type, processor, validator=None, components=None, scope_model=None):
+    def register(self, offering_type,
+                 create_resource_processor,
+                 update_resource_processor=None,
+                 delete_resource_processor=None,
+                 components=None,
+                 scope_model=None):
         """
 
         :param offering_type: string which consists of application name and model name,
                               for example Support.OfferingTemplate
-        :param processor: function which receives order item and request object,
-                          and creates plugin's resource corresponding to provided order item.
-                          It is called after order has been approved.
-        :param validator: optional function which receives order item and request object,
-                          and raises validation error if order item is invalid.
-                          It is called after order has been created but before it is submitted.
+        :param create_resource_processor: class which receives order item
+        :param update_resource_processor: class which receives order item
+        :param delete_resource_processor: class which receives order item
         :param components: tuple available plan components, for example
                            Component(type='storage', name='Storage', measured_unit='GB')
         :param scope_model: available model for an offering scope field
         :return:
         """
         self.backends[offering_type] = {
-            'processor': processor,
-            'validator': validator,
+            'create_resource_processor': create_resource_processor,
+            'update_resource_processor': update_resource_processor,
+            'delete_resource_processor': delete_resource_processor,
             'components': components,
             'scope_model': scope_model,
         }
@@ -42,21 +47,24 @@ class PluginManager(object):
         """
         return self.backends.keys()
 
-    def get_processor(self, offering_type):
+    def get_processor(self, order_item):
         """
-        Return a processor function for given offering_type.
-        :param offering_type: offering type name
-        :return: processor function
+        Return a processor class for given order item.
         """
-        return self.backends.get(offering_type, {}).get('processor')
+        if order_item.resource:
+            offering = order_item.resource.offering
+        else:
+            offering = order_item.offering
+        backend = self.backends.get(offering.type, {})
 
-    def get_validator(self, offering_type):
-        """
-        Return a validator function for given offering_type.
-        :param offering_type: offering type name
-        :return: validator function
-        """
-        return self.backends.get(offering_type, {}).get('validator')
+        if order_item.type == models.RequestTypeMixin.Types.CREATE:
+            return backend.get('create_resource_processor')
+
+        elif order_item.type == models.RequestTypeMixin.Types.UPDATE:
+            return backend.get('update_resource_processor')
+
+        elif order_item.type == models.RequestTypeMixin.Types.TERMINATE:
+            return backend.get('delete_resource_processor')
 
     def get_scope_model(self, offering_type):
         """
@@ -85,29 +93,29 @@ class PluginManager(object):
     def get_scope_models(self):
         return {b['scope_model'] for b in self.backends.values() if b['scope_model']}
 
-    def process(self, order_item, request):
-        processor = self.get_processor(order_item.offering.type)
-
+    def process(self, order_item, user):
+        processor = self.get_processor(order_item)
         if not processor:
             order_item.error_message = 'Skipping order item processing because processor is not found.'
             order_item.set_state_erred()
-            order_item.save(update_fields=['state', 'error_message '])
+            order_item.save(update_fields=['state', 'error_message'])
             return
 
         try:
-            processor(order_item, request)
+            processor(order_item).process_order_item(user)
         except exceptions.APIException as e:
             order_item.error_message = six.text_type(e)
             order_item.set_state_erred()
             order_item.save(update_fields=['state', 'error_message'])
         else:
-            order_item.set_state_executing()
-            order_item.save(update_fields=['state'])
+            if order_item.state != models.OrderItem.States.DONE:
+                order_item.set_state_executing()
+                order_item.save(update_fields=['state'])
 
     def validate(self, order_item, request):
-        validator = self.get_validator(order_item.offering.type)
-        if validator:
-            validator(order_item, request)
+        processor = self.get_processor(order_item)
+        if processor:
+            processor(order_item).validate_order_item(request)
 
 
 manager = PluginManager()

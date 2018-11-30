@@ -39,7 +39,7 @@ install_requires = [
     'hiredis>=0.2.0',
     'influxdb>=4.1.0',
     'iptools>=0.6.1',
-    'jira>=1.0.7',
+    'jira>=1.0.15',
     'lxml>=3.2.0',
     'passlib>=1.7.0',
     'paypalrestsdk>=1.10.0,<2.0',
@@ -78,7 +78,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.1.7',
+    version='3.1.8',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -127,8 +127,7 @@ setup(
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
             'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
-            'waldur_marketplace_instance = waldur_mastermind.marketplace_instance.extension:MarketplaceInstanceExtension',
-            'waldur_marketplace_packages = waldur_mastermind.marketplace_packages.extension:MarketplacePackagesExtension',
+            'waldur_marketplace_openstack = waldur_mastermind.marketplace_openstack.extension:MarketplaceOpenStackExtension',
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
             'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',
             'waldur_support_invoices = waldur_mastermind.support_invoices.extension:SupportInvoicesExtension',

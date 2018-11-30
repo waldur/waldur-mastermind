@@ -5,6 +5,7 @@ from django.db import transaction, IntegrityError
 from django.core import exceptions as django_exceptions
 
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
@@ -60,7 +61,7 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
     allocation = allocation_usage.allocation
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(scope=allocation)
+        resource = marketplace_models.Resource.objects.get(scope=allocation)
     except django_exceptions.ObjectDoesNotExist:
         return
 
@@ -71,11 +72,11 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
 
         try:
             plan_component = marketplace_models.OfferingComponent.objects.get(
-                offering=order_item.plan.offering,
+                offering=resource.offering,
                 type=component.type
             )
             marketplace_models.ComponentUsage.objects.create(
-                order_item=order_item,
+                resource=resource,
                 component=plan_component,
                 usage=usage,
                 date=date,
@@ -96,7 +97,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
     allocation = instance
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(scope=allocation)
+        resource = marketplace_models.Resource.objects.get(scope=allocation)
     except django_exceptions.ObjectDoesNotExist:
         return
 
@@ -106,11 +107,11 @@ def update_component_quota(sender, instance, created=False, **kwargs):
 
         try:
             plan_component = marketplace_models.OfferingComponent.objects.get(
-                offering=order_item.plan.offering,
+                offering=resource.offering,
                 type=component.type
             )
             component_quota = marketplace_models.ComponentQuota.objects.get(
-                order_item=order_item,
+                resource=resource,
                 component=plan_component,
             )
             component_quota.limit = limit
@@ -123,8 +124,32 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                            'Allocation ID: %s', allocation.id)
         except marketplace_models.ComponentQuota.DoesNotExist:
             marketplace_models.ComponentQuota.objects.create(
-                order_item=order_item,
+                resource=resource,
                 component=plan_component,
                 limit=limit,
                 usage=usage
             )
+
+
+def change_order_item_state(sender, instance, created=False, **kwargs):
+    if created or not instance.tracker.has_changed('state'):
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except django_exceptions.ObjectDoesNotExist:
+        logger.warning('Skipping SLURM allocation state synchronization '
+                       'because related resource is not found. Allocation ID: %s', instance.id)
+    else:
+        callbacks.sync_resource_state(instance, resource)
+
+
+def terminate_resource(sender, instance, **kwargs):
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except django_exceptions.ObjectDoesNotExist:
+        logger.debug('Skipping resource terminate for SLURM allocation '
+                     'because related resource does not exist. '
+                     'Allocation ID: %s', instance.id)
+    else:
+        callbacks.resource_deletion_succeeded(resource)
