@@ -652,7 +652,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             'name': snapshot.name,
             'description': snapshot.description,
             'force': force,
-            'metadata': snapshot.metadata,
         }
         cinder = self.cinder_client
         try:
