@@ -170,18 +170,6 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
         response = self.client.post(self.url, data=payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_snapshot_metadata_is_populated(self):
-        self.client.force_authenticate(self.fixture.owner)
-        payload = {'name': '%s snapshot' % self.volume.name}
-
-        response = self.client.post(self.url, data=payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        snapshot = models.Snapshot.objects.get(uuid=response.data['uuid'])
-        self.assertIn('source_volume_name', snapshot.metadata)
-        self.assertEqual(snapshot.metadata['source_volume_name'], self.volume.name)
-        self.assertEqual(snapshot.metadata['source_volume_description'], self.volume.description)
-        self.assertEqual(snapshot.metadata['source_volume_image_metadata'], self.volume.image_metadata)
-
 
 @ddt
 class VolumeCreateSnapshotScheduleTest(test.APITransactionTestCase):

@@ -293,7 +293,6 @@ class ScheduleSnapshots(BaseScheduleTask):
             source_volume=schedule.source_volume,
             snapshot_schedule=schedule,
             size=schedule.source_volume.size,
-            metadata=serializers.SnapshotSerializer.get_snapshot_metadata(schedule.source_volume),
             kept_until=kept_until,
         )
         snapshot.increase_backend_quotas_usage()
