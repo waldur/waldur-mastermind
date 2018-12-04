@@ -262,6 +262,7 @@ class BaseCustomerMutationTest(CustomerBaseTest):
             self.assertEqual(response.status_code, status_code)
 
 
+@ddt
 class CustomerCreateTest(BaseCustomerMutationTest):
 
     @data('user', 'global_support')
@@ -345,6 +346,7 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         self.assertEqual(response.data['display_name'], 'Computer Science Lab')
 
 
+@ddt
 class CustomerUpdateTest(BaseCustomerMutationTest):
 
     @data('manager', 'admin', 'customer_support', 'project_support', 'global_support')
@@ -396,7 +398,7 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         self.assertEqual(self.fixture.customer.domain, 'ut.ee')
 
     def test_owner_can_not_change_organization_domain(self):
-        self.client.force_authenticate(user=self.fixture.staff)
+        self.client.force_authenticate(user=self.fixture.owner)
 
         response = self.client.patch(self._get_customer_url(self.fixture.customer), {
             'domain': 'ut.ee'
