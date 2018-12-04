@@ -336,6 +336,8 @@ class CustomerCreateTest(BaseCustomerMutationTest):
 
     @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_domain_name_is_not_filled_from_input_for_owner(self):
+        self.fixture.user.organization = ''
+        self.fixture.user.save()
         self.client.force_authenticate(user=self.fixture.user)
         response = self.client.post(factories.CustomerFactory.get_list_url(), {
             'name': 'Computer Science Lab',
@@ -397,6 +399,7 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.domain, 'ut.ee')
 
+    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_not_change_organization_domain(self):
         self.client.force_authenticate(user=self.fixture.owner)
 

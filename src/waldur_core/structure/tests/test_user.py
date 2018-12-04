@@ -527,6 +527,8 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.assertEqual(self.fixture.user.organization, 'ut.ee')
 
     def test_user_can_not_update_his_own_organization(self):
+        self.fixture.user.organization = ''
+        self.fixture.user.save()
         self.valid_payload['organization'] = 'ut.ee'
 
         response = self.client.put(self.url, self.valid_payload)
