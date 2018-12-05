@@ -104,6 +104,7 @@ class GenericUserFilter(BaseFilterBackend):
 
 
 class CustomerFilter(NameFilterSet):
+    query = django_filters.CharFilter(method='filter_query')
     native_name = django_filters.CharFilter(lookup_expr='icontains')
     abbreviation = django_filters.CharFilter(lookup_expr='icontains')
     contact_details = django_filters.CharFilter(lookup_expr='icontains')
@@ -117,6 +118,17 @@ class CustomerFilter(NameFilterSet):
             'native_name',
             'registration_code',
         ]
+
+    def filter_query(self, queryset, name, value):
+        if value:
+            return queryset.filter(
+                Q(name__icontains=value) |
+                Q(native_name__icontains=value) |
+                Q(abbreviation__icontains=value) |
+                Q(domain__icontains=value) |
+                Q(uuid__icontains=value)
+            )
+        return queryset
 
 
 class ExternalCustomerFilterBackend(ExternalFilterBackend):
