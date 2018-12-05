@@ -322,7 +322,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['domain'], 'ut.ee')
-        self.assertEqual(response.data['display_name'], 'Computer Science Lab (ut.ee)')
 
     def test_domain_name_is_filled_from_input_for_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
@@ -332,7 +331,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['domain'], 'ut.ee')
-        self.assertEqual(response.data['display_name'], 'Computer Science Lab (ut.ee)')
 
     @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_domain_name_is_not_filled_from_input_for_owner(self):
@@ -345,7 +343,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['domain'], '')
-        self.assertEqual(response.data['display_name'], 'Computer Science Lab')
 
 
 @ddt

@@ -728,11 +728,6 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         if request.method in ('PUT', 'PATCH'):
             fields['username'].read_only = True
 
-        # Usually organization field is filled from SAML2 attribute schacHomeOrganization.
-        # Therefore it is expected that this value is not going to be changed by by user himself.
-        if not user.is_staff:
-            fields['organization'].read_only = True
-
         return fields
 
     def _can_see_token(self, user):

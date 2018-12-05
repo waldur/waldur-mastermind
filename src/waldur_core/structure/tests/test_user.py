@@ -465,8 +465,8 @@ class CustomUsersFilterTest(test.APITransactionTestCase):
 @freeze_time('2017-01-19 00:00:00')
 class UserUpdateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.UserFixture()
-        self.user = self.fixture.user
+        fixture = fixtures.UserFixture()
+        self.user = fixture.user
         self.client.force_authenticate(self.user)
         self.url = factories.UserFactory.get_url(self.user)
 
@@ -516,25 +516,6 @@ class UserUpdateTest(test.APITransactionTestCase):
         response = self.client.put(self.url, self.valid_payload)
         self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('token_lifetime', response.data)
-
-    def test_staff_can_update_any_user_organization(self):
-        self.client.force_authenticate(self.fixture.staff)
-        self.valid_payload['organization'] = 'ut.ee'
-
-        response = self.client.put(self.url, self.valid_payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.fixture.user.refresh_from_db()
-        self.assertEqual(self.fixture.user.organization, 'ut.ee')
-
-    def test_user_can_not_update_his_own_organization(self):
-        self.fixture.user.organization = ''
-        self.fixture.user.save()
-        self.valid_payload['organization'] = 'ut.ee'
-
-        response = self.client.put(self.url, self.valid_payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.fixture.user.refresh_from_db()
-        self.assertEqual(self.fixture.user.organization, '')
 
 
 @mock.patch('waldur_core.structure.handlers.event_logger')

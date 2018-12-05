@@ -457,6 +457,8 @@ class Customer(core_models.UuidMixin,
         return {'customer_uuid': filter_queryset_for_user(customer_queryset, user).values_list('uuid', flat=True)}
 
     def get_display_name(self):
+        if self.abbreviation:
+            return self.abbreviation
         if self.domain:
             return '{name} ({domain})'.format(name=self.name, domain=self.domain)
         return self.name
