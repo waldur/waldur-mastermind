@@ -1,6 +1,6 @@
 import os
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from django.core.files import File
 
 from waldur_mastermind.marketplace.models import Category, Section, Attribute, AttributeOption
@@ -103,6 +103,7 @@ enums = {
     ],
 }
 
+
 def populate_category(category_code, category, sections):
     for section_key in sections.keys():
         section_prefix = '%s_%s' % (category_code, section_key)
@@ -131,7 +132,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
 
-        all_categories = available_categories.keys();
+        all_categories = available_categories.keys()
 
         for category_short in options['category']:
             if category_short not in all_categories:
@@ -139,7 +140,7 @@ class Command(BaseCommand):
                 continue
             category_name, category_description = available_categories[category_short]
             new_category, _ = Category.objects.get_or_create(title=category_name, description=category_description)
-            category_icon= '%s.svg' % category_short
+            category_icon = '%s.svg' % category_short
             path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
             new_category.icon.save(category_icon,
                                    File(open(path + category_icon, 'r')))
