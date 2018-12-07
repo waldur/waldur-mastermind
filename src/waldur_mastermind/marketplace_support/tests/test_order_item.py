@@ -90,6 +90,7 @@ class RequestCreateTest(BaseTest):
 
 class RequestDeleteTest(BaseTest):
     def setUp(self):
+        super(RequestDeleteTest, self).setUp()
         self.fixture = fixtures.ProjectFixture()
         self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
         self.request = support_factories.OfferingFactory(state=support_models.Offering.States.TERMINATED)
