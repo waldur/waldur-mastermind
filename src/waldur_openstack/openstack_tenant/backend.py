@@ -778,7 +778,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 raise OpenStackBackendError(
                     'Current installation cannot create instance without a system volume.')
 
-            security_group_ids = instance.security_groups.values_list('backend_id', flat=True)
             nics = [{'port-id': internal_ip.backend_id}
                     for internal_ip in instance.internal_ips_set.all()
                     if internal_ip.backend_id]
@@ -804,7 +803,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 block_device_mapping_v2=block_device_mapping_v2,
                 nics=nics,
                 key_name=backend_public_key.name if backend_public_key is not None else None,
-                security_groups=security_group_ids,
             )
             availability_zone = self.settings.options.get('availability_zone')
             if availability_zone:
@@ -1176,10 +1174,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_instance_internal_ips(self, instance):
+        security_groups = list(instance.security_groups.values_list('backend_id', flat=True))
         for internal_ip in instance.internal_ips_set.all():
-            self.create_internal_ip(internal_ip)
+            self.create_internal_ip(internal_ip, security_groups)
 
-    def create_internal_ip(self, internal_ip):
+    def create_internal_ip(self, internal_ip, security_groups):
         neutron = self.neutron_client
 
         logger.debug('About to create network port. Network ID: %s. Subnet ID: %s.',
@@ -1191,6 +1190,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 'fixed_ips': [{
                     'subnet_id': internal_ip.subnet.backend_id,
                 }],
+                'security_groups': security_groups,
             }
             backend_internal_ip = neutron.create_port({'port': port})['port']
         except neutron_exceptions.NeutronClientException as e:
