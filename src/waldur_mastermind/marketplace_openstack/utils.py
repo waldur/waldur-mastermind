@@ -1,7 +1,6 @@
 import logging
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
@@ -17,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def get_offering_category_for_tenant():
-    return settings.WALDUR_MARKETPLACE_OPENSTACK['TENANT_CATEGORY_UUID']
+    return marketplace_models.Category.objects.get(
+        uuid=settings.WALDUR_MARKETPLACE_OPENSTACK['TENANT_CATEGORY_UUID']
+    )
 
 
 def get_offering_name_for_instance(tenant):
@@ -25,7 +26,9 @@ def get_offering_name_for_instance(tenant):
 
 
 def get_offering_category_for_instance():
-    return settings.WALDUR_MARKETPLACE_OPENSTACK['INSTANCE_CATEGORY_UUID']
+    return marketplace_models.Category.objects.get(
+        uuid=settings.WALDUR_MARKETPLACE_OPENSTACK['INSTANCE_CATEGORY_UUID']
+    )
 
 
 def get_offering_name_for_volume(tenant):
@@ -33,7 +36,9 @@ def get_offering_name_for_volume(tenant):
 
 
 def get_offering_category_for_volume():
-    return settings.WALDUR_MARKETPLACE_OPENSTACK['VOLUME_CATEGORY_UUID']
+    return marketplace_models.Category.objects.get(
+        uuid=settings.WALDUR_MARKETPLACE_OPENSTACK['VOLUME_CATEGORY_UUID']
+    )
 
 
 def get_category_and_name_for_offering_type(offering_type, service_settings):
@@ -119,7 +124,6 @@ def import_openstack_service_settings(default_customer, dry_run=False):
         offering = create_offering(service_settings, offering_state)
 
         plan = marketplace_models.Plan.objects.create(
-            scope=template,
             offering=offering,
             name=template.name,
             unit_price=template.price,
@@ -127,6 +131,8 @@ def import_openstack_service_settings(default_customer, dry_run=False):
             product_code=template.product_code,
             article_code=template.article_code,
         )
+        plan.scope = template
+        plan.save()
 
         component_map = {
             component.type: component
@@ -195,7 +201,7 @@ def import_openstack_tenants(dry_run=False):
             offering = marketplace_models.Offering.objects.get(scope=tenant.service_settings)
         except marketplace_models.Offering.DoesNotExist:
             logger.warning('Offering for service setting is not imported yet. '
-                           'Service setting ID: %s.', tenant.service_settings_id)
+                           'Service setting ID: %s.', tenant.service_settings.id)
             continue
 
         create_resource(offering, tenant)
@@ -258,7 +264,8 @@ def import_openstack_tenant_service_settings(dry_run=False):
 
             plan = marketplace_models.Plan.objects.create(
                 offering=offering,
-                name=parent_plan.name
+                name=parent_plan.name,
+                scope=parent_plan.scope,
             )
 
             component_map = {
@@ -307,20 +314,41 @@ def import_openstack_instances_and_volumes(dry_run=False):
             logger.warning('OpenStack resource with IDs would be imported to marketplace: %s.', ids)
             continue
 
+        offerings = {
+            offering.scope: offering
+            for offering in marketplace_models.Offering.objects.filter(type=offering_type)
+        }
+
+        templates = {
+            package.tenant: package.template
+            for package in package_models.OpenStackPackage.objects.all()
+        }
+
+        plans = {
+            plan.scope: plan
+            for plan in marketplace_models.Plan.objects.all()
+            if plan.scope
+        }
+
         for resource in missing_resources:
-            try:
-                offering = marketplace_models.Offering.objects.filter(
-                    scope=resource.service_settings,
-                    type=offering_type,
-                )
-            except marketplace_models.Offering.DoesNotExist:
+            offering = offerings.get(resource.service_settings)
+            if not offering:
                 logger.warning('Offering for service setting with ID %s is not imported yet.',
                                resource.service_settings.id)
                 continue
 
+            tenant = resource.service_settings.scope
+            template = templates.get(tenant)
+            plan = plans.get(template)
+
+            if plan and plan.offering != offering:
+                logger.warning('Marketplace plan is not valid because it refers to another offering. '
+                               'Plan ID: %s, offering ID: %s', plan.id, offering.id)
+
             marketplace_models.Resource.objects.create(
                 project=resource.project,
                 offering=offering,
+                plan=plan,
                 scope=resource,
                 state=get_resource_state(resource.state),
                 attributes=dict(

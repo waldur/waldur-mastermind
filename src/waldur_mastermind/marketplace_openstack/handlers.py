@@ -63,12 +63,14 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
                        'Offering ID: %s', component.plan.offering.id)
         return
 
-    package_models.PackageComponent.objects.create(
-        template=template,
-        type=component.component.type,
-        amount=component.amount,
-        price=component.price,
-    )
+    if not package_models.PackageComponent.objects.filter(
+            template=template, type=component.component.type).exists():
+        package_models.PackageComponent.objects.create(
+            template=template,
+            type=component.component.type,
+            amount=component.amount,
+            price=component.price,
+        )
 
 
 def change_package_order_item_state(sender, instance, created=False, **kwargs):
