@@ -54,7 +54,7 @@ class TemplateOfferingTest(test.APITransactionTestCase):
         category = marketplace_models.Category.objects.create(title='VPC')
         template = package_factories.PackageTemplateFactory()
         marketplace_models.Offering.objects.all().delete()
-        utils.create_package_missing_offerings(category, customer)
+        utils.import_openstack_service_settings(category, customer)
         offering = marketplace_models.Offering.objects.get(scope=template.service_settings)
         self.assertEqual(template.service_settings.name, offering.name)
 
@@ -141,9 +141,7 @@ class OpenStackResourceOfferingTest(test.APITransactionTestCase):
 
     def test_creating_missing_offerings_for_tenants(self):
         tenant = openstack_factories.TenantFactory()
-        category = marketplace_factories.CategoryFactory()
-
-        utils.create_missing_offerings(category)
+        utils.import_openstack_tenant_service_settings()
         self.assertEqual(marketplace_models.Offering.objects.all().count(), 2)
 
         service_settings = self._get_service_settings(tenant)
@@ -153,8 +151,7 @@ class OpenStackResourceOfferingTest(test.APITransactionTestCase):
         tenant1 = openstack_factories.TenantFactory()
         tenant2 = openstack_factories.TenantFactory()
 
-        category = marketplace_factories.CategoryFactory()
-        utils.create_missing_offerings(category, [tenant1.uuid])
+        utils.import_openstack_tenant_service_settings()
 
         self.assertEqual(marketplace_models.Offering.objects.all().count(), 2)
         self.assertTrue(marketplace_models.Offering.objects.filter(scope=self._get_service_settings(tenant1)).exists())
@@ -162,15 +159,13 @@ class OpenStackResourceOfferingTest(test.APITransactionTestCase):
 
     def test_creating_missing_resources_for_instances_without_plan(self):
         instance = openstack_tenant_factories.InstanceFactory()
-        category = marketplace_models.Category.objects.create(title='VPC')
-        utils.create_missing_resources_for_instances(category)
+        utils.import_openstack_instances_and_volumes()
         self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
 
     def test_creating_missing_resources_for_instances_with_plan(self):
         instance = openstack_tenant_factories.InstanceFactory()
         package_factories.PackageTemplateFactory(service_settings=instance.service_settings.scope.service_settings)
-        category = marketplace_models.Category.objects.create(title='VPC')
-        utils.create_missing_resources_for_instances(category)
+        utils.import_openstack_instances_and_volumes()
         self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
         resource = marketplace_models.Resource.objects.get(scope=instance)
         self.assertTrue(resource.plan)
@@ -178,8 +173,7 @@ class OpenStackResourceOfferingTest(test.APITransactionTestCase):
     def test_creating_missing_resources_for_instances_with_plan_dry_run(self):
         instance = openstack_tenant_factories.InstanceFactory()
         package_factories.PackageTemplateFactory(service_settings=instance.service_settings.scope.service_settings)
-        category = marketplace_models.Category.objects.create(title='VPC')
-        utils.create_missing_resources_for_instances(category, True)
+        utils.import_openstack_instances_and_volumes(True)
         self.assertEqual(marketplace_models.Resource.objects.count(), 0)
         self.assertEqual(marketplace_models.Offering.objects.count(), 0)
         self.assertEqual(marketplace_models.Plan.objects.count(), 0)

@@ -130,21 +130,20 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
         return
 
     parent_offering = resource.offering
-    for (offering_type, offering_name) in (
-            (INSTANCE_TYPE, utils.get_offering_name_for_instance(tenant)),
-            (VOLUME_TYPE, utils.get_offering_name_for_volume(tenant))
-    ):
+    for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
+        category, offering_name = utils.get_category_and_name_for_offering_type(
+            offering_type, service_settings)
         payload = dict(
             type=offering_type,
             name=offering_name,
             scope=service_settings,
             shared=False,
+            category=category,
         )
 
         fields = (
             'state',
             'customer',
-            'category',
             'attributes',
             'thumbnail',
             'vendor_details',
