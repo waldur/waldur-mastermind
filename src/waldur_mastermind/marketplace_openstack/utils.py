@@ -75,6 +75,28 @@ def format_list(resources):
     return ', '.join(map(str, resources.values_list('id', flat=True)))
 
 
+def copy_components(plan, offering, fixed_components, component_map):
+    for component_data in fixed_components:
+        offering_component = marketplace_models.OfferingComponent.objects.create(
+            offering=offering,
+            **component_data._asdict()
+        )
+
+        plan_component = component_map.get(offering_component.type)
+        if not plan_component:
+            logger.warning('Skipping component because it is not found. '
+                           'Offering ID: %s, component type: %s.',
+                           offering.id, offering_component.type)
+            continue
+
+        marketplace_models.PlanComponent.objects.create(
+            plan=plan,
+            component=offering_component,
+            amount=plan_component.amount,
+            price=plan_component.price,
+        )
+
+
 def import_openstack_service_settings(default_customer, dry_run=False):
     """
     Import OpenStack service settings as marketplace offerings.
@@ -140,25 +162,7 @@ def import_openstack_service_settings(default_customer, dry_run=False):
         }
         fixed_components = plugins.manager.get_components(offering.type)
 
-        for component_data in fixed_components:
-            offering_component = marketplace_models.OfferingComponent.objects.create(
-                offering=offering,
-                **component_data._asdict()
-            )
-
-            package_component = component_map.get(offering_component.type)
-            if not package_component:
-                logger.warning('Skipping component because it does not have package. '
-                               'Template ID: %s, component type: %s.',
-                               service_settings.id, offering_component.type)
-                continue
-
-            marketplace_models.PlanComponent.objects.create(
-                plan=plan,
-                component=offering_component,
-                amount=package_component.amount,
-                price=package_component.price,
-            )
+        copy_components(plan, offering, fixed_components, component_map)
 
 
 def import_openstack_tenants(dry_run=False):
@@ -256,7 +260,7 @@ def import_openstack_tenant_service_settings(dry_run=False):
                 continue
 
             try:
-                parent_plan = marketplace_models.Plan.objects.get(scope=template)
+                parent_plan = marketplace_models.Plan.objects.get(scope=template, offering__type=PACKAGE_TYPE)
             except marketplace_models.Plan.DoesNotExist:
                 logger.warning('Billing for template is not imported because it does not have plan. '
                                'Template ID: %s', template.id)
@@ -270,25 +274,11 @@ def import_openstack_tenant_service_settings(dry_run=False):
 
             component_map = {
                 component.type: component
-                for component in parent_plan.components.all()
+                for component in template.components.all()
             }
 
             fixed_components = plugins.manager.get_components(parent_plan.offering.type)
-
-            for component_data in fixed_components:
-                offering_component = marketplace_models.OfferingComponent.objects.create(
-                    offering=offering,
-                    **component_data._asdict()
-                )
-
-                plan_component = component_map.get(offering_component.type)
-
-                marketplace_models.PlanComponent.objects.create(
-                    plan=plan,
-                    component=offering_component,
-                    amount=plan_component.amount,
-                    price=plan_component.price,
-                )
+            copy_components(plan, offering, fixed_components, component_map)
 
 
 def import_openstack_instances_and_volumes(dry_run=False):
@@ -326,7 +316,7 @@ def import_openstack_instances_and_volumes(dry_run=False):
 
         plans = {
             plan.scope: plan
-            for plan in marketplace_models.Plan.objects.all()
+            for plan in marketplace_models.Plan.objects.filter(offering__type=offering_type)
             if plan.scope
         }
 
