@@ -14,6 +14,7 @@ from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, utils
 
@@ -158,6 +159,30 @@ class OpenStackResourceOfferingTest(test.APITransactionTestCase):
         self.assertEqual(marketplace_models.Offering.objects.all().count(), 2)
         self.assertTrue(marketplace_models.Offering.objects.filter(scope=self._get_service_settings(tenant1)).exists())
         self.assertFalse(marketplace_models.Offering.objects.filter(scope=self._get_service_settings(tenant2)).exists())
+
+    def test_creating_missing_resources_for_instances_without_plan(self):
+        instance = openstack_tenant_factories.InstanceFactory()
+        category = marketplace_models.Category.objects.create(title='VPC')
+        utils.create_missing_resources_for_instances(category)
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
+
+    def test_creating_missing_resources_for_instances_with_plan(self):
+        instance = openstack_tenant_factories.InstanceFactory()
+        package_factories.PackageTemplateFactory(service_settings=instance.service_settings.scope.service_settings)
+        category = marketplace_models.Category.objects.create(title='VPC')
+        utils.create_missing_resources_for_instances(category)
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+        self.assertTrue(resource.plan)
+
+    def test_creating_missing_resources_for_instances_with_plan_dry_run(self):
+        instance = openstack_tenant_factories.InstanceFactory()
+        package_factories.PackageTemplateFactory(service_settings=instance.service_settings.scope.service_settings)
+        category = marketplace_models.Category.objects.create(title='VPC')
+        utils.create_missing_resources_for_instances(category, True)
+        self.assertEqual(marketplace_models.Resource.objects.count(), 0)
+        self.assertEqual(marketplace_models.Offering.objects.count(), 0)
+        self.assertEqual(marketplace_models.Plan.objects.count(), 0)
 
     def _get_service_settings(self, tenant):
         return structure_models.ServiceSettings.objects.get(

@@ -308,6 +308,7 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
         COUNTRIES = [item for item in COUNTRIES if item[0] in settings.WALDUR_CORE['COUNTRIES']]
     country = serializers.ChoiceField(required=False, choices=COUNTRIES, allow_blank=True)
     country_name = serializers.ReadOnlyField(source='get_country_display')
+    display_name = serializers.ReadOnlyField(source='get_display_name')
 
     class Meta(object):
         model = models.Customer
@@ -316,10 +317,11 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
             'uuid',
             'created',
             'name', 'native_name', 'abbreviation', 'contact_details',
+            'domain', 'display_name',
             'agreement_number', 'email', 'phone_number', 'access_subnets',
             'projects',
             'owners', 'support_users',
-            'registration_code',
+            'registration_code', 'homepage',
             'quotas',
             'image',
             'country', 'country_name', 'vat_code', 'is_company',
@@ -331,6 +333,27 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
+
+    def get_fields(self):
+        fields = super(CustomerSerializer, self).get_fields()
+
+        try:
+            request = self.context['view'].request
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+
+        if not user.is_staff:
+            fields['domain'].read_only = True
+
+        return fields
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        if 'domain' not in validated_data:
+            # Staff can specify domain name on organization creation
+            validated_data['domain'] = user.organization
+        return super(CustomerSerializer, self).create(validated_data)
 
     @staticmethod
     def eager_load(queryset, request=None):

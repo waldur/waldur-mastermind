@@ -2,7 +2,6 @@
 from __future__ import unicode_literals
 
 from ddt import data, ddt
-from django.test import TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
@@ -16,7 +15,7 @@ from waldur_core.structure.models import Customer, CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
-class UrlResolverMixin(object):
+class CustomerBaseTest(test.APITransactionTestCase):
     def _get_customer_url(self, customer):
         return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid})
 
@@ -28,7 +27,7 @@ class UrlResolverMixin(object):
 
 
 @freeze_time('2017-11-01 00:00:00')
-class CustomerTest(TransactionTestCase):
+class CustomerUserTest(CustomerBaseTest):
     def setUp(self):
         self.customer = factories.CustomerFactory()
         self.user = factories.UserFactory()
@@ -117,17 +116,12 @@ class CustomerTest(TransactionTestCase):
 
         self.assertFalse(receiver.called, 'structure_role_remove should not be emitted')
 
-
-class CustomerRoleTest(TransactionTestCase):
-    def setUp(self):
-        self.customer = factories.CustomerFactory()
-
     def test_get_owners_returns_empty_list(self):
         self.assertEqual(0, self.customer.get_owners().count())
 
 
 @ddt
-class CustomerApiPermissionTest(UrlResolverMixin, test.APITransactionTestCase):
+class CustomerListTest(CustomerBaseTest):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -219,7 +213,7 @@ class CustomerApiPermissionTest(UrlResolverMixin, test.APITransactionTestCase):
 
 
 @ddt
-class CustomerApiManipulationTest(UrlResolverMixin, test.APITransactionTestCase):
+class CustomerDeleteTest(CustomerBaseTest):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -241,7 +235,36 @@ class CustomerApiManipulationTest(UrlResolverMixin, test.APITransactionTestCase)
         self.assertDictContainsSubset({'detail': 'Cannot delete organization with existing projects'},
                                       response.data)
 
-    # Creation tests
+
+class BaseCustomerMutationTest(CustomerBaseTest):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+
+    # Helper methods
+    def _get_valid_payload(self, resource=None):
+        resource = resource or factories.CustomerFactory()
+
+        return {
+            'name': resource.name,
+            'abbreviation': resource.abbreviation,
+            'contact_details': resource.contact_details,
+        }
+
+    def _check_single_customer_field_change_permission(self, customer, status_code):
+        payload = self._get_valid_payload(customer)
+
+        for field, value in payload.items():
+            data = {
+                field: value
+            }
+
+            response = self.client.patch(self._get_customer_url(customer), data)
+            self.assertEqual(response.status_code, status_code)
+
+
+@ddt
+class CustomerCreateTest(BaseCustomerMutationTest):
+
     @data('user', 'global_support')
     def test_user_can_not_create_customer_if_he_is_not_staff(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -288,7 +311,43 @@ class CustomerApiManipulationTest(UrlResolverMixin, test.APITransactionTestCase)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    # Mutation tests
+    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
+    def test_domain_name_is_filled_from_user_organization(self):
+        self.fixture.user.organization = 'ut.ee'
+        self.fixture.user.save()
+
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.post(factories.CustomerFactory.get_list_url(), {
+            'name': 'Computer Science Lab'
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['domain'], 'ut.ee')
+
+    def test_domain_name_is_filled_from_input_for_staff(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(factories.CustomerFactory.get_list_url(), {
+            'name': 'Computer Science Lab',
+            'domain': 'ut.ee'
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['domain'], 'ut.ee')
+
+    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
+    def test_domain_name_is_not_filled_from_input_for_owner(self):
+        self.fixture.user.organization = ''
+        self.fixture.user.save()
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.post(factories.CustomerFactory.get_list_url(), {
+            'name': 'Computer Science Lab',
+            'domain': 'ut.ee'
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['domain'], '')
+
+
+@ddt
+class CustomerUpdateTest(BaseCustomerMutationTest):
+
     @data('manager', 'admin', 'customer_support', 'project_support', 'global_support')
     def test_user_cannot_change_customer_as_whole(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -327,26 +386,26 @@ class CustomerApiManipulationTest(UrlResolverMixin, test.APITransactionTestCase)
         self.client.force_authenticate(user=self.fixture.staff)
         self._check_single_customer_field_change_permission(self.fixture.customer, status.HTTP_200_OK)
 
-    # Helper methods
-    def _get_valid_payload(self, resource=None):
-        resource = resource or factories.CustomerFactory()
+    def test_staff_can_change_organization_domain(self):
+        self.client.force_authenticate(user=self.fixture.staff)
 
-        return {
-            'name': resource.name,
-            'abbreviation': resource.abbreviation,
-            'contact_details': resource.contact_details,
-        }
+        response = self.client.patch(self._get_customer_url(self.fixture.customer), {
+            'domain': 'ut.ee'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.domain, 'ut.ee')
 
-    def _check_single_customer_field_change_permission(self, customer, status_code):
-        payload = self._get_valid_payload(customer)
+    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
+    def test_owner_can_not_change_organization_domain(self):
+        self.client.force_authenticate(user=self.fixture.owner)
 
-        for field, value in payload.items():
-            data = {
-                field: value
-            }
-
-            response = self.client.patch(self._get_customer_url(customer), data)
-            self.assertEqual(response.status_code, status_code)
+        response = self.client.patch(self._get_customer_url(self.fixture.customer), {
+            'domain': 'ut.ee'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.domain, '')
 
 
 class CustomerQuotasTest(test.APITransactionTestCase):
@@ -488,11 +547,6 @@ class CustomerQuotasTest(test.APITransactionTestCase):
 
     def assert_quota_usage(self, name, value):
         self.assertEqual(value, self.customer.quotas.get(name=name).usage)
-
-
-class CustomerUnicodeTest(TransactionTestCase):
-    def test_customer_can_have_unicode_name(self):
-        factories.CustomerFactory(name="Моя организация")
 
 
 @ddt

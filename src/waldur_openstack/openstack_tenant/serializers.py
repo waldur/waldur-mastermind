@@ -390,9 +390,6 @@ class SnapshotRestorationSerializer(core_serializers.AugmentedSerializerMixin, s
             size=snapshot.size,
         )
 
-        if 'source_volume_image_metadata' in snapshot.metadata:
-            volume.image_metadata = snapshot.metadata['source_volume_image_metadata']
-
         volume.save()
         volume.increase_backend_quotas_usage()
         validated_data['volume'] = volume
@@ -441,16 +438,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
         attrs['source_volume'] = source_volume = self.context['view'].get_object()
         attrs['service_project_link'] = source_volume.service_project_link
         attrs['size'] = source_volume.size
-        attrs['metadata'] = self.get_snapshot_metadata(source_volume)
         return super(SnapshotSerializer, self).validate(attrs)
-
-    @staticmethod
-    def get_snapshot_metadata(volume):
-        return {
-            'source_volume_name': volume.name,
-            'source_volume_description': volume.description,
-            'source_volume_image_metadata': volume.image_metadata,
-        }
 
 
 class SnapshotImportableSerializer(core_serializers.AugmentedSerializerMixin,
@@ -1188,8 +1176,6 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
                 description='Restored from backup %s' % backup.uuid.hex,
                 size=snapshot.size,
             )
-            if 'source_volume_image_metadata' in snapshot.metadata:
-                volume.image_metadata = snapshot.metadata['source_volume_image_metadata']
             volume.save()
             volume.increase_backend_quotas_usage()
             instance.volumes.add(volume)
@@ -1273,7 +1259,6 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
                 size=volume.size,
                 source_volume=volume,
                 description='Part of backup %s (UUID: %s)' % (backup.name, backup.uuid.hex),
-                metadata=SnapshotSerializer.get_snapshot_metadata(volume),
             )
             snapshot.increase_backend_quotas_usage()
             backup.snapshots.add(snapshot)

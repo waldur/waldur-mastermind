@@ -330,6 +330,8 @@ class Customer(core_models.UuidMixin,
                                       help_text=_('Enter a comma separated list of IPv4 or IPv6 '
                                                   'CIDR addresses from where connection to self-service is allowed.'))
     registration_code = models.CharField(max_length=160, default='', blank=True)
+    homepage = models.URLField(max_length=255, blank=True)
+    domain = models.CharField(max_length=255, blank=True)
 
     type = models.CharField(blank=True, max_length=150)
     address = models.CharField(blank=True, max_length=300)
@@ -453,6 +455,13 @@ class Customer(core_models.UuidMixin,
                 permissions__is_active=True
             )
         return {'customer_uuid': filter_queryset_for_user(customer_queryset, user).values_list('uuid', flat=True)}
+
+    def get_display_name(self):
+        if self.abbreviation:
+            return self.abbreviation
+        if self.domain:
+            return '{name} ({domain})'.format(name=self.name, domain=self.domain)
+        return self.name
 
     def __str__(self):
         if self.abbreviation:
