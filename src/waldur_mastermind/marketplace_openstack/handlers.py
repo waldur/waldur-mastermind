@@ -63,12 +63,14 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
                        'Offering ID: %s', component.plan.offering.id)
         return
 
-    package_models.PackageComponent.objects.create(
-        template=template,
-        type=component.component.type,
-        amount=component.amount,
-        price=component.price,
-    )
+    if not package_models.PackageComponent.objects.filter(
+            template=template, type=component.component.type).exists():
+        package_models.PackageComponent.objects.create(
+            template=template,
+            type=component.component.type,
+            amount=component.amount,
+            price=component.price,
+        )
 
 
 def change_package_order_item_state(sender, instance, created=False, **kwargs):
@@ -130,21 +132,20 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
         return
 
     parent_offering = resource.offering
-    for (offering_type, offering_name) in (
-            (INSTANCE_TYPE, utils.get_offering_name_for_instance(tenant)),
-            (VOLUME_TYPE, utils.get_offering_name_for_volume(tenant))
-    ):
+    for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
+        category, offering_name = utils.get_category_and_name_for_offering_type(
+            offering_type, service_settings)
         payload = dict(
             type=offering_type,
             name=offering_name,
             scope=service_settings,
             shared=False,
+            category=category,
         )
 
         fields = (
             'state',
             'customer',
-            'category',
             'attributes',
             'thumbnail',
             'vendor_details',

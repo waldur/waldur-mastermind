@@ -9,17 +9,14 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.packages.tests import factories as package_factories
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
-from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
-from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, utils
+from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
+from .utils import BaseOpenStackTest
 
 
-class TemplateOfferingTest(test.APITransactionTestCase):
+class TemplateOfferingTest(BaseOpenStackTest):
     def test_template_for_plan_is_created(self):
         fixture = package_fixtures.OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
@@ -48,15 +45,6 @@ class TemplateOfferingTest(test.APITransactionTestCase):
         plan = marketplace_factories.PlanFactory(offering=offering)
         plan.refresh_from_db()
         self.assertIsNone(plan.scope)
-
-    def test_missing_offerings_are_created(self):
-        customer = structure_factories.CustomerFactory()
-        category = marketplace_models.Category.objects.create(title='VPC')
-        template = package_factories.PackageTemplateFactory()
-        marketplace_models.Offering.objects.all().delete()
-        utils.create_package_missing_offerings(category, customer)
-        offering = marketplace_models.Offering.objects.get(scope=template.service_settings)
-        self.assertEqual(template.service_settings.name, offering.name)
 
 
 class PlanComponentsTest(test.APITransactionTestCase):
@@ -108,7 +96,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
 
 
 @ddt
-class OpenStackResourceOfferingTest(test.APITransactionTestCase):
+class OpenStackResourceOfferingTest(BaseOpenStackTest):
     @data(INSTANCE_TYPE, VOLUME_TYPE)
     def test_offering_is_created_when_tenant_creation_is_completed(self, offering_type):
         tenant = self.trigger_offering_creation()
@@ -138,57 +126,6 @@ class OpenStackResourceOfferingTest(test.APITransactionTestCase):
         tenant.delete()
         offering = marketplace_models.Offering.objects.get(type=offering_type)
         self.assertEqual(offering.state, marketplace_models.Offering.States.ARCHIVED)
-
-    def test_creating_missing_offerings_for_tenants(self):
-        tenant = openstack_factories.TenantFactory()
-        category = marketplace_factories.CategoryFactory()
-
-        utils.create_missing_offerings(category)
-        self.assertEqual(marketplace_models.Offering.objects.all().count(), 2)
-
-        service_settings = self._get_service_settings(tenant)
-        self.assertTrue(marketplace_models.Offering.objects.filter(scope=service_settings).exists())
-
-    def test_creating_missing_offerings_for_selected_tenants(self):
-        tenant1 = openstack_factories.TenantFactory()
-        tenant2 = openstack_factories.TenantFactory()
-
-        category = marketplace_factories.CategoryFactory()
-        utils.create_missing_offerings(category, [tenant1.uuid])
-
-        self.assertEqual(marketplace_models.Offering.objects.all().count(), 2)
-        self.assertTrue(marketplace_models.Offering.objects.filter(scope=self._get_service_settings(tenant1)).exists())
-        self.assertFalse(marketplace_models.Offering.objects.filter(scope=self._get_service_settings(tenant2)).exists())
-
-    def test_creating_missing_resources_for_instances_without_plan(self):
-        instance = openstack_tenant_factories.InstanceFactory()
-        category = marketplace_models.Category.objects.create(title='VPC')
-        utils.create_missing_resources_for_instances(category)
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
-
-    def test_creating_missing_resources_for_instances_with_plan(self):
-        instance = openstack_tenant_factories.InstanceFactory()
-        package_factories.PackageTemplateFactory(service_settings=instance.service_settings.scope.service_settings)
-        category = marketplace_models.Category.objects.create(title='VPC')
-        utils.create_missing_resources_for_instances(category)
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
-        resource = marketplace_models.Resource.objects.get(scope=instance)
-        self.assertTrue(resource.plan)
-
-    def test_creating_missing_resources_for_instances_with_plan_dry_run(self):
-        instance = openstack_tenant_factories.InstanceFactory()
-        package_factories.PackageTemplateFactory(service_settings=instance.service_settings.scope.service_settings)
-        category = marketplace_models.Category.objects.create(title='VPC')
-        utils.create_missing_resources_for_instances(category, True)
-        self.assertEqual(marketplace_models.Resource.objects.count(), 0)
-        self.assertEqual(marketplace_models.Offering.objects.count(), 0)
-        self.assertEqual(marketplace_models.Plan.objects.count(), 0)
-
-    def _get_service_settings(self, tenant):
-        return structure_models.ServiceSettings.objects.get(
-            scope=tenant,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
-        )
 
     def trigger_offering_creation(self):
         fixture = package_fixtures.OpenStackFixture()
