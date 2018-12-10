@@ -14,7 +14,7 @@ install_requires = [
     'ansible-waldur-module>=0.8.2',
     'apache-libcloud>=1.1.0,<2.2.0',
     'Babel!=2.4.0,>=2.3.4',
-    'Celery==4.1.0',
+    'Celery>=4.1.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4,<0.3.6',
     'cryptography>=1.7.2',
