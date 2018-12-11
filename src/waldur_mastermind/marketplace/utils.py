@@ -177,12 +177,51 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
 
 class UpdateResourceProcessor(BaseOrderItemProcessor):
     def validate_order_item(self, request):
-        pass
+        post_data = self.get_post_data()
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(data=post_data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
 
     def process_order_item(self, user):
-        resource = self.order_item.resource
-        resource.set_state_updating()
-        resource.save(update_fields=['state'])
+        resource = self.get_resource()
+        if not resource:
+            raise serializers.ValidationError('Resource is not found.')
+
+        view = self.get_view()
+        payload = self.get_post_data()
+        response = common_utils.create_request(view, user, payload)
+
+        if response.status_code == status.HTTP_202_ACCEPTED:
+            self.order_item.resource.set_state_updating()
+            self.order_item.resource.save(update_fields=['state'])
+        else:
+            raise serializers.ValidationError(response.data)
+
+    def get_serializer_class(self):
+        """
+        This method should return DRF serializer class which
+        validates request data to update existing resource.
+        """
+        raise NotImplementedError
+
+    def get_resource(self):
+        """
+        This method should return related resource of order item.
+        """
+        return self.order_item.resource.scope
+
+    def get_view(self):
+        """
+        This method should return DRF viewset class which
+        processes request to change existing resource.
+        """
+        raise NotImplementedError
+
+    def get_post_data(self):
+        """
+        This method converts order item to request data expected by DRF serializer.
+        """
+        raise NotImplementedError
 
 
 class DeleteResourceProcessor(BaseOrderItemProcessor):
@@ -217,12 +256,6 @@ class DeleteResourceProcessor(BaseOrderItemProcessor):
         This method should return related resource of order item.
         """
         return self.order_item.resource.scope
-
-    def get_view_name(self):
-        """
-        This method should return Django view name as it is specified in router.
-        """
-        raise NotImplementedError()
 
     def get_viewset(self):
         """
