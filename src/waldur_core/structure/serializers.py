@@ -344,7 +344,8 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
             return fields
 
         if not user.is_staff:
-            fields['domain'].read_only = True
+            if 'domain' in fields:
+                fields['domain'].read_only = True
 
         return fields
 
