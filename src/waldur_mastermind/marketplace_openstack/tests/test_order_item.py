@@ -206,6 +206,7 @@ class TenantUpdateTest(TenantMutateTest):
         self.trigger_update()
         self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.UPDATING)
+        self.assertEqual(self.resource.plan, self.plan)
 
         package = package_models.OpenStackPackage.objects.get(tenant=self.tenant)
         self.assertEqual(package.template, self.new_template)
@@ -227,6 +228,7 @@ class TenantUpdateTest(TenantMutateTest):
 
         self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.plan, self.new_plan)
 
     def trigger_update(self):
         serialized_order = core_utils.serialize_instance(self.order_item.order)
