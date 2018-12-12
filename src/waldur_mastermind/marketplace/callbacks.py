@@ -33,11 +33,14 @@ def resource_creation_failed(resource):
 def resource_update_succeeded(resource):
     resource.set_state_ok()
     resource.save(update_fields=['state'])
-    set_order_item_state(
+    order_item = set_order_item_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
         models.OrderItem.States.DONE,
     )
+    if order_item and order_item.plan:
+        resource.plan = order_item.plan
+        resource.save(update_fields=['plan'])
 
 
 def resource_update_failed(resource):
@@ -87,6 +90,7 @@ def set_order_item_state(resource, type, new_state):
     else:
         order_item.state = new_state
         order_item.save(update_fields=['state'])
+        return order_item
 
 
 States = StateMixin.States

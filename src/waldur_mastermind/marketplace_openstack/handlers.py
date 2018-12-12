@@ -73,32 +73,6 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
         )
 
 
-def change_package_order_item_state(sender, instance, created=False, **kwargs):
-    if created or not instance.tracker.has_changed('state'):
-        return
-
-    try:
-        openstack_package = package_models.OpenStackPackage.objects.get(tenant=instance)
-        resource = marketplace_models.Resource.objects.get(scope=openstack_package)
-    except ObjectDoesNotExist:
-        logger.warning('Skipping OpenStack tenant state synchronization '
-                       'because related resource is not found. Tenant ID: %s', instance.id)
-    else:
-        callbacks.sync_resource_state(instance, resource)
-
-
-def terminate_tenant(sender, instance, **kwargs):
-    try:
-        openstack_package = package_models.OpenStackPackage.objects.get(tenant=instance)
-        resource = marketplace_models.Resource.objects.get(scope=openstack_package)
-    except ObjectDoesNotExist:
-        logger.debug('Skipping resource terminate for OpenStack tenant '
-                     'because related resource does not exist. '
-                     'OpenStack tenant ID: %s', instance.id)
-    else:
-        callbacks.resource_deletion_succeeded(resource)
-
-
 def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     if created:
         return
@@ -176,8 +150,9 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.warning('Skipping OpenStack instance state synchronization '
-                       'because related resource is not found. Instance ID: %s', instance.id)
+        logger.warning('Skipping OpenStack resource state synchronization '
+                       'because marketplace resource is not found. '
+                       'Resource ID: %s', instance.id)
     else:
         callbacks.sync_resource_state(instance, resource)
 
@@ -186,8 +161,8 @@ def terminate_resource(sender, instance, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.debug('Skipping resource terminate for OpenStack instance'
-                     'because related resource does not exist. '
-                     'Instance ID: %s', instance.id)
+        logger.debug('Skipping resource terminate for OpenStack resource'
+                     'because marketplace resource does not exist. '
+                     'Resource ID: %s', instance.id)
     else:
         callbacks.resource_deletion_succeeded(resource)
