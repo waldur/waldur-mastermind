@@ -107,8 +107,13 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
 
     parent_offering = resource.offering
     for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
-        category, offering_name = utils.get_category_and_name_for_offering_type(
-            offering_type, service_settings)
+        try:
+            category, offering_name = utils.get_category_and_name_for_offering_type(
+                offering_type, service_settings)
+        except ObjectDoesNotExist:
+            logger.warning('Skipping offering creation for tenant because category '
+                           'for instances and volumes is not yet defined.')
+            continue
         payload = dict(
             type=offering_type,
             name=offering_name,
