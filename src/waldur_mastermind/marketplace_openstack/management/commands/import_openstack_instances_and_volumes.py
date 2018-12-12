@@ -9,7 +9,7 @@ class Command(BaseCommand):
     """
 
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', dest='dry_run', required=False,
+        parser.add_argument('--dry-run', action='store_true',
                             help='Don\'t make any changes, instead show what objects would be created.')
 
     def handle(self, dry_run, *args, **options):

@@ -1,5 +1,6 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
+from waldur_mastermind.marketplace.models import Category
 from waldur_mastermind.marketplace_openstack import utils
 
 
@@ -7,8 +8,13 @@ class Command(BaseCommand):
     help = """Import OpenStack tenant service settings as marketplace offerings."""
 
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', dest='dry_run', required=False,
+        parser.add_argument('--dry-run', action='store_true',
                             help='Don\'t make any changes, instead show what objects would be created.')
 
     def handle(self, dry_run, *args, **options):
-        utils.import_openstack_tenant_service_settings(dry_run)
+        try:
+            utils.import_openstack_tenant_service_settings(dry_run)
+        except Category.DoesNotExist:
+            raise CommandError('Please ensure that WALDUR_MARKETPLACE_OPENSTACK.INSTANCE_CATEGORY_UUID '
+                               'and WALDUR_MARKETPLACE_OPENSTACK.VOLUME_CATEGORY_UUID'
+                               'setting has valid value.')
