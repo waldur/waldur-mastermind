@@ -121,4 +121,7 @@ class OpenStackExtension(WaldurExtension):
 
     @staticmethod
     def get_public_settings():
-        return ['TENANT_CREDENTIALS_VISIBLE']
+        return [
+            'MANAGER_CAN_MANAGE_TENANTS',
+            'TENANT_CREDENTIALS_VISIBLE',
+        ]
