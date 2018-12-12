@@ -12,7 +12,7 @@ class Command(BaseCommand):
         parser.add_argument('--customer', dest='customer_uuid', required=True,
                             help='Default customer argument is used for shared service setting.')
 
-        parser.add_argument('--dry_run', dest='dry_run', required=False,
+        parser.add_argument('--dry-run', dest='dry_run', required=False,
                             help='Don\'t make any changes, instead show what objects would be created.')
 
     def handle(self, customer_uuid, dry_run, *args, **options):
