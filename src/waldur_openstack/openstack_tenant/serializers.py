@@ -897,10 +897,18 @@ class InstanceFlavorChangeSerializer(structure_serializers.PermissionFieldFilter
     def update(self, instance, validated_data):
         flavor = validated_data.get('flavor')
 
-        settings = instance.service_project_link.service.settings
         spl = instance.service_project_link
+        settings = spl.service.settings
+        quota_holders = [spl, settings]
 
-        for quota_holder in [settings, spl]:
+        # Service settings has optional field for related tenant resource.
+        # We should update tenant quotas if related tenant is defined.
+        # Otherwise stale quotas would be used for quota validation during instance provisioning.
+        # Note that all tenant quotas are injected to service settings when application is bootstrapped.
+        if settings.scope:
+            quota_holders.append(settings.scope)
+
+        for quota_holder in quota_holders:
             quota_holder.add_quota_usage(quota_holder.Quotas.ram, flavor.ram - instance.ram, validate=True)
             quota_holder.add_quota_usage(quota_holder.Quotas.vcpu, flavor.cores - instance.cores, validate=True)
 
