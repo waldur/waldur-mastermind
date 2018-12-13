@@ -144,15 +144,6 @@ class BackupRestorationTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_if_flavor_disk_size_lesser_then_system_volume_size_validation_fails(self):
-        invalid_flavor = factories.FlavorFactory(disk=self.disk_size - 10, settings=self.service_settings)
-        response = self.client.post(self.url, self._get_valid_payload(
-            flavor=factories.FlavorFactory.get_url(invalid_flavor))
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
-        self.assertEqual(response.data['flavor'], ['Flavor disk size should match system volume size.'])
-
     def test_security_groups_cannot_be_associated_if_they_belong_to_another_settings(self):
         security_group = factories.SecurityGroupFactory()
         self.assertNotEqual(self.backup.service_project_link.service.settings, security_group.settings)

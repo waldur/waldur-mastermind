@@ -1075,7 +1075,6 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
                 system_volume = backup.instance.volumes.get(bootable=True)
                 fields['flavor'].query_params = {
                     'settings_uuid': backup.service_project_link.service.settings.uuid,
-                    'disk__gte': system_volume.size,
                 }
             except ObjectDoesNotExist:
                 # Validation exception is raised in validate method below
@@ -1121,8 +1120,6 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
 
         if flavor.settings != settings:
             raise serializers.ValidationError({'flavor': _('Flavor is not within services\' settings.')})
-        if flavor.disk < system_volume.size:
-            raise serializers.ValidationError({'flavor': _('Flavor disk size should match system volume size.')})
 
         _validate_instance_security_groups(attrs.get('security_groups', []), settings)
 

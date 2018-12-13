@@ -651,9 +651,9 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
             is_heavy_task=True,
         )
 
-        instance_serialiser = serializers.InstanceSerializer(
+        instance_serializer = serializers.InstanceSerializer(
             backup_restoration.instance, context={'request': self.request})
-        return response.Response(instance_serialiser.data, status=status.HTTP_201_CREATED)
+        return response.Response(instance_serializer.data, status=status.HTTP_201_CREATED)
 
     restore_validators = [core_validators.StateValidator(models.Backup.States.OK)]
     restore_serializer_class = serializers.BackupRestorationSerializer
