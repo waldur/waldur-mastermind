@@ -504,3 +504,19 @@ class PollBackendCheckTask(Task):
         if not getattr(backend, backend_check_method)(instance):
             self.retry()
         return instance
+
+
+class ExtensionTaskMixin(CeleryTask):
+    """
+    This mixin allows to skip task scheduling if extension is disabled.
+    Subclasses should implement "is_extension_disabled" method which returns boolean value.
+    """
+    def is_extension_disabled(self):
+        return False
+
+    def apply_async(self, args=None, kwargs=None, **options):
+        if self.is_extension_disabled():
+            message = 'Task %s is not scheduled, because its extension is disabled.' % self.name
+            logger.info(message)
+            return self.AsyncResult(options.get('task_id') or str(uuid4()))
+        return super(ExtensionTaskMixin, self).apply_async(args=args, kwargs=kwargs, **options)

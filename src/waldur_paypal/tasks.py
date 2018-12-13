@@ -1,33 +1,16 @@
 import logging
 from datetime import timedelta, datetime
 
-from celery.task import Task as CeleryTask
 from django.conf import settings
 from django.utils import timezone
 
 from waldur_core.core import tasks as core_tasks
+from waldur_core.core.tasks import ExtensionTaskMixin
 from waldur_core.structure import SupportedServices
 
 from . import models, executors
 
 logger = logging.getLogger(__name__)
-
-
-# TODO: Move this mixin to Waldur Core
-class ExtensionTaskMixin(CeleryTask):
-    """
-    This mixin allows to skip task scheduling if extension is disabled.
-    Subclasses should implement "is_extension_disabled" method which returns boolean value.
-    """
-    def is_extension_disabled(self):
-        return False
-
-    def apply_async(self, args=None, kwargs=None, **options):
-        if self.is_extension_disabled():
-            message = 'Task %s is not scheduled, because its extension is disabled.' % self.name
-            logger.info(message)
-            return self.AsyncResult(options.get('task_id'))
-        return super(ExtensionTaskMixin, self).apply_async(args=args, kwargs=kwargs, **options)
 
 
 class PaypalTaskMixin(ExtensionTaskMixin):
