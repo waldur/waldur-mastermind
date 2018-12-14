@@ -3,7 +3,7 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace.utils import CreateResourceProcessor
+from waldur_mastermind.marketplace.utils import CreateResourceProcessor, UpdateResourceProcessor
 from waldur_mastermind.marketplace.utils import DeleteResourceProcessor
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
@@ -79,12 +79,32 @@ class PackageCreateProcessor(CreateResourceProcessor):
         return package_models.OpenStackPackage.objects.get(uuid=response.data['uuid']).tenant
 
 
+class PackageUpdateProcessor(UpdateResourceProcessor):
+
+    def get_serializer_class(self):
+        return package_views.OpenStackPackageViewSet.change_serializer_class
+
+    def get_view(self):
+        return package_views.OpenStackPackageViewSet.as_view({'post': 'change'})
+
+    def get_post_data(self):
+        resource = self.get_resource()
+        try:
+            package = package_models.OpenStackPackage.objects.get(tenant=resource)
+        except ObjectDoesNotExist:
+            raise serializers.ValidationError('OpenStack package for tenant does not exist.')
+
+        template = self.order_item.plan.scope
+
+        return {
+            'package': reverse('openstack-package-detail', kwargs={'uuid': package.uuid}),
+            'template': reverse('package-template-detail', kwargs={'uuid': template.uuid})
+        }
+
+
 class PackageDeleteProcessor(DeleteResourceProcessor):
     def get_viewset(self):
         return openstack_views.TenantViewSet
-
-    def get_resource(self):
-        return self.order_item.resource.scope.tenant
 
 
 def get_spl(order_item):

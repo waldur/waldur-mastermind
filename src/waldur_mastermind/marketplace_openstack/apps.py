@@ -28,7 +28,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.archive_offering',
         )
 
-        for index, model in enumerate((tenant_models.Instance, tenant_models.Volume)):
+        for index, model in enumerate((openstack_models.Tenant, tenant_models.Instance, tenant_models.Volume)):
             signals.post_save.connect(
                 handlers.change_order_item_state,
                 sender=model,
@@ -53,21 +53,10 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_plan_component',
         )
 
-        signals.pre_delete.connect(
-            handlers.terminate_tenant,
-            sender=openstack_models.Tenant,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.terminate_tenant',
-        )
-
-        signals.post_save.connect(
-            handlers.change_package_order_item_state,
-            sender=openstack_models.Tenant,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.change_package_order_item_state',
-        )
-
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(offering_type=PACKAGE_TYPE,
                          create_resource_processor=processors.PackageCreateProcessor,
+                         update_resource_processor=processors.PackageUpdateProcessor,
                          delete_resource_processor=processors.PackageDeleteProcessor,
                          components=(
                              Component(type='ram', name='RAM', measured_unit='GB', billing_type=FIXED),

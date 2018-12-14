@@ -61,17 +61,18 @@ def create_support_plan(sender, instance, created=False, **kwargs):
         return
 
     with transaction.atomic():
-        offering_plan = support_models.OfferingPlan.objects.create(
-            template=plan.offering.scope,
-            name=plan.name,
-            description=plan.description,
-            product_code=plan.product_code,
-            article_code=plan.article_code,
-            unit=plan.unit,
-            unit_price=plan.unit_price,
-        )
-        plan.scope = offering_plan
-        plan.save()
+        if not plan.scope:
+            offering_plan = support_models.OfferingPlan.objects.create(
+                template=plan.offering.scope,
+                name=plan.name,
+                description=plan.description,
+                product_code=plan.product_code,
+                article_code=plan.article_code,
+                unit=plan.unit,
+                unit_price=plan.unit_price,
+            )
+            plan.scope = offering_plan
+            plan.save()
 
 
 def offering_set_state_ok(sender, instance, created=False, **kwargs):

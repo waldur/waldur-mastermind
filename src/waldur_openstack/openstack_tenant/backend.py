@@ -331,9 +331,10 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         # Step 3. Delete stale IPs
         ips_to_delete = set(floating_ips) - set(imported_ips)
-        logger.info('About to delete stale floating IPs: %s', ips_to_delete)
-        models.FloatingIP.objects.filter(settings=self.settings,
-                                         backend_id__in=ips_to_delete).delete()
+        if ips_to_delete:
+            logger.info('About to delete stale floating IPs: %s', ips_to_delete)
+            models.FloatingIP.objects.filter(settings=self.settings,
+                                             backend_id__in=ips_to_delete).delete()
 
     def _backend_floating_ip_to_floating_ip(self, backend_floating_ip, **kwargs):
         floating_ip = models.FloatingIP(

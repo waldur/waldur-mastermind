@@ -106,16 +106,23 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             existing_support_user = self.manager.search_users(user.email, includeInactive=True)
 
         if existing_support_user:
-            if not existing_support_user[0].active:
+            active_user = [u for u in existing_support_user if u.active]
+            if not active_user:
                 raise SupportUserInactive()
 
             logger.debug('Skipping user %s creation because it already exists', user.email)
-            return
+            backend_customer = active_user[0]
+        else:
+            if self.use_old_api:
+                backend_customer = self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
+            else:
+                backend_customer = self.manager.create_customer(user.email, user.full_name)
 
-        if self.use_old_api:
-            return self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
-
-        return self.manager.create_customer(user.email, user.full_name)
+        try:
+            user.supportcustomer
+        except ObjectDoesNotExist:
+            support_customer = models.SupportCustomer(user=user, backend_id=backend_customer.key)
+            support_customer.save()
 
     @reraise_exceptions
     def get_users(self):
@@ -182,13 +189,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             }
         }
 
-        try:
-            support_customer = issue.caller.supportcustomer
-        except ObjectDoesNotExist:
-            backend_caller = self.manager.search_users(issue.caller.email)[0]
-            support_customer = models.SupportCustomer(user=issue.caller, backend_id=backend_caller.key)
-            support_customer.save()
-
+        support_customer = issue.caller.supportcustomer
         args['requestParticipants'] = [support_customer.backend_id]
         return args
 

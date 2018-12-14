@@ -524,6 +524,7 @@ class BaseServiceFilter(six.with_metaclass(ServiceFilterMetaclass, django_filter
 
 class BaseServiceProjectLinkFilter(django_filters.FilterSet):
     service_uuid = django_filters.UUIDFilter(name='service__uuid')
+    settings_uuid = django_filters.UUIDFilter(name='service__settings__uuid')
     customer_uuid = django_filters.UUIDFilter(name='service__customer__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')

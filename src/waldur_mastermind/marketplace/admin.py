@@ -4,10 +4,13 @@ from django.contrib import admin
 from django.forms.models import ModelForm
 from django.shortcuts import redirect
 from django.urls import reverse
-from django.utils.translation import ugettext_lazy as _
+from django.utils.html import format_html
+from django.utils.translation import ugettext_lazy as _, ungettext
 from jsoneditor.forms import JSONEditor
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
+from waldur_core.structure.models import ServiceSettings, SharedServiceSettings, PrivateServiceSettings
 
 from . import models, tasks
 
@@ -52,6 +55,7 @@ class CategoryColumnInline(admin.TabularInline):
 
 
 class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('title', 'uuid',)
     inlines = [SectionInline, CategoryColumnInline]
 
 
@@ -90,16 +94,51 @@ class OfferingComponentInline(admin.TabularInline):
     model = models.OfferingComponent
 
 
+def get_admin_url_for_scope(scope):
+    if isinstance(scope, ServiceSettings):
+        model = scope.shared and SharedServiceSettings or PrivateServiceSettings
+    else:
+        model = scope.__class___
+    return reverse('admin:%s_%s_change' % (scope._meta.app_label, model._meta.model_name), args=[scope.id])
+
+
 class OfferingAdmin(admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
-    list_display = ('name', 'customer', 'state')
-    list_filter = ('state',)
+    list_display = ('name', 'customer', 'state', 'category')
+    list_filter = ('state', 'shared', ('category', RelatedOnlyDropdownFilter),)
+    search_fields = ('name', 'uuid')
     fields = ('state', 'customer', 'category', 'name', 'native_name',
               'description', 'native_description', 'full_description',
               'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
-              'shared', 'allowed_customers', 'type', 'scope', 'vendor_details')
-    readonly_fields = ('rating', 'scope')
+              'shared', 'allowed_customers', 'type', 'scope_link', 'vendor_details')
+    readonly_fields = ('rating', 'scope_link')
+
+    def scope_link(self, obj):
+        if obj.scope:
+            return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope)
+
+    actions = ['activate']
+
+    def activate(self, request, queryset):
+        valid_states = [models.Offering.States.DRAFT, models.Offering.States.PAUSED]
+        valid_offerings = queryset.filter(state__in=valid_states)
+        count = valid_offerings.count()
+
+        for offering in valid_offerings:
+            offering.activate()
+            offering.save()
+
+        message = ungettext(
+            'One offering has been activated.',
+            '%(count)d offerings have been activated.',
+            count
+        )
+        message = message % {'count': count}
+
+        self.message_user(request, message)
+
+    activate.short_description = _('Activate offerings')
 
 
 class OrderItemInline(admin.TabularInline):

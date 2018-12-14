@@ -146,5 +146,5 @@ def handle_resource_update_success(resource):
 
     if update_fields:
         resource.save(update_fields=update_fields)
-    logger.warning('%s %s (PK: %s) was successfully updated.' % (
+    logger.info('%s %s (PK: %s) was successfully updated.' % (
         resource.__class__.__name__, resource, resource.pk))
