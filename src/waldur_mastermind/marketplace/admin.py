@@ -52,6 +52,7 @@ class CategoryColumnInline(admin.TabularInline):
 
 
 class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('title', 'uuid',)
     inlines = [SectionInline, CategoryColumnInline]
 
 
