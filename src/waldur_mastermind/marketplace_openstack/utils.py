@@ -136,6 +136,7 @@ def import_openstack_service_settings(default_customer, dry_run=False):
             customer=service_settings.customer or default_customer,
             category=category,
             shared=service_settings.shared,
+            state=marketplace_models.Offering.States.ACTIVE
         )
         create_offering_components(offering)
         return offering
@@ -268,7 +269,8 @@ def import_openstack_tenant_service_settings(dry_run=False):
                 name=offering_name,
                 scope=service_settings,
                 shared=service_settings.shared,
-                type=offering_type
+                type=offering_type,
+                state=marketplace_models.Offering.States.ACTIVE,
             )
             create_offering_components(offering)
             offerings_counter += 1
