@@ -188,7 +188,7 @@ def import_openstack_tenants(dry_run=False):
     if dry_run:
         logger.warning('OpenStack tenants would be imported to marketplace. '
                        'ID: %s.', format_list(missing_resources))
-        return
+        return 0
 
     packages = package_models.OpenStackPackage.objects.filter(tenant__in=missing_resources)
     tenants_without_packages = missing_resources.exclude(id__in=packages.values_list('tenant_id', flat=True))
@@ -208,6 +208,7 @@ def import_openstack_tenants(dry_run=False):
             )
         )
 
+    resource_counter = 0
     for tenant in tenants_without_packages:
         # It is expected that service setting has exactly one offering
         # if it does not have package
@@ -219,6 +220,7 @@ def import_openstack_tenants(dry_run=False):
             continue
 
         create_resource(offering, tenant)
+        resource_counter += 1
 
     for package in packages:
         tenant = package.tenant
@@ -230,12 +232,18 @@ def import_openstack_tenants(dry_run=False):
             continue
 
         create_resource(plan.offering, tenant, plan)
+        resource_counter += 1
+
+    return resource_counter
 
 
 def import_openstack_tenant_service_settings(dry_run=False):
     """
     Import OpenStack tenant service settings as marketplace offerings.
     """
+
+    offerings_counter = 0
+    plans_counter = 0
 
     for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
         marketplace_offerings = marketplace_models.Offering.objects.filter(type=offering_type)
@@ -263,6 +271,7 @@ def import_openstack_tenant_service_settings(dry_run=False):
                 type=offering_type
             )
             create_offering_components(offering)
+            offerings_counter += 1
 
             template = settings_to_template.get(service_settings)
             if not template:
@@ -282,6 +291,9 @@ def import_openstack_tenant_service_settings(dry_run=False):
             plan.save()
 
             copy_plan_components_from_template(plan, offering, template)
+            plans_counter += 1
+
+    return offerings_counter, plans_counter
 
 
 def import_openstack_instances_and_volumes(dry_run=False):
@@ -293,6 +305,8 @@ def import_openstack_instances_and_volumes(dry_run=False):
         INSTANCE_TYPE: openstack_tenant_models.Instance,
         VOLUME_TYPE: openstack_tenant_models.Volume,
     }
+
+    resources_counter = 0
 
     for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
         front_ids = set(marketplace_models.Resource.objects.
@@ -349,3 +363,6 @@ def import_openstack_instances_and_volumes(dry_run=False):
                     description=resource.description,
                 ),
             )
+            resources_counter += 1
+
+    return resources_counter

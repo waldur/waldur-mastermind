@@ -13,7 +13,9 @@ class Command(BaseCommand):
 
     def handle(self, dry_run, *args, **options):
         try:
-            utils.import_openstack_tenant_service_settings(dry_run)
+            offerings_counter, plans_counter = utils.import_openstack_tenant_service_settings(dry_run)
+            self.stdout.write(self.style.SUCCESS('%s offerings have been created.' % offerings_counter))
+            self.stdout.write(self.style.SUCCESS('%s plans have been created.' % plans_counter))
         except Category.DoesNotExist:
             raise CommandError('Please ensure that WALDUR_MARKETPLACE_OPENSTACK.INSTANCE_CATEGORY_UUID '
                                'and WALDUR_MARKETPLACE_OPENSTACK.VOLUME_CATEGORY_UUID'

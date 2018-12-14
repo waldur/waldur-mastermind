@@ -13,4 +13,5 @@ class Command(BaseCommand):
                             help='Don\'t make any changes, instead show what objects would be created.')
 
     def handle(self, dry_run, *args, **options):
-        utils.import_openstack_tenants(dry_run)
+        resource_counter = utils.import_openstack_tenants(dry_run)
+        self.stdout.write(self.style.SUCCESS('%s resources have been created.' % resource_counter))
