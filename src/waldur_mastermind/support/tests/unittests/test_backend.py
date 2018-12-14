@@ -1,16 +1,18 @@
 from __future__ import unicode_literals
 
+import json
+
+import jira
+import mock
 from django.test import TestCase
 from django.utils import timezone
-import json
-import mock
-import jira
+from jira import User
 
 from waldur_core.core.utils import datetime_to_timestamp
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import fixtures, factories
 from waldur_mastermind.support.tests.base import load_resource
-from waldur_mastermind.support import models
 
 
 class BaseBackendTest(TestCase):
@@ -25,6 +27,9 @@ class BaseBackendTest(TestCase):
         self.mocked_jira = jira_patcher.start()()
 
         self.mocked_jira.fields.return_value = json.loads(load_resource('jira_fields.json'))
+
+        mock_backend_users = [User({'server': ''}, None, raw={'key': 'user_1', 'active': True})]
+        self.mocked_jira.search_users.return_value = mock_backend_users
 
     def tearDown(self):
         super(BaseBackendTest, self).tearDown()

@@ -3,7 +3,7 @@ import json
 import mock
 from ddt import ddt, data
 from rest_framework import status
-from jira import Issue
+from jira import Issue, User
 from jira.resources import RequestType, IssueType
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -110,6 +110,9 @@ class IssueCreateBaseTest(base.BaseTest):
         self.mock_jira().create_customer_request.return_value = mock_backend_issue
 
         self.mock_jira().create_issue.return_value = mock_backend_issue
+
+        mock_backend_users = [User({'server': ''}, None, raw={'key': 'user_1', 'active': True})]
+        self.mock_jira().search_users.return_value = mock_backend_users
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
@@ -306,6 +309,16 @@ class IssueCreateTest(IssueCreateBaseTest):
         factories.SupportCustomerFactory(user=issue.caller)
         ServiceDeskBackend().create_issue(issue)
         self.assertEqual(models.RequestType.objects.count(), 1)
+
+    def test_create_issue_if_exist_several_backend_users_with_same_email(self):
+        self._mock_jira()
+        factories.SupportUserFactory(user=self.fixture.staff)
+        self.client.force_authenticate(self.fixture.staff)
+        mock_backend_users = [User({'server': ''}, None, raw={'key': 'user_1', 'active': False}),
+                              User({'server': ''}, None, raw={'key': 'user_2', 'active': True})]
+        self.mock_jira().search_users.return_value = mock_backend_users
+        response = self.client.post(self.url, data=self._get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
 @override_support_settings(USE_OLD_API=True)
