@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db import transaction
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
@@ -72,23 +73,28 @@ def format_list(resources):
     """
     Format comma-separated list of IDs from Django queryset.
     """
-    return ', '.join(map(str, resources.values_list('id', flat=True)))
+    return ', '.join(map(str, sorted(resources.values_list('id', flat=True))))
 
 
-def copy_components(plan, offering, fixed_components, component_map):
+def create_offering_components(offering):
+    fixed_components = plugins.manager.get_components(PACKAGE_TYPE)
+
     for component_data in fixed_components:
-        offering_component = marketplace_models.OfferingComponent.objects.create(
+        marketplace_models.OfferingComponent.objects.create(
             offering=offering,
             **component_data._asdict()
         )
 
-        plan_component = component_map.get(offering_component.type)
-        if not plan_component:
-            logger.warning('Skipping component because it is not found. '
-                           'Offering ID: %s, component type: %s.',
-                           offering.id, offering_component.type)
-            continue
 
+def copy_plan_components_from_template(plan, offering, template):
+    component_map = {
+        component.type: component
+        for component in template.components.all()
+    }
+
+    for (key, component_data) in component_map.items():
+        plan_component = component_map.get(key)
+        offering_component = offering.components.get(type=key)
         marketplace_models.PlanComponent.objects.create(
             plan=plan,
             component=offering_component,
@@ -113,7 +119,7 @@ def import_openstack_service_settings(default_customer, dry_run=False):
     if dry_run:
         logger.warning('OpenStack service settings would be imported to marketplace. '
                        'ID: %s.', format_list(missing_settings))
-        return
+        return 0, 0
 
     missing_templates = package_models.PackageTemplate.objects.filter(
         service_settings__in=missing_settings)
@@ -121,8 +127,8 @@ def import_openstack_service_settings(default_customer, dry_run=False):
     settings_without_templates = missing_settings.exclude(
         id__in=missing_templates.values_list('service_settings_id', flat=True))
 
-    def create_offering(service_settings, state=marketplace_models.Offering.States.ACTIVE):
-        return marketplace_models.Offering.objects.create(
+    def create_offering(service_settings):
+        offering = marketplace_models.Offering.objects.create(
             scope=service_settings,
             type=PACKAGE_TYPE,
             name=service_settings.name,
@@ -130,42 +136,43 @@ def import_openstack_service_settings(default_customer, dry_run=False):
             customer=service_settings.customer or default_customer,
             category=category,
             shared=service_settings.shared,
-            state=state,
         )
+        create_offering_components(offering)
+        return offering
+
+    offerings_counter = 0
+    plans_counter = 0
 
     for service_settings in settings_without_templates:
-        create_offering(service_settings)
+        with transaction.atomic():
+            create_offering(service_settings)
+            offerings_counter += 1
 
     for template in missing_templates:
-        service_settings = template.service_settings
+        with transaction.atomic():
+            service_settings = template.service_settings
 
-        offering_state = marketplace_models.Offering.States.ACTIVE
-        if template.archived:
-            offering_state = marketplace_models.Offering.States.ARCHIVED
+            try:
+                offering = marketplace_models.Offering.objects.get(scope=service_settings)
+            except marketplace_models.Offering.DoesNotExist:
+                offering = create_offering(service_settings)
+                offerings_counter += 1
 
-        try:
-            offering = marketplace_models.Offering.objects.get(scope=service_settings)
-        except marketplace_models.Offering.DoesNotExist:
-            offering = create_offering(service_settings, offering_state)
+            plan = marketplace_models.Plan.objects.create(
+                offering=offering,
+                name=template.name,
+                unit_price=template.price,
+                unit=marketplace_models.Plan.Units.PER_DAY,
+                product_code=template.product_code,
+                article_code=template.article_code,
+            )
+            plan.scope = template
+            plan.save()
+            plans_counter += 1
 
-        plan = marketplace_models.Plan.objects.create(
-            offering=offering,
-            name=template.name,
-            unit_price=template.price,
-            unit=marketplace_models.Plan.Units.PER_DAY,
-            product_code=template.product_code,
-            article_code=template.article_code,
-        )
-        plan.scope = template
-        plan.save()
+            copy_plan_components_from_template(plan, offering, template)
 
-        component_map = {
-            component.type: component
-            for component in template.components.all()
-        }
-        fixed_components = plugins.manager.get_components(offering.type)
-
-        copy_components(plan, offering, fixed_components, component_map)
+    return offerings_counter, plans_counter
 
 
 def import_openstack_tenants(dry_run=False):
@@ -255,6 +262,7 @@ def import_openstack_tenant_service_settings(dry_run=False):
                 shared=service_settings.shared,
                 type=offering_type
             )
+            create_offering_components(offering)
 
             template = settings_to_template.get(service_settings)
             if not template:
@@ -269,19 +277,11 @@ def import_openstack_tenant_service_settings(dry_run=False):
                                'Template ID: %s', template.id)
                 continue
 
-            plan = marketplace_models.Plan.objects.create(
-                offering=offering,
-                name=parent_plan.name,
-                scope=parent_plan.scope,
-            )
+            plan = marketplace_models.Plan.objects.create(offering=offering, name=parent_plan.name)
+            plan.scope = parent_plan.scope
+            plan.save()
 
-            component_map = {
-                component.type: component
-                for component in template.components.all()
-            }
-
-            fixed_components = plugins.manager.get_components(parent_plan.offering.type)
-            copy_components(plan, offering, fixed_components, component_map)
+            copy_plan_components_from_template(plan, offering, template)
 
 
 def import_openstack_instances_and_volumes(dry_run=False):

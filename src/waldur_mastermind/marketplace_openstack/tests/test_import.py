@@ -51,16 +51,6 @@ class TemplateImportTest(BaseOpenStackTest):
         self.assertEqual(marketplace_models.Offering.objects.filter(
             scope=self.template.service_settings).count(), 1)
 
-    def test_archived_template_status_is_mapped(self):
-        self.template.archived = True
-        self.template.save()
-        self.import_offering()
-
-        service_settings = self.fixture.openstack_service_settings
-        offering = marketplace_models.Offering.objects.get(scope=service_settings)
-
-        self.assertEqual(offering.state, marketplace_models.Offering.States.ARCHIVED)
-
     def test_shared_settings_flag_is_mapped(self):
         service_settings = self.fixture.openstack_service_settings
         service_settings.shared = True

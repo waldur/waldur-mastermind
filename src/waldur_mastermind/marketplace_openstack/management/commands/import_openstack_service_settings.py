@@ -23,7 +23,11 @@ class Command(BaseCommand):
             raise CommandError('A customer is not found.')
 
         try:
-            utils.import_openstack_service_settings(customer, dry_run)
+            offerings_counter, plans_counter = utils.import_openstack_service_settings(customer, dry_run)
+            if offerings_counter:
+                self.stdout.write(self.style.SUCCESS('%s offerings have been created.' % offerings_counter))
+            if plans_counter:
+                self.stdout.write(self.style.SUCCESS('%s plans have been created.' % plans_counter))
         except Category.DoesNotExist:
             raise CommandError('Please ensure that WALDUR_MARKETPLACE_OPENSTACK.TENANT_CATEGORY_UUID '
                                'setting has valid value.')
