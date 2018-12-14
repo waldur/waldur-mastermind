@@ -143,7 +143,10 @@ def import_openstack_service_settings(default_customer, dry_run=False):
         if template.archived:
             offering_state = marketplace_models.Offering.States.ARCHIVED
 
-        offering = create_offering(service_settings, offering_state)
+        try:
+            offering = marketplace_models.Offering.objects.get(scope=service_settings)
+        except marketplace_models.Offering.DoesNotExist:
+            offering = create_offering(service_settings, offering_state)
 
         plan = marketplace_models.Plan.objects.create(
             offering=offering,
