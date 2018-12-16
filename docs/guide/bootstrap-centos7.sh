@@ -62,6 +62,7 @@ systemctl start logstash
 systemctl enable logstash
 
 # Set up Waldur Core
+yum install centos-release-openstack-pike
 yum -y install waldur-core
 
 su - waldur -c "waldur migrate --noinput"
