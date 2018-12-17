@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import transaction
 
 from waldur_core.core import models as core_models
+from waldur_core.core.utils import serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE
@@ -196,6 +197,7 @@ def import_openstack_tenants(dry_run=False):
 
     def create_resource(offering, tenant, plan=None):
         return marketplace_models.Resource.objects.create(
+            created=tenant.created,
             offering=offering,
             plan=plan,
             scope=tenant,
@@ -298,6 +300,30 @@ def import_openstack_tenant_service_settings(dry_run=False):
     return offerings_counter, plans_counter
 
 
+def get_plan_for_resource(resource, offering):
+    tenant = resource.service_settings.scope
+    if not tenant:
+        logger.warning('Skipping billing for resource because it does not have shared OpenStack settings. '
+                       'Resource: %s', serialize_instance(resource))
+        return
+
+    try:
+        package = package_models.OpenStackPackage.objects.get(tenant=tenant)
+    except package_models.OpenStackPackage.DoesNotExist:
+        logger.warning('Skipping billing for resource because package for tenant is not defined. '
+                       'Tenant ID: %s', tenant.id)
+        return
+
+    try:
+        plan = marketplace_models.Plan.objects.get(scope=package.template, offering=offering)
+    except marketplace_models.Plan.DoesNotExist:
+        logger.warning('Skipping billing for resource because plan for template is not defined. '
+                       'Template ID: %s', package.template)
+        return
+
+    return plan
+
+
 def import_openstack_instances_and_volumes(dry_run=False):
     """
     Import OpenStack tenant resources as marketplace resources.
@@ -328,17 +354,6 @@ def import_openstack_instances_and_volumes(dry_run=False):
             for offering in marketplace_models.Offering.objects.filter(type=offering_type)
         }
 
-        templates = {
-            package.tenant: package.template
-            for package in package_models.OpenStackPackage.objects.all()
-        }
-
-        plans = {
-            plan.scope: plan
-            for plan in marketplace_models.Plan.objects.filter(offering__type=offering_type)
-            if plan.scope
-        }
-
         for resource in missing_resources:
             offering = offerings.get(resource.service_settings)
             if not offering:
@@ -346,15 +361,10 @@ def import_openstack_instances_and_volumes(dry_run=False):
                                resource.service_settings.id)
                 continue
 
-            tenant = resource.service_settings.scope
-            template = templates.get(tenant)
-            plan = plans.get(template)
-
-            if plan and plan.offering != offering:
-                logger.warning('Marketplace plan is not valid because it refers to another offering. '
-                               'Plan ID: %s, offering ID: %s', plan.id, offering.id)
+            plan = get_plan_for_resource(resource, offering)
 
             marketplace_models.Resource.objects.create(
+                created=resource.created,
                 project=resource.project,
                 offering=offering,
                 plan=plan,

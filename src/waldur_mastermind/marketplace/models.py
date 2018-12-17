@@ -287,6 +287,7 @@ class OfferingComponent(core_models.DescribableMixin):
                                      help_text=_('Unit of measurement, for example, GB.'))
 
 
+@python_2_unicode_compatible
 class Plan(core_models.UuidMixin,
            TimeStampedModel,
            core_models.NameMixin,
@@ -318,6 +319,9 @@ class Plan(core_models.UuidMixin,
                 cost += component_prices.get(key, 0) * limits.get(key, 0)
 
         return cost
+
+    def __str__(self):
+        return self.name
 
 
 class PlanComponent(models.Model):
@@ -534,6 +538,10 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     limits = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
+
+    @property
+    def name(self):
+        return self.attributes.get('name')
 
     @transition(field=state, source=[States.CREATING, States.UPDATING], target=States.OK)
     def set_state_ok(self):
