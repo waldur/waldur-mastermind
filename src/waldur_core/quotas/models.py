@@ -8,7 +8,7 @@ import logging
 
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
@@ -146,22 +146,25 @@ class QuotaModelMixin(models.Model):
     quotas = ct_fields.GenericRelation('quotas.Quota', related_query_name='quotas')
 
     @_fail_silently
+    @transaction.atomic
     def set_quota_limit(self, quota_name, limit, fail_silently=False):
-        quota = self.quotas.get(name=quota_name)
+        quota = self.quotas.select_for_update(skip_locked=True).get(name=quota_name)
         if quota.limit != limit:
             quota.limit = limit
             quota.save(update_fields=['limit'])
 
     @_fail_silently
+    @transaction.atomic
     def set_quota_usage(self, quota_name, usage, fail_silently=False):
-        quota = self.quotas.get(name=quota_name)
+        quota = self.quotas.select_for_update(skip_locked=True).get(name=quota_name)
         if quota.usage != usage:
             quota.usage = usage
             quota.save(update_fields=['usage'])
 
     @_fail_silently
+    @transaction.atomic
     def add_quota_usage(self, quota_name, usage_delta, fail_silently=False, validate=False):
-        quota = self.quotas.get(name=quota_name)
+        quota = self.quotas.select_for_update(skip_locked=True).get(name=quota_name)
         if validate and quota.is_exceeded(usage_delta):
             raise exceptions.QuotaValidationError(
                 _('%(quota)s "%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.') % dict(
