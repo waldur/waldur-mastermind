@@ -254,7 +254,7 @@ class EmailHook(BaseHook):
             return
         # Prevent mutations of event because otherwise subsequent hook processors would fail
         context = event.copy()
-        subject = settings.WALDUR_CORE.get('NOTIFICATION_SUBJECT', 'Notifications from Waldur'),
+        subject = settings.WALDUR_CORE.get('NOTIFICATION_SUBJECT', 'Notifications from Waldur')
         context['timestamp'] = timestamp_to_datetime(event['timestamp'])
         text_message = context['message']
         html_message = render_to_string('logging/email.html', {'events': [context]})
