@@ -19,6 +19,7 @@ class BaseSecurityGroupRule(models.Model):
         (ICMP, 'icmp'),
     )
 
+    # Empty string represents any protocol
     protocol = models.CharField(max_length=4, blank=True, choices=CHOICES)
     from_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
     to_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)

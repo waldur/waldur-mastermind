@@ -226,6 +226,19 @@ class SecurityGroupRuleSerializer(serializers.ModelSerializer):
                     'to_port': _('Value should be in range [1, 65535], found %d') % to_port
                 })
 
+        elif protocol == '':
+            if from_port is not None and to_port is not None:
+                if from_port > to_port:
+                    raise serializers.ValidationError(_('"from_port" should be less or equal to "to_port"'))
+            if from_port is not None and from_port < -1:
+                raise serializers.ValidationError({
+                    'from_port': _('Value should be in range [-1, 65535], found %d') % from_port
+                })
+            if to_port is not None and to_port < -1:
+                raise serializers.ValidationError({
+                    'to_port': _('Value should be in range [-1, 65535], found %d') % to_port
+                })
+
         else:
             raise serializers.ValidationError({
                 'protocol': _('Value should be one of (tcp, udp, icmp), found %s') % protocol
