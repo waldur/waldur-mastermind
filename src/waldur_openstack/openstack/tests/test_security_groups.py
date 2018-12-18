@@ -99,6 +99,31 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.assertEqual(models.SecurityGroup.objects.count(), 0)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
 
+    def test_can_not_create_security_group_with_duplicate_rules(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data={
+            'name': 'https',
+            'rules': [
+                {
+                    'protocol': 'tcp',
+                    'from_port': 8001,
+                    'to_port': 8001,
+                    'cidr': '1.1.1.1/1',
+                },
+                {
+                    'protocol': 'tcp',
+                    'from_port': 8001,
+                    'to_port': 8001,
+                    'cidr': '1.1.1.1/1',
+                }
+            ]
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroup.objects.count(), 0)
+        self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
+
 
 @ddt
 class SecurityGroupUpdateTest(BaseSecurityGroupTest):
@@ -287,6 +312,27 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
         rule.refresh_from_db()
         self.assertEqual(rule.from_port, 125)
         self.assertEqual(rule.to_port, 225)
+
+    def test_can_not_update_security_group_with_duplicate_rules(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data=[
+            {
+                'protocol': 'tcp',
+                'from_port': 8001,
+                'to_port': 8001,
+                'cidr': '1.1.1.1/1',
+            },
+            {
+                'protocol': 'tcp',
+                'from_port': 8001,
+                'to_port': 8001,
+                'cidr': '1.1.1.1/1',
+            }
+        ])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
 
 
 @ddt
