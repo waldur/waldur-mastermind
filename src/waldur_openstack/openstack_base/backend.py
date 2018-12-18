@@ -349,7 +349,7 @@ class BaseOpenStackBackend(ServiceBackend):
         backend_rules = backend_security_group['security_group_rules']
         cur_rules = {rule.backend_id: rule for rule in security_group.rules.all()}
         for backend_rule in backend_rules:
-            # Currently we support only rules for incoming traffic
+            # TODO: Currently we support only rules for incoming traffic
             if backend_rule['direction'] != 'ingress':
                 continue
             cur_rules.pop(backend_rule['id'], None)
