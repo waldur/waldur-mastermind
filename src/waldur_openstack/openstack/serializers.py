@@ -264,7 +264,7 @@ class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
 
 
 def validate_duplicate_security_group_rules(rules):
-    values = map(frozenset, rules.values('protocol', 'from_port', 'to_port', 'cidr'))
+    values = rules.values_list('protocol', 'from_port', 'to_port', 'cidr')
     if len(set(values)) != len(values):
         raise serializers.ValidationError(_('Duplicate security group rules are not allowed.'))
 
