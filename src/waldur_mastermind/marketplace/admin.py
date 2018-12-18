@@ -9,6 +9,7 @@ from django.utils.translation import ugettext_lazy as _, ungettext
 from jsoneditor.forms import JSONEditor
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core.admin import format_json_field
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.structure.models import ServiceSettings, SharedServiceSettings, PrivateServiceSettings
 
@@ -98,8 +99,12 @@ def get_admin_url_for_scope(scope):
     if isinstance(scope, ServiceSettings):
         model = scope.shared and SharedServiceSettings or PrivateServiceSettings
     else:
-        model = scope.__class___
+        model = scope
     return reverse('admin:%s_%s_change' % (scope._meta.app_label, model._meta.model_name), args=[scope.id])
+
+
+def get_admin_link_for_scope(scope):
+    return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(scope), scope)
 
 
 class OfferingAdmin(admin.ModelAdmin):
@@ -167,6 +172,53 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     create_pdf_for_all.name = _('Create PDF for all orders')
 
 
+class ResourceAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'state', 'category', 'created')
+    list_filter = (
+        'state',
+        ('project', RelatedOnlyDropdownFilter),
+        ('offering', RelatedOnlyDropdownFilter),
+    )
+    readonly_fields = fields = ('state', 'scope_link', 'project_link', 'offering_link',
+                                'plan_link', 'formatted_attributes', 'formatted_limits')
+    search_fields = ('name', 'uuid')
+
+    def category(self, obj):
+        return obj.offering.category
+
+    def scope_link(self, obj):
+        return get_admin_link_for_scope(obj.scope)
+
+    scope_link.short_description = 'Scope'
+
+    def project_link(self, obj):
+        return get_admin_link_for_scope(obj.project)
+
+    project_link.short_description = 'Project'
+
+    def offering_link(self, obj):
+        return get_admin_link_for_scope(obj.offering)
+
+    offering_link.short_description = 'Offering'
+
+    def plan_link(self, obj):
+        return get_admin_link_for_scope(obj.plan)
+
+    plan_link.short_description = 'Plan'
+
+    def formatted_attributes(self, obj):
+        return format_json_field(obj.attributes)
+
+    formatted_attributes.allow_tags = True
+    formatted_attributes.short_description = 'Attributes'
+
+    def formatted_limits(self, obj):
+        return format_json_field(obj.limits)
+
+    formatted_limits.allow_tags = True
+    formatted_limits.short_description = 'Limits'
+
+
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category, CategoryAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
@@ -175,3 +227,4 @@ admin.site.register(models.Attribute, AttributeAdmin)
 admin.site.register(models.Screenshot)
 admin.site.register(models.Order, OrderAdmin)
 admin.site.register(models.Plan, PlanAdmin)
+admin.site.register(models.Resource, ResourceAdmin)

@@ -222,4 +222,4 @@ class SystemNotificationTest(PostgreSQLTest):
         self.assertFalse(models.EmailHook.objects.count())
         tasks.process_event(self.event)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].subject[0], 'Test Subject')
+        self.assertEqual(mail.outbox[0].subject, 'Test Subject')
