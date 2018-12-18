@@ -25,4 +25,8 @@ class Command(BaseCommand):
         except ObjectDoesNotExist:
             raise CommandError('A customer is not found.')
 
-        utils.init_offerings_and_resources(category, customer)
+        offerings_counter, plans_counter, resources_counter = utils.init_offerings_and_resources(category, customer)
+
+        self.stdout.write(self.style.SUCCESS('%s offerings have been created.' % offerings_counter))
+        self.stdout.write(self.style.SUCCESS('%s plans have been created.' % plans_counter))
+        self.stdout.write(self.style.SUCCESS('%s resources have been created.' % resources_counter))

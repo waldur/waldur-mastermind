@@ -16,12 +16,13 @@ def create_support_template(sender, instance, created=False, **kwargs):
     if instance.type != PLUGIN_NAME or not created:
         return
 
-    template = support_models.OfferingTemplate.objects.create(
-        name=instance.name,
-        config=instance.options
-    )
-    instance.scope = template
-    instance.save()
+    if not instance.scope:
+        template = support_models.OfferingTemplate.objects.create(
+            name=instance.name,
+            config=instance.options
+        )
+        instance.scope = template
+        instance.save()
 
 
 def change_order_item_state(sender, instance, created=False, **kwargs):
