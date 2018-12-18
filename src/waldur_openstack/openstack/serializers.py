@@ -276,6 +276,12 @@ class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
         return rule
 
 
+def validate_duplicate_security_group_rules(rules):
+    values = rules.values_list('protocol', 'from_port', 'to_port', 'cidr')
+    if len(set(values)) != len(values):
+        raise serializers.ValidationError(_('Duplicate security group rules are not allowed.'))
+
+
 class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
     child = SecurityGroupRuleUpdateSerializer()
 
@@ -287,6 +293,7 @@ class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
         security_group.rules.exclude(id__in=[r.id for r in rules if r.id]).delete()
         for rule in rules:
             rule.save()
+        validate_duplicate_security_group_rules(security_group.rules)
         security_group.change_backend_quotas_usage_on_rules_update(old_rules_count)
         return rules
 
@@ -346,6 +353,7 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
             security_group = super(structure_serializers.BaseResourceSerializer, self).create(validated_data)
             for rule in rules:
                 security_group.rules.add(rule, bulk=False)
+            validate_duplicate_security_group_rules(security_group.rules)
             security_group.increase_backend_quotas_usage()
         return security_group
 
