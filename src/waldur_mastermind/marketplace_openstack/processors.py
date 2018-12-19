@@ -28,6 +28,8 @@ class PackageCreateProcessor(CreateResourceProcessor):
             service_settings = order_item.offering.scope
         except ObjectDoesNotExist:
             service_settings = None
+        except AttributeError:
+            service_settings = None
 
         if not isinstance(service_settings, structure_models.ServiceSettings):
             raise serializers.ValidationError('Offering has invalid scope. Service settings object is expected.')
@@ -35,6 +37,8 @@ class PackageCreateProcessor(CreateResourceProcessor):
         try:
             template = order_item.plan.scope
         except ObjectDoesNotExist:
+            template = None
+        except AttributeError:
             template = None
 
         if not isinstance(template, package_models.PackageTemplate):
