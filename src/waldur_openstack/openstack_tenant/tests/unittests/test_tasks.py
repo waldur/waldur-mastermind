@@ -114,7 +114,6 @@ class BackupScheduleTaskTest(TestCase):
         new_dt = self.overdue_schedule.next_trigger_at
         self.assertGreater(new_dt, old_dt)
 
-    @unittest.skip('Skipping unstable test')
     def test_next_trigger_at_is_updated_if_timezone_is_changed(self):
         # Arrange
         old_dt = self.future_schedule.next_trigger_at
@@ -126,7 +125,7 @@ class BackupScheduleTaskTest(TestCase):
         # Assert
         self.future_schedule.refresh_from_db()
         new_dt = self.future_schedule.next_trigger_at
-        self.assertGreater(new_dt, old_dt)
+        self.assertNotEqual(new_dt, old_dt)
 
     def test_duplicate_backups_are_not_created_for_two_consequent_immediate_calls(self):
         tasks.ScheduleBackups().run()
@@ -195,6 +194,37 @@ class BackupScheduleTaskTest(TestCase):
         tasks.ScheduleBackups().run()
         self.assertTrue(models.Backup.objects.filter(id=todays_backup.id).exists())
         self.assertEqual(self.overdue_schedule.backups.count(), 3)
+
+    def test_if_backup_amount_equals_allowed_limit_deletion_is_scheduled_for_oldest_backup(self):
+        backup1 = factories.BackupFactory(instance=self.instance)
+        backup2 = factories.BackupFactory(instance=self.instance)
+        backup3 = factories.BackupFactory(instance=self.instance)
+
+        self.overdue_schedule.backups.add(*[backup1, backup2, backup3])
+        self.overdue_schedule.maximal_number_of_resources = 3
+        self.overdue_schedule.save()
+        tasks.ScheduleBackups().run()
+
+        backup1.refresh_from_db()
+        backup2.refresh_from_db()
+        backup3.refresh_from_db()
+        self.assertEqual(models.Backup.States.DELETION_SCHEDULED, backup1.state)
+        self.assertNotEqual(models.Backup.States.DELETION_SCHEDULED, backup2.state)
+        self.assertNotEqual(models.Backup.States.DELETION_SCHEDULED, backup3.state)
+
+    @mock.patch('waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute')
+    def test_if_exceeding_backups_are_already_deleting_extra_deletion_is_not_scheduled(self, mocked_executor):
+        backup1 = factories.BackupFactory(instance=self.instance,
+                                          state=models.Backup.States.DELETION_SCHEDULED)
+        backup2 = factories.BackupFactory(instance=self.instance)
+        backup3 = factories.BackupFactory(instance=self.instance)
+
+        self.overdue_schedule.backups.add(*[backup1, backup2, backup3])
+        self.overdue_schedule.maximal_number_of_resources = 3
+        self.overdue_schedule.save()
+        tasks.ScheduleBackups().run()
+
+        self.assertEqual(0, mocked_executor.call_count)
 
     def _trigger_next_backup(self, base_dt):
         tz = pytz.timezone(self.overdue_schedule.timezone)
