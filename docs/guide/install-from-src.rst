@@ -41,7 +41,7 @@ Additional requirements:
     cp src/waldur_core/server/settings.py.example src/waldur_core/server/settings.py
     vi src/waldur_core/server/settings.py
 
-5. Initialise PostgeSQL database:
+5. Initialise PostgreSQL database:
 
   .. code-block:: bash
 
