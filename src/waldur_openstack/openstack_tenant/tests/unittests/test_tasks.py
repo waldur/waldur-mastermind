@@ -1,6 +1,5 @@
 from datetime import timedelta, datetime
 import mock
-import unittest
 
 from croniter import croniter
 from django.test import TestCase
