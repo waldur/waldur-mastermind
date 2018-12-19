@@ -196,9 +196,22 @@ class BackupScheduleTaskTest(TestCase):
         self.assertEqual(self.overdue_schedule.backups.count(), 3)
 
     def test_if_backup_amount_equals_allowed_limit_deletion_is_scheduled_for_oldest_backup(self):
-        backup1 = factories.BackupFactory(instance=self.instance)
-        backup2 = factories.BackupFactory(instance=self.instance)
-        backup3 = factories.BackupFactory(instance=self.instance)
+        now = datetime.now()
+        backup1 = factories.BackupFactory(
+            instance=self.instance,
+            kept_until=None,
+            created=now - timedelta(days=3)
+        )
+        backup2 = factories.BackupFactory(
+            instance=self.instance,
+            kept_until=None,
+            created=now - timedelta(days=2)
+        )
+        backup3 = factories.BackupFactory(
+            instance=self.instance,
+            kept_until=None,
+            created=now - timedelta(days=1)
+        )
 
         self.overdue_schedule.backups.add(*[backup1, backup2, backup3])
         self.overdue_schedule.maximal_number_of_resources = 3

@@ -200,9 +200,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
             return
 
         total = existing_resources.count()
-        amount_to_remove = total - schedule.maximal_number_of_resources
-        if amount_to_remove == 0:
-            amount_to_remove = 1
+        amount_to_remove = max(1, total - schedule.maximal_number_of_resources)
         self._log_backup_cleanup(schedule, amount_to_remove, total)
 
         resources = existing_resources.filter(terminal_states).order_by('kept_until', 'created')
