@@ -1,11 +1,17 @@
+import datetime
 import logging
+import tarfile
+import traceback
 
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
+import six
 
+from waldur_core.core.utils import deserialize_instance
 from waldur_core.logging.loggers import alert_logger, event_logger
-from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification
+from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification, Report
+from waldur_core.logging.utils import create_report_archive
 from waldur_core.structure import models as structure_models
 
 logger = logging.getLogger(__name__)
@@ -73,3 +79,28 @@ def check_threshold():
                 alert_logger.threshold.close(
                     scope=obj.scope,
                     alert_type='threshold_exceeded')
+
+
+@shared_task(name='waldur_core.logging.create_report')
+def create_report(serialized_report):
+    report = deserialize_instance(serialized_report)
+
+    today = datetime.datetime.today()
+    timestamp = today.strftime('%Y%m%dT%H%M%S')
+    archive_filename = 'waldur-logs-%s-%s.tar.gz' % (timestamp, report.uuid.hex)
+
+    try:
+        cf = create_report_archive(
+            settings.WALDUR_CORE['LOGGING_REPORT_DIRECTORY'],
+            settings.WALDUR_CORE['LOGGING_REPORT_INTERVAL'],
+        )
+    except (tarfile.TarError, OSError, ValueError) as e:
+        report.state = Report.States.ERRED
+        error_message = 'Error message: %s. Traceback: %s' % (six.text_type(e), traceback.format_exc())
+        report.error_message = error_message
+        report.save()
+    else:
+        report.file.save(archive_filename, cf)
+        report.file_size = cf.size
+        report.state = Report.States.DONE
+        report.save()

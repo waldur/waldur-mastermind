@@ -313,3 +313,21 @@ class SystemNotification(EventTypesMixin, models.Model):
 
     def __str__(self):
         return '%s | %s' % (self.hook_content_type, self.name)
+
+
+class Report(UuidMixin, TimeStampedModel):
+    class States(object):
+        PENDING = 'pending'
+        DONE = 'done'
+        ERRED = 'erred'
+
+        CHOICES = (
+            (PENDING, 'Pending'),
+            (DONE, 'Done'),
+            (ERRED, 'Erred'),
+        )
+
+    file = models.FileField(upload_to='logging_reports')
+    file_size = models.PositiveIntegerField(null=True)
+    state = models.CharField(choices=States.CHOICES, default=States.PENDING, max_length=10)
+    error_message = models.TextField(blank=True)
