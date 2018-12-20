@@ -3,6 +3,7 @@ import json
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
+from django.db import transaction
 from django.forms import ModelForm
 from django.shortcuts import redirect
 from django.template.defaultfilters import filesizeformat
@@ -109,9 +110,10 @@ class ReportAdmin(UpdateOnlyModelAdmin, ExtraActionsMixin, admin.ModelAdmin):
         return [self.create_report]
 
     def create_report(self, request):
-        report = models.Report.objects.create()
-        serialized_report = serialize_instance(report)
-        tasks.create_report.delay(serialized_report)
+        with transaction.atomic():
+            report = models.Report.objects.create()
+            serialized_report = serialize_instance(report)
+            transaction.on_commit(lambda: tasks.create_report.delay(serialized_report))
         message = _('Report creation has been scheduled')
         self.message_user(request, message)
         return redirect(reverse('admin:logging_report_changelist'))
