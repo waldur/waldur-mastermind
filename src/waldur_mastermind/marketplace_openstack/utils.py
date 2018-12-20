@@ -145,7 +145,7 @@ def import_openstack_service_settings(default_customer, dry_run=False, require_t
     offerings_counter = 0
     plans_counter = 0
 
-    if settings_without_templates.exist():
+    if settings_without_templates.exists():
         logger.warning('The following service settings do not have package template, '
                        'therefore they would be imported in DRAFT state: %s',
                        format_list(settings_without_templates))
