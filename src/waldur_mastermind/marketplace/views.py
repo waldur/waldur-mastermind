@@ -269,7 +269,11 @@ class CartItemViewSet(core_views.ActionsViewSet):
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+        filters.ResourceScopeFilterBackend
+    )
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer

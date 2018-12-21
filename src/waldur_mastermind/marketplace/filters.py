@@ -127,6 +127,15 @@ class ResourceFilter(django_filters.FilterSet):
         fields = []
 
 
+class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+
+    def get_related_models(self):
+        return []
+
+    def get_field_name(self):
+        return 'scope'
+
+
 class PlanFilter(django_filters.FilterSet):
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
