@@ -70,6 +70,15 @@ class TemplateImportTest(BaseOpenStackTest):
 
         self.assertEqual(offering.plans.all().count(), 0)
 
+    def test_setting_without_template_is_imported_in_draft_state(self):
+        self.template.delete()
+        self.import_offering()
+
+        service_settings = self.fixture.openstack_service_settings
+        offering = marketplace_models.Offering.objects.get(scope=service_settings)
+
+        self.assertEqual(offering.state, marketplace_models.Offering.States.DRAFT)
+
 
 class TenantImportTest(BaseOpenStackTest):
     def setUp(self):
