@@ -110,13 +110,13 @@ def get_admin_link_for_scope(scope):
 class OfferingAdmin(admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [ScreenshotsInline, PlansInline, OfferingComponentInline]
-    list_display = ('name', 'customer', 'state', 'category')
-    list_filter = ('state', 'shared', ('category', RelatedOnlyDropdownFilter),)
+    list_display = ('name', 'customer', 'state', 'category', 'billable')
+    list_filter = ('state', 'shared', 'billable', ('category', RelatedOnlyDropdownFilter),)
     search_fields = ('name', 'uuid')
     fields = ('state', 'customer', 'category', 'name', 'native_name',
               'description', 'native_description', 'full_description',
               'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
-              'shared', 'allowed_customers', 'type', 'scope_link', 'vendor_details')
+              'shared', 'billable', 'allowed_customers', 'type', 'scope_link', 'vendor_details')
     readonly_fields = ('rating', 'scope_link')
 
     def scope_link(self, obj):

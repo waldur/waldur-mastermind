@@ -256,7 +256,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
-                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared',
+                  'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
                   'scope', 'scope_uuid')
         related_paths = {
             'customer': ('uuid', 'name'),

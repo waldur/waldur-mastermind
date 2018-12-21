@@ -220,8 +220,10 @@ class Offering(core_models.UuidMixin,
     # 2) global support user;
     # 3) users with active permission in original customer;
     # 4) users with active permission in allowed customers and nested projects.
-    shared = models.BooleanField(default=True, help_text=_('Anybody can use it'))
+    shared = models.BooleanField(default=True, help_text=_('Accessible to all customers.'))
     allowed_customers = models.ManyToManyField(structure_models.Customer, blank=True)
+
+    billable = models.BooleanField(default=True, help_text=_('Purchase and usage is invoiced.'))
 
     objects = managers.OfferingManager()
     tracker = FieldTracker()
