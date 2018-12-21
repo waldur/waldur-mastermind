@@ -21,6 +21,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offering',
             name='shared',
-            field=models.BooleanField(default=False, help_text='Anybody can use it'),
+            field=models.BooleanField(default=False, help_text='Accessible to all customers.'),
         ),
     ]
