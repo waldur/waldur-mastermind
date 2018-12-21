@@ -765,9 +765,19 @@ def get_marketplace_offering_uuid(serializer, scope):
         return
 
 
+def get_marketplace_offering_name(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.name
+    except ObjectDoesNotExist:
+        return
+
+
 def add_marketplace_offering(sender, fields, **kwargs):
     fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
+
+    fields['marketplace_offering_name'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_offering_name', get_marketplace_offering_name)
 
 
 core_signals.pre_serializer_fields.connect(
