@@ -1,7 +1,38 @@
+import logging
+
 from django.core.management.base import BaseCommand
+from rest_framework import status
 
 from waldur_core.core.models import User
+from waldur_core.logging.views import EventViewSet
+from waldur_mastermind.common.utils import get_request
 from waldur_mastermind.marketplace.models import Order, OrderItem, Resource
+
+
+logger = logging.getLogger(__name__)
+
+
+def get_resource_user(default_user, resource):
+    if not resource.scope:
+        logger.warning('Using default user for resource because it does not have scope. '
+                       'Resource UUID: %s', resource.uuid)
+        return default_user
+    view = EventViewSet.as_view({'get': 'list'})
+    response = get_request(view, default_user,
+                           event_type='resource_creation_scheduled',
+                           resource_type=resource.scope.get_scope_type(),
+                           resource_uuid=resource.scope.uuid)
+    if response.status_code == status.HTTP_200_OK and len(response.data) > 0:
+        user_uuid = response.data[0]['user_uuid']
+        try:
+            return User.objects.get(uuid=user_uuid)
+        except User.DoesNotExist:
+            logger.warning('Using default user for resource because user does not exist. '
+                           'Resource UUID: %s. User UUID: %s', resource.uuid, user_uuid)
+    else:
+        logger.warning('Using default user for resource because related event is not found. '
+                       'Resource UUID: %s', resource.uuid)
+    return default_user
 
 
 class Command(BaseCommand):
@@ -13,11 +44,12 @@ class Command(BaseCommand):
             .values_list('resource_id', flat=True).distinct()
         missing_resources = Resource.objects.exclude(id__in=existing_resources)
         for resource in missing_resources:
+            user = get_resource_user(default_user, resource)
             order = Order.objects.create(
                 created=resource.created,
                 modified=resource.modified,
-                created_by=default_user,
-                approved_by=default_user,
+                created_by=user,
+                approved_by=user,
                 approved_at=resource.created,
                 project=resource.project,
                 state=Order.States.DONE,
