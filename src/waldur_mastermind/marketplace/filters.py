@@ -4,6 +4,7 @@ from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
@@ -31,6 +32,7 @@ class OfferingFilter(django_filters.FilterSet):
         choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
     )
     category_uuid = django_filters.UUIDFilter(name='category__uuid')
+    billable = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     def filter_allowed_customer(self, queryset, name, value):
