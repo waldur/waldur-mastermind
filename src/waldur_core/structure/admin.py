@@ -347,6 +347,7 @@ class ServiceSettingsAdminForm(ModelForm):
             'geolocations': JSONEditor(),
             'username': forms.TextInput(attrs={'autocomplete': 'new-password'}),
             'password': PasswordWidget(attrs={'autocomplete': 'new-password'}),
+            'token': PasswordWidget(attrs={'autocomplete': 'new-password'}),
         }
 
     def __init__(self, *args, **kwargs):
