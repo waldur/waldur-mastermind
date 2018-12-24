@@ -2,9 +2,10 @@ from __future__ import unicode_literals
 
 import datetime
 
+import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
-from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
 from django.db import transaction
+from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -15,11 +16,12 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure import models as structure_models, SupportedServices
-from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions
@@ -673,9 +675,8 @@ class ResourceSerializer(BaseItemSerializer):
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
-    signature = serializers.CharField()
     customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
-    data = serializers.JSONField()
+    data = serializers.CharField()
     dry_run = serializers.BooleanField(default=False, required=False)
 
     def validate(self, attrs):
@@ -686,51 +687,46 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
         if not api_secret_code:
             raise rf_exceptions.ValidationError(_('API secret code is not set.'))
 
-        if utils.check_api_signature(data=attrs['data'],
-                                     api_secret_code=api_secret_code,
-                                     signature=attrs['signature']):
+        try:
+            data = utils.decode_api_data(attrs['data'], api_secret_code)
+            attrs['data'] = data
             return attrs
-        else:
-            raise rf_exceptions.ValidationError(_('Invalid signature.'))
+        except jwt.exceptions.DecodeError:
+            raise rf_exceptions.ValidationError(_('Signature verification failed.'))
 
 
 class PublicComponentUsageSerializer(serializers.Serializer):
-    resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
-    date = serializers.DateField()
     type = serializers.CharField()
     amount = serializers.IntegerField()
+
+
+class PublicListComponentUsageSerializer(serializers.Serializer):
+    usages = PublicComponentUsageSerializer(many=True)
+    resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
+    date = serializers.DateField()
 
     def validate(self, attrs):
         resource = attrs['resource']
         date = attrs['date']
         plan = resource.plan
+
         if not plan:
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource does not have billing plan.')
             })
 
-        offering = plan.offering
-
         if date > datetime.date.today():
             raise rf_exceptions.ValidationError({'date': _('Invalid date value.')})
 
-        try:
-            component = models.OfferingComponent.objects.get(
-                offering=offering,
-                type=attrs['type'],
-                billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            )
-        except models.OfferingComponent.DoesNotExist:
-            raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % attrs['type'])
-
-        if models.ComponentUsage.objects.filter(resource=resource,
-                                                component=component,
-                                                date=attrs['date']).exists():
+        if invoices_models.Invoice.objects.filter(customer=resource.project.customer,
+                                                  year=date.year,
+                                                  month=date.month).\
+                exclude(state=invoices_models.Invoice.States.CREATED).exists():
+            # If an invoice exists, and invoice state is not created then a billing period is closed.
             raise rf_exceptions.ValidationError({
-                'date': _('Component usage for provided billing period already exists.')
+                'date':
+                    _('Cannot update usage information. Billing period is closed.')
             })
-
-        attrs['component'] = component
 
         if plan.unit == UnitPriceMixin.Units.PER_MONTH:
             attrs['date'] = datetime.date(year=date.year, month=date.month, day=1)
@@ -742,10 +738,6 @@ class PublicComponentUsageSerializer(serializers.Serializer):
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
 
         return attrs
-
-
-class PublicListComponentUsageSerializer(serializers.Serializer):
-    usages = PublicComponentUsageSerializer(many=True)
 
 
 def get_is_service_provider(serializer, scope):

@@ -9,6 +9,7 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.invoices import models as invoices_models
 
 
 @freeze_time('2017-01-10 00:00:00')
@@ -33,7 +34,7 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
 
     def test_validate_not_correct_signature(self):
         payload = self.get_valid_payload()
-        payload['signature'] = 'wrong_signature'
+        payload['data'] = 'wrong_signature'
         response = self.client.post('/api/marketplace-public-api/check_signature/', payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -46,16 +47,42 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
                                                              date=datetime.date.today()).exists())
 
     def test_not_create_usage_if_component_not_exists(self):
-        payload = self.get_valid_payload()
-        payload['data']['usages'][0]['type'] = 'ram'
+        payload = self.get_valid_payload(component_type='ram')
         response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_not_create_usage_if_usage_exists(self):
+    def test_update_usage_if_usage_exists(self):
         payload = self.get_valid_payload()
         self.client.post('/api/marketplace-public-api/set_usage/', payload)
+        payload = self.get_valid_payload(amount=15)
+        response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        usage = models.ComponentUsage.objects.first()
+        self.assertEqual(usage.usage, 15)
+
+    @freeze_time('2017-01-18 00:00:00')
+    def test_not_update_usage_if_billing_period_closed(self):
+        payload = self.get_valid_payload()
+        invoices_models.Invoice.objects.create(
+            customer=self.resource.project.customer,
+            year=2017,
+            month=1,
+            state=invoices_models.Invoice.States.PENDING
+        )
         response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time('2017-01-18 00:00:00')
+    def test_update_usage_if_billing_period_not_closed(self):
+        payload = self.get_valid_payload()
+        invoices_models.Invoice.objects.create(
+            customer=self.resource.project.customer,
+            year=2017,
+            month=1,
+            state=invoices_models.Invoice.States.CREATED
+        )
+        response = self.client.post('/api/marketplace-public-api/set_usage/', payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @freeze_time('2017-01-18 00:00:00')
     def test_round_date_if_unit_is_per_half_month(self):
@@ -75,19 +102,18 @@ class TestPublicComponentUsageApi(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertFalse(models.ComponentUsage.objects.filter().exists())
 
-    def get_valid_payload(self):
+    def get_valid_payload(self, component_type='cpu', amount=5):
         data = {
+            'date': datetime.date.today(),
+            'resource': self.resource.uuid,
             'usages': [{
-                'date': datetime.date.today(),
-                'type': 'cpu',
-                'amount': 5,
-                'resource': self.resource.uuid
+                'type': component_type,
+                'amount': amount
             }]
         }
 
         payload = dict(
             customer=self.service_provider.customer.uuid,
-            signature=utils.get_api_signature(data, self.secret_code),
-            data=data
+            data=utils.encode_api_data(data, self.secret_code)
         )
         return payload
