@@ -57,7 +57,7 @@ class CopyButtonMixin(object):
             'data-target-id': attrs['id'],
         }
         result += "<a %(attrs)s>Copy</a>" % {'attrs': flatatt(button_attrs)}
-        return mark_safe(result)
+        return mark_safe(result)  # nosec
 
 
 class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
