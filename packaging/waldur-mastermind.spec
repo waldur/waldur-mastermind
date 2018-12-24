@@ -98,6 +98,7 @@ Requires: python2-pdfkit >= 0.6.1
 Requires: PyYAML
 Requires: uwsgi-plugin-python2
 Requires: xmlsec1-openssl
+Requires: python-jwt >= 1.5.3
 
 Obsoletes: waldur-ansible
 Obsoletes: waldur-auth-openid

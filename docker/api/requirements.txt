@@ -171,3 +171,4 @@ wcwidth==0.1.7
 WebOb==1.8.2
 wrapt==1.10.11
 zope.interface==4.5.0
+pyjwt==1.5.3
