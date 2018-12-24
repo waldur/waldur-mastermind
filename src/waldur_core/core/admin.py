@@ -13,11 +13,13 @@ from django.contrib.admin import widgets
 from django.contrib.auth import admin as auth_admin, get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
+from django.forms.utils import flatatt
 from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.html import format_html_join
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
+from jsoneditor.forms import JSONEditor
 from rest_framework import permissions as rf_permissions
 from reversion.admin import VersionAdmin
 import six
@@ -42,11 +44,32 @@ class ReadonlyTextWidget(forms.TextInput):
         return render_to_readonly(self.format_value(value))
 
 
-class PasswordWidget(forms.PasswordInput):
+class CopyButtonMixin(object):
+    class Media:
+        js = (
+            settings.STATIC_URL+'waldur_core/copy2clipboard.js',
+        )
+
+    def render(self, name, value, attrs=None):
+        result = super(CopyButtonMixin, self).render(name, value, attrs)
+        button_attrs = {
+            'class': 'button copy-button',
+            'data-target-id': attrs['id'],
+        }
+        result += "<a %(attrs)s>Copy</a>" % {'attrs': flatatt(button_attrs)}
+        return mark_safe(result)
+
+
+class PasswordWidget(CopyButtonMixin, forms.PasswordInput):
     template_name = 'admin/core/widgets/password-widget.html'
 
     def __init__(self, attrs=None):
         super(PasswordWidget, self).__init__(attrs, render_value=True)
+
+
+class JsonWidget(CopyButtonMixin, JSONEditor):
+    class Media:
+        js = JSONEditor.Media.js + CopyButtonMixin.Media.js
 
 
 def format_json_field(value):
