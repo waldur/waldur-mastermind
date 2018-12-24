@@ -329,7 +329,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)
         serializer.is_valid(raise_exception=True)
-        return options
+        return serializer.validated_data
 
     def _validate_plans(self, attrs):
         custom_components = attrs.get('components')
