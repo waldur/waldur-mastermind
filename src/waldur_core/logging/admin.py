@@ -9,7 +9,7 @@ from django.shortcuts import redirect
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-from jsoneditor.forms import JSONEditor
+from waldur_core.core.admin import JsonWidget
 import six
 
 from waldur_core.core.admin import ExtraActionsMixin, UpdateOnlyModelAdmin
@@ -59,7 +59,7 @@ class SystemNotificationForm(BaseHookForm):
 class AlertAdminForm(ModelForm):
     class Meta:
         widgets = {
-            'context': JSONEditor(),
+            'context': JsonWidget(),
         }
 
 

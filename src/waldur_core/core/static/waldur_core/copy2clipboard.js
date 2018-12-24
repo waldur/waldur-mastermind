@@ -20,8 +20,8 @@ function copyToClipboard(text) {
   document.body.removeChild(hiddenDiv);
 }
 
-django.jQuery(function () {
-    $('.copy-button').click(function() {
-      copyToClipboard($('#' + $(this).data('target-id')).val());
+django.jQuery(function ($) {
+    django.jQuery('.copy-button').click(function() {
+      copyToClipboard(django.jQuery('#' + django.jQuery(this).data('target-id')).val());
     });
 });

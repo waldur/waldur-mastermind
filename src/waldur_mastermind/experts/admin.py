@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 from django.contrib import admin
 from django.forms import ModelForm
-from jsoneditor.forms import JSONEditor
+from waldur_core.core.admin import JsonWidget
 
 from . import models
 
@@ -14,7 +14,7 @@ class ExpertProviderAdmin(admin.ModelAdmin):
 class ExpertRequestModel(ModelForm):
     class Meta:
         widgets = {
-            'extra': JSONEditor(),
+            'extra': JsonWidget(),
         }
 
 

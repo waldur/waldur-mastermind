@@ -6,7 +6,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _, ungettext
-from jsoneditor.forms import JSONEditor
+from waldur_core.core.admin import JsonWidget
 
 from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import format_json_field
@@ -85,9 +85,9 @@ class PlanAdmin(admin.ModelAdmin):
 class OfferingAdminForm(ModelForm):
     class Meta:
         widgets = {
-            'attributes': JSONEditor(),
-            'geolocations': JSONEditor(),
-            'options': JSONEditor(),
+            'attributes': JsonWidget(),
+            'geolocations': JsonWidget(),
+            'options': JsonWidget(),
         }
 
 

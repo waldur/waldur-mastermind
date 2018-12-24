@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.forms import ModelForm
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-from jsoneditor.forms import JSONEditor
+from waldur_core.core.admin import JsonWidget
 
 from waldur_core.core.admin import ExecutorAdminAction, PasswordWidget
 from waldur_core.quotas.admin import QuotaInline
@@ -38,7 +38,7 @@ class ServiceProjectLinkAdmin(structure_admin.ServiceProjectLinkAdmin):
 class TenantAdminForm(ModelForm):
     class Meta:
         widgets = {
-            'extra_configuration': JSONEditor(),
+            'extra_configuration': JsonWidget(),
             'user_password': PasswordWidget(),
         }
 
