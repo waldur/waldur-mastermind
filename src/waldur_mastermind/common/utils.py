@@ -4,8 +4,9 @@ from decimal import Decimal, ROUND_UP
 
 from dateutil import parser
 from django.utils.timezone import get_current_timezone
-
 from rest_framework.test import APIRequestFactory
+
+from waldur_core.core.views import RefreshTokenMixin
 
 
 def quantize_price(value):
@@ -21,11 +22,18 @@ def get_headers(user):
     It is assumed that localhost is specified in ALLOWED_HOSTS Django setting
     so that internal API requests are allowed.
     """
+    token = RefreshTokenMixin().refresh_token(user)
     return dict(
         content_type='application/json',
-        HTTP_AUTHORIZATION='Token %s' % user.auth_token.key,
+        HTTP_AUTHORIZATION='Token %s' % token.key,
         SERVER_NAME='localhost'
     )
+
+
+def get_request(view, user, **extra):
+    factory = APIRequestFactory()
+    request = factory.get('/', **get_headers(user))
+    return view(request, **extra)
 
 
 def create_request(view, user, post_data):
