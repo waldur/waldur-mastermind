@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 ('billing_type', models.CharField(choices=[('fixed', 'Fixed-price'), ('usage', 'Usage-based')], default='fixed', max_length=5)),
                 ('type', models.CharField(help_text='Unique internal name of the measured unit, for example floating_ip.', max_length=50)),
                 ('name', models.CharField(help_text='Display name for the measured unit, for example, Floating IP.', max_length=150)),
-                ('measured_unit', models.CharField(help_text='Unit of measurement, for example, GB.', max_length=30)),
+                ('measured_unit', models.CharField(help_text='Unit of measurement, for example, GB.', max_length=30, blank=True)),
                 ('offering', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='components', to='marketplace.Offering')),
             ],
         ),

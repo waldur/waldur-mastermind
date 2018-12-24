@@ -286,7 +286,8 @@ class OfferingComponent(core_models.DescribableMixin):
     name = models.CharField(max_length=150,
                             help_text=_('Display name for the measured unit, for example, Floating IP.'))
     measured_unit = models.CharField(max_length=30,
-                                     help_text=_('Unit of measurement, for example, GB.'))
+                                     help_text=_('Unit of measurement, for example, GB.'),
+                                     blank=True)
 
 
 @python_2_unicode_compatible
