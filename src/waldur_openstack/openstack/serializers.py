@@ -226,6 +226,19 @@ class SecurityGroupRuleSerializer(serializers.ModelSerializer):
                     'to_port': _('Value should be in range [1, 65535], found %d') % to_port
                 })
 
+        elif protocol == '':
+            if from_port is not None and to_port is not None:
+                if from_port > to_port:
+                    raise serializers.ValidationError(_('"from_port" should be less or equal to "to_port"'))
+            if from_port is not None and from_port < -1:
+                raise serializers.ValidationError({
+                    'from_port': _('Value should be in range [-1, 65535], found %d') % from_port
+                })
+            if to_port is not None and to_port < -1:
+                raise serializers.ValidationError({
+                    'to_port': _('Value should be in range [-1, 65535], found %d') % to_port
+                })
+
         else:
             raise serializers.ValidationError({
                 'protocol': _('Value should be one of (tcp, udp, icmp), found %s') % protocol
@@ -263,6 +276,12 @@ class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
         return rule
 
 
+def validate_duplicate_security_group_rules(rules):
+    values = rules.values_list('protocol', 'from_port', 'to_port', 'cidr')
+    if len(set(values)) != len(values):
+        raise serializers.ValidationError(_('Duplicate security group rules are not allowed.'))
+
+
 class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
     child = SecurityGroupRuleUpdateSerializer()
 
@@ -274,6 +293,7 @@ class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
         security_group.rules.exclude(id__in=[r.id for r in rules if r.id]).delete()
         for rule in rules:
             rule.save()
+        validate_duplicate_security_group_rules(security_group.rules)
         security_group.change_backend_quotas_usage_on_rules_update(old_rules_count)
         return rules
 
@@ -333,6 +353,7 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
             security_group = super(structure_serializers.BaseResourceSerializer, self).create(validated_data)
             for rule in rules:
                 security_group.rules.add(rule, bulk=False)
+            validate_duplicate_security_group_rules(security_group.rules)
             security_group.increase_backend_quotas_usage()
         return security_group
 

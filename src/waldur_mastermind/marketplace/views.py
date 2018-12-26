@@ -269,7 +269,11 @@ class CartItemViewSet(core_views.ActionsViewSet):
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+        filters.ResourceScopeFilterBackend
+    )
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
@@ -286,7 +290,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def get_validated_data(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.data['data']
+        data = serializer.validated_data['data']
         dry_run = serializer.validated_data['dry_run']
         data_serializer_class = self.get_action_class()
 
@@ -307,16 +311,30 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
         validated_data, dry_run = self.get_validated_data(request)
+        resource = validated_data['resource']
+        date = validated_data['date']
+
+        for usage in validated_data['usages']:
+            component_type = usage['type']
+            offering = resource.plan.offering
+            try:
+                component = models.OfferingComponent.objects.get(
+                    offering=offering,
+                    type=component_type,
+                    billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                )
+                usage['component'] = component
+            except models.OfferingComponent.DoesNotExist:
+                raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % component_type)
 
         if not dry_run:
-            usages = []
             for usage in validated_data['usages']:
-                usages.append(models.ComponentUsage(resource=usage['resource'],
-                                                    component=usage['component'],
-                                                    date=usage['date'],
-                                                    usage=usage['amount']))
-
-            models.ComponentUsage.objects.bulk_create(usages)
+                models.ComponentUsage.objects.update_or_create(
+                    resource=resource,
+                    component=usage['component'],
+                    date=date,
+                    defaults={'usage': usage['amount']},
+                )
 
         return Response(status=status.HTTP_201_CREATED)
 

@@ -231,7 +231,9 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
         cutoff = timezone.now() - timedelta(hours=3)
         states = (structure_models.NewResource.States.CREATING,
                   structure_models.NewResource.States.CREATION_SCHEDULED)
-        for model in structure_models.NewResource.get_all_models():
+        resource_models = (structure_models.NewResource.get_all_models() +
+                           structure_models.SubResource.get_all_models())
+        for model in resource_models:
             for resource in model.objects.filter(modified__lt=cutoff, state__in=states):
                 resource.set_erred()
                 resource.error_message = 'Provisioning has timed out.'

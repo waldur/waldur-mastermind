@@ -296,6 +296,8 @@ WALDUR_CORE = {
     'ENABLE_ACCOUNTING_START_DATE': False,
     'USE_ATOMIC_TRANSACTION': True,
     'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
+    'LOGGING_REPORT_DIRECTORY': '/var/log/waldur',
+    'LOGGING_REPORT_INTERVAL': timedelta(days=7),
 }
 
 WALDUR_CORE_PUBLIC_SETTINGS = [

@@ -9,6 +9,7 @@ import six
 
 from waldur_core import __version__
 from waldur_core.core import models as core_models, WaldurExtension
+from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models, SupportedServices
 
 
@@ -101,7 +102,8 @@ class CustomIndexDashboard(FluentIndexDashboard):
         for model in (structure_models.Project,
                       structure_models.Customer,
                       core_models.User,
-                      structure_models.SharedServiceSettings):
+                      structure_models.SharedServiceSettings,
+                      logging_models.Report,):
             quick_access_links.append(self._get_link_to_model(model))
 
         return quick_access_links

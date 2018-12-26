@@ -112,9 +112,9 @@ class SupportedServices(object):
         cls._setdefault(key)
         model_str = cls._get_model_str(model)
         cls._registry[key]['resources'].setdefault(model_str, {'name': model.__name__})
-        cls._registry[key]['resources'][model_str]['detail_view'] = cls.get_detail_view_for_model(model)
-        cls._registry[key]['resources'][model_str]['list_view'] = cls.get_list_view_for_model(model)
-        cls._registry[key]['resources'][model_str]['serializer'] = serializer
+        cls._registry[key]['resources'][model_str].setdefault('detail_view', cls.get_detail_view_for_model(model))
+        cls._registry[key]['resources'][model_str].setdefault('list_view', cls.get_list_view_for_model(model))
+        cls._registry[key]['resources'][model_str].setdefault('serializer', serializer)
 
     @classmethod
     def register_resource_filter(cls, model, filter):

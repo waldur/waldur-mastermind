@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.utils.functional import cached_property
-from jsoneditor.forms import JSONEditor
+from waldur_core.core.admin import JsonWidget
 
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import admin as structure_admin
@@ -34,7 +34,7 @@ class SupportUserAdmin(admin.ModelAdmin):
 class OfferingAdminForm(forms.ModelForm):
     class Meta:
         widgets = {
-            'report': JSONEditor(),
+            'report': JsonWidget(),
         }
 
 
@@ -53,7 +53,7 @@ class OfferingAdmin(admin.ModelAdmin):
 class OfferingTemplateAdminForm(forms.ModelForm):
     class Meta:
         widgets = {
-            'config': JSONEditor(),
+            'config': JsonWidget(),
         }
 
 

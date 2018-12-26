@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
-from jsoneditor.forms import JSONEditor
+from waldur_core.core.admin import JsonWidget
 
 from . import models
 
@@ -106,7 +106,7 @@ class PlaybookAdmin(admin.ModelAdmin):
 class JobAdminForm(forms.ModelForm):
     class Meta:
         widgets = {
-            'arguments': JSONEditor(),
+            'arguments': JsonWidget(),
         }
 
     def clean(self):

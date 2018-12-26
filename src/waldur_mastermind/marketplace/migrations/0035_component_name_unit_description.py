@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='plancomponent',
             name='measured_unit',
-            field=models.CharField(default='', help_text='Unit of measurement, for example, GB.', max_length=30),
+            field=models.CharField(default='', help_text='Unit of measurement, for example, GB.', max_length=30, blank=True),
             preserve_default=False,
         ),
         migrations.AddField(

@@ -134,7 +134,7 @@ class GenericRelatedField(Field):
         except (Resolver404, AttributeError, MultipleObjectsReturned, ObjectDoesNotExist):
             raise serializers.ValidationError(_("Can't restore object from url: %s") % data)
 
-        if model not in self.related_models:
+        if self.related_models and model not in self.related_models:
             context = (model, ', '.join(six.text_type(model) for model in self.related_models))
             message = _('%s is not valid. Valid models are: %s') % context
             raise serializers.ValidationError(message)

@@ -2,15 +2,16 @@ from __future__ import unicode_literals
 
 import base64
 import os
-import hashlib
 
-from django.db import transaction
+import jwt
 import pdfkit
 import six
 from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db import transaction
 from django.template.loader import render_to_string
 from rest_framework import serializers, status
 
@@ -46,18 +47,12 @@ def create_screenshot_thumbnail(screenshot):
     temp_thumb.close()
 
 
-def check_api_signature(data, api_secret_code, signature):
-    return signature == get_api_signature(data, api_secret_code)
+def decode_api_data(encoded_data, api_secret_code):
+    return jwt.decode(encoded_data, api_secret_code, algorithms=['HS256'])
 
 
-def get_api_signature(data, api_secret_code):
-    concatenate_string = api_secret_code
-
-    for usage in data['usages']:
-        for key in sorted(usage.keys()):
-            concatenate_string += key + six.text_type(usage[key])
-
-    return hashlib.sha512(concatenate_string).hexdigest()
+def encode_api_data(data, api_secret_code):
+    return jwt.encode(data, api_secret_code, algorithm='HS256', json_encoder=DjangoJSONEncoder)
 
 
 def create_order_pdf(order):

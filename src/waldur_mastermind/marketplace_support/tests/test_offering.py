@@ -90,3 +90,14 @@ class SupportOfferingResourceTest(BaseTest):
         self.assertTrue(marketplace_models.Resource.objects.filter(scope=offering).exists())
         resource = marketplace_models.Resource.objects.get(scope=offering)
         self.assertEqual(resource.plan.unit_price, offering.unit_price)
+
+    def test_create_missing_support_offering_templates(self):
+        offering_template = support_factories.OfferingTemplateFactory()
+        category = marketplace_factories.CategoryFactory()
+        customer = structure_factories.CustomerFactory()
+
+        marketplace_support_utils.init_offerings_and_resources(category, customer)
+        self.assertTrue(marketplace_models.Offering.objects.filter(scope=offering_template).exists())
+        self.assertTrue(marketplace_models.Offering.objects.filter(scope=offering_template).count(), 1)
+        marketplace_support_utils.init_offerings_and_resources(category, customer)
+        self.assertTrue(marketplace_models.Offering.objects.filter(scope=offering_template).count(), 1)

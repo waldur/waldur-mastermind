@@ -4,6 +4,7 @@ from django.db.models import Q
 import django_filters
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
@@ -31,6 +32,7 @@ class OfferingFilter(django_filters.FilterSet):
         choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
     )
     category_uuid = django_filters.UUIDFilter(name='category__uuid')
+    billable = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     def filter_allowed_customer(self, queryset, name, value):
@@ -77,6 +79,8 @@ class ScreenshotFilter(django_filters.FilterSet):
 
 
 class OrderFilter(django_filters.FilterSet):
+    customer = core_filters.URLFilter(view_name='customer-detail', name='project__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
     project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
     state = core_filters.MappedMultipleChoiceFilter(
@@ -125,6 +129,15 @@ class ResourceFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.Resource
         fields = []
+
+
+class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+
+    def get_related_models(self):
+        return []
+
+    def get_field_name(self):
+        return 'scope'
 
 
 class PlanFilter(django_filters.FilterSet):

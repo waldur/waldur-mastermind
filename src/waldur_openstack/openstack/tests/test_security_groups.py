@@ -39,6 +39,25 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
 
+    def test_user_can_create_security_group_rule_for_any_protocol(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data={
+            'name': 'allow-all',
+            'rules': [
+                {
+                    'protocol': '',
+                    'from_port': -1,
+                    'to_port': -1,
+                    'cidr': '0.0.0.0/0',
+                }
+            ]
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(models.SecurityGroup.objects.count(), 1)
+        self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
+
     def test_can_not_create_security_group_with_invalid_protocol(self):
         self.client.force_authenticate(self.fixture.staff)
 
@@ -94,6 +113,31 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
             ]
         }
         response = self.client.post(self.url, data=data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroup.objects.count(), 0)
+        self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
+
+    def test_can_not_create_security_group_with_duplicate_rules(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data={
+            'name': 'https',
+            'rules': [
+                {
+                    'protocol': 'tcp',
+                    'from_port': 8001,
+                    'to_port': 8001,
+                    'cidr': '1.1.1.1/1',
+                },
+                {
+                    'protocol': 'tcp',
+                    'from_port': 8001,
+                    'to_port': 8001,
+                    'cidr': '1.1.1.1/1',
+                }
+            ]
+        })
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(models.SecurityGroup.objects.count(), 0)
@@ -287,6 +331,27 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
         rule.refresh_from_db()
         self.assertEqual(rule.from_port, 125)
         self.assertEqual(rule.to_port, 225)
+
+    def test_can_not_update_security_group_with_duplicate_rules(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data=[
+            {
+                'protocol': 'tcp',
+                'from_port': 8001,
+                'to_port': 8001,
+                'cidr': '1.1.1.1/1',
+            },
+            {
+                'protocol': 'tcp',
+                'from_port': 8001,
+                'to_port': 8001,
+                'cidr': '1.1.1.1/1',
+            }
+        ])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
 
 
 @ddt

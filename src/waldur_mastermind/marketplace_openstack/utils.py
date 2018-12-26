@@ -104,7 +104,7 @@ def copy_plan_components_from_template(plan, offering, template):
         )
 
 
-def import_openstack_service_settings(default_customer, dry_run=False):
+def import_openstack_service_settings(default_customer, dry_run=False, require_templates=False):
     """
     Import OpenStack service settings as marketplace offerings.
     """
@@ -128,7 +128,7 @@ def import_openstack_service_settings(default_customer, dry_run=False):
     settings_without_templates = missing_settings.exclude(
         id__in=missing_templates.values_list('service_settings_id', flat=True))
 
-    def create_offering(service_settings):
+    def create_offering(service_settings, state):
         offering = marketplace_models.Offering.objects.create(
             scope=service_settings,
             type=PACKAGE_TYPE,
@@ -137,7 +137,7 @@ def import_openstack_service_settings(default_customer, dry_run=False):
             customer=service_settings.customer or default_customer,
             category=category,
             shared=service_settings.shared,
-            state=marketplace_models.Offering.States.ACTIVE
+            state=state,
         )
         create_offering_components(offering)
         return offering
@@ -145,10 +145,16 @@ def import_openstack_service_settings(default_customer, dry_run=False):
     offerings_counter = 0
     plans_counter = 0
 
-    for service_settings in settings_without_templates:
-        with transaction.atomic():
-            create_offering(service_settings)
-            offerings_counter += 1
+    if settings_without_templates.exists():
+        logger.warning('The following service settings do not have package template, '
+                       'therefore they would be imported in DRAFT state: %s',
+                       format_list(settings_without_templates))
+
+    if not require_templates:
+        for service_settings in settings_without_templates:
+            with transaction.atomic():
+                create_offering(service_settings, marketplace_models.Offering.States.DRAFT)
+                offerings_counter += 1
 
     for template in missing_templates:
         with transaction.atomic():
@@ -157,7 +163,7 @@ def import_openstack_service_settings(default_customer, dry_run=False):
             try:
                 offering = marketplace_models.Offering.objects.get(scope=service_settings)
             except marketplace_models.Offering.DoesNotExist:
-                offering = create_offering(service_settings)
+                offering = create_offering(service_settings, marketplace_models.Offering.States.ACTIVE)
                 offerings_counter += 1
 
             plan = marketplace_models.Plan.objects.create(

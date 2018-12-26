@@ -16,11 +16,10 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
-from jsoneditor.forms import JSONEditor
 import six
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.admin import get_admin_url, ExecutorAdminAction, PasswordWidget, NativeNameAdminMixin
+from waldur_core.core.admin import get_admin_url, ExecutorAdminAction, PasswordWidget, NativeNameAdminMixin, JsonWidget
 from waldur_core.core.models import User
 from waldur_core.core.tasks import send_task
 from waldur_core.core.validators import BackendURLValidator
@@ -343,10 +342,11 @@ class ServiceSettingsAdminForm(ModelForm):
 
     class Meta:
         widgets = {
-            'options': JSONEditor(),
-            'geolocations': JSONEditor(),
+            'options': JsonWidget(),
+            'geolocations': JsonWidget(),
             'username': forms.TextInput(attrs={'autocomplete': 'new-password'}),
             'password': PasswordWidget(attrs={'autocomplete': 'new-password'}),
+            'token': PasswordWidget(attrs={'autocomplete': 'new-password'}),
         }
 
     def __init__(self, *args, **kwargs):

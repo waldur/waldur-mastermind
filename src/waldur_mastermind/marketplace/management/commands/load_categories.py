@@ -7,8 +7,11 @@ from waldur_mastermind.marketplace.models import Category, Section, Attribute, A
 
 
 available_categories = {
-    'compute': ('Compute', 'Computing services'),
-    'storage': ('Storage', 'Data preservation'),
+    'vpc': ('Private clouds', 'Virtual private clouds'),
+    'vm': ('VMs', 'Virtual machines'),
+    'block': ('Block storage', 'Data preservation'),
+    'object': ('Object storage', 'Data preservation'),
+    'db': ('Databases', 'Relational DBMS'),
     'backup': ('Backup', 'Backup solution'),
     'security': ('Security', 'Security services'),
     'cms': ('CMS', 'Content Management Systems'),
@@ -24,6 +27,7 @@ common_sections = {
         ('portal', 'Support portal', 'string'),
         ('guide', 'User guide', 'string'),
     ],
+
     'Security': [
         ('certification', 'Certification', 'listattr'),
     ],
@@ -151,4 +155,4 @@ class Command(BaseCommand):
             if category_short in specific_sections.keys():
                 populate_category(category_short, new_category, specific_sections[category_short])
 
-            self.stdout.write(self.style.SUCCESS('Loaded category %s' % category_short))
+            self.stdout.write(self.style.SUCCESS('Loaded category %s, %s ' % (category_short, new_category.uuid)))

@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 3.2.1
+Version: 3.2.2
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -67,7 +67,7 @@ Requires: python-django-redis-cache >= 1.6.5
 Requires: python-django-rest-framework >= 3.6.3, python-django-rest-framework < 3.7.0
 Requires: python-django-rest-swagger = 2.1.2
 Requires: python-django-reversion = 2.0.8
-Requires: python-django-saml2 = 0.17.1
+Requires: python-django-saml2 = 0.17.1-2
 Requires: python-django-taggit >= 0.20.2
 Requires: python-elasticsearch = 5.4.0
 Requires: python-freeipa >= 0.1.2
@@ -98,6 +98,7 @@ Requires: python2-pdfkit >= 0.6.1
 Requires: PyYAML
 Requires: uwsgi-plugin-python2
 Requires: xmlsec1-openssl
+Requires: python-jwt >= 1.5.3
 
 Obsoletes: waldur-ansible
 Obsoletes: waldur-auth-openid
@@ -318,6 +319,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Wed Dec 26 2018 Jenkins <jenkins@opennodecloud.com> - 3.2.2-1.el7
+- New upstream release
+
 * Tue Dec 18 2018 Jenkins <jenkins@opennodecloud.com> - 3.2.1-1.el7
 - New upstream release
 

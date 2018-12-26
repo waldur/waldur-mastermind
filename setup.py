@@ -63,6 +63,7 @@ install_requires = [
     'redis==2.10.6',
     'requests>=2.6.0,!=2.12.2,!=2.13.0',
     'sqlparse>=0.1.11',
+    'pyjwt>=1.5.3',
 ]
 
 test_requires = [
@@ -78,7 +79,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.2.1',
+    version='3.2.2',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
