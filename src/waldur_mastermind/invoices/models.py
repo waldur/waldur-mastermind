@@ -1,5 +1,7 @@
 from __future__ import unicode_literals, division
 
+import StringIO
+import base64
 import datetime
 import decimal
 import itertools
@@ -20,17 +22,15 @@ from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from waldur_core.core.fields import JSONField
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
-
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.support import models as support_models
 
 from . import managers, utils, registrators
-
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ class Invoice(core_models.UuidMixin, models.Model):
                                       validators=[MinValueValidator(0), MaxValueValidator(100)])
     invoice_date = models.DateField(null=True, blank=True,
                                     help_text=_('Date then invoice moved from state pending to created.'))
+    _file = models.TextField(blank=True, editable=False)
 
     tracker = FieldTracker()
 
@@ -144,6 +145,24 @@ class Invoice(core_models.UuidMixin, models.Model):
             start=start,
             end=end,
         )
+
+    @property
+    def file(self):
+        if not self._file:
+            return
+
+        content = base64.b64decode(self._file)
+        return StringIO.StringIO(content)
+
+    @file.setter
+    def file(self, value):
+        self._file = value
+
+    def has_file(self):
+        return bool(self._file)
+
+    def get_filename(self):
+        return 'invoice_{}.pdf'.format(self.uuid)
 
     def __str__(self):
         return '%s | %s-%s' % (self.customer, self.year, self.month)

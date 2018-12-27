@@ -1,3 +1,4 @@
+import mock
 from ddt import ddt, data
 from rest_framework import test, status
 
@@ -9,7 +10,7 @@ from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
 from . import factories, fixtures
-from .. import models
+from .. import models, utils
 
 
 @ddt
@@ -232,3 +233,15 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+
+@ddt
+class InvoicePDFTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.invoice = factories.InvoiceFactory()
+
+    @mock.patch('waldur_mastermind.invoices.utils.pdfkit')
+    def test_create_invoice_pdf(self, mock_pdfkit):
+        mock_pdfkit.from_string.return_value = 'pdf_content'
+        utils.create_invoice_pdf(self.invoice)
+        self.assertTrue(self.invoice.has_file())

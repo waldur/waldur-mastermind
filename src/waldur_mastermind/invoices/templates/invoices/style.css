@@ -1,0 +1,40 @@
+body {
+    font-size: 14pt;
+    font-family: 'Source Sans Pro';
+    margin: 40px;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.m-t {
+    margin-top: 15px;
+}
+
+.invoice-table td {
+    border-top: 1px solid #e7eaec;
+}
+
+.invoice-table {
+    width: 100%
+}
+
+.invoice-table th  {
+    text-align: left;
+}
+
+.invoice-total {
+    width: 100%;
+    text-align: right;
+}
+
+.invoice-total > tbody > tr > td {
+    border: 0 none;
+}
+
+.invoice-total > tbody > tr > td:last-child {
+    border-bottom: 1px solid #DDDDDD;
+    text-align: right;
+    width: 15%;
+}
