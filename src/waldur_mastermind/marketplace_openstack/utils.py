@@ -173,9 +173,8 @@ def import_openstack_service_settings(default_customer, dry_run=False, require_t
                 unit=marketplace_models.Plan.Units.PER_DAY,
                 product_code=template.product_code,
                 article_code=template.article_code,
+                scope=template,
             )
-            plan.scope = template
-            plan.save()
             plans_counter += 1
 
             copy_plan_components_from_template(plan, offering, template)
@@ -296,9 +295,11 @@ def import_openstack_tenant_service_settings(dry_run=False):
                                'Template ID: %s', template.id)
                 continue
 
-            plan = marketplace_models.Plan.objects.create(offering=offering, name=parent_plan.name)
-            plan.scope = parent_plan.scope
-            plan.save()
+            plan = marketplace_models.Plan.objects.create(
+                offering=offering,
+                name=parent_plan.name,
+                scope=parent_plan.scope
+            )
 
             copy_plan_components_from_template(plan, offering, template)
             plans_counter += 1
