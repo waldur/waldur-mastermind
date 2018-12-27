@@ -1,9 +1,11 @@
+import base64
 import datetime
-
 from calendar import monthrange
 
+import pdfkit
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -78,3 +80,22 @@ def get_previous_month():
     date = timezone.now()
     month, year = (date.month - 1, date.year) if date.month != 1 else (12, date.year - 1)
     return datetime.date(year, month, 1)
+
+
+def filter_invoice_items(items):
+    return [item for item in items if item.total > 0]
+
+
+def create_invoice_pdf(invoice):
+    all_items = filter_invoice_items(invoice.items)
+
+    context = dict(
+        invoice=invoice,
+        issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'],
+        currency=settings.WALDUR_CORE['CURRENCY_NAME'],
+        items=all_items,
+    )
+    html = render_to_string('invoices/invoice.html', context)
+    pdf = pdfkit.from_string(html, False)
+    invoice.file = base64.b64encode(pdf)
+    invoice.save()

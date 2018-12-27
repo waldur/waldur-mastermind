@@ -48,6 +48,8 @@ def create_monthly_invoices():
     if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
         send_invoice_report.delay()
 
+    create_pdf_for_new_invoices.delay()
+
 
 @shared_task(name='invoices.send_invoice_notification')
 def send_invoice_notification(invoice_uuid, link_template):
@@ -128,22 +130,19 @@ def format_invoice_csv(invoices):
     writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
     writer.writeheader()
 
-    def filter_invoice_items(items):
-        return [item for item in items if item.total > 0]
-
     for invoice in invoices:
         openstack_items = invoice.openstack_items.all().select_related('invoice__customer')
-        openstack_items = filter_invoice_items(openstack_items)
+        openstack_items = utils.filter_invoice_items(openstack_items)
         openstack_serializer = serializers.OpenStackItemReportSerializer(openstack_items, many=True)
         writer.writerows(openstack_serializer.data)
 
         offering_items = invoice.offering_items.all().select_related('invoice__customer')
-        offering_items = filter_invoice_items(offering_items)
+        offering_items = utils.filter_invoice_items(offering_items)
         offering_serializer = serializers.OfferingItemReportSerializer(offering_items, many=True)
         writer.writerows(offering_serializer.data)
 
         generic_items = invoice.generic_items.all().select_related('invoice__customer')
-        generic_items = filter_invoice_items(generic_items)
+        generic_items = utils.filter_invoice_items(generic_items)
         generic_serializer = serializers.GenericItemReportSerializer(generic_items, many=True)
         writer.writerows(generic_serializer.data)
 
@@ -157,3 +156,22 @@ def update_invoices_current_cost():
 
     for invoice in models.Invoice.objects.filter(year=year, month=month):
         invoice.update_current_cost()
+
+
+@shared_task
+def create_invoice_pdf(invoice_uuid):
+    invoice = models.Invoice.objects.get(uuid=invoice_uuid)
+    utils.create_invoice_pdf(invoice)
+
+
+@shared_task
+def create_pdf_for_all_invoices():
+    for invoice in models.Invoice.objects.all():
+        utils.create_invoice_pdf(invoice)
+
+
+@shared_task
+def create_pdf_for_new_invoices():
+    date = timezone.now()
+    for invoice in models.Invoice.objects.filter(year=date.year, month=date.month):
+        utils.create_invoice_pdf(invoice)
