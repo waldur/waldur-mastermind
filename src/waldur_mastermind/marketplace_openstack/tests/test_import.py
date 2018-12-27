@@ -2,6 +2,7 @@ from waldur_core.core.models import StateMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE
+from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
@@ -26,6 +27,10 @@ class TemplateImportTest(BaseOpenStackTest):
 
         self.assertEqual(plan.offering.category, self.tenant_category)
         self.assertEqual(plan.offering.scope, self.template.service_settings)
+
+    def test_duplicate_package_template_is_not_created(self):
+        self.import_offering()
+        self.assertEqual(1, package_models.PackageTemplate.objects.count())
 
     def test_price_is_preserved(self):
         self.import_offering()
