@@ -1,7 +1,7 @@
 body {
-    font-size: 14pt;
+    font-size: 25px;
     font-family: 'Source Sans Pro';
-    margin: 40px;
+    margin: 120px;
 }
 
 .text-right {
@@ -12,12 +12,14 @@ body {
     margin-top: 15px;
 }
 
-.invoice-table td {
-    border-top: 1px solid #e7eaec;
-}
-
 .invoice-table {
     width: 100%
+}
+
+.invoice-table th {
+    border-bottom: 3px solid #e7eaec;
+    padding: 11px 5px 11px 5px;
+    vertical-align: middle;
 }
 
 .invoice-table th  {
@@ -34,7 +36,7 @@ body {
 }
 
 .invoice-total > tbody > tr > td:last-child {
-    border-bottom: 1px solid #DDDDDD;
+    border-bottom: 3px solid #DDDDDD;
     text-align: right;
     width: 15%;
 }
