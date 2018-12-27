@@ -1,12 +1,11 @@
 import time
 
-import six
 from ddt import ddt, data
 from django.core import mail
 from django.urls import reverse
-from rest_framework import status
+from rest_framework import status, test
+import six
 
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import loggers
 from waldur_core.logging.tests.factories import WebHookFactory, PushHookFactory
@@ -16,7 +15,7 @@ from . import factories
 from .. import models, tasks
 
 
-class BaseHookApiTest(PostgreSQLTest):
+class BaseHookApiTest(test.APITransactionTestCase):
     def setUp(self):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.author = structure_factories.UserFactory()
@@ -164,7 +163,7 @@ class HookFilterViewTest(BaseHookApiTest):
         self.assertEqual(self.author.uuid, response.data[0]['author_uuid'])
 
 
-class SystemNotificationTest(PostgreSQLTest):
+class SystemNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.system_notification = factories.SystemNotificationFactory()
         self.event_types = self.system_notification.event_types

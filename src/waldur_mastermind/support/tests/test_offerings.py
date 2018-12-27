@@ -8,13 +8,13 @@ from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
 import mock
-from rest_framework import status
+from rest_framework import status, test
 
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.support.backend import SupportBackendError
 from waldur_mastermind.support.tests.base import override_support_settings, BaseTest
+
 from . import factories, fixtures
 from .. import models, tasks
 
@@ -440,7 +440,7 @@ class OfferingDeleteTest(BaseOfferingTest):
 
 
 @ddt
-class CountersTest(PostgreSQLTest):
+class CountersTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 

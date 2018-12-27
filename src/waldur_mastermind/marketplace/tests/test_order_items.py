@@ -3,10 +3,9 @@ from __future__ import unicode_literals
 import unittest
 
 from ddt import data, ddt
-from rest_framework import status
+from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.quotas import signals as quota_signals
 
 from . import factories
@@ -14,7 +13,7 @@ from .. import models
 
 
 @ddt
-class ItemGetTest(PostgreSQLTest):
+class ItemGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -49,7 +48,7 @@ class ItemGetTest(PostgreSQLTest):
 
 @unittest.skip('OrderItem creation is irrelevant now.')
 @ddt
-class ItemCreateTest(PostgreSQLTest):
+class ItemCreateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -105,7 +104,7 @@ class ItemCreateTest(PostgreSQLTest):
 
 @unittest.skip('OrderItem update is irrelevant now.')
 @ddt
-class ItemUpdateTest(PostgreSQLTest):
+class ItemUpdateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -150,7 +149,7 @@ class ItemUpdateTest(PostgreSQLTest):
 
 
 @ddt
-class ItemDeleteTest(PostgreSQLTest):
+class ItemDeleteTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -191,7 +190,7 @@ class ItemDeleteTest(PostgreSQLTest):
         return response
 
 
-class ProjectResourceCountTest(PostgreSQLTest):
+class ProjectResourceCountTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project

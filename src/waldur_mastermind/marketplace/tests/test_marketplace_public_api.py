@@ -1,9 +1,8 @@
 import datetime
 
 from freezegun import freeze_time
-from rest_framework import status
+from rest_framework import status, test
 
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import utils
@@ -13,7 +12,7 @@ from waldur_mastermind.invoices import models as invoices_models
 
 
 @freeze_time('2017-01-10 00:00:00')
-class TestPublicComponentUsageApi(PostgreSQLTest):
+class TestPublicComponentUsageApi(test.APITransactionTestCase):
     def setUp(self):
         self.service_provider = factories.ServiceProviderFactory()
         self.secret_code = self.service_provider.api_secret_code

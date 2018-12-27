@@ -2,9 +2,8 @@ from __future__ import unicode_literals
 
 import mock
 from ddt import data, ddt
-from rest_framework import status
+from rest_framework import status, test
 
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import fixtures, factories as structure_factories
 from waldur_mastermind.marketplace.base import override_marketplace_settings
@@ -15,7 +14,7 @@ from .. import models
 
 
 @ddt
-class OrderGetTest(PostgreSQLTest):
+class OrderGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -48,7 +47,7 @@ class OrderGetTest(PostgreSQLTest):
 
 
 @ddt
-class OrderCreateTest(PostgreSQLTest):
+class OrderCreateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -235,7 +234,7 @@ class OrderCreateTest(PostgreSQLTest):
 
 
 @ddt
-class OrderApproveTest(PostgreSQLTest):
+class OrderApproveTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -293,7 +292,7 @@ class OrderApproveTest(PostgreSQLTest):
 
 
 @ddt
-class OrderDeleteTest(PostgreSQLTest):
+class OrderDeleteTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -327,7 +326,7 @@ class OrderDeleteTest(PostgreSQLTest):
         return response
 
 
-class OrderStateTest(PostgreSQLTest):
+class OrderStateTest(test.APITransactionTestCase):
     def test_switch_order_state_to_done_when_all_order_items_are_processed(self):
         order_item = factories.OrderItemFactory(state=models.OrderItem.States.EXECUTING)
         order = order_item.order
