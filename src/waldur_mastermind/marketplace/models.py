@@ -17,6 +17,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from rest_framework import exceptions as rf_exceptions
 import six
 
 from waldur_core.core import models as core_models, utils as core_utils
@@ -277,10 +278,26 @@ class OfferingComponent(core_models.DescribableMixin):
             (USAGE, 'Usage-based'),
         )
 
+    class LimitPeriods(object):
+        MONTH = 'month'
+        TOTAL = 'total'
+
+        CHOICES = (
+            (MONTH, 'Maximum monthly - every month service provider '
+                    'can report up to the amount requested by user.'),
+            (TOTAL, 'Maximum total - SP can report up to the requested '
+                    'amount over the whole active state of resource.'),
+        )
+
     offering = models.ForeignKey(Offering, related_name='components')
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)
+    limit_period = models.CharField(choices=LimitPeriods.CHOICES,
+                                    blank=True,
+                                    null=True,
+                                    max_length=5)
+    limit_amount = models.IntegerField(blank=True, null=True)
     type = models.CharField(max_length=50,
                             help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
     name = models.CharField(max_length=150,
@@ -288,6 +305,23 @@ class OfferingComponent(core_models.DescribableMixin):
     measured_unit = models.CharField(max_length=30,
                                      help_text=_('Unit of measurement, for example, GB.'),
                                      blank=True)
+
+    def validate_amount(self, resource, amount, date):
+        if not self.limit_period or not self.limit_amount:
+            return
+
+        usages = ComponentUsage.objects.filter(resource=resource, component=self)
+
+        if self.limit_period == OfferingComponent.LimitPeriods.MONTH:
+            usages = usages.filter(date=core_utils.month_start(date))
+
+        total = usages.aggregate(models.Sum('usage'))['usage__sum'] or 0
+
+        if total + amount > self.limit_amount:
+            raise rf_exceptions.ValidationError(
+                _('Total amount exceeds exceeds limit. Total amount: %s, limit: %s.') % (
+                    total + amount, self.limit_amount)
+            )
 
 
 @python_2_unicode_compatible
