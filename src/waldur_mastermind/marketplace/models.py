@@ -277,10 +277,26 @@ class OfferingComponent(core_models.DescribableMixin):
             (USAGE, 'Usage-based'),
         )
 
+    class LimitPeriods(object):
+        MONTH = 'month'
+        TOTAL = 'total'
+
+        CHOICES = (
+            (MONTH, 'Maximum monthly - every month service provider '
+                    'can report up to the amount requested by user.'),
+            (TOTAL, 'Maximum total - SP can report up to the requested '
+                    'amount over the whole active state of resource.'),
+        )
+
     offering = models.ForeignKey(Offering, related_name='components')
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)
+    limit_period = models.CharField(choices=LimitPeriods.CHOICES,
+                                    blank=True,
+                                    null=True,
+                                    max_length=5)
+    limit_amount = models.IntegerField(default=0, blank=True, null=True)
     type = models.CharField(max_length=50,
                             help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
     name = models.CharField(max_length=150,
