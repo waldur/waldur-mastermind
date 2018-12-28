@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offeringcomponent',
             name='limit_amount',
-            field=models.IntegerField(blank=True, default=0, null=True),
+            field=models.IntegerField(blank=True, null=True),
         ),
         migrations.AddField(
             model_name='offeringcomponent',

@@ -297,7 +297,7 @@ class OfferingComponent(core_models.DescribableMixin):
                                     blank=True,
                                     null=True,
                                     max_length=5)
-    limit_amount = models.IntegerField(default=0, blank=True, null=True)
+    limit_amount = models.IntegerField(blank=True, null=True)
     type = models.CharField(max_length=50,
                             help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
     name = models.CharField(max_length=150,
