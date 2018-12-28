@@ -331,9 +331,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
             for usage in validated_data['usages']:
                 component = usage['component']
                 amount = usage['amount']
-
-                if component.limit_period:
-                    component.validate_amount(resource, amount, date)
+                component.validate_amount(resource, amount, date)
 
                 models.ComponentUsage.objects.update_or_create(
                     resource=resource,

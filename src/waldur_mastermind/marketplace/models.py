@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 import base64
-import datetime
 from decimal import Decimal
 import StringIO
 
@@ -18,6 +17,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+from rest_framework import exceptions as rf_exceptions
 import six
 
 from waldur_core.core import models as core_models, utils as core_utils
@@ -307,15 +307,18 @@ class OfferingComponent(core_models.DescribableMixin):
                                      blank=True)
 
     def validate_amount(self, resource, amount, date):
+        if not self.limit_period or not self.limit_amount:
+            return
+
         usages = ComponentUsage.objects.filter(resource=resource, component=self)
 
         if self.limit_period == OfferingComponent.LimitPeriods.MONTH:
-            usages = usages.filter(core_utils.month_start(date))
+            usages = usages.filter(date=core_utils.month_start(date))
 
-        total = usages.aggregate(models.Sum('usage'))['usage__sum']
+        total = usages.aggregate(models.Sum('usage'))['usage__sum'] or 0
 
-        if total and self.limit_amount and total + amount > self.limit_amount:
-            raise ValidationError(
+        if total + amount > self.limit_amount:
+            raise rf_exceptions.ValidationError(
                 _('Total amount exceeds exceeds limit. Total amount: %s, limit: %s.') % (
                     total + amount, self.limit_amount)
             )
