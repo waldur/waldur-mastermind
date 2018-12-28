@@ -15,6 +15,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -729,11 +730,11 @@ class PublicListComponentUsageSerializer(serializers.Serializer):
             })
 
         if plan.unit == UnitPriceMixin.Units.PER_MONTH:
-            attrs['date'] = datetime.date(year=date.year, month=date.month, day=1)
+            attrs['date'] = core_utils.month_start(date)
 
         if plan.unit == UnitPriceMixin.Units.PER_HALF_MONTH:
             if date.day < 16:
-                attrs['date'] = datetime.date(year=date.year, month=date.month, day=1)
+                attrs['date'] = core_utils.month_start(date)
             else:
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
 

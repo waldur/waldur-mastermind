@@ -329,11 +329,17 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
         if not dry_run:
             for usage in validated_data['usages']:
+                component = usage['component']
+                amount = usage['amount']
+
+                if component.limit_period:
+                    component.validate_amount(resource, amount, date)
+
                 models.ComponentUsage.objects.update_or_create(
                     resource=resource,
-                    component=usage['component'],
+                    component=component,
                     date=date,
-                    defaults={'usage': usage['amount']},
+                    defaults={'usage': amount},
                 )
 
         return Response(status=status.HTTP_201_CREATED)

@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import base64
+import datetime
 from decimal import Decimal
 import StringIO
 
@@ -304,6 +305,20 @@ class OfferingComponent(core_models.DescribableMixin):
     measured_unit = models.CharField(max_length=30,
                                      help_text=_('Unit of measurement, for example, GB.'),
                                      blank=True)
+
+    def validate_amount(self, resource, amount, date):
+        usages = ComponentUsage.objects.filter(resource=resource, component=self)
+
+        if self.limit_period == OfferingComponent.LimitPeriods.MONTH:
+            usages = usages.filter(core_utils.month_start(date))
+
+        total = usages.aggregate(models.Sum('usage'))['usage__sum']
+
+        if total and self.limit_amount and total + amount > self.limit_amount:
+            raise ValidationError(
+                _('Total amount exceeds exceeds limit. Total amount: %s, limit: %s.') % (
+                    total + amount, self.limit_amount)
+            )
 
 
 @python_2_unicode_compatible
