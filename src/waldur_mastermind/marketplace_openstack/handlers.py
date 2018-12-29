@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 def create_template_for_plan(sender, instance, created=False, **kwargs):
     plan = instance
 
+    if plan.scope:
+        return
+
     if not created:
         return
 

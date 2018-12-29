@@ -1,9 +1,12 @@
 from __future__ import unicode_literals
 
+from django.conf.urls import url
 from django.contrib import admin
 from django.forms import ModelForm, ModelChoiceField
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
@@ -40,15 +43,38 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
                    core_admin.UpdateOnlyModelAdmin,
                    admin.ModelAdmin):
     inlines = [OpenStackItemInline, OfferingItemInline, GenericItemInline]
-    readonly_fields = ('customer', 'state', 'total', 'year', 'month')
+    fields = ['tax_percent', 'invoice_date', 'customer', 'state', 'total', 'year', 'month', 'pdf_file']
+    readonly_fields = ('customer', 'state', 'total', 'year', 'month', 'pdf_file')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer', 'uuid')
+
+    def get_urls(self):
+        my_urls = [
+            url(r'^(.+)/change/pdf_file/$', self.admin_site.admin_view(self.pdf_file_view)),
+        ]
+        return my_urls + super(InvoiceAdmin, self).get_urls()
+
+    def pdf_file_view(self, request, pk=None):
+        invoice = models.Invoice.objects.get(id=pk)
+        file_response = HttpResponse(invoice.file, content_type='application/pdf')
+        filename = invoice.get_filename()
+        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        return file_response
+
+    def pdf_file(self, obj):
+        if not obj.file:
+            return ''
+
+        return format_html('<a href="./pdf_file">download</a>')
+
+    pdf_file.short_description = "File"
 
     def get_extra_actions(self):
         return [
             self.send_invoice_report,
             self.update_current_cost,
+            self.create_pdf_for_all,
         ]
 
     def send_invoice_report(self, request):
@@ -66,6 +92,14 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
         return redirect(reverse('admin:invoices_invoice_changelist'))
 
     send_invoice_report.short_description = _('Update current cost for invoices')
+
+    def create_pdf_for_all(self, request):
+        tasks.create_pdf_for_all_invoices.delay()
+        message = _('PDF creation has been scheduled')
+        self.message_user(request, message)
+        return redirect(reverse('admin:invoices_invoice_changelist'))
+
+    create_pdf_for_all.name = _('Create PDF for all invoices')
 
 
 class PackageChoiceField(ModelChoiceField):

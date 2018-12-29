@@ -1,0 +1,42 @@
+body {
+    font-size: 25px;
+    font-family: 'Source Sans Pro';
+    margin: 120px;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.m-t {
+    margin-top: 15px;
+}
+
+.invoice-table {
+    width: 100%
+}
+
+.invoice-table th {
+    border-bottom: 3px solid #e7eaec;
+    padding: 11px 5px 11px 5px;
+    vertical-align: middle;
+}
+
+.invoice-table th  {
+    text-align: left;
+}
+
+.invoice-total {
+    width: 100%;
+    text-align: right;
+}
+
+.invoice-total > tbody > tr > td {
+    border: 0 none;
+}
+
+.invoice-total > tbody > tr > td:last-child {
+    border-bottom: 3px solid #DDDDDD;
+    text-align: right;
+    width: 15%;
+}

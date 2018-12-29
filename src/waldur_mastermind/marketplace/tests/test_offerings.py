@@ -6,7 +6,6 @@ from ddt import data, ddt
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -20,7 +19,7 @@ from .. import serializers
 
 
 @ddt
-class OfferingGetTest(PostgreSQLTest):
+class OfferingGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -41,7 +40,7 @@ class OfferingGetTest(PostgreSQLTest):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class OfferingFilterTest(PostgreSQLTest):
+class OfferingFilterTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -140,7 +139,7 @@ class OfferingFilterTest(PostgreSQLTest):
 
 
 @ddt
-class OfferingCreateTest(PostgreSQLTest):
+class OfferingCreateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -406,7 +405,7 @@ class OfferingCreateTest(PostgreSQLTest):
 
 
 @ddt
-class OfferingUpdateTest(PostgreSQLTest):
+class OfferingUpdateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -440,7 +439,7 @@ class OfferingUpdateTest(PostgreSQLTest):
 
 
 @ddt
-class OfferingDeleteTest(PostgreSQLTest):
+class OfferingDeleteTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -546,7 +545,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
                           attributes, self.category)
 
 
-class OfferingQuotaTest(PostgreSQLTest):
+class OfferingQuotaTest(test.APITransactionTestCase):
     def get_usage(self, category):
         return category.quotas.get(name='offering_count').usage
 
@@ -603,7 +602,7 @@ class OfferingCountTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingStateTest(PostgreSQLTest):
+class OfferingStateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -638,7 +637,7 @@ class OfferingStateTest(PostgreSQLTest):
         return response, offering
 
 
-class AllowedCustomersTest(PostgreSQLTest):
+class AllowedCustomersTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

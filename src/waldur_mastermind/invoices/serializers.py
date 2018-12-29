@@ -4,6 +4,7 @@ import datetime
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
@@ -106,6 +107,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
+    file = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Invoice
@@ -113,7 +115,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
             'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
             'state', 'year', 'month', 'issuer_details', 'invoice_date', 'due_date',
             'customer', 'customer_details',
-            'openstack_items', 'offering_items', 'generic_items',
+            'openstack_items', 'offering_items', 'generic_items', 'file',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -135,6 +137,14 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
             'bank_name': invoice.customer.bank_name,
             'bank_account': invoice.customer.bank_account,
         }
+
+    def get_file(self, obj):
+        if not obj.has_file():
+            return None
+
+        return reverse('invoice-pdf',
+                       kwargs={'uuid': obj.uuid},
+                       request=self.context['request'])
 
 
 class InvoiceNotificationSerializer(serializers.Serializer):

@@ -4,6 +4,7 @@ import time
 from django.conf import settings
 from django.core import mail
 from six.moves import mock
+from rest_framework import test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.log import HookHandler
@@ -11,10 +12,9 @@ from waldur_core.logging.tasks import process_event
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_core.core.tests.utils import PostgreSQLTest
 
 
-class TestHookService(PostgreSQLTest):
+class TestHookService(test.APITransactionTestCase):
     def setUp(self):
         self.owner = structure_factories.UserFactory()
         self.customer = structure_factories.CustomerFactory()

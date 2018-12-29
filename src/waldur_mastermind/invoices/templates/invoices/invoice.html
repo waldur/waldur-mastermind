@@ -1,0 +1,111 @@
+{% load i18n %}
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Invoice</title>
+    <style type="text/css">
+      {% include "waldur_core/font.css" %}
+      {% include "./style.css" %}
+    </style>
+  </head>
+  <body>
+      <div class="text-right">
+        <h3 class="name">From</h3>
+        <div><strong>{{ issuer_details.company }}</strong></div>
+        <div>{{ issuer_details.address }}</div>
+        <div>{{ issuer_details.country }}, {{ issuer_details.postal }}</div>
+        <div><abbr>P:</abbr> ({{ issuer_details.phone.country_code }}) {{ issuer_details.phone.national_number }}</div>
+        <div>{{ issuer_details.bank }}, {{ issuer_details.account }}</div>
+        <div><abbr>{% trans "VAT" %}:</abbr>{{ issuer_details.vat_code }}</div>
+        <div>{{ issuer_details.email }}</div>
+
+        <h4>{% trans "Invoice No." %} {{ invoice.number|upper }}</h4>
+
+        <h3 class="name">To</h3>
+        <div><strong>{{ invoice.customer.name }}</strong></div>
+
+        {% if invoice.customer.address %}
+          <div>{{ invoice.customer.address }}</div>
+        {% endif %}
+
+        {% if invoice.customer.country and invoice.customer.postal %}
+          <div>{{ invoice.customer.country }}, {{ invoice.customer.postal }}</div>
+        {% endif %}
+
+        {% if invoice.customer.phone_number %}
+          <div><abbr>P:</abbr> {{ invoice.customer.phone_number }}</div>
+        {% endif %}
+
+        {% if invoice.customer.bank_name and invoice.customer.bank_account %}
+          <div>{{ invoice.customer.bank_name }}, {{ invoice.customer.bank_account }}</div>
+        {% endif %}
+
+        {% if customer.vat_code %}
+          <div><abbr>{% trans "VAT" %}:</abbr> {{ customer.vat_code }}</div>
+        {% endif %}
+
+        <div>{{ invoice.customer.email }}</div>
+
+        <div>
+          <strong>{% trans "Invoice date" %}:</strong> {{ invoice.invoice_date|date:"Y-m-d" }}<br/>
+          <strong>{% trans "Due date" %}:</strong> {{ invoice.due_date|date:"Y-m-d" }}<br/>
+          <strong>{% trans "Invoice period" %}:</strong> {{ invoice.year }}-{{ invoice.month }}<br/>
+        </div>
+      </div>
+      <div class="m-t">
+        <table class="invoice-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Quantity</th>
+              <th>Unit price</th>
+              <th>Total price</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% regroup items|dictsort:"project_name" by project_name as project_list %}
+            {% for project in project_list %}
+            <tr>
+                <td colspan="4"><h3>{{ project.grouper }}</h3></td>
+            </tr>
+              {% for item in project.list %}
+                <tr>
+                  <td>
+                    <strong>{{ item.name }}</strong>
+                    <div>
+                      <small>
+                        {% trans "Start time" %}: {{ item.start | date:"Y-m-d H:i" }}.
+                        {% trans "End time" %}: {{ item.end | date:"Y-m-d H:i" }}.
+                      </small>
+                    </div>
+                  </td>
+                  <td>{{ item.quantity }}</td>
+                  <td>€{{ item.unit_price | floatformat:2 | intcomma }}</td>
+                  <td>€{{ item.total | floatformat:2 | intcomma }}</td>
+                </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <table class="m-t invoice-total">
+        <tr>
+          <td><strong>{% trans "Subtotal" %}</strong></td>
+          <td>€{{ invoice.price | floatformat:2 | intcomma}}</td>
+        </tr>
+        {% if invoice.tax %}
+          <tr>
+            <td><strong>{% trans "VAT" %}</strong></td>
+            <td>€ {{ invoice.tax | floatformat:2 | intcomma}}</td>
+          </tr>
+        {% endif %}
+        <tr>
+          <td><strong>{% trans "TOTAL" %}</strong></td>
+          <td>€{{ invoice.total | floatformat:2 | intcomma}}</td>
+      </tr>
+      </table>
+  </body>
+</html>

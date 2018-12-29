@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 
 def migrate_data(apps, schema_editor):
-    from waldur_mastermind.invoices.models import Invoice
+    Invoice = apps.get_model('invoices', 'Invoice')
 
     for invoice in Invoice.objects.all():
         invoice.update_current_cost()

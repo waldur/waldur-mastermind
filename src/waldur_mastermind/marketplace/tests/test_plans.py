@@ -1,9 +1,8 @@
 from __future__ import unicode_literals
 
 from ddt import data, ddt
-from rest_framework import status
+from rest_framework import status, test
 
-from waldur_core.core.tests.utils import PostgreSQLTest
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -13,7 +12,7 @@ from . import factories
 
 
 @ddt
-class PlanGetTest(PostgreSQLTest):
+class PlanGetTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -37,7 +36,7 @@ class PlanGetTest(PostgreSQLTest):
 
 
 @ddt
-class PlanCreateTest(PostgreSQLTest):
+class PlanCreateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -69,7 +68,7 @@ class PlanCreateTest(PostgreSQLTest):
 
 
 @ddt
-class PlanUpdateTest(PostgreSQLTest):
+class PlanUpdateTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -103,7 +102,7 @@ class PlanUpdateTest(PostgreSQLTest):
 
 
 @ddt
-class PlanDeleteTest(PostgreSQLTest):
+class PlanDeleteTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
