@@ -155,6 +155,7 @@ class ComponentUsageFilter(django_filters.FilterSet):
     resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
     date_before = django_filters.DateFilter(name='date', lookup_expr='lte')
     date_after = django_filters.DateFilter(name='date', lookup_expr='gte')
+    type = django_filters.CharFilter(name='component__type')
 
     class Meta(object):
         model = models.ComponentUsage
