@@ -715,13 +715,13 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
             raise rf_exceptions.ValidationError(_('Signature verification failed.'))
 
 
-class PublicComponentUsageSerializer(serializers.Serializer):
+class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
 
 
-class PublicListComponentUsageSerializer(serializers.Serializer):
-    usages = PublicComponentUsageSerializer(many=True)
+class ComponentUsageCreateSerializer(serializers.Serializer):
+    usages = ComponentUsageItemSerializer(many=True)
     resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
     date = serializers.DateField()
 
@@ -757,7 +757,38 @@ class PublicListComponentUsageSerializer(serializers.Serializer):
             else:
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
 
+        resource = attrs['resource']
+
+        for usage in attrs['usages']:
+            component_type = usage['type']
+            offering = resource.plan.offering
+            try:
+                component = models.OfferingComponent.objects.get(
+                    offering=offering,
+                    type=component_type,
+                    billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                )
+                usage['component'] = component
+            except models.OfferingComponent.DoesNotExist:
+                raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % component_type)
+
         return attrs
+
+    def save(self):
+        date = self.validated_data['date']
+        resource = self.validated_data['resource']
+
+        for usage in self.validated_data['usages']:
+            component = usage['component']
+            amount = usage['amount']
+            component.validate_amount(resource, amount, date)
+
+            models.ComponentUsage.objects.update_or_create(
+                resource=resource,
+                component=component,
+                date=date,
+                defaults={'usage': amount},
+            )
 
 
 def get_is_service_provider(serializer, scope):

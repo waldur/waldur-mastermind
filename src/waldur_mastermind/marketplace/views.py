@@ -11,6 +11,7 @@ from django_fsm import TransitionNotAllowed
 from rest_framework import status, exceptions as rf_exceptions, viewsets as rf_viewsets
 from rest_framework import views
 from rest_framework.decorators import detail_route, list_route
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from waldur_core.core import utils as core_utils
@@ -21,6 +22,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.permissions import _has_owner_access
 
 from . import serializers, models, filters, tasks, plugins
 
@@ -285,29 +287,41 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     filter_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
+    @list_route(methods=['post'])
+    def set_usage(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource = serializer.validated_data['resource']
+        if not _has_owner_access(request.user, resource.offering.customer):
+            raise PermissionDenied(
+                _('Only staff and service provider owner is allowed '
+                  'to submit usage data for marketplace resource.')
+            )
+        serializer.save()
+        return Response(status=status.HTTP_201_CREATED)
+
+    set_usage_serializer_class = serializers.ComponentUsageCreateSerializer
+
 
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     """
     TODO: Move this viewset to  ComponentUsageViewSet.
     """
-    def get_action_class(self):
-        return getattr(self, self.action + '_serializer_class', None)
 
     permission_classes = ()
     serializer_class = serializers.ServiceProviderSignatureSerializer
-    set_usage_serializer_class = serializers.PublicListComponentUsageSerializer
 
     def get_validated_data(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data['data']
         dry_run = serializer.validated_data['dry_run']
-        data_serializer_class = self.get_action_class()
 
-        if data_serializer_class:
-            data_serializer = data_serializer_class(data=data)
+        if self.action == 'set_usage':
+            data_serializer = serializers.ComponentUsageCreateSerializer(data=data)
             data_serializer.is_valid(raise_exception=True)
-            return data_serializer.validated_data, dry_run
+            if not dry_run:
+                data_serializer.save()
 
         return serializer.validated_data, dry_run
 
@@ -320,36 +334,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     @list_route(methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
-        validated_data, dry_run = self.get_validated_data(request)
-        resource = validated_data['resource']
-        date = validated_data['date']
-
-        for usage in validated_data['usages']:
-            component_type = usage['type']
-            offering = resource.plan.offering
-            try:
-                component = models.OfferingComponent.objects.get(
-                    offering=offering,
-                    type=component_type,
-                    billing_type=models.OfferingComponent.BillingTypes.USAGE,
-                )
-                usage['component'] = component
-            except models.OfferingComponent.DoesNotExist:
-                raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % component_type)
-
-        if not dry_run:
-            for usage in validated_data['usages']:
-                component = usage['component']
-                amount = usage['amount']
-                component.validate_amount(resource, amount, date)
-
-                models.ComponentUsage.objects.update_or_create(
-                    resource=resource,
-                    component=component,
-                    date=date,
-                    defaults={'usage': amount},
-                )
-
+        self.get_validated_data(request)
         return Response(status=status.HTTP_201_CREATED)
 
 

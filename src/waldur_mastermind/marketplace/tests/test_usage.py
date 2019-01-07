@@ -1,10 +1,11 @@
 import datetime
 
+from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import factories
@@ -12,27 +13,35 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.invoices import models as invoices_models
 
 
+@ddt
 @freeze_time('2017-01-10 00:00:00')
-class TestPublicComponentUsageApi(test.APITransactionTestCase):
+class TestUsageApi(test.APITransactionTestCase):
     def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
         self.service_provider = factories.ServiceProviderFactory()
         self.secret_code = self.service_provider.api_secret_code
-        self.plan = factories.PlanFactory(unit=UnitPriceMixin.Units.PER_DAY)
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(unit=UnitPriceMixin.Units.PER_DAY, offering=self.offering)
         self.offering_component = factories.OfferingComponentFactory(
-            offering=self.plan.offering, billing_type=models.OfferingComponent.BillingTypes.USAGE)
-        self.component = factories.PlanComponentFactory(plan=self.plan, component=self.offering_component)
-        self.resource = models.Resource.objects.create(
-            offering=self.plan.offering,
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE
+        )
+        self.component = factories.PlanComponentFactory(
             plan=self.plan,
-            project=structure_factories.ProjectFactory()
+            component=self.offering_component
+        )
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
         )
 
-    def test_validate_correct_signature(self):
+    def test_valid_signature(self):
         payload = self.get_valid_payload()
         response = self.client.post('/api/marketplace-public-api/check_signature/', payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_validate_not_correct_signature(self):
+    def test_invalid_signature(self):
         response = self.submit_usage(data='wrong_signature')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -42,6 +51,24 @@ class TestPublicComponentUsageApi(test.APITransactionTestCase):
         self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
                                                              component=self.offering_component,
                                                              date=datetime.date.today()).exists())
+
+    @data('staff', 'owner')
+    def test_authenticated_user_can_submit_usage_via_api(self, role):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
+                                                             component=self.offering_component,
+                                                             date=datetime.date.today()).exists())
+
+    @data('admin', 'manager', 'user')
+    def test_other_user_can_not_submit_usage_via_api(self, role):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(models.ComponentUsage.objects.filter(resource=self.resource,
+                                                              component=self.offering_component,
+                                                              date=datetime.date.today()).exists())
 
     def test_total_amount_exceeds_month_limit(self):
         self.offering_component.limit_period = models.OfferingComponent.LimitPeriods.MONTH
@@ -138,8 +165,16 @@ class TestPublicComponentUsageApi(test.APITransactionTestCase):
         payload.update(extra)
         return self.client.post('/api/marketplace-public-api/set_usage/', payload)
 
-    def get_valid_payload(self, component_type='cpu', amount=5):
-        data = {
+    def get_valid_payload(self, **kwargs):
+        data = self.get_usage_data(**kwargs)
+        payload = dict(
+            customer=self.service_provider.customer.uuid,
+            data=utils.encode_api_data(data, self.secret_code)
+        )
+        return payload
+
+    def get_usage_data(self, component_type='cpu', amount=5):
+        return {
             'date': datetime.date.today(),
             'resource': self.resource.uuid,
             'usages': [{
@@ -147,9 +182,3 @@ class TestPublicComponentUsageApi(test.APITransactionTestCase):
                 'amount': amount
             }]
         }
-
-        payload = dict(
-            customer=self.service_provider.customer.uuid,
-            data=utils.encode_api_data(data, self.secret_code)
-        )
-        return payload
