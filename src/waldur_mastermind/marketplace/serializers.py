@@ -684,6 +684,16 @@ class ResourceSerializer(BaseItemSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
 
 
+class ComponentUsageSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.ComponentUsage
+        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
+
+    type = serializers.ReadOnlyField(source='component.type')
+    name = serializers.ReadOnlyField(source='component.name')
+    measured_unit = serializers.ReadOnlyField(source='component.measured_unit')
+
+
 class ServiceProviderSignatureSerializer(serializers.Serializer):
     customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
     data = serializers.CharField()

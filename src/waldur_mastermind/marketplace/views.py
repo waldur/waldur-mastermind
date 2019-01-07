@@ -278,6 +278,14 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
 
+    @detail_route(methods=['GET'])
+    def usages(self, request, uuid=None):
+        resource = self.get_object()
+        queryset = resource.usages.all().order_by('-date', 'component__type')
+        queryset = self.paginate_queryset(queryset)
+        serializer = serializers.ComponentUsageSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def get_action_class(self):
