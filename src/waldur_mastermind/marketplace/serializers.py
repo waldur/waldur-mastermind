@@ -669,11 +669,19 @@ class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
 class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
-        fields = BaseItemSerializer.Meta.fields + ('state', 'resource_uuid', 'resource_type')
+        fields = BaseItemSerializer.Meta.fields + (
+            'state', 'resource_uuid', 'resource_type', 'project', 'project_uuid',
+        )
 
     state = serializers.ReadOnlyField(source='get_state_display')
     resource_uuid = serializers.ReadOnlyField(source='backend_uuid')
     resource_type = serializers.ReadOnlyField(source='backend_type')
+    project = serializers.HyperlinkedRelatedField(
+        lookup_field='uuid',
+        view_name='project-detail',
+        read_only=True,
+    )
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
