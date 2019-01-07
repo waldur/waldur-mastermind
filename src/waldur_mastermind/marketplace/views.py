@@ -279,7 +279,17 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.ResourceSerializer
 
 
+class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.ComponentUsage.objects.all().order_by('-date', 'component__type')
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_class = filters.ComponentUsageFilter
+    serializer_class = serializers.ComponentUsageSerializer
+
+
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
+    """
+    TODO: Move this viewset to  ComponentUsageViewSet.
+    """
     def get_action_class(self):
         return getattr(self, self.action + '_serializer_class', None)
 

@@ -684,6 +684,16 @@ class ResourceSerializer(BaseItemSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
 
 
+class ComponentUsageSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.ComponentUsage
+        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
+
+    type = serializers.ReadOnlyField(source='component.type')
+    name = serializers.ReadOnlyField(source='component.name')
+    measured_unit = serializers.ReadOnlyField(source='component.measured_unit')
+
+
 class ServiceProviderSignatureSerializer(serializers.Serializer):
     customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
     data = serializers.CharField()
@@ -788,6 +798,13 @@ def get_marketplace_category_name(serializer, scope):
         return
 
 
+def get_marketplace_resource_uuid(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).uuid
+    except ObjectDoesNotExist:
+        return
+
+
 def add_marketplace_offering(sender, fields, **kwargs):
     fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
@@ -800,6 +817,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_category_name'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_category_name', get_marketplace_category_name)
+
+    fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
 
 
 core_signals.pre_serializer_fields.connect(
