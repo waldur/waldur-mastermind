@@ -715,13 +715,13 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
             raise rf_exceptions.ValidationError(_('Signature verification failed.'))
 
 
-class PublicComponentUsageSerializer(serializers.Serializer):
+class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
 
 
-class PublicListComponentUsageSerializer(serializers.Serializer):
-    usages = PublicComponentUsageSerializer(many=True)
+class ComponentUsageCreateSerializer(serializers.Serializer):
+    usages = ComponentUsageItemSerializer(many=True)
     resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
     date = serializers.DateField()
 

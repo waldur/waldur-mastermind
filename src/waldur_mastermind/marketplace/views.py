@@ -300,7 +300,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer.save()
         return Response(status=status.HTTP_201_CREATED)
 
-    set_usage_serializer_class = serializers.PublicListComponentUsageSerializer
+    set_usage_serializer_class = serializers.ComponentUsageCreateSerializer
 
 
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
@@ -318,7 +318,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         dry_run = serializer.validated_data['dry_run']
 
         if self.action == 'set_usage':
-            data_serializer = serializers.PublicListComponentUsageSerializer(data=data)
+            data_serializer = serializers.ComponentUsageCreateSerializer(data=data)
             data_serializer.is_valid(raise_exception=True)
             if not dry_run:
                 data_serializer.save()
