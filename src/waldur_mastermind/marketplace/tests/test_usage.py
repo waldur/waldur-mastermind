@@ -53,7 +53,7 @@ class TestUsageApi(test.APITransactionTestCase):
                                                              date=datetime.date.today()).exists())
 
     @data('staff', 'owner')
-    def test_staff_can_submit_usage_via_api(self, role):
+    def test_authenticated_user_can_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
         response = self.client.post('/api/marketplace-component-usages/set_usage/', {
             'date': datetime.date.today(),

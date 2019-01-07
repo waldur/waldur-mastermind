@@ -22,6 +22,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.permissions import _has_owner_access
 
 from . import serializers, models, filters, tasks, plugins
 
@@ -291,7 +292,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         resource = serializer.validated_data['resource']
-        if not resource.offering.customer.has_user(request.user, structure_models.CustomerRole.OWNER):
+        if not _has_owner_access(request.user, resource.offering.customer):
             raise PermissionDenied(
                 _('Only staff and service provider owner is allowed '
                   'to submit usage data for marketplace resource.')
