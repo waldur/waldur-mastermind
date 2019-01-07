@@ -13,7 +13,7 @@ from waldur_mastermind.invoices import models as invoices_models
 
 
 @freeze_time('2017-01-10 00:00:00')
-class TestPublicComponentUsageApi(test.APITransactionTestCase):
+class TestUsageApi(test.APITransactionTestCase):
     def setUp(self):
         self.service_provider = factories.ServiceProviderFactory()
         self.secret_code = self.service_provider.api_secret_code

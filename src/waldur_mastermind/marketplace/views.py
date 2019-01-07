@@ -290,24 +290,21 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     """
     TODO: Move this viewset to  ComponentUsageViewSet.
     """
-    def get_action_class(self):
-        return getattr(self, self.action + '_serializer_class', None)
 
     permission_classes = ()
     serializer_class = serializers.ServiceProviderSignatureSerializer
-    set_usage_serializer_class = serializers.PublicListComponentUsageSerializer
 
     def get_validated_data(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data['data']
         dry_run = serializer.validated_data['dry_run']
-        data_serializer_class = self.get_action_class()
 
-        if data_serializer_class:
-            data_serializer = data_serializer_class(data=data)
+        if self.action == 'set_usage':
+            data_serializer = serializers.PublicListComponentUsageSerializer(data=data)
             data_serializer.is_valid(raise_exception=True)
-            return data_serializer.validated_data, dry_run
+            if not dry_run:
+                data_serializer.save()
 
         return serializer.validated_data, dry_run
 
@@ -320,36 +317,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     @list_route(methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
-        validated_data, dry_run = self.get_validated_data(request)
-        resource = validated_data['resource']
-        date = validated_data['date']
-
-        for usage in validated_data['usages']:
-            component_type = usage['type']
-            offering = resource.plan.offering
-            try:
-                component = models.OfferingComponent.objects.get(
-                    offering=offering,
-                    type=component_type,
-                    billing_type=models.OfferingComponent.BillingTypes.USAGE,
-                )
-                usage['component'] = component
-            except models.OfferingComponent.DoesNotExist:
-                raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % component_type)
-
-        if not dry_run:
-            for usage in validated_data['usages']:
-                component = usage['component']
-                amount = usage['amount']
-                component.validate_amount(resource, amount, date)
-
-                models.ComponentUsage.objects.update_or_create(
-                    resource=resource,
-                    component=component,
-                    date=date,
-                    defaults={'usage': amount},
-                )
-
+        self.get_validated_data(request)
         return Response(status=status.HTTP_201_CREATED)
 
 
