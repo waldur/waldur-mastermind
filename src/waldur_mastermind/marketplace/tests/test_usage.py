@@ -55,14 +55,7 @@ class TestUsageApi(test.APITransactionTestCase):
     @data('staff', 'owner')
     def test_authenticated_user_can_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
-        response = self.client.post('/api/marketplace-component-usages/set_usage/', {
-            'date': datetime.date.today(),
-            'resource': self.resource.uuid,
-            'usages': [{
-                'type': 'cpu',
-                'amount': 5
-            }]
-        })
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
                                                              component=self.offering_component,
@@ -71,14 +64,7 @@ class TestUsageApi(test.APITransactionTestCase):
     @data('admin', 'manager', 'user')
     def test_other_user_can_not_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
-        response = self.client.post('/api/marketplace-component-usages/set_usage/', {
-            'date': datetime.date.today(),
-            'resource': self.resource.uuid,
-            'usages': [{
-                'type': 'cpu',
-                'amount': 5
-            }]
-        })
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(models.ComponentUsage.objects.filter(resource=self.resource,
                                                               component=self.offering_component,
@@ -179,8 +165,16 @@ class TestUsageApi(test.APITransactionTestCase):
         payload.update(extra)
         return self.client.post('/api/marketplace-public-api/set_usage/', payload)
 
-    def get_valid_payload(self, component_type='cpu', amount=5):
-        data = {
+    def get_valid_payload(self, **kwargs):
+        data = self.get_usage_data(**kwargs)
+        payload = dict(
+            customer=self.service_provider.customer.uuid,
+            data=utils.encode_api_data(data, self.secret_code)
+        )
+        return payload
+
+    def get_usage_data(self, component_type='cpu', amount=5):
+        return {
             'date': datetime.date.today(),
             'resource': self.resource.uuid,
             'usages': [{
@@ -188,9 +182,3 @@ class TestUsageApi(test.APITransactionTestCase):
                 'amount': amount
             }]
         }
-
-        payload = dict(
-            customer=self.service_provider.customer.uuid,
-            data=utils.encode_api_data(data, self.secret_code)
-        )
-        return payload
