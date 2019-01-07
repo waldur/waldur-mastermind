@@ -11,6 +11,7 @@ from django_fsm import TransitionNotAllowed
 from rest_framework import status, exceptions as rf_exceptions, viewsets as rf_viewsets
 from rest_framework import views
 from rest_framework.decorators import detail_route, list_route
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from waldur_core.core import utils as core_utils
@@ -284,6 +285,21 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
+
+    @list_route(methods=['post'])
+    def set_usage(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource = serializer.validated_data['resource']
+        if not resource.offering.customer.has_user(request.user, structure_models.CustomerRole.OWNER):
+            raise PermissionDenied(
+                _('Only staff and service provider owner is allowed '
+                  'to submit usage data for marketplace resource.')
+            )
+        serializer.save()
+        return Response(status=status.HTTP_201_CREATED)
+
+    set_usage_serializer_class = serializers.PublicListComponentUsageSerializer
 
 
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
