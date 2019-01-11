@@ -18,6 +18,8 @@ available_categories = {
     'hpc': ('HPC', 'High Performance Computing'),
     'operations': ('Operations', 'Reliable support'),
     'consultancy': ('Consultancy', 'Experts for hire'),
+    # devices
+    'spectrometry': ('Spectrometry', 'Available spectrometers'),
 }
 
 common_sections = {
@@ -29,16 +31,16 @@ common_sections = {
     ],
 
     'Security': [
-        ('certification', 'Certification', 'listattr'),
+        ('certification', 'Certification', 'list'),
     ],
 }
 
 hpc_sections = {
     'system_information': [
-        ('queuing_system', 'Queueing system', 'listattr'),
+        ('queuing_system', 'Queueing system', 'list'),
         ('home_space', 'Home space', 'string'),
         ('work_space', 'Work space', 'string'),
-        ('linux_distro', 'Linux distribution', 'listattr'),
+        ('linux_distro', 'Linux distribution', 'list'),
     ],
     'node_information': [
         ('cpu', 'CPU model', 'choice'),
@@ -53,12 +55,20 @@ hpc_sections = {
         ('linpack', 'Linpack TFlop/s', 'integer')
     ],
     'software': [
-        ('applications', 'Applications', 'listattr'),
+        ('applications', 'Applications', 'list'),
+    ],
+}
+
+spectrometry_sections = {
+    'properties': [
+        ('spectrometry_type', 'Type', 'choice'),
+        ('spectrometry_spectrum', 'Spectrum', 'choice')
     ],
 }
 
 specific_sections = {
     'hpc': hpc_sections,
+    'spectrometry': spectrometry_sections,
 }
 
 enums = {
@@ -105,6 +115,15 @@ enums = {
         ('vmware', 'VMware'),
         ('Baremetal', 'Baremetal'),
     ],
+    'spectrometry_type': [
+        ('aas', 'Atomic Absorption Spectrometer'),
+        ('spectrophotometer', 'Spectrophotometer'),
+        ('spectrometers', 'Spectrometers'),
+    ],
+    'spectrometry_spectrum': [
+        ('visible', 'Visible'),
+        ('infrared', 'Infrared'),
+    ]
 }
 
 
