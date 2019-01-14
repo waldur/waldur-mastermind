@@ -236,6 +236,18 @@ class InstanceStopTest(BaseWaldurClientTest):
 
 
 class SecurityGroupTest(BaseWaldurClientTest):
+    security_group = {
+        'name': 'secure group',
+        'uuid': '59e46d029a79473779915a22',
+        'state': 'OK',
+        'rules': [{
+            'to_port': 10,
+            'from_port': 20,
+            'cidr': '0.0.0.0/24',
+            'protocol': 'tcp',
+        }]
+    }
+
     @responses.activate
     def test_waldur_client_returns_security_group_by_tenant_name_and_security_group_name(self):
         security_group = dict(name='security_group')
@@ -248,34 +260,44 @@ class SecurityGroupTest(BaseWaldurClientTest):
 
         self.assertEqual(response['name'], security_group['name'])
 
-    @responses.activate
-    def test_waldur_client_creates_security_group_with_passed_parameters(self):
+    def create_security_group(self, **kwargs):
         action_name = 'create_security_group'
-        security_group = {
-            'name': 'secure group',
-            'uuid': '59e46d029a79473779915a22',
-            'state': 'OK',
-            'rules': [{
-                'to_port': 10,
-                'from_port': 20,
-                'cidr': '0.0.0.0/24',
-                'protocol': 'tcp',
-            }]
-        }
         responses.add(responses.GET, self._get_url('openstack-tenants'), json=[self.tenant])
         post_url = self._get_subresource_url('openstack-tenants', self.tenant['uuid'], action_name)
-        responses.add(responses.POST, post_url, json=security_group, status=201)
+        responses.add(responses.POST, post_url, json=self.security_group, status=201)
 
-        instance_url = '%s/openstack-security-groups/%s/' % (self.api_url, security_group['uuid'])
-        responses.add(responses.GET, instance_url, json=security_group, status=200)
+        instance_url = '%s/openstack-security-groups/%s/' % (self.api_url, self.security_group['uuid'])
+        responses.add(responses.GET, instance_url, json=self.security_group, status=200)
 
         client = WaldurClient(self.api_url, self.access_token)
         response = client.create_security_group(
             tenant=self.tenant['name'],
-            name=security_group['name'],
-            rules=security_group['rules'])
+            name=self.security_group['name'],
+            rules=self.security_group['rules'],
+            **kwargs
+        )
+        return response
 
-        self.assertEqual(security_group['name'], response['name'])
+    @responses.activate
+    def test_waldur_client_creates_security_group_with_passed_parameters(self):
+        response = self.create_security_group()
+        self.assertEqual(self.security_group['name'], response['name'])
+        self.assertEqual(self.security_group['rules'], response['rules'])
+
+    @responses.activate
+    def test_search_tenant_by_project_name(self):
+        project = {'uuid': str(uuid.uuid4()),}
+        responses.add(responses.GET, self._get_url('projects'), json=[project])
+
+        self.create_security_group(project='waldur')
+
+        url = [call.request.url for call in responses.calls if call.request.method == 'GET'][0]
+        params = parse_qs(urlparse(url).query)
+        self.assertEqual(params['name_exact'][0], 'waldur')
+
+        url = [call.request.url for call in responses.calls if call.request.method == 'GET'][1]
+        params = parse_qs(urlparse(url).query)
+        self.assertEqual(params['project_uuid'][0], project['uuid'])
 
 
 class VolumeDetachTest(BaseWaldurClientTest):

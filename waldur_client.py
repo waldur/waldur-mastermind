@@ -141,14 +141,20 @@ class WaldurClient(object):
 
         return result[0]
 
-    def _query_resource_by_uuid(self, endpoint, value):
-        return self._query_resource(endpoint, {'uuid': value})
+    def _query_resource_by_uuid(self, endpoint, value, extra=None):
+        payload = {'uuid': value}
+        if extra:
+            payload.update(extra)
+        return self._query_resource(endpoint, payload)
 
-    def _query_resource_by_name(self, endpoint, value):
+    def _query_resource_by_name(self, endpoint, value, extra=None):
         # TODO: Drop inexact filtering by name when all deployments are updated.
-        return self._query_resource(endpoint, {'name': value, 'name_exact': value})
+        payload = {'name': value, 'name_exact': value}
+        if extra:
+            payload.update(extra)
+        return self._query_resource(endpoint, payload)
 
-    def _get_resource(self, endpoint, value):
+    def _get_resource(self, endpoint, value, extra=None):
         """
         Get resource by UUID, name or query parameters.
 
@@ -158,9 +164,9 @@ class WaldurClient(object):
         :raises: WaldurClientException if resource could not be received or response failed.
         """
         if is_uuid(value):
-            return self._query_resource_by_uuid(endpoint, value)
+            return self._query_resource_by_uuid(endpoint, value, extra)
         else:
-            return self._query_resource_by_name(endpoint, value)
+            return self._query_resource_by_name(endpoint, value, extra)
 
     def _create_resource(self, endpoint, payload=None, valid_state=201):
         url = self._build_url(endpoint)
@@ -267,8 +273,18 @@ class WaldurClient(object):
     def _create_instance(self, payload):
         return self._create_resource(self.Endpoints.Instance, payload)
 
-    def _get_tenant(self, name):
-        return self._get_resource(self.Endpoints.Tenant, name)
+    def _get_tenant(self, name, project=None):
+        """
+        Find OpenStack tenant resource in Waldur database.
+        :param name: OpenStack name or UUID.
+        :param project: Waldur project name or UUID.
+        :return: OpenStack tenant as Waldur resource.
+        """
+        extra = None
+        if project:
+            project = self._get_project(project)
+            extra = {'project_uuid': project['uuid']}
+        return self._get_resource(self.Endpoints.Tenant, name, extra)
 
     def _wait_for_resource(self, endpoint, uuid, interval, timeout):
         ready = self._is_resource_ready(endpoint, uuid)
@@ -302,6 +318,7 @@ class WaldurClient(object):
                               tenant,
                               name,
                               rules,
+                              project=None,
                               description=None,
                               tags=None,
                               wait=True,
@@ -313,6 +330,7 @@ class WaldurClient(object):
         :param tenant: uuid or name of the tenant to use.
         :param name: name of the security group.
         :param rules: list of rules to add the security group.
+        :param project: name of the Waldur project where OpenStack tenant is located.
         :param description: arbitrary text.
         :param tags: list of tags to add to the security group.
         :param wait: defines whether the client has to wait for security group provisioning.
@@ -320,7 +338,7 @@ class WaldurClient(object):
         :param timeout: a maximum amount of time to wait for security group provisioning.
         :return: security group as a dictionary.
         """
-        tenant = self._get_tenant(tenant)
+        tenant = self._get_tenant(tenant, project)
         payload = {
             'name': name,
             'rules': rules
