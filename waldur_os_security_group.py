@@ -54,6 +54,10 @@ options:
     description:
       - The name of the security group.
     required: true
+  project:
+    description:
+      - Name or UUID of the Waldur project where OpenStack tenant is located.
+    required: false
   rules:
     description:
       - A list of security group rules to be applied to the security group.
@@ -168,6 +172,7 @@ EXAMPLES = '''
 
 def send_request_to_waldur(client, module):
     has_changed = False
+    project = module.params.get('project')
     tenant = module.params['tenant']
     name = module.params['name']
     description = module.params.get('description') or ''
@@ -195,6 +200,7 @@ def send_request_to_waldur(client, module):
             has_changed = True
     elif present:
         client.create_security_group(
+            project=project,
             tenant=tenant,
             name=name,
             description=description,
@@ -215,6 +221,7 @@ def main():
         to_port=dict(type='str'),
         cidr=dict(type='str'),
         protocol=dict(type='str', choices=['tcp', 'udp', 'icmp']),
+        project=dict(type='str', required=False),
         tenant=dict(type='str', required=True),
     )
     required_together = [['from_port', 'to_port', 'cidr', 'protocol']]
