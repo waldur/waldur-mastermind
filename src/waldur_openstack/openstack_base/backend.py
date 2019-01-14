@@ -199,10 +199,12 @@ class BaseOpenStackBackend(ServiceBackend):
             client = getattr(self, attr_name)
         elif key in cache:  # try to get session from cache
             session = cache.get(key)
-            try:
-                client = OpenStackClient(session=session)
-            except (OpenStackSessionExpired, OpenStackAuthorizationFailed):
-                pass
+            # Cache miss is signified by a return value of None
+            if session is not None:
+                try:
+                    client = OpenStackClient(session=session)
+                except (OpenStackSessionExpired, OpenStackAuthorizationFailed):
+                    pass
 
         if client is None:  # create new token if session is not cached or expired
             client = OpenStackClient(**credentials)
