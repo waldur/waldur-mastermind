@@ -740,9 +740,10 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
         if invoices_models.Invoice.objects.filter(customer=resource.project.customer,
                                                   year=date.year,
-                                                  month=date.month).\
-                exclude(state=invoices_models.Invoice.States.CREATED).exists():
-            # If an invoice exists, and invoice state is not created then a billing period is closed.
+                                                  month=date.month). \
+                filter(state__in=[invoices_models.Invoice.States.CREATED,
+                                  invoices_models.Invoice.States.PAID]).exists():
+            # If an invoice exists, and invoice state is created or paid then a billing period is closed.
             raise rf_exceptions.ValidationError({
                 'date':
                     _('Cannot update usage information. Billing period is closed.')
