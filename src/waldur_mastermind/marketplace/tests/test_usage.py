@@ -124,26 +124,28 @@ class TestUsageApi(test.APITransactionTestCase):
         self.assertEqual(usage.usage, 15)
 
     @freeze_time('2017-01-18 00:00:00')
-    def test_not_update_usage_if_billing_period_closed(self):
+    @data(invoices_models.Invoice.States.PENDING, invoices_models.Invoice.States.CANCELED)
+    def test_usage_is_updated_if_billing_period_is_open(self, state):
         invoices_models.Invoice.objects.create(
             customer=self.resource.project.customer,
             year=2017,
             month=1,
-            state=invoices_models.Invoice.States.PENDING
-        )
-        response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @freeze_time('2017-01-18 00:00:00')
-    def test_update_usage_if_billing_period_not_closed(self):
-        invoices_models.Invoice.objects.create(
-            customer=self.resource.project.customer,
-            year=2017,
-            month=1,
-            state=invoices_models.Invoice.States.CREATED
+            state=state
         )
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @freeze_time('2017-01-18 00:00:00')
+    @data(invoices_models.Invoice.States.CREATED, invoices_models.Invoice.States.PAID)
+    def test_usage_is_not_updated_if_billing_period_is_closed(self, state):
+        invoices_models.Invoice.objects.create(
+            customer=self.resource.project.customer,
+            year=2017,
+            month=1,
+            state=state
+        )
+        response = self.submit_usage()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @freeze_time('2017-01-18 00:00:00')
     def test_round_date_if_unit_is_per_half_month(self):
