@@ -11,6 +11,7 @@ from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, utils
 
@@ -169,8 +170,96 @@ def terminate_resource(sender, instance, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.debug('Skipping resource terminate for OpenStack resource'
+        logger.debug('Skipping resource terminate for OpenStack resource '
                      'because marketplace resource does not exist. '
                      'Resource ID: %s', instance.id)
     else:
         callbacks.resource_deletion_succeeded(resource)
+
+
+def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
+    volume = instance
+    if not created and not set(volume.tracker.changed()) & {'size', 'instance_id'}:
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=volume)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping resource synchronization for OpenStack volume '
+                     'because marketplace resource does not exist. '
+                     'Resource ID: %s', instance.id)
+        return
+
+    utils.import_volume_metadata(resource)
+
+
+def synchronize_instance_metadata(sender, instance, created=False, **kwargs):
+    if not created and not set(instance.tracker.changed()) & {'name'}:
+        return
+
+    for volume in instance.volumes.all():
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=volume)
+        except ObjectDoesNotExist:
+            logger.debug('Skipping resource synchronization for OpenStack volume '
+                         'because marketplace resource does not exist. '
+                         'Resource ID: %s', instance.id)
+            continue
+
+        resource.backend_metadata['instance_name'] = volume.instance.name
+        resource.save(update_fields=['backend_metadata'])
+
+
+def synchronize_internal_ips(sender, instance, created=False, **kwargs):
+    internal_ip = instance
+    if not created and not set(internal_ip.tracker.changed()) & {'ip4_address', 'instance_id'}:
+        return
+
+    vms = {vm for vm in (internal_ip.instance_id, internal_ip.tracker.previous('instance_id')) if vm}
+
+    for vm in vms:
+        try:
+            scope = openstack_tenant_models.Instance.objects.get(id=vm)
+            resource = marketplace_models.Resource.objects.get(scope=scope)
+        except ObjectDoesNotExist:
+            logger.debug('Skipping resource synchronization for OpenStack instance '
+                         'because marketplace resource does not exist. '
+                         'Resource ID: %s', vm)
+            return
+
+        utils.import_instance_metadata(resource)
+
+
+def synchronize_floating_ips(sender, instance, created=False, **kwargs):
+    floating_ip = instance
+    if not created and not set(instance.tracker.changed()) & {'address', 'internal_ip_id'}:
+        return
+
+    internal_ips = {ip for ip in (floating_ip.internal_ip_id, floating_ip.tracker.previous('internal_ip_id')) if ip}
+    for ip_id in internal_ips:
+        try:
+            scope = openstack_tenant_models.Instance.objects.get(internal_ips_set__id=ip_id)
+            resource = marketplace_models.Resource.objects.get(scope=scope)
+        except ObjectDoesNotExist:
+            logger.debug('Skipping resource synchronization for OpenStack instance '
+                         'because marketplace resource does not exist. '
+                         'Resource ID: %s', ip_id)
+            return
+
+        utils.import_instance_metadata(resource)
+
+
+def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
+    fields = {'action', 'action_details', 'state', 'runtime_state'}
+    if not created and not set(instance.tracker.changed()) & fields:
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping resource synchronization for OpenStack resource '
+                     'because marketplace resource does not exist. '
+                     'Resource ID: %s', instance.id)
+        return
+
+    utils.import_resource_metadata(resource)
