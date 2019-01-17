@@ -3,7 +3,8 @@ import os
 from django.core.management.base import BaseCommand
 from django.core.files import File
 
-from waldur_mastermind.marketplace.models import Category, Section, Attribute, AttributeOption
+from waldur_mastermind.marketplace.models import Category, CategoryColumn, \
+    Section, Attribute, AttributeOption
 
 
 available_categories = {
@@ -20,6 +21,32 @@ available_categories = {
     'consultancy': ('Consultancy', 'Experts for hire'),
     # devices
     'spectrometry': ('Spectrometry', 'Available spectrometers'),
+}
+
+category_columns = {
+    'block': [
+        {
+            'title': 'Size',
+            'widget': 'filesize',
+            'attribute': 'size',
+        },
+        {
+            'title': 'Attached to',
+            'widget': 'attached_instance',
+        },
+    ],
+    'vm': [
+        {
+            'title': 'Internal IP',
+            'attribute': 'internal_ips',
+            'widget': 'csv',
+        },
+        {
+            'title': 'External IP',
+            'attribute': 'external_ips',
+            'widget': 'csv',
+        },
+    ],
 }
 
 common_sections = {
@@ -173,5 +200,18 @@ class Command(BaseCommand):
             # add specific sections
             if category_short in specific_sections.keys():
                 populate_category(category_short, new_category, specific_sections[category_short])
+
+            # add category columns
+            columns = category_columns.get(category_short, [])
+            for index, attribute in enumerate(columns):
+                CategoryColumn.objects.get_or_create(
+                    category=new_category,
+                    title=attribute['title'],
+                    defaults=dict(
+                        index=index,
+                        attribute=attribute.get('attribute', ''),
+                        widget=attribute.get('widget'),
+                    )
+                )
 
             self.stdout.write(self.style.SUCCESS('Loaded category %s, %s ' % (category_short, new_category.uuid)))

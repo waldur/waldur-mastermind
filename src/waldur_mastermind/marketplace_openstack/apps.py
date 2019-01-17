@@ -74,3 +74,36 @@ class MarketplaceOpenStackConfig(AppConfig):
                          create_resource_processor=processors.VolumeCreateProcessor,
                          delete_resource_processor=processors.VolumeDeleteProcessor,
                          scope_model=structure_models.ServiceSettings)
+
+        signals.post_save.connect(
+            handlers.synchronize_volume_metadata,
+            sender=tenant_models.Volume,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_volume_metadata',
+        )
+
+        signals.post_save.connect(
+            handlers.synchronize_instance_metadata,
+            sender=tenant_models.Instance,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_instance_metadata',
+        )
+
+        signals.post_save.connect(
+            handlers.synchronize_internal_ips,
+            sender=tenant_models.InternalIP,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_internal_ips',
+        )
+
+        signals.post_save.connect(
+            handlers.synchronize_floating_ips,
+            sender=tenant_models.FloatingIP,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_floating_ips',
+        )
+
+        resource_models = (tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant)
+        for index, model in enumerate(resource_models):
+            signals.post_save.connect(
+                handlers.synchronize_resource_metadata,
+                sender=model,
+                dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                             'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
+            )

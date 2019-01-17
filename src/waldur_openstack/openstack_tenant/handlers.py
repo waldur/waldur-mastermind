@@ -26,6 +26,8 @@ def _log_scheduled_action(resource, action, action_details):
 
 
 def _log_succeeded_action(resource, action, action_details):
+    if not action:
+        return
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.info(

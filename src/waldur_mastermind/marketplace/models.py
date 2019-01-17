@@ -572,6 +572,7 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
     plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
+    backend_metadata = BetterJSONField(blank=True, default=dict)
     limits = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
