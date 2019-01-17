@@ -1,4 +1,6 @@
+from ddt import data, ddt
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status
 
@@ -6,6 +8,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
@@ -88,34 +91,72 @@ class RequestCreateTest(BaseTest):
         self.assertTrue(order_item_url in offering.issue.description)
 
 
+@ddt
 class RequestDeleteTest(BaseTest):
     def setUp(self):
         super(RequestDeleteTest, self).setUp()
         self.fixture = fixtures.ProjectFixture()
-        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
-        self.request = support_factories.OfferingFactory(state=support_models.Offering.States.TERMINATED)
+        self.project = self.fixture.project
+
+        self.user = self.fixture.staff
+        self.offering = marketplace_factories.OfferingFactory(
+            state=marketplace_models.Offering.States.ACTIVE,
+            type=PLUGIN_NAME)
+
+        self.request = support_factories.OfferingFactory()
         self.resource = marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
+            project=self.project,
             scope=self.request,
             offering=self.offering,
         )
-        self.order = marketplace_factories.OrderFactory(
-            project=self.fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
-        )
-        self.order_item = marketplace_factories.OrderItemFactory(
-            resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
-        )
+        self.success_issue_status = 'ok'
+        support_factories.IssueStatusFactory(
+            name=self.success_issue_status,
+            type=support_models.IssueStatus.Types.RESOLVED)
+        self.error_issue_status = 'error'
+        support_factories.IssueStatusFactory(
+            name=self.error_issue_status,
+            type=support_models.IssueStatus.Types.CANCELED)
 
-    def test_request_is_deleted(self):
-        serialized_order = core_utils.serialize_instance(self.order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
-
-        self.order_item.refresh_from_db()
+    def test_success_terminate_order_item_if_issue_is_resolved(self):
+        order_item = self.get_order_item(self.success_issue_status)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(self.mock_get_active_backend.call_count, 1)
         self.resource.refresh_from_db()
-
-        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
         self.assertRaises(ObjectDoesNotExist, self.request.refresh_from_db)
+
+    def test_fail_termination_of_order_item_if_issue_is_canceled(self):
+        order_item = self.get_order_item(self.error_issue_status)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_terminate_operation_is_available(self, user):
+        user = getattr(self.fixture, user)
+        response = self.request_resource_termination(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('user')
+    def test_terminate_operation_is_not_available(self, user):
+        user = getattr(self.fixture, user)
+        response = self.request_resource_termination(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def request_resource_termination(self, user=None):
+        user = user or self.user
+        url = marketplace_factories.ResourceFactory.get_url(resource=self.resource) + 'terminate/'
+        self.client.force_authenticate(user)
+        return self.client.post(url)
+
+    def get_order_item(self, issue_status):
+        self.request_resource_termination()
+        order = marketplace_models.Order.objects.get(project=self.project)
+        order_item = order.items.first()
+        manager.process(order_item, self.user)
+
+        order_item_content_type = ContentType.objects.get_for_model(order_item)
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id,
+                                                 resource_content_type=order_item_content_type)
+        issue.status = issue_status
+        issue.save()
+        return marketplace_models.OrderItem.objects.first()

@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
+from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -279,6 +280,27 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
+
+    @detail_route(methods=['post'])
+    def terminate(self, request, uuid=None):
+        resource = self.get_object()
+
+        with transaction.atomic():
+            order = models.Order.objects.create(project=resource.project, created_by=self.request.user)
+            models.OrderItem.objects.create(order=order,
+                                            resource=resource,
+                                            offering=resource.offering,
+                                            type=models.OrderItem.Types.TERMINATE)
+
+        return Response(status=status.HTTP_200_OK)
+
+    def check_permissions_for_terminate(request, view, resource=None):
+        if not resource:
+            return
+
+        structure_permissions.is_administrator(request, view, resource)
+
+    terminate_permissions = [check_permissions_for_terminate]
 
 
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
