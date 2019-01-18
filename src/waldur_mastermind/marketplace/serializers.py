@@ -474,8 +474,15 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
         return offering
 
     def validate(self, attrs):
-        offering = attrs['offering']
+        offering = attrs.get('offering')
         plan = attrs.get('plan')
+
+        if not offering:
+            if not self.instance:
+                raise rf_exceptions.ValidationError({
+                    'offering': _('This field is required.')
+                })
+            offering = self.instance.offering
 
         if plan:
             if plan.offering != offering:

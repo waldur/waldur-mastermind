@@ -224,6 +224,9 @@ class CartItemFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.CartItem
 
+    offering = factory.SubFactory(OfferingFactory)
+    user = factory.SubFactory(structure_factories.UserFactory)
+
     @classmethod
     def get_url(cls, item=None):
         if item is None:
