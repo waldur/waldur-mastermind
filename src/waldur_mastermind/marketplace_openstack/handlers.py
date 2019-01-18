@@ -225,7 +225,7 @@ def synchronize_internal_ips(sender, instance, created=False, **kwargs):
             logger.debug('Skipping resource synchronization for OpenStack instance '
                          'because marketplace resource does not exist. '
                          'Resource ID: %s', vm)
-            return
+            continue
 
         utils.import_instance_metadata(resource)
 
@@ -244,7 +244,7 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
             logger.debug('Skipping resource synchronization for OpenStack instance '
                          'because marketplace resource does not exist. '
                          'Resource ID: %s', ip_id)
-            return
+            continue
 
         utils.import_instance_metadata(resource)
 
