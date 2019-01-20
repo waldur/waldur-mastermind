@@ -21,6 +21,7 @@ available_categories = {
     'consultancy': ('Consultancy', 'Experts for hire'),
     # devices
     'spectrometry': ('Spectrometry', 'Available spectrometers'),
+    'microscope': ('Microscope', 'Available microscopes')
 }
 
 category_columns = {
@@ -60,6 +61,10 @@ common_sections = {
     'Security': [
         ('certification', 'Certification', 'list'),
     ],
+
+    'Location': [
+        ('address', 'Address', 'string')
+    ]
 }
 
 hpc_sections = {
@@ -89,13 +94,27 @@ hpc_sections = {
 spectrometry_sections = {
     'properties': [
         ('spectrometry_type', 'Type', 'choice'),
-        ('spectrometry_spectrum', 'Spectrum', 'choice')
+        ('spectrometry_spectrum', 'Spectrum', 'choice'),
+    ],
+    'model': [
+        ('spectrometry_mark', 'Mark', 'string'),
+        ('spectrometry_model', 'Model', 'string'),
+        ('spectrometry_manufacturer', 'Manufacturer', 'string')
+    ],
+}
+
+microscope_sections = {
+    'model': [
+        ('microscope_mark', 'Mark', 'string'),
+        ('microscope_model', 'Model', 'string'),
+        ('microscope_manufacturer', 'Manufacturer', 'string')
     ],
 }
 
 specific_sections = {
     'hpc': hpc_sections,
     'spectrometry': spectrometry_sections,
+    'microscope': microscope_sections,
 }
 
 enums = {
