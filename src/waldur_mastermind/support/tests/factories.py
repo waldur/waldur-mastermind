@@ -226,3 +226,8 @@ class SupportCustomerFactory(factory.DjangoModelFactory):
 
     user = factory.SubFactory(structure_factories.UserFactory)
     backend_id = factory.Sequence(lambda n: 'qm:%s' % n)
+
+
+class IssueStatusFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.IssueStatus

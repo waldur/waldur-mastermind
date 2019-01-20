@@ -3,7 +3,8 @@ import os
 from django.core.management.base import BaseCommand
 from django.core.files import File
 
-from waldur_mastermind.marketplace.models import Category, Section, Attribute, AttributeOption
+from waldur_mastermind.marketplace.models import Category, CategoryColumn, \
+    Section, Attribute, AttributeOption
 
 
 available_categories = {
@@ -18,6 +19,34 @@ available_categories = {
     'hpc': ('HPC', 'High Performance Computing'),
     'operations': ('Operations', 'Reliable support'),
     'consultancy': ('Consultancy', 'Experts for hire'),
+    # devices
+    'spectrometry': ('Spectrometry', 'Available spectrometers'),
+}
+
+category_columns = {
+    'block': [
+        {
+            'title': 'Size',
+            'widget': 'filesize',
+            'attribute': 'size',
+        },
+        {
+            'title': 'Attached to',
+            'widget': 'attached_instance',
+        },
+    ],
+    'vm': [
+        {
+            'title': 'Internal IP',
+            'attribute': 'internal_ips',
+            'widget': 'csv',
+        },
+        {
+            'title': 'External IP',
+            'attribute': 'external_ips',
+            'widget': 'csv',
+        },
+    ],
 }
 
 common_sections = {
@@ -29,16 +58,16 @@ common_sections = {
     ],
 
     'Security': [
-        ('certification', 'Certification', 'listattr'),
+        ('certification', 'Certification', 'list'),
     ],
 }
 
 hpc_sections = {
     'system_information': [
-        ('queuing_system', 'Queueing system', 'listattr'),
+        ('queuing_system', 'Queueing system', 'list'),
         ('home_space', 'Home space', 'string'),
         ('work_space', 'Work space', 'string'),
-        ('linux_distro', 'Linux distribution', 'listattr'),
+        ('linux_distro', 'Linux distribution', 'list'),
     ],
     'node_information': [
         ('cpu', 'CPU model', 'choice'),
@@ -53,12 +82,20 @@ hpc_sections = {
         ('linpack', 'Linpack TFlop/s', 'integer')
     ],
     'software': [
-        ('applications', 'Applications', 'listattr'),
+        ('applications', 'Applications', 'list'),
+    ],
+}
+
+spectrometry_sections = {
+    'properties': [
+        ('spectrometry_type', 'Type', 'choice'),
+        ('spectrometry_spectrum', 'Spectrum', 'choice')
     ],
 }
 
 specific_sections = {
     'hpc': hpc_sections,
+    'spectrometry': spectrometry_sections,
 }
 
 enums = {
@@ -105,6 +142,15 @@ enums = {
         ('vmware', 'VMware'),
         ('Baremetal', 'Baremetal'),
     ],
+    'spectrometry_type': [
+        ('aas', 'Atomic Absorption Spectrometer'),
+        ('spectrophotometer', 'Spectrophotometer'),
+        ('spectrometers', 'Spectrometers'),
+    ],
+    'spectrometry_spectrum': [
+        ('visible', 'Visible'),
+        ('infrared', 'Infrared'),
+    ]
 }
 
 
@@ -154,5 +200,18 @@ class Command(BaseCommand):
             # add specific sections
             if category_short in specific_sections.keys():
                 populate_category(category_short, new_category, specific_sections[category_short])
+
+            # add category columns
+            columns = category_columns.get(category_short, [])
+            for index, attribute in enumerate(columns):
+                CategoryColumn.objects.get_or_create(
+                    category=new_category,
+                    title=attribute['title'],
+                    defaults=dict(
+                        index=index,
+                        attribute=attribute.get('attribute', ''),
+                        widget=attribute.get('widget'),
+                    )
+                )
 
             self.stdout.write(self.style.SUCCESS('Loaded category %s, %s ' % (category_short, new_category.uuid)))

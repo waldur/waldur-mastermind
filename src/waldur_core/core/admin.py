@@ -47,7 +47,7 @@ class ReadonlyTextWidget(forms.TextInput):
 class CopyButtonMixin(object):
     class Media:
         js = (
-            settings.STATIC_URL + 'waldur_core/copy2clipboard.js',
+            settings.STATIC_URL + 'landing/js/copy2clipboard.js',
         )
 
     def render(self, name, value, attrs=None):

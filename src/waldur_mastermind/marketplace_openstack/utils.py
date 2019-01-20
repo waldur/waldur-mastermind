@@ -201,7 +201,7 @@ def import_openstack_tenants(dry_run=False):
     tenants_without_packages = missing_resources.exclude(id__in=packages.values_list('tenant_id', flat=True))
 
     def create_resource(offering, tenant, plan=None):
-        return marketplace_models.Resource.objects.create(
+        resource = marketplace_models.Resource.objects.create(
             created=tenant.created,
             offering=offering,
             plan=plan,
@@ -215,6 +215,8 @@ def import_openstack_tenants(dry_run=False):
                 user_password=tenant.user_password,
             )
         )
+        import_resource_metadata(resource)
+        return resource
 
     resource_counter = 0
     for tenant in tenants_without_packages:
@@ -370,7 +372,7 @@ def import_openstack_instances_and_volumes(dry_run=False):
 
             plan = get_plan_for_resource(resource, offering)
 
-            marketplace_models.Resource.objects.create(
+            new_resource = marketplace_models.Resource.objects.create(
                 created=resource.created,
                 project=resource.project,
                 offering=offering,
@@ -382,6 +384,46 @@ def import_openstack_instances_and_volumes(dry_run=False):
                     description=resource.description,
                 ),
             )
+            if isinstance(resource, openstack_tenant_models.Volume):
+                import_volume_metadata(new_resource)
+            if isinstance(resource, openstack_tenant_models.Instance):
+                import_instance_metadata(new_resource)
             resources_counter += 1
 
     return resources_counter
+
+
+def import_volume_metadata(resource):
+    import_resource_metadata(resource)
+    volume = resource.scope
+    resource.backend_metadata['size'] = volume.size
+
+    if volume.instance:
+        resource.backend_metadata['instance_uuid'] = volume.instance.uuid.hex
+        resource.backend_metadata['instance_name'] = volume.instance.name
+    else:
+        resource.backend_metadata['instance_uuid'] = None
+        resource.backend_metadata['instance_name'] = None
+
+    resource.save(update_fields=['backend_metadata'])
+
+
+def import_instance_metadata(resource):
+    import_resource_metadata(resource)
+    instance = resource.scope
+    resource.backend_metadata['internal_ips'] = instance.internal_ips
+    resource.backend_metadata['external_ips'] = instance.external_ips
+    resource.save(update_fields=['backend_metadata'])
+
+
+def import_resource_metadata(resource):
+    instance = resource.scope
+    fields = {'action', 'action_details', 'state', 'runtime_state'}
+
+    for field in fields:
+        if field == 'state':
+            value = instance.get_state_display()
+        else:
+            value = getattr(instance, field, None)
+        resource.backend_metadata[field] = value
+    resource.save(update_fields=['backend_metadata'])

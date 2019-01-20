@@ -224,6 +224,9 @@ class CartItemFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.CartItem
 
+    offering = factory.SubFactory(OfferingFactory)
+    user = factory.SubFactory(structure_factories.UserFactory)
+
     @classmethod
     def get_url(cls, item=None):
         if item is None:
@@ -242,3 +245,14 @@ class ResourceFactory(factory.DjangoModelFactory):
 
     offering = factory.SubFactory(OfferingFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
+
+    @classmethod
+    def get_url(cls, resource=None):
+        if resource is None:
+            resource = ResourceFactory()
+        return reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid})
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = reverse('marketplace-resource-list')
+        return url if action is None else url + action + '/'

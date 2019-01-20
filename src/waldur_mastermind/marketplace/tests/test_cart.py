@@ -59,3 +59,26 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         order_item = models.OrderItem.objects.last()
         self.assertEqual(order_item.limits['cpu_count'], 5)
+
+
+class CartUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.cart_item = factories.CartItemFactory()
+        self.url = factories.CartItemFactory.get_url(item=self.cart_item)
+
+    def test_update_cart_item(self):
+        self.client.force_authenticate(self.cart_item.user)
+        new_plan = factories.PlanFactory(offering=self.cart_item.offering)
+        payload = {
+            'plan': factories.PlanFactory.get_url(plan=new_plan),
+        }
+        response = self.client.patch(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_plan_validation(self):
+        self.client.force_authenticate(self.cart_item.user)
+        payload = {
+            'plan': factories.PlanFactory.get_url(),
+        }
+        response = self.client.patch(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

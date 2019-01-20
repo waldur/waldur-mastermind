@@ -119,6 +119,7 @@ class FloatingIP(structure_models.ServiceProperty):
     is_booked = models.BooleanField(default=False,
                                     help_text=_('Marks if floating IP has been booked for provisioning.'))
     internal_ip = models.ForeignKey('InternalIP', related_name='floating_ips', null=True, on_delete=models.SET_NULL)
+    tracker = FieldTracker()
 
     class Meta:
         unique_together = ('settings', 'address')
@@ -472,6 +473,7 @@ class InternalIP(openstack_base_models.Port):
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, null=True)
     settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    tracker = FieldTracker()
 
     class Meta:
         unique_together = ('backend_id', 'settings')

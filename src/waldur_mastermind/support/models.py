@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import logging
 import re
 
 from django.conf import settings
@@ -9,8 +10,8 @@ from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
+from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
-
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import fields as core_fields
@@ -20,6 +21,8 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 
 from . import backend, managers
+
+logger = logging.getLogger(__name__)
 
 
 @python_2_unicode_compatible
@@ -93,6 +96,10 @@ class Issue(core_models.UuidMixin,
     def get_log_fields(self):
         return ('uuid', 'type', 'key', 'status', 'link', 'summary',
                 'reporter', 'caller', 'customer', 'project', 'resource')
+
+    @property
+    def resolved(self):
+        return IssueStatus.check_success_status(self.status)
 
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)
@@ -353,3 +360,49 @@ class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
 
     def __str__(self):
         return self.name
+
+
+class IssueStatus(models.Model):
+    """ This model is needed in order to understand whether the issue has been solved or not.
+
+        The field of resolution does not give an exact answer since may be the same in both cases.
+    """
+
+    class Types(object):
+        RESOLVED = 0
+        CANCELED = 1
+
+    TYPE_CHOICES = (
+        (Types.RESOLVED, 'Resolved'),
+        (Types.CANCELED, 'Canceled'),
+    )
+
+    name = models.CharField(max_length=255, help_text='Status name in Jira.', unique=True)
+    type = FSMIntegerField(default=Types.RESOLVED, choices=TYPE_CHOICES)
+
+    @classmethod
+    def check_success_status(cls, status):
+        """ Check an issue has been resolved.
+
+            True if an issue resolved.
+            False if an issue canceled.
+            None in all other cases.
+        """
+        if not cls.objects.filter(type=cls.Types.RESOLVED).exists() or \
+                not cls.objects.filter(type=cls.Types.CANCELED).exists():
+            logger.critical('There is no information about statuses of an issue. '
+                            'Please, add resolved and cancelled statuses in admin. '
+                            'Otherwise, you cannot use processes that need this information.')
+            return
+        try:
+            issue_status = cls.objects.get(name=status)
+            if issue_status.type == cls.Types.RESOLVED:
+                return True
+            if issue_status.type == cls.Types.CANCELED:
+                return False
+        except cls.DoesNotExist:
+            return
+
+    class Meta:
+        verbose_name = _('Issue status')
+        verbose_name_plural = _('Issue statuses')

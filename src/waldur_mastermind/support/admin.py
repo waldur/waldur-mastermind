@@ -92,6 +92,10 @@ class RequestTypeAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+class IssueStatusAdmin(admin.ModelAdmin):
+    list_display = ('name', 'type')
+
+
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
 admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
@@ -102,3 +106,4 @@ admin.site.register(models.OfferingTemplate, OfferingTemplateAdmin)
 admin.site.register(models.TemplateStatusNotification)
 admin.site.register(models.IgnoredIssueStatus)
 admin.site.register(models.RequestType, RequestTypeAdmin)
+admin.site.register(models.IssueStatus, IssueStatusAdmin)

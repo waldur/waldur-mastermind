@@ -474,8 +474,15 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
         return offering
 
     def validate(self, attrs):
-        offering = attrs['offering']
+        offering = attrs.get('offering')
         plan = attrs.get('plan')
+
+        if not offering:
+            if not self.instance:
+                raise rf_exceptions.ValidationError({
+                    'offering': _('This field is required.')
+                })
+            offering = self.instance.offering
 
         if plan:
             if plan.offering != offering:
@@ -669,11 +676,31 @@ class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
 class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
-        fields = BaseItemSerializer.Meta.fields + ('state', 'resource_uuid', 'resource_type')
+        fields = BaseItemSerializer.Meta.fields + (
+            'state', 'resource_uuid', 'resource_type', 'project', 'project_uuid',
+            'backend_metadata',
+        )
+        read_only_fields = ('backend_metadata',)
 
     state = serializers.ReadOnlyField(source='get_state_display')
     resource_uuid = serializers.ReadOnlyField(source='backend_uuid')
     resource_type = serializers.ReadOnlyField(source='backend_type')
+    project = serializers.HyperlinkedRelatedField(
+        lookup_field='uuid',
+        view_name='project-detail',
+        read_only=True,
+    )
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+
+
+class ComponentUsageSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.ComponentUsage
+        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
+
+    type = serializers.ReadOnlyField(source='component.type')
+    name = serializers.ReadOnlyField(source='component.name')
+    measured_unit = serializers.ReadOnlyField(source='component.measured_unit')
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
@@ -697,13 +724,13 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
             raise rf_exceptions.ValidationError(_('Signature verification failed.'))
 
 
-class PublicComponentUsageSerializer(serializers.Serializer):
+class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
 
 
-class PublicListComponentUsageSerializer(serializers.Serializer):
-    usages = PublicComponentUsageSerializer(many=True)
+class ComponentUsageCreateSerializer(serializers.Serializer):
+    usages = ComponentUsageItemSerializer(many=True)
     resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
     date = serializers.DateField()
 
@@ -722,9 +749,10 @@ class PublicListComponentUsageSerializer(serializers.Serializer):
 
         if invoices_models.Invoice.objects.filter(customer=resource.project.customer,
                                                   year=date.year,
-                                                  month=date.month).\
-                exclude(state=invoices_models.Invoice.States.CREATED).exists():
-            # If an invoice exists, and invoice state is not created then a billing period is closed.
+                                                  month=date.month). \
+                filter(state__in=[invoices_models.Invoice.States.CREATED,
+                                  invoices_models.Invoice.States.PAID]).exists():
+            # If an invoice exists, and invoice state is created or paid then a billing period is closed.
             raise rf_exceptions.ValidationError({
                 'date':
                     _('Cannot update usage information. Billing period is closed.')
@@ -739,7 +767,38 @@ class PublicListComponentUsageSerializer(serializers.Serializer):
             else:
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
 
+        resource = attrs['resource']
+
+        for usage in attrs['usages']:
+            component_type = usage['type']
+            offering = resource.plan.offering
+            try:
+                component = models.OfferingComponent.objects.get(
+                    offering=offering,
+                    type=component_type,
+                    billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                )
+                usage['component'] = component
+            except models.OfferingComponent.DoesNotExist:
+                raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % component_type)
+
         return attrs
+
+    def save(self):
+        date = self.validated_data['date']
+        resource = self.validated_data['resource']
+
+        for usage in self.validated_data['usages']:
+            component = usage['component']
+            amount = usage['amount']
+            component.validate_amount(resource, amount, date)
+
+            models.ComponentUsage.objects.update_or_create(
+                resource=resource,
+                component=component,
+                date=date,
+                defaults={'usage': amount},
+            )
 
 
 def get_is_service_provider(serializer, scope):
@@ -780,6 +839,13 @@ def get_marketplace_category_name(serializer, scope):
         return
 
 
+def get_marketplace_resource_uuid(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).uuid
+    except ObjectDoesNotExist:
+        return
+
+
 def add_marketplace_offering(sender, fields, **kwargs):
     fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
@@ -792,6 +858,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_category_name'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_category_name', get_marketplace_category_name)
+
+    fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
 
 
 core_signals.pre_serializer_fields.connect(
