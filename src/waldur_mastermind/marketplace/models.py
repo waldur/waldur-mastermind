@@ -16,7 +16,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
-from model_utils.models import TimeStampedModel
+from model_utils.models import TimeStampedModel, TimeFramedModel
 from rest_framework import exceptions as rf_exceptions
 import six
 
@@ -622,6 +622,14 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
                         component=component,
                         limit=value
                     )
+
+
+class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
+    """
+    This model allows to track billing plan for timeframes during resource lifecycle.
+    """
+    resource = models.ForeignKey(Resource, related_name='+')
+    plan = models.ForeignKey(Plan)
 
 
 class OrderItem(core_models.UuidMixin,

@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from django.db.models import Count
 from django.db import transaction
+from django.utils.timezone import now
 
 from . import tasks, models
 
@@ -104,3 +105,31 @@ def update_project_resources_count(sender, **kwargs):
             category_id=row['offering__category'],
             defaults={'count': row['count']},
         )
+
+
+def close_resource_plan_period_when_resource_is_terminated(sender, instance, created=False, **kwargs):
+    """
+    Handle case when resource has been terminated by service provider.
+    """
+
+    if created:
+        return
+
+    if not instance.tracker.has_changed('state'):
+        return
+
+    if instance.state != models.Resource.States.TERMINATED:
+        return
+
+    if instance.tracker.previous('state') == models.Resource.States.TERMINATING:
+        # It is expected that this case is handled using callbacks
+        return
+
+    if not instance.plan:
+        return
+
+    models.ResourcePlanPeriod.objects.filter(
+        resource=instance,
+        plan=instance.plan,
+        end=None
+    ).update(end=now())

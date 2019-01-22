@@ -59,3 +59,10 @@ class MarketplaceConfig(AppConfig):
             handlers.update_project_resources_count,
             dispatch_uid='waldur_mastermind.marketplace.update_project_resources_count',
         )
+
+        signals.post_save.connect(
+            handlers.close_resource_plan_period_when_resource_is_terminated,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'close_resource_plan_period_when_resource_is_terminated',
+        )
