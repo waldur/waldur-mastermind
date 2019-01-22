@@ -122,11 +122,11 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         }
 
     def get_items(self, invoice):
-        return chain(
+        return list(chain(
             OpenStackItemSerializer(invoice.openstack_items, many=True, context=self.context).data,
             OfferingItemSerializer(invoice.offering_items, many=True, context=self.context).data,
             GenericItemSerializer(invoice.generic_items, many=True, context=self.context).data
-        )
+        ))
 
     def get_issuer_details(self, invoice):
         return settings.WALDUR_INVOICES['ISSUER_DETAILS']
