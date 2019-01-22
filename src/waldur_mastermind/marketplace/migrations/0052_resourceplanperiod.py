@@ -11,7 +11,7 @@ import model_utils.fields
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0053_allow_negative_limit'),
+        ('marketplace', '0051_resource_backend_metadata'),
     ]
 
     operations = [
