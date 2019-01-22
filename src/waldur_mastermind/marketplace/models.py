@@ -191,6 +191,14 @@ class CategoryComponent(BaseComponent):
     category = models.ForeignKey(Category, related_name='components')
 
 
+class CategoryComponentUsage(ScopeMixin):
+    component = models.ForeignKey(CategoryComponent)
+    date = models.DateField()
+    reported_usage = models.PositiveIntegerField(null=True)
+    fixed_usage = models.PositiveIntegerField(null=True)
+    objects = managers.MixinManager('scope')
+
+
 @python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
