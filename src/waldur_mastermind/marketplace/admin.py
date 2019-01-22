@@ -55,9 +55,13 @@ class CategoryColumnInline(admin.TabularInline):
     list_display = ('index', 'title', 'attribute', 'widget')
 
 
+class CategoryComponentInline(admin.TabularInline):
+    model = models.CategoryComponent
+
+
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ('title', 'uuid',)
-    inlines = [SectionInline, CategoryColumnInline]
+    inlines = [SectionInline, CategoryColumnInline, CategoryComponentInline]
 
 
 class ScreenshotsInline(admin.TabularInline):
