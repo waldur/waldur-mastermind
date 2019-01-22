@@ -1,6 +1,8 @@
 from __future__ import unicode_literals
 
 import datetime
+from itertools import chain
+
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
@@ -101,9 +103,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
-    openstack_items = OpenStackItemSerializer(many=True)
-    offering_items = OfferingItemSerializer(many=True)
-    generic_items = GenericItemSerializer(many=True)
+    items = serializers.SerializerMethodField()
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
@@ -114,13 +114,19 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         fields = (
             'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
             'state', 'year', 'month', 'issuer_details', 'invoice_date', 'due_date',
-            'customer', 'customer_details',
-            'openstack_items', 'offering_items', 'generic_items', 'file',
+            'customer', 'customer_details', 'items', 'file',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
         }
+
+    def get_items(self, invoice):
+        return list(chain(
+            OpenStackItemSerializer(invoice.openstack_items, many=True, context=self.context).data,
+            OfferingItemSerializer(invoice.offering_items, many=True, context=self.context).data,
+            GenericItemSerializer(invoice.generic_items, many=True, context=self.context).data
+        ))
 
     def get_issuer_details(self, invoice):
         return settings.WALDUR_INVOICES['ISSUER_DETAILS']

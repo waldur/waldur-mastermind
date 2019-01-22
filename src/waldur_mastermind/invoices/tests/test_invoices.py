@@ -114,7 +114,7 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         response = self.client.get(factories.InvoiceFactory.get_url(self.invoice))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        item = response.data['openstack_items'][0]
+        item = response.data['items'][0]
         self.assertEqual(item['project_name'], project_name)
         self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
 
@@ -128,7 +128,7 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
     def check_output(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
-        item = response.data['openstack_items'][0]
+        item = response.data['items'][0]
         self.assertEqual(item['tenant_name'], self.package.tenant.name)
         self.assertEqual(item['tenant_uuid'], self.package.tenant.uuid.hex)
         self.assertEqual(item['template_name'], self.package.template.name)
@@ -156,7 +156,7 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
 
-        item = response.data['generic_items'][0]
+        item = response.data['items'][0]
         self.assertEqual(item['scope_type'], 'SLURM.Allocation')
         self.assertEqual(item['scope_uuid'], self.scope.uuid.hex)
         self.assertEqual(item['name'], self.scope.name)
@@ -177,7 +177,7 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
 
         self.client.force_authenticate(fixture.owner)
         response = self.client.get(url)
-        item = response.data['generic_items'][0]
+        item = response.data['items'][0]
         self.assertEqual(item['scope_type'], 'Support.Offering')
 
 
