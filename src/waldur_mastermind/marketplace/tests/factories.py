@@ -75,6 +75,15 @@ class CategoryFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
+class CategoryComponentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CategoryComponent
+
+    category = factory.SubFactory(CategoryFactory)
+    name = factory.Sequence(lambda n: 'component-%s' % n)
+    type = factory.Sequence(lambda n: 'component-%s' % n)
+
+
 class OfferingFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Offering
