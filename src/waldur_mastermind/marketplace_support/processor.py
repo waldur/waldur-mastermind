@@ -1,17 +1,15 @@
+import six
+
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
-from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.support import backend as support_backend
-from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import views as support_views
-from waldur_mastermind.support import serializers as support_serializers
+
+from .views import IssueViewSet
 
 
 class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
@@ -30,36 +28,18 @@ class CreateResourceProcessor(marketplace_utils.CreateResourceProcessor):
 
 class DeleteResourceProcessor(marketplace_utils.DeleteResourceProcessor):
     def get_viewset(self):
-        return support_views.OfferingViewSet
+        return IssueViewSet
 
-    def process_order_item(self, user):
-        order_item_content_type = ContentType.objects.get_for_model(self.order_item)
+    def get_resource(self):
+        return self.order_item
 
-        if not support_models.Issue.objects.filter(resource_object_id=self.order_item.id,
-                                                   resource_content_type=order_item_content_type).exists():
-            self.order_item.resource.set_state_terminating()
-            self.order_item.resource.save(update_fields=['state'])
 
-            link_template = settings.WALDUR_MARKETPLACE_SUPPORT['REQUEST_LINK_TEMPLATE']
-            request_url = link_template.format(request_uuid=self.order_item.resource.scope.uuid)
-            description = "\n[Terminate resource %s|%s]." % (self.order_item.resource.scope.name, request_url)
-            issue_details = dict(
-                caller=self.order_item.order.created_by,
-                project=self.order_item.order.project,
-                customer=self.order_item.order.project.customer,
-                type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
-                description=description,
-                summary='Request to terminate resource %s' % self.order_item.resource.scope.name,
-                resource=self.order_item)
-            issue_details['summary'] = support_serializers.render_issue_template('summary', issue_details)
-            issue_details['description'] = support_serializers.render_issue_template('description', issue_details)
-            issue = support_models.Issue.objects.create(**issue_details)
-            try:
-                support_backend.get_active_backend().create_issue(issue)
-            except support_exceptions.SupportUserInactive:
-                issue.delete()
-                raise rf_exceptions.ValidationError(_('Delete resource process is cancelled and issue not created '
-                                                      'because a caller is inactive.'))
+class UpdateResourceProcessor(marketplace_utils.UpdateResourceProcessor):
+    def get_view(self):
+        return IssueViewSet.as_view({'post': 'update'})
+
+    def get_post_data(self):
+        return {'uuid': six.text_type(self.order_item.uuid)}
 
 
 def get_post_data(order_item):

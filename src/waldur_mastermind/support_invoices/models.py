@@ -18,8 +18,9 @@ class RequestBasedOffering(support_models.Offering):
     objects = RequestBasedManager()
 
     @staticmethod
-    def is_request_based(offering):
-        return marketplace_models.Offering.objects.filter(scope=offering.template, type=PLUGIN_NAME).exists()
+    def is_request_based(instance):
+        return isinstance(instance, support_models.Offering) and marketplace_models.Offering.objects.\
+            filter(scope=instance.template, type=PLUGIN_NAME).exists()
 
     class Meta:
         proxy = True
