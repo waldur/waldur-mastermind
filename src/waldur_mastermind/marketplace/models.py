@@ -171,6 +171,26 @@ class ScopeMixin(models.Model):
     scope = GenericForeignKey('content_type', 'object_id')
 
 
+class BaseComponent(core_models.DescribableMixin):
+    class Meta(object):
+        abstract = True
+
+    name = models.CharField(max_length=150,
+                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
+    type = models.CharField(max_length=50,
+                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
+    measured_unit = models.CharField(max_length=30,
+                                     help_text=_('Unit of measurement, for example, GB.'),
+                                     blank=True)
+
+
+class CategoryComponent(BaseComponent):
+    class Meta(object):
+        unique_together = ('type', 'category')
+
+    category = models.ForeignKey(Category, related_name='components')
+
+
 @python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
@@ -265,7 +285,7 @@ class Offering(core_models.UuidMixin,
         return {component.type: component for component in components}
 
 
-class OfferingComponent(core_models.DescribableMixin):
+class OfferingComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
 
@@ -290,6 +310,7 @@ class OfferingComponent(core_models.DescribableMixin):
         )
 
     offering = models.ForeignKey(Offering, related_name='components')
+    parent = models.ForeignKey(CategoryComponent, null=True)
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)

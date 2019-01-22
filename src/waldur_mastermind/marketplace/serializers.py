@@ -77,12 +77,19 @@ class NestedColumnSerializer(serializers.ModelSerializer):
         fields = ('index', 'title', 'attribute', 'widget')
 
 
+class CategoryComponentSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.CategoryComponent
+        fields = ('type', 'name', 'description', 'measured_unit')
+
+
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     offering_count = serializers.ReadOnlyField()
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
+    components = CategoryComponentSerializer(many=True, read_only=True)
 
     @staticmethod
     def eager_load(queryset, request):
@@ -112,7 +119,8 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Category
-        fields = ('url', 'uuid', 'title', 'description', 'icon', 'offering_count', 'sections', 'columns')
+        fields = ('url', 'uuid', 'title', 'description', 'icon', 'offering_count',
+                  'sections', 'columns', 'components')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
