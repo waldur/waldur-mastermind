@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
 from waldur_mastermind.invoices import registrators
@@ -12,7 +13,10 @@ def add_new_offering_to_invoice(sender, instance, created=False, **kwargs):
 
     if instance.tracker.has_changed('state') and instance.state == support_models.Offering.States.OK and \
             models.RequestBasedOffering.is_request_based(instance):
-        request_based_offering = models.RequestBasedOffering.objects.get(pk=instance.pk)
+        try:
+            request_based_offering = models.RequestBasedOffering.objects.get(pk=instance.pk)
+        except ObjectDoesNotExist:
+            return
         registrators.RegistrationManager.register(request_based_offering, timezone.now())
 
 
