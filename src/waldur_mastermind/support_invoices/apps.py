@@ -9,6 +9,7 @@ class SupportInvoicesConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.invoices import registrators
         from waldur_mastermind.support import models as support_models
+        from waldur_mastermind.marketplace import models as marketplace_models
         from . import handlers, registrators as support_registrators, models
 
         registrators.RegistrationManager.add_registrator(
@@ -32,4 +33,10 @@ class SupportInvoicesConfig(AppConfig):
             handlers.terminate_invoice_when_offering_deleted,
             sender=support_models.Offering,
             dispatch_uid='support_invoices.handlers.terminate_invoice_when_offering_deleted',
+        )
+
+        signals.post_save.connect(
+            handlers.switch_plan_resource,
+            sender=marketplace_models.Resource,
+            dispatch_uid='support_invoices.handlers.switch_plan_resource',
         )

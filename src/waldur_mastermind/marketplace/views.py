@@ -280,6 +280,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
+    switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
     @detail_route(methods=['post'])
     def terminate(self, request, uuid=None):
@@ -292,15 +293,40 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                                             offering=resource.offering,
                                             type=models.OrderItem.Types.TERMINATE)
 
-        return Response(status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
 
-    def check_permissions_for_terminate(request, view, resource=None):
+    @detail_route(methods=['post'])
+    def switch_plan(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plan = serializer.validated_data['plan']
+
+        if plan.offering != resource.offering:
+            raise rf_exceptions.ValidationError({
+                'plan': _('Plan is not available for this offering.')
+            })
+
+        with transaction.atomic():
+            order = models.Order.objects.create(project=resource.project, created_by=self.request.user)
+            models.OrderItem.objects.create(order=order,
+                                            resource=resource,
+                                            offering=resource.offering,
+                                            plan=plan,
+                                            type=models.OrderItem.Types.UPDATE)
+
+        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+
+    def check_permissions_for_resource_actions(request, view, resource=None):
         if not resource:
             return
 
         structure_permissions.is_administrator(request, view, resource)
 
-    terminate_permissions = [check_permissions_for_terminate]
+    terminate_permissions = \
+        switch_plan_permissions = [check_permissions_for_resource_actions]
+    switch_plan_validators = \
+        terminate_validators = [core_validators.StateValidator(models.Resource.States.OK)]
 
 
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):

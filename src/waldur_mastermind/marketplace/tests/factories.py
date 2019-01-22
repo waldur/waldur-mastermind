@@ -247,10 +247,11 @@ class ResourceFactory(factory.DjangoModelFactory):
     project = factory.SubFactory(structure_factories.ProjectFactory)
 
     @classmethod
-    def get_url(cls, resource=None):
+    def get_url(cls, resource=None, action=None):
         if resource is None:
             resource = ResourceFactory()
-        return reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid})
+        url = reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid})
+        return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):

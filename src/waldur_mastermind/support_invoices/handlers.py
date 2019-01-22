@@ -34,3 +34,18 @@ def terminate_invoice_when_offering_cancelled(sender, instance, created=False, *
     if instance.tracker.has_changed('state') and (instance.state == support_models.Offering.States.TERMINATED):
         request_based_offering = models.RequestBasedOffering.objects.get(pk=instance.pk)
         registrators.RegistrationManager.terminate(request_based_offering, timezone.now())
+
+
+def switch_plan_resource(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if not models.RequestBasedOffering.is_request_based(instance.scope):
+        return
+
+    if not instance.tracker.has_changed('plan_id'):
+        return
+
+    request_based_offering = models.RequestBasedOffering.objects.get(pk=instance.scope.pk)
+    registrators.RegistrationManager.terminate(request_based_offering, timezone.now())
+    registrators.RegistrationManager.register(request_based_offering, timezone.now())

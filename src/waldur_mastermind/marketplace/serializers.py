@@ -693,6 +693,19 @@ class ResourceSerializer(BaseItemSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
 
 
+class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Resource
+        fields = ('plan',)
+
+    plan = serializers.HyperlinkedRelatedField(
+        view_name='marketplace-plan-detail',
+        lookup_field='uuid',
+        queryset=models.Plan.objects.all(),
+        required=True,
+    )
+
+
 class ComponentUsageSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.ComponentUsage
