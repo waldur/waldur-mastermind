@@ -318,7 +318,7 @@ class OfferingComponent(BaseComponent):
         )
 
     offering = models.ForeignKey(Offering, related_name='components')
-    parent = models.ForeignKey(CategoryComponent, null=True)
+    parent = models.ForeignKey(CategoryComponent, null=True, blank=True)
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)

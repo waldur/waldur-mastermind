@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offeringcomponent',
             name='parent',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='marketplace.CategoryComponent'),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.CASCADE, to='marketplace.CategoryComponent'),
         ),
         migrations.AlterUniqueTogether(
             name='categorycomponent',
