@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import datetime
 
 import jwt
-from django_filters import OrderingFilter
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
