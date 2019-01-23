@@ -329,6 +329,13 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         terminate_validators = [core_validators.StateValidator(models.Resource.States.OK)]
 
 
+class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.CategoryComponentUsage.objects.all().order_by('-date', 'component__type')
+    filter_backends = (DjangoFilterBackend, filters.CategoryComponentUsageScopeFilterBackend)
+    filter_class = filters.CategoryComponentUsageFilter
+    serializer_class = serializers.CategoryComponentUsageSerializer
+
+
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ComponentUsage.objects.all().order_by('-date', 'component__type')
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)

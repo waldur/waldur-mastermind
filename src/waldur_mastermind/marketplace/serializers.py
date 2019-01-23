@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import datetime
 
 import jwt
+from django_filters import OrderingFilter
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
@@ -714,14 +715,29 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
     )
 
 
-class ComponentUsageSerializer(serializers.ModelSerializer):
-    class Meta(object):
-        model = models.ComponentUsage
-        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
-
+class BaseComponentSerializer(serializers.Serializer):
     type = serializers.ReadOnlyField(source='component.type')
     name = serializers.ReadOnlyField(source='component.name')
     measured_unit = serializers.ReadOnlyField(source='component.measured_unit')
+
+
+class CategoryComponentUsageSerializer(core_serializers.RestrictedSerializerMixin,
+                                       BaseComponentSerializer,
+                                       serializers.ModelSerializer):
+    category_title = serializers.ReadOnlyField(source='component.category.title')
+    category_uuid = serializers.ReadOnlyField(source='component.category.uuid')
+    scope = GenericRelatedField(related_models=(structure_models.Project, structure_models.Customer))
+
+    class Meta(object):
+        model = models.CategoryComponentUsage
+        fields = ('name', 'type', 'measured_unit', 'category_title', 'category_uuid',
+                  'date', 'reported_usage', 'fixed_usage', 'scope')
+
+
+class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
+    class Meta(object):
+        model = models.ComponentUsage
+        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
