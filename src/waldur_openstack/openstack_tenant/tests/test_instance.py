@@ -12,7 +12,7 @@ from six.moves import urllib
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories, fixtures
+from . import factories, fixtures, helpers
 from .. import models, views
 
 
@@ -778,3 +778,50 @@ class InstanceImportTest(BaseInstanceImportTest):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+
+
+@ddt
+class InstanceConsoleTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.fixture.openstack_tenant_service_settings.options = {
+            'external_network_id': uuid.uuid4().hex,
+            'tenant_id': self.fixture.tenant.id}
+        self.fixture.openstack_tenant_service_settings.save()
+        self.instance = self.fixture.instance
+        self.url = factories.InstanceFactory.get_url(self.instance, action='console')
+
+        self.mock_path = \
+            mock.patch('waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.get_console_url')
+        self.mock_console = self.mock_path.start()
+        self.mock_console.return_value = 'url'
+
+    def tearDown(self):
+        super(InstanceConsoleTest, self).tearDown()
+        mock.patch.stopall()
+
+    @data('staff')
+    def test_action_available_to_staff(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('admin', 'manager', 'owner')
+    def test_action_not_available_for_users(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('staff', 'admin', 'manager', 'owner')
+    @helpers.override_openstack_tenant_settings(ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=True)
+    def test_action_available_for_users_if_this_allowed_in_settings(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('user')
+    @helpers.override_openstack_tenant_settings(ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=True)
+    def test_action_not_available_for_other_users(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
