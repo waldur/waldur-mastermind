@@ -5,6 +5,7 @@ import re
 from ceilometerclient import exc as ceilometer_exceptions
 from cinderclient import exceptions as cinder_exceptions
 from django.db import transaction, IntegrityError
+from django.conf import settings
 from django.utils import timezone, dateparse
 from django.utils.functional import cached_property
 from keystoneclient import exceptions as keystone_exceptions
@@ -1395,3 +1396,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             reraise(e)
 
         return samples
+
+    @log_backend_action()
+    def get_console_url(self, instance):
+        nova = self.nova_client
+        url = None
+        try:
+            console_type = settings.WALDUR_OPENSTACK_TENANT['CONSOLE_TYPE']
+            url = nova.servers.get_console_url(instance.backend_id, console_type=console_type)
+        except nova_exceptions.ClientException as e:
+            reraise(e)
+
+        return url['console']['url']
