@@ -76,6 +76,7 @@ Requires: python-hiredis >= 0.2.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-iptools >= 0.6.1
 Requires: python-jira >= 1.0.15-2
+Requires: python-jwt >= 1.5.3
 Requires: python-keystoneclient >= 1:3.13.0
 Requires: python-libcloud >= 1.1.0, python-libcloud < 2.2.0
 Requires: python-lxml >= 3.2.0
@@ -98,25 +99,6 @@ Requires: python2-pdfkit >= 0.6.1
 Requires: PyYAML
 Requires: uwsgi-plugin-python2
 Requires: xmlsec1-openssl
-Requires: python-jwt >= 1.5.3
-
-Obsoletes: waldur-ansible
-Obsoletes: waldur-auth-openid
-Obsoletes: waldur-auth-saml2
-Obsoletes: waldur-auth-social
-Obsoletes: waldur-auth-valimo
-Obsoletes: waldur-aws
-Obsoletes: waldur-azure
-Obsoletes: waldur-core
-Obsoletes: waldur-cost-planning
-Obsoletes: waldur-digitalocean
-Obsoletes: waldur-freeipa
-Obsoletes: waldur-jira
-Obsoletes: waldur-openstack
-Obsoletes: waldur-paypal
-Obsoletes: waldur-rijkscloud
-Obsoletes: waldur-slurm
-Obsoletes: waldur-zabbix
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
