@@ -1408,3 +1408,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             reraise(e)
 
         return url['console']['url']
+
+    @log_backend_action()
+    def get_console_output(self, instance, length=None):
+        nova = self.nova_client
+        try:
+            return nova.servers.get_console_output(instance.backend_id, length)
+        except nova_exceptions.ClientException as e:
+            reraise(e)
