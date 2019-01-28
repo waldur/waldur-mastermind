@@ -1456,3 +1456,7 @@ class InstanceImportSerializer(InstanceImportableSerializer):
             })
 
         return instance
+
+
+class ConsoleLogSerializer(serializers.Serializer):
+    length = serializers.IntegerField(required=False)

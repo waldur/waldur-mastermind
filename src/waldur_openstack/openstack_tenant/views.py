@@ -652,6 +652,24 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     console_permissions = [check_permissions_for_console]
 
+    @decorators.detail_route(methods=['get'])
+    def console_log(self, request, uuid=None):
+        instance = self.get_object()
+        backend = instance.get_backend()
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        length = serializer.validated_data.get('length')
+
+        try:
+            log = backend.get_console_output(instance, length)
+        except OpenStackBackendError as e:
+            raise exceptions.ValidationError(e.message)
+
+        return response.Response(log, status=status.HTTP_200_OK)
+
+    console_log_serializer_class = serializers.ConsoleLogSerializer
+    console_log_permissions = [structure_permissions.is_administrator]
+
 
 class BackupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Backup.objects.all().order_by('name')

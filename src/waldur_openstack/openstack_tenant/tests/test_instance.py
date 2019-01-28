@@ -781,7 +781,7 @@ class InstanceImportTest(BaseInstanceImportTest):
 
 
 @ddt
-class InstanceConsoleTest(test.APITransactionTestCase):
+class InstanceActionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.fixture.openstack_tenant_service_settings.options = {
@@ -789,16 +789,23 @@ class InstanceConsoleTest(test.APITransactionTestCase):
             'tenant_id': self.fixture.tenant.id}
         self.fixture.openstack_tenant_service_settings.save()
         self.instance = self.fixture.instance
-        self.url = factories.InstanceFactory.get_url(self.instance, action='console')
 
+        self.url = factories.InstanceFactory.get_url(self.instance, action=self.action)
         self.mock_path = \
-            mock.patch('waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.get_console_url')
+            mock.patch('waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.%s' % self.backend_method)
         self.mock_console = self.mock_path.start()
-        self.mock_console.return_value = 'url'
+        self.mock_console.return_value = self.backend_return_value
 
     def tearDown(self):
-        super(InstanceConsoleTest, self).tearDown()
+        super(InstanceActionsTest, self).tearDown()
         mock.patch.stopall()
+
+
+@ddt
+class InstanceConsoleTest(InstanceActionsTest):
+    action = 'console'
+    backend_method = 'get_console_url'
+    backend_return_value = 'url'
 
     @data('staff')
     def test_action_available_to_staff(self, user):
@@ -822,6 +829,25 @@ class InstanceConsoleTest(test.APITransactionTestCase):
     @data('user')
     @helpers.override_openstack_tenant_settings(ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=True)
     def test_action_not_available_for_other_users(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
+class InstanceConsoleLogTest(InstanceActionsTest):
+    action = 'console_log'
+    backend_method = 'get_console_output'
+    backend_return_value = 'openstack-vm login: '
+
+    @data('staff', 'admin', 'manager', 'owner')
+    def test_action_available_for_staff_and_users_associated_with_project(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('user')
+    def test_action_not_available_for_users_unassociated_with_project(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
