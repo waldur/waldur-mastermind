@@ -812,6 +812,7 @@ class InstanceConsoleTest(InstanceActionsTest):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_console.assert_called_once_with(self.instance)
 
     @data('admin', 'manager', 'owner')
     def test_action_not_available_for_users(self, user):
@@ -845,6 +846,7 @@ class InstanceConsoleLogTest(InstanceActionsTest):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_console.assert_called_once_with(self.instance, None)
 
     @data('user')
     def test_action_not_available_for_users_unassociated_with_project(self, user):
