@@ -1,3 +1,6 @@
+import sys
+import six
+
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import DiskCreateOption
@@ -11,12 +14,18 @@ from azure.mgmt.storage import StorageManagementClient
 from django.utils.functional import cached_property
 from msrestazure.azure_exceptions import CloudError
 
-from waldur_core.core.exceptions import raise_with_traceback
 from waldur_core.structure import ServiceBackendError
 
 
 class AzureBackendError(ServiceBackendError):
     pass
+
+
+def reraise(exc):
+    """
+    Reraise AzureBackendError while maintaining traceback.
+    """
+    six.reraise(AzureBackendError, exc, sys.exc_info()[2])
 
 
 class AzureClient(object):
@@ -62,13 +71,13 @@ class AzureClient(object):
         try:
             return self.subscription_client.subscriptions.list_locations(self.subscription_id)
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch locations', e)
+            reraise(e)
 
     def list_resource_groups(self):
         try:
             return self.resource_client.resource_groups.list()
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch resource groups', e)
+            reraise(e)
 
     def create_resource_group(self, location, resource_group_name):
         try:
@@ -77,19 +86,19 @@ class AzureClient(object):
                 {'location': location}
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create resource group', e)
+            reraise(e)
 
     def delete_resource_group(self, resource_group_name):
         try:
             return self.resource_client.resource_groups.delete(resource_group_name)
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to delete resource group', e)
+            reraise(e)
 
     def list_virtual_machine_sizes(self, location):
         try:
             return self.compute_client.virtual_machine_sizes.list(location)
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch virtual machines', e)
+            reraise(e)
 
     def list_virtual_machine_images(self, location):
         try:
@@ -125,19 +134,19 @@ class AzureClient(object):
                                 version.name,
                             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch virtual machine images', e)
+            reraise(e)
 
     def list_all_virtual_machines(self):
         try:
             return self.compute_client.virtual_machines.list_all()
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch virtual machines', e)
+            reraise(e)
 
     def list_virtual_machines_in_group(self, resource_group_name):
         try:
             return self.compute_client.virtual_machines.list(resource_group_name)
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch virtual machines', e)
+            reraise(e)
 
     def get_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -146,7 +155,7 @@ class AzureClient(object):
                 vm_name
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch VM', e)
+            reraise(e)
 
     def create_virtual_machine(self, location, resource_group_name,
                                vm_name, size_name, nic_id, image_reference,
@@ -188,7 +197,7 @@ class AzureClient(object):
                 },
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create VM', e)
+            reraise(e)
 
     def delete_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -197,7 +206,7 @@ class AzureClient(object):
                 vm_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to delete VM', e)
+            reraise(e)
 
     def start_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -206,7 +215,7 @@ class AzureClient(object):
                 vm_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to start VM', e)
+            reraise(e)
 
     def restart_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -215,7 +224,7 @@ class AzureClient(object):
                 vm_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to restart VM', e)
+            reraise(e)
 
     def stop_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -224,7 +233,7 @@ class AzureClient(object):
                 vm_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to stop VM', e)
+            reraise(e)
 
     def create_storage_account(self, location, resource_group_name, account_name):
         try:
@@ -238,7 +247,7 @@ class AzureClient(object):
                 }
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create storage account', e)
+            reraise(e)
 
     def create_disk(self, location, resource_group_name, disk_name, disk_size_gb):
         try:
@@ -254,7 +263,7 @@ class AzureClient(object):
                 }
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create disk', e)
+            reraise(e)
 
     def create_network(self, location, resource_group_name, network_name, cidr):
         try:
@@ -269,7 +278,7 @@ class AzureClient(object):
                 }
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create network', e)
+            reraise(e)
 
     def create_subnet(self, resource_group_name, network_name, subnet_name, cidr):
         try:
@@ -282,7 +291,7 @@ class AzureClient(object):
                 }
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create subnet', e)
+            reraise(e)
 
     def create_network_interface(self, location, resource_group_name,
                                  interface_name, config_name, subnet_id):
@@ -301,19 +310,19 @@ class AzureClient(object):
                 }
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create NIC', e)
+            reraise(e)
 
     def list_all_sql_servers(self):
         try:
             return self.pgsql_client.servers.list()
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch SQL servers', e)
+            reraise(e)
 
     def list_sql_servers_in_group(self, resource_group_name):
         try:
             return self.pgsql_client.servers.list_by_resource_group(resource_group_name)
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch SQL servers', e)
+            reraise(e)
 
     def get_sql_server(self, resource_group_name, server_name):
         try:
@@ -322,7 +331,7 @@ class AzureClient(object):
                 server_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to fetch SQL server', e)
+            reraise(e)
 
     def create_sql_server(self, location, resource_group_name, server_name,
                           username, password, sku=None, storage_mb=None, ssl_enforcement=None):
@@ -343,13 +352,13 @@ class AzureClient(object):
                 )
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create SQL server', e)
+            reraise(e)
 
     def delete_sql_server(self, resource_group_name, server_name):
         try:
             return self.pgsql_client.servers.delete(resource_group_name, server_name)
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to delete SQL server', e)
+            reraise(e)
 
     def create_sql_firewall_rule(self, resource_group_name, server_name, firewall_rule_name,
                                  start_ip_address, end_ip_address):
@@ -362,7 +371,7 @@ class AzureClient(object):
                 end_ip_address,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create SQL server firewall rule', e)
+            reraise(e)
 
     def get_sql_database(self, resource_group_name, server_name, database_name):
         try:
@@ -372,7 +381,7 @@ class AzureClient(object):
                 database_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to get SQL DB', e)
+            reraise(e)
 
     def create_sql_database(self, location, resource_group_name, server_name, database_name):
         try:
@@ -385,7 +394,7 @@ class AzureClient(object):
                 }
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to create SQL DB', e)
+            reraise(e)
 
     def list_sql_databases_in_server(self, resource_group_name, server_name):
         try:
@@ -394,7 +403,7 @@ class AzureClient(object):
                 server_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to get SQL DB in server', e)
+            reraise(e)
 
     def delete_sql_database(self, resource_group_name, server_name, database_name):
         try:
@@ -404,4 +413,4 @@ class AzureClient(object):
                 database_name,
             )
         except CloudError as e:
-            raise_with_traceback(AzureBackendError, 'Unable to delete SQL DB', e)
+            reraise(e)
