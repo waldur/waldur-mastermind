@@ -1,25 +1,15 @@
 from __future__ import unicode_literals
 
-from django.core.validators import MaxValueValidator
 from django.db import models
-from django.utils.translation import ugettext_lazy as _
 
+from waldur_azure import validators
 from waldur_core.core import models as core_models
-from waldur_core.core.fields import JSONField
 from waldur_core.quotas.fields import CounterQuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 
 
 class AzureService(structure_models.Service):
-    Locations = (('Central US', 'Central US'),
-                 ('East US 2', 'East US 2'),
-                 ('South Central US', 'South Central US'),
-                 ('North Europe', 'North Europe'),
-                 ('East Asia', 'East Asia'),
-                 ('Southeast Asia', 'Southeast Asia'),
-                 ('Japan West', 'Japan West'))
-
     projects = models.ManyToManyField(
         structure_models.Project, related_name='azure_services', through='AzureServiceProjectLink')
 
@@ -37,71 +27,117 @@ class AzureService(structure_models.Service):
 class AzureServiceProjectLink(structure_models.ServiceProjectLink):
     service = models.ForeignKey(AzureService)
 
-    cloud_service_name = models.CharField(max_length=255, blank=True)
-
-    def get_backend(self):
-        return super(AzureServiceProjectLink, self).get_backend(
-            cloud_service_name=self.cloud_service_name)
-
     @classmethod
     def get_url_name(cls):
         return 'azure-spl'
 
 
-class Image(structure_models.GeneralServiceProperty):
+class Location(core_models.CoordinatesMixin,
+               structure_models.ServiceProperty):
+
+    class Meta:
+        ordering = ['name']
+
+    @classmethod
+    def get_url_name(cls):
+        return 'azure-location'
+
+
+class Image(structure_models.ServiceProperty):
+    publisher = models.CharField(max_length=255)
+    sku = models.CharField(max_length=255)
+    version = models.CharField(max_length=255)
+
+    class Meta(structure_models.ServiceProperty.Meta):
+        ordering = ['publisher', 'name', 'sku']
+
     @classmethod
     def get_url_name(cls):
         return 'azure-image'
 
 
-class Size(object):
-    _meta = 'size'
+class Size(structure_models.ServiceProperty):
+    max_data_disk_count = models.PositiveIntegerField()
+    memory_in_mb = models.PositiveIntegerField()
+    number_of_cores = models.PositiveIntegerField()
+    os_disk_size_in_mb = models.PositiveIntegerField()
+    resource_disk_size_in_mb = models.PositiveIntegerField()
+
+    class Meta(structure_models.ServiceProperty.Meta):
+        ordering = ['number_of_cores', 'memory_in_mb']
 
     @classmethod
     def get_url_name(cls):
         return 'azure-size'
 
 
-class InstanceEndpoint(core_models.BackendModelMixin, models.Model):
+class BaseResource(core_models.RuntimeStateMixin, structure_models.NewResource):
+    class Meta(object):
+        abstract = True
 
-    class Protocol(object):
-        TCP = 'tcp'
-        UDP = 'udp'
 
-        CHOICES = (
-            (TCP, 'tcp'),
-            (UDP, 'udp'),
-        )
-
-    class Name(object):
-        SSH = 'SSH'
-        RDP = 'Remote Desktop'
-
-        CHOICES = (
-            (SSH, 'SSH'),
-            (RDP, 'Remote Desktop'),
-        )
-
-    local_port = models.IntegerField(validators=[MaxValueValidator(65535)])
-    public_port = models.IntegerField(validators=[MaxValueValidator(65535)])
-    protocol = models.CharField(max_length=3, blank=True, choices=Protocol.CHOICES)
-    name = models.CharField(max_length=255, blank=True, choices=Name.CHOICES)
-    instance = models.ForeignKey('VirtualMachine', related_name='endpoints', on_delete=models.PROTECT)
+class ResourceGroup(BaseResource):
+    name = models.CharField(max_length=90, validators=[validators.ResourceGroupNameValidator])
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    location = models.ForeignKey(Location)
 
     @classmethod
-    def get_backend_fields(cls):
-        return super(InstanceEndpoint, cls).get_backend_fields() + (
-            'local_port', 'public_port', 'protocol', 'name', 'vm',
-        )
+    def get_url_name(cls):
+        return 'azure-resource-group'
+
+
+class StorageAccount(BaseResource):
+    name = models.CharField(max_length=24, validators=[validators.StorageAccountNameValidator])
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    resource_group = models.ForeignKey(ResourceGroup)
+
+
+class Network(BaseResource):
+    name = models.CharField(max_length=64, validators=[validators.NetworkingNameValidator])
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    resource_group = models.ForeignKey(ResourceGroup)
+    cidr = models.CharField(max_length=32)
+
+
+class SubNet(BaseResource):
+    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    resource_group = models.ForeignKey(ResourceGroup)
+    network = models.ForeignKey(Network)
+    cidr = models.CharField(max_length=32)
+
+
+class NetworkInterface(BaseResource):
+    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    resource_group = models.ForeignKey(ResourceGroup)
+    subnet = models.ForeignKey(SubNet)
+    config_name = models.CharField(max_length=255)
 
 
 class VirtualMachine(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
         AzureServiceProjectLink, related_name='virtualmachines', on_delete=models.PROTECT)
-    public_ips = JSONField(default=list, help_text=_('List of public IP addresses'), blank=True)
-    private_ips = JSONField(default=list, help_text=_('List of private IP addresses'), blank=True)
-    user_username = models.CharField(max_length=50)
-    user_password = models.CharField(max_length=50)
+    resource_group = models.ForeignKey(ResourceGroup)
+    size = models.ForeignKey(Size)
+    image = models.ForeignKey(Image)
+    ssh_key = models.ForeignKey(core_models.SshPublicKey, null=True, blank=True)
+    network_interface = models.ForeignKey(NetworkInterface)
+    name = models.CharField(max_length=15, validators=[validators.VirtualMachineNameValidator])
+    username = models.CharField(max_length=32, validators=[validators.validate_username])
+    password = models.CharField(max_length=72, validators=validators.VirtualMachinePasswordValidators)
+    user_data = models.TextField(
+        blank=True,
+        max_length=87380,
+        help_text='Additional data that will be added to instance on provisioning')
+
+    @property
+    def internal_ips(self):
+        return []
+
+    @property
+    def external_ips(self):
+        return []
 
     @classmethod
     def get_url_name(cls):
@@ -110,14 +146,18 @@ class VirtualMachine(structure_models.VirtualMachine):
     def get_access_url_name(self):
         return 'azure-virtualmachine-rdp'
 
-    @property
-    def external_ips(self):
-        return self.public_ips
 
-    @property
-    def internal_ips(self):
-        return self.private_ips
+class SQLServer(BaseResource):
+    service_project_link = models.ForeignKey(AzureServiceProjectLink, on_delete=models.PROTECT)
+    resource_group = models.ForeignKey(ResourceGroup)
+    username = models.CharField(max_length=50)
+    password = models.CharField(max_length=50)
+    storage_mb = models.PositiveIntegerField(null=True)
 
-    @classmethod
-    def get_backend_fields(cls):
-        return super(VirtualMachine, cls).get_backend_fields() + ('public_ips', 'private_ips', 'endpoints')
+
+class SQLDatabase(BaseResource):
+    service_project_link = models.ForeignKey(AzureServiceProjectLink, on_delete=models.PROTECT)
+    resource_group = models.ForeignKey(ResourceGroup)
+    server = models.ForeignKey(SQLServer)
+    charset = models.CharField(max_length=255, blank=True)
+    collation = models.CharField(max_length=255, blank=True)

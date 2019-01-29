@@ -55,13 +55,100 @@ class AzureServiceProjectLinkFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('azure-spl-list')
 
 
+class LocationFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Location
+
+    settings = factory.SubFactory(AzureServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'region-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'region-%s' % n)
+
+
+class SizeFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Size
+
+    settings = factory.SubFactory(AzureServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'size-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'size-%s' % n)
+
+    max_data_disk_count = factory.fuzzy.FuzzyInteger(1, 8, step=2)
+    memory_in_mb = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
+    number_of_cores = factory.fuzzy.FuzzyInteger(1, 8, step=2)
+    os_disk_size_in_mb = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
+    resource_disk_size_in_mb = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
+
+
+class ImageFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Image
+
+    settings = factory.SubFactory(AzureServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'img-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'img-%s' % n)
+
+    sku = factory.Sequence(lambda n: 'sku-%s' % n)
+    publisher = factory.Sequence(lambda n: 'pub-%s' % n)
+    version = factory.Sequence(lambda n: 'v-%s' % n)
+    offer = factory.Sequence(lambda n: 'offer-%s' % n)
+
+
+class ResourceGroupFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.ResourceGroup
+
+    name = factory.Sequence(lambda n: 'rg-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'rg-%s' % n)
+    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    location = factory.SubFactory(LocationFactory)
+
+
+class NetworkFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Network
+
+    name = factory.Sequence(lambda n: 'net-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'net-%s' % n)
+    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    resource_group = factory.SubFactory(ResourceGroupFactory)
+    cidr = '10.0.0.0/16'
+
+
+class SubNetFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.SubNet
+
+    name = factory.Sequence(lambda n: 'subnet-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'subnet-%s' % n)
+    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    resource_group = factory.SubFactory(ResourceGroupFactory)
+    cidr = '10.0.0.0/24'
+    network = factory.SubFactory(NetworkFactory)
+
+
+class NetworkInterfaceFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.NetworkInterface
+
+    name = factory.Sequence(lambda n: 'nic-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'nic-%s' % n)
+    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    resource_group = factory.SubFactory(ResourceGroupFactory)
+    subnet = factory.SubFactory(SubNetFactory)
+    config_name = factory.Sequence(lambda n: 'conf-%s' % n)
+
+
 class VirtualMachineFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.VirtualMachine
 
-    name = factory.Sequence(lambda n: 'virtual-machine%s' % n)
-    backend_id = factory.Sequence(lambda n: 'virtual-machine-id%s' % n)
+    name = factory.Sequence(lambda n: 'vm-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'vm-%s' % n)
     service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    resource_group = factory.SubFactory(ResourceGroupFactory)
+    size = factory.SubFactory(SizeFactory)
+    image = factory.SubFactory(ImageFactory)
+    network_interface = factory.SubFactory(NetworkInterfaceFactory)
 
     state = models.VirtualMachine.States.OK
     runtime_state = NodeState.RUNNING
@@ -79,14 +166,3 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('aws-virtualmachine-list')
-
-
-class InstanceEndpoint(factory.DjangoModelFactory):
-    class Meta(object):
-        model = models.InstanceEndpoint
-
-    name = factory.fuzzy.FuzzyChoice(choices=dict(models.InstanceEndpoint.Name.CHOICES).keys())
-    protocol = factory.fuzzy.FuzzyChoice(choices=dict(models.InstanceEndpoint.Protocol.CHOICES).keys())
-    local_port = factory.fuzzy.FuzzyInteger(1000, 65535)
-    public_port = factory.fuzzy.FuzzyInteger(1000, 65535)
-    instance = factory.SubFactory(VirtualMachineFactory)

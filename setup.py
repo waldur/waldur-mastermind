@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 
-# apache-libcloud is required by AWS and Azure plugin
-# cryptography is required by Azure plugin
+# apache-libcloud is required by AWS plugin
 # defusedxml is required by djangosaml2
 # jira is required by JIRA plugin
 # lxml is required by waldur-auth-valimo
@@ -13,11 +12,15 @@ from setuptools import setup, find_packages
 install_requires = [
     'ansible-waldur-module>=0.8.2',
     'apache-libcloud>=1.1.0,<2.2.0',
+    'azure-mgmt-compute==1.0.0',
+    'azure-mgmt-network==1.0.0',
+    'azure-mgmt-resource==1.1.0',
+    'azure-mgmt-rdbms==0.1.0',
+    'azure-mgmt-storage==1.0.0',
     'Babel!=2.4.0,>=2.3.4',
     'Celery>=4.1.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4,<0.3.6',
-    'cryptography>=1.7.2',
     'defusedxml>=0.4.1',
     'django-admin-tools==0.8.0',
     'django-auth-ldap>=1.3.0',
