@@ -41,6 +41,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'availability_zone': _('Default availability zone for provisioned instances'),
         'flavor_exclude_regex': _('Flavors matching this regex expression will not be pulled from the backend.'),
         'external_network_id': _('It is used to automatically assign floating IP to your virtual machine.'),
+        'console_type': _('The type of remote console. '
+                          'The valid values are novnc, xvpvnc, rdp-html5, '
+                          'spice-html5, serial, and webmks.')
     }
 
     # Expose service settings quotas as service quotas as a temporary workaround.
@@ -63,7 +66,10 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
             },
             'external_network_id': {
                 'required': True,
-            }
+            },
+            'console_type': {
+                'default_value': 'spice-html5',
+            },
         }
 
 

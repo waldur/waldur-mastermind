@@ -12,8 +12,13 @@ class OpenStackTenantExtension(WaldurExtension):
                 'OpenStackTenant.Snapshot': 4,
             },
             'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': False,
-            'CONSOLE_TYPE': 'spice-html5',
         }
+
+    @staticmethod
+    def get_public_settings():
+        return [
+            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS',
+        ]
 
     @staticmethod
     def django_app():
