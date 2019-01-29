@@ -209,36 +209,36 @@ class AzureBackend(ServiceBackend):
 
     def start_virtual_machine(self, virtual_machine):
         poller = self.client.start_virtual_machine(
-            resource_group_name=virtual_machine.resource_group.backend_id,
-            vm_name=virtual_machine.backend_id,
+            resource_group_name=virtual_machine.resource_group.name,
+            vm_name=virtual_machine.name,
         )
         poller.wait()
 
     def restart_virtual_machine(self, virtual_machine):
         poller = self.client.restart_virtual_machine(
-            resource_group_name=virtual_machine.resource_group.backend_id,
-            vm_name=virtual_machine.backend_id,
+            resource_group_name=virtual_machine.resource_group.name,
+            vm_name=virtual_machine.name,
         )
         poller.wait()
 
     def stop_virtual_machine(self, virtual_machine):
         poller = self.client.stop_virtual_machine(
-            resource_group_name=virtual_machine.resource_group.backend_id,
-            vm_name=virtual_machine.backend_id,
+            resource_group_name=virtual_machine.resource_group.name,
+            vm_name=virtual_machine.name,
         )
         poller.wait()
 
     def delete_virtual_machine(self, virtual_machine):
         poller = self.client.delete_virtual_machine(
-            resource_group_name=virtual_machine.resource_group.backend_id,
-            vm_name=virtual_machine.backend_id,
+            resource_group_name=virtual_machine.resource_group.name,
+            vm_name=virtual_machine.name,
         )
         poller.wait()
 
     def create_pgsql_server(self, server):
         poller = self.client.create_sql_server(
             location=server.resource_group.location.backend_id,
-            resource_group_name=server.resource_group.backend_id,
+            resource_group_name=server.resource_group.name,
             server_name=server.name,
             username=server.username,
             password=server.password,
@@ -248,24 +248,24 @@ class AzureBackend(ServiceBackend):
 
     def delete_pgsql_server(self, server):
         poller = self.client.delete_sql_server(
-            resource_group_name=server.resource_group.backend_id,
-            server_name=server.backend_id,
+            resource_group_name=server.resource_group.name,
+            server_name=server.name,
         )
         poller.wait()
 
     def create_pgsql_database(self, database):
         poller = self.client.create_sql_database(
             location=database.resource_group.location.backend_id,
-            resource_group_name=database.resource_group.backend_id,
-            server_name=database.server.backend_id,
+            resource_group_name=database.resource_group.name,
+            server_name=database.server.name,
             database_name=database.name,
         )
         poller.wait()
 
     def delete_pgsql_database(self, database):
         poller = self.client.delete_sql_database(
-            resource_group_name=database.resource_group.backend_id,
-            server_name=database.server.backend_id,
-            database_name=database.backend_id,
+            resource_group_name=database.resource_group.name,
+            server_name=database.server.name,
+            database_name=database.name,
         )
         poller.wait()
