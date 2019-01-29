@@ -333,7 +333,7 @@ class ExtraFieldOptionsMixin(object):
 
     def get_fields(self):
         fields = super(ExtraFieldOptionsMixin, self).get_fields()
-        extra_field_options = getattr(self.Meta, 'extra_field_options') or {}
+        extra_field_options = getattr(self.Meta, 'extra_field_options', {})
         for name, options in extra_field_options.items():
             field = fields.get(name)
             if field:
