@@ -12,11 +12,11 @@ from setuptools import setup, find_packages
 install_requires = [
     'ansible-waldur-module>=0.8.2',
     'apache-libcloud>=1.1.0,<2.2.0',
-    'azure-mgmt-compute==4.4.0',
-    'azure-mgmt-network==2.5.1',
-    'azure-mgmt-rdbms==1.5.0',
-    'azure-mgmt-resource==2.1.0',
-    'azure-mgmt-storage==3.1.1',
+    'azure-mgmt-compute==4.0.1',
+    'azure-mgmt-network==2.0.0',
+    'azure-mgmt-rdbms==1.2.0',
+    'azure-mgmt-resource==2.0.0',
+    'azure-mgmt-storage==2.0.0',
     'Babel!=2.4.0,>=2.3.4',
     'Celery>=4.1.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
