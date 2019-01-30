@@ -64,7 +64,7 @@ install_requires = [
     'PyYAML>=3.10',
     'pyzabbix>=0.7.2',
     'redis==2.10.6',
-    'requests>=2.6.0,!=2.12.2,!=2.13.0',
+    'requests>=2.14.2',
     'sqlparse>=0.1.11',
     'pyjwt>=1.5.3',
 ]
