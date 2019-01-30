@@ -3,8 +3,7 @@ import six
 
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import DiskCreateOption
-from azure.mgmt.compute.compute.models import LinuxConfiguration, OSProfile, SshConfiguration, SshPublicKey
+from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, OSProfile, SshConfiguration, SshPublicKey
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource import SubscriptionClient
@@ -53,7 +52,7 @@ class AzureClient(object):
 
     @cached_property
     def compute_client(self):
-        return ComputeManagementClient(self.credentials, self.subscription_id)
+        return ComputeManagementClient(self.credentials, self.subscription_id, '2018-06-01')
 
     @cached_property
     def storage_client(self):
