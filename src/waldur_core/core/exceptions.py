@@ -1,8 +1,5 @@
 from __future__ import unicode_literals
 
-import sys
-from typing import Callable, Any  # noqa: F401
-
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status
 from rest_framework.exceptions import APIException
