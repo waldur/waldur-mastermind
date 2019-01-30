@@ -37,7 +37,7 @@ Source0: %{name}-%{version}.tar.gz
 # python-cryptography is needed for Azure plugin
 # python-django-cors-headers is packaging-specific dependency; it is not required in upstream code
 # python-jira is needed for JIRA plugin
-# python-libcloud is needed for AWS and Azure plugin
+# python-libcloud is needed for AWS plugin
 # python-lxml is needed for Valimo auth to work
 # xmlsec1-openssl package is needed for SAML2 features to work
 
@@ -45,7 +45,7 @@ Requires: ansible-waldur-module >= 0.8.2
 Requires: logrotate
 Requires: mailcap
 Requires: openssl
-Requires: python-azure-sdk
+Requires: python-azure-sdk >= 4.0.0
 Requires: python-ceilometerclient >= 2.9.0
 Requires: python-celery >= 4.1.0
 Requires: python-cinderclient >= 3.1.0
