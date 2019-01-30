@@ -23,7 +23,7 @@ requirements:
 options:
   access_token:
     description:
-      - An access token which has permissions to create a security group.
+      - An access token which has permission to read a security group.
     required: true
   api_url:
     description:
