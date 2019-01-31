@@ -133,3 +133,19 @@ def close_resource_plan_period_when_resource_is_terminated(sender, instance, cre
         plan=instance.plan,
         end=None
     ).update(end=now())
+
+
+def reject_order(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    order = instance
+
+    if not order.tracker.has_changed('state'):
+        return
+
+    if instance.tracker.previous('state') == models.Order.States.REQUESTED_FOR_APPROVAL and \
+            order.state == models.Order.States.TERMINATED:
+        for item in order.items.all():
+            item.set_state_terminated()
+            item.save(update_fields=['state'])

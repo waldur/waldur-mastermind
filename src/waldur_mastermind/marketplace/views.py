@@ -180,6 +180,30 @@ class OrderViewSet(BaseMarketplaceView):
     approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
     approve_permissions = [check_permissions_for_state_change]
 
+    @detail_route(methods=['post'])
+    def reject(self, request, uuid=None):
+        order = self.get_object()
+        order.terminate()
+        order.save(update_fields=['state'])
+        return Response({'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK)
+
+    def check_permissions_for_reject(request, view, order=None):
+        if not order:
+            return
+
+        user = request.user
+
+        if user.is_staff:
+            return
+
+        if user == order.created_by:
+            return
+
+        raise rf_exceptions.PermissionDenied()
+
+    reject_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
+    reject_permissions = [check_permissions_for_reject]
+
     @detail_route()
     def pdf(self, request, uuid=None):
         order = self.get_object()
