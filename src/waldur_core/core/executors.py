@@ -1,4 +1,6 @@
-from waldur_core.core import utils, tasks
+import operator
+
+from waldur_core.core import models, utils, tasks
 
 
 class BaseExecutor(object):
@@ -40,10 +42,26 @@ class BaseExecutor(object):
     def execute(cls, instance, async=True, countdown=2, is_heavy_task=False, **kwargs):
         """ Execute high level-operation """
         cls.pre_apply(instance, async=async, **kwargs)
-        result = cls.apply_signature(instance, async=async, countdown=countdown,
-                                     is_heavy_task=is_heavy_task, **kwargs)
-        cls.post_apply(instance, async=async, **kwargs)
-        return result
+        serialized_instance = utils.serialize_instance(instance)
+
+        signature = cls.get_task_signature(instance, serialized_instance, **kwargs)
+        link = cls.get_success_signature(instance, serialized_instance, **kwargs)
+        link_error = cls.get_failure_signature(instance, serialized_instance, **kwargs)
+        if async:
+            return signature.apply_async(
+                link=link,
+                link_error=link_error,
+                countdown=countdown,
+                queue=is_heavy_task and 'heavy' or None
+            )
+        else:
+            result = signature.apply()
+            callback = link if not result.failed() else link_error
+            if callback is not None:
+                if not callback.immutable:
+                    callback.args = (result.id,) + callback.args
+                callback.apply()
+            return result.get()  # wait until task is ready
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
@@ -51,36 +69,19 @@ class BaseExecutor(object):
         pass
 
     @classmethod
-    def post_apply(cls, instance, **kwargs):
-        """ Perform synchronous actions after signature apply """
-        pass
-
-    @classmethod
-    def apply_signature(cls, instance, async=True, countdown=None, is_heavy_task=False, **kwargs):
-        """ Serialize input data and apply signature """
+    def as_signature(cls, instance, **kwargs):
         serialized_instance = utils.serialize_instance(instance)
-
-        signature = cls.get_task_signature(instance, serialized_instance, **kwargs)
+        pre_apply = tasks.PreApplyExecutorTask().si(
+            utils.serialize_class(cls), serialized_instance, **kwargs)
+        main = cls.get_task_signature(instance, serialized_instance, **kwargs)
         link = cls.get_success_signature(instance, serialized_instance, **kwargs)
         link_error = cls.get_failure_signature(instance, serialized_instance, **kwargs)
-
-        if async:
-            return signature.apply_async(link=link, link_error=link_error, countdown=countdown,
-                                         queue=is_heavy_task and 'heavy' or None)
-        else:
-            result = signature.apply()
-            callback = link if not result.failed() else link_error
-            if callback is not None:
-                cls._apply_callback(callback, result)
-
-        return result.get()  # wait until task is ready
-
-    @classmethod
-    def _apply_callback(cls, callback, result):
-        """ Synchronously execute callback """
-        if not callback.immutable:
-            callback.args = (result.id, ) + callback.args
-        callback.apply()
+        parts = [task for task in [pre_apply, main, link]
+                 if not isinstance(task, tasks.EmptyTask) and task is not None]
+        signature = reduce(operator.or_, parts)
+        if link_error:
+            signature = signature.on_error(link_error)
+        return signature
 
 
 class ExecutorException(Exception):
@@ -186,6 +187,8 @@ class ActionExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
+        if instance.state == models.StateMixin.States.UPDATE_SCHEDULED:
+            return
         instance.schedule_updating()
         instance.action = cls.action
         instance.action_details = cls.get_action_details(instance, **kwargs)

@@ -305,8 +305,6 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         nova.servers.delete.assert_called_once_with(self.instance.backend_id)
         nova.servers.get.assert_called_once_with(self.instance.backend_id)
 
-        self.assertFalse(nova.volumes.delete_server_volume.called)
-
     def test_database_models_deleted(self):
         self.mock_volumes(True)
         self.delete_instance()
@@ -387,24 +385,36 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
 
     def test_neutron_methods_are_called_if_instance_is_deleted_with_floating_ips(self):
+        self.mock_volumes(False)
         fixture = fixtures.OpenStackTenantFixture()
         internal_ip = factories.InternalIPFactory.create(instance=self.instance, subnet=fixture.subnet)
         settings = self.instance.service_project_link.service.settings
         floating_ip = factories.FloatingIPFactory.create(internal_ip=internal_ip, settings=settings)
-        self.delete_instance({'release_floating_ips': True})
+        self.delete_instance({
+            'release_floating_ips': True,
+            'delete_volumes': False,
+        })
         self.mocked_neutron().delete_floatingip.assert_called_once_with(floating_ip.backend_id)
 
     def test_neutron_methods_are_not_called_if_instance_does_not_have_any_floating_ips_yet(self):
-        self.delete_instance({'release_floating_ips': True})
+        self.mock_volumes(False)
+        self.delete_instance({
+            'release_floating_ips': True,
+            'delete_volumes': False,
+        })
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
 
     def test_neutron_methods_are_not_called_if_user_did_not_ask_for_floating_ip_removal_explicitly(self):
+        self.mock_volumes(False)
         self.mocked_neutron().show_floatingip.return_value = {'floatingip': {'status': 'DOWN'}}
         fixture = fixtures.OpenStackTenantFixture()
         internal_ip = factories.InternalIPFactory.create(instance=self.instance, subnet=fixture.subnet)
         settings = self.instance.service_project_link.service.settings
         factories.FloatingIPFactory.create(internal_ip=internal_ip, settings=settings)
-        self.delete_instance({'release_floating_ips': False})
+        self.delete_instance({
+            'release_floating_ips': False,
+            'delete_volumes': False
+        })
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
 
 

@@ -71,10 +71,8 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
         creation_tasks.append(core_tasks.BackendMethodTask().si(serialized_tenant, 'push_tenant_quotas', quotas))
         # handle security groups
         # XXX: Create default security groups that was connected to SPL earlier.
-        serialized_executor = core_utils.serialize_class(SecurityGroupCreateExecutor)
         for security_group in tenant.security_groups.all():
-            serialized_security_group = core_utils.serialize_instance(security_group)
-            creation_tasks.append(core_tasks.ExecutorTask().si(serialized_executor, serialized_security_group))
+            creation_tasks.append(SecurityGroupCreateExecutor.as_signature(security_group))
 
         if pull_security_groups:
             creation_tasks.append(core_tasks.BackendMethodTask().si(serialized_tenant, 'pull_tenant_security_groups'))
