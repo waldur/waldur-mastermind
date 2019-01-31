@@ -7,6 +7,7 @@ from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import executors as structure_executors
 from waldur_openstack.openstack import executors as openstack_executors
+from waldur_openstack.openstack import models as openstack_models
 
 from . import tasks, models
 
@@ -365,6 +366,9 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
     def create_floating_ips(cls, instance, serialized_instance):
         _tasks = []
 
+        if not instance.floating_ips.exists():
+            return _tasks
+
         # Create non-existing floating IPs
         for floating_ip in instance.floating_ips.filter(backend_id=''):
             serialized_floating_ip = core_utils.serialize_instance(floating_ip)
@@ -384,9 +388,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
 
         shared_tenant = instance.service_project_link.service.settings.scope
         if shared_tenant:
-            serialized_executor = core_utils.serialize_class(openstack_executors.TenantPullFloatingIPsExecutor)
-            serialized_tenant = core_utils.serialize_instance(shared_tenant)
-            _tasks.append(core_tasks.ExecutorTask().si(serialized_executor, serialized_tenant))
+            _tasks.append(openstack_executors.TenantPullFloatingIPsExecutor.as_signature(shared_tenant))
 
         return _tasks
 
@@ -429,22 +431,38 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
     def get_task_signature(cls, instance, serialized_instance, force=False, **kwargs):
         delete_volumes = kwargs.pop('delete_volumes', True)
         release_floating_ips = kwargs.pop('release_floating_ips', True)
-        delete_instance = cls.get_delete_instance_tasks(instance, serialized_instance, release_floating_ips)
+
+        delete_instance_tasks = cls.get_delete_instance_tasks(serialized_instance)
+        release_floating_ips_tasks = cls.get_release_floating_ips_tasks(instance, release_floating_ips)
 
         # Case 1. Instance does not exist at backend
         if not instance.backend_id:
             return chain(cls.get_delete_incomplete_instance_tasks(instance, serialized_instance))
 
         # Case 2. Instance exists at backend.
-        # Data volumes are deleted by OpenStack because delete_on_termination=True
+        # Data volumes are detached and deleted explicitly
+        # because once volume is attached after instance is created,
+        # it is not removed automatically.
+        # System volume is deleted implicitly since delete_on_termination=True
         elif delete_volumes:
-            return chain(delete_instance)
+            detach_volumes_tasks = cls.get_detach_data_volumes_tasks(instance)
+            delete_volumes_tasks = cls.get_delete_data_volumes_tasks(instance)
+            return chain(
+                detach_volumes_tasks +
+                delete_volumes_tasks +
+                delete_instance_tasks +
+                release_floating_ips_tasks
+            )
 
         # Case 3. Instance exists at backend.
         # Data volumes are detached and not deleted.
         else:
-            detach_volumes = cls.get_detach_data_volumes_tasks(instance, serialized_instance)
-            return chain(detach_volumes + delete_instance)
+            detach_volumes_tasks = cls.get_detach_data_volumes_tasks(instance)
+            return chain(
+                detach_volumes_tasks +
+                delete_instance_tasks +
+                release_floating_ips_tasks
+            )
 
     @classmethod
     def get_delete_incomplete_instance_tasks(cls, instance, serialized_instance):
@@ -476,8 +494,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         return _tasks
 
     @classmethod
-    def get_delete_instance_tasks(cls, instance, serialized_instance, release_floating_ips):
-        _tasks = [
+    def get_delete_instance_tasks(cls, serialized_instance):
+        return [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 backend_method='delete_instance',
@@ -488,6 +506,10 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 backend_check_method='is_instance_deleted',
             ),
         ]
+
+    @classmethod
+    def get_release_floating_ips_tasks(cls, instance, release_floating_ips):
+        _tasks = []
         if release_floating_ips:
             for index, floating_ip in enumerate(instance.floating_ips):
                 _tasks.append(core_tasks.BackendMethodTask().si(
@@ -503,15 +525,14 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 ).set(countdown=5 if not index else 0))
 
         shared_tenant = instance.service_project_link.service.settings.scope
-        if shared_tenant:
-            serialized_executor = core_utils.serialize_class(openstack_executors.TenantPullFloatingIPsExecutor)
-            serialized_tenant = core_utils.serialize_instance(shared_tenant)
-            _tasks.append(core_tasks.ExecutorTask().si(serialized_executor, serialized_tenant))
+        if shared_tenant and isinstance(shared_tenant, openstack_models.Tenant):
+            if shared_tenant.state == openstack_models.Tenant.States.OK:
+                _tasks.append(openstack_executors.TenantPullFloatingIPsExecutor.as_signature(shared_tenant))
 
         return _tasks
 
     @classmethod
-    def get_detach_data_volumes_tasks(cls, instance, serialized_instance):
+    def get_detach_data_volumes_tasks(cls, instance):
         data_volumes = instance.volumes.all().filter(bootable=False)
         detach_volumes = [
             core_tasks.BackendMethodTask().si(
@@ -525,11 +546,20 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 core_utils.serialize_instance(volume),
                 backend_pull_method='pull_volume_runtime_state',
                 success_state='available',
-                erred_state='error'
+                erred_state='error',
+                deleted_state='deleted',
             )
             for volume in data_volumes
         ]
         return detach_volumes + check_volumes
+
+    @classmethod
+    def get_delete_data_volumes_tasks(cls, instance):
+        data_volumes = instance.volumes.all().filter(bootable=False)
+        return [
+            VolumeDeleteExecutor.as_signature(volume)
+            for volume in data_volumes
+        ]
 
 
 class InstanceFlavorChangeExecutor(core_executors.ActionExecutor):

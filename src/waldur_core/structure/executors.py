@@ -139,13 +139,7 @@ class ProjectCleanupExecutor(core_executors.BaseExecutor):
 
         # Combine all executors into single sequential task
         # to cleanup related resources in correct order
-        cleanup_tasks = [
-            core_tasks.ExecutorTask().si(
-                core_utils.serialize_class(executor),
-                serialized_instance
-            )
-            for executor in executors
-        ]
+        cleanup_tasks = [executor.as_signature(instance) for executor in executors]
 
         if not cleanup_tasks:
             return core_tasks.EmptyTask()

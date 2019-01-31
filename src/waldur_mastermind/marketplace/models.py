@@ -610,7 +610,7 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     def name(self):
         return self.attributes.get('name')
 
-    @transition(field=state, source=[States.CREATING, States.UPDATING], target=States.OK)
+    @transition(field=state, source=[States.ERRED, States.CREATING, States.UPDATING], target=States.OK)
     def set_state_ok(self):
         pass
 
