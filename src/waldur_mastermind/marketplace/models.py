@@ -670,12 +670,14 @@ class OrderItem(core_models.UuidMixin,
         EXECUTING = 2
         DONE = 3
         ERRED = 4
+        TERMINATED = 5
 
         CHOICES = (
             (PENDING, 'pending'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (ERRED, 'erred'),
+            (TERMINATED, 'terminated'),
         )
 
         TERMINAL_STATES = {DONE, ERRED}
@@ -712,6 +714,10 @@ class OrderItem(core_models.UuidMixin,
 
     @transition(field=state, source='*', target=States.ERRED)
     def set_state_erred(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATED)
+    def set_state_terminated(self):
         pass
 
     def clean(self):
