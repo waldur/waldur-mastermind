@@ -269,7 +269,9 @@ class PublicIPSerializer(structure_serializers.BaseResourceSerializer):
     class Meta(object):
         model = models.PublicIP
         view_name = 'azure-public-ip-detail'
-        fields = ('url', 'uuid', 'name', 'location')
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'location',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
