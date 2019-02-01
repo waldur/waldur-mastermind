@@ -99,7 +99,7 @@ options:
       - Should the resource be present or absent.
   subnet:
     description:
-      - The name or id of the subnet to use.
+      - The subnet name or id or list of subnet names or subnet ids.
         It is required if a `networks` parameter is not provided.
   system_volume_size:
     description:
@@ -249,12 +249,26 @@ EXAMPLES = '''
         security_groups:
           - ssh
           - icmp
+          
+- name: connect the instance to multiple subnets
+  hosts: localhost
+  tasks:
+    - name: connect to multiple subnets
+      waldur_os_instance:
+        access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
+        api_url: https://waldur.example.com:8000/api
+        project: OpenStack Project
+        name: Warehouse instance        
+        subnet:
+          - vpc-1-tm-sub-net-1
+          - vpc-1-tm-sub-net-2          
 '''
 
 
 def send_request_to_waldur(client, module):
     name = module.params['name']
     project = module.params['project']
+    subnet = module.params.get('subnet')
     present = module.params['state'] == 'present'
 
     instance = None
@@ -289,6 +303,35 @@ def send_request_to_waldur(client, module):
                     timeout=module.params['timeout'],
                 )
                 has_changed = True
+
+            if subnet:
+                instance_subnets = instance.get('internal_ips_set')
+                needed_update_subnets = False
+
+                for s in instance_subnets:
+                    if not (s['subnet_name'] in subnet or
+                            s['subnet_uuid'] in subnet):
+                        needed_update_subnets = True
+                        break
+
+                if not needed_update_subnets:
+                    instance_subnet_names = {s['subnet_name'] for s in instance_subnets}
+                    instance_subnets_ids = {s['subnet_uuid'] for s in instance_subnets}
+                    for s in subnet:
+                        if not (s in instance_subnet_names or
+                                s in instance_subnets_ids):
+                            needed_update_subnets = True
+                            break
+
+                if needed_update_subnets:
+                    client.update_instance_internal_ips_set(
+                        instance_uuid=instance['uuid'],
+                        subnet_set=subnet,
+                        wait=True,
+                        interval=module.params['interval'],
+                        timeout=module.params['timeout']
+                    )
+                    has_changed = True
     except ObjectDoesNotExist:
         if present:
             networks = module.params.get('networks') or [{
@@ -338,7 +381,7 @@ def main():
             release_floating_ips=dict(type='bool', default=True),
             security_groups=dict(type='list', default=None),
             ssh_key=dict(type='str', default=None),
-            subnet=dict(type='str', default=None),
+            subnet=dict(type='list', default=None),
             system_volume_size=dict(type='int', default=None),
             user_data=dict(type='str', default=None),
         ),

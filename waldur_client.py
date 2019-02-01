@@ -712,6 +712,36 @@ class WaldurClient(object):
 
         return resource
 
+    def update_instance_internal_ips_set(self,
+                                    instance_uuid,
+                                    subnet_set,
+                                    wait=True,
+                                    interval=10,
+                                    timeout=600):
+        """
+        Update internal ip for OpenStack instance and wait until operation is completed.
+
+        :param instance_uuid: unique identifier of the instance
+        :param subnet_set: list of subnet names
+        :param wait: defines whether the client has to wait for operation completion.
+        :param interval: interval of volume state polling in seconds.
+        :param timeout: a maximum amount of time to wait for operation completion.
+        """
+
+        payload = {'internal_ips_set': []}
+        for subnet in subnet_set:
+            subnet = self._get_subnet(subnet)
+            payload['internal_ips_set'].append({'subnet': subnet['url']})
+
+        self._execute_resource_action(
+            endpoint=self.Endpoints.Instance,
+            uuid=instance_uuid,
+            action='update_internal_ips_set',
+            json=payload,
+        )
+        if wait:
+            self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
+
 
 def waldur_full_argument_spec(**kwargs):
     spec = dict(

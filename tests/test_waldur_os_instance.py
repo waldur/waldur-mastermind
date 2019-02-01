@@ -75,7 +75,7 @@ class InstanceCreateTest(unittest.TestCase):
             'description': 'Test description',
             'project': 'Test project',
             'provider': 'Test provider',
-            'subnet': 'Test subnet',
+            'subnet': ['Test subnet'],
             'image': 'Test image',
             'floating_ip': '1.1.1.1',
             'system_volume_size': 10,
@@ -98,7 +98,39 @@ class InstanceCreateTest(unittest.TestCase):
         client = mock.Mock()
         client.get_instance.return_value = {
             'uuid': '59e46d029a79473779915a22',
+            'internal_ips_set': [{'subnet_name': 'Test subnet', 'subnet_uuid': '77e46d029a79473779915a22'}]
         }
         _, has_changed = waldur_os_instance.send_request_to_waldur(client, self.module)
         self.assertEqual(0, client.create_instance.call_count)
         self.assertFalse(has_changed)
+
+
+class InstanceSubNetUpdateTest(unittest.TestCase):
+    def setUp(self):
+        module = mock.Mock()
+        self.subnets_set = ['subnet_1', 'subnet_2']
+        module.params = {
+            'name': 'Test instance',
+            'project': 'Test project',
+            'subnet': self.subnets_set,
+            'state': 'present',
+            'wait': True,
+            'interval': 20,
+            'timeout': 600,
+        }
+        module.check_mode = False
+        self.module = module
+
+    def test_connect_instance_to_multiple_subnets(self):
+        client = mock.Mock()
+        instance_uuid = '59e46d029a79473779915a22'
+        client.get_instance.return_value = {
+            'uuid': instance_uuid,
+            'internal_ips_set': [{'subnet_name': 'Test subnet', 'subnet_uuid': '77e46d029a79473779915a22'}]
+        }
+        _, has_changed = waldur_os_instance.send_request_to_waldur(client, self.module)
+        client.update_instance_internal_ips_set.assert_called_once_with(
+            instance_uuid=instance_uuid,
+            subnet_set=self.subnets_set,
+            interval=20, timeout=600, wait=True)
+        self.assertTrue(has_changed)
