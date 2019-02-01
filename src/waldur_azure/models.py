@@ -122,6 +122,10 @@ class PublicIP(BaseResource):
     resource_group = models.ForeignKey(ResourceGroup)
     location = models.ForeignKey(Location)
 
+    @classmethod
+    def get_url_name(cls):
+        return 'azure-public-ip'
+
 
 class VirtualMachine(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
