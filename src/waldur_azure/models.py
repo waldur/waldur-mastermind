@@ -119,6 +119,7 @@ class NetworkInterface(BaseResource):
 class PublicIP(BaseResource):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
     service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    resource_group = models.ForeignKey(ResourceGroup)
     location = models.ForeignKey(Location)
 
 

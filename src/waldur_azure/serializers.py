@@ -266,11 +266,17 @@ class PublicIPSerializer(structure_serializers.BaseResourceSerializer):
         queryset=models.Location.objects.all(),
     )
 
+    resource_group = serializers.HyperlinkedRelatedField(
+        view_name='azure-resource-group-detail',
+        lookup_field='uuid',
+        queryset=models.ResourceGroup.objects.all(),
+    )
+
     class Meta(object):
         model = models.PublicIP
         view_name = 'azure-public-ip-detail'
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'location',
+            'location', 'resource_group',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
