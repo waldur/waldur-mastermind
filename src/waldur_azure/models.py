@@ -113,6 +113,13 @@ class NetworkInterface(BaseResource):
     resource_group = models.ForeignKey(ResourceGroup)
     subnet = models.ForeignKey(SubNet)
     config_name = models.CharField(max_length=255)
+    public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
+
+
+class PublicIP(BaseResource):
+    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    location = models.ForeignKey(Location)
 
 
 class VirtualMachine(structure_models.VirtualMachine):

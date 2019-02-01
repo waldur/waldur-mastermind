@@ -60,6 +60,44 @@ class AzureBackend(ServiceBackend):
         for cached_location in stale_locations:
             cached_location.delete()
 
+    def pull_public_ips(self, service_project_link):
+        locations = {
+            location.backend_id: location
+            for location in models.Location.objects.filter(settings=self.settings)
+        }
+
+        cached_public_ips = {
+            public_ip.backend_id: public_ip
+            for public_ip in models.PublicIP.objects.filter(service_project_link=service_project_link)
+        }
+
+        backend_public_ips = {
+            public_ip.name: public_ip
+            for public_ip in self.client.list_all_public_ips()
+        }
+
+        new_public_ips = {
+            public_ip for name, public_ip in backend_public_ips.items()
+            if name not in cached_public_ips
+        }
+
+        stale_public_ips = {
+            public_ip for name, public_ip in cached_public_ips.items()
+            if name not in backend_public_ips
+        }
+
+        for backend_public_ip in new_public_ips:
+            models.PublicIP.objects.create(
+                backend_id=backend_public_ip.name,
+                name=backend_public_ip.name,
+                service_project_link=service_project_link,
+                location=locations.get(backend_public_ip.location),
+                state=models.PublicIP.States.OK,
+            )
+
+        for cached_public_ip in stale_public_ips:
+            cached_public_ip.delete()
+
     def pull_sizes(self, location):
         cached_sizes = {
             size.backend_id: size
@@ -179,6 +217,7 @@ class AzureBackend(ServiceBackend):
             interface_name=nic.name,
             subnet_id=nic.subnet.backend_id,
             config_name=nic.config_name,
+            public_ip_id=nic.public_ip and nic.public_ip.backend_id,
         )
         backend_nic = poller.result()
         nic.backend_id = backend_nic.id
@@ -232,6 +271,24 @@ class AzureBackend(ServiceBackend):
         poller = self.client.delete_virtual_machine(
             resource_group_name=virtual_machine.resource_group.name,
             vm_name=virtual_machine.name,
+        )
+        poller.wait()
+
+    def create_public_ip(self, public_ip):
+        poller = self.client.create_public_ip(
+            location=public_ip.resource_group.location.backend_id,
+            resource_group_name=public_ip.resource_group.name,
+            public_ip_address_name=public_ip.name,
+        )
+        backend_public_ip = poller.result()
+        public_ip.backend_id = backend_public_ip.id
+        public_ip.runtime_state = backend_public_ip.provisioning_state
+        public_ip.save()
+
+    def delete_public_ip(self, public_ip):
+        poller = self.client.delete_public_ip(
+            resource_group_name=public_ip.resource_group.name,
+            public_ip_address_name=public_ip.name,
         )
         poller.wait()
 
