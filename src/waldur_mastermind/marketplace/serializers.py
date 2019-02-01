@@ -775,6 +775,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         date = attrs['date']
         plan = resource.plan
 
+        if resource.state == models.Resource.States.TERMINATED:
+            raise rf_exceptions.ValidationError({
+                'resource': _('Resource is terminated.')
+            })
+
         if not plan:
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource does not have billing plan.')
@@ -802,8 +807,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 attrs['date'] = core_utils.month_start(date)
             else:
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
-
-        resource = attrs['resource']
 
         for usage in attrs['usages']:
             component_type = usage['type']

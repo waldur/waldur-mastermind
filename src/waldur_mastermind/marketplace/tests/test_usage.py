@@ -162,6 +162,12 @@ class TestUsageApi(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertFalse(models.ComponentUsage.objects.filter().exists())
 
+    def test_usage_is_not_updated_if_resource_is_terminated(self):
+        self.resource.set_state_terminated()
+        self.resource.save()
+        response = self.submit_usage()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def submit_usage(self, **extra):
         payload = self.get_valid_payload()
         payload.update(extra)
