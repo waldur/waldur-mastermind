@@ -46,6 +46,14 @@ class ResourceGroupViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
 
 
+class PublicIPViewSet(structure_views.BaseResourceViewSet):
+    queryset = models.PublicIP.objects.all()
+    filter_class = filters.PublicIPFilter
+    serializer_class = serializers.PublicIPSerializer
+    create_executor = executors.PublicIPCreateExecutor
+    delete_executor = executors.PublicIPDeleteExecutor
+
+
 class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
     filter_class = filters.VirtualMachineFilter

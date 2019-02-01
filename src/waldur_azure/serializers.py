@@ -159,6 +159,15 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer):
         source='ssh_key'
     )
 
+    public_ip = serializers.HyperlinkedRelatedField(
+        view_name='azure-public-ip-detail',
+        lookup_field='uuid',
+        queryset=models.PublicIP.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+
     resource_group = serializers.HyperlinkedRelatedField(
         view_name='azure-resource-group-detail',
         lookup_field='uuid',
@@ -171,7 +180,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer):
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
             'image', 'size', 'user_data', 'runtime_state', 'start_time',
             'cores', 'ram', 'disk', 'image_name', 'location',
-            'resource_group',
+            'resource_group', 'public_ip',
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
             'image', 'size', 'user_data',
@@ -185,6 +194,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer):
         vm_name = validated_data['name']
         spl = validated_data['service_project_link']
         location = validated_data.pop('location')
+        public_ip = validated_data.pop('public_ip', None)
 
         resource_group_name = 'group{}'.format(vm_name)
         storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
@@ -226,6 +236,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer):
             name=nic_name,
             subnet=subnet,
             config_name=config_name,
+            public_ip=public_ip,
         )
 
         validated_data['network_interface'] = nic
@@ -234,3 +245,39 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer):
         validated_data['password'] = generate_password()
 
         return super(VirtualMachineSerializer, self).create(validated_data)
+
+
+class PublicIPSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='azure-detail',
+        lookup_field='uuid',
+        queryset=models.AzureService.objects.all(),
+    )
+
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='azure-spl-detail',
+        queryset=models.AzureServiceProjectLink.objects.all(),
+    )
+
+    location = serializers.HyperlinkedRelatedField(
+        view_name='azure-location-detail',
+        lookup_field='uuid',
+        queryset=models.Location.objects.all(),
+    )
+
+    resource_group = serializers.HyperlinkedRelatedField(
+        view_name='azure-resource-group-detail',
+        lookup_field='uuid',
+        queryset=models.ResourceGroup.objects.all(),
+    )
+
+    class Meta(object):
+        model = models.PublicIP
+        view_name = 'azure-public-ip-detail'
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'location', 'resource_group',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }

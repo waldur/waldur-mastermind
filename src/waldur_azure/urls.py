@@ -8,5 +8,6 @@ def register_in(router):
     router.register(r'azure-locations', views.LocationViewSet, base_name='azure-location')
     router.register(r'azure-resource-groups', views.ResourceGroupViewSet, base_name='azure-resource-group')
     router.register(r'azure-virtualmachines', views.VirtualMachineViewSet, base_name='azure-virtualmachine')
+    router.register(r'azure-public-ips', views.PublicIPViewSet, base_name='azure-public-ip')
     router.register(r'azure-service-project-link',
                     views.AzureServiceProjectLinkViewSet, base_name='azure-spl')

@@ -293,20 +293,59 @@ class AzureClient(object):
             reraise(e)
 
     def create_network_interface(self, location, resource_group_name,
-                                 interface_name, config_name, subnet_id):
+                                 interface_name, config_name, subnet_id,
+                                 public_ip_id=None):
+        ip_configuration = {
+            'name': config_name,
+            'subnet': {
+                'id': subnet_id,
+            }
+        }
+
+        if public_ip_id:
+            ip_configuration.update({
+                'public_ip': {
+                    'id': public_ip_id,
+                }
+            })
+
+        interface_parameters = {
+            'location': location,
+            'ip_configurations': [ip_configuration]
+        }
+
         try:
             return self.network_client.network_interfaces.create_or_update(
                 resource_group_name,
                 interface_name,
+                interface_parameters
+            )
+        except CloudError as e:
+            reraise(e)
+
+    def list_all_public_ips(self):
+        try:
+            return self.network_client.public_ip_addresses.list_all()
+        except CloudError as e:
+            reraise(e)
+
+    def create_public_ip(self, location, resource_group_name, public_ip_address_name):
+        try:
+            return self.network_client.public_ip_addresses.create_or_update(
+                resource_group_name,
+                public_ip_address_name,
                 {
-                    'location': location,
-                    'ip_configurations': [{
-                        'name': config_name,
-                        'subnet': {
-                            'id': subnet_id,
-                        }
-                    }]
+                    'location': location
                 }
+            )
+        except CloudError as e:
+            reraise(e)
+
+    def delete_public_ip(self, resource_group_name, public_ip_address_name):
+        try:
+            return self.network_client.public_ip_addresses.delete(
+                resource_group_name,
+                public_ip_address_name
             )
         except CloudError as e:
             reraise(e)
