@@ -312,7 +312,7 @@ class OrderRejectTest(test.APITransactionTestCase):
             obj.refresh_from_db()
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.order.state, models.Order.States.TERMINATED)
+        self.assertEqual(self.order.state, models.Order.States.REJECTED)
         self.assertEqual(self.order_item_1.state, models.OrderItem.States.TERMINATED)
         self.assertEqual(self.order_item_2.state, models.OrderItem.States.TERMINATED)
 
