@@ -786,3 +786,18 @@ class ProjectResourceCount(models.Model):
 
     class Meta:
         unique_together = ('project', 'category')
+
+
+class OfferingFile(core_models.UuidMixin,
+                   core_models.NameMixin,
+                   structure_models.StructureModel,
+                   TimeStampedModel):
+    offering = models.ForeignKey(Offering, related_name='files')
+    file = models.FileField(upload_to='offering_files')
+
+    class Permissions(object):
+        customer_path = 'offering__customer'
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-offering-file'

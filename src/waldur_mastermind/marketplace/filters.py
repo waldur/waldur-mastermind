@@ -179,3 +179,14 @@ class ComponentUsageFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.ComponentUsage
         fields = []
+
+
+class OfferingFileFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+
+    o = django_filters.OrderingFilter(fields=('name', 'created'))
+
+    class Meta(object):
+        model = models.OfferingFile
+        fields = []

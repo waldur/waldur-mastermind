@@ -187,6 +187,12 @@ class NestedScreenshotSerializer(serializers.ModelSerializer):
         fields = ('name', 'description', 'image', 'thumbnail')
 
 
+class NestedOfferingFileSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.OfferingFile
+        fields = ('name', 'created', 'file',)
+
+
 class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
     class Meta(object):
@@ -260,6 +266,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
+    files = NestedOfferingFileSerializer(many=True, required=False)
 
     class Meta(object):
         model = models.Offering
@@ -269,7 +276,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid')
+                  'scope', 'scope_uuid', 'files')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -838,6 +845,17 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 date=date,
                 defaults={'usage': amount},
             )
+
+
+class OfferingFileSerializer(core_serializers.AugmentedSerializerMixin,
+                             serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.OfferingFile
+        fields = ('url', 'uuid', 'name', 'offering', 'created', 'file',)
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid'},
+            offering={'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+        )
 
 
 def get_is_service_provider(serializer, scope):
