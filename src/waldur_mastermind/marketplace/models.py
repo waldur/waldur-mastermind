@@ -464,7 +464,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
         return self.plan.get_estimate(self.limits)
 
 
-class Order(core_models.UuidMixin, TimeStampedModel):      
+class Order(core_models.UuidMixin, TimeStampedModel):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
