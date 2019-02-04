@@ -145,7 +145,7 @@ def reject_order(sender, instance, created=False, **kwargs):
         return
 
     if instance.tracker.previous('state') == models.Order.States.REQUESTED_FOR_APPROVAL and \
-            order.state == models.Order.States.TERMINATED:
+            order.state == models.Order.States.REJECTED:
         for item in order.items.all():
             item.set_state_terminated()
             item.save(update_fields=['state'])

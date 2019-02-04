@@ -183,7 +183,7 @@ class OrderViewSet(BaseMarketplaceView):
     @detail_route(methods=['post'])
     def reject(self, request, uuid=None):
         order = self.get_object()
-        order.terminate()
+        order.reject()
         order.save(update_fields=['state'])
         return Response({'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK)
 

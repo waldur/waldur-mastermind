@@ -470,12 +470,16 @@ class Order(core_models.UuidMixin, TimeStampedModel):
         EXECUTING = 2
         DONE = 3
         TERMINATED = 4
+        ERRED = 5
+        REJECTED = 6
 
         CHOICES = (
             (REQUESTED_FOR_APPROVAL, 'requested for approval'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (TERMINATED, 'terminated'),
+            (ERRED, 'erred'),
+            (REJECTED, 'rejected'),
         )
 
     created_by = models.ForeignKey(core_models.User, related_name='orders')
@@ -509,6 +513,14 @@ class Order(core_models.UuidMixin, TimeStampedModel):
 
     @transition(field=state, source='*', target=States.TERMINATED)
     def terminate(self):
+        pass
+
+    @transition(field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.REJECTED)
+    def reject(self):
+        pass
+
+    @transition(field=state, source='*', target=States.ERRED)
+    def fail(self):
         pass
 
     def get_approvers(self):
