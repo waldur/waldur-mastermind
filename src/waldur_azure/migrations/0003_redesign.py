@@ -151,7 +151,7 @@ class Migration(migrations.Migration):
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('description', models.CharField(blank=True, max_length=500, verbose_name='description')),
-                ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name')),
+                ('name', models.CharField(max_length=150, validators=[django.core.validators.RegexValidator(message='The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. The hyphen may not lead or trail in the name.', regex=re.compile(b'[a-z0-9][a-z0-9-]+[a-z0-9]$'))], verbose_name='name')),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
@@ -263,7 +263,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='virtualmachine',
             name='username',
-            field=models.CharField(default=None, max_length=32, validators=[waldur_azure.validators.validate_username]),
+            field=models.CharField(default=None, max_length=32, validators=[waldur_azure.validators.VirtualMachineUsernameValidator]),
             preserve_default=False,
         ),
         migrations.AlterField(

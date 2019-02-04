@@ -189,3 +189,22 @@ ImageValidator = FileTypeValidator(
         'image/svg+xml',
     ]
 )
+
+
+@deconstructible
+class BlacklistValidator(object):
+    message = _('This value is blacklisted.')
+    code = 'blacklist'
+    blacklist = ()
+
+    def __init__(self, blacklist=None, message=None, code=None):
+        if blacklist is not None:
+            self.blacklist = blacklist
+        if message is not None:
+            self.message = message
+        if code is not None:
+            self.code = code
+
+    def __call__(self, value):
+        if value in self.blacklist:
+            raise ValidationError(self.message, code=self.code)

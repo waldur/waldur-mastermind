@@ -90,3 +90,19 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     restart_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK),
                           core_validators.RuntimeStateValidator('running')]
     restart_serializer_class = rf_serializers.Serializer
+
+
+class SQLServerViewSet(structure_views.BaseResourceViewSet):
+    queryset = models.SQLServer.objects.all()
+    filter_class = filters.SQLServerFilter
+    serializer_class = serializers.SQLServerSerializer
+    create_executor = executors.SQLServerCreateExecutor
+    delete_executor = executors.SQLServerDeleteExecutor
+
+
+class SQLDatabaseViewSet(structure_views.BaseResourceViewSet):
+    queryset = models.SQLDatabase.objects.all()
+    filter_class = filters.SQLDatabaseFilter
+    serializer_class = serializers.SQLDatabaseSerializer
+    create_executor = executors.SQLDatabaseCreateExecutor
+    delete_executor = executors.SQLDatabaseDeleteExecutor
