@@ -72,13 +72,14 @@ class Size(structure_models.ServiceProperty):
 
 
 class BaseResource(core_models.RuntimeStateMixin, structure_models.NewResource):
+    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+
     class Meta(object):
         abstract = True
 
 
 class ResourceGroup(BaseResource):
     name = models.CharField(max_length=90, validators=[validators.ResourceGroupNameValidator])
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
     location = models.ForeignKey(Location)
 
     @classmethod
@@ -86,40 +87,37 @@ class ResourceGroup(BaseResource):
         return 'azure-resource-group'
 
 
-class StorageAccount(BaseResource):
+class BaseResourceGroupModel(BaseResource):
+    resource_group = models.ForeignKey(ResourceGroup)
+
+    class Meta(object):
+        abstract = True
+
+
+class StorageAccount(BaseResourceGroupModel):
     name = models.CharField(max_length=24, validators=[validators.StorageAccountNameValidator])
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
-    resource_group = models.ForeignKey(ResourceGroup)
 
 
-class Network(BaseResource):
+class Network(BaseResourceGroupModel):
     name = models.CharField(max_length=64, validators=[validators.NetworkingNameValidator])
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
-    resource_group = models.ForeignKey(ResourceGroup)
     cidr = models.CharField(max_length=32)
 
 
-class SubNet(BaseResource):
+class SubNet(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
-    resource_group = models.ForeignKey(ResourceGroup)
     network = models.ForeignKey(Network)
     cidr = models.CharField(max_length=32)
 
 
-class NetworkInterface(BaseResource):
+class NetworkInterface(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
-    resource_group = models.ForeignKey(ResourceGroup)
     subnet = models.ForeignKey(SubNet)
     config_name = models.CharField(max_length=255)
     public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
 
 
-class PublicIP(BaseResource):
+class PublicIP(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
-    resource_group = models.ForeignKey(ResourceGroup)
     location = models.ForeignKey(Location)
 
     @classmethod
@@ -136,7 +134,7 @@ class VirtualMachine(structure_models.VirtualMachine):
     ssh_key = models.ForeignKey(core_models.SshPublicKey, null=True, blank=True)
     network_interface = models.ForeignKey(NetworkInterface)
     name = models.CharField(max_length=15, validators=[validators.VirtualMachineNameValidator])
-    username = models.CharField(max_length=32, validators=[validators.validate_username])
+    username = models.CharField(max_length=32, validators=[validators.VirtualMachineUsernameValidator])
     password = models.CharField(max_length=72, validators=validators.VirtualMachinePasswordValidators)
     user_data = models.TextField(
         blank=True,
@@ -159,17 +157,23 @@ class VirtualMachine(structure_models.VirtualMachine):
         return 'azure-virtualmachine-rdp'
 
 
-class SQLServer(BaseResource):
-    service_project_link = models.ForeignKey(AzureServiceProjectLink, on_delete=models.PROTECT)
-    resource_group = models.ForeignKey(ResourceGroup)
-    username = models.CharField(max_length=50)
-    password = models.CharField(max_length=50)
-    storage_mb = models.PositiveIntegerField(null=True)
+class SQLServer(BaseResourceGroupModel):
+    name = models.CharField(max_length=80, validators=[validators.SQLServerNameValidator])
+    username = models.CharField(max_length=50, validators=[validators.SQLServerUsernameValidator])
+    password = models.CharField(max_length=128, validators=validators.SQLServerPasswordValidators)
+    storage_mb = models.PositiveIntegerField(null=True, validators=validators.SQLServerStorageValidators)
+    fqdn = models.TextField(null=True, blank=True)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'azure-sql-server'
 
 
 class SQLDatabase(BaseResource):
-    service_project_link = models.ForeignKey(AzureServiceProjectLink, on_delete=models.PROTECT)
-    resource_group = models.ForeignKey(ResourceGroup)
     server = models.ForeignKey(SQLServer)
-    charset = models.CharField(max_length=255, blank=True)
-    collation = models.CharField(max_length=255, blank=True)
+    charset = models.CharField(max_length=255, blank=True, null=True, default='utf8')
+    collation = models.CharField(max_length=255, blank=True, null=True, default='utf8_general_ci')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'azure-sql-database'

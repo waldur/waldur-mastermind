@@ -293,15 +293,31 @@ class AzureBackend(ServiceBackend):
         poller.wait()
 
     def create_pgsql_server(self, server):
-        poller = self.client.create_sql_server(
+        backend_server = self.client.create_sql_server(
             location=server.resource_group.location.backend_id,
             resource_group_name=server.resource_group.name,
             server_name=server.name,
             username=server.username,
             password=server.password,
             storage_mb=server.storage_mb,
+            sku={
+                'name': 'B_Gen5_1',
+                'tier': 'Basic',
+                'family': 'Gen5',
+                'capacity': 1,
+            },
         )
-        poller.wait()
+        server.backend_id = backend_server.id
+        server.fqdn = backend_server.fully_qualified_domain_name
+        server.save()
+
+        self.client.create_sql_firewall_rule(
+            resource_group_name=server.resource_group.name,
+            server_name=server.name,
+            firewall_rule_name='firewall{}'.format(server.name),
+            start_ip_address='0.0.0.0',  # nosec
+            end_ip_address='255.255.255.255',  # nosec
+        )
 
     def delete_pgsql_server(self, server):
         poller = self.client.delete_sql_server(
@@ -312,16 +328,19 @@ class AzureBackend(ServiceBackend):
 
     def create_pgsql_database(self, database):
         poller = self.client.create_sql_database(
-            location=database.resource_group.location.backend_id,
-            resource_group_name=database.resource_group.name,
+            resource_group_name=database.server.resource_group.name,
             server_name=database.server.name,
             database_name=database.name,
+            charset=database.charset,
+            collation=database.collation,
         )
-        poller.wait()
+        backend_database = poller.result()
+        database.backend_id = backend_database.id
+        database.save()
 
     def delete_pgsql_database(self, database):
         poller = self.client.delete_sql_database(
-            resource_group_name=database.resource_group.name,
+            resource_group_name=database.server.resource_group.name,
             server_name=database.server.name,
             database_name=database.name,
         )

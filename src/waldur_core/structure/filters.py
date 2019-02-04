@@ -541,7 +541,8 @@ class ResourceFilterMetaclass(FilterSetMetaclass):
 
     def __new__(cls, name, bases, args):
         resource_filter = super(ResourceFilterMetaclass, cls).__new__(cls, name, bases, args)
-        SupportedServices.register_resource_filter(args['Meta'].model, resource_filter)
+        if 'Meta' in args:
+            SupportedServices.register_resource_filter(args['Meta'].model, resource_filter)
         return resource_filter
 
 

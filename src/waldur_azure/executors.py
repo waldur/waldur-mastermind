@@ -157,18 +157,33 @@ class PublicIPDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_instance, state_transition='begin_deleting')
 
 
-class PGSQLServerCreateExecutor(core_executors.CreateExecutor):
+class SQLServerCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_instance,
-            backend_method='create_pgsql_server',
-            state_transition='begin_creating',
+        serialized_resource_group = core_utils.serialize_instance(instance.resource_group)
+        return chain(
+            core_tasks.StateTransitionTask().si(
+                serialized_instance,
+                state_transition='begin_creating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_resource_group,
+                backend_method='create_resource_group',
+                state_transition='begin_creating',
+            ),
+            core_tasks.StateTransitionTask().si(
+                serialized_resource_group,
+                state_transition='set_ok',
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                backend_method='create_pgsql_server',
+            ),
         )
 
 
-class PGSQLServerDeleteExecutor(core_executors.DeleteExecutor):
+class SQLServerDeleteExecutor(core_executors.DeleteExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
@@ -183,7 +198,7 @@ class PGSQLServerDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_instance, state_transition='begin_deleting')
 
 
-class PGSQLDatabaseCreateExecutor(core_executors.CreateExecutor):
+class SQLDatabaseCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
@@ -194,7 +209,7 @@ class PGSQLDatabaseCreateExecutor(core_executors.CreateExecutor):
         )
 
 
-class PGSQLDatabaseDeleteExecutor(core_executors.DeleteExecutor):
+class SQLDatabaseDeleteExecutor(core_executors.DeleteExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
@@ -212,6 +227,6 @@ class PGSQLDatabaseDeleteExecutor(core_executors.DeleteExecutor):
 class AzureCleanupExecutor(structure_executors.BaseCleanupExecutor):
     executors = (
         (models.VirtualMachine, VirtualMachineDeleteExecutor),
-        (models.SQLDatabase, PGSQLDatabaseDeleteExecutor),
-        (models.SQLServer, PGSQLServerDeleteExecutor),
+        (models.SQLDatabase, SQLDatabaseDeleteExecutor),
+        (models.SQLServer, SQLServerDeleteExecutor),
     )

@@ -1263,7 +1263,8 @@ class ResourceSerializerMetaclass(serializers.SerializerMetaclass):
 
     def __new__(cls, name, bases, args):
         serializer = super(ResourceSerializerMetaclass, cls).__new__(cls, name, bases, args)
-        SupportedServices.register_resource_serializer(args['Meta'].model, serializer)
+        if 'Meta' in args:
+            SupportedServices.register_resource_serializer(args['Meta'].model, serializer)
         return serializer
 
 
