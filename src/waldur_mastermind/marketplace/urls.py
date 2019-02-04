@@ -30,6 +30,8 @@ def register_in(router):
                     base_name='marketplace-component-usage')
     router.register(r'marketplace-public-api', views.MarketplaceAPIViewSet,
                     base_name='marketplace-public-api'),
+    router.register(r'marketplace-offering-files', views.OfferingFileViewSet,
+                    base_name='marketplace-offering-file'),
 
 
 urlpatterns = [

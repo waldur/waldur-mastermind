@@ -417,6 +417,31 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
         return Response(status=status.HTTP_201_CREATED)
 
 
+class OfferingFileViewSet(core_views.ActionsViewSet):
+    queryset = models.OfferingFile.objects.all()
+    filter_class = filters.OfferingFileFilter
+    filter_backends = [DjangoFilterBackend]
+    serializer_class = serializers.OfferingFileSerializer
+    lookup_field = 'uuid'
+    disabled_actions = ['update', 'partial_update']
+
+    def check_create_permissions(request, view, obj=None):
+        serializer_class = view.get_serializer_class()
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        offering = serializer.validated_data['offering']
+
+        if user.is_staff or \
+                (offering.customer and offering.customer.has_user(user, structure_models.CustomerRole.OWNER)):
+            return
+
+        raise rf_exceptions.PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+    destroy_permissions = [structure_permissions.is_owner]
+
+
 def inject_project_resources_counter(project):
     return {
         'marketplace_category_{}'.format(counter.category.uuid): counter.count
