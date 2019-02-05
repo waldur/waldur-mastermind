@@ -8,6 +8,7 @@ from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
+from waldur_core.structure import models as structure_models
 
 from . import models
 
@@ -150,6 +151,24 @@ class PlanFilter(django_filters.FilterSet):
         fields = []
 
 
+class CategoryComponentUsageScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+
+    def get_related_models(self):
+        return [structure_models.Project, structure_models.Customer]
+
+    def get_field_name(self):
+        return 'scope'
+
+
+class CategoryComponentUsageFilter(django_filters.FilterSet):
+    class Meta(object):
+        model = models.CategoryComponentUsage
+        fields = []
+
+    date_before = django_filters.DateFilter(name='date', lookup_expr='lte')
+    date_after = django_filters.DateFilter(name='date', lookup_expr='gte')
+
+
 class ComponentUsageFilter(django_filters.FilterSet):
     resource = core_filters.URLFilter(view_name='marketplace-resource-detail', name='resource__uuid')
     resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
@@ -159,4 +178,15 @@ class ComponentUsageFilter(django_filters.FilterSet):
 
     class Meta(object):
         model = models.ComponentUsage
+        fields = []
+
+
+class OfferingFileFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+
+    o = django_filters.OrderingFilter(fields=('name', 'created'))
+
+    class Meta(object):
+        model = models.OfferingFile
         fields = []

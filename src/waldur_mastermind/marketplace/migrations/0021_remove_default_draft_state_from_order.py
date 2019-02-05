@@ -16,6 +16,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='order',
             name='state',
-            field=django_fsm.FSMIntegerField(choices=[(1, 'requested for approval'), (2, 'executing'), (3, 'done'), (4, 'terminated')], default=1),
+            field=django_fsm.FSMIntegerField(choices=[(1, 'requested for approval'), (2, 'executing'), (3, 'done'), (4, 'terminated'), (5, 'erred'), (6, 'rejected')], default=1),
         ),
     ]

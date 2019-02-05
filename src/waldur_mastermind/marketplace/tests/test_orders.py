@@ -292,6 +292,45 @@ class OrderApproveTest(test.APITransactionTestCase):
 
 
 @ddt
+class OrderRejectTest(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.manager = self.fixture.manager
+        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order_item_1 = factories.OrderItemFactory(order=self.order)
+        self.order_item_2 = factories.OrderItemFactory(order=self.order)
+        self.url = factories.OrderFactory.get_url(self.order, 'reject')
+
+    @data('staff', 'manager')
+    def test_staff_and_order_owner_can_reject_order(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+
+        for obj in [self.order, self.order_item_1, self.order_item_2]:
+            obj.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, models.Order.States.REJECTED)
+        self.assertEqual(self.order_item_1.state, models.OrderItem.States.TERMINATED)
+        self.assertEqual(self.order_item_2.state, models.OrderItem.States.TERMINATED)
+
+    @data('admin', 'owner')
+    def test_other_users_can_not_reject_order(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_can_not_reject_unrequested_order(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self.order.approve()
+        self.order.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
+@ddt
 class OrderDeleteTest(test.APITransactionTestCase):
 
     def setUp(self):

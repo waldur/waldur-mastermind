@@ -118,15 +118,17 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
                 return
 
             with transaction.atomic():
-                order_item.resource.set_state_terminated()
-                order_item.resource.save(update_fields=['state'])
-                request.delete()
+                if order_item.type == marketplace_models.OrderItem.Types.TERMINATE:
+                    callbacks.resource_deletion_succeeded(order_item.resource)
+                    request.delete()
+                elif order_item.type == marketplace_models.OrderItem.Types.UPDATE:
+                    callbacks.resource_update_succeeded(order_item.resource)
         else:
-            order_item.resource.set_state_erred()
-            order_item.resource.save(update_fields=['state'])
-
-            order_item.set_state_erred()
-            order_item.save(update_fields=['state'])
+            with transaction.atomic():
+                if order_item.type == marketplace_models.OrderItem.Types.TERMINATE:
+                    callbacks.resource_deletion_failed(order_item.resource)
+                elif order_item.type == marketplace_models.OrderItem.Types.UPDATE:
+                    callbacks.resource_update_failed(order_item.resource)
 
 
 def synchronize_terminated_status_for_resource_and_scope(sender, instance, created=False, **kwargs):
@@ -141,7 +143,7 @@ def synchronize_terminated_status_for_resource_and_scope(sender, instance, creat
     if resource.state != marketplace_models.Resource.States.TERMINATED:
         return
 
-    if resource.offering.type != 'Support.OfferingTemplate':
+    if resource.offering.type != PLUGIN_NAME:
         return
 
     resource.scope.state = support_models.Offering.States.TERMINATED

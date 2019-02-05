@@ -16,7 +16,7 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
-from model_utils.models import TimeStampedModel
+from model_utils.models import TimeStampedModel, TimeFramedModel
 from rest_framework import exceptions as rf_exceptions
 import six
 
@@ -171,6 +171,34 @@ class ScopeMixin(models.Model):
     scope = GenericForeignKey('content_type', 'object_id')
 
 
+class BaseComponent(core_models.DescribableMixin):
+    class Meta(object):
+        abstract = True
+
+    name = models.CharField(max_length=150,
+                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
+    type = models.CharField(max_length=50,
+                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
+    measured_unit = models.CharField(max_length=30,
+                                     help_text=_('Unit of measurement, for example, GB.'),
+                                     blank=True)
+
+
+class CategoryComponent(BaseComponent):
+    class Meta(object):
+        unique_together = ('type', 'category')
+
+    category = models.ForeignKey(Category, related_name='components')
+
+
+class CategoryComponentUsage(ScopeMixin):
+    component = models.ForeignKey(CategoryComponent)
+    date = models.DateField()
+    reported_usage = models.PositiveIntegerField(null=True)
+    fixed_usage = models.PositiveIntegerField(null=True)
+    objects = managers.MixinManager('scope')
+
+
 @python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
@@ -265,7 +293,7 @@ class Offering(core_models.UuidMixin,
         return {component.type: component for component in components}
 
 
-class OfferingComponent(core_models.DescribableMixin):
+class OfferingComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
 
@@ -290,6 +318,7 @@ class OfferingComponent(core_models.DescribableMixin):
         )
 
     offering = models.ForeignKey(Offering, related_name='components')
+    parent = models.ForeignKey(CategoryComponent, null=True, blank=True)
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)
@@ -441,12 +470,16 @@ class Order(core_models.UuidMixin, TimeStampedModel):
         EXECUTING = 2
         DONE = 3
         TERMINATED = 4
+        ERRED = 5
+        REJECTED = 6
 
         CHOICES = (
             (REQUESTED_FOR_APPROVAL, 'requested for approval'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (TERMINATED, 'terminated'),
+            (ERRED, 'erred'),
+            (REJECTED, 'rejected'),
         )
 
     created_by = models.ForeignKey(core_models.User, related_name='orders')
@@ -480,6 +513,14 @@ class Order(core_models.UuidMixin, TimeStampedModel):
 
     @transition(field=state, source='*', target=States.TERMINATED)
     def terminate(self):
+        pass
+
+    @transition(field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.REJECTED)
+    def reject(self):
+        pass
+
+    @transition(field=state, source='*', target=States.ERRED)
+    def fail(self):
         pass
 
     def get_approvers(self):
@@ -581,7 +622,7 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     def name(self):
         return self.attributes.get('name')
 
-    @transition(field=state, source=[States.CREATING, States.UPDATING], target=States.OK)
+    @transition(field=state, source=[States.ERRED, States.CREATING, States.UPDATING], target=States.OK)
     def set_state_ok(self):
         pass
 
@@ -624,6 +665,14 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
                     )
 
 
+class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
+    """
+    This model allows to track billing plan for timeframes during resource lifecycle.
+    """
+    resource = models.ForeignKey(Resource, related_name='+')
+    plan = models.ForeignKey(Plan)
+
+
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
@@ -633,12 +682,14 @@ class OrderItem(core_models.UuidMixin,
         EXECUTING = 2
         DONE = 3
         ERRED = 4
+        TERMINATED = 5
 
         CHOICES = (
             (PENDING, 'pending'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (ERRED, 'erred'),
+            (TERMINATED, 'terminated'),
         )
 
         TERMINAL_STATES = {DONE, ERRED}
@@ -675,6 +726,10 @@ class OrderItem(core_models.UuidMixin,
 
     @transition(field=state, source='*', target=States.ERRED)
     def set_state_erred(self):
+        pass
+
+    @transition(field=state, source='*', target=States.TERMINATED)
+    def set_state_terminated(self):
         pass
 
     def clean(self):
@@ -731,3 +786,18 @@ class ProjectResourceCount(models.Model):
 
     class Meta:
         unique_together = ('project', 'category')
+
+
+class OfferingFile(core_models.UuidMixin,
+                   core_models.NameMixin,
+                   structure_models.StructureModel,
+                   TimeStampedModel):
+    offering = models.ForeignKey(Offering, related_name='files')
+    file = models.FileField(upload_to='offering_files')
+
+    class Permissions(object):
+        customer_path = 'offering__customer'
+
+    @classmethod
+    def get_url_name(cls):
+        return 'marketplace-offering-file'

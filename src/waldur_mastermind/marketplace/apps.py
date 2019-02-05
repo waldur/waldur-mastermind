@@ -26,6 +26,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.reject_order,
+            sender=models.Order,
+            dispatch_uid='waldur_mastermind.marketplace.reject_order',
+        )
+
+        signals.post_save.connect(
             handlers.complete_order_when_all_items_are_done,
             sender=models.OrderItem,
             dispatch_uid='waldur_mastermind.marketplace.complete_order_when_all_items_are_done',
@@ -58,4 +64,11 @@ class MarketplaceConfig(AppConfig):
         quota_signals.recalculate_quotas.connect(
             handlers.update_project_resources_count,
             dispatch_uid='waldur_mastermind.marketplace.update_project_resources_count',
+        )
+
+        signals.post_save.connect(
+            handlers.close_resource_plan_period_when_resource_is_terminated,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'close_resource_plan_period_when_resource_is_terminated',
         )

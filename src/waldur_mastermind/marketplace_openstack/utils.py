@@ -235,7 +235,8 @@ def import_openstack_tenants(dry_run=False):
     for package in packages:
         tenant = package.tenant
         try:
-            plan = marketplace_models.Plan.objects.get(scope=package.template)
+            offering = marketplace_models.Offering.objects.get(scope=tenant.service_settings)
+            plan = marketplace_models.Plan.objects.get(scope=package.template, offering=offering)
         except marketplace_models.Plan.DoesNotExist:
             logger.warning('Plan for template is not imported yet. '
                            'Template ID: %s.', package.template_id)

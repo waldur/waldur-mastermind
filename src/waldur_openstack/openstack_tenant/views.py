@@ -1,9 +1,12 @@
 from django.db.models import Count
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, response, status, exceptions, serializers as rf_serializers
 
 from waldur_core.core import exceptions as core_exceptions, validators as core_validators
 from waldur_core.structure import views as structure_views, filters as structure_filters
+from waldur_core.structure import permissions as structure_permissions
+from waldur_openstack.openstack_base.backend import OpenStackBackendError
 
 from . import models, serializers, filters, executors
 
@@ -621,6 +624,51 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     importable_resources_serializer_class = serializers.InstanceImportableSerializer
     import_resource_serializer_class = serializers.InstanceImportSerializer
     import_resource_executor = executors.InstancePullExecutor
+
+    @decorators.detail_route(methods=['get'])
+    def console(self, request, uuid=None):
+        instance = self.get_object()
+        backend = instance.get_backend()
+        try:
+            url = backend.get_console_url(instance)
+        except OpenStackBackendError as e:
+            raise exceptions.ValidationError(e.message)
+
+        return response.Response({'url': url}, status=status.HTTP_200_OK)
+
+    console_validators = [core_validators.StateValidator(models.Instance.States.OK)]
+
+    def check_permissions_for_console(request, view, instance=None):
+        if not instance:
+            return
+
+        if request.user.is_staff:
+            return
+
+        if settings.WALDUR_OPENSTACK_TENANT['ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS']:
+            structure_permissions.is_administrator(request, view, instance)
+        else:
+            raise exceptions.PermissionDenied()
+
+    console_permissions = [check_permissions_for_console]
+
+    @decorators.detail_route(methods=['get'])
+    def console_log(self, request, uuid=None):
+        instance = self.get_object()
+        backend = instance.get_backend()
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        length = serializer.validated_data.get('length')
+
+        try:
+            log = backend.get_console_output(instance, length)
+        except OpenStackBackendError as e:
+            raise exceptions.ValidationError(e.message)
+
+        return response.Response(log, status=status.HTTP_200_OK)
+
+    console_log_serializer_class = serializers.ConsoleLogSerializer
+    console_log_permissions = [structure_permissions.is_administrator]
 
 
 class BackupViewSet(structure_views.BaseResourceViewSet):

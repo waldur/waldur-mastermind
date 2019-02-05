@@ -1,11 +1,17 @@
+from decimal import Decimal
+
+import datetime
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
+from freezegun import freeze_time
 from rest_framework import status
 
+from waldur_core.core.utils import month_end
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace.plugins import manager
@@ -91,10 +97,10 @@ class RequestCreateTest(BaseTest):
         self.assertTrue(order_item_url in offering.issue.description)
 
 
-@ddt
-class RequestDeleteTest(BaseTest):
+@freeze_time('2019-01-01')
+class RequestActionBaseTest(BaseTest):
     def setUp(self):
-        super(RequestDeleteTest, self).setUp()
+        super(RequestActionBaseTest, self).setUp()
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
 
@@ -103,22 +109,41 @@ class RequestDeleteTest(BaseTest):
             state=marketplace_models.Offering.States.ACTIVE,
             type=PLUGIN_NAME)
 
-        self.request = support_factories.OfferingFactory()
+        self.request = support_factories.OfferingFactory(template=self.offering.scope, project=self.project)
+        self.current_plan = marketplace_factories.PlanFactory(offering=self.offering)
+        self.offering_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED)
+
+        self.plan_component = marketplace_factories.PlanComponentFactory(
+            plan=self.current_plan,
+            component=self.offering_component
+        )
         self.resource = marketplace_factories.ResourceFactory(
             project=self.project,
             scope=self.request,
             offering=self.offering,
+            plan=self.current_plan,
         )
+        self.resource.scope.state = support_models.Offering.States.OK
+        self.resource.scope.save()
+
         self.success_issue_status = 'ok'
         support_factories.IssueStatusFactory(
             name=self.success_issue_status,
             type=support_models.IssueStatus.Types.RESOLVED)
+
         self.error_issue_status = 'error'
         support_factories.IssueStatusFactory(
             name=self.error_issue_status,
             type=support_models.IssueStatus.Types.CANCELED)
 
-    def test_success_terminate_order_item_if_issue_is_resolved(self):
+        self.start = datetime.datetime.now()
+
+
+@ddt
+class RequestDeleteTest(RequestActionBaseTest):
+    def test_success_terminate_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
         self.assertEqual(self.mock_get_active_backend.call_count, 1)
@@ -126,7 +151,7 @@ class RequestDeleteTest(BaseTest):
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
         self.assertRaises(ObjectDoesNotExist, self.request.refresh_from_db)
 
-    def test_fail_termination_of_order_item_if_issue_is_canceled(self):
+    def test_fail_termination_if_issue_is_canceled(self):
         order_item = self.get_order_item(self.error_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
 
@@ -144,7 +169,7 @@ class RequestDeleteTest(BaseTest):
 
     def request_resource_termination(self, user=None):
         user = user or self.user
-        url = marketplace_factories.ResourceFactory.get_url(resource=self.resource) + 'terminate/'
+        url = marketplace_factories.ResourceFactory.get_url(resource=self.resource, action='terminate')
         self.client.force_authenticate(user)
         return self.client.post(url)
 
@@ -160,3 +185,99 @@ class RequestDeleteTest(BaseTest):
         issue.status = issue_status
         issue.save()
         return marketplace_models.OrderItem.objects.first()
+
+
+@ddt
+class RequestSwitchPlanTest(RequestActionBaseTest):
+    def setUp(self):
+        super(RequestSwitchPlanTest, self).setUp()
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
+        marketplace_factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.offering_component,
+            price=Decimal(50)
+        )
+
+    def test_success_switch_plan_if_issue_is_resolved(self):
+        order_item = self.get_order_item(self.success_issue_status)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(self.mock_get_active_backend.call_count, 1)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.plan, self.plan)
+
+    def test_fail_switch_plan_if_issue_is_fail(self):
+        order_item = self.get_order_item(self.error_issue_status)
+        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.ERRED)
+        self.assertEqual(self.resource.plan, self.current_plan)
+
+    @freeze_time('2019-01-15')
+    def test_switch_invoice_item_if_plan_switched(self):
+        self.get_order_item(self.success_issue_status)
+        new_start = datetime.datetime.now()
+        end = month_end(new_start)
+        self.assertTrue(invoices_models.GenericInvoiceItem.objects.filter(
+            scope=self.request,
+            project=self.project,
+            unit_price=Decimal(10),
+            start=self.start,
+            end=new_start,
+        ).exists())
+        self.assertTrue(invoices_models.GenericInvoiceItem.objects.filter(
+            scope=self.request,
+            project=self.project,
+            unit_price=Decimal(50),
+            start=new_start,
+            end=end,
+        ).exists())
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_switch_plan_operation_is_available(self, user):
+        user = getattr(self.fixture, user)
+        response = self.request_switch_plan(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('user')
+    def test_resource_is_not_available(self, user):
+        user = getattr(self.fixture, user)
+        response = self.request_switch_plan(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_resource_state_validation(self):
+        self.resource.set_state_updating()
+        self.resource.save()
+        response = self.request_switch_plan()
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_plan_validation(self):
+        response = self.request_switch_plan(add_payload={'plan': marketplace_factories.PlanFactory.get_url()})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def request_switch_plan(self, user=None, add_payload=None):
+        user = user or self.user
+        url = marketplace_factories.ResourceFactory.get_url(resource=self.resource, action='switch_plan')
+        payload = {
+            'plan': marketplace_factories.PlanFactory.get_url(self.plan)
+        }
+
+        if add_payload:
+            payload.update(add_payload)
+
+        self.client.force_authenticate(user)
+        return self.client.post(url, payload)
+
+    def get_order_item(self, issue_status):
+        self.request_switch_plan()
+        order = marketplace_models.Order.objects.get(project=self.project)
+        order_item = order.items.first()
+        manager.process(order_item, self.user)
+
+        order_item_content_type = ContentType.objects.get_for_model(order_item)
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id,
+                                                 resource_content_type=order_item_content_type)
+        issue.status = issue_status
+        issue.save()
+        order_item.refresh_from_db()
+        return order_item

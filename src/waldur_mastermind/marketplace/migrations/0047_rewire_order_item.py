@@ -29,8 +29,8 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='orderitem',
             name='state',
-            field=django_fsm.FSMIntegerField(choices=[(1, 'pending'), (2, 'executing'), (3, 'done'), (4, 'erred')],
-                                             default=1),
+            field=django_fsm.FSMIntegerField(choices=[(1, 'pending'), (2, 'executing'), (3, 'done'), (4, 'erred'),
+                                                      (5, 'terminated')], default=1),
         ),
         migrations.AlterField(
             model_name='resource',

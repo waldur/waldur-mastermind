@@ -75,6 +75,15 @@ class CategoryFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
+class CategoryComponentFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CategoryComponent
+
+    category = factory.SubFactory(CategoryFactory)
+    name = factory.Sequence(lambda n: 'component-%s' % n)
+    type = factory.Sequence(lambda n: 'component-%s' % n)
+
+
 class OfferingFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Offering
@@ -247,12 +256,35 @@ class ResourceFactory(factory.DjangoModelFactory):
     project = factory.SubFactory(structure_factories.ProjectFactory)
 
     @classmethod
-    def get_url(cls, resource=None):
+    def get_url(cls, resource=None, action=None):
         if resource is None:
             resource = ResourceFactory()
-        return reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid})
+        url = reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid})
+        return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
         url = reverse('marketplace-resource-list')
+        return url if action is None else url + action + '/'
+
+
+class OfferingFileFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.OfferingFile
+
+    name = factory.Sequence(lambda n: 'offering-file-%s' % n)
+    file = factory.django.FileField()
+    offering = factory.SubFactory(OfferingFactory)
+
+    @classmethod
+    def get_url(cls, offering_file=None, action=None):
+        if offering_file is None:
+            offering_file = OfferingFileFactory()
+        url = 'http://testserver' + reverse('marketplace-offering-file-detail',
+                                            kwargs={'uuid': offering_file.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('marketplace-offering-file-list')
         return url if action is None else url + action + '/'

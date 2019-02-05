@@ -1,9 +1,11 @@
-import datetime
+from decimal import Decimal
 
+import datetime
 from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.utils import month_end
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
@@ -64,6 +66,31 @@ class InvoicesTest(BaseTest):
         offering.delete()
         invoice_item.refresh_from_db()
         self.assertEqual(invoice_item.end, timezone.now())
+
+    @freeze_time('2018-01-15 00:00:00')
+    def test_switch_plan_resource(self):
+        new_plan = marketplace_factories.PlanFactory(offering=self.offering)
+        marketplace_factories.PlanComponentFactory(
+            plan=new_plan,
+            component=self.offering_component,
+            price=Decimal(5)
+        )
+        resource = self.order_item.resource
+        resource.plan = new_plan
+        resource.save()
+        new_start = datetime.datetime.now()
+        end = month_end(new_start)
+        self.assertTrue(invoices_models.GenericInvoiceItem.objects.filter(
+            project=resource.project,
+            unit_price=Decimal(10),
+            end=new_start,
+        ).exists())
+        self.assertTrue(invoices_models.GenericInvoiceItem.objects.filter(
+            project=resource.project,
+            unit_price=Decimal(5),
+            start=new_start,
+            end=end,
+        ).exists())
 
     def order_item_process(self, order_item):
         serialized_order = core_utils.serialize_instance(order_item.order)

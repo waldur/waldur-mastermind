@@ -180,6 +180,30 @@ class OrderViewSet(BaseMarketplaceView):
     approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
     approve_permissions = [check_permissions_for_state_change]
 
+    @detail_route(methods=['post'])
+    def reject(self, request, uuid=None):
+        order = self.get_object()
+        order.reject()
+        order.save(update_fields=['state'])
+        return Response({'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK)
+
+    def check_permissions_for_reject(request, view, order=None):
+        if not order:
+            return
+
+        user = request.user
+
+        if user.is_staff:
+            return
+
+        if user == order.created_by:
+            return
+
+        raise rf_exceptions.PermissionDenied()
+
+    reject_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
+    reject_permissions = [check_permissions_for_reject]
+
     @detail_route()
     def pdf(self, request, uuid=None):
         order = self.get_object()
@@ -280,6 +304,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
+    switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
     @detail_route(methods=['post'])
     def terminate(self, request, uuid=None):
@@ -292,15 +317,47 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                                             offering=resource.offering,
                                             type=models.OrderItem.Types.TERMINATE)
 
-        return Response(status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
 
-    def check_permissions_for_terminate(request, view, resource=None):
+    @detail_route(methods=['post'])
+    def switch_plan(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plan = serializer.validated_data['plan']
+
+        if plan.offering != resource.offering:
+            raise rf_exceptions.ValidationError({
+                'plan': _('Plan is not available for this offering.')
+            })
+
+        with transaction.atomic():
+            order = models.Order.objects.create(project=resource.project, created_by=self.request.user)
+            models.OrderItem.objects.create(order=order,
+                                            resource=resource,
+                                            offering=resource.offering,
+                                            plan=plan,
+                                            type=models.OrderItem.Types.UPDATE)
+
+        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+
+    def check_permissions_for_resource_actions(request, view, resource=None):
         if not resource:
             return
 
         structure_permissions.is_administrator(request, view, resource)
 
-    terminate_permissions = [check_permissions_for_terminate]
+    terminate_permissions = \
+        switch_plan_permissions = [check_permissions_for_resource_actions]
+    switch_plan_validators = \
+        terminate_validators = [core_validators.StateValidator(models.Resource.States.OK)]
+
+
+class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.CategoryComponentUsage.objects.all().order_by('-date', 'component__type')
+    filter_backends = (DjangoFilterBackend, filters.CategoryComponentUsageScopeFilterBackend)
+    filter_class = filters.CategoryComponentUsageFilter
+    serializer_class = serializers.CategoryComponentUsageSerializer
 
 
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
@@ -358,6 +415,31 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
     def set_usage(self, request, *args, **kwargs):
         self.get_validated_data(request)
         return Response(status=status.HTTP_201_CREATED)
+
+
+class OfferingFileViewSet(core_views.ActionsViewSet):
+    queryset = models.OfferingFile.objects.all()
+    filter_class = filters.OfferingFileFilter
+    filter_backends = [DjangoFilterBackend]
+    serializer_class = serializers.OfferingFileSerializer
+    lookup_field = 'uuid'
+    disabled_actions = ['update', 'partial_update']
+
+    def check_create_permissions(request, view, obj=None):
+        serializer_class = view.get_serializer_class()
+        serializer = serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        offering = serializer.validated_data['offering']
+
+        if user.is_staff or \
+                (offering.customer and offering.customer.has_user(user, structure_models.CustomerRole.OWNER)):
+            return
+
+        raise rf_exceptions.PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+    destroy_permissions = [structure_permissions.is_owner]
 
 
 def inject_project_resources_counter(project):

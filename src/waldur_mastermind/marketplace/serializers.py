@@ -77,12 +77,19 @@ class NestedColumnSerializer(serializers.ModelSerializer):
         fields = ('index', 'title', 'attribute', 'widget')
 
 
+class CategoryComponentSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.CategoryComponent
+        fields = ('type', 'name', 'description', 'measured_unit')
+
+
 class CategorySerializer(core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     offering_count = serializers.ReadOnlyField()
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
+    components = CategoryComponentSerializer(many=True, read_only=True)
 
     @staticmethod
     def eager_load(queryset, request):
@@ -112,7 +119,8 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Category
-        fields = ('url', 'uuid', 'title', 'description', 'icon', 'offering_count', 'sections', 'columns')
+        fields = ('url', 'uuid', 'title', 'description', 'icon', 'offering_count',
+                  'sections', 'columns', 'components')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
@@ -177,6 +185,12 @@ class NestedScreenshotSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.Screenshot
         fields = ('name', 'description', 'image', 'thumbnail')
+
+
+class NestedOfferingFileSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.OfferingFile
+        fields = ('name', 'created', 'file',)
 
 
 class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
@@ -252,6 +266,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
+    files = NestedOfferingFileSerializer(many=True, required=False)
 
     class Meta(object):
         model = models.Offering
@@ -261,7 +276,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid')
+                  'scope', 'scope_uuid', 'files')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -693,14 +708,42 @@ class ResourceSerializer(BaseItemSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
 
 
-class ComponentUsageSerializer(serializers.ModelSerializer):
+class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
-        model = models.ComponentUsage
-        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
+        model = models.Resource
+        fields = ('plan',)
 
+    plan = serializers.HyperlinkedRelatedField(
+        view_name='marketplace-plan-detail',
+        lookup_field='uuid',
+        queryset=models.Plan.objects.all(),
+        required=True,
+    )
+
+
+class BaseComponentSerializer(serializers.Serializer):
     type = serializers.ReadOnlyField(source='component.type')
     name = serializers.ReadOnlyField(source='component.name')
     measured_unit = serializers.ReadOnlyField(source='component.measured_unit')
+
+
+class CategoryComponentUsageSerializer(core_serializers.RestrictedSerializerMixin,
+                                       BaseComponentSerializer,
+                                       serializers.ModelSerializer):
+    category_title = serializers.ReadOnlyField(source='component.category.title')
+    category_uuid = serializers.ReadOnlyField(source='component.category.uuid')
+    scope = GenericRelatedField(related_models=(structure_models.Project, structure_models.Customer))
+
+    class Meta(object):
+        model = models.CategoryComponentUsage
+        fields = ('name', 'type', 'measured_unit', 'category_title', 'category_uuid',
+                  'date', 'reported_usage', 'fixed_usage', 'scope')
+
+
+class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
+    class Meta(object):
+        model = models.ComponentUsage
+        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
@@ -739,6 +782,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         date = attrs['date']
         plan = resource.plan
 
+        if resource.state == models.Resource.States.TERMINATED:
+            raise rf_exceptions.ValidationError({
+                'resource': _('Resource is terminated.')
+            })
+
         if not plan:
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource does not have billing plan.')
@@ -766,8 +814,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 attrs['date'] = core_utils.month_start(date)
             else:
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
-
-        resource = attrs['resource']
 
         for usage in attrs['usages']:
             component_type = usage['type']
@@ -799,6 +845,17 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 date=date,
                 defaults={'usage': amount},
             )
+
+
+class OfferingFileSerializer(core_serializers.AugmentedSerializerMixin,
+                             serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.OfferingFile
+        fields = ('url', 'uuid', 'name', 'offering', 'created', 'file',)
+        extra_kwargs = dict(
+            url={'lookup_field': 'uuid'},
+            offering={'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
+        )
 
 
 def get_is_service_provider(serializer, scope):

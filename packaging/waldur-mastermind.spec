@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 3.2.5
+Version: 3.2.6
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -37,7 +37,7 @@ Source0: %{name}-%{version}.tar.gz
 # python-cryptography is needed for Azure plugin
 # python-django-cors-headers is packaging-specific dependency; it is not required in upstream code
 # python-jira is needed for JIRA plugin
-# python-libcloud is needed for AWS and Azure plugin
+# python-libcloud is needed for AWS plugin
 # python-lxml is needed for Valimo auth to work
 # xmlsec1-openssl package is needed for SAML2 features to work
 
@@ -45,6 +45,7 @@ Requires: ansible-waldur-module >= 0.8.2
 Requires: logrotate
 Requires: mailcap
 Requires: openssl
+Requires: python-azure-sdk >= 4.0.0
 Requires: python-ceilometerclient >= 2.9.0
 Requires: python-celery >= 4.1.0
 Requires: python-cinderclient >= 3.1.0
@@ -52,7 +53,7 @@ Requires: python-country >= 1.20, python-country < 2.0
 Requires: python-croniter >= 0.3.4, python-croniter < 0.3.6
 Requires: python2-cryptography >= 1.7.2
 Requires: python-digitalocean >= 1.5
-Requires: python-django >= 1.11, python-django < 2.0
+Requires: python2-django = 1.11.18
 Requires: python-django-admin-tools = 0.8.0
 Requires: python-django-auth-ldap >= 1.3.0
 Requires: python-django-cors-headers = 2.1.0
@@ -76,6 +77,7 @@ Requires: python-hiredis >= 0.2.0
 Requires: python-influxdb >= 4.1.0
 Requires: python-iptools >= 0.6.1
 Requires: python-jira >= 1.0.15-2
+Requires: python-jwt >= 1.5.3
 Requires: python-keystoneclient >= 1:3.13.0
 Requires: python-libcloud >= 1.1.0, python-libcloud < 2.2.0
 Requires: python-lxml >= 3.2.0
@@ -87,7 +89,7 @@ Requires: python-pillow >= 2.0.0
 Requires: python-prettytable >= 0.7.1, python-prettytable < 0.8
 Requires: python-psycopg2 >= 2.5.4
 Requires: python-redis = 2.10.6
-Requires: python-requests >= 2.6.0
+Requires: python-requests >= 2.14.2
 Requires: python-sqlparse >= 0.1.11
 Requires: python-tlslite = 0.4.8
 Requires: python-urllib3 >= 1.10.1
@@ -98,25 +100,6 @@ Requires: python2-pdfkit >= 0.6.1
 Requires: PyYAML
 Requires: uwsgi-plugin-python2
 Requires: xmlsec1-openssl
-Requires: python-jwt >= 1.5.3
-
-Obsoletes: waldur-ansible
-Obsoletes: waldur-auth-openid
-Obsoletes: waldur-auth-saml2
-Obsoletes: waldur-auth-social
-Obsoletes: waldur-auth-valimo
-Obsoletes: waldur-aws
-Obsoletes: waldur-azure
-Obsoletes: waldur-core
-Obsoletes: waldur-cost-planning
-Obsoletes: waldur-digitalocean
-Obsoletes: waldur-freeipa
-Obsoletes: waldur-jira
-Obsoletes: waldur-openstack
-Obsoletes: waldur-paypal
-Obsoletes: waldur-rijkscloud
-Obsoletes: waldur-slurm
-Obsoletes: waldur-zabbix
 
 BuildArch: noarch
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
@@ -126,7 +109,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 # python-setuptools package is needed to run 'python setup.py <cmd>'
 # systemd package provides _unitdir RPM macro
 BuildRequires: gettext
-BuildRequires: python-django >= 1.11, python-django < 2.0
+BuildRequires: python2-django = 1.11.18
 BuildRequires: python-django-filter = 1.0.2
 BuildRequires: python-django-fluent-dashboard
 BuildRequires: python-django-jsoneditor >= 0.0.7
@@ -319,6 +302,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Tue Feb 5 2019 Jenkins <jenkins@opennodecloud.com> - 3.2.6-1.el7
+- New upstream release
+
 * Sun Jan 20 2019 Jenkins <jenkins@opennodecloud.com> - 3.2.5-1.el7
 - New upstream release
 

@@ -4,8 +4,12 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Sum
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices import utils as invoice_utils
 
 from . import utils, models, plugins
 
@@ -52,3 +56,80 @@ def create_order_pdf(order_id):
 def create_pdf_for_all():
     for order in models.Order.objects.all():
         utils.create_order_pdf(order)
+
+
+def filter_aggregate_by_scope(queryset, scope):
+    scope_path = None
+
+    if isinstance(scope, structure_models.Project):
+        scope_path = 'resource__project'
+
+    if isinstance(scope, structure_models.Customer):
+        scope_path = 'resource__project__customer'
+
+    if scope_path:
+        queryset = queryset.filter(**{scope_path: scope})
+
+    return queryset
+
+
+def aggregate_reported_usage(start, end, scope):
+    queryset = models.ComponentUsage.objects \
+        .filter(date__gte=start, date__lte=end) \
+        .exclude(component__parent=None)
+
+    queryset = filter_aggregate_by_scope(queryset, scope)
+
+    queryset = queryset.values('component__parent_id').annotate(total=Sum('usage'))
+
+    return {
+        row['component__parent_id']: row['total']
+        for row in queryset
+    }
+
+
+def aggregate_fixed_usage(start, end, scope):
+    queryset = models.ResourcePlanPeriod.objects.filter(start__gte=start, end__lte=end)
+    queryset = filter_aggregate_by_scope(queryset, scope)
+
+    queryset = queryset.values('plan__components__component__parent_id') \
+        .annotate(total=Sum('plan__components__amount'))
+
+    return {
+        row['plan__components__component__parent_id']: row['total']
+        for row in queryset
+    }
+
+
+def calculate_usage_for_scope(start, end, scope):
+    reported_usage = aggregate_reported_usage(start, end, scope)
+    fixed_usage = aggregate_fixed_usage(start, end, scope)
+    components = set(reported_usage.keys()) | set(fixed_usage.keys())
+    content_type = ContentType.objects.get_for_model(scope)
+
+    for component_id in components:
+        models.CategoryComponentUsage.objects.update_or_create(
+            content_type=content_type,
+            object_id=scope.id,
+            component_id=component_id,
+            date=start,
+            defaults={
+                'reported_usage': reported_usage.get(component_id),
+                'fixed_usage': fixed_usage.get(component_id),
+            }
+        )
+
+
+@shared_task(name='waldur_mastermind.marketplace.calculate_usage_for_current_month')
+def calculate_usage_for_current_month():
+    start = invoice_utils.get_current_month_start()
+    end = invoice_utils.get_current_month_end()
+    scopes = []
+
+    for customer in structure_models.Customer.objects.all():
+        scopes.append(customer)
+        for project in customer.projects.all():
+            scopes.append(project)
+
+    for scope in scopes:
+        calculate_usage_for_scope(start, end, scope)

@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+from datetime import timedelta
+
 from waldur_core.core import WaldurExtension
 
 
@@ -48,4 +50,10 @@ class MarketplaceExtension(WaldurExtension):
 
     @staticmethod
     def celery_tasks():
-        return {}
+        return {
+            'waldur-marketplace-calculate-usage': {
+                'task': 'waldur_mastermind.marketplace.calculate_usage_for_current_month',
+                'schedule': timedelta(hours=1),
+                'args': (),
+            }
+        }

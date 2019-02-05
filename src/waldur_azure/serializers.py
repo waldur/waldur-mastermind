@@ -1,72 +1,46 @@
-import re
+import hashlib
+import string
 
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from django.db import transaction
-from django.utils import six, timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.crypto import get_random_string
 from rest_framework import serializers
-from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core import utils as core_utils
+from waldur_core.core.models import SshPublicKey
 from waldur_core.structure import serializers as structure_serializers
 
 from . import models
-from .backend import AzureBackendError, SizeQueryset
+
+
+def hash_string(value, length=16):
+    return hashlib.sha256(value).hexdigest()[:length]
+
+
+def generate_username():
+    return 'user{}'.format(core_utils.pwgen(4))
+
+
+def generate_password():
+    lowercase = get_random_string(5, string.ascii_lowercase)
+    uppercase = get_random_string(5, string.ascii_uppercase)
+    digits = get_random_string(5, string.digits)
+    return lowercase + uppercase + digits
 
 
 class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
                         structure_serializers.BaseServiceSerializer):
 
-    SERVICE_ACCOUNT_FIELDS = {
-        'username': _('In the format of GUID'),
-        'certificate': _('X509 certificate in .PEM format'),
-    }
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'location': '',
-        'cloud_service_name': '',
-        'images_regex': ''
+        'tenant_id': 'Azure Active Directory tenant id or domain',
+        'client_id': 'Azure Active Directory Application Client ID',
+        'client_secret': 'Azure Active Directory Application Secret',
+        'subscription_id': 'Azure Subscription Id',
     }
-
-    location = serializers.ChoiceField(
-        choices=models.AzureService.Locations,
-        write_only=True,
-        required=False,
-        allow_blank=True)
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.AzureService
         view_name = 'azure-detail'
-        extra_field_options = {
-            'username': {
-                'label': 'Subscription ID',
-                'required': True
-            },
-            'certificate': {
-                'label': 'Private certificate file',
-                'required': True,
-                'write_only': True
-            },
-            'location': {
-                'help_text': _('Azure region where to provision resources (default: "Central US")')
-            },
-            'cloud_service_name': {
-                'help_text': _('Cloud service group to assign all connected SPLs to'),
-                'required': True,
-            },
-            'images_regex': {
-                'help_text': _('Regular expression to limit images list')
-            }
-        }
-
-    def validate_certificate(self, value):
-        if value:
-            try:
-                x509.load_pem_x509_certificate(value.read(), default_backend())
-            except ValueError:
-                raise serializers.ValidationError(_('Valid X509 certificate in .PEM format is expected'))
-
-        return value
 
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
@@ -74,27 +48,33 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta(object):
         model = models.Image
         view_name = 'azure-image-detail'
-        fields = ('url', 'uuid', 'name')
+        fields = ('url', 'uuid', 'publisher', 'name', 'sku', 'version')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
 
 
-class SizeSerializer(six.with_metaclass(structure_serializers.PropertySerializerMetaclass,
-                                        serializers.Serializer)):
-
-    uuid = serializers.ReadOnlyField()
-    url = serializers.SerializerMethodField()
-    name = serializers.ReadOnlyField()
-    cores = serializers.ReadOnlyField()
-    ram = serializers.ReadOnlyField()
-    disk = serializers.ReadOnlyField()
+class SizeSerializer(structure_serializers.BasePropertySerializer):
 
     class Meta(object):
         model = models.Size
+        view_name = 'azure-size-detail'
+        fields = ('url', 'uuid', 'name', 'max_data_disk_count',
+                  'memory_in_mb', 'number_of_cores', 'os_disk_size_in_mb', 'resource_disk_size_in_mb')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
 
-    def get_url(self, size):
-        return reverse('azure-size-detail', kwargs={'uuid': size.uuid}, request=self.context.get('request'))
+
+class LocationSerializer(structure_serializers.BasePropertySerializer):
+
+    class Meta(object):
+        model = models.Location
+        view_name = 'azure-location-detail'
+        fields = ('url', 'uuid', 'name', 'latitude', 'longitude')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -107,25 +87,13 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
-class InstanceEndpointsSerializer(serializers.ModelSerializer):
-    local_port = serializers.ReadOnlyField()
-    public_port = serializers.ReadOnlyField()
-    protocol = serializers.ReadOnlyField()
-    name = serializers.ReadOnlyField()
-
-    class Meta(object):
-        model = models.InstanceEndpoint
-        fields = ('local_port', 'public_port', 'protocol', 'name')
-
-
-class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
-    endpoints = InstanceEndpointsSerializer(many=True, read_only=True)
-
+class BaseResourceSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
         view_name='azure-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='azure-spl-detail',
@@ -134,105 +102,210 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
     )
 
+
+class ResourceGroupSerializer(BaseResourceSerializer):
+    location = serializers.HyperlinkedRelatedField(
+        view_name='azure-location-detail',
+        lookup_field='uuid',
+        queryset=models.Location.objects.all(),
+    )
+
+    class Meta(object):
+        model = models.ResourceGroup
+        view_name = 'azure-resource-group-detail'
+        fields = ('url', 'uuid', 'name', 'location')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
+class BaseResourceGroupSerializer(BaseResourceSerializer):
+    resource_group = serializers.HyperlinkedRelatedField(
+        view_name='azure-resource-group-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    location = serializers.HyperlinkedRelatedField(
+        view_name='azure-location-detail',
+        lookup_field='uuid',
+        queryset=models.Location.objects.all(),
+        write_only=True,
+    )
+
+
+class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
+                               BaseResourceGroupSerializer):
+
     image = serializers.HyperlinkedRelatedField(
         view_name='azure-image-detail',
         lookup_field='uuid',
         queryset=models.Image.objects.all(),
-        write_only=True)
+    )
 
     size = serializers.HyperlinkedRelatedField(
         view_name='azure-size-detail',
         lookup_field='uuid',
-        queryset=SizeQueryset(),
-        write_only=True)
-
-    external_ips = serializers.ListField(
-        child=serializers.IPAddressField(),
-        read_only=True,
+        queryset=models.Size.objects.all(),
     )
 
-    user_username = serializers.CharField(required=True)
-    user_password = serializers.CharField(required=True, style={'input_type': 'password'})
+    ssh_public_key = serializers.HyperlinkedRelatedField(
+        view_name='sshpublickey-detail',
+        lookup_field='uuid',
+        queryset=SshPublicKey.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+        source='ssh_key'
+    )
 
-    rdp = serializers.HyperlinkedIdentityField(view_name='azure-virtualmachine-rdp', lookup_field='uuid')
+    public_ip = serializers.HyperlinkedRelatedField(
+        view_name='azure-public-ip-detail',
+        lookup_field='uuid',
+        queryset=models.PublicIP.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
 
-    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+    class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.VirtualMachine
         view_name = 'azure-virtualmachine-detail'
-        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'image', 'size', 'user_username', 'user_password', 'user_data', 'rdp', 'external_ips', 'internal_ips',
-            'runtime_state', 'start_time', 'cores', 'ram', 'disk', 'image_name', 'endpoints',
+        fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
+            'image', 'size', 'user_data', 'runtime_state', 'start_time',
+            'cores', 'ram', 'disk', 'image_name', 'location',
+            'resource_group', 'public_ip', 'username', 'password',
         )
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'image', 'size', 'user_username', 'user_password', 'user_data'
+        protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
+            'image', 'size', 'user_data',
         )
-        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'external_ips', 'internal_ips', 'runtime_state', 'start_time', 'cores', 'ram', 'disk',
-            'image_name'
+        read_only_fields = structure_serializers.VirtualMachineSerializer.Meta.read_only_fields + (
+            'runtime_state', 'start_time', 'cores', 'ram', 'disk', 'image_name',
+            'username', 'password'
         )
-
-    def validate(self, attrs):
-        attrs = super(VirtualMachineSerializer, self).validate(attrs)
-
-        if not re.match(r'[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$', attrs['name']):
-            raise serializers.ValidationError(
-                {'name': _("The name can contain only letters, numbers, and hyphens. "
-                           "The name must be shorter than 15 characters and start with "
-                           "a letter and must end with a letter or a number.")})
-
-        # passwords must contain characters from at least three of the following four categories:
-        groups = (r'[a-z]', r'[A-Z]', r'[0-9]', r'[^a-zA-Z\d\s:]')
-        password = attrs['user_password']
-        if not 6 <= len(password) <= 72 or sum(bool(re.search(g, password)) for g in groups) < 3:
-            raise serializers.ValidationError({
-                'user_password': _("The supplied password must be 6-72 characters long "
-                                   "and contain 3 of the following: a lowercase character, "
-                                   "an uppercase character, a number, a special character.")})
-
-        if re.match(r'Administrator|Admin', attrs['user_username'], re.I):
-            raise serializers.ValidationError({'user_username': _('Invalid administrator username.')})
-
-        return attrs
 
     @transaction.atomic
     def create(self, validated_data):
-        image = validated_data['image']
-        validated_data['image_name'] = image.name
-        size = validated_data['size']
-        validated_data['cores'] = size.cores
-        validated_data['ram'] = size.ram
-        validated_data['disk'] = size.disk
+        vm_name = validated_data['name']
+        spl = validated_data['service_project_link']
+        location = validated_data.pop('location')
+        public_ip = validated_data.pop('public_ip', None)
+
+        resource_group_name = 'group{}'.format(vm_name)
+        storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
+        network_name = 'net{}'.format(vm_name)
+        subnet_name = 'subnet{}'.format(vm_name)
+        nic_name = 'nic{}'.format(vm_name)
+        config_name = 'ipconf{}'.format(vm_name)
+
+        resource_group = models.ResourceGroup.objects.create(
+            service_project_link=spl,
+            name=resource_group_name,
+            location=location,
+        )
+
+        models.StorageAccount.objects.create(
+            service_project_link=spl,
+            name=storage_account_name,
+            resource_group=resource_group,
+        )
+
+        network = models.Network.objects.create(
+            service_project_link=spl,
+            resource_group=resource_group,
+            name=network_name,
+            cidr='10.0.0.0/16',
+        )
+
+        subnet = models.SubNet.objects.create(
+            service_project_link=spl,
+            resource_group=resource_group,
+            name=subnet_name,
+            cidr='10.0.0.0/24',
+            network=network,
+        )
+
+        nic = models.NetworkInterface.objects.create(
+            service_project_link=spl,
+            resource_group=resource_group,
+            name=nic_name,
+            subnet=subnet,
+            config_name=config_name,
+            public_ip=public_ip,
+        )
+
+        validated_data['network_interface'] = nic
+        validated_data['resource_group'] = resource_group
+        validated_data['username'] = generate_username()
+        validated_data['password'] = generate_password()
+
         return super(VirtualMachineSerializer, self).create(validated_data)
 
 
-class VirtualMachineImportSerializer(structure_serializers.BaseResourceImportSerializer):
+class PublicIPSerializer(BaseResourceSerializer):
 
-    class Meta(structure_serializers.BaseResourceImportSerializer.Meta):
-        model = models.VirtualMachine
-        view_name = 'azure-virtualmachine-detail'
-        fields = structure_serializers.BaseResourceImportSerializer.Meta.fields + (
-            'cores', 'ram', 'disk',
-            'external_ips', 'internal_ips',
+    location = serializers.HyperlinkedRelatedField(
+        view_name='azure-location-detail',
+        lookup_field='uuid',
+        queryset=models.Location.objects.all(),
+    )
+
+    resource_group = serializers.HyperlinkedRelatedField(
+        view_name='azure-resource-group-detail',
+        lookup_field='uuid',
+        queryset=models.ResourceGroup.objects.all(),
+    )
+
+    class Meta(BaseResourceSerializer.Meta):
+        model = models.PublicIP
+        view_name = 'azure-public-ip-detail'
+        fields = BaseResourceSerializer.Meta.fields + (
+            'location', 'resource_group',
         )
 
+
+class SQLServerSerializer(BaseResourceGroupSerializer):
+    class Meta(BaseResourceGroupSerializer.Meta):
+        model = models.SQLServer
+        view_name = 'azure-sql-server-detail'
+        fields = BaseResourceGroupSerializer.Meta.fields + (
+            'resource_group', 'location', 'username', 'password', 'storage_mb',
+            'username', 'password', 'fqdn'
+        )
+        read_only_fields = BaseResourceGroupSerializer.Meta.read_only_fields + (
+            'username', 'password', 'fqdn'
+        )
+
+    @transaction.atomic
     def create(self, validated_data):
+        server_name = validated_data['name']
         spl = validated_data['service_project_link']
-        backend = spl.get_backend()
+        location = validated_data.pop('location')
 
-        try:
-            vm = backend.get_vm(validated_data['backend_id'])
-        except AzureBackendError:
-            raise serializers.ValidationError(
-                {'backend_id': _("Can't find Virtual Machine with ID %s") % validated_data['backend_id']})
+        resource_group_name = 'group{}'.format(server_name)
 
-        validated_data['name'] = vm.name
-        validated_data['created'] = timezone.now()
-        validated_data['ram'] = vm.size.ram
-        validated_data['disk'] = vm.size.disk
-        validated_data['cores'] = 'Shared' and 1 or vm.size.extra['cores']
-        validated_data['external_ips'] = vm.public_ips[0]
-        validated_data['internal_ips'] = vm.private_ips[0]
-        validated_data['state'] = models.VirtualMachine.States.ONLINE \
-            if vm.state == backend.State.RUNNING else models.VirtualMachine.States.OFFLINE
+        resource_group = models.ResourceGroup.objects.create(
+            service_project_link=spl,
+            name=resource_group_name,
+            location=location,
+        )
+        validated_data['resource_group'] = resource_group
+        validated_data['username'] = generate_username()
+        validated_data['password'] = generate_password()
 
-        return super(VirtualMachineImportSerializer, self).create(validated_data)
+        return super(SQLServerSerializer, self).create(validated_data)
+
+
+class SQLDatabaseSerializer(BaseResourceSerializer):
+    server = serializers.HyperlinkedRelatedField(
+        view_name='azure-sql-server-detail',
+        lookup_field='uuid',
+        queryset=models.SQLServer.objects.all(),
+    )
+
+    class Meta(BaseResourceSerializer.Meta):
+        model = models.SQLDatabase
+        view_name = 'azure-sql-database-detail'
+        fields = BaseResourceSerializer.Meta.fields + (
+            'server', 'charset', 'collation'
+        )

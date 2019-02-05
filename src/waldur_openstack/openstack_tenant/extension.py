@@ -11,7 +11,14 @@ class OpenStackTenantExtension(WaldurExtension):
                 'OpenStackTenant.Volume': 4,
                 'OpenStackTenant.Snapshot': 4,
             },
+            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': False,
         }
+
+    @staticmethod
+    def get_public_settings():
+        return [
+            'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS',
+        ]
 
     @staticmethod
     def django_app():

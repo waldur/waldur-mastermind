@@ -285,10 +285,11 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     report = serializers.JSONField(required=False)
     template_uuid = serializers.ReadOnlyField(source='template.uuid')
+    resource_type = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'template_uuid', 'plan',
+        fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'template_uuid', 'resource_type', 'plan',
                   'state', 'type_label', 'unit_price',
                   'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
                   'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
@@ -308,7 +309,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     def validate_report(self, report):
         if not isinstance(report, list):
-            raise serializers.ValidationError('Report should be an object.')
+            raise serializers.ValidationError('Report should be a list.')
 
         if len(report) == 0:
             raise serializers.ValidationError('Report object should contain at least one section.')
@@ -327,6 +328,9 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     def get_filtered_field_names(self):
         return ('project',)
+
+    def get_resource_type(self, obj):
+        return obj.get_scope_type()
 
 
 class ConfigurableFormDescriptionMixin(object):

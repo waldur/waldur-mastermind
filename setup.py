@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
 
-# apache-libcloud is required by AWS and Azure plugin
-# cryptography is required by Azure plugin
+# apache-libcloud is required by AWS plugin
 # defusedxml is required by djangosaml2
 # jira is required by JIRA plugin
 # lxml is required by waldur-auth-valimo
@@ -13,11 +12,15 @@ from setuptools import setup, find_packages
 install_requires = [
     'ansible-waldur-module>=0.8.2',
     'apache-libcloud>=1.1.0,<2.2.0',
+    'azure-mgmt-compute==4.0.1',
+    'azure-mgmt-network==2.0.0',
+    'azure-mgmt-rdbms==1.2.0',
+    'azure-mgmt-resource==2.0.0',
+    'azure-mgmt-storage==2.0.0',
     'Babel!=2.4.0,>=2.3.4',
     'Celery>=4.1.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4,<0.3.6',
-    'cryptography>=1.7.2',
     'defusedxml>=0.4.1',
     'django-admin-tools==0.8.0',
     'django-auth-ldap>=1.3.0',
@@ -32,7 +35,7 @@ install_requires = [
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
     'django-taggit>=0.20.2',
-    'Django>=1.11,<2.0',
+    'Django>=1.11.18,<2.0',
     'djangorestframework>=3.6.3,<3.7.0',
     'djangosaml2==0.17.1',
     'elasticsearch==5.4.0',
@@ -61,7 +64,7 @@ install_requires = [
     'PyYAML>=3.10',
     'pyzabbix>=0.7.2',
     'redis==2.10.6',
-    'requests>=2.6.0,!=2.12.2,!=2.13.0',
+    'requests>=2.14.2',
     'sqlparse>=0.1.11',
     'pyjwt>=1.5.3',
 ]
@@ -79,7 +82,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.2.5',
+    version='3.2.6',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

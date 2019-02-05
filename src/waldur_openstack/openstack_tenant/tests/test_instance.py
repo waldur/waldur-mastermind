@@ -12,7 +12,7 @@ from six.moves import urllib
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories, fixtures
+from . import factories, fixtures, helpers
 from .. import models, views
 
 
@@ -305,8 +305,6 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         nova.servers.delete.assert_called_once_with(self.instance.backend_id)
         nova.servers.get.assert_called_once_with(self.instance.backend_id)
 
-        self.assertFalse(nova.volumes.delete_server_volume.called)
-
     def test_database_models_deleted(self):
         self.mock_volumes(True)
         self.delete_instance()
@@ -387,24 +385,36 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
 
     def test_neutron_methods_are_called_if_instance_is_deleted_with_floating_ips(self):
+        self.mock_volumes(False)
         fixture = fixtures.OpenStackTenantFixture()
         internal_ip = factories.InternalIPFactory.create(instance=self.instance, subnet=fixture.subnet)
         settings = self.instance.service_project_link.service.settings
         floating_ip = factories.FloatingIPFactory.create(internal_ip=internal_ip, settings=settings)
-        self.delete_instance({'release_floating_ips': True})
+        self.delete_instance({
+            'release_floating_ips': True,
+            'delete_volumes': False,
+        })
         self.mocked_neutron().delete_floatingip.assert_called_once_with(floating_ip.backend_id)
 
     def test_neutron_methods_are_not_called_if_instance_does_not_have_any_floating_ips_yet(self):
-        self.delete_instance({'release_floating_ips': True})
+        self.mock_volumes(False)
+        self.delete_instance({
+            'release_floating_ips': True,
+            'delete_volumes': False,
+        })
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
 
     def test_neutron_methods_are_not_called_if_user_did_not_ask_for_floating_ip_removal_explicitly(self):
+        self.mock_volumes(False)
         self.mocked_neutron().show_floatingip.return_value = {'floatingip': {'status': 'DOWN'}}
         fixture = fixtures.OpenStackTenantFixture()
         internal_ip = factories.InternalIPFactory.create(instance=self.instance, subnet=fixture.subnet)
         settings = self.instance.service_project_link.service.settings
         factories.FloatingIPFactory.create(internal_ip=internal_ip, settings=settings)
-        self.delete_instance({'release_floating_ips': False})
+        self.delete_instance({
+            'release_floating_ips': False,
+            'delete_volumes': False
+        })
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
 
 
@@ -778,3 +788,78 @@ class InstanceImportTest(BaseInstanceImportTest):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+
+
+@ddt
+class InstanceActionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.fixture.openstack_tenant_service_settings.options = {
+            'external_network_id': uuid.uuid4().hex,
+            'tenant_id': self.fixture.tenant.id}
+        self.fixture.openstack_tenant_service_settings.save()
+        self.instance = self.fixture.instance
+
+        self.url = factories.InstanceFactory.get_url(self.instance, action=self.action)
+        self.mock_path = \
+            mock.patch('waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.%s' % self.backend_method)
+        self.mock_console = self.mock_path.start()
+        self.mock_console.return_value = self.backend_return_value
+
+    def tearDown(self):
+        super(InstanceActionsTest, self).tearDown()
+        mock.patch.stopall()
+
+
+@ddt
+class InstanceConsoleTest(InstanceActionsTest):
+    action = 'console'
+    backend_method = 'get_console_url'
+    backend_return_value = 'url'
+
+    @data('staff')
+    def test_action_available_to_staff(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_console.assert_called_once_with(self.instance)
+
+    @data('admin', 'manager', 'owner')
+    def test_action_not_available_for_users(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data('staff', 'admin', 'manager', 'owner')
+    @helpers.override_openstack_tenant_settings(ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=True)
+    def test_action_available_for_users_if_this_allowed_in_settings(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data('user')
+    @helpers.override_openstack_tenant_settings(ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS=True)
+    def test_action_not_available_for_other_users(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
+class InstanceConsoleLogTest(InstanceActionsTest):
+    action = 'console_log'
+    backend_method = 'get_console_output'
+    backend_return_value = 'openstack-vm login: '
+
+    @data('staff', 'admin', 'manager', 'owner')
+    def test_action_available_for_staff_and_users_associated_with_project(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_console.assert_called_once_with(self.instance, None)
+
+    @data('user')
+    def test_action_not_available_for_users_unassociated_with_project(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

@@ -313,7 +313,7 @@ class RecoverTask(StateTransitionTask):
         instance.save(update_fields=['error_message'])
 
 
-class ExecutorTask(Task):
+class PreApplyExecutorTask(Task):
     """ Run executor as a task """
 
     @classmethod
@@ -322,10 +322,10 @@ class ExecutorTask(Task):
 
     def run(self, serialized_executor, serialized_instance, *args, **kwargs):
         self.executor = utils.deserialize_class(serialized_executor)
-        return super(ExecutorTask, self).run(serialized_instance, *args, **kwargs)
+        return super(PreApplyExecutorTask, self).run(serialized_instance, *args, **kwargs)
 
     def execute(self, instance, **kwargs):
-        self.executor.execute(instance, async=False, **kwargs)
+        self.executor.pre_apply(instance, **kwargs)
 
 
 class BackgroundTask(CeleryTask):
@@ -474,11 +474,11 @@ class PollRuntimeStateTask(Task):
     def get_backend(self, instance):
         return instance.get_backend()
 
-    def execute(self, instance, backend_pull_method, success_state, erred_state):
+    def execute(self, instance, backend_pull_method, success_state, erred_state, deleted_state=None):
         backend = self.get_backend(instance)
         getattr(backend, backend_pull_method)(instance)
         instance.refresh_from_db()
-        if instance.runtime_state not in (success_state, erred_state):
+        if instance.runtime_state not in (success_state, erred_state, deleted_state):
             self.retry()
         elif instance.runtime_state == erred_state:
             raise RuntimeStateException(

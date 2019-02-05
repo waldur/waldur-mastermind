@@ -507,6 +507,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         cinder = self.cinder_client
         try:
             cinder.volumes.delete(volume.backend_id)
+        except cinder_exceptions.NotFound:
+            logger.info('OpenStack volume %s has been already deleted', volume.backend_id)
         except cinder_exceptions.ClientException as e:
             reraise(e)
         volume.decrease_backend_quotas_usage()
@@ -630,11 +632,16 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         cinder = self.cinder_client
         try:
             backend_volume = cinder.volumes.get(volume.backend_id)
+        except cinder_exceptions.NotFound:
+            volume.runtime_state = 'deleted'
+            volume.save(update_fields=['runtime_state'])
+            return
         except cinder_exceptions.ClientException as e:
             reraise(e)
-        if backend_volume.status != volume.runtime_state:
-            volume.runtime_state = backend_volume.status
-            volume.save(update_fields=['runtime_state'])
+        else:
+            if backend_volume.status != volume.runtime_state:
+                volume.runtime_state = backend_volume.status
+                volume.save(update_fields=['runtime_state'])
 
     @log_backend_action('check is volume deleted')
     def is_volume_deleted(self, volume):
@@ -1291,6 +1298,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         nova = self.nova_client
         try:
             nova.servers.delete(instance.backend_id)
+        except nova_exceptions.NotFound:
+            logger.info('OpenStack instance %s is already deleted', instance.backend_id)
         except nova_exceptions.ClientException as e:
             reraise(e)
         instance.decrease_backend_quotas_usage()
@@ -1395,3 +1404,23 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             reraise(e)
 
         return samples
+
+    @log_backend_action()
+    def get_console_url(self, instance):
+        nova = self.nova_client
+        url = None
+        console_type = self.settings.options.get('console_type', 'spice-html5')
+        try:
+            url = nova.servers.get_console_url(instance.backend_id, console_type)
+        except nova_exceptions.ClientException as e:
+            reraise(e)
+
+        return url['console']['url']
+
+    @log_backend_action()
+    def get_console_output(self, instance, length=None):
+        nova = self.nova_client
+        try:
+            return nova.servers.get_console_output(instance.backend_id, length)
+        except nova_exceptions.ClientException as e:
+            reraise(e)
