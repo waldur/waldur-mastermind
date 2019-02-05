@@ -63,6 +63,17 @@ class LocationFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'region-%s' % n)
     backend_id = factory.Sequence(lambda n: 'region-%s' % n)
 
+    @classmethod
+    def get_url(cls, spl=None, action=None):
+        if spl is None:
+            spl = LocationFactory()
+        url = 'http://testserver' + reverse('azure-location-detail', kwargs={'uuid': spl.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('azure-location-list')
+
 
 class SizeFactory(factory.DjangoModelFactory):
     class Meta(object):
@@ -78,6 +89,17 @@ class SizeFactory(factory.DjangoModelFactory):
     os_disk_size_in_mb = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
     resource_disk_size_in_mb = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
 
+    @classmethod
+    def get_url(cls, spl=None, action=None):
+        if spl is None:
+            spl = SizeFactory()
+        url = 'http://testserver' + reverse('azure-size-detail', kwargs={'uuid': spl.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('azure-size-list')
+
 
 class ImageFactory(factory.DjangoModelFactory):
     class Meta(object):
@@ -90,7 +112,17 @@ class ImageFactory(factory.DjangoModelFactory):
     sku = factory.Sequence(lambda n: 'sku-%s' % n)
     publisher = factory.Sequence(lambda n: 'pub-%s' % n)
     version = factory.Sequence(lambda n: 'v-%s' % n)
-    offer = factory.Sequence(lambda n: 'offer-%s' % n)
+
+    @classmethod
+    def get_url(cls, spl=None, action=None):
+        if spl is None:
+            spl = ImageFactory()
+        url = 'http://testserver' + reverse('azure-image-detail', kwargs={'uuid': spl.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('azure-image-list')
 
 
 class ResourceGroupFactory(factory.DjangoModelFactory):

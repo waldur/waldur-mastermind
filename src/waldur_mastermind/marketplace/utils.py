@@ -10,11 +10,14 @@ from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.template.loader import render_to_string
 from rest_framework import serializers, status
+from rest_framework.reverse import reverse
 
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import utils as common_utils
 
 from . import models
@@ -258,3 +261,39 @@ class DeleteResourceProcessor(BaseOrderItemProcessor):
         processes request to delete existing resource.
         """
         raise NotImplementedError()
+
+
+def get_spl_url(spl_model_class, order_item):
+    """
+    Find service project link URL for specific service settings and marketplace order.
+    """
+    service_settings = order_item.offering.scope
+
+    service_settings_type = spl_model_class._meta.app_config.service_name
+
+    if not isinstance(service_settings, structure_models.ServiceSettings) or \
+            service_settings.type != service_settings_type:
+        raise serializers.ValidationError('Offering has invalid scope. Service settings object is expected.')
+
+    project = order_item.order.project
+
+    try:
+        spl = spl_model_class.objects.get(
+            project=project,
+            service__settings=service_settings,
+            service__customer=project.customer,
+        )
+        return reverse('{}-detail'.format(spl.get_url_name()), kwargs={'pk': spl.pk})
+    except ObjectDoesNotExist:
+        raise serializers.ValidationError('Project does not have access to the service.')
+
+
+def copy_attributes(fields, order_item):
+    """
+    Copy valid attributes from order item.
+    """
+    payload = dict()
+    for field in fields:
+        if field in order_item.attributes:
+            payload[field] = order_item.attributes.get(field)
+    return payload

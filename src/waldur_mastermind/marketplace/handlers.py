@@ -1,10 +1,18 @@
 from __future__ import unicode_literals
 
-from django.db.models import Count
+import logging
+
+from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Count, signals
 from django.db import transaction
 from django.utils.timezone import now
 
-from . import tasks, models
+from waldur_core.core import utils as core_utils
+
+from . import callbacks, tasks, models
+
+
+logger = logging.getLogger(__name__)
 
 
 def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
@@ -149,3 +157,45 @@ def reject_order(sender, instance, created=False, **kwargs):
         for item in order.items.all():
             item.set_state_terminated()
             item.save(update_fields=['state'])
+
+
+def change_order_item_state(sender, instance, created=False, **kwargs):
+    if created or not instance.tracker.has_changed('state'):
+        return
+
+    try:
+        resource = models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.warning('Skipping resource state synchronization '
+                       'because marketplace resource is not found. '
+                       'Resource ID: %s', core_utils.serialize_instance(instance))
+    else:
+        callbacks.sync_resource_state(instance, resource)
+
+
+def terminate_resource(sender, instance, **kwargs):
+    try:
+        resource = models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping terminate for resource '
+                     'because marketplace resource does not exist. '
+                     'Resource ID: %s', core_utils.serialize_instance(instance))
+    else:
+        callbacks.resource_deletion_succeeded(resource)
+
+
+def connect_resource_handlers(*resources):
+    for index, model in enumerate(resources):
+        suffix = '%s_%s' % (index, model.__class__)
+
+        signals.post_save.connect(
+            change_order_item_state,
+            sender=model,
+            dispatch_uid='waldur_mastermind.marketpace.change_order_item_state_%s' % suffix,
+        )
+
+        signals.pre_delete.connect(
+            terminate_resource,
+            sender=model,
+            dispatch_uid='waldur_mastermind.marketpace.terminate_resource_%s' % suffix,
+        )

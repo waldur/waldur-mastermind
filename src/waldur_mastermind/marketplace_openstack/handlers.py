@@ -5,7 +5,6 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
@@ -150,31 +149,6 @@ def archive_offering(sender, instance, **kwargs):
         marketplace_models.Offering.objects.filter(scope=service_settings).update(
             state=marketplace_models.Offering.States.ARCHIVED
         )
-
-
-def change_order_item_state(sender, instance, created=False, **kwargs):
-    if created or not instance.tracker.has_changed('state'):
-        return
-
-    try:
-        resource = marketplace_models.Resource.objects.get(scope=instance)
-    except ObjectDoesNotExist:
-        logger.warning('Skipping OpenStack resource state synchronization '
-                       'because marketplace resource is not found. '
-                       'Resource ID: %s', instance.id)
-    else:
-        callbacks.sync_resource_state(instance, resource)
-
-
-def terminate_resource(sender, instance, **kwargs):
-    try:
-        resource = marketplace_models.Resource.objects.get(scope=instance)
-    except ObjectDoesNotExist:
-        logger.debug('Skipping resource terminate for OpenStack resource '
-                     'because marketplace resource does not exist. '
-                     'Resource ID: %s', instance.id)
-    else:
-        callbacks.resource_deletion_succeeded(resource)
 
 
 def synchronize_volume_metadata(sender, instance, created=False, **kwargs):

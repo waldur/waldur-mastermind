@@ -131,6 +131,7 @@ setup(
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
             'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
+            'waldur_marketplace_azure = waldur_mastermind.marketplace_azure.extension:MarketplaceAzureExtension',
             'waldur_marketplace_openstack = waldur_mastermind.marketplace_openstack.extension:MarketplaceOpenStackExtension',
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
             'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',
