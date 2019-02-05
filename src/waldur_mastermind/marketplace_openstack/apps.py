@@ -11,6 +11,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_openstack.openstack import models as openstack_models
         from waldur_openstack.openstack_tenant import models as tenant_models
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
 
@@ -28,18 +29,11 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.archive_offering',
         )
 
-        for index, model in enumerate((openstack_models.Tenant, tenant_models.Instance, tenant_models.Volume)):
-            signals.post_save.connect(
-                handlers.change_order_item_state,
-                sender=model,
-                dispatch_uid='waldur_mastermind.marketpace_openstack.change_order_item_state_%s' % index,
-            )
-
-            signals.pre_delete.connect(
-                handlers.terminate_resource,
-                sender=model,
-                dispatch_uid='waldur_mastermind.marketpace_openstack.terminate_resource_%s' % index,
-            )
+        marketplace_handlers.connect_resource_handlers(
+            openstack_models.Tenant,
+            tenant_models.Instance,
+            tenant_models.Volume
+        )
 
         signals.post_save.connect(
             handlers.create_template_for_plan,
