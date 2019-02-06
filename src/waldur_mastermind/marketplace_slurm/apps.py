@@ -38,8 +38,8 @@ class MarketplaceSlurmConfig(AppConfig):
 
         USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(PLUGIN_NAME,
-                         create_resource_processor=processor.CreateResourceProcessor,
-                         delete_resource_processor=processor.DeleteResourceProcessor,
+                         create_resource_processor=processor.CreateAllocationProcessor,
+                         delete_resource_processor=processor.DeleteAllocationProcessor,
                          scope_model=structure_models.ServiceSettings,
                          components=(
                              Component(type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE),

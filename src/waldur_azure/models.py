@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.db import models
+from model_utils import FieldTracker
 
 from waldur_azure import validators
 from waldur_core.core import models as core_models
@@ -163,6 +164,7 @@ class SQLServer(BaseResourceGroupModel):
     password = models.CharField(max_length=128, validators=validators.SQLServerPasswordValidators)
     storage_mb = models.PositiveIntegerField(null=True, validators=validators.SQLServerStorageValidators)
     fqdn = models.TextField(null=True, blank=True)
+    tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):

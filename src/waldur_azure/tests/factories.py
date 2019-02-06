@@ -197,4 +197,26 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('aws-virtualmachine-list')
+        return 'http://testserver' + reverse('azure-virtualmachine-list')
+
+
+class SQLServerFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.SQLServer
+
+    name = factory.Sequence(lambda n: 'sql-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'sql-%s' % n)
+    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    resource_group = factory.SubFactory(ResourceGroupFactory)
+    state = models.SQLServer.States.OK
+
+    @classmethod
+    def get_url(cls, instance=None, action=None):
+        if instance is None:
+            instance = VirtualMachineFactory()
+        url = 'http://testserver' + reverse('azure-sql-server-detail', kwargs={'uuid': instance.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('azure-sql-server-list')

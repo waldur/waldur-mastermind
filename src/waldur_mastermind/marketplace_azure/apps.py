@@ -11,7 +11,7 @@ class MarketplaceAzureConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
 
-        from . import processors, VIRTUAL_MACHINE_TYPE, SQL_SERVER_TYPE, SQL_DATABASE_TYPE
+        from . import processors, VIRTUAL_MACHINE_TYPE, SQL_SERVER_TYPE
 
         marketplace_handlers.connect_resource_handlers(
             azure_models.VirtualMachine,
@@ -27,9 +27,4 @@ class MarketplaceAzureConfig(AppConfig):
         manager.register(offering_type=SQL_SERVER_TYPE,
                          create_resource_processor=processors.SQLServerCreateProcessor,
                          delete_resource_processor=processors.SQLServerDeleteProcessor,
-                         scope_model=structure_models.ServiceSettings)
-
-        manager.register(offering_type=SQL_DATABASE_TYPE,
-                         create_resource_processor=processors.SQLDatabaseCreateProcessor,
-                         delete_resource_processor=processors.SQLDatabaseDeleteProcessor,
                          scope_model=structure_models.ServiceSettings)
