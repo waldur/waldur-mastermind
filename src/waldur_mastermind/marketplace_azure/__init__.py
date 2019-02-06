@@ -2,4 +2,3 @@ default_app_config = 'waldur_mastermind.marketplace_azure.apps.MarketplaceAzureC
 
 VIRTUAL_MACHINE_TYPE = 'Azure.VirtualMachine'
 SQL_SERVER_TYPE = 'Azure.SQLServer'
-SQL_DATABASE_TYPE = 'Azure.SQLDatabase'

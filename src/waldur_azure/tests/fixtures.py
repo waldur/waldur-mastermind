@@ -70,3 +70,10 @@ class AzureFixture(ProjectFixture):
             size=self.size,
             network_interface=self.network_interface,
         )
+
+    @cached_property
+    def sql_server(self):
+        return factories.SQLServerFactory(
+            service_project_link=self.spl,
+            resource_group=self.resource_group,
+        )
