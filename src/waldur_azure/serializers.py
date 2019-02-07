@@ -329,3 +329,15 @@ class SQLDatabaseSerializer(BaseResourceSerializer):
             'resource_group_name', 'location_name',
             'server_name', 'server_uuid',
         )
+
+
+class SQLDatabaseCreateSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.SQLDatabase
+        fields = ('name', 'description')
+
+    def create(self, validated_data):
+        server = self.context['view'].get_object()
+        validated_data['server'] = server
+        validated_data['service_project_link'] = server.service_project_link
+        return super(SQLDatabaseCreateSerializer, self).create(validated_data)

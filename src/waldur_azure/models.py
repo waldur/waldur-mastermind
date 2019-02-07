@@ -175,6 +175,7 @@ class SQLDatabase(BaseResource):
     server = models.ForeignKey(SQLServer)
     charset = models.CharField(max_length=255, blank=True, null=True, default='utf8')
     collation = models.CharField(max_length=255, blank=True, null=True, default='utf8_general_ci')
+    tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):
