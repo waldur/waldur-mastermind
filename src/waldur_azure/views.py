@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, viewsets, \
     response, status, serializers as rf_serializers
@@ -98,6 +99,23 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
     serializer_class = serializers.SQLServerSerializer
     create_executor = executors.SQLServerCreateExecutor
     delete_executor = executors.SQLServerDeleteExecutor
+
+    @decorators.detail_route(methods=['post'])
+    def create_database(self, request, uuid=None):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        database = serializer.save()
+
+        transaction.on_commit(lambda: executors.SQLDatabaseCreateExecutor().execute(database))
+
+        payload = {
+            'status': _('SQL database creation was scheduled'),
+            'database_uuid': database.uuid,
+        }
+        return response.Response(payload, status=status.HTTP_202_ACCEPTED)
+
+    create_database_validators = [core_validators.StateValidator(models.SQLServer.States.OK)]
+    create_database_serializer_class = serializers.SQLDatabaseCreateSerializer
 
 
 class SQLDatabaseViewSet(structure_views.BaseResourceViewSet):
