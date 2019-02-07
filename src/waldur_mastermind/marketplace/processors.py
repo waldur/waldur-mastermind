@@ -263,7 +263,7 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         Use create_serializer_class if it is defined. Otherwise fallback to standard serializer class.
         """
         viewset = self.get_viewset()
-        return getattr(viewset, 'create_serializer_class') or getattr(viewset, 'serializer_class')
+        return getattr(viewset, 'create_serializer_class', None) or getattr(viewset, 'serializer_class')
 
     def get_post_data(self):
         order_item = self.order_item
