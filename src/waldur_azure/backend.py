@@ -211,11 +211,10 @@ class AzureBackend(ServiceBackend):
         subnet.save()
 
     def pull_network_interface(self, nic):
-        poller = self.client.get_network_interface(
+        backend_nic = self.client.get_network_interface(
             resource_group_name=nic.resource_group.name,
             network_interface_name=nic.name,
         )
-        backend_nic = poller.result()
         nic.ip_address = backend_nic.ip_configurations[0].private_ip_address
         nic.save()
 
@@ -312,11 +311,10 @@ class AzureBackend(ServiceBackend):
         poller.wait()
 
     def pull_public_ip_address(self, public_ip):
-        poller = self.client.get_public_ip(
+        backend_public_ip = self.client.get_public_ip(
             resource_group_name=public_ip.resource_group.name,
             public_ip_address_name=public_ip.name,
         )
-        backend_public_ip = poller.result()
         public_ip.ip_address = backend_public_ip.ip_address
         public_ip.runtime_state = backend_public_ip.provisioning_state
         public_ip.save()
