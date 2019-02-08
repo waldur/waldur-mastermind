@@ -47,7 +47,8 @@ Requires: mailcap
 Requires: openssl
 Requires: python-azure-sdk >= 4.0.0
 Requires: python-ceilometerclient >= 2.9.0
-Requires: python-celery >= 4.1.0, python-celery < 4.2.0
+Requires: python-celery >= 4.1.0
+Requires: python2-celery < 4.2.0
 Requires: python-cinderclient >= 3.1.0
 Requires: python-country >= 1.20, python-country < 2.0
 Requires: python-croniter >= 0.3.4, python-croniter < 0.3.6
