@@ -1126,16 +1126,17 @@ class BaseServiceSerializer(six.with_metaclass(ServiceSerializerMetaclass,
             name = self.initial_data.get('name')
             if not name or not name.strip():
                 raise serializers.ValidationError({'name': 'Name cannot be empty'})
-            # Make shallow copy to protect from mutations
-            settings_fields = self.Meta.settings_fields[:]
-            create_settings = any([attrs.get(f) for f in settings_fields])
-            if not settings and not create_settings:
-                raise serializers.ValidationError(
-                    _('Either service settings or credentials must be supplied.'))
 
             extra_fields = tuple()
             if self.SERVICE_ACCOUNT_EXTRA_FIELDS is not NotImplemented:
-                extra_fields += tuple(self.SERVICE_ACCOUNT_EXTRA_FIELDS.keys())
+                extra_fields = tuple(self.SERVICE_ACCOUNT_EXTRA_FIELDS.keys())
+
+            # Make shallow copy to protect from mutations
+            settings_fields = self.Meta.settings_fields[:]
+            create_settings = any([attrs.get(f) for f in settings_fields + extra_fields])
+            if not settings and not create_settings:
+                raise serializers.ValidationError(
+                    _('Either service settings or credentials must be supplied.'))
 
             if create_settings:
                 required = getattr(self.Meta, 'required_fields', tuple())

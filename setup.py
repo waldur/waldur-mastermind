@@ -18,7 +18,7 @@ install_requires = [
     'azure-mgmt-resource==2.0.0',
     'azure-mgmt-storage==2.0.0',
     'Babel!=2.4.0,>=2.3.4',
-    'Celery>=4.1.0',
+    'Celery>=4.2.0,<4.3.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4,<0.3.6',
     'defusedxml>=0.4.1',
@@ -82,7 +82,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.2.6',
+    version='3.2.7',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -131,6 +131,7 @@ setup(
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
             'waldur_marketplace = waldur_mastermind.marketplace.extension:MarketplaceExtension',
+            'waldur_marketplace_azure = waldur_mastermind.marketplace_azure.extension:MarketplaceAzureExtension',
             'waldur_marketplace_openstack = waldur_mastermind.marketplace_openstack.extension:MarketplaceOpenStackExtension',
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
             'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',

@@ -35,6 +35,7 @@ class OfferingFilter(django_filters.FilterSet):
     )
     category_uuid = django_filters.UUIDFilter(name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
+    shared = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
     def filter_allowed_customer(self, queryset, name, value):
