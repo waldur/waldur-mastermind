@@ -120,11 +120,13 @@ class NetworkInterface(BaseResourceGroupModel):
     config_name = models.CharField(max_length=255)
     public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
     security_group = models.ForeignKey(SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
 
 
 class PublicIP(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
     location = models.ForeignKey(Location)
+    ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
 
     @classmethod
     def get_url_name(cls):
@@ -149,11 +151,12 @@ class VirtualMachine(structure_models.VirtualMachine):
 
     @property
     def internal_ips(self):
-        return []
+        return [self.network_interface.ip_address]
 
     @property
     def external_ips(self):
-        return []
+        public_ip = self.network_interface.public_ip
+        return public_ip and [public_ip.ip_address] or []
 
     @classmethod
     def get_url_name(cls):

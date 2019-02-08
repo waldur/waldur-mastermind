@@ -297,6 +297,15 @@ class AzureClient(object):
         except CloudError as exc:
             reraise(exc)
 
+    def get_network_interface(self, resource_group_name, network_interface_name):
+        try:
+            return self.network_client.network_interfaces.get(
+                resource_group_name,
+                network_interface_name,
+            )
+        except CloudError as exc:
+            reraise(exc)
+
     def create_network_interface(self, location, resource_group_name,
                                  interface_name, config_name, subnet_id,
                                  public_ip_id=None, security_group_id=None):
@@ -348,6 +357,15 @@ class AzureClient(object):
                 resource_group_name,
                 network_security_group_name,
                 security_group,
+            )
+        except CloudError as exc:
+            reraise(exc)
+
+    def get_public_ip(self, resource_group_name, public_ip_address_name):
+        try:
+            return self.network_client.public_ip_addresses.get(
+                resource_group_name,
+                public_ip_address_name
             )
         except CloudError as exc:
             reraise(exc)

@@ -210,6 +210,15 @@ class AzureBackend(ServiceBackend):
         subnet.backend_id = backend_subnet.id
         subnet.save()
 
+    def pull_network_interface(self, nic):
+        poller = self.client.get_network_interface(
+            resource_group_name=nic.resource_group.name,
+            network_interface_name=nic.name,
+        )
+        backend_nic = poller.result()
+        nic.ip_address = backend_nic.ip_configurations[0].private_ip_address
+        nic.save()
+
     def create_network_interface(self, nic):
         poller = self.client.create_network_interface(
             location=nic.resource_group.location.backend_id,
@@ -301,6 +310,16 @@ class AzureBackend(ServiceBackend):
             public_ip_address_name=public_ip.name,
         )
         poller.wait()
+
+    def pull_public_ip_address(self, public_ip):
+        poller = self.client.get_public_ip(
+            resource_group_name=public_ip.resource_group.name,
+            public_ip_address_name=public_ip.name,
+        )
+        backend_public_ip = poller.result()
+        public_ip.ip_address = backend_public_ip.ip_address
+        public_ip.runtime_state = backend_public_ip.provisioning_state
+        public_ip.save()
 
     def create_pgsql_server(self, server):
         backend_server = self.client.create_sql_server(

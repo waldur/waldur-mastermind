@@ -88,6 +88,14 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 backend_method='create_virtual_machine',
             ),
+            core_tasks.BackendMethodTask().si(
+                serialized_nic,
+                backend_method='pull_network_interface',
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_public_ip,
+                backend_method='pull_public_ip_address',
+            ),
         )
 
 
