@@ -29,7 +29,7 @@ def reraise(exc):
     """
     Reraise AzureBackendError while maintaining traceback.
     """
-    six.reraise(AzureBackendError, AzureBackendError(exc.message), sys.exc_traceback())
+    six.reraise(AzureBackendError, AzureBackendError(exc.message), sys.exc_info()[2])
 
 
 class AzureClient(object):
@@ -299,25 +299,39 @@ class AzureClient(object):
 
     def create_network_interface(self, location, resource_group_name,
                                  interface_name, config_name, subnet_id,
-                                 public_ip_id=None):
+                                 public_ip_id=None, security_group_id=None):
         ip_configuration = NetworkInterfaceIPConfiguration(
             name=config_name,
-            subnet={
-                'id': subnet_id,
-            }
+            subnet={'id': subnet_id}
         )
 
         if public_ip_id:
-            ip_configuration.public_ip_address = {
-                    'id': public_ip_id,
-                }
+            ip_configuration.public_ip_address = {'id': public_ip_id}
 
+        interface_parameters = NetworkInterface(
+            location=location,
+            ip_configurations=[ip_configuration],
+        )
+
+        if security_group_id:
+            interface_parameters.network_security_group = {'id': security_group_id}
+
+        try:
+            return self.network_client.network_interfaces.create_or_update(
+                resource_group_name,
+                interface_name,
+                interface_parameters
+            )
+        except CloudError as exc:
+            reraise(exc)
+
+    def create_ssh_security_group(self, location, resource_group_name, network_security_group_name):
         ssh_rule = SecurityRule(
             name='default-allow-ssh',
             protocol='Tcp',
+            source_port_range='*',
             destination_port_range=22,
             direction='Inbound',
-            source_port_range='*',
             source_address_prefix='*',
             destination_address_prefix='*',
             access='Allow',
@@ -325,22 +339,15 @@ class AzureClient(object):
         )
 
         security_group = NetworkSecurityGroup(
-            name='NSG{}'.format(resource_group_name),
             location=location,
             security_rules=[ssh_rule]
         )
 
-        interface_parameters = NetworkInterface(
-            location=location,
-            ip_configurations=[ip_configuration],
-            network_security_group=security_group
-        )
-
         try:
-            return self.network_client.network_interfaces.create_or_update(
+            return self.network_client.network_security_groups.create_or_update(
                 resource_group_name,
-                interface_name,
-                interface_parameters
+                network_security_group_name,
+                security_group,
             )
         except CloudError as exc:
             reraise(exc)

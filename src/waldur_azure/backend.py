@@ -274,6 +274,16 @@ class AzureBackend(ServiceBackend):
         )
         poller.wait()
 
+    def create_ssh_security_group(self, network_security_group):
+        poller = self.client.create_ssh_security_group(
+            location=network_security_group.resource_group.location.backend_id,
+            resource_group_name=network_security_group.resource_group.name,
+            network_security_group_name=network_security_group.name,
+        )
+        backend_group = poller.result()
+        network_security_group.backend_id = backend_group.id
+        network_security_group.save()
+
     def create_public_ip(self, public_ip):
         poller = self.client.create_public_ip(
             location=public_ip.resource_group.location.backend_id,

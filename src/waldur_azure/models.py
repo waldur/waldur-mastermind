@@ -110,11 +110,16 @@ class SubNet(BaseResourceGroupModel):
     cidr = models.CharField(max_length=32)
 
 
+class SecurityGroup(BaseResourceGroupModel):
+    name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
+
+
 class NetworkInterface(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
     subnet = models.ForeignKey(SubNet)
     config_name = models.CharField(max_length=255)
     public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
+    security_group = models.ForeignKey(SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True)
 
 
 class PublicIP(BaseResourceGroupModel):

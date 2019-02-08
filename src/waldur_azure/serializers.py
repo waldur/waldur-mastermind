@@ -196,6 +196,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         nic_name = 'nic{}'.format(vm_name)
         config_name = 'ipconf{}'.format(vm_name)
         public_ip_name = 'pubip{}'.format(vm_name)
+        security_group_name = 'NSG{}'.format(vm_name)
 
         resource_group = models.ResourceGroup.objects.create(
             service_project_link=spl,
@@ -231,6 +232,12 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
             name=public_ip_name,
         )
 
+        security_group = models.SecurityGroup.objects.create(
+            service_project_link=spl,
+            resource_group=resource_group,
+            name=security_group_name,
+        )
+
         nic = models.NetworkInterface.objects.create(
             service_project_link=spl,
             resource_group=resource_group,
@@ -238,6 +245,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
             subnet=subnet,
             config_name=config_name,
             public_ip=public_ip,
+            security_group=security_group,
         )
 
         validated_data['ram'] = size.memory_in_mb
