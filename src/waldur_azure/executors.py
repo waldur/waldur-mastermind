@@ -20,6 +20,8 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             instance.network_interface.subnet.network)
         serialized_subnet = core_utils.serialize_instance(
             instance.network_interface.subnet)
+        serialized_public_ip = core_utils.serialize_instance(
+            instance.network_interface.public_ip)
         serialized_nic = core_utils.serialize_instance(
             instance.network_interface)
 
@@ -62,6 +64,15 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             ),
             core_tasks.StateTransitionTask().si(
                 serialized_subnet,
+                state_transition='set_ok',
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_public_ip,
+                backend_method='create_public_ip',
+                state_transition='begin_creating',
+            ),
+            core_tasks.StateTransitionTask().si(
+                serialized_public_ip,
                 state_transition='set_ok',
             ),
             core_tasks.BackendMethodTask().si(

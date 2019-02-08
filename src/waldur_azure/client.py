@@ -1,10 +1,14 @@
 import sys
+
 import six
 
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, OSProfile, SshConfiguration, SshPublicKey
+from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, \
+    OSProfile, SshConfiguration, SshPublicKey
 from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.network.models import NetworkInterface, NetworkInterfaceIPConfiguration, \
+    NetworkSecurityGroup, SecurityRule
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource import SubscriptionClient
 from azure.mgmt.rdbms.postgresql import PostgreSQLManagementClient
@@ -296,24 +300,41 @@ class AzureClient(object):
     def create_network_interface(self, location, resource_group_name,
                                  interface_name, config_name, subnet_id,
                                  public_ip_id=None):
-        ip_configuration = {
-            'name': config_name,
-            'subnet': {
+        ip_configuration = NetworkInterfaceIPConfiguration(
+            name=config_name,
+            subnet={
                 'id': subnet_id,
             }
-        }
+        )
 
         if public_ip_id:
-            ip_configuration.update({
-                'public_ip': {
+            ip_configuration.public_ip_address = {
                     'id': public_ip_id,
                 }
-            })
 
-        interface_parameters = {
-            'location': location,
-            'ip_configurations': [ip_configuration]
-        }
+        ssh_rule = SecurityRule(
+            name='default-allow-ssh',
+            protocol='Tcp',
+            destination_port_range=22,
+            direction='Inbound',
+            source_port_range='*',
+            source_address_prefix='*',
+            destination_address_prefix='*',
+            access='Allow',
+            priority=1000,
+        )
+
+        security_group = NetworkSecurityGroup(
+            name='NSG{}'.format(resource_group_name),
+            location=location,
+            security_rules=[ssh_rule]
+        )
+
+        interface_parameters = NetworkInterface(
+            location=location,
+            ip_configurations=[ip_configuration],
+            network_security_group=security_group
+        )
 
         try:
             return self.network_client.network_interfaces.create_or_update(
