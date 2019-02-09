@@ -68,7 +68,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
                 'required': True,
             },
             'console_type': {
-                'default_value': 'spice-html5',
+                'default_value': 'novnc',
             },
         }
 
