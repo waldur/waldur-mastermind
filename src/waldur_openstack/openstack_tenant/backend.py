@@ -1409,7 +1409,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def get_console_url(self, instance):
         nova = self.nova_client
         url = None
-        console_type = self.settings.options.get('console_type', 'spice-html5')
+        console_type = self.settings.options.get('console_type', 'novnc')
         try:
             url = nova.servers.get_console_url(instance.backend_id, console_type)
         except nova_exceptions.ClientException as e:
