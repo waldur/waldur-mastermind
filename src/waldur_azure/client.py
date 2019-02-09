@@ -1,10 +1,14 @@
 import sys
+
 import six
 
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
-from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, OSProfile, SshConfiguration, SshPublicKey
+from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, \
+    OSProfile, SshConfiguration, SshPublicKey
 from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.network.models import NetworkInterface, NetworkInterfaceIPConfiguration, \
+    NetworkSecurityGroup, SecurityRule
 from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.resource import SubscriptionClient
 from azure.mgmt.rdbms.postgresql import PostgreSQLManagementClient
@@ -25,7 +29,7 @@ def reraise(exc):
     """
     Reraise AzureBackendError while maintaining traceback.
     """
-    six.reraise(AzureBackendError, AzureBackendError(exc.message), sys.exc_traceback())
+    six.reraise(AzureBackendError, AzureBackendError(exc.message), sys.exc_info()[2])
 
 
 class AzureClient(object):
@@ -293,33 +297,75 @@ class AzureClient(object):
         except CloudError as exc:
             reraise(exc)
 
+    def get_network_interface(self, resource_group_name, network_interface_name):
+        try:
+            return self.network_client.network_interfaces.get(
+                resource_group_name,
+                network_interface_name,
+            )
+        except CloudError as exc:
+            reraise(exc)
+
     def create_network_interface(self, location, resource_group_name,
                                  interface_name, config_name, subnet_id,
-                                 public_ip_id=None):
-        ip_configuration = {
-            'name': config_name,
-            'subnet': {
-                'id': subnet_id,
-            }
-        }
+                                 public_ip_id=None, security_group_id=None):
+        ip_configuration = NetworkInterfaceIPConfiguration(
+            name=config_name,
+            subnet={'id': subnet_id}
+        )
 
         if public_ip_id:
-            ip_configuration.update({
-                'public_ip': {
-                    'id': public_ip_id,
-                }
-            })
+            ip_configuration.public_ip_address = {'id': public_ip_id}
 
-        interface_parameters = {
-            'location': location,
-            'ip_configurations': [ip_configuration]
-        }
+        interface_parameters = NetworkInterface(
+            location=location,
+            ip_configurations=[ip_configuration],
+        )
+
+        if security_group_id:
+            interface_parameters.network_security_group = {'id': security_group_id}
 
         try:
             return self.network_client.network_interfaces.create_or_update(
                 resource_group_name,
                 interface_name,
                 interface_parameters
+            )
+        except CloudError as exc:
+            reraise(exc)
+
+    def create_ssh_security_group(self, location, resource_group_name, network_security_group_name):
+        ssh_rule = SecurityRule(
+            name='default-allow-ssh',
+            protocol='Tcp',
+            source_port_range='*',
+            destination_port_range=22,
+            direction='Inbound',
+            source_address_prefix='*',
+            destination_address_prefix='*',
+            access='Allow',
+            priority=1000,
+        )
+
+        security_group = NetworkSecurityGroup(
+            location=location,
+            security_rules=[ssh_rule]
+        )
+
+        try:
+            return self.network_client.network_security_groups.create_or_update(
+                resource_group_name,
+                network_security_group_name,
+                security_group,
+            )
+        except CloudError as exc:
+            reraise(exc)
+
+    def get_public_ip(self, resource_group_name, public_ip_address_name):
+        try:
+            return self.network_client.public_ip_addresses.get(
+                resource_group_name,
+                public_ip_address_name
             )
         except CloudError as exc:
             reraise(exc)

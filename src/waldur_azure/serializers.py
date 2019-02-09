@@ -162,15 +162,6 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         source='ssh_key'
     )
 
-    public_ip = serializers.HyperlinkedRelatedField(
-        view_name='azure-public-ip-detail',
-        lookup_field='uuid',
-        queryset=models.PublicIP.objects.all(),
-        required=False,
-        allow_null=True,
-        write_only=True,
-    )
-
     size_name = serializers.ReadOnlyField(source='size.name')
     image_name = serializers.ReadOnlyField(source='image.name')
 
@@ -180,7 +171,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
             'image', 'size', 'user_data', 'runtime_state', 'start_time',
             'cores', 'ram', 'disk', 'image_name', 'location',
-            'resource_group', 'public_ip', 'username', 'password',
+            'resource_group', 'username', 'password',
             'resource_group_name', 'location_name', 'image_name', 'size_name'
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
@@ -197,7 +188,6 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         spl = validated_data['service_project_link']
         size = validated_data['size']
         location = validated_data.pop('location')
-        public_ip = validated_data.pop('public_ip', None)
 
         resource_group_name = 'group{}'.format(vm_name)
         storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
@@ -205,6 +195,8 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         subnet_name = 'subnet{}'.format(vm_name)
         nic_name = 'nic{}'.format(vm_name)
         config_name = 'ipconf{}'.format(vm_name)
+        public_ip_name = 'pubip{}'.format(vm_name)
+        security_group_name = 'NSG{}'.format(vm_name)
 
         resource_group = models.ResourceGroup.objects.create(
             service_project_link=spl,
@@ -233,6 +225,19 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
             network=network,
         )
 
+        public_ip = models.PublicIP.objects.create(
+            service_project_link=spl,
+            resource_group=resource_group,
+            location=location,
+            name=public_ip_name,
+        )
+
+        security_group = models.SecurityGroup.objects.create(
+            service_project_link=spl,
+            resource_group=resource_group,
+            name=security_group_name,
+        )
+
         nic = models.NetworkInterface.objects.create(
             service_project_link=spl,
             resource_group=resource_group,
@@ -240,6 +245,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
             subnet=subnet,
             config_name=config_name,
             public_ip=public_ip,
+            security_group=security_group,
         )
 
         validated_data['ram'] = size.memory_in_mb
