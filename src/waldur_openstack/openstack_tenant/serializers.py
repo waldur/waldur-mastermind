@@ -2,7 +2,6 @@ from __future__ import unicode_literals
 
 import collections
 import logging
-import uuid
 
 from django.core.exceptions import ObjectDoesNotExist
 import pytz
@@ -672,9 +671,7 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
     """
     settings = instance.service_project_link.service.settings
     external_network_id = settings.options.get('external_network_id')
-    try:
-        uuid.UUID(external_network_id)
-    except ValueError:
+    if not core_utils.is_uuid_like(external_network_id):
         raise serializers.ValidationError(
             ugettext('Service provider does not have valid value of external_network_id'))
 
