@@ -7,6 +7,7 @@ from operator import itemgetter
 import os
 import re
 import time
+import uuid
 
 from django.apps import apps
 from django.conf import settings
@@ -267,3 +268,15 @@ def order_with_nulls(queryset, field):
         return queryset.order_by(F(col).desc(nulls_last=True))
     else:
         return queryset.order_by(F(col).asc(nulls_first=True))
+
+
+def is_uuid_like(val):
+    """
+    Check if value looks like a valid UUID.
+    """
+    try:
+        uuid.UUID(val)
+    except (TypeError, ValueError, AttributeError):
+        return False
+    else:
+        return True

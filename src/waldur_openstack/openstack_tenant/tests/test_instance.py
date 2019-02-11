@@ -155,6 +155,17 @@ class InstanceCreateTest(test.APITransactionTestCase):
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         self.assertIn(floating_ip, instance.floating_ips)
 
+    def test_service_settings_should_have_external_network_id(self):
+        ss = self.openstack_spl.service.settings
+        ss.options = {'external_network_id': 'invalid'}
+        ss.save()
+
+        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        data = self.get_valid_data(floating_ips=[{'subnet': subnet_url}])
+
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_user_cannot_assign_floating_ip_from_other_settings_to_instance(self):
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         floating_ip = factories.FloatingIPFactory()

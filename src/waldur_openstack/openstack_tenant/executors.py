@@ -434,6 +434,9 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
 
         delete_instance_tasks = cls.get_delete_instance_tasks(serialized_instance)
         release_floating_ips_tasks = cls.get_release_floating_ips_tasks(instance, release_floating_ips)
+        detach_volumes_tasks = cls.get_detach_data_volumes_tasks(instance)
+        delete_volumes_tasks = cls.get_delete_data_volumes_tasks(instance)
+        delete_internal_ips_tasks = cls.get_delete_internal_ips_tasks(serialized_instance)
 
         # Case 1. Instance does not exist at backend
         if not instance.backend_id:
@@ -445,22 +448,21 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         # it is not removed automatically.
         # System volume is deleted implicitly since delete_on_termination=True
         elif delete_volumes:
-            detach_volumes_tasks = cls.get_detach_data_volumes_tasks(instance)
-            delete_volumes_tasks = cls.get_delete_data_volumes_tasks(instance)
             return chain(
                 detach_volumes_tasks +
                 delete_volumes_tasks +
                 delete_instance_tasks +
+                delete_internal_ips_tasks +
                 release_floating_ips_tasks
             )
 
         # Case 3. Instance exists at backend.
         # Data volumes are detached and not deleted.
         else:
-            detach_volumes_tasks = cls.get_detach_data_volumes_tasks(instance)
             return chain(
                 detach_volumes_tasks +
                 delete_instance_tasks +
+                delete_internal_ips_tasks +
                 release_floating_ips_tasks
             )
 
@@ -473,10 +475,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
             state_transition='begin_deleting'
         ))
 
-        _tasks.append(core_tasks.BackendMethodTask().si(
-            serialized_instance,
-            backend_method='delete_instance_internal_ips',
-        ))
+        _tasks += cls.get_delete_internal_ips_task(serialized_instance)
 
         for volume in instance.volumes.all():
             if volume.backend_id:
@@ -492,6 +491,19 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 ))
 
         return _tasks
+
+    @classmethod
+    def get_delete_internal_ips_tasks(cls, serialized_instance):
+        """
+        OpenStack Neutron ports should be deleted explicitly because we're creating them explicitly.
+        Otherwise when port quota is exhausted, user is not able to provision new VMs anymore.
+        """
+        return [
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                backend_method='delete_instance_internal_ips',
+            )
+        ]
 
     @classmethod
     def get_delete_instance_tasks(cls, serialized_instance):
