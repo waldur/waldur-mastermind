@@ -670,11 +670,16 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
         If floating IP is not defined - take exist free one or create a new one.
     """
     settings = instance.service_project_link.service.settings
+    external_network_id = settings.options.get('external_network_id')
+    if not core_utils.is_uuid_like(external_network_id):
+        raise serializers.ValidationError(
+            ugettext('Service provider does not have valid value of external_network_id'))
+
     if not floating_ip:
         kwargs = {
             'settings': settings,
             'is_booked': False,
-            'backend_network_id': settings.options['external_network_id'],
+            'backend_network_id': external_network_id,
         }
         # TODO: figure out why internal_ip__isnull throws errors when added to kwargs
         floating_ip = models.FloatingIP.objects.filter(internal_ip__isnull=True).filter(**kwargs).first()
