@@ -1221,6 +1221,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         logger.debug('About to delete network port. Port ID: %s.', internal_ip.backend_id)
         try:
             neutron.delete_port(internal_ip.backend_id)
+        except neutron_exceptions.NotFound:
+            logger.debug('Neutron port is already deleted. Backend ID: %s.',
+                         internal_ip.backend_id)
         except neutron_exceptions.NeutronClientException as e:
             logger.warning('Unable to delete OpenStack network port. '
                            'Skipping error and trying to continue instance deletion. '
