@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-from django.conf import settings
 from django.db import transaction
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -25,7 +24,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
 
-from . import serializers, models, filters, tasks, plugins
+from . import serializers, models, filters, tasks, plugins, permissions
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
@@ -139,29 +138,6 @@ class OrderViewSet(BaseMarketplaceView):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.OrderFilter
 
-    def check_permissions_for_state_change(request, view, order=None):
-        if not order:
-            return
-
-        user = request.user
-
-        if user.is_staff:
-            return
-
-        if settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER'] and \
-                structure_permissions._has_owner_access(user, order.project.customer):
-            return
-
-        if settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER'] and \
-                structure_permissions._has_manager_access(user, order.project):
-            return
-
-        if settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER'] and \
-                structure_permissions._has_admin_access(user, order.project):
-            return
-
-        raise rf_exceptions.PermissionDenied()
-
     @detail_route(methods=['post'])
     def approve(self, request, uuid=None):
         order = self.get_object()
@@ -178,7 +154,7 @@ class OrderViewSet(BaseMarketplaceView):
         return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
 
     approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
-    approve_permissions = [check_permissions_for_state_change]
+    approve_permissions = [permissions.check_permissions_for_state_change]
 
     @detail_route(methods=['post'])
     def reject(self, request, uuid=None):
