@@ -1,8 +1,6 @@
 from __future__ import unicode_literals
 
 import datetime
-from itertools import chain
-
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
@@ -10,10 +8,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
-from waldur_core.structure import SupportedServices
 from waldur_mastermind.common.utils import quantize_price
-from waldur_openstack.openstack import models as openstack_models
-from waldur_mastermind.support import models as support_models
 
 from . import models
 
@@ -41,50 +36,12 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
         return
 
 
-class OpenStackItemSerializer(InvoiceItemSerializer):
-    tenant_name = serializers.ReadOnlyField(source='get_tenant_name')
-    tenant_uuid = serializers.ReadOnlyField(source='get_tenant_uuid')
-    template_name = serializers.ReadOnlyField(source='get_template_name')
-    template_uuid = serializers.ReadOnlyField(source='get_template_uuid')
-    template_category = serializers.ReadOnlyField(source='get_template_category')
-
-    class Meta(InvoiceItemSerializer.Meta):
-        model = models.OpenStackItem
-        fields = InvoiceItemSerializer.Meta.fields + ('package', 'tenant_name', 'tenant_uuid', 'usage_days',
-                                                      'template_name', 'template_uuid', 'template_category')
-        extra_kwargs = {
-            'package': {'lookup_field': 'uuid', 'view_name': 'openstack-package-detail'},
-        }
-
-    def get_scope_type(self, item):
-        return SupportedServices.get_name_for_model(openstack_models.Tenant)
-
-    def get_scope_uuid(self, item):
-        return item.get_tenant_uuid()
-
-
-class OfferingItemSerializer(InvoiceItemSerializer):
-    offering_type = serializers.ReadOnlyField(source='get_offering_type')
-
-    class Meta(InvoiceItemSerializer.Meta):
-        model = models.OfferingItem
-        fields = InvoiceItemSerializer.Meta.fields + ('offering', 'offering_type', 'usage_days')
-        extra_kwargs = {
-            'offering': {'lookup_field': 'uuid', 'view_name': 'support-offering-detail'},
-        }
-
-    def get_scope_type(self, item):
-        return support_models.Offering.get_scope_type()
-
-    def get_scope_uuid(self, item):
-        return item.get_offering_uuid()
-
-
 class GenericItemSerializer(InvoiceItemSerializer):
+    details = serializers.JSONField()
 
     class Meta(InvoiceItemSerializer.Meta):
         model = models.GenericInvoiceItem
-        fields = InvoiceItemSerializer.Meta.fields + ('quantity',)
+        fields = InvoiceItemSerializer.Meta.fields + ('quantity', 'details', 'usage_days',)
 
     def get_scope_type(self, item):
         try:
@@ -95,7 +52,7 @@ class GenericItemSerializer(InvoiceItemSerializer):
     def get_scope_uuid(self, item):
         if item.scope:
             return item.scope.uuid.hex
-        return item.details['scope_uuid']
+        return item.details.get('scope_uuid')
 
 
 class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
@@ -103,7 +60,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
-    items = serializers.SerializerMethodField()
+    items = GenericItemSerializer(many=True)
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
@@ -120,13 +77,6 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
             'url': {'lookup_field': 'uuid'},
             'customer': {'lookup_field': 'uuid'},
         }
-
-    def get_items(self, invoice):
-        return list(chain(
-            OpenStackItemSerializer(invoice.openstack_items, many=True, context=self.context).data,
-            OfferingItemSerializer(invoice.offering_items, many=True, context=self.context).data,
-            GenericItemSerializer(invoice.generic_items, many=True, context=self.context).data
-        ))
 
     def get_issuer_details(self, invoice):
         return settings.WALDUR_INVOICES['ISSUER_DETAILS']
@@ -175,7 +125,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
     customer_name = serializers.ReadOnlyField(source='invoice.customer.name')
 
     class Meta(object):
-        model = models.OpenStackItem
+        model = models.GenericInvoiceItem
         fields = (
             'customer_uuid', 'customer_name',
             'project_uuid', 'project_name',
@@ -222,18 +172,6 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
         extra_kwargs = super(InvoiceItemReportSerializer, self).get_extra_kwargs()
         extra_kwargs.update(settings.WALDUR_INVOICES['INVOICE_REPORTING']['SERIALIZER_EXTRA_KWARGS'])
         return extra_kwargs
-
-
-class OpenStackItemReportSerializer(InvoiceItemReportSerializer):
-    class Meta(InvoiceItemReportSerializer.Meta):
-        model = models.OpenStackItem
-        fields = InvoiceItemReportSerializer.Meta.fields + ('usage_days',)
-
-
-class OfferingItemReportSerializer(InvoiceItemReportSerializer):
-    class Meta(InvoiceItemReportSerializer.Meta):
-        model = models.OfferingItem
-        fields = InvoiceItemReportSerializer.Meta.fields + ('usage_days',)
 
 
 class GenericItemReportSerializer(InvoiceItemReportSerializer):
@@ -290,7 +228,7 @@ class SAFReportSerializer(serializers.Serializer):
         return self.format_date(date)
 
     def get_quantity(self, invoice_item):
-        if hasattr(invoice_item, 'quantity'):
+        if hasattr(invoice_item, 'quantity') and invoice_item.quantity:
             return invoice_item.quantity
         return invoice_item.usage_days
 

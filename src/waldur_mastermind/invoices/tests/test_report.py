@@ -7,15 +7,16 @@ from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.invoices.tasks import format_invoice_csv
+from waldur_mastermind.support.tests import factories as support_factories
 
 from .. import models, tasks
-from . import fixtures, factories, utils
+from . import fixtures, utils
 
 
 class BaseReportFormatterTest(TransactionTestCase):
     def setUp(self):
-        fixture = fixtures.InvoiceFixture()
-        package = fixtures.create_package(100, fixture.openstack_tenant)
+        self.fixture = fixtures.InvoiceFixture()
+        package = fixtures.create_package(100, self.fixture.openstack_tenant)
         package.template.name = 'PackageTemplate'
         package.template.save()
         self.customer = package.tenant.service_project_link.project.customer
@@ -41,15 +42,15 @@ class GenericReportFormatterTest(BaseReportFormatterTest):
         self.assertEqual(lines[0], expected_header)
 
     def test_offering_items_are_serialized(self):
-        self.offering_item = factories.OfferingItemFactory(invoice=self.invoice,
-                                                           unit_price=100,
-                                                           offering__template__name='OFFERING-001')
-        self.offering_item.offering.save()
-
+        offering = support_factories.OfferingFactory(
+            template__name='OFFERING-001',
+            project=self.fixture.project)
+        offering.state = offering.__class__.States.OK
+        offering.save()
         report = format_invoice_csv(self.invoice)
         lines = report.splitlines()
         self.assertEqual(3, len(lines))
-        self.assertTrue('OFFERING-001' in lines[-1])
+        self.assertTrue('OFFERING-001' in ''.join(lines))
 
 
 INVOICE_REPORTING = {

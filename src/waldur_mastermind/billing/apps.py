@@ -34,13 +34,11 @@ class BillingConfig(AppConfig):
                          'update_estimate_when_invoice_is_created',
         )
 
-        for index, model in enumerate(invoices_models.InvoiceItem.get_all_models()):
-            signals.post_save.connect(
-                handlers.process_invoice_item,
-                sender=model,
-                dispatch_uid='waldur_mastermind.billing.'
-                             'process_invoice_item_%s_%s' % (index, model.__class__),
-            )
+        signals.post_save.connect(
+            handlers.process_invoice_item,
+            sender=invoices_models.GenericInvoiceItem,
+            dispatch_uid='waldur_mastermind.billing. process_invoice_item',
+        )
 
         signals.post_save.connect(
             handlers.log_price_estimate_limit_update,

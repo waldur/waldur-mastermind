@@ -41,10 +41,9 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
     def get_total(self, year, month, current=False):
         if self.content_type.model_class() == structure_models.Project:
             return sum(item.price
-                       for model in invoices_models.InvoiceItem.get_all_models()
-                       for item in model.objects.filter(invoice__year=year,
-                                                        invoice__month=month,
-                                                        project__uuid=self.scope.uuid.hex))
+                       for item in invoices_models.GenericInvoiceItem.objects.filter(invoice__year=year,
+                                                                                     invoice__month=month,
+                                                                                     project__uuid=self.scope.uuid.hex))
         elif self.content_type.model_class() == structure_models.Customer:
             try:
                 total_property = 'total' if not current else 'total_current'

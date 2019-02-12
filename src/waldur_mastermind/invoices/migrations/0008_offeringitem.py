@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('start', models.DateTimeField(default=waldur_mastermind.invoices.utils.get_current_month_start, help_text='Date and time when item usage has started.')),
                 ('end', models.DateTimeField(default=waldur_mastermind.invoices.utils.get_current_month_end, help_text='Date and time when item usage has ended.')),
                 ('offering_details', waldur_core.core.fields.JSONField(default={}, help_text='Stores data about offering', blank=True)),
-                ('invoice', models.ForeignKey(related_name='offering_items', to='invoices.Invoice')),
+                ('invoice', models.ForeignKey(related_name='+', to='invoices.Invoice')),
                 ('offering', models.ForeignKey(related_name='+', on_delete=django.db.models.deletion.SET_NULL, to='support.Offering', null=True)),
             ],
             options={
