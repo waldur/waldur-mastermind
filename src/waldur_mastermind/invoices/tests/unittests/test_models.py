@@ -10,7 +10,7 @@ class OpenStackItemTest(TestCase):
 
     def test_usage_days_cannot_be_larger_than_end_field(self):
         with freeze_time('2016-11-17 14:00:00'):
-            items = self.fixture.invoice.openstack_items.all()
+            items = self.fixture.invoice.generic_items.all()
 
         with freeze_time('2016-12-1 14:00:00'):
             for item in items:

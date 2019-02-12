@@ -1,22 +1,14 @@
 from django.utils import timezone
 
 from waldur_core.structure.permissions import _get_project
-from waldur_mastermind.invoices import models, utils
+from waldur_mastermind.invoices import models as invoices_models, utils as invoices_utils
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.packages import models as packages_models
 
+from . import utils
+
 
 class OpenStackItemRegistrator(BaseRegistrator):
-
-    def _find_item(self, source, now):
-        result = models.OpenStackItem.objects.filter(
-            package=source,
-            invoice__customer=self.get_customer(source),
-            invoice__state=models.Invoice.States.PENDING,
-            invoice__year=now.year,
-            invoice__month=now.month,
-        ).first()
-        return result
 
     def get_customer(self, source):
         return source.tenant.service_project_link.project.customer
@@ -25,12 +17,22 @@ class OpenStackItemRegistrator(BaseRegistrator):
         return packages_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer).distinct()
 
+    def _find_item(self, source, now):
+        result = utils.get_openstack_items().filter(
+            object_id=source.id,
+            invoice__customer=self.get_customer(source),
+            invoice__state=invoices_models.Invoice.States.PENDING,
+            invoice__year=now.year,
+            invoice__month=now.month,
+        ).first()
+        return result
+
     def _create_item(self, source, invoice, start, end):
         package = source
-        overlapping_item = models.OpenStackItem.objects.filter(
+        overlapping_item = utils.get_openstack_items().filter(
             invoice=invoice,
             end__day=start.day,
-            package_details__contains=package.tenant.name,
+            details__contains=package.tenant.name,
         ).order_by('-unit_price').first()
 
         daily_price = package.template.price
@@ -65,21 +67,41 @@ class OpenStackItemRegistrator(BaseRegistrator):
                                      |-*****-|-06.01.2017-|-******-|
             """
             if overlapping_item.unit_price > daily_price:
-                if overlapping_item.end.day == utils.get_current_month_end().day:
-                    overlapping_item.extend_to_the_end_of_the_day()
+                if overlapping_item.end.day == invoices_utils.get_current_month_end().day:
+                    utils.extend_to_the_end_of_the_day(overlapping_item)
                     end = start
                 else:
                     start = start + timezone.timedelta(days=1)
             else:
-                overlapping_item.shift_backward()
+                utils.shift_backward(overlapping_item)
 
-        models.OpenStackItem.objects.create(
-            package=package,
+        invoices_models.GenericInvoiceItem.objects.create(
+            scope=package,
             project=_get_project(package),
             unit_price=daily_price,
-            unit=models.OpenStackItem.Units.PER_DAY,
+            unit=invoices_models.GenericInvoiceItem.Units.PER_DAY,
             product_code=product_code,
             article_code=article_code,
             invoice=invoice,
             start=start,
-            end=end)
+            end=end,
+            details=self.get_details(package))
+
+    def get_details(self, source):
+        package = source
+        return {
+            'name': utils.get_invoice_item_name(package),
+            'tenant_name': package.tenant.name,
+            'tenant_uuid': package.tenant.uuid.hex,
+            'template_name': package.template.name,
+            'template_uuid': package.template.uuid.hex,
+            'template_category': package.template.get_category_display(),
+        }
+
+    def get_name(self, source):
+        return utils.get_invoice_item_name(source)
+
+    def terminate(self, source, now=None):
+        super(OpenStackItemRegistrator, self).terminate(source, now)
+        package = source
+        utils.get_openstack_items().filter(object_id=package.id).update(object_id=None)

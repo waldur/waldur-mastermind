@@ -10,10 +10,10 @@ class SupportInvoicesConfig(AppConfig):
         from waldur_mastermind.invoices import registrators
         from waldur_mastermind.support import models as support_models
         from waldur_mastermind.marketplace import models as marketplace_models
-        from . import handlers, registrators as support_registrators, models
+        from . import handlers, registrators as support_registrators
 
         registrators.RegistrationManager.add_registrator(
-            models.RequestBasedOffering,
+            support_models.Offering,
             support_registrators.OfferingRegistrator
         )
 
@@ -39,4 +39,16 @@ class SupportInvoicesConfig(AppConfig):
             handlers.switch_plan_resource,
             sender=marketplace_models.Resource,
             dispatch_uid='support_invoices.handlers.switch_plan_resource',
+        )
+
+        signals.post_save.connect(
+            handlers.add_new_offering_details_to_invoice,
+            sender=support_models.Offering,
+            dispatch_uid='waldur_mastermind.invoices.add_new_offering_details_to_invoice',
+        )
+
+        signals.pre_delete.connect(
+            handlers.update_invoice_on_offering_deletion,
+            sender=support_models.Offering,
+            dispatch_uid='waldur_mastermind.invoices.update_invoice_on_offering_deletion',
         )

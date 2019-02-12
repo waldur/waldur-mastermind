@@ -2,13 +2,11 @@ from __future__ import unicode_literals, division
 
 import StringIO
 import base64
-import datetime
 import decimal
-import itertools
 import logging
 from calendar import monthrange
 
-from django.apps import apps
+import datetime
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -18,18 +16,15 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
-from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from waldur_core.core import models as core_models, utils as core_utils
+from waldur_core.core import models as core_models
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models
-from waldur_mastermind.support import models as support_models
-
 from . import managers, utils, registrators
 
 logger = logging.getLogger(__name__)
@@ -102,9 +97,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     @property
     def items(self):
-        return itertools.chain(self.openstack_items.all(),
-                               self.offering_items.all(),
-                               self.generic_items.all())
+        return self.generic_items.all()
 
     @property
     def due_date(self):
@@ -131,20 +124,6 @@ class Invoice(core_models.UuidMixin, models.Model):
     def freeze(self):
         for item in self.items:
             item.freeze()
-
-    def register_offering(self, offering, start=None):
-        if start is None:
-            start = timezone.now()
-
-        end = core_utils.month_end(start)
-        OfferingItem.objects.create(
-            offering=offering,
-            unit_price=offering.unit_price,
-            unit=offering.unit,
-            invoice=self,
-            start=start,
-            end=end,
-        )
 
     @property
     def file(self):
@@ -186,11 +165,6 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     project = models.ForeignKey(structure_models.Project, on_delete=models.SET_NULL, null=True)
     project_name = models.CharField(max_length=150, blank=True)
     project_uuid = models.CharField(max_length=32, blank=True)
-
-    @classmethod
-    @lru_cache(maxsize=1)
-    def get_all_models(cls):
-        return [model for model in apps.get_models() if issubclass(model, cls)]
 
     @property
     def tax(self):
@@ -306,10 +280,10 @@ class GenericInvoiceItem(InvoiceItem):
 
     @property
     def name(self):
-        if self.details:
-            return self.details['name']
         if self.scope:
             return registrators.RegistrationManager.get_name(self.scope)
+        if self.details.get('name'):
+            return self.details.get('name')
 
     def freeze(self):
         if self.scope:
@@ -317,129 +291,6 @@ class GenericInvoiceItem(InvoiceItem):
             self.details['name'] = registrators.RegistrationManager.get_name(self.scope)
             self.details['scope_uuid'] = self.scope.uuid.hex
             self.save(update_fields=['details'])
-
-
-class OfferingItem(InvoiceItem):
-    """ OfferingItem stores details for invoices about purchased custom offering item. """
-    invoice = models.ForeignKey(Invoice, related_name='offering_items')
-    offering = models.ForeignKey(support_models.Offering, on_delete=models.SET_NULL, null=True, related_name='+')
-    offering_details = JSONField(default=dict, blank=True, help_text=_('Stores data about offering'))
-    tracker = FieldTracker()
-
-    @property
-    def name(self):
-        if self.offering_details:
-            name = self.offering_details.get('offering_name', self.project_name)
-            return '%s (%s)' % (name, self.offering_details['offering_type'])
-
-        return '%s (%s)' % (self.offering.name, self.offering.type)
-
-    def freeze(self):
-        """
-        Saves offering type and offering name in "offering_details" if offering exists
-        """
-        if self.offering:
-            self.offering_details['offering_type'] = self.offering.type
-            self.offering_details['offering_name'] = self.offering.name
-            self.offering_details['offering_uuid'] = self.offering.uuid.hex
-            self.offering = None
-            self.save(update_fields=['offering_details', 'offering'])
-
-    def get_offering_uuid(self):
-        if self.offering:
-            return self.offering.uuid.hex
-        else:
-            return self.offering_details.get('offering_uuid')
-
-    def get_offering_type(self):
-        if self.offering:
-            return self.offering.type
-        else:
-            return self.offering_details.get('offering_type')
-
-
-class OpenStackItem(InvoiceItem):
-    """ OpenStackItem stores details for invoices about purchased OpenStack packages """
-
-    invoice = models.ForeignKey(Invoice, related_name='openstack_items')
-
-    package = models.ForeignKey(package_models.OpenStackPackage, on_delete=models.SET_NULL, null=True, related_name='+')
-    package_details = JSONField(default=dict, blank=True, help_text=_('Stores data about package'))
-    tracker = FieldTracker()
-
-    @property
-    def name(self):
-        template_category = self.get_template_category()
-        if template_category:
-            return '%s (%s / %s)' % (self.get_tenant_name(), template_category, self.get_template_name())
-        else:
-            return '%s (%s)' % (self.get_tenant_name(), self.get_template_name())
-
-    def freeze(self):
-        """
-        Saves tenant and package template names and uuids in "package_details" if package exists
-        """
-        if self.package:
-            self.package_details['tenant_name'] = self.package.tenant.name
-            self.package_details['tenant_uuid'] = self.package.tenant.uuid.hex
-            self.package_details['template_name'] = self.package.template.name
-            self.package_details['template_uuid'] = self.package.template.uuid.hex
-            self.package_details['template_category'] = self.package.template.category
-            self.package = None
-            self.save(update_fields=['package', 'package_details'])
-
-    def shift_backward(self, days=1):
-        """
-        Shifts end date to N 'days' ago.
-        If N is larger than it lasts - zero length will be set.
-        :param days: number of days to shift end date
-        """
-        if (self.end - self.start).days > days:
-            end = self.end - timezone.timedelta(days=1)
-        else:
-            end = self.start
-
-        self.end = end
-        self.save()
-
-    def extend_to_the_end_of_the_day(self):
-        self.end = self.end.replace(hour=23, minute=59, second=59)
-        self.save()
-
-    def get_tenant_name(self):
-        if self.package:
-            return self.package.tenant.name
-        else:
-            return self.package_details.get('tenant_name')
-
-    def get_tenant_uuid(self):
-        if self.package:
-            return self.package.tenant.uuid.hex
-        else:
-            return self.package_details.get('tenant_uuid')
-
-    def get_template_name(self):
-        if self.package:
-            return self.package.template.name
-        else:
-            return self.package_details.get('template_name')
-
-    def get_template_uuid(self):
-        if self.package:
-            return self.package.template.uuid.hex
-        else:
-            return self.package_details.get('template_uuid')
-
-    def get_template_category(self):
-        if self.package:
-            return self.package.template.get_category_display()
-        else:
-            template_category = self.package_details.get('template_category')
-            if template_category:
-                categories = dict(package_models.PackageTemplate.Categories.CHOICES)
-                template_category = categories[template_category]
-
-            return template_category
 
 
 def get_default_downtime_start():

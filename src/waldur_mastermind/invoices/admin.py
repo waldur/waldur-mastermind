@@ -23,16 +23,6 @@ class InvoiceItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
     exclude = ('project',)
 
 
-class OpenStackItemInline(InvoiceItemInline):
-    model = models.OpenStackItem
-    readonly_fields = InvoiceItemInline.readonly_fields + ('package', 'package_details')
-
-
-class OfferingItemInline(InvoiceItemInline):
-    model = models.OfferingItem
-    readonly_fields = InvoiceItemInline.readonly_fields + ('offering', 'offering_details')
-
-
 class GenericItemInline(InvoiceItemInline):
     model = models.GenericInvoiceItem
     readonly_fields = InvoiceItemInline.readonly_fields + ('details', 'quantity')
@@ -42,7 +32,7 @@ class GenericItemInline(InvoiceItemInline):
 class InvoiceAdmin(core_admin.ExtraActionsMixin,
                    core_admin.UpdateOnlyModelAdmin,
                    admin.ModelAdmin):
-    inlines = [OpenStackItemInline, OfferingItemInline, GenericItemInline]
+    inlines = [GenericItemInline]
     fields = ['tax_percent', 'invoice_date', 'customer', 'state', 'total', 'year', 'month', 'pdf_file']
     readonly_fields = ('customer', 'state', 'total', 'year', 'month', 'pdf_file')
     list_display = ('customer', 'total', 'year', 'month', 'state')
