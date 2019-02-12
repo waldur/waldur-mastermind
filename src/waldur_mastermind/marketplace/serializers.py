@@ -6,6 +6,7 @@ import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -581,6 +582,9 @@ class CartSubmitSerializer(serializers.Serializer):
             project_field.queryset, self.context['request'].user)
         return fields
 
+    def check_if_all_offerings_are_private(self, items):
+        return all(not item.offering.shared for item in items)
+
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
@@ -606,6 +610,14 @@ class CartSubmitSerializer(serializers.Serializer):
             plugins.manager.validate(order_item, self.context['request'])
 
         order.init_total_cost()
+
+        if self.check_if_all_offerings_are_private(items) \
+                or permissions.user_can_approve_order(user, order):
+
+            order.approve()
+            order.approved_by = user
+            order.approved_at = timezone.now()
+
         order.save()
 
         items.delete()

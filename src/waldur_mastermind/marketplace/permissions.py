@@ -10,3 +10,33 @@ def can_register_service_provider(request, customer):
     if not django_settings.WALDUR_MARKETPLACE['OWNER_CAN_REGISTER_SERVICE_PROVIDER']:
         raise exceptions.PermissionDenied()
     structure_permissions.is_owner(request, None, customer)
+
+
+def check_permissions_for_state_change(request, view, order=None):
+    if not order:
+        return
+
+    user = request.user
+    if user_can_approve_order(user, order):
+        return
+
+    raise exceptions.PermissionDenied()
+
+
+def user_can_approve_order(user, order):
+    if user.is_staff:
+        return True
+
+    if django_settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER'] and \
+            structure_permissions._has_owner_access(user, order.project.customer):
+        return True
+
+    if django_settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER'] and \
+            structure_permissions._has_manager_access(user, order.project):
+        return True
+
+    if django_settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER'] and \
+            structure_permissions._has_admin_access(user, order.project):
+        return True
+
+    return False

@@ -26,6 +26,9 @@ def notifications_order_approval(sender, instance, created=False, **kwargs):
     if not created:
         return
 
+    if instance.state == models.Order.States.EXECUTING:
+        return
+
     transaction.on_commit(lambda: tasks.notify_order_approvers.delay(instance.uuid))
 
 
