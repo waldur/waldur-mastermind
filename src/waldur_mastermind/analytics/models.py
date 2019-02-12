@@ -27,10 +27,13 @@ class DailyQuotaHistory(models.Model):
     See also related design pattern:
     https://martinfowler.com/bliki/ReportingDatabase.html
     """
-    content_type = models.ForeignKey(ct_models.ContentType, null=True)
-    object_id = models.PositiveIntegerField(null=True)
+    content_type = models.ForeignKey(ct_models.ContentType)
+    object_id = models.PositiveIntegerField()
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
     objects = QuotaManager()
     name = models.CharField(max_length=150, db_index=True)
     usage = models.BigIntegerField()
     date = models.DateField()
+
+    class Meta:
+        unique_together = ('content_type', 'object_id', 'name', 'date')
