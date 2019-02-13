@@ -307,6 +307,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 'plan': _('Plan is not available for this offering.')
             })
 
+        serializers.validate_plan(plan)
+
         with transaction.atomic():
             order = models.Order.objects.create(project=resource.project, created_by=self.request.user)
             models.OrderItem.objects.create(order=order,

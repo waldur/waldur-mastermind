@@ -364,6 +364,13 @@ class Plan(core_models.UuidMixin,
     offering = models.ForeignKey(Offering, related_name='plans')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
+    max_amount = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(1)],
+        help_text=_('Maximum number of plans that could be active. '
+                    'Plan is disabled when maximum amount is reached.')
+    )
 
     class Meta(object):
         ordering = ('name',)

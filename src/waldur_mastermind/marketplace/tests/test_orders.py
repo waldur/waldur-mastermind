@@ -99,12 +99,26 @@ class OrderCreateTest(test.APITransactionTestCase):
         response = self.create_order(self.fixture.owner, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_can_not_create_order_with_invalid_plan(self):
+    def test_can_not_create_order_with_plan_related_to_another_offering(self):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {'items': [
             {
                 'offering': factories.OfferingFactory.get_url(),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': {}
+            },
+        ]}
+        response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_not_create_order_if_plan_max_amount_has_been_reached(self):
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        plan = factories.PlanFactory(offering=offering, max_amount=3)
+        factories.ResourceFactory.create_batch(3, plan=plan, offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
                 'plan': factories.PlanFactory.get_url(plan),
                 'attributes': {}
             },
