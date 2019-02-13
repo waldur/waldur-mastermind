@@ -170,8 +170,8 @@ class PlanUsageReporter(object):
         if query.get('offering_uuid'):
             plans = plans.filter(offering__uuid=query.get('offering_uuid'))
 
-        if query.get('customer_uuid'):
-            plans = plans.filter(offering__customer__uuid=query.get('customer_uuid'))
+        if query.get('customer_provider_uuid'):
+            plans = plans.filter(offering__customer__uuid=query.get('customer_provider_uuid'))
 
         return plans
 
