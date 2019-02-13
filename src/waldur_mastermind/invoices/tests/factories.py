@@ -1,11 +1,8 @@
 import factory
-
-from rest_framework.reverse import reverse
 from django.utils import timezone
+from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.packages.tests import factories as packages_factories
-from waldur_mastermind.support.tests import factories as support_factories
 
 from .. import models
 
@@ -27,24 +24,6 @@ class InvoiceFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('invoice-list')
-
-
-class OpenStackItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
-        model = models.OpenStackItem
-
-    invoice = factory.SubFactory(InvoiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-    package = factory.SubFactory(packages_factories.OpenStackPackageFactory)
-
-
-class OfferingItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
-        model = models.OfferingItem
-
-    invoice = factory.SubFactory(InvoiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-    offering = factory.SubFactory(support_factories.OfferingFactory)
 
 
 class GenericInvoiceItemFactory(factory.DjangoModelFactory):

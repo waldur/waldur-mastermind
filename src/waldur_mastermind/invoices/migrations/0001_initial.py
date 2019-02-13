@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
                 ('price', models.DecimalField(help_text='Price is calculated on a monthly basis.', max_digits=13, decimal_places=7, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
                 ('start', models.DateTimeField(default=waldur_mastermind.invoices.utils.get_current_month_start, help_text='Date and time when item usage has started.')),
                 ('end', models.DateTimeField(default=waldur_mastermind.invoices.utils.get_current_month_end, help_text='Date and time when item usage has ended.')),
-                ('invoice', models.ForeignKey(related_name='openstack_items', to='invoices.Invoice')),
+                ('invoice', models.ForeignKey(related_name='+', to='invoices.Invoice')),
                 ('package', models.ForeignKey(related_name='+', on_delete=django.db.models.deletion.SET_NULL, to='packages.OpenStackPackage', null=True)),
             ],
         ),

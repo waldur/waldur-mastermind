@@ -6,46 +6,14 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.cost_tracking import signals as cost_signals
-from waldur_mastermind.support import models as support_models
-from . import models, log, registrators
 
+from . import models, log
 
 logger = logging.getLogger(__name__)
-
-
-def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
-    if not created:
-        return
-
-    registrators.RegistrationManager.register(instance, timezone.now())
-
-
-def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
-    registrators.RegistrationManager.terminate(instance, timezone.now())
-
-
-def update_invoice_on_offering_deletion(sender, instance, **kwargs):
-    state = instance.state
-    if state == support_models.Offering.States.TERMINATED:
-        # no need to terminate offering item if it was already terminated before.
-        return
-
-    registrators.RegistrationManager.terminate(instance, timezone.now())
-
-
-def add_new_offering_details_to_invoice(sender, instance, created=False, **kwargs):
-    state = instance.state
-    if (state == support_models.Offering.States.OK and
-            support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
-        registrators.RegistrationManager.register(instance, timezone.now())
-    if (state == support_models.Offering.States.TERMINATED and
-            support_models.Offering.States.OK == instance.tracker.previous('state')):
-        registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
 def log_invoice_state_transition(sender, instance, created=False, **kwargs):
@@ -98,10 +66,9 @@ def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
         return
 
     query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
-    for model in models.InvoiceItem.get_all_models():
-        for item in model.objects.filter(query).only('pk'):
-            item.project_name = project.name
-            item.save(update_fields=['project_name'])
+    for item in models.GenericInvoiceItem.objects.filter(query).only('pk'):
+        item.project_name = project.name
+        item.save(update_fields=['project_name'])
 
 
 def emit_invoice_created_event(sender, instance, created=False, **kwargs):
@@ -145,9 +112,9 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
 
 @transaction.atomic()
 def adjust_openstack_items_for_downtime(downtime):
-    items = models.OpenStackItem.objects.filter(
+    items = models.GenericInvoiceItem.objects.filter(
         downtime.get_intersection_subquery(),
-        package=downtime.package,
+        scope=downtime.package,
     )
 
     for item in items:

@@ -21,6 +21,42 @@ class CartSubmitTest(test.APITransactionTestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_order_gets_approved_if_user_has_appropriate_permissions(self):
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+
+        self.client.force_authenticate(fixture.staff)
+
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(offering),
+        })
+
+        response = self.client.post(factories.CartItemFactory.get_list_url('submit'), {
+            'project': structure_factories.ProjectFactory.get_url(fixture.project)
+        })
+        self.assertEqual(response.data['state'], 'executing')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_order_gets_approved_if_all_offerings_are_private(self):
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+            shared=False,
+            customer=fixture.customer
+        )
+
+        self.client.force_authenticate(fixture.manager)
+
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(offering),
+        })
+
+        response = self.client.post(factories.CartItemFactory.get_list_url('submit'), {
+            'project': structure_factories.ProjectFactory.get_url(fixture.project)
+        })
+        self.assertEqual(response.data['state'], 'executing')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_cart_item_limits_are_propagated_to_order_item(self):
         limits = {
             'storage': 1000,

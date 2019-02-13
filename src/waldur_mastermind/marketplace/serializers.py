@@ -6,6 +6,7 @@ import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -130,7 +131,8 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
                      serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'offering')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
+                  'offering', 'max_amount')
         protected_fields = ('offering',)
         read_ony_fields = ('unit_price',)
         extra_kwargs = {
@@ -160,7 +162,8 @@ class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'prices', 'quotas')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
+                  'prices', 'quotas', 'max_amount')
         read_ony_fields = ('unit_price',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
@@ -505,6 +508,8 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
                     'plan': _('This plan is not available for selected offering.')
                 })
 
+            validate_plan(plan)
+
         if offering.options:
             validate_options(offering.options['options'], attrs.get('attributes'))
 
@@ -581,6 +586,9 @@ class CartSubmitSerializer(serializers.Serializer):
             project_field.queryset, self.context['request'].user)
         return fields
 
+    def check_if_all_offerings_are_private(self, items):
+        return all(not item.offering.shared for item in items)
+
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
@@ -606,6 +614,14 @@ class CartSubmitSerializer(serializers.Serializer):
             plugins.manager.validate(order_item, self.context['request'])
 
         order.init_total_cost()
+
+        if self.check_if_all_offerings_are_private(items) \
+                or permissions.user_can_approve_order(user, order):
+
+            order.approve()
+            order.approved_by = user
+            order.approved_at = timezone.now()
+
         order.save()
 
         items.delete()
@@ -856,6 +872,19 @@ class OfferingFileSerializer(core_serializers.AugmentedSerializerMixin,
             url={'lookup_field': 'uuid'},
             offering={'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
         )
+
+
+def validate_plan(plan):
+    """"
+    Ensure that maximum amount of resources with current plan is not reached yet.
+    """
+    if plan.max_amount:
+        plan_usage = models.Resource.objects.filter(plan=plan) \
+            .exclude(state=models.Resource.States.TERMINATED).count()
+        if plan_usage >= plan.max_amount:
+            raise rf_exceptions.ValidationError({
+                'plan': _('Plan is not available because limit has been reached.')
+            })
 
 
 def get_is_service_provider(serializer, scope):

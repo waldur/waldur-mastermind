@@ -475,7 +475,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
             state_transition='begin_deleting'
         ))
 
-        _tasks += cls.get_delete_internal_ips_task(serialized_instance)
+        _tasks += cls.get_delete_internal_ips_tasks(serialized_instance)
 
         for volume in instance.volumes.all():
             if volume.backend_id:

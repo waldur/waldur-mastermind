@@ -123,17 +123,17 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()
         self.package = self.fixture.openstack_package
-        self.item = models.OpenStackItem.objects.get(package=self.package)
+        self.item = models.GenericInvoiceItem.objects.get(scope=self.package)
 
     def check_output(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(factories.InvoiceFactory.get_url(self.item.invoice))
         item = response.data['items'][0]
-        self.assertEqual(item['tenant_name'], self.package.tenant.name)
-        self.assertEqual(item['tenant_uuid'], self.package.tenant.uuid.hex)
-        self.assertEqual(item['template_name'], self.package.template.name)
-        self.assertEqual(item['template_uuid'], self.package.template.uuid.hex)
-        self.assertEqual(item['template_category'], self.package.template.get_category_display())
+        self.assertEqual(item['details']['tenant_name'], self.package.tenant.name)
+        self.assertEqual(item['details']['tenant_uuid'], self.package.tenant.uuid.hex)
+        self.assertEqual(item['details']['template_name'], self.package.template.name)
+        self.assertEqual(item['details']['template_uuid'], self.package.template.uuid.hex)
+        self.assertEqual(item['details']['template_category'], self.package.template.get_category_display())
 
     def test_details_are_rendered_if_package_exists(self):
         self.check_output()

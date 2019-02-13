@@ -156,7 +156,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
-    def test_validate_uncorrect_geolocations(self):
+    def test_validate_invalid_geolocations(self):
         response = self.create_offering('staff', add_payload={'geolocations': [{'longitude': 345}]})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('geolocations' in response.data.keys())
@@ -233,6 +233,33 @@ class OfferingCreateTest(test.APITransactionTestCase):
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['plans']), 1)
+
+    def test_specify_max_amount_for_plan(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'Small',
+                    'description': 'Basic plan',
+                    'max_amount': 10,
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['plans'][0]['max_amount'], 10)
+
+    def test_max_amount_should_be_at_least_one(self):
+        plans_request = {
+            'plans': [
+                {
+                    'name': 'Small',
+                    'description': 'Basic plan',
+                    'max_amount': -1,
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_offering_with_custom_components(self):
         plans_request = {

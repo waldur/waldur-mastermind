@@ -32,7 +32,7 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
 
             # Check that new invoice where created with the same openstack items
             new_invoice = models.Invoice.objects.get(customer=fixture.customer, state=models.Invoice.States.PENDING)
-            self.assertEqual(package, new_invoice.openstack_items.first().package)
+            self.assertEqual(package, new_invoice.generic_items.first().scope)
 
     def test_old_invoices_are_marked_as_created(self):
 
