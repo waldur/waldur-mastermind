@@ -115,3 +115,85 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         self.assertTrue(models.Order.objects.filter(
             project=self.project, created_by=self.fixture.owner
         ).exists())
+
+
+class PlanUsageTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.plan1 = factories.PlanFactory()
+        self.offering = self.plan1.offering
+        self.plan2 = factories.PlanFactory(offering=self.offering)
+
+        factories.ResourceFactory.create_batch(
+            3,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan1,
+            state=models.Resource.States.OK,
+        )
+
+        factories.ResourceFactory.create_batch(
+            2,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan2,
+            state=models.Resource.States.OK,
+        )
+
+        factories.ResourceFactory.create_batch(
+            2,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan2,
+            state=models.Resource.States.TERMINATED,
+        )
+
+    def get_stats(self, data=None):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.PlanFactory.get_list_url('usage_stats')
+        response = self.client.get(url, data)
+        return response
+
+    def test_count_plans_for_ok_resources(self):
+        response = self.get_stats()
+        self.assertEqual(response.data[0]['offering_uuid'], self.offering.uuid)
+        self.assertEqual(response.data[0]['customer_provider_uuid'], self.offering.customer.uuid)
+        self.assertEqual(response.data[0]['plan_uuid'], self.plan1.uuid)
+        self.assertEqual(response.data[0]['usage'], 3)
+
+    def test_count_plans_for_terminated_resources(self):
+        response = self.get_stats()
+        self.assertEqual(response.data[1]['usage'], 2)
+
+    def test_filter_plans_by_offering_uuid(self):
+        plan = factories.PlanFactory()
+
+        factories.ResourceFactory.create_batch(
+            4,
+            project=self.project,
+            offering=plan.offering,
+            plan=plan,
+            state=models.Resource.States.OK,
+        )
+
+        response = self.get_stats({'offering_uuid': plan.offering.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['usage'], 4)
+        self.assertEqual(response.data[0]['offering_uuid'], plan.offering.uuid)
+
+    def test_filter_plans_by_customer_provider_uuid(self):
+        plan = factories.PlanFactory()
+
+        factories.ResourceFactory.create_batch(
+            4,
+            project=self.project,
+            offering=plan.offering,
+            plan=plan,
+            state=models.Resource.States.OK,
+        )
+
+        response = self.get_stats({'customer_provider_uuid': plan.offering.customer.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['usage'], 4)
+        self.assertEqual(response.data[0]['customer_provider_uuid'], plan.offering.customer.uuid)

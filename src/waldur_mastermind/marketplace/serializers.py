@@ -154,6 +154,25 @@ PriceSerializer = serializers.DecimalField(
 )
 
 
+class PlanUsageRequestSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(required=False)
+    customer_provider_uuid = serializers.UUIDField(required=False)
+
+
+class PlanUsageResponseSerializer(serializers.Serializer):
+    plan_uuid = serializers.ReadOnlyField(source='uuid')
+    plan_name = serializers.ReadOnlyField(source='name')
+
+    limit = serializers.ReadOnlyField()
+    usage = serializers.ReadOnlyField()
+
+    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
+    offering_name = serializers.ReadOnlyField(source='offering.name')
+
+    customer_provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
+    customer_provider_name = serializers.ReadOnlyField(source='offering.customer.name')
+
+
 class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
     prices = serializers.DictField(child=PriceSerializer, write_only=True, required=False)
