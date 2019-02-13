@@ -131,7 +131,8 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
                      serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'offering')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
+                  'offering', 'max_amount')
         protected_fields = ('offering',)
         read_ony_fields = ('unit_price',)
         extra_kwargs = {
@@ -161,7 +162,8 @@ class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit', 'prices', 'quotas')
+        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
+                  'prices', 'quotas', 'max_amount')
         read_ony_fields = ('unit_price',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
@@ -505,6 +507,8 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
                 raise rf_exceptions.ValidationError({
                     'plan': _('This plan is not available for selected offering.')
                 })
+
+            validate_plan(plan)
 
         if offering.options:
             validate_options(offering.options['options'], attrs.get('attributes'))
@@ -868,6 +872,19 @@ class OfferingFileSerializer(core_serializers.AugmentedSerializerMixin,
             url={'lookup_field': 'uuid'},
             offering={'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
         )
+
+
+def validate_plan(plan):
+    """"
+    Ensure that maximum amount of resources with current plan is not reached yet.
+    """
+    if plan.max_amount:
+        plan_usage = models.Resource.objects.filter(plan=plan) \
+            .exclude(state=models.Resource.States.TERMINATED).count()
+        if plan_usage >= plan.max_amount:
+            raise rf_exceptions.ValidationError({
+                'plan': _('Plan is not available because limit has been reached.')
+            })
 
 
 def get_is_service_provider(serializer, scope):

@@ -72,7 +72,7 @@ class ScreenshotsInline(admin.TabularInline):
 class PlansInline(admin.TabularInline):
     model = models.Plan
     fields = ('name', 'description', 'unit_price', 'unit',
-              'product_code', 'article_code', 'archived')
+              'product_code', 'article_code', 'archived', 'max_amount')
 
 
 class PlanComponentInline(admin.TabularInline):
