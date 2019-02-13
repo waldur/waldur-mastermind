@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.db import transaction
+from django.db.models import Count, OuterRef, Subquery, F
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -18,6 +19,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
+from waldur_core.core.utils import order_with_nulls
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -120,10 +122,73 @@ class OfferingViewSet(BaseMarketplaceView):
         [structure_permissions.is_owner]
 
 
+class PlanUsageReporter(object):
+    """
+    This class provides aggregate counts of how many plans of a
+    certain type for each offering is used.
+    """
+    def __init__(self, view, request):
+        self.view = view
+        self.request = request
+
+    def get_report(self):
+        plans = models.Plan.objects.all()
+
+        query = self.parse_query()
+        if query:
+            plans = self.apply_filters(query, plans)
+
+        resources = self.get_subquery()
+        plans = plans.annotate(usage=Subquery(resources[:1]), limit=F('max_amount'))
+        plans = order_with_nulls(plans, '-usage')
+
+        return self.serialize(plans)
+
+    def parse_query(self):
+        if self.request.query_params:
+            serializer = serializers.PlanUsageRequestSerializer(data=self.request.query_params)
+            serializer.is_valid(raise_exception=True)
+            return serializer.validated_data
+        return None
+
+    def get_subquery(self):
+        # Aggregate
+        resources = models.Resource.objects \
+            .filter(plan_id=OuterRef('pk')) \
+            .exclude(state=models.Resource.States.TERMINATED) \
+            .annotate(count=Count('*')) \
+            .values_list('count', flat=True)
+
+        # Workaround for Django bug:
+        # https://code.djangoproject.com/ticket/28296
+        # It allows to remove extra GROUP BY clause from the subquery.
+        resources.query.group_by = []
+
+        return resources
+
+    def apply_filters(self, query, plans):
+        if query.get('offering_uuid'):
+            plans = plans.filter(offering__uuid=query.get('offering_uuid'))
+
+        if query.get('customer_uuid'):
+            plans = plans.filter(offering__customer__uuid=query.get('customer_uuid'))
+
+        return plans
+
+    def serialize(self, plans):
+        page = self.view.paginate_queryset(plans)
+        serializer = serializers.PlanUsageResponseSerializer(page, many=True)
+        return self.view.get_paginated_response(serializer.data)
+
+
 class PlanViewSet(BaseMarketplaceView):
     queryset = models.Plan.objects.all()
     serializer_class = serializers.PlanSerializer
     filter_class = filters.PlanFilter
+
+    @list_route()
+    def usage_stats(self, request):
+        return PlanUsageReporter(self, request).get_report()
 
 
 class ScreenshotViewSet(BaseMarketplaceView):
