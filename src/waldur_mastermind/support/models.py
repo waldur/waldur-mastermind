@@ -101,6 +101,16 @@ class Issue(core_models.UuidMixin,
     def resolved(self):
         return IssueStatus.check_success_status(self.status)
 
+    def set_resolved(self):
+        self.status = IssueStatus.objects.filter(type=IssueStatus.Types.RESOLVED).first().name
+        self.state = Issue.States.OK
+        self.save()
+
+    def set_canceled(self):
+        self.status = IssueStatus.objects.filter(type=IssueStatus.Types.CANCELED).first().name
+        self.state = Issue.States.OK
+        self.save()
+
     def __str__(self):
         return '{}: {}'.format(self.key or '???', self.summary)
 

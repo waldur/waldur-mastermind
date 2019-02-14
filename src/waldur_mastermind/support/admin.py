@@ -4,14 +4,17 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
 from django.utils.functional import cached_property
-from waldur_core.core.admin import JsonWidget
+from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import admin as core_admin
+from waldur_core.core.admin import JsonWidget
 from waldur_core.structure import admin as structure_admin
 
-from . import models
-
+from . import models, backend
+from .backend.basic import BasicBackend
 
 User = get_user_model()
 
@@ -61,8 +64,35 @@ class OfferingTemplateAdmin(admin.ModelAdmin):
     form = OfferingTemplateAdminForm
 
 
-class IssueAdmin(structure_admin.BackendModelAdmin):
+class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendModelAdmin):
     exclude = ('resource_content_type', 'resource_object_id')
+
+    def resolve(self, request, pk=None):
+        issue = get_object_or_404(models.Issue, pk=pk)
+        issue.set_resolved()
+        message = _('Issue has been resolved.')
+        self.message_user(request, message)
+        return HttpResponseRedirect('../')
+
+    def cancel(self, request, pk=None):
+        issue = get_object_or_404(models.Issue, pk=pk)
+        issue.set_canceled()
+        message = _('Issue has been canceled.')
+        self.message_user(request, message)
+        return HttpResponseRedirect('../')
+
+    def buttons_validate(request, obj):
+        if isinstance(backend.get_active_backend(), BasicBackend) and obj.resolved is None:
+            return True
+
+    resolve.validator = buttons_validate
+    cancel.validator = buttons_validate
+
+    def get_extra_object_actions(self):
+        return [
+            self.resolve,
+            self.cancel,
+        ]
 
 
 class TemplateAttachmentInline(admin.TabularInline):
