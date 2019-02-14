@@ -727,12 +727,13 @@ class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
         fields = BaseItemSerializer.Meta.fields + (
-            'state', 'resource_uuid', 'resource_type', 'project', 'project_uuid',
+            'scope', 'state', 'resource_uuid', 'resource_type', 'project', 'project_uuid',
             'backend_metadata',
         )
-        read_only_fields = ('backend_metadata',)
+        read_only_fields = ('backend_metadata', 'scope',)
 
     state = serializers.ReadOnlyField(source='get_state_display')
+    scope = core_serializers.GenericRelatedField()
     resource_uuid = serializers.ReadOnlyField(source='backend_uuid')
     resource_type = serializers.ReadOnlyField(source='backend_type')
     project = serializers.HyperlinkedRelatedField(
