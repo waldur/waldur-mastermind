@@ -345,18 +345,23 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
-    switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
     @detail_route(methods=['post'])
     def terminate(self, request, uuid=None):
         resource = self.get_object()
 
         with transaction.atomic():
-            order = models.Order.objects.create(project=resource.project, created_by=self.request.user)
-            models.OrderItem.objects.create(order=order,
-                                            resource=resource,
-                                            offering=resource.offering,
-                                            type=models.OrderItem.Types.TERMINATE)
+            order_item = models.OrderItem(
+                resource=resource,
+                offering=resource.offering,
+                type=models.OrderItem.Types.TERMINATE,
+            )
+            order = serializers.create_order(
+                project=resource.project,
+                user=self.request.user,
+                items=[order_item],
+                request=request,
+            )
 
         return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
 
@@ -367,22 +372,23 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         serializer.is_valid(raise_exception=True)
         plan = serializer.validated_data['plan']
 
-        if plan.offering != resource.offering:
-            raise rf_exceptions.ValidationError({
-                'plan': _('Plan is not available for this offering.')
-            })
-
-        serializers.validate_plan(plan)
-
         with transaction.atomic():
-            order = models.Order.objects.create(project=resource.project, created_by=self.request.user)
-            models.OrderItem.objects.create(order=order,
-                                            resource=resource,
-                                            offering=resource.offering,
-                                            plan=plan,
-                                            type=models.OrderItem.Types.UPDATE)
+            order_item = models.OrderItem(
+                resource=resource,
+                offering=resource.offering,
+                plan=plan,
+                type=models.OrderItem.Types.UPDATE
+            )
+            order = serializers.create_order(
+                project=resource.project,
+                user=self.request.user,
+                items=[order_item],
+                request=request,
+            )
 
         return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+
+    switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
     def check_permissions_for_resource_actions(request, view, resource=None):
         if not resource:

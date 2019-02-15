@@ -605,9 +605,6 @@ class CartSubmitSerializer(serializers.Serializer):
             project_field.queryset, self.context['request'].user)
         return fields
 
-    def check_if_all_offerings_are_private(self, items):
-        return all(not item.offering.shared for item in items)
-
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
@@ -617,34 +614,56 @@ class CartSubmitSerializer(serializers.Serializer):
             raise serializers.ValidationError(_('Shopping cart is empty'))
 
         project = validated_data['project']
-        order = models.Order.objects.create(project=project, created_by=user)
-
-        for item in items:
-            try:
-                order_item = order.add_item(
-                    offering=item.offering,
-                    attributes=item.attributes,
-                    plan=item.plan,
-                    limits=item.limits,
-                    type=item.type,
-                )
-            except ValidationError as e:
-                raise rf_exceptions.ValidationError(e)
-            plugins.manager.validate(order_item, self.context['request'])
-
-        order.init_total_cost()
-
-        if self.check_if_all_offerings_are_private(items) \
-                or permissions.user_can_approve_order(user, order):
-
-            order.approve()
-            order.approved_by = user
-            order.approved_at = timezone.now()
-
-        order.save()
-
+        order = create_order(project, user, items, self.context['request'])
         items.delete()
         return order
+
+
+def create_order(project, user, items, request):
+    order_params = dict(project=project, created_by=user)
+
+    if permissions.user_can_approve_order(user, project):
+        only_create_private = all(
+            item.type == models.OrderItem.Types.CREATE and not item.offering.shared
+            for item in items
+        )
+        only_update_or_delete = all(
+            item.type in (models.OrderItem.Types.UPDATE, models.OrderItem.Types.TERMINATE)
+            for item in items
+        )
+        if only_create_private or only_update_or_delete:
+            order_params.update(dict(
+                state=models.Order.States.EXECUTING,
+                approved_by=user,
+                approved_at=timezone.now(),
+            ))
+
+    order = models.Order.objects.create(**order_params)
+
+    for item in items:
+        if item.type in (models.OrderItem.Types.UPDATE, models.OrderItem.Types.TERMINATE) and \
+                item.resource and models.OrderItem.objects.filter(
+            resource=item.resource,
+            state__in=(models.OrderItem.States.PENDING, models.OrderItem.States.EXECUTING)
+        ).exists():
+            raise rf_exceptions.ValidationError(_('Pending order item for resource already exists.'))
+
+        try:
+            order_item = order.add_item(
+                offering=item.offering,
+                attributes=item.attributes,
+                resource=getattr(item, 'resource', None),
+                plan=item.plan,
+                limits=item.limits,
+                type=item.type,
+            )
+        except ValidationError as e:
+            raise rf_exceptions.ValidationError(e)
+        plugins.manager.validate(order_item, request)
+
+    order.init_total_cost()
+    order.save()
+    return order
 
 
 class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
@@ -755,6 +774,18 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         queryset=models.Plan.objects.all(),
         required=True,
     )
+
+    def validate(self, attrs):
+        plan = attrs['plan']
+        resource = self.context['view'].get_object()
+
+        if plan.offering != resource.offering:
+            raise rf_exceptions.ValidationError({
+                'plan': _('Plan is not available for this offering.')
+            })
+
+        validate_plan(plan)
+        return attrs
 
 
 class BaseComponentSerializer(serializers.Serializer):
