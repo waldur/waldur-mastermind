@@ -17,26 +17,26 @@ def check_permissions_for_state_change(request, view, order=None):
         return
 
     user = request.user
-    if user_can_approve_order(user, order):
+    if user_can_approve_order(user, order.project):
         return
 
     raise exceptions.PermissionDenied()
 
 
-def user_can_approve_order(user, order):
+def user_can_approve_order(user, project):
     if user.is_staff:
         return True
 
     if django_settings.WALDUR_MARKETPLACE['OWNER_CAN_APPROVE_ORDER'] and \
-            structure_permissions._has_owner_access(user, order.project.customer):
+            structure_permissions._has_owner_access(user, project.customer):
         return True
 
     if django_settings.WALDUR_MARKETPLACE['MANAGER_CAN_APPROVE_ORDER'] and \
-            structure_permissions._has_manager_access(user, order.project):
+            structure_permissions._has_manager_access(user, project):
         return True
 
     if django_settings.WALDUR_MARKETPLACE['ADMIN_CAN_APPROVE_ORDER'] and \
-            structure_permissions._has_admin_access(user, order.project):
+            structure_permissions._has_admin_access(user, project):
         return True
 
     return False
