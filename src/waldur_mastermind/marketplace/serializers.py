@@ -622,18 +622,27 @@ class CartSubmitSerializer(serializers.Serializer):
 def create_order(project, user, items, request):
     order_params = dict(project=project, created_by=user)
 
-    if all(item.resource or not item.offering.shared for item in items) \
-            and permissions.user_can_approve_order(user, project):
-        order_params.update(dict(
-            state=models.Order.States.EXECUTING,
-            approved_by=user,
-            approved_at=timezone.now(),
-        ))
+    if permissions.user_can_approve_order(user, project):
+        only_create_private = all(
+            item.type == models.OrderItem.Types.CREATE and not item.offering.shared
+            for item in items
+        )
+        only_update_or_delete = all(
+            item.type in (models.OrderItem.Types.UPDATE, models.OrderItem.Types.TERMINATE)
+            for item in items
+        )
+        if only_create_private or only_update_or_delete:
+            order_params.update(dict(
+                state=models.Order.States.EXECUTING,
+                approved_by=user,
+                approved_at=timezone.now(),
+            ))
 
     order = models.Order.objects.create(**order_params)
 
     for item in items:
-        if item.resource and models.OrderItem.objects.filter(
+        if item.type in (models.OrderItem.Types.UPDATE, models.OrderItem.Types.TERMINATE) and \
+                item.resource and models.OrderItem.objects.filter(
             resource=item.resource,
             state__in=(models.OrderItem.States.PENDING, models.OrderItem.States.EXECUTING)
         ).exists():
@@ -643,7 +652,7 @@ def create_order(project, user, items, request):
             order_item = order.add_item(
                 offering=item.offering,
                 attributes=item.attributes,
-                resource=item.resource,
+                resource=getattr(item, 'resource', None),
                 plan=item.plan,
                 limits=item.limits,
                 type=item.type,

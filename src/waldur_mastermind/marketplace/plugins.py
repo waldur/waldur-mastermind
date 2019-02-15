@@ -115,7 +115,11 @@ class PluginManager(object):
     def validate(self, order_item, request):
         processor = self.get_processor(order_item)
         if processor:
-            processor(order_item).validate_order_item(request)
+            try:
+                processor(order_item).validate_order_item(request)
+            except NotImplementedError:
+                # It is okay if validation is not implemented yet
+                pass
 
 
 manager = PluginManager()

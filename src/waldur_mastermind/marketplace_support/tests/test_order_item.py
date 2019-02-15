@@ -202,8 +202,9 @@ class RequestDeleteTest(RequestActionBaseTest):
         self.request_resource_termination()
         order = marketplace_models.Order.objects.get(project=self.project)
         order_item = order.items.first()
-        order_item.order.approve()
-        order_item.order.save()
+        if order_item.order.state != marketplace_models.Order.States.EXECUTING:
+            order_item.order.approve()
+            order_item.order.save()
         manager.process(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
