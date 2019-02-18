@@ -329,6 +329,9 @@ class Customer(core_models.UuidMixin,
     access_subnets = models.TextField(validators=[validate_cidr_list], blank=True, default='',
                                       help_text=_('Enter a comma separated list of IPv4 or IPv6 '
                                                   'CIDR addresses from where connection to self-service is allowed.'))
+    backend_id = models.CharField(max_length=255, blank=True, help_text=_(
+        'Organization identifier in another application.'
+    ))
     registration_code = models.CharField(max_length=160, default='', blank=True)
     homepage = models.URLField(max_length=255, blank=True)
     domain = models.CharField(max_length=255, blank=True)
