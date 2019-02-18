@@ -117,6 +117,7 @@ class CustomerFilter(NameFilterSet):
             'contact_details',
             'native_name',
             'registration_code',
+            'backend_id',
         ]
 
     def filter_query(self, queryset, name, value):

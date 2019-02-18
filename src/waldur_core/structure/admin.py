@@ -187,7 +187,8 @@ class CustomerAdmin(FormRequestAdminMixin,
                     ProtectedModelMixin,
                     admin.ModelAdmin):
     form = CustomerAdminForm
-    fields = ('name', 'uuid', 'image', 'native_name', 'abbreviation', 'contact_details', 'registration_code',
+    fields = ('name', 'uuid', 'image', 'native_name', 'abbreviation', 'contact_details',
+              'registration_code', 'backend_id',
               'agreement_number', 'email', 'phone_number', 'access_subnets',
               'country', 'vat_code', 'is_company', 'owners', 'support_users',
               'type', 'address', 'postal', 'bank_name', 'bank_account',
