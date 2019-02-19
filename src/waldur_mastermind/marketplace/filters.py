@@ -115,6 +115,8 @@ class OrderItemFilter(django_filters.FilterSet):
     resource = core_filters.URLFilter(view_name='marketplace-resource-detail', name='resource__uuid')
     resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
 
+    o = django_filters.OrderingFilter(fields=('created',))
+
     class Meta(object):
         model = models.OrderItem
         fields = []
