@@ -9,7 +9,7 @@ from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
-from . import factories, fixtures
+from . import factories, fixtures, utils
 from .. import models
 
 
@@ -211,6 +211,7 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
     def test_package_is_replaced_on_extend(self):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.run_success_task()
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         old_package = models.OpenStackPackage.objects.filter(uuid=self.package.uuid)
@@ -267,6 +268,7 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
     def test_after_package_extension_tenant_is_updated(self):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.run_success_task()
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         self.package.tenant.refresh_from_db()
         self.assertDictEqual(self.package.tenant.extra_configuration, {
@@ -281,6 +283,7 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
     def test_after_package_extension_related_service_settings_are_updated(self):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.run_success_task()
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
         quotas = self.package.service_settings.quotas
@@ -302,7 +305,7 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         new_component.amount = new_limit
         new_component.save(update_fields=['amount'])
 
-    @mock.patch('waldur_mastermind.packages.serializers.event_logger')
+    @mock.patch('waldur_mastermind.packages.views.event_logger')
     def test_logger_called_when_package_change_scheduled(self, logger_mock):
         self.client.force_authenticate(self.fixture.staff)
         self.client.post(self.change_url, data=self.get_valid_payload())
@@ -323,6 +326,9 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
             'template': factories.PackageTemplateFactory.get_url(template or self.new_template),
             'package': factories.OpenStackPackageFactory.get_url(package or self.package),
         }
+
+    def run_success_task(self):
+        utils.run_openstack_package_change_executor(self.package, self.new_template)
 
 
 @ddt

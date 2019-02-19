@@ -5,8 +5,9 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices.tests import factories as invoice_factories
-from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import factories as packages_factories
+from waldur_mastermind.packages.tests import fixtures as packages_fixtures
+from waldur_mastermind.packages.tests import utils as packages_utils
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 
@@ -197,10 +198,15 @@ class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
             self.new_template.components.filter(type=component_type).update(price=component_price, amount=1)
 
         self.client.force_authenticate(user=self.fixture.owner)
-        return self.client.post(packages_factories.OpenStackPackageFactory.get_list_url(action='change'), data={
+        response = self.client.post(packages_factories.OpenStackPackageFactory.get_list_url(action='change'), data={
             'template': packages_factories.PackageTemplateFactory.get_url(self.new_template),
             'package': packages_factories.OpenStackPackageFactory.get_url(self.package),
         })
+
+        if response.status_code == status.HTTP_202_ACCEPTED:
+            packages_utils.run_openstack_package_change_executor(self.package, self.new_template)
+
+        return response
 
 
 class PriceEstimateLimitTest(test.APITransactionTestCase):

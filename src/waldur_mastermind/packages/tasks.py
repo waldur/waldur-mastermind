@@ -1,9 +1,13 @@
 from __future__ import unicode_literals
 
+from django.db import transaction
+
 from waldur_core.core import tasks as core_tasks, utils as core_utils
 from waldur_openstack.openstack import models as openstack_models
+from waldur_mastermind.packages import serializers
 
 from .log import event_logger
+from . import models
 
 
 class OpenStackPackageErrorTask(core_tasks.ErrorStateTransitionTask):
@@ -58,3 +62,22 @@ class LogOpenStackPackageChange(core_tasks.Task):
                 'package_template_name': new_package,
                 'service_settings': service_settings,
             })
+
+
+class OpenStackPackageSuccessTask(core_tasks.Task):
+    def execute(self, tenant, serialized_new_template, serialized_old_package,
+                serialized_service_settings, *args, **kwargs):
+        new_template = core_utils.deserialize_instance(serialized_new_template)
+        old_package = core_utils.deserialize_instance(serialized_old_package)
+        service_settings = core_utils.deserialize_instance(serialized_service_settings)
+
+        with transaction.atomic():
+            serializers._set_tenant_quotas(tenant, new_template)
+            serializers._set_related_service_settings_quotas(tenant, new_template)
+            serializers._set_tenant_extra_configuration(tenant, new_template)
+            old_package.delete()
+            models.OpenStackPackage.objects.create(
+                template=new_template,
+                service_settings=service_settings,
+                tenant=tenant
+            )
