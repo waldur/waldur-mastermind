@@ -112,6 +112,9 @@ class OrderItemFilter(django_filters.FilterSet):
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
     order_uuid = django_filters.UUIDFilter(name='order__uuid')
 
+    resource = core_filters.URLFilter(view_name='marketplace-resource-detail', name='resource__uuid')
+    resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
+
     class Meta(object):
         model = models.OrderItem
         fields = []
