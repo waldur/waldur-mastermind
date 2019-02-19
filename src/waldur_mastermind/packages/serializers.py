@@ -11,8 +11,7 @@ from waldur_openstack.openstack import (
     apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
-from . import models
-from .log import event_logger
+from . import models, exceptions
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
@@ -222,37 +221,29 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
             if component.type in usage and usage[component.type] > component.amount:
                 msg = _("Current usage of {0} quota is greater than new template's {0} component.")
                 raise serializers.ValidationError(msg.format(component.get_type_display()))
+
+        # check price estimate limits
+        try:
+            # Creating and deleting of a package are necessary because of validator
+            # waldur_mastermind.billing.models.PriceEstimate.validate_limit
+            # which will be called only after calls of the handlers.
+            # But creating and deleting of a package is not allowed here,
+            # they are allowed only after backend request so here use a transaction rollback.
+            with transaction.atomic():
+                service_settings = package.service_settings
+                tenant = package.tenant
+
+                package.delete()
+                models.OpenStackPackage.objects.create(
+                    template=new_template,
+                    service_settings=service_settings,
+                    tenant=tenant
+                )
+                raise exceptions.TransactionRollback()
+        except exceptions.TransactionRollback:
+            pass
+
         return attrs
-
-    @transaction.atomic
-    def create(self, validated_data):
-        package = validated_data['package']
-        new_template = validated_data['template']
-        service_settings = package.service_settings
-
-        tenant = package.tenant
-        _set_tenant_quotas(tenant, new_template)
-        _set_related_service_settings_quotas(tenant, new_template)
-        _set_tenant_extra_configuration(tenant, new_template)
-
-        package.delete()
-        new_package = models.OpenStackPackage.objects.create(
-            template=new_template,
-            service_settings=service_settings,
-            tenant=tenant
-        )
-
-        event_logger.openstack_package.info(
-            'Tenant package change has been scheduled. '
-            'Old value: %s, new value: {package_template_name}' % package.template.name,
-            event_type='openstack_package_change_scheduled',
-            event_context={
-                'tenant': tenant,
-                'package_template_name': new_template.name,
-                'service_settings': service_settings,
-            })
-
-        return package, new_package, service_settings
 
 
 class OpenStackPackageAssignSerializer(serializers.Serializer):

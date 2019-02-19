@@ -10,6 +10,7 @@ from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTes
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as package_factories
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
+from waldur_mastermind.packages.tests import utils as package_utils
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
@@ -201,12 +202,20 @@ class TenantUpdateTest(TenantMutateTest):
             plan=self.new_plan,
             type=marketplace_models.RequestTypeMixin.Types.UPDATE,
         )
+        self.package = self.fixture.openstack_package
 
     def test_update_is_scheduled(self):
         self.trigger_update()
         self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.UPDATING)
         self.assertEqual(self.resource.plan, self.plan)
+
+        package_utils.run_openstack_package_change_executor(self.package, self.new_template)
+        self.order_item.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+        self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(self.resource.plan, self.new_plan)
 
         package = package_models.OpenStackPackage.objects.get(tenant=self.tenant)
         self.assertEqual(package.template, self.new_template)
