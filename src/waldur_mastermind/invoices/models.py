@@ -235,7 +235,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         raise NotImplementedError()
 
     def __str__(self):
-        return self.name
+        return self.name or '<GenericInvoiceItem %s>' % self.pk
 
     def create_compensation(self, name, **kwargs):
         FIELDS = (
