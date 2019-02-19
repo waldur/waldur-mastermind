@@ -115,3 +115,168 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         self.assertTrue(models.Order.objects.filter(
             project=self.project, created_by=self.fixture.owner
         ).exists())
+
+    def test_order_is_approved_implicitly_for_authorized_user(self):
+        # Act
+        response = self.switch_plan(self.fixture.staff, self.resource1, self.plan2)
+
+        # Assert
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(order.state, models.Order.States.EXECUTING)
+        self.assertEqual(order.approved_by, self.fixture.staff)
+
+    def test_plan_switch_is_not_allowed_if_pending_order_item_for_resource_already_exists(self):
+        # Arrange
+        factories.OrderItemFactory(resource=self.resource1, state=models.OrderItem.States.PENDING)
+
+        # Act
+        response = self.switch_plan(self.fixture.staff, self.resource1, self.plan2)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ResourceTerminateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.plan = factories.PlanFactory()
+        self.resource = models.Resource.objects.create(
+            project=self.project,
+            offering=self.plan.offering,
+            plan=self.plan,
+            state=models.Resource.States.OK,
+        )
+
+    def terminate(self, user):
+        self.client.force_authenticate(user)
+        url = factories.ResourceFactory.get_url(self.resource, 'terminate')
+        return self.client.post(url)
+
+    def test_order_item_is_created_when_user_submits_termination_request(self):
+        # Act
+        response = self.terminate(self.fixture.owner)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(order.project, self.project)
+
+    def test_termination_request_is_not_accepted_if_resource_is_not_OK(self):
+        # Arrange
+        self.resource.state = models.Resource.States.UPDATING
+        self.resource.save()
+
+        # Act
+        response = self.terminate(self.fixture.owner)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_termination_request_is_not_accepted_if_user_is_not_authorized(self):
+        # Act
+        response = self.terminate(self.fixture.global_support)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_order_is_approved_implicitly_for_authorized_user(self):
+        # Act
+        response = self.terminate(self.fixture.staff)
+
+        # Assert
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(order.state, models.Order.States.EXECUTING)
+        self.assertEqual(order.approved_by, self.fixture.staff)
+
+    def test_plan_switch_is_not_allowed_if_pending_order_item_for_resource_already_exists(self):
+        # Arrange
+        factories.OrderItemFactory(resource=self.resource, state=models.OrderItem.States.PENDING)
+
+        # Act
+        response = self.terminate(self.fixture.staff)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class PlanUsageTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.plan1 = factories.PlanFactory()
+        self.offering = self.plan1.offering
+        self.plan2 = factories.PlanFactory(offering=self.offering)
+
+        factories.ResourceFactory.create_batch(
+            3,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan1,
+            state=models.Resource.States.OK,
+        )
+
+        factories.ResourceFactory.create_batch(
+            2,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan2,
+            state=models.Resource.States.OK,
+        )
+
+        factories.ResourceFactory.create_batch(
+            2,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan2,
+            state=models.Resource.States.TERMINATED,
+        )
+
+    def get_stats(self, data=None):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.PlanFactory.get_list_url('usage_stats')
+        response = self.client.get(url, data)
+        return response
+
+    def test_count_plans_for_ok_resources(self):
+        response = self.get_stats()
+        self.assertEqual(response.data[0]['offering_uuid'], self.offering.uuid)
+        self.assertEqual(response.data[0]['customer_provider_uuid'], self.offering.customer.uuid)
+        self.assertEqual(response.data[0]['plan_uuid'], self.plan1.uuid)
+        self.assertEqual(response.data[0]['usage'], 3)
+
+    def test_count_plans_for_terminated_resources(self):
+        response = self.get_stats()
+        self.assertEqual(response.data[1]['usage'], 2)
+
+    def test_filter_plans_by_offering_uuid(self):
+        plan = factories.PlanFactory()
+
+        factories.ResourceFactory.create_batch(
+            4,
+            project=self.project,
+            offering=plan.offering,
+            plan=plan,
+            state=models.Resource.States.OK,
+        )
+
+        response = self.get_stats({'offering_uuid': plan.offering.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['usage'], 4)
+        self.assertEqual(response.data[0]['offering_uuid'], plan.offering.uuid)
+
+    def test_filter_plans_by_customer_provider_uuid(self):
+        plan = factories.PlanFactory()
+
+        factories.ResourceFactory.create_batch(
+            4,
+            project=self.project,
+            offering=plan.offering,
+            plan=plan,
+            state=models.Resource.States.OK,
+        )
+
+        response = self.get_stats({'customer_provider_uuid': plan.offering.customer.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['usage'], 4)
+        self.assertEqual(response.data[0]['customer_provider_uuid'], plan.offering.customer.uuid)

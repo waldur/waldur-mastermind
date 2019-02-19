@@ -41,7 +41,10 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     if instance.state == support_models.Offering.States.OK:
         callbacks.resource_creation_succeeded(resource)
     elif instance.state == support_models.Offering.States.TERMINATED:
-        callbacks.resource_deletion_succeeded(resource)
+        if instance.tracker.previous('state') == support_models.Offering.States.REQUESTED:
+            callbacks.resource_creation_failed(resource)
+        if instance.tracker.previous('state') == support_models.Offering.States.OK:
+            callbacks.resource_deletion_succeeded(resource)
 
 
 def terminate_resource(sender, instance, **kwargs):
@@ -75,12 +78,14 @@ def create_support_plan(sender, instance, created=False, **kwargs):
             plan.save()
 
 
-def offering_set_state_ok(sender, instance, created=False, **kwargs):
+def change_offering_state(sender, instance, created=False, **kwargs):
+    """ Processing of creating support offering issue."""
     if created:
         return
 
-    if instance.tracker.has_changed('resolution'):
-        issue = instance
+    issue = instance
+
+    if instance.tracker.has_changed('status') and issue.resolved is not None:
         try:
             offering = support_models.Offering.objects.get(issue=issue)
         except support_models.Offering.DoesNotExist:
@@ -88,12 +93,16 @@ def offering_set_state_ok(sender, instance, created=False, **kwargs):
                            'because related support offering is not found. Issue ID: %s', issue.id)
             return
 
-        if issue.resolution:
+        if issue.resolved:
             offering.state = support_models.Offering.States.OK
-            offering.save()
+        else:
+            offering.state = support_models.Offering.States.TERMINATED
+
+        offering.save()
 
 
 def update_order_item_if_issue_was_complete(sender, instance, created=False, **kwargs):
+    """ Processing of terminating or updating a resource."""
     if created:
         return
 
@@ -119,8 +128,8 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
 
             with transaction.atomic():
                 if order_item.type == marketplace_models.OrderItem.Types.TERMINATE:
-                    callbacks.resource_deletion_succeeded(order_item.resource)
                     request.delete()
+                    # callbacks.resource_deletion_succeeded will called in terminate_resource handler
                 elif order_item.type == marketplace_models.OrderItem.Types.UPDATE:
                     callbacks.resource_update_succeeded(order_item.resource)
         else:
@@ -129,22 +138,3 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
                     callbacks.resource_deletion_failed(order_item.resource)
                 elif order_item.type == marketplace_models.OrderItem.Types.UPDATE:
                     callbacks.resource_update_failed(order_item.resource)
-
-
-def synchronize_terminated_status_for_resource_and_scope(sender, instance, created=False, **kwargs):
-    if created:
-        return
-
-    resource = instance
-
-    if not resource.tracker.has_changed('state'):
-        return
-
-    if resource.state != marketplace_models.Resource.States.TERMINATED:
-        return
-
-    if resource.offering.type != PLUGIN_NAME:
-        return
-
-    resource.scope.state = support_models.Offering.States.TERMINATED
-    resource.scope.save(update_fields=['state'])

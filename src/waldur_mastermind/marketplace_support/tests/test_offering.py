@@ -25,23 +25,45 @@ class OfferingTemplateCreateTest(test.APITransactionTestCase):
 
 
 class SupportOfferingTest(BaseTest):
-    def test_offering_set_state_done(self):
-        offering = support_factories.OfferingFactory()
-        resource = marketplace_factories.ResourceFactory(scope=offering)
-        order_item = marketplace_factories.OrderItemFactory(resource=resource)
-        order_item.set_state_executing()
-        order_item.save()
+    def setUp(self):
+        super(SupportOfferingTest, self).setUp()
 
-        order_item.order.state = marketplace_models.Order.States.EXECUTING
-        order_item.order.save()
-        offering.issue.status = 'Completed'
-        offering.issue.resolution = 'Done'
-        offering.issue.save()
+        self.success_issue_status = 'Completed'
+        support_factories.IssueStatusFactory(
+            name=self.success_issue_status,
+            type=support_models.IssueStatus.Types.RESOLVED)
 
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.state, order_item.States.DONE)
-        offering.refresh_from_db()
-        self.assertEqual(offering.state, offering.States.OK)
+        self.fail_issue_status = 'Cancelled'
+        support_factories.IssueStatusFactory(
+            name=self.fail_issue_status,
+            type=support_models.IssueStatus.Types.CANCELED)
+
+        self.offering = support_factories.OfferingFactory()
+        resource = marketplace_factories.ResourceFactory(scope=self.offering)
+        self.order_item = marketplace_factories.OrderItemFactory(resource=resource)
+        self.order_item.set_state_executing()
+        self.order_item.save()
+
+        self.order_item.order.state = marketplace_models.Order.States.EXECUTING
+        self.order_item.order.save()
+
+    def test_offering_set_state_ok_if_issue_resolved(self):
+        self.offering.issue.status = self.success_issue_status
+        self.offering.issue.save()
+
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, self.order_item.States.DONE)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, support_models.Offering.States.OK)
+
+    def test_offering_set_state_terminated_if_issue_canceled(self):
+        self.offering.issue.status = self.fail_issue_status
+        self.offering.issue.save()
+
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.ERRED)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, support_models.Offering.States.TERMINATED)
 
 
 class SupportOfferingResourceTest(BaseTest):

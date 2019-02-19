@@ -34,7 +34,7 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
                    admin.ModelAdmin):
     inlines = [GenericItemInline]
     fields = ['tax_percent', 'invoice_date', 'customer', 'state', 'total', 'year', 'month', 'pdf_file']
-    readonly_fields = ('customer', 'state', 'total', 'year', 'month', 'pdf_file')
+    readonly_fields = ('customer', 'total', 'year', 'month', 'pdf_file')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer', 'uuid')

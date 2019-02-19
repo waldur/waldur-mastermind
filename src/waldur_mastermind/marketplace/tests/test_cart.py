@@ -7,6 +7,12 @@ from . import factories
 
 
 class CartSubmitTest(test.APITransactionTestCase):
+
+    def submit(self, project):
+        return self.client.post(factories.CartItemFactory.get_list_url('submit'), {
+            'project': structure_factories.ProjectFactory.get_url(project)
+        })
+
     def test_user_can_not_submit_shopping_cart_in_project_without_permissions(self):
         fixture = fixtures.ProjectFixture()
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
@@ -16,26 +22,8 @@ class CartSubmitTest(test.APITransactionTestCase):
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(offering),
         })
-        response = self.client.post(factories.CartItemFactory.get_list_url('submit'), {
-            'project': structure_factories.ProjectFactory.get_url(fixture.project)
-        })
+        response = self.submit(fixture.project)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_order_gets_approved_if_user_has_appropriate_permissions(self):
-        fixture = fixtures.ProjectFixture()
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-
-        self.client.force_authenticate(fixture.staff)
-
-        self.client.post(factories.CartItemFactory.get_list_url(), {
-            'offering': factories.OfferingFactory.get_url(offering),
-        })
-
-        response = self.client.post(factories.CartItemFactory.get_list_url('submit'), {
-            'project': structure_factories.ProjectFactory.get_url(fixture.project)
-        })
-        self.assertEqual(response.data['state'], 'executing')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_order_gets_approved_if_all_offerings_are_private(self):
         fixture = fixtures.ProjectFixture()
@@ -45,15 +33,13 @@ class CartSubmitTest(test.APITransactionTestCase):
             customer=fixture.customer
         )
 
-        self.client.force_authenticate(fixture.manager)
+        self.client.force_authenticate(fixture.staff)
 
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(offering),
         })
 
-        response = self.client.post(factories.CartItemFactory.get_list_url('submit'), {
-            'project': structure_factories.ProjectFactory.get_url(fixture.project)
-        })
+        response = self.submit(fixture.project)
         self.assertEqual(response.data['state'], 'executing')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -87,10 +73,7 @@ class CartSubmitTest(test.APITransactionTestCase):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        url = factories.CartItemFactory.get_list_url('submit')
-        response = self.client.post(url, {
-            'project': structure_factories.ProjectFactory.get_url(fixture.project)
-        })
+        response = self.submit(fixture.project)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         order_item = models.OrderItem.objects.last()
@@ -100,21 +83,18 @@ class CartSubmitTest(test.APITransactionTestCase):
 class CartUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.cart_item = factories.CartItemFactory()
-        self.url = factories.CartItemFactory.get_url(item=self.cart_item)
+
+    def update(self, plan):
+        self.client.force_authenticate(self.cart_item.user)
+        return self.client.patch(factories.CartItemFactory.get_url(item=self.cart_item), {
+            'plan': factories.PlanFactory.get_url(plan)
+        })
 
     def test_update_cart_item(self):
-        self.client.force_authenticate(self.cart_item.user)
         new_plan = factories.PlanFactory(offering=self.cart_item.offering)
-        payload = {
-            'plan': factories.PlanFactory.get_url(plan=new_plan),
-        }
-        response = self.client.patch(self.url, payload)
+        response = self.update(new_plan)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_plan_validation(self):
-        self.client.force_authenticate(self.cart_item.user)
-        payload = {
-            'plan': factories.PlanFactory.get_url(),
-        }
-        response = self.client.patch(self.url, payload)
+        response = self.update(factories.PlanFactory())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

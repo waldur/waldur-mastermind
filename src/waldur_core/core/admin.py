@@ -14,6 +14,7 @@ from django.contrib.auth import admin as auth_admin, get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.html import format_html_join
@@ -369,6 +370,60 @@ class ExtraActionsMixin(object):
 
     def _get_action_label(self, action):
         return getattr(action, 'name', action.__name__.replace('_', ' ').capitalize())
+
+
+class ExtraActionsObjectMixin(object):
+    """
+    Allows to add extra actions to admin object edit page.
+    """
+    change_form_template = 'admin/core/change_form.html'
+
+    def get_extra_object_actions(self):
+        raise NotImplementedError('Method "get_extra_object_actions" should be implemented in ExtraActionsMixin.')
+
+    def get_urls(self):
+        """
+        Inject extra action URLs.
+        """
+        urls = []
+
+        for action in self.get_extra_object_actions():
+            regex = r'^(.+)/change/{}/$'.format(self._get_action_href(action))
+            view = self.admin_site.admin_view(action)
+            urls.append(url(regex, view))
+
+        return urls + super(ExtraActionsObjectMixin, self).get_urls()
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """
+        Inject extra links into template context.
+        """
+        links = []
+        obj = get_object_or_404(self.model, pk=object_id)
+
+        for action in self.get_extra_object_actions():
+            validator = self._get_action_validator(action)
+            links.append({
+                'label': self._get_action_label(action),
+                'href': self._get_action_href(action),
+                'show': True if not validator else validator(request, obj)
+            })
+
+        extra_context = extra_context or {}
+        extra_context['extra_object_links'] = links
+
+        return super(ExtraActionsObjectMixin, self).change_view(
+            request, object_id, form_url, extra_context=extra_context,
+        )
+
+    def _get_action_href(self, action):
+        return action.__name__
+
+    def _get_action_label(self, action):
+        return getattr(action, 'name', action.__name__.replace('_', ' ').capitalize())
+
+    def _get_action_validator(self, action):
+        return getattr(action, 'validator', None)
 
 
 class UpdateOnlyModelAdmin(object):

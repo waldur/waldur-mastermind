@@ -53,7 +53,7 @@ class RequestCreateTest(BaseTest):
         response = self.client.post(url)
         self.assertTrue(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_order_item_set_state_done(self):
+    def test_order_item_set_state_done_if_offering_set_state_ok(self):
         fixture = fixtures.ProjectFixture()
         offering = support_factories.OfferingFactory()
         resource = marketplace_factories.ResourceFactory(project=fixture.project, scope=offering)
@@ -73,6 +73,30 @@ class RequestCreateTest(BaseTest):
 
         order_item.resource.refresh_from_db()
         self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.OK)
+
+        order_item.order.refresh_from_db()
+        self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
+
+    def test_order_item_set_state_erred_if_offering_terminated(self):
+        fixture = fixtures.ProjectFixture()
+        offering = support_factories.OfferingFactory()
+        resource = marketplace_factories.ResourceFactory(project=fixture.project, scope=offering)
+
+        order_item = marketplace_factories.OrderItemFactory(resource=resource)
+        order_item.set_state_executing()
+        order_item.save()
+
+        order_item.order.state = marketplace_models.Order.States.EXECUTING
+        order_item.order.save()
+
+        offering.state = support_models.Offering.States.TERMINATED
+        offering.save()
+
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.state, order_item.States.ERRED)
+
+        order_item.resource.refresh_from_db()
+        self.assertEqual(order_item.resource.state, marketplace_models.Resource.States.ERRED)
 
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
@@ -143,15 +167,16 @@ class RequestActionBaseTest(BaseTest):
 
 @ddt
 class RequestDeleteTest(RequestActionBaseTest):
-    def test_success_terminate_if_issue_is_resolved(self):
+    def test_success_terminate_resource_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
         self.assertEqual(self.mock_get_active_backend.call_count, 1)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
+        self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
         self.assertRaises(ObjectDoesNotExist, self.request.refresh_from_db)
 
-    def test_fail_termination_if_issue_is_canceled(self):
+    def test_fail_termination_order_item_if_issue_is_canceled(self):
         order_item = self.get_order_item(self.error_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
 
@@ -177,6 +202,9 @@ class RequestDeleteTest(RequestActionBaseTest):
         self.request_resource_termination()
         order = marketplace_models.Order.objects.get(project=self.project)
         order_item = order.items.first()
+        if order_item.order.state != marketplace_models.Order.States.EXECUTING:
+            order_item.order.approve()
+            order_item.order.save()
         manager.process(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
