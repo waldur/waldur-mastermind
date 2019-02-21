@@ -382,6 +382,7 @@ class CreateServiceFromTenantTest(TestCase):
         self.assertEquals(service_settings.type, apps.OpenStackTenantConfig.service_name)
         self.assertEquals(service_settings.options['tenant_id'], tenant.backend_id)
         self.assertEquals(service_settings.options['availability_zone'], tenant.availability_zone)
+        self.assertFalse('console_type' in service_settings.options)
 
         self.assertTrue(models.OpenStackTenantService.objects.filter(
             settings=service_settings,
@@ -397,6 +398,19 @@ class CreateServiceFromTenantTest(TestCase):
             service=service,
             project=tenant.service_project_link.project,
         ).exists())
+
+    def test_copy_console_type_from_admin_settings_to_private_settings(self):
+        service_project_link = openstack_factories.OpenStackServiceProjectLinkFactory()
+        service_project_link.service.settings.options['console_type'] = 'console_type'
+        service_project_link.service.settings.save()
+        tenant = openstack_factories.TenantFactory(service_project_link=service_project_link)
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name,
+        )
+        self.assertTrue('console_type' in service_settings.options)
+        self.assertEquals(service_settings.options['console_type'],
+                          service_project_link.service.settings.options['console_type'])
 
 
 class FlavorPriceListItemTest(TestCase):
