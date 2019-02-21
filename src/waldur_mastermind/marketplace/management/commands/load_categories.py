@@ -7,11 +7,17 @@ from waldur_mastermind.marketplace.models import Category, CategoryColumn, \
     Section, Attribute, AttributeOption
 
 
+def merge_two_dicts(x, y):
+    z = x.copy()   # start with x's keys and values
+    z.update(y)    # modifies z with y's keys and values & returns None
+    return z
+
+
 available_categories = {
     'vpc': ('Private clouds', 'Virtual private clouds'),
+    'licenses': ('Licenses', 'Application and OS licenses'),
     'vm': ('VMs', 'Virtual machines'),
-    'block': ('Block storage', 'Data preservation'),
-    'object': ('Object storage', 'Data preservation'),
+    'storage': ('Storage', 'Data preservation'),
     'db': ('Databases', 'Relational DBMS'),
     'backup': ('Backup', 'Backup solution'),
     'security': ('Security', 'Security services'),
@@ -19,6 +25,7 @@ available_categories = {
     'hpc': ('HPC', 'High Performance Computing'),
     'operations': ('Operations', 'Reliable support'),
     'consultancy': ('Consultancy', 'Experts for hire'),
+    'network': ('Network', 'Network services'),
     # devices
     'spectrometry': ('Spectrometry', 'Available spectrometers'),
     'microscope': ('Microscope', 'Available microscopes')
@@ -55,9 +62,18 @@ common_sections = {
         ('email', 'E-mail', 'string'),
         ('phone', 'Phone', 'string'),
         ('portal', 'Support portal', 'string'),
-        ('guide', 'User guide', 'string'),
+        ('description', 'Description', 'string'),
+        ('terms_of_services_link', 'ToS link', 'string'),
     ],
-
+    'SLA': [
+        ('sla_response_wh', 'Response time (working hours)', 'integer'),
+        ('sla_resolution_wh', 'Resolution time (working hours)', 'integer'),
+        ('sla_response_nwh', 'Response time (non-working hours)', 'integer'),
+        ('sla_resolution_nwh', 'Resolution time (non-working hours)', 'integer'),
+        # ('low_',),
+        # ('medium_', ),
+        # ('high_',),
+    ],
     'Security': [
         ('certification', 'Certification', 'list'),
     ],
@@ -111,10 +127,85 @@ microscope_sections = {
     ],
 }
 
+computing_common_sections = {
+    'details': [
+        ('virtualization', 'Virtualization', 'choice'),
+        ('computing_network', 'Network', 'list')
+    ],
+    'application': [
+        ('os', 'Operating system', 'list'),
+        ('application', 'Application', 'list'),
+    ],
+}
+
+vpc_sections = {
+    # nothing yet, TBA
+}
+
+vm_sections = {
+    'software': [
+        ('antivirus', 'Antivirus', 'bool'),
+    ],
+    'remote_access': [
+        ('vm_remote_access', 'Remote access', 'list'),
+        ('vm_access_level', 'Access level', 'choice'),
+    ]
+}
+
+storage_sections = {
+    'details': [
+        ('storage_type', 'Storage type', 'choice'),
+    ],
+    'access': [
+        ('web_interface', 'Web interface', 'bool'),
+        ('api', 'API', 'bool'),
+        ('api_flavor', 'API flavor', 'list'),
+    ],
+    'encryption': [
+        ('encryption_at_rest', 'Encryption at-rest', 'bool'),
+        ('encryption_in_transit', 'Encryption in-transit', 'bool'),
+    ]
+}
+
+common_expert_sections = {
+    'Scope': [
+        ('scope_of_services', 'Scope of services', 'list'),
+    ]
+}
+
+operations_sections = {
+    'Supported services': [
+        ('os', 'Supported OS', 'list'),
+        ('application', 'Supported applications', 'list'),
+    ],
+}
+
+consultancy_sections = {
+    # nothing yet, TBA
+}
+
+security_sections = {
+    'Application': [
+        ('security_application', 'Application', 'string'),
+        ('hardware_module', 'Hardware module', 'bool'),
+        ('vendor_name', 'Vendor name', 'string'),
+        ('application_version', 'Application version', 'string'),
+    ],
+    'Access': [
+        ('security_access', 'Access', 'list'),
+    ]
+}
+
 specific_sections = {
+    'consultancy': merge_two_dicts(common_expert_sections, consultancy_sections),
     'hpc': hpc_sections,
-    'spectrometry': spectrometry_sections,
     'microscope': microscope_sections,
+    'operations': merge_two_dicts(common_expert_sections, operations_sections),
+    'vm': merge_two_dicts(computing_common_sections, vm_sections),
+    'vpc': merge_two_dicts(computing_common_sections, vpc_sections),
+    'security': security_sections,
+    'spectrometry': spectrometry_sections,
+    'storage': storage_sections,
 }
 
 enums = {
@@ -155,6 +246,12 @@ enums = {
         ('Ethernet_1G', 'Ethernet 1G'),
         ('Ethernet_10G', 'Ethernet 10G'),
     ],
+    'sla_response': [
+        '1', '1 hour',
+        '2', '2 hours',
+        '3', '3 hours',
+        'eob', 'End of business day',
+    ],
     'virtualization': [
         ('kvm', 'KVM'),
         ('xen', 'XEN'),
@@ -169,7 +266,52 @@ enums = {
     'spectrometry_spectrum': [
         ('visible', 'Visible'),
         ('infrared', 'Infrared'),
-    ]
+    ],
+    'scope_of_services': [
+        ('analysis', 'Analysis'),
+        ('implementation', 'Implementation'),
+        ('design', 'Design'),
+        ('deployment', 'Deployment'),
+        ('issue_resolution', 'issue_resolution'),
+        ('change_management', 'Change management'),
+        ('disaster_recovery', 'Disaster recovery'),
+    ],
+    'security_access': [
+        ('api', 'API'),
+        ('offline', 'Offline'),
+    ],
+    'storage_type': [
+        ('block', 'Block'),
+        ('object', 'Object'),
+        ('fs', 'Filesystem'),
+    ],
+    'computing_network': [
+        ('private', 'Private (own)'),
+        ('aso', 'ASO'),
+    ],
+    'vm_access_level': [
+        ('root', 'Root / Administrator'),
+        ('user', 'User level'),
+    ],
+    'api_flavor': [
+        ('s3', 'S3'),
+        ('swift', 'Swift'),
+        ('custom', 'Custom'),
+    ],
+    'vm_remote_access': [
+        ('console', 'Console'),
+        ('ssh_rdp', 'SSH/RDP'),
+        ('direct_access', 'Direct access'),
+    ],
+    'os': [
+        ('ubuntu16.04', 'Ubuntu 16.04'),
+        ('centos7', 'CentOS 7'),
+        ('windows2016', 'Windows 2016'),
+    ],
+    'application': [
+        ('zevenet', 'Zevenet'),
+        ('owncloud', 'Owncloud'),
+    ],
 }
 
 
