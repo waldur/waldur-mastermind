@@ -29,6 +29,7 @@ class override_serializer(object):
     def __init__(self, field_info):
         self.field_info = field_info
         self.required = copy.copy(ServiceSerializer.Meta.required_fields)
+        self.extra_field_options = copy.copy(ServiceSerializer.Meta.extra_field_options)
 
         if ServiceSerializer.SERVICE_ACCOUNT_FIELDS is not NotImplemented:
             self.fields = copy.copy(ServiceSerializer.SERVICE_ACCOUNT_FIELDS)
@@ -42,6 +43,12 @@ class override_serializer(object):
 
     def __enter__(self):
         ServiceSerializer.Meta.required_fields = self.field_info.fields_required
+
+        ServiceSerializer.Meta.extra_field_options = {
+            k: {'default_value': v}
+            for k, v in self.field_info.extra_fields_default.items()
+        }
+
         ServiceSerializer.SERVICE_ACCOUNT_FIELDS = {
             field: ''
             for field in self.field_info.fields
@@ -54,6 +61,7 @@ class override_serializer(object):
 
     def __exit__(self, *args):
         ServiceSerializer.Meta.required_fields = self.required
+        ServiceSerializer.Meta.extra_field_options = self.extra_field_options
         ServiceSerializer.SERVICE_ACCOUNT_FIELDS = self.fields
         ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS = self.extra_fields
 
@@ -67,7 +75,8 @@ class ServiceSettingAdminTest(TestCase):
         fields = FieldInfo(
             fields_required=['backend_url'],
             fields=['backend_url'],
-            extra_fields_required=[]
+            extra_fields_required=[],
+            extra_fields_default={}
         )
 
         data = self.get_valid_data(backend_url='http://test.net')
@@ -77,7 +86,8 @@ class ServiceSettingAdminTest(TestCase):
         fields = FieldInfo(
             fields_required=['backend_url'],
             fields=['backend_url'],
-            extra_fields_required=[]
+            extra_fields_required=[],
+            extra_fields_default={}
         )
 
         data = self.get_valid_data()
@@ -87,7 +97,8 @@ class ServiceSettingAdminTest(TestCase):
         fields = FieldInfo(
             fields_required=['tenant'],
             fields=[],
-            extra_fields_required=['tenant']
+            extra_fields_required=['tenant'],
+            extra_fields_default={}
         )
         data = self.get_valid_data(options=json.dumps({'tenant': 1}))
         self.assert_form_valid(fields, data)
@@ -96,7 +107,8 @@ class ServiceSettingAdminTest(TestCase):
         fields = FieldInfo(
             fields_required=['tenant'],
             fields=[],
-            extra_fields_required=['tenant']
+            extra_fields_required=['tenant'],
+            extra_fields_default={}
         )
         data = self.get_valid_data()
         self.assert_form_invalid(fields, data)
@@ -105,10 +117,21 @@ class ServiceSettingAdminTest(TestCase):
         fields = FieldInfo(
             fields_required=['tenant'],
             fields=[],
-            extra_fields_required=['tenant']
+            extra_fields_required=['tenant'],
+            extra_fields_default={}
         )
         data = self.get_valid_data(options='INVALID')
         self.assert_form_invalid(fields, data)
+
+    def test_if_required_field_is_not_filled_but_it_has_got_default_value_form_is_valid(self):
+        fields = FieldInfo(
+            fields_required=['tenant'],
+            fields=[],
+            extra_fields_required=['tenant'],
+            extra_fields_default={'tenant': 'tenant_id'}
+        )
+        data = self.get_valid_data()
+        self.assert_form_valid(fields, data)
 
     def get_valid_data(self, **kwargs):
         data = {

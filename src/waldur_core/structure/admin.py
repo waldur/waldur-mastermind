@@ -319,6 +319,7 @@ class ServiceSettingsAdminForm(ModelForm):
         field_info = utils.get_all_services_field_info()
         fields_required = field_info.fields_required
         extra_fields_required = field_info.extra_fields_required
+        fields_default = field_info.extra_fields_default[service_type]
 
         # Check required fields of service type
         for field in fields_required[service_type]:
@@ -334,7 +335,8 @@ class ServiceSettingsAdminForm(ModelForm):
         try:
             if 'options' in cleaned_data:
                 options = json.loads(cleaned_data.get('options'))
-                unfilled = set(extra_fields_required[service_type]) - set(options.keys())
+                unfilled = set(extra_fields_required[service_type]) - set(options.keys()) - set(fields_default.keys())
+
                 if unfilled:
                     self.add_error('options', _('This field must include keys: %s') %
                                    ', '.join(unfilled))
@@ -475,6 +477,17 @@ class SharedServiceSettingsAdmin(PrivateServiceSettingsAdmin):
 
     def save_form(self, request, form, change):
         obj = super(SharedServiceSettingsAdmin, self).save_form(request, form, change)
+
+        """If required field is not filled, but it has got a default value, we set a default value."""
+        field_info = utils.get_all_services_field_info()
+        extra_fields_default = field_info.extra_fields_default[obj.type]
+        extra_fields_required = field_info.extra_fields_required[obj.type]
+        default = (set(extra_fields_required) - set(obj.options.keys())) & set(extra_fields_default.keys())
+
+        if default:
+            for d in default:
+                obj.options[d] = extra_fields_default[d]
+
         if not change:
             obj.shared = True
         return obj

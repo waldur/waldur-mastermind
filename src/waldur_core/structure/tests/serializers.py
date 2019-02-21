@@ -13,6 +13,7 @@ class ServiceSerializer(structure_serializers.BaseServiceSerializer):
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.TestService
         required_fields = 'backend_url', 'username', 'password'
+        extra_field_options = {}
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):

@@ -421,6 +421,11 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
             'tenant_id': tenant.backend_id,
         },
     )
+
+    if admin_settings.options.get('console_type'):
+        service_settings.options['console_type'] = admin_settings.options.get('console_type')
+        service_settings.save()
+
     service = models.OpenStackTenantService.objects.create(
         settings=service_settings,
         customer=customer,

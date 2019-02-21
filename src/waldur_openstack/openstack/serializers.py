@@ -49,7 +49,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.OpenStackService
-        required_fields = 'backend_url', 'username', 'password'
+        required_fields = 'backend_url', 'username', 'password', 'console_type'
         extra_field_options = {
             'backend_url': {
                 'label': 'API URL',
@@ -73,6 +73,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
             },
             'create_ha_routers': {
                 'default_value': False,
+            },
+            'console_type': {
+                'default_value': 'novnc',
             },
         }
 
