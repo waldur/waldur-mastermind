@@ -224,7 +224,11 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     queryset = models.Project.objects.all().order_by('name')
     serializer_class = serializers.ProjectSerializer
     lookup_field = 'uuid'
-    filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (
+        filters.GenericRoleFilter,
+        DjangoFilterBackend,
+        filters.CustomerAccountingStartDateFilter,
+    )
     filter_class = filters.ProjectFilter
 
     def get_serializer_context(self):
