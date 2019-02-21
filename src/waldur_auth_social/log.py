@@ -11,6 +11,7 @@ provider_event_type_mapping = {
     'google': 'auth_logged_in_with_google',
     'facebook': 'auth_logged_in_with_facebook',
     'smartid.ee': 'auth_logged_in_with_smartid_ee',
+    'tara': 'auth_logged_in_with_tara',
 }
 
 
