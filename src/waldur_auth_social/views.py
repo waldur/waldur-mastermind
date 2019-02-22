@@ -361,6 +361,11 @@ class TARAView(BaseAuthView):
             profile_attributes = backend_user['profile_attributes']
             full_name = ('%s %s' % (profile_attributes['given_name'], profile_attributes['family_name']))[:100]
             civil_number = backend_user['sub']
+            # AMR stands for Authentication Method Reference
+            details = {
+                'amr': backend_user.get('amr'),
+                'profile_attributes_translit': backend_user.get('profile_attributes_translit'),
+            }
         except KeyError as e:
             logger.warning('Unable to parse identity certificate. Error is: %s', e)
             raise TARAException('Unable to parse identity certificate.')
@@ -373,6 +378,7 @@ class TARAView(BaseAuthView):
                 full_name=full_name,
                 civil_number=civil_number,
                 registration_method=self.provider,
+                details=details,
             )
             user.set_unusable_password()
             user.save()
@@ -380,6 +386,9 @@ class TARAView(BaseAuthView):
             created = False
             if user.full_name != full_name:
                 user.full_name = full_name
+                user.save()
+            if user.details != details:
+                user.details = details
                 user.save()
         return user, created
 
