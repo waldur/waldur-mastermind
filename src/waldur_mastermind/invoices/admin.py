@@ -13,20 +13,23 @@ from waldur_core.core import admin as core_admin
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_mastermind.packages import models as package_models
 
-from . import models, tasks
+from . import executors, models, tasks
 
 
-class InvoiceItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
-    model = models.InvoiceItem
-    readonly_fields = ('name', 'price', 'unit_price', 'unit', 'start', 'end',
-                       'project_name', 'project_uuid', 'product_code', 'article_code')
-    exclude = ('project',)
-
-
-class GenericItemInline(InvoiceItemInline):
+class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
     model = models.GenericInvoiceItem
-    readonly_fields = InvoiceItemInline.readonly_fields + ('details', 'quantity')
-    exclude = InvoiceItemInline.exclude + ('content_type', 'object_id')
+    readonly_fields = (
+        'name', 'price', 'unit_price', 'unit', 'start', 'end',
+        'project_name', 'project_uuid', 'product_code', 'article_code',
+        'format_details', 'quantity'
+    )
+    exclude = ('details', 'project', 'content_type', 'object_id')
+
+    def format_details(self, obj):
+        return core_admin.format_json_field(obj.details)
+
+    format_details.allow_tags = True
+    format_details.short_description = _('Details')
 
 
 class InvoiceAdmin(core_admin.ExtraActionsMixin,
@@ -38,6 +41,13 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer', 'uuid')
+    actions = ('create_pdf',)
+
+    class CreatePDFAction(core_admin.ExecutorAdminAction):
+        executor = executors.InvoicePDFCreateExecutor
+        short_description = _('Create PDF')
+
+    create_pdf = CreatePDFAction()
 
     def get_urls(self):
         my_urls = [

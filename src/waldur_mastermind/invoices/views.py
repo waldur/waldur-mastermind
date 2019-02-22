@@ -8,6 +8,7 @@ from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
 from waldur_core.core import views as core_views
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
 from . import filters, models, serializers, tasks
 
@@ -31,7 +32,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
         link_template = serializer.validated_data.get('link_template')
         tasks.send_invoice_notification.delay(invoice.uuid.hex, link_template)
-        tasks.create_invoice_pdf.delay(invoice.uuid.hex)
+        tasks.create_invoice_pdf.delay(core_utils.serialize_instance(invoice))
 
         return Response({'detail': _('Invoice notification sending has been successfully scheduled.')},
                         status=status.HTTP_200_OK)
@@ -44,7 +45,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     def pdf(self, request, uuid=None):
         invoice = self.get_object()
         if not invoice.has_file():
-            tasks.create_invoice_pdf.delay(invoice.uuid)
+            tasks.create_invoice_pdf.delay(core_utils.serialize_instance(invoice))
             raise Http404()
 
         file_response = HttpResponse(invoice.file, content_type='application/pdf')

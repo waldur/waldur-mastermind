@@ -149,8 +149,8 @@ def update_invoices_current_cost():
 
 
 @shared_task
-def create_invoice_pdf(invoice_uuid):
-    invoice = models.Invoice.objects.get(uuid=invoice_uuid)
+def create_invoice_pdf(serialized_invoice):
+    invoice = core_utils.deserialize_instance(serialized_invoice)
     utils.create_invoice_pdf(invoice)
 
 
