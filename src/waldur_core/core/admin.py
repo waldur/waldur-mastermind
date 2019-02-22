@@ -109,7 +109,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
 class UserChangeForm(auth_admin.UserChangeForm):
     class Meta(object):
         model = get_user_model()
-        fields = '__all__'
+        exclude = ('details',)
 
     def __init__(self, *args, **kwargs):
         super(UserChangeForm, self).__init__(*args, **kwargs)
@@ -175,7 +175,8 @@ class NativeNameAdminMixin(ExcludedFieldsAdminMixin):
 class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
     list_display = ('username', 'uuid', 'email', 'full_name', 'native_name', 'is_active', 'is_staff', 'is_support')
     search_fields = ('username', 'uuid', 'full_name', 'native_name', 'email', 'civil_number')
-    list_filter = ('is_active', 'is_staff', 'is_support')
+    list_filter = ('is_active', 'is_staff', 'is_support', 'registration_method')
+    date_hierarchy = 'date_joined'
     fieldsets = (
         (None, {'fields': ('username', 'password', 'registration_method', 'uuid')}),
         (_('Personal info'), {'fields': (
@@ -185,9 +186,10 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         (_('Organization'), {'fields': ('organization', 'job_title',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_support', 'customer_roles', 'project_roles')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'agreement_date')}),
+        (_('Authentication backend details'), {'fields': ('format_details',)}),
     )
     readonly_fields = ('registration_method', 'agreement_date', 'customer_roles', 'project_roles', 'uuid',
-                       'last_login', 'date_joined')
+                       'last_login', 'date_joined', 'format_details')
     form = UserChangeForm
     add_form = UserCreationForm
 
@@ -214,6 +216,12 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any project.'))  # nosec
 
     project_roles.short_description = _('Roles in projects')
+
+    def format_details(self, obj):
+        return format_json_field(obj.details)
+
+    format_details.allow_tags = True
+    format_details.short_description = _('Details')
 
 
 class SshPublicKeyAdmin(admin.ModelAdmin):

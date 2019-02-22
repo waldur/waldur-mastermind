@@ -12,6 +12,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin, UserManager
+from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
@@ -169,6 +170,9 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, Permiss
     competence = models.CharField(max_length=255, blank=True)
     token_lifetime = models.PositiveIntegerField(null=True, help_text=_('Token lifetime in seconds.'),
                                                  validators=[validators.MinValueValidator(60)])
+    details = BetterJSONField(blank=True,
+                              default=dict,
+                              help_text=_('Extra details from authentication backend.'))
 
     tracker = FieldTracker()
     objects = UserManager()
