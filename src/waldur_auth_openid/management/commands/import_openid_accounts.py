@@ -23,9 +23,12 @@ class Command(DryRunCommand):
                 .exclude(civil_number='') \
                 .exclude(civil_number=None)
             count = users.count()
-            if not dry_run:
-                for user in users:
-                    user.civil_number = '%s%s' % (country_code, user.civil_number)
+            for user in users:
+                new_civil_number = '%s%s' % (country_code, user.civil_number)
+                self.stdout.write('Username: %s, before: %s, after: %s' % (
+                    user.username, user.civil_number, new_civil_number))
+                if not dry_run:
+                    user.civil_number = new_civil_number
                     user.save(update_fields=['civil_number'])
 
         self.stdout.write(self.style.SUCCESS('Civil numbers have been updated for %s users.' % count))
