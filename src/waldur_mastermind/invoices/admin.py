@@ -13,7 +13,7 @@ from waldur_core.core import admin as core_admin
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_mastermind.packages import models as package_models
 
-from . import models, tasks
+from . import executors, models, tasks
 
 
 class InvoiceItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
@@ -38,6 +38,13 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer', 'uuid')
+    actions = ('create_pdf',)
+
+    class CreatePDFAction(core_admin.ExecutorAdminAction):
+        executor = executors.InvoicePDFCreateExecutor
+        short_description = _('Create PDF')
+
+    create_pdf = CreatePDFAction()
 
     def get_urls(self):
         my_urls = [
