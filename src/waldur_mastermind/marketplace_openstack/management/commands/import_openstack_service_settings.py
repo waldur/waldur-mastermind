@@ -1,20 +1,18 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
 
+from waldur_core.core.utils import DryRunCommand
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace.models import Category
 from waldur_mastermind.marketplace_openstack import utils
 
 
-class Command(BaseCommand):
+class Command(DryRunCommand):
     help = """Import OpenStack service settings as marketplace offerings."""
 
     def add_arguments(self, parser):
         parser.add_argument('--customer', dest='customer_uuid', required=True,
                             help='Default customer argument is used for shared service setting.')
-
-        parser.add_argument('--dry-run', action='store_true',
-                            help='Don\'t make any changes, instead show what objects would be created.')
 
         parser.add_argument('--require-templates', action='store_true',
                             help='Skip service settings without package template.')
