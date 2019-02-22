@@ -14,6 +14,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.core.management import call_command
+from django.core.management.base import BaseCommand
 from django.db.models import F
 from django.db.models.sql.query import get_order_dir
 from django.http import QueryDict
@@ -280,3 +281,9 @@ def is_uuid_like(val):
         return False
     else:
         return True
+
+
+class DryRunCommand(BaseCommand):
+    def add_arguments(self, parser):
+        parser.add_argument('--dry-run', action='store_true',
+                            help='Don\'t make any changes, instead show what objects would be created.')
