@@ -288,7 +288,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    files = NestedOfferingFileSerializer(many=True, required=False)
+    files = NestedOfferingFileSerializer(many=True, read_only=True)
 
     class Meta(object):
         model = models.Offering
