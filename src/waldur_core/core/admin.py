@@ -109,7 +109,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
 class UserChangeForm(auth_admin.UserChangeForm):
     class Meta(object):
         model = get_user_model()
-        fields = '__all__'
+        exclude = ('details',)
 
     def __init__(self, *args, **kwargs):
         super(UserChangeForm, self).__init__(*args, **kwargs)
