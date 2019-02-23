@@ -103,6 +103,11 @@ class BaseResourceSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
     )
 
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'name',
+        )
+
 
 class ResourceGroupSerializer(BaseResourceSerializer):
     location = serializers.HyperlinkedRelatedField(
@@ -111,7 +116,7 @@ class ResourceGroupSerializer(BaseResourceSerializer):
         queryset=models.Location.objects.all(),
     )
 
-    class Meta(object):
+    class Meta(BaseResourceSerializer.Meta):
         model = models.ResourceGroup
         view_name = 'azure-resource-group-detail'
         fields = ('url', 'uuid', 'name', 'location')
@@ -176,7 +181,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
             'resource_group_name', 'location_name', 'image_name', 'size_name'
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
-            'image', 'size', 'user_data',
+            'image', 'size', 'user_data', 'name'
         )
         read_only_fields = structure_serializers.VirtualMachineSerializer.Meta.read_only_fields + (
             'runtime_state', 'start_time', 'cores', 'ram', 'disk', 'image_name',
