@@ -51,7 +51,7 @@ class Saml2LoginView(BaseSaml2View):
     def post(self, request):
         if not self.request.user.is_anonymous:
             error_message = _('This endpoint is for anonymous users only.')
-            return JsonResponse({'error_message': error_message}, status_code=400)
+            return JsonResponse({'error_message': error_message}, status=400)
 
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -71,7 +71,7 @@ class Saml2LoginView(BaseSaml2View):
             binding = BINDING_HTTP_REDIRECT
         else:
             error_message = _('Identity provider does not support available bindings.')
-            return JsonResponse({'error_message': error_message}, status_code=400)
+            return JsonResponse({'error_message': error_message}, status=400)
 
         client = Saml2Client(conf)
 
@@ -103,7 +103,7 @@ class Saml2LoginView(BaseSaml2View):
                 location = client.sso_location(idp, binding)
             except TypeError:
                 error_message = _('Invalid identity provider specified.')
-                return JsonResponse({'error_message': error_message}, status_code=400)
+                return JsonResponse({'error_message': error_message}, status=400)
 
             session_id, request_xml = client.create_authn_request(location, binding=binding, **kwargs)
             data = {
