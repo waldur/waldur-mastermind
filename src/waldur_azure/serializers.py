@@ -1,5 +1,6 @@
 import hashlib
 import string
+import uuid
 
 from django.db import transaction
 from django.utils.crypto import get_random_string
@@ -189,7 +190,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         size = validated_data['size']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(vm_name)
+        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
         storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
         network_name = 'net{}'.format(vm_name)
         subnet_name = 'subnet{}'.format(vm_name)
@@ -297,11 +298,10 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        server_name = validated_data['name']
         spl = validated_data['service_project_link']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(server_name)
+        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
 
         resource_group = models.ResourceGroup.objects.create(
             service_project_link=spl,
