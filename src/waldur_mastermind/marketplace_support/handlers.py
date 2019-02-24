@@ -63,6 +63,9 @@ def create_support_plan(sender, instance, created=False, **kwargs):
     if plan.offering.type != PLUGIN_NAME or not created:
         return
 
+    if not isinstance(plan.offering.scope, support_models.OfferingTemplate):
+        return
+
     with transaction.atomic():
         if not plan.scope:
             offering_plan = support_models.OfferingPlan.objects.create(

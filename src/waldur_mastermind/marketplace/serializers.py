@@ -431,6 +431,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         plans = validated_data.pop('plans', [])
         custom_components = validated_data.pop('components', [])
 
+        if len(plans) < 1:
+            raise serializers.ValidationError({
+                'plans': _('At least one plan should be specified.')
+            })
+
         offering = super(OfferingSerializer, self).create(validated_data)
         fixed_components = plugins.manager.get_components(offering.type)
 
