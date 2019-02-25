@@ -186,7 +186,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         (_('Organization'), {'fields': ('organization', 'job_title',)}),
         (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_support', 'customer_roles', 'project_roles')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined', 'agreement_date')}),
-        (_('Authentication backend details'), {'fields': ('format_details',)}),
+        (_('Authentication backend details'), {'fields': ('format_details', 'backend_id')}),
     )
     readonly_fields = ('registration_method', 'agreement_date', 'customer_roles', 'project_roles', 'uuid',
                        'last_login', 'date_joined', 'format_details')
