@@ -751,7 +751,8 @@ class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
         fields = BaseItemSerializer.Meta.fields + (
-            'scope', 'state', 'resource_uuid', 'resource_type', 'project', 'project_uuid',
+            'scope', 'state', 'resource_uuid', 'resource_type',
+            'project', 'project_uuid', 'project_name',
             'backend_metadata',
         )
         read_only_fields = ('backend_metadata', 'scope',)
@@ -766,6 +767,7 @@ class ResourceSerializer(BaseItemSerializer):
         read_only=True,
     )
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
