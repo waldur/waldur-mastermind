@@ -119,10 +119,7 @@ class ResourceGroupSerializer(BaseResourceSerializer):
     class Meta(BaseResourceSerializer.Meta):
         model = models.ResourceGroup
         view_name = 'azure-resource-group-detail'
-        fields = ('url', 'uuid', 'name', 'location')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
+        fields = BaseResourceSerializer.Meta.fields + ('location',)
 
 
 class BaseResourceGroupSerializer(BaseResourceSerializer):
