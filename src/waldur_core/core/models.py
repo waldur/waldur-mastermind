@@ -173,6 +173,7 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, Permiss
     details = BetterJSONField(blank=True,
                               default=dict,
                               help_text=_('Extra details from authentication backend.'))
+    backend_id = models.CharField(max_length=255, blank=True)
 
     tracker = FieldTracker()
     objects = UserManager()
