@@ -138,27 +138,35 @@ class ExternalCustomerFilterBackend(ExternalFilterBackend):
 
 class AccountingStartDateFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-
-        if not django_settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
-            return queryset
-
-        value = request.query_params.get('accounting_is_running')
-        boolean_field = forms.NullBooleanField()
-
-        try:
-            value = boolean_field.to_python(value)
-        except exceptions.ValidationError:
-            value = None
-
-        if value is None:
-            return queryset
-
         query = Q(accounting_start_date__gt=timezone.now())
+        return filter_by_accounting_is_running(request, queryset, query)
 
-        if value:
-            return queryset.exclude(query)
-        else:
-            return queryset.filter(query)
+
+class CustomerAccountingStartDateFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        query = Q(customer__accounting_start_date__gt=timezone.now())
+        return filter_by_accounting_is_running(request, queryset, query)
+
+
+def filter_by_accounting_is_running(request, queryset, query):
+    if not django_settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
+        return queryset
+
+    value = request.query_params.get('accounting_is_running')
+    boolean_field = forms.NullBooleanField()
+
+    try:
+        value = boolean_field.to_python(value)
+    except exceptions.ValidationError:
+        value = None
+
+    if value is None:
+        return queryset
+
+    if value:
+        return queryset.exclude(query)
+    else:
+        return queryset.filter(query)
 
 
 class ProjectTypeFilter(NameFilterSet):
@@ -194,6 +202,8 @@ class ProjectFilter(NameFilterSet):
 
     description = django_filters.CharFilter(lookup_expr='icontains')
 
+    query = django_filters.CharFilter(method='filter_query')
+
     o = django_filters.OrderingFilter(
         fields=(
             ('name', 'name'),
@@ -211,7 +221,11 @@ class ProjectFilter(NameFilterSet):
             'customer', 'customer_name', 'customer_native_name', 'customer_abbreviation',
             'description',
             'created',
+            'query',
         ]
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(Q(name__icontains=value) | Q(uuid=value))
 
 
 class CustomerUserFilter(DjangoFilterBackend):

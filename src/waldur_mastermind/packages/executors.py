@@ -39,22 +39,33 @@ class OpenStackPackageCreateExecutor(core_executors.BaseExecutor):
 class OpenStackPackageChangeExecutor(core_executors.BaseExecutor):
 
     @classmethod
-    def get_success_signature(cls, tenant, serialized_tenant, new_package, old_package, service_settings, **kwargs):
+    def get_success_signature(cls, tenant, serialized_tenant, new_template, old_package, service_settings, **kwargs):
         service_settings = core_utils.serialize_instance(service_settings)
         return tasks.LogOpenStackPackageChange().si(serialized_tenant, event='succeeded',
-                                                    new_package=new_package, old_package=old_package,
+                                                    new_package=new_template.name,
+                                                    old_package=old_package.template.name,
                                                     service_settings=service_settings)
 
     @classmethod
-    def get_failure_signature(cls, tenant, serialized_tenant, new_package, old_package, service_settings, **kwargs):
+    def get_failure_signature(cls, tenant, serialized_tenant, new_template, old_package, service_settings, **kwargs):
         service_settings = core_utils.serialize_instance(service_settings)
         return tasks.LogOpenStackPackageChange().si(serialized_tenant, event='failed',
-                                                    new_package=new_package, old_package=old_package,
+                                                    new_package=new_template.name,
+                                                    old_package=old_package.template.name,
                                                     service_settings=service_settings)
 
     @classmethod
-    def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
+    def get_task_signature(cls, tenant, serialized_tenant, new_template, old_package, service_settings, **kwargs):
         quotas = tenant.quotas.all()
         quotas = {q.name: int(q.limit) for q in quotas}
+        push_quotas = openstack_executors.TenantPushQuotasExecutor.as_signature(tenant, quotas=quotas)
 
-        return openstack_executors.TenantPushQuotasExecutor.as_signature(tenant, quotas=quotas)
+        serialized_new_template = core_utils.serialize_instance(new_template)
+        serialized_old_package = core_utils.serialize_instance(old_package)
+        serialized_service_settings = core_utils.serialize_instance(service_settings)
+
+        success_package_change = tasks.OpenStackPackageSuccessTask().si(serialized_tenant,
+                                                                        serialized_new_template,
+                                                                        serialized_old_package,
+                                                                        serialized_service_settings)
+        return push_quotas | success_package_change

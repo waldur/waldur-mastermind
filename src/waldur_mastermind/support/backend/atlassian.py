@@ -114,7 +114,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             backend_customer = active_user[0]
         else:
             if self.use_old_api:
-                backend_customer = self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
+                # add_user method returns boolean value therefore we need to fetch user object to find its key
+                self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
+                backend_customer = self.manager.search_users(user.email)[0]
             else:
                 backend_customer = self.manager.create_customer(user.email, user.full_name)
 

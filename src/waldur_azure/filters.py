@@ -11,6 +11,16 @@ class ImageFilter(structure_filters.BaseServicePropertyFilter):
         model = models.Image
 
 
+class LocationFilter(structure_filters.BaseServicePropertyFilter):
+    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+        model = models.Location
+
+
+class SizeFilter(structure_filters.BaseServicePropertyFilter):
+    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+        model = models.Size
+
+
 class BaseResourceGroupFilter(structure_filters.BaseResourceFilter):
     resource_group = core_filters.URLFilter(
         view_name='azure-resource-group-detail',

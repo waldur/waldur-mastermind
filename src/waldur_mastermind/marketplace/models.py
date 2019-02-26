@@ -78,6 +78,7 @@ class Category(core_models.UuidMixin,
                             null=True,
                             validators=[ImageValidator])
     description = models.TextField(blank=True)
+    backend_id = models.CharField(max_length=255, blank=True)
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         offering_count = quotas_fields.QuotaField(is_backend=True)

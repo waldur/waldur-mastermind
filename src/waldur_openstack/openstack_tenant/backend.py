@@ -160,6 +160,10 @@ class InternalIPSynchronizer(object):
 
 class OpenStackTenantBackend(BaseOpenStackBackend):
 
+    DEFAULTS = {
+        'console_type': 'novnc',
+    }
+
     def __init__(self, settings):
         super(OpenStackTenantBackend, self).__init__(settings, settings.options['tenant_id'])
 
@@ -1412,7 +1416,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def get_console_url(self, instance):
         nova = self.nova_client
         url = None
-        console_type = self.settings.options.get('console_type', 'novnc')
+        console_type = self.settings.get_option('console_type')
         try:
             url = nova.servers.get_console_url(instance.backend_id, console_type)
         except nova_exceptions.ClientException as e:

@@ -32,12 +32,14 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.SizeSerializer
+    filter_class = filters.SizeFilter
     lookup_field = 'uuid'
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Location.objects.all()
     serializer_class = serializers.LocationSerializer
+    filter_class = filters.LocationFilter
     lookup_field = 'uuid'
 
 

@@ -41,6 +41,11 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
                                               project_uuid=order_item.order.project.uuid)
         description += "\n[Order item|%s]." % order_item_url
 
+        if order_item.plan and order_item.plan.scope:
+            post_data['plan'] = reverse('support-offering-plan-detail', kwargs={
+                'uuid': order_item.plan.scope.uuid
+            })
+
         if order_item.limits:
             components_map = order_item.offering.get_usage_components()
             for key, value in order_item.limits.items():

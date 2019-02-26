@@ -288,7 +288,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    files = NestedOfferingFileSerializer(many=True, required=False)
+    files = NestedOfferingFileSerializer(many=True, read_only=True)
 
     class Meta(object):
         model = models.Offering
@@ -430,6 +430,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
         custom_components = validated_data.pop('components', [])
+
+        if len(plans) < 1:
+            raise serializers.ValidationError({
+                'plans': _('At least one plan should be specified.')
+            })
 
         offering = super(OfferingSerializer, self).create(validated_data)
         fixed_components = plugins.manager.get_components(offering.type)
@@ -746,7 +751,10 @@ class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
         fields = BaseItemSerializer.Meta.fields + (
-            'scope', 'state', 'resource_uuid', 'resource_type', 'project', 'project_uuid',
+            'scope', 'state', 'resource_uuid', 'resource_type',
+            'project', 'project_uuid', 'project_name',
+            'customer_uuid', 'customer_name',
+            'offering_uuid', 'offering_name',
             'backend_metadata',
         )
         read_only_fields = ('backend_metadata', 'scope',)
@@ -761,6 +769,11 @@ class ResourceSerializer(BaseItemSerializer):
         read_only=True,
     )
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
+    offering_name = serializers.ReadOnlyField(source='offering.name')
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):

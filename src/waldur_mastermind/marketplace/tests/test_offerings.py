@@ -360,9 +360,17 @@ class OfferingCreateTest(test.APITransactionTestCase):
         scope_request = {
             'scope': structure_factories.ServiceSettingsFactory.get_url(),
             'type': 'Packages.Template',
+            'plans': [
+                {
+                    'name': 'Basic',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'prices': {'cores': 1, 'ram': 1, 'storage': 1},
+                    'quotas': {'cores': 10, 'ram': 10240, 'storage': 10240},
+                }
+            ]
         }
         response = self.create_offering('staff', attributes=True, add_payload=scope_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_not_create_offering_if_scope_model_is_invalid(self):
         scope_request = {
@@ -403,6 +411,12 @@ class OfferingCreateTest(test.APITransactionTestCase):
             'category': factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
             'type': 'Support.OfferingTemplate',  # This is used only for testing
+            'plans': [
+                {
+                    'name': 'Small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                }
+            ],
         }
 
         if attributes:

@@ -10,8 +10,9 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.cost_tracking import signals as cost_signals
+from waldur_core.core import utils as core_utils
 
-from . import models, log
+from . import models, log, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +143,16 @@ def adjust_invoice_items_for_downtime(sender, instance, created=False, **kwargs)
                        'Record ID: %s', downtime.id)
 
     adjust_openstack_items_for_downtime(downtime)
+
+
+def update_invoice_pdf(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    invoice = instance
+
+    if not invoice.tracker.has_changed('current_cost'):
+        return
+
+    serialized_invoice = core_utils.serialize_instance(invoice)
+    tasks.create_invoice_pdf.delay(serialized_invoice)

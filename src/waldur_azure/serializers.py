@@ -1,5 +1,6 @@
 import hashlib
 import string
+import uuid
 
 from django.db import transaction
 from django.utils.crypto import get_random_string
@@ -102,6 +103,11 @@ class BaseResourceSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
     )
 
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'name',
+        )
+
 
 class ResourceGroupSerializer(BaseResourceSerializer):
     location = serializers.HyperlinkedRelatedField(
@@ -110,13 +116,10 @@ class ResourceGroupSerializer(BaseResourceSerializer):
         queryset=models.Location.objects.all(),
     )
 
-    class Meta(object):
+    class Meta(BaseResourceSerializer.Meta):
         model = models.ResourceGroup
         view_name = 'azure-resource-group-detail'
-        fields = ('url', 'uuid', 'name', 'location')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
+        fields = BaseResourceSerializer.Meta.fields + ('location',)
 
 
 class BaseResourceGroupSerializer(BaseResourceSerializer):
@@ -175,7 +178,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
             'resource_group_name', 'location_name', 'image_name', 'size_name'
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
-            'image', 'size', 'user_data',
+            'image', 'size', 'user_data', 'name'
         )
         read_only_fields = structure_serializers.VirtualMachineSerializer.Meta.read_only_fields + (
             'runtime_state', 'start_time', 'cores', 'ram', 'disk', 'image_name',
@@ -189,7 +192,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         size = validated_data['size']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(vm_name)
+        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
         storage_account_name = 'storage{}'.format(hash_string(vm_name.lower(), 14))
         network_name = 'net{}'.format(vm_name)
         subnet_name = 'subnet{}'.format(vm_name)
@@ -297,11 +300,10 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        server_name = validated_data['name']
         spl = validated_data['service_project_link']
         location = validated_data.pop('location')
 
-        resource_group_name = 'group{}'.format(server_name)
+        resource_group_name = 'group{}'.format(uuid.uuid4().hex)
 
         resource_group = models.ResourceGroup.objects.create(
             service_project_link=spl,

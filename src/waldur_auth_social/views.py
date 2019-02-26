@@ -1,6 +1,9 @@
 from __future__ import unicode_literals
 
+import base64
 import json
+import jwt
+import logging
 import requests
 import uuid
 
@@ -18,11 +21,15 @@ from .log import event_logger, provider_event_type_mapping
 from .models import AuthProfile
 from .serializers import RegistrationSerializer, ActivationSerializer, AuthSerializer
 
+logger = logging.getLogger(__name__)
 
 auth_social_settings = getattr(settings, 'WALDUR_AUTH_SOCIAL', {})
 GOOGLE_SECRET = auth_social_settings.get('GOOGLE_SECRET')
 FACEBOOK_SECRET = auth_social_settings.get('FACEBOOK_SECRET')
 SMARTIDEE_SECRET = auth_social_settings.get('SMARTIDEE_SECRET')
+TARA_CLIENT_ID = auth_social_settings.get('TARA_CLIENT_ID')
+TARA_SECRET = auth_social_settings.get('TARA_SECRET')
+TARA_SANDBOX = auth_social_settings.get('TARA_SANDBOX')
 
 validate_social_signup = validate_authentication_method('SOCIAL_SIGNUP')
 validate_local_signup = validate_authentication_method('LOCAL_SIGNUP')
@@ -62,7 +69,7 @@ class GoogleException(AuthException):
 
 
 class SmartIDeeException(AuthException):
-    def __init__(self, error_message, error_description):
+    def __init__(self, error_message, error_description=None):
         self.message = 'SmartIDee error: %s' % error_message
         if error_description:
             self.message = '%s (%s)' % (self.message, error_description)
@@ -72,7 +79,18 @@ class SmartIDeeException(AuthException):
         return self.message
 
 
-def generate_username(name):
+class TARAException(AuthException):
+    def __init__(self, error_message, error_description=None):
+        self.message = 'TARA error: %s' % error_message
+        if error_description:
+            self.message = '%s (%s)' % (self.message, error_description)
+        super(TARAException, self).__init__(detail=self.message)
+
+    def __str__(self):
+        return self.message
+
+
+def generate_username():
     return uuid.uuid4().hex[:30]
 
 
@@ -120,7 +138,7 @@ class BaseAuthView(RefreshTokenMixin, views.APIView):
         try:
             with transaction.atomic():
                 user = User.objects.create_user(
-                    username=generate_username(user_name),
+                    username=generate_username(),
                     full_name=user_name,
                     registration_method=self.provider
                 )
@@ -263,7 +281,7 @@ class SmartIDeeView(BaseAuthView):
         except User.DoesNotExist:
             created = True
             user = User.objects.create_user(
-                username=generate_username(full_name),
+                username=generate_username(),
                 # Ilja: disabling email update from smartid.ee as it comes in as a fake object for the moment.
                 # email=backend_user['email'],
                 full_name=full_name,
@@ -276,6 +294,101 @@ class SmartIDeeView(BaseAuthView):
             created = False
             if user.full_name != full_name:
                 user.full_name = full_name
+                user.save()
+        return user, created
+
+
+class TARAView(BaseAuthView):
+    """
+    See also reference documentation for TARA authentication in Estonian language:
+    https://e-gov.github.io/TARA-Doku/TehnilineKirjeldus#431-identsust%C3%B5end
+    """
+    provider = 'tara'
+
+    def get_backend_user(self, validated_data):
+        if TARA_SANDBOX:
+            base_url = 'https://tara-test.ria.ee/oidc/'
+        else:
+            base_url = 'https://tara.ria.ee/oidc/'
+
+        user_data_url = base_url + 'token'
+
+        data = {
+            'grant_type': 'authorization_code',
+            'redirect_uri': validated_data['redirect_uri'],
+            'code': validated_data['code'],
+        }
+
+        auth_token = base64.b64encode('%s:%s' % (TARA_CLIENT_ID, TARA_SECRET))
+
+        headers = {
+            'Authorization': 'Basic %s' % auth_token
+        }
+
+        try:
+            token_response = requests.post(user_data_url, data=data, headers=headers)
+        except requests.exceptions.RequestException as e:
+            logger.warning('Unable to send authentication request. Error is %s', e)
+            raise TARAException('Unable to send authentication request.')
+        self.check_response(token_response)
+
+        try:
+            data = token_response.json()
+            id_token = data['id_token']
+            return jwt.decode(id_token, verify=False)
+        except (ValueError, TypeError):
+            raise TARAException('Unable to parse JSON in authentication response.')
+        except KeyError:
+            raise TARAException('Authentication response does not contain token.')
+        except jwt.PyJWTError as e:
+            logger.warning('Unable to decode authentication token. Error is %s', e)
+            raise TARAException('Unable to decode authentication token.')
+
+    def check_response(self, r, valid_response=requests.codes.ok):
+        if r.status_code != valid_response:
+            try:
+                data = r.json()
+                error_message = data['error']
+                error_description = data.get('error_description', '')
+            except Exception:
+                values = (r.reason, r.status_code)
+                error_message = 'Message: %s, status code: %s' % values
+                error_description = ''
+            raise TARAException(error_message, error_description)
+
+    def create_or_update_user(self, backend_user):
+        try:
+            profile_attributes = backend_user['profile_attributes']
+            full_name = ('%s %s' % (profile_attributes['given_name'], profile_attributes['family_name']))[:100]
+            civil_number = backend_user['sub']
+            # AMR stands for Authentication Method Reference
+            details = {
+                'amr': backend_user.get('amr'),
+                'profile_attributes_translit': backend_user.get('profile_attributes_translit'),
+            }
+        except KeyError as e:
+            logger.warning('Unable to parse identity certificate. Error is: %s', e)
+            raise TARAException('Unable to parse identity certificate.')
+        try:
+            user = User.objects.get(civil_number=civil_number)
+        except User.DoesNotExist:
+            created = True
+            user = User.objects.create_user(
+                username=generate_username(),
+                full_name=full_name,
+                civil_number=civil_number,
+                registration_method=self.provider,
+                details=details,
+            )
+            user.set_unusable_password()
+            user.save()
+        else:
+            created = False
+            if user.full_name != full_name:
+                user.full_name = full_name
+                user.save()
+            if user.details != details:
+                user.details = details
                 user.save()
         return user, created
 

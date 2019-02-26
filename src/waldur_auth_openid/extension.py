@@ -30,6 +30,7 @@ class WaldurAuthOpenIDExtension(WaldurExtension):
             # on user registration following name will be used for user's registration_method field
             'NAME': 'openid',
             'LOGOUT_URL': 'https://openid.ee/auth/logout',
+            'COUNTRY_CODE': 'EE',
         }
 
         OPENID_RENDER_FAILURE = login_failed

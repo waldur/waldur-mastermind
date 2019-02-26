@@ -10,7 +10,7 @@ from . import SupportedServices
 
 logger = logging.getLogger(__name__)
 Coordinates = collections.namedtuple('Coordinates', ('latitude', 'longitude'))
-FieldInfo = collections.namedtuple('FieldInfo', 'fields fields_required extra_fields_required')
+FieldInfo = collections.namedtuple('FieldInfo', 'fields fields_required extra_fields_required extra_fields_default')
 
 
 class GeoIpException(Exception):
@@ -62,6 +62,7 @@ def sort_dependencies(service_model, resources):
 @lru_cache(maxsize=1)
 def get_all_services_field_info():
     services_fields = dict()
+    services_fields_default_value = dict()
     services_fields_required = dict()
     services_extra_fields_required = dict()
     service_models = SupportedServices.get_service_models()
@@ -73,6 +74,11 @@ def get_all_services_field_info():
         fields = service_serializer.SERVICE_ACCOUNT_FIELDS.keys() \
             if service_serializer.SERVICE_ACCOUNT_FIELDS is not NotImplemented else []
 
+        extra_field_options = getattr(service_serializer.Meta, 'extra_field_options', {})
+        fields_default_value = {k: v.get('default_value')
+                                for k, v in extra_field_options.items()
+                                if v.get('default_value')}
+
         fields_extra = service_serializer.SERVICE_ACCOUNT_EXTRA_FIELDS.keys() \
             if service_serializer.SERVICE_ACCOUNT_EXTRA_FIELDS is not NotImplemented else []
 
@@ -82,10 +88,12 @@ def get_all_services_field_info():
         services_fields[service_name] = list(fields)
         services_fields_required[service_name] = list(set(fields) & set(fields_required))
         services_extra_fields_required[service_name] = list(set(fields_extra) & set(fields_required))
+        services_fields_default_value[service_name] = fields_default_value
 
     return FieldInfo(fields=services_fields,
                      fields_required=services_fields_required,
-                     extra_fields_required=services_extra_fields_required)
+                     extra_fields_required=services_extra_fields_required,
+                     extra_fields_default=services_fields_default_value)
 
 
 def update_pulled_fields(instance, imported_instance, fields):
