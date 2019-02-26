@@ -1,8 +1,14 @@
+import logging
+
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_match_states():
@@ -84,3 +90,13 @@ def init_offerings_and_resources(category, customer):
         resources_counter += 1
 
     return offerings_counter, plans_counter, resources_counter
+
+
+def get_issue_plan(issue):
+    try:
+        offering = support_models.Offering.objects.get(issue=issue)
+        if offering.plan:
+            return marketplace_models.Plan.objects.get(scope=offering.plan)
+    except (ObjectDoesNotExist, MultipleObjectsReturned):
+        logger.debug('Plan for issue is not found. Issue ID: %s', issue.id)
+        return None
