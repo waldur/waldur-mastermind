@@ -1,6 +1,8 @@
 import mock
 from ddt import ddt, data
 from rest_framework import test, status
+from decimal import Decimal
+from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
@@ -245,3 +247,22 @@ class InvoicePDFTest(test.APITransactionTestCase):
         mock_pdfkit.from_string.return_value = 'pdf_content'
         utils.create_invoice_pdf(self.invoice)
         self.assertTrue(self.invoice.has_file())
+
+    @mock.patch('waldur_mastermind.invoices.handlers.tasks')
+    def test_create_invoice_pdf_is_not_called_if_invoice_cost_has_not_been_changed(self, mock_tasks):
+        with freeze_time('2019-01-02 00:00:00'):
+            invoice = factories.InvoiceFactory()
+            factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
+            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
+            invoice.update_current_cost()
+            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
+
+    @mock.patch('waldur_mastermind.invoices.handlers.tasks')
+    def test_create_invoice_pdf_is_called_if_invoice_cost_has_been_changed(self, mock_tasks):
+        with freeze_time('2019-01-02 00:00:00'):
+            invoice = factories.InvoiceFactory()
+            factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
+            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
+            factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
+            invoice.update_current_cost()
+            self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 2)
