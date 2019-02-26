@@ -202,6 +202,8 @@ class ProjectFilter(NameFilterSet):
 
     description = django_filters.CharFilter(lookup_expr='icontains')
 
+    query = django_filters.CharFilter(method='filter_query')
+
     o = django_filters.OrderingFilter(
         fields=(
             ('name', 'name'),
@@ -219,7 +221,11 @@ class ProjectFilter(NameFilterSet):
             'customer', 'customer_name', 'customer_native_name', 'customer_abbreviation',
             'description',
             'created',
+            'query',
         ]
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(Q(name__icontains=value) | Q(uuid=value))
 
 
 class CustomerUserFilter(DjangoFilterBackend):
