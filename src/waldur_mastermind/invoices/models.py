@@ -25,6 +25,7 @@ from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models
+
 from . import managers, utils, registrators
 
 logger = logging.getLogger(__name__)
@@ -68,8 +69,11 @@ class Invoice(core_models.UuidMixin, models.Model):
     tracker = FieldTracker()
 
     def update_current_cost(self):
-        self.current_cost = self.total_current
-        self.save(update_fields=['current_cost'])
+        total_current = self.total_current
+
+        if self.current_cost != total_current:
+            self.current_cost = total_current
+            self.save(update_fields=['current_cost'])
 
     @property
     def tax(self):
