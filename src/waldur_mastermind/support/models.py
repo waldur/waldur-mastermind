@@ -215,6 +215,7 @@ class Offering(core_models.UuidMixin,
         CHOICES = ((REQUESTED, _('Requested')), (OK, _('OK')), (TERMINATED, _('Terminated')))
 
     template = models.ForeignKey('OfferingTemplate', on_delete=models.PROTECT)
+    plan = models.ForeignKey('OfferingPlan', blank=True, null=True, on_delete=models.PROTECT)
     issue = models.ForeignKey(Issue, null=True, on_delete=models.PROTECT)
     project = models.ForeignKey(structure_models.Project, null=True, on_delete=models.PROTECT)
     state = models.CharField(default=States.REQUESTED, max_length=30, choices=States.CHOICES)

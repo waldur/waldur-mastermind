@@ -431,6 +431,7 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 article_code=plan.article_code,
                 unit_price=plan.unit_price,
                 unit=plan.unit,
+                plan=plan,
             ))
 
         offering = models.Offering.objects.create(**payload)
