@@ -241,6 +241,7 @@ class Offering(core_models.UuidMixin,
 
     native_name = models.CharField(max_length=160, default='', blank=True)
     native_description = models.CharField(max_length=500, default='', blank=True)
+    terms_of_service = models.CharField(max_length=500, default='', blank=True)
 
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
