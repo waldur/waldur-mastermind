@@ -1,3 +1,5 @@
+from random import randint
+
 from django.urls import reverse
 from libcloud.compute.types import NodeState
 
@@ -168,6 +170,18 @@ class NetworkInterfaceFactory(factory.DjangoModelFactory):
     resource_group = factory.SubFactory(ResourceGroupFactory)
     subnet = factory.SubFactory(SubNetFactory)
     config_name = factory.Sequence(lambda n: 'conf-%s' % n)
+
+
+class PublicIPFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.PublicIP
+
+    name = factory.Sequence(lambda n: 'floating_ip%s' % n)
+    backend_id = factory.Sequence(lambda n: 'floating_ip%s' % n)
+    location = factory.SubFactory(LocationFactory)
+    service_project_link = factory.SubFactory(AzureServiceProjectLinkFactory)
+    resource_group = factory.SubFactory(ResourceGroupFactory)
+    ip_address = factory.LazyAttribute(lambda o: '.'.join('%s' % randint(0, 255) for _ in range(4)))
 
 
 class VirtualMachineFactory(factory.DjangoModelFactory):

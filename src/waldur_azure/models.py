@@ -121,12 +121,14 @@ class NetworkInterface(BaseResourceGroupModel):
     public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
     security_group = models.ForeignKey(SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
+    tracker = FieldTracker()
 
 
 class PublicIP(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
     location = models.ForeignKey(Location)
     ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
+    tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):

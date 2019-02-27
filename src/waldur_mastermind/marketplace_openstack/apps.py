@@ -94,10 +94,4 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         resource_models = (tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant)
-        for index, model in enumerate(resource_models):
-            signals.post_save.connect(
-                handlers.synchronize_resource_metadata,
-                sender=model,
-                dispatch_uid='waldur_mastermind.marketpace_openstack.'
-                             'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
-            )
+        marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
