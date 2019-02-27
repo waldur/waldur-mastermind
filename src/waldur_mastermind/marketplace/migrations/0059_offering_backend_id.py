@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0057_category_backend_id'),
+        ('marketplace', '0058_add_terms_of_service_field_to_offering'),
     ]
 
     operations = [
