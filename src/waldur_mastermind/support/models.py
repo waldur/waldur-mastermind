@@ -265,6 +265,10 @@ class OfferingTemplate(core_models.UuidMixin,
                        TimeStampedModel):
     name = models.CharField(_('name'), max_length=150)
     config = BetterJSONField()
+    sort_order = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
 
     @classmethod
     def get_url_name(cls):
