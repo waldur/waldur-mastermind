@@ -77,6 +77,24 @@ class AzureClient(object):
         except CloudError as exc:
             reraise(exc)
 
+    def get_resource_group_locations(self):
+        """
+        Resource Manager is supported in all regions, but the resources
+        you deploy might not be supported in all regions.
+        In addition, there may be limitations on your subscription that
+        prevent you from using some regions that support the resource.
+
+        See also: https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-supported-services
+        """
+        try:
+            provider = self.resource_client.providers.get('Microsoft.Resources')
+        except CloudError as exc:
+            reraise(exc)
+        else:
+            for resource in provider.resource_types:
+                if resource.resource_type == 'resourceGroups':
+                    return resource.locations
+
     def list_resource_groups(self):
         try:
             return self.resource_client.resource_groups.list()

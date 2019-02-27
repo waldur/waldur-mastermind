@@ -37,7 +37,7 @@ class SizeViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.Location.objects.all()
+    queryset = models.Location.objects.filter(enabled=True)
     serializer_class = serializers.LocationSerializer
     filter_class = filters.LocationFilter
     lookup_field = 'uuid'
