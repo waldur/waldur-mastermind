@@ -38,6 +38,8 @@ class AzureBackend(ServiceBackend):
             for location in self.client.list_locations()
         }
 
+        resource_group_locations = self.client.get_resource_group_locations()
+
         new_locations = {
             location for name, location in backend_locations.items()
             if name not in cached_locations
@@ -59,6 +61,9 @@ class AzureBackend(ServiceBackend):
 
         for cached_location in stale_locations:
             cached_location.delete()
+
+        models.Location.objects.filter(name__in=resource_group_locations).update(enabled=True)
+        models.Location.objects.exclude(name__in=resource_group_locations).update(enabled=False)
 
     def pull_public_ips(self, service_project_link):
         locations = {

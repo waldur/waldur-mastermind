@@ -36,6 +36,11 @@ class AzureServiceProjectLink(structure_models.ServiceProjectLink):
 class Location(core_models.CoordinatesMixin,
                structure_models.ServiceProperty):
 
+    enabled = models.BooleanField(
+        default=True,
+        help_text='Indicates whether location is available for resource group.'
+    )
+
     class Meta:
         ordering = ['name']
 
