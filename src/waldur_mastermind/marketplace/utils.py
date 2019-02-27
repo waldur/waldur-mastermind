@@ -70,3 +70,16 @@ def create_order_pdf(order):
     pdf = pdfkit.from_string(html, False)
     order.file = base64.b64encode(pdf)
     order.save()
+
+
+def import_resource_metadata(resource):
+    instance = resource.scope
+    fields = {'action', 'action_details', 'state', 'runtime_state'}
+
+    for field in fields:
+        if field == 'state':
+            value = instance.get_state_display()
+        else:
+            value = getattr(instance, field, None)
+        resource.backend_metadata[field] = value
+    resource.save(update_fields=['backend_metadata'])

@@ -7,6 +7,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
+from waldur_mastermind.marketplace.utils import import_resource_metadata
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import apps as openstack_apps
@@ -414,17 +415,4 @@ def import_instance_metadata(resource):
     instance = resource.scope
     resource.backend_metadata['internal_ips'] = instance.internal_ips
     resource.backend_metadata['external_ips'] = instance.external_ips
-    resource.save(update_fields=['backend_metadata'])
-
-
-def import_resource_metadata(resource):
-    instance = resource.scope
-    fields = {'action', 'action_details', 'state', 'runtime_state'}
-
-    for field in fields:
-        if field == 'state':
-            value = instance.get_state_display()
-        else:
-            value = getattr(instance, field, None)
-        resource.backend_metadata[field] = value
     resource.save(update_fields=['backend_metadata'])

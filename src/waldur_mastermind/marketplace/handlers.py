@@ -9,7 +9,7 @@ from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
 
-from . import callbacks, tasks, models
+from . import callbacks, tasks, models, utils
 
 
 logger = logging.getLogger(__name__)
@@ -201,4 +201,30 @@ def connect_resource_handlers(*resources):
             terminate_resource,
             sender=model,
             dispatch_uid='waldur_mastermind.marketpace.terminate_resource_%s' % suffix,
+        )
+
+
+def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
+    fields = {'action', 'action_details', 'state', 'runtime_state'}
+    if not created and not set(instance.tracker.changed()) & fields:
+        return
+
+    try:
+        resource = models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping resource synchronization for OpenStack resource '
+                     'because marketplace resource does not exist. '
+                     'Resource ID: %s', instance.id)
+        return
+
+    utils.import_resource_metadata(resource)
+
+
+def connect_resource_metadata_handlers(*resources):
+    for index, model in enumerate(resources):
+        signals.post_save.connect(
+            synchronize_resource_metadata,
+            sender=model,
+            dispatch_uid='waldur_mastermind.marketpace.'
+                         'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
         )

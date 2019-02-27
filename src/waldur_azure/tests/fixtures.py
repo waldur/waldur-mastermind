@@ -62,6 +62,14 @@ class AzureFixture(ProjectFixture):
         )
 
     @cached_property
+    def public_ip(self):
+        return factories.PublicIPFactory(
+            resource_group=self.resource_group,
+            service_project_link=self.spl,
+            location=self.location,
+        )
+
+    @cached_property
     def virtual_machine(self):
         return factories.VirtualMachineFactory(
             service_project_link=self.spl,
