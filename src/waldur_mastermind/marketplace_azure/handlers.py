@@ -4,7 +4,6 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_azure import models as azure_models
 from waldur_core.core import utils as core_utils
-from waldur_mastermind.marketplace.utils import import_resource_metadata
 
 from . import utils
 
