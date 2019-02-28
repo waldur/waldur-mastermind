@@ -6,18 +6,18 @@ from waldur_core.structure import filters as structure_filters
 from . import models
 
 
-class ImageFilter(structure_filters.BaseServicePropertyFilter):
-    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+class ImageFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
 
 
-class LocationFilter(structure_filters.BaseServicePropertyFilter):
-    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+class LocationFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Location
 
 
-class SizeFilter(structure_filters.BaseServicePropertyFilter):
-    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+class SizeFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Size
 
 

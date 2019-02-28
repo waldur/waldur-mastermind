@@ -359,9 +359,7 @@ class PullSubnetsTest(BaseBackendTestCase):
     def test_missing_subnets_are_created(self):
         self.backend.pull_subnets()
 
-        self.mocked_neutron().list_subnets.assert_called_once_with(
-            network_id=['network_id']
-        )
+        self.mocked_neutron().list_subnets.assert_called_once()
         self.assertEqual(models.SubNet.objects.count(), 1)
         subnet = models.SubNet.objects.get(
             backend_id='backend_id',

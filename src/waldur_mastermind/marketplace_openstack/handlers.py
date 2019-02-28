@@ -221,19 +221,3 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
             continue
 
         utils.import_instance_metadata(resource)
-
-
-def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
-    fields = {'action', 'action_details', 'state', 'runtime_state'}
-    if not created and not set(instance.tracker.changed()) & fields:
-        return
-
-    try:
-        resource = marketplace_models.Resource.objects.get(scope=instance)
-    except ObjectDoesNotExist:
-        logger.debug('Skipping resource synchronization for OpenStack resource '
-                     'because marketplace resource does not exist. '
-                     'Resource ID: %s', instance.id)
-        return
-
-    utils.import_resource_metadata(resource)

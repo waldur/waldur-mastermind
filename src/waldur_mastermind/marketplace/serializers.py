@@ -292,7 +292,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Offering
-        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description',
+        fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'terms_of_service',
                   'customer', 'customer_uuid', 'customer_name',
                   'category', 'category_uuid', 'category_title',
                   'rating', 'attributes', 'options', 'components', 'geolocations',
@@ -490,12 +490,13 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail', 'offering_type',
+                  'offering_terms_of_service', 'offering_shared',
                   'provider_name', 'provider_uuid',
                   'category_title', 'category_uuid',
                   'plan', 'plan_unit', 'plan_name', 'plan_uuid', 'plan_description',
                   'attributes', 'limits', 'uuid', 'created')
         related_paths = {
-            'offering': ('name', 'uuid', 'description', 'type'),
+            'offering': ('name', 'uuid', 'description', 'type', 'terms_of_service', 'shared'),
             'plan': ('unit', 'uuid', 'name', 'description')
         }
         protected_fields = ('offering',)
