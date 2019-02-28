@@ -406,27 +406,38 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         return network
 
-    def pull_subnets(self, networks=None):
+    def pull_subnets(self, tenant=None):
         neutron = self.neutron_client
 
-        if networks is None:
+        if tenant:
+            networks = tenant.networks.all()
+        else:
             networks = models.Network.objects.filter(
                 state=models.Network.States.OK,
                 service_project_link__service__settings=self.settings,
-            ).prefetch_related('subnets')
+            )
         network_mappings = {network.backend_id: network for network in networks}
         if not network_mappings:
             return
 
         try:
-            backend_subnets = neutron.list_subnets(network_id=network_mappings.keys())['subnets']
+            if tenant:
+                backend_subnets = neutron.list_subnets(tenant_id=tenant.backend_id)['subnets']
+            else:
+                # We can't filter subnets by network IDs because it exceeds maximum request length
+                backend_subnets = neutron.list_subnets()['subnets']
         except neutron_exceptions.NeutronClientException as e:
             reraise(e)
 
         subnet_uuids = []
         with transaction.atomic():
             for backend_subnet in backend_subnets:
-                network = network_mappings[backend_subnet['network_id']]
+                network = network_mappings.get(backend_subnet['network_id'])
+
+                if not network:
+                    logger.debug('OpenStack network is not imported yet. Network ID: %s',
+                                 backend_subnet['network_id'])
+                    continue
 
                 imported_subnet = self._backend_subnet_to_subnet(
                     backend_subnet, network=network, service_project_link=network.service_project_link)
@@ -449,7 +460,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def import_tenant_subnets(self, tenant):
-        self.pull_subnets(tenant.networks.iterator())
+        self.pull_subnets(tenant)
 
     def _backend_subnet_to_subnet(self, backend_subnet, **kwargs):
         subnet = models.SubNet(
