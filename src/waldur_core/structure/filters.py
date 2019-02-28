@@ -21,7 +21,7 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core.filters import BaseExternalFilter, ExternalFilterBackend
-from waldur_core.core.utils import order_with_nulls, get_ordering
+from waldur_core.core.utils import order_with_nulls, get_ordering, is_uuid_like
 from waldur_core.logging.filters import ExternalAlertFilterBackend
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models
@@ -225,7 +225,10 @@ class ProjectFilter(NameFilterSet):
         ]
 
     def filter_query(self, queryset, name, value):
-        return queryset.filter(Q(name__icontains=value) | Q(uuid=value))
+        if is_uuid_like(value):
+            return queryset.filter(uuid=value)
+        else:
+            return queryset.filter(name__icontains=value)
 
 
 class CustomerUserFilter(DjangoFilterBackend):
