@@ -229,6 +229,7 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
             # which will be called only after calls of the handlers.
             # But creating and deleting of a package is not allowed here,
             # they are allowed only after backend request so here use a transaction rollback.
+            package_id = package.id
             with transaction.atomic():
                 service_settings = package.service_settings
                 tenant = package.tenant
@@ -241,7 +242,9 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
                 )
                 raise exceptions.TransactionRollback()
         except exceptions.TransactionRollback:
-            pass
+            # package.delete() sets pk in None,
+            # and core_utils.deserialize_instance(serialized_old_package) doesn't work
+            package.pk = package_id
 
         return attrs
 
