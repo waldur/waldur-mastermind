@@ -242,7 +242,9 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
                 )
                 raise exceptions.TransactionRollback()
         except exceptions.TransactionRollback:
-            attrs['package'] = models.OpenStackPackage.objects.get(pk=package_id)
+            # package.delete() sets pk in None,
+            # and core_utils.deserialize_instance(serialized_old_package) doesn't work
+            package.pk = package_id
 
         return attrs
 
