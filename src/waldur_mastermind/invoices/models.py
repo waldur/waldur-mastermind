@@ -288,6 +288,11 @@ class GenericInvoiceItem(InvoiceItem):
             return registrators.RegistrationManager.get_name(self.scope)
         if self.details.get('name'):
             return self.details.get('name')
+        if self.details:
+            return ', '.join(['%s: %s' % (k, v) for k, v in self.details.items()])
+        if self.content_type:
+            return '%s.%s' % (self.content_type.app_label, self.content_type.model)
+        return ''
 
     def freeze(self):
         if self.scope:
