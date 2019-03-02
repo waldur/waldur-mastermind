@@ -8,6 +8,12 @@ def migrate_items(apps, schema_editor):
     OpenStackItem = apps.get_model('invoices', 'OpenStackItem')
     OfferingItem = apps.get_model('invoices', 'OfferingItem')
     GenericInvoiceItem = apps.get_model('invoices', 'GenericInvoiceItem')
+    Offering = apps.get_model('support', 'Offering')
+    OpenStackPackage = apps.get_model('packages', 'OpenStackPackage')
+
+    ContentType = apps.get_model('contenttypes', 'ContentType')
+    offering_ct = ContentType.objects.get_for_model(Offering)
+    package_ct = ContentType.objects.get_for_model(OpenStackPackage)
 
     for item in OpenStackItem.objects.all():
         generic_item = GenericInvoiceItem.objects.create(
@@ -24,7 +30,8 @@ def migrate_items(apps, schema_editor):
             article_code=item.article_code
         )
         if item.package:
-            generic_item.scope = item.package
+            generic_item.content_type = package_ct
+            generic_item.object_id = item.package.id
             generic_item.save()
 
     for item in OfferingItem.objects.all():
@@ -42,7 +49,8 @@ def migrate_items(apps, schema_editor):
             article_code=item.article_code
         )
         if item.offering:
-            generic_item.scope = item.offering
+            generic_item.content_type = offering_ct
+            generic_item.object_id = item.offering.id
             generic_item.save()
 
 
@@ -50,6 +58,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('invoices', '0026_invoice__file'),
+        ('contenttypes', '0002_remove_content_type_name'),
     ]
 
     operations = [

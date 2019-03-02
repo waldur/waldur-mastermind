@@ -9,6 +9,10 @@ class PayPalConfig(AppConfig):
     def ready(self):
         from . import handlers
         from waldur_core.cost_tracking import signals as cost_signals
+        from django.conf import settings
+
+        if not settings.WALDUR_PAYPAL['ENABLED']:
+            return
 
         Invoice = self.get_model('Invoice')
 
