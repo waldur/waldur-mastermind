@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,6 +12,8 @@ from waldur_core.core.views import ProtectedViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models, filters, serializers, tasks
+
+User = get_user_model()
 
 
 class InvitationViewSet(ProtectedViewSet):
@@ -110,11 +113,22 @@ class InvitationViewSet(ProtectedViewSet):
         elif invitation.customer.has_user(request.user):
             raise ValidationError(_('User already has role within this customer.'))
 
-        if settings.WALDUR_CORE['VALIDATE_INVITATION_EMAIL'] and invitation.email != request.user.email:
-            raise ValidationError(_('Invitation and user emails mismatch.'))
+        replace_email = False
+        if invitation.email != request.user.email:
+            if settings.WALDUR_CORE['VALIDATE_INVITATION_EMAIL']:
+                raise ValidationError(_('Invitation and user emails mismatch.'))
+            # Ensure that user wouldn't reuse existing email
+            elif bool(request.data.get('replace_email')):
+                if User.objects.filter(email=invitation.email).exists():
+                    raise ValidationError(_('This email is already taken.'))
+                else:
+                    replace_email = True
 
-        replace_email = bool(request.data.get('replace_email'))
-        invitation.accept(request.user, replace_email=replace_email)
+        invitation.accept(request.user)
+        if replace_email:
+            request.user.email = invitation.email
+            request.user.save(update_fields=['email'])
+
         return Response({'detail': _('Invitation has been successfully accepted.')},
                         status=status.HTTP_200_OK)
 
