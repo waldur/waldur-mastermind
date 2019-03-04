@@ -439,7 +439,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         response = self.client.post(url, {'replace_email': True})
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_400_OK)
         self.user.refresh_from_db()
         self.assertNotEqual(self.user.email, invitation.email)
 
