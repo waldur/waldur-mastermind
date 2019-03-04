@@ -185,7 +185,7 @@ class SAML2Extension(WaldurExtension):
 
     @staticmethod
     def update_settings(settings):
-        settings['AUTHENTICATION_BACKENDS'] += ('djangosaml2.backends.Saml2Backend',)
+        settings['AUTHENTICATION_BACKENDS'] += ('waldur_auth_saml2.auth.WaldurSaml2Backend',)
         if settings['WALDUR_AUTH_SAML2']['log_file'] != '':
             level = settings['WALDUR_AUTH_SAML2']['log_level'].upper()
             settings['LOGGING']['handlers']['file-saml2'] = {

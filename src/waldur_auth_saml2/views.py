@@ -3,6 +3,7 @@ import logging
 
 from django.conf import settings
 from django.contrib import auth
+from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.translation import ugettext_lazy as _
 from djangosaml2.cache import OutstandingQueriesCache, IdentityCache, StateCache
@@ -178,11 +179,14 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
         if callable(create_unknown_user):
             create_unknown_user = create_unknown_user()
 
-        user = auth.authenticate(
-            session_info=session_info,
-            attribute_mapping=attribute_mapping,
-            create_unknown_user=create_unknown_user,
-        )
+        try:
+            user = auth.authenticate(
+                session_info=session_info,
+                attribute_mapping=attribute_mapping,
+                create_unknown_user=create_unknown_user,
+            )
+        except ValidationError as e:
+            return login_failed(e.message)
         if user is None:
             return login_failed(_('SAML2 authentication failed.'))
 
