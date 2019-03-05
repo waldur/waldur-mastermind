@@ -92,11 +92,10 @@ def init_offerings_and_resources(category, customer):
     return offerings_counter, plans_counter, resources_counter
 
 
-def get_issue_plan(issue):
+def get_issue_resource(issue):
     try:
         offering = support_models.Offering.objects.get(issue=issue)
-        if offering.plan:
-            return marketplace_models.Plan.objects.get(scope=offering.plan)
+        return marketplace_models.Resource.objects.get(scope=offering)
     except (ObjectDoesNotExist, MultipleObjectsReturned):
-        logger.debug('Plan for issue is not found. Issue ID: %s', issue.id)
+        logger.debug('Resource for issue is not found. Issue ID: %s', issue.id)
         return None
