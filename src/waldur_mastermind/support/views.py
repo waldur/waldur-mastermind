@@ -9,13 +9,14 @@ from rest_framework import viewsets, views, permissions, decorators, response, s
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import metadata as structure_metadata
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
-from . import filters, models, serializers, backend, exceptions
+from . import filters, models, serializers, backend, exceptions, tasks
 
 
 class CheckExtensionMixin(core_views.CheckExtensionMixin):
@@ -187,7 +188,9 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering = serializer.save()
-        backend.get_active_backend().create_issue(offering.issue)
+        serialized_issue = core_utils.serialize_instance(offering.issue)
+        task = tasks.create_issue.s(serialized_issue)
+        transaction.on_commit(lambda: task.apply_async(countdown=2))
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_serializer_class = serializers.OfferingCreateSerializer
