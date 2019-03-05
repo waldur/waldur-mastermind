@@ -12,7 +12,6 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.support.backend import SupportBackendError
 from waldur_mastermind.support.tests.base import override_support_settings, BaseTest
 
 from . import factories, fixtures
