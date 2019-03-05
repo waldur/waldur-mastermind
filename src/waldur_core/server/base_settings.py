@@ -298,6 +298,7 @@ WALDUR_CORE = {
     'NOTIFICATION_SUBJECT': 'Notifications from Waldur',
     'LOGGING_REPORT_DIRECTORY': '/var/log/waldur',
     'LOGGING_REPORT_INTERVAL': timedelta(days=7),
+    'HTTP_CHUNK_SIZE': 50,
 }
 
 WALDUR_CORE_PUBLIC_SETTINGS = [
