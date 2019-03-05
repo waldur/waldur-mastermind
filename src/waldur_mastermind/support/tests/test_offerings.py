@@ -167,19 +167,6 @@ class OfferingCreateTest(BaseTest):
         offering = models.Offering.objects.first()
         self.assertEqual(issue.project.uuid, offering.project.uuid)
 
-    def test_offering_is_not_created_if_backend_raises_error(self):
-        self.mock_get_active_backend.side_effect = SupportBackendError()
-
-        request_data = self._get_valid_request()
-        self.assertEqual(models.Offering.objects.count(), 0)
-        self.assertEqual(models.Issue.objects.count(), 0)
-
-        with self.assertRaises(SupportBackendError):
-            self.client.post(self.url, data=request_data)
-
-        self.assertEqual(models.Offering.objects.count(), 0)
-        self.assertEqual(models.Issue.objects.count(), 0)
-
     @data('user')
     def test_user_cannot_associate_new_offering_with_project_if_he_has_no_project_level_permissions(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
