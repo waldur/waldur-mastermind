@@ -5,10 +5,12 @@ import re
 from cinderclient import exceptions as cinder_exceptions
 from django.db import transaction
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 
+from waldur_core.core.utils import create_batch_fetcher
 from waldur_core.structure import log_backend_action, SupportedServices
 from waldur_core.structure.utils import (
     update_pulled_fields, handle_resource_not_found, handle_resource_update_success)
@@ -174,8 +176,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         self._pull_tenant_quotas(tenant.backend_id, tenant)
 
     def pull_floating_ips(self, tenants=None):
-        neutron = self.neutron_admin_client
-
         if tenants is None:
             tenants = models.Tenant.objects.filter(
                 state=models.Tenant.States.OK,
@@ -184,11 +184,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         if not tenant_mappings:
             return
 
-        try:
-            backend_floating_ips = neutron.list_floatingips(
-                tenant_id=tenant_mappings.keys())['floatingips']
-        except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+        backend_floating_ips = self.list_floatingips(tenant_mappings.keys())
 
         tenant_floating_ips = dict()
         for tenant_id, floating_ips in groupby(backend_floating_ips, lambda x: x['tenant_id']):
@@ -199,6 +195,15 @@ class OpenStackBackend(BaseOpenStackBackend):
                 self._update_tenant_floating_ips(tenant, floating_ips)
 
             self._remove_stale_floating_ips(tenants, backend_floating_ips)
+
+    @method_decorator(create_batch_fetcher)
+    def list_floatingips(self, tenants):
+        neutron = self.neutron_admin_client
+
+        try:
+            return neutron.list_floatingips(tenant_id=tenants)['floatingips']
+        except neutron_exceptions.NeutronClientException as e:
+            reraise(e)
 
     @log_backend_action('pull floating IPs for tenant')
     def pull_tenant_floating_ips(self, tenant):
@@ -258,7 +263,6 @@ class OpenStackBackend(BaseOpenStackBackend):
         return floating_ip
 
     def pull_security_groups(self, tenants=None):
-        neutron = self.neutron_admin_client
 
         if tenants is None:
             tenants = models.Tenant.objects.filter(
@@ -269,11 +273,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         if not tenant_mappings:
             return
 
-        try:
-            backend_security_groups = neutron.list_security_groups(
-                tenant_id=tenant_mappings.keys())['security_groups']
-        except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+        backend_security_groups = self.list_security_groups(tenant_mappings.keys())
 
         tenant_security_groups = dict()
         for tenant_id, security_groups in groupby(backend_security_groups, lambda x: x['tenant_id']):
@@ -283,6 +283,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             for tenant, security_groups in tenant_security_groups.items():
                 self._update_tenant_security_groups(tenant, security_groups)
             self._remove_stale_security_groups(tenants, backend_security_groups)
+
+    @method_decorator(create_batch_fetcher)
+    def list_security_groups(self, tenants):
+        neutron = self.neutron_admin_client
+
+        try:
+            return neutron.list_security_groups(tenant_id=tenants)['security_groups']
+        except neutron_exceptions.NeutronClientException as e:
+            reraise(e)
 
     @log_backend_action('pull security groups for tenant')
     def pull_tenant_security_groups(self, tenant):
@@ -348,13 +357,8 @@ class OpenStackBackend(BaseOpenStackBackend):
         return self._pull_networks([tenant])
 
     def _pull_networks(self, tenants):
-        neutron = self.neutron_client
         tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
-
-        try:
-            backend_networks = neutron.list_networks(tenant_id=tenant_mappings.keys())['networks']
-        except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+        backend_networks = self.list_networks(tenant_mappings.keys())
 
         networks = []
         with transaction.atomic():
@@ -386,6 +390,14 @@ class OpenStackBackend(BaseOpenStackBackend):
             stale_networks.delete()
 
         return networks
+
+    @method_decorator(create_batch_fetcher)
+    def list_networks(self, tenants):
+        neutron = self.neutron_client
+        try:
+            return neutron.list_networks(tenant_id=tenants)['networks']
+        except neutron_exceptions.NeutronClientException as e:
+            reraise(e)
 
     def _backend_network_to_network(self, backend_network, **kwargs):
         network = models.Network(

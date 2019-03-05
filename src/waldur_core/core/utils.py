@@ -1,6 +1,7 @@
 import calendar
 from collections import OrderedDict
 import datetime
+import functools
 import importlib
 from itertools import chain
 from operator import itemgetter
@@ -281,6 +282,44 @@ def is_uuid_like(val):
         return False
     else:
         return True
+
+
+def chunks(xs, n):
+    """
+    Split list to evenly sized chunks
+
+    >> chunks(range(10), 4)
+    [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9]]
+
+    :param xs: arbitrary list
+    :param n: chunk size
+    :return: list of lists
+    """
+    return [xs[i:i + n] for i in xrange(0, len(xs), n)]
+
+
+def create_batch_fetcher(fetcher):
+    """
+    Decorator to simplify code for chunked fetching.
+    It fetches resources from backend API in evenly sized chunks.
+    It is needed in order to avoid too long HTTP request error.
+    Essentially, it gives the same result as fetcher(items) but does not throw an error.
+
+    :param fetcher: fetcher: function which accepts list of items and returns list of results,
+    for example, list of UUIDs and returns list of projects with given UUIDs
+    :return: function with the same signature as fetcher
+    """
+    @functools.wraps(fetcher)
+    def wrapped(items):
+        """
+        :param items: list of items for request, for example, list of UUIDs
+        :return: merged list of results
+        """
+        result = []
+        for chunk in chunks(items, settings.WALDUR_CORE['HTTP_CHUNK_SIZE']):
+            result.extend(fetcher(chunk))
+        return result
+    return wrapped
 
 
 class DryRunCommand(BaseCommand):
