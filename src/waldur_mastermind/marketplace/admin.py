@@ -176,15 +176,26 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     create_pdf_for_all.name = _('Create PDF for all orders')
 
 
+class ResourceForm(ModelForm):
+    def __init__(self, *args, **kwargs):
+        super(ResourceForm, self).__init__(*args, **kwargs)
+        if self.instance:
+            # Filter marketplace resource plans by offering
+            self.fields['plan'].queryset = self.fields['plan'].queryset.filter(
+                offering=self.instance.offering)
+
+
 class ResourceAdmin(admin.ModelAdmin):
+    form = ResourceForm
     list_display = ('name', 'project', 'state', 'category', 'created')
     list_filter = (
         'state',
         ('project', RelatedOnlyDropdownFilter),
         ('offering', RelatedOnlyDropdownFilter),
     )
-    readonly_fields = fields = ('state', 'scope_link', 'project_link', 'offering_link',
+    readonly_fields = ('state', 'scope_link', 'project_link', 'offering_link',
                                 'plan_link', 'formatted_attributes', 'formatted_limits')
+    fields = readonly_fields + ('plan',)
     search_fields = ('name', 'uuid')
 
     def category(self, obj):
