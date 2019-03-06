@@ -179,7 +179,7 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 class ResourceForm(ModelForm):
     def __init__(self, *args, **kwargs):
         super(ResourceForm, self).__init__(*args, **kwargs)
-        if self.instance:
+        if self.instance and hasattr(self.instance, 'offering'):
             # Filter marketplace resource plans by offering
             self.fields['plan'].queryset = self.fields['plan'].queryset.filter(
                 offering=self.instance.offering)
