@@ -28,14 +28,15 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         project = order_item.order.project
         project_url = reverse('project-detail', kwargs={'uuid': project.uuid})
         template_url = reverse('support-offering-template-detail', kwargs={'uuid': template.uuid})
+        attributes = order_item.attributes.copy()
 
         post_data = dict(
             project=project_url,
             template=template_url,
-            name=order_item.attributes.pop('name', ''),
+            name=attributes.pop('name', ''),
         )
 
-        description = order_item.attributes.pop('description', '')
+        description = attributes.pop('description', '')
         link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
         order_item_url = link_template.format(order_item_uuid=order_item.uuid,
                                               project_uuid=order_item.order.project.uuid)
@@ -55,9 +56,8 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
 
         if description:
             post_data['description'] = description
-        if order_item.attributes:
-            post_data['attributes'] = order_item.attributes
-        post_data.update(order_item.attributes)
+        if attributes:
+            post_data['attributes'] = attributes
         return post_data
 
 
