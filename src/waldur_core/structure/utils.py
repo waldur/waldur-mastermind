@@ -4,6 +4,8 @@ import logging
 from django.db import models
 from django.db.migrations.topological_sort import stable_topological_sort
 from django.utils.lru_cache import lru_cache
+from django.utils.translation import ugettext_lazy as _
+from rest_framework.exceptions import ValidationError
 import requests
 
 from . import SupportedServices
@@ -156,3 +158,11 @@ def handle_resource_update_success(resource):
         resource.save(update_fields=update_fields)
     logger.info('%s %s (PK: %s) was successfully updated.' % (
         resource.__class__.__name__, resource, resource.pk))
+
+
+def check_customer_blocked(obj):
+    from waldur_core.structure import permissions
+
+    customer = permissions._get_customer(obj)
+    if customer and customer.blocked:
+        raise ValidationError(_('Blocked organization is not available.'))

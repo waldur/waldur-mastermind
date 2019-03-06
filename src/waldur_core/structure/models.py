@@ -344,6 +344,7 @@ class Customer(core_models.UuidMixin,
     accounting_start_date = models.DateTimeField(_('Start date of accounting'), default=timezone.now)
     default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                               validators=[MinValueValidator(0), MaxValueValidator(100)])
+    blocked = models.BooleanField(default=False)
     tracker = FieldTracker()
 
     class Meta(object):

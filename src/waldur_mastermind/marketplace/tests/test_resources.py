@@ -135,6 +135,12 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_plan_switching_is_not_available_for_blocked_organization(self):
+        self.fixture.customer.blocked = True
+        self.fixture.customer.save()
+        response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class ResourceTerminateTest(test.APITransactionTestCase):
     def setUp(self):
@@ -197,6 +203,12 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         response = self.terminate(self.fixture.staff)
 
         # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_resource_terminating_is_not_available_for_blocked_organization(self):
+        self.fixture.customer.blocked = True
+        self.fixture.customer.save()
+        response = self.terminate(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
