@@ -654,7 +654,6 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
     email = serializers.EmailField()
     agree_with_policy = serializers.BooleanField(write_only=True, required=False,
                                                  help_text=_('User must agree with the policy to register.'))
-    preferred_language = serializers.ChoiceField(choices=settings.LANGUAGES, allow_blank=True, required=False)
     competence = serializers.ChoiceField(choices=settings.WALDUR_CORE.get('USER_COMPETENCE_LIST', []),
                                          allow_blank=True,
                                          required=False)

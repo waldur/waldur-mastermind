@@ -114,7 +114,6 @@ class UserChangeForm(auth_admin.UserChangeForm):
     def __init__(self, *args, **kwargs):
         super(UserChangeForm, self).__init__(*args, **kwargs)
         competences = [(key, key) for key in settings.WALDUR_CORE.get('USER_COMPETENCE_LIST', [])]
-        self.fields['preferred_language'] = OptionalChoiceField(choices=settings.LANGUAGES, required=False)
         self.fields['competence'] = OptionalChoiceField(choices=competences, required=False)
 
     def clean_civil_number(self):
