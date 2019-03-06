@@ -6,7 +6,6 @@ import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -23,6 +22,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
@@ -625,9 +625,7 @@ class CartSubmitSerializer(serializers.Serializer):
         return order
 
 
-def create_order(project, user, items, request):
-    order_params = dict(project=project, created_by=user)
-
+def check_availability_of_auto_approving(items, user, project):
     if permissions.user_can_approve_order(user, project):
         only_create_private = all(
             item.type == models.OrderItem.Types.CREATE and not item.offering.shared
@@ -638,12 +636,11 @@ def create_order(project, user, items, request):
             for item in items
         )
         if only_create_private or only_update_or_delete:
-            order_params.update(dict(
-                state=models.Order.States.EXECUTING,
-                approved_by=user,
-                approved_at=timezone.now(),
-            ))
+            return True
 
+
+def create_order(project, user, items, request):
+    order_params = dict(project=project, created_by=user)
     order = models.Order.objects.create(**order_params)
 
     for item in items:
@@ -669,6 +666,11 @@ def create_order(project, user, items, request):
 
     order.init_total_cost()
     order.save()
+
+    if check_availability_of_auto_approving(items, user, project):
+        common_utils.approve_order(user, order.uuid)
+        order.refresh_from_db()
+
     return order
 
 

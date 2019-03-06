@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import mock
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
@@ -140,6 +141,34 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         self.fixture.customer.save()
         response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch('waldur_mastermind.marketplace.views.tasks')
+    def test_order_has_been_approved_if_user_has_got_permissions(self, mock_tasks):
+        # Arrange
+        self.plan2.max_amount = 10
+        self.plan2.save()
+
+        # Act
+        response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
+
+        # Assert
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_tasks.process_order.delay.assert_called_once_with('marketplace.order:%s' % order.id,
+                                                               'core.user:%s' % self.fixture.owner.id)
+
+    @mock.patch('waldur_mastermind.marketplace.views.tasks')
+    def test_order_has_not_been_approved_if_user_has_not_got_permissions(self, mock_tasks):
+        # Arrange
+        self.plan2.max_amount = 10
+        self.plan2.save()
+
+        # Act
+        response = self.switch_plan(self.fixture.admin, self.resource1, self.plan2)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_tasks.process_order.delay.assert_not_called()
 
 
 class ResourceTerminateTest(test.APITransactionTestCase):
