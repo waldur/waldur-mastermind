@@ -697,3 +697,106 @@ class AccountingIsRunningFilterTest(test.APITransactionTestCase):
         actual = self.count_customers({'accounting_is_running': param})
         expected = len(self.all_customers)
         self.assertEqual(expected, actual)
+
+
+@override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True, OWNERS_CAN_MANAGE_OWNERS=True)
+class CustomerBlockedTest(CustomerBaseTest):
+    def setUp(self):
+        self.user = factories.UserFactory()
+        self.customer = factories.CustomerFactory(blocked=True)
+        self.customer.add_user(self.user, CustomerRole.OWNER)
+
+    def test_blocked_organization_is_not_available_for_updating(self):
+        self.client.force_authenticate(user=self.user)
+        url = factories.CustomerFactory.get_url(customer=self.customer)
+        response = self.client.put(url, {'name': 'new_name'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blocked_organization_is_not_available_for_deleting(self):
+        self.client.force_authenticate(user=self.user)
+        url = factories.CustomerFactory.get_url(customer=self.customer)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_project_creating_is_not_available_for_blocked_organization(self):
+        self.client.force_authenticate(user=self.user)
+        url = factories.ProjectFactory.get_list_url()
+        data = {
+            'name': 'New project name',
+            'customer': factories.CustomerFactory.get_url(self.customer),
+        }
+        response = self.client.post(url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_project_deleting_is_not_available_for_blocked_organization(self):
+        self.client.force_authenticate(user=self.user)
+        project = factories.ProjectFactory(customer=self.customer)
+        url = factories.ProjectFactory.get_url(project=project)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_project_updating_is_not_available_for_blocked_organization(self):
+        self.client.force_authenticate(user=self.user)
+        project = factories.ProjectFactory(customer=self.customer)
+        url = factories.ProjectFactory.get_url(project=project)
+        response = self.client.patch(url, {'name': 'New project name'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_customer_permission_adding_is_not_available_for_blocked_organization(self):
+        user = factories.UserFactory()
+        data = {
+            'customer': factories.CustomerFactory.get_url(self.customer),
+            'user': factories.UserFactory.get_url(user),
+            'role': CustomerRole.OWNER,
+        }
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(reverse('customer_permission-list'), data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_customer_permission_updating_is_not_available_for_blocked_organization(self):
+        permission = factories.CustomerPermissionFactory(customer=self.customer)
+        url = factories.CustomerPermissionFactory.get_url(permission)
+        data = {
+            'is_active': False,
+        }
+        self.client.force_authenticate(user=self.user)
+        response = self.client.put(url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_customer_permission_deleting_is_not_available_for_blocked_organization(self):
+        permission = factories.CustomerPermissionFactory(customer=self.customer)
+        url = factories.CustomerPermissionFactory.get_url(permission)
+        self.client.force_authenticate(user=self.user)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_project_permission_adding_is_not_available_for_blocked_organization(self):
+        user = factories.UserFactory()
+        project = factories.ProjectFactory(customer=self.customer)
+        data = {
+            'project': factories.ProjectFactory.get_url(project),
+            'user': factories.UserFactory.get_url(user),
+            'role': CustomerRole.OWNER,
+        }
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(reverse('project_permission-list'), data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_project_permission_updating_is_not_available_for_blocked_organization(self):
+        project = factories.ProjectFactory(customer=self.customer)
+        permission = factories.ProjectPermissionFactory(project=project)
+        url = factories.ProjectPermissionFactory.get_url(permission)
+        data = {
+            'is_active': False,
+        }
+        self.client.force_authenticate(user=self.user)
+        response = self.client.put(url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_project_permission_deleting_is_not_available_for_blocked_organization(self):
+        project = factories.ProjectFactory(customer=self.customer)
+        permission = factories.ProjectPermissionFactory(project=project)
+        url = factories.ProjectPermissionFactory.get_url(permission)
+        self.client.force_authenticate(user=self.user)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

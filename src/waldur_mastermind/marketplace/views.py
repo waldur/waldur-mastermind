@@ -25,6 +25,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
+from waldur_core.structure import utils as structure_utils
 
 from . import serializers, models, filters, tasks, plugins, permissions
 
@@ -121,6 +122,19 @@ class OfferingViewSet(BaseMarketplaceView):
         archive_permissions = \
         [structure_permissions.is_owner]
 
+    activate_validators = \
+        pause_validators = \
+        archive_validators = \
+        destroy_validators = \
+        partial_update_validators = \
+        [structure_utils.check_customer_blocked]
+
+    def perform_create(self, serializer):
+        customer = serializer.validated_data['customer']
+        structure_utils.check_customer_blocked(customer)
+
+        super(OfferingViewSet, self).perform_create(serializer)
+
 
 class PlanUsageReporter(object):
     """
@@ -202,6 +216,7 @@ class OrderViewSet(BaseMarketplaceView):
     serializer_class = serializers.OrderSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filter_class = filters.OrderFilter
+    destroy_validators = partial_update_validators = [structure_utils.check_customer_blocked]
 
     @detail_route(methods=['post'])
     def approve(self, request, uuid=None):
@@ -218,7 +233,8 @@ class OrderViewSet(BaseMarketplaceView):
 
         return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
 
-    approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
+    approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
+                          structure_utils.check_customer_blocked]
     approve_permissions = [permissions.check_permissions_for_state_change]
 
     @detail_route(methods=['post'])
@@ -242,7 +258,8 @@ class OrderViewSet(BaseMarketplaceView):
 
         raise rf_exceptions.PermissionDenied()
 
-    reject_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL)]
+    reject_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
+                         structure_utils.check_customer_blocked]
     reject_permissions = [check_permissions_for_reject]
 
     @detail_route()
@@ -255,6 +272,12 @@ class OrderViewSet(BaseMarketplaceView):
         filename = order.get_filename()
         file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
         return file_response
+
+    def perform_create(self, serializer):
+        project = serializer.validated_data['project']
+        structure_utils.check_customer_blocked(project)
+
+        super(OrderViewSet, self).perform_create(serializer)
 
 
 class PluginViewSet(views.APIView):
@@ -399,7 +422,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     terminate_permissions = \
         switch_plan_permissions = [check_permissions_for_resource_actions]
     switch_plan_validators = \
-        terminate_validators = [core_validators.StateValidator(models.Resource.States.OK)]
+        terminate_validators = [core_validators.StateValidator(models.Resource.States.OK),
+                                structure_utils.check_customer_blocked]
 
 
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):

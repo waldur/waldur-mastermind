@@ -35,7 +35,7 @@ from waldur_core.logging.loggers import expand_alert_groups
 from waldur_core.quotas.models import QuotaModelMixin, Quota
 from waldur_core.structure import (
     SupportedServices, ServiceBackendError, ServiceBackendNotImplemented,
-    filters, managers, models, permissions, serializers)
+    filters, managers, models, permissions, serializers, utils)
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.metadata import ActionsMetadata
 from waldur_core.structure.signals import resource_imported, structure_role_updated
@@ -186,10 +186,12 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         self.check_customer_permissions(serializer.instance)
+        utils.check_customer_blocked(serializer.instance)
         return super(CustomerViewSet, self).perform_update(serializer)
 
     def perform_destroy(self, instance):
         self.check_customer_permissions(instance)
+        utils.check_customer_blocked(instance)
 
         core_signals.pre_delete_validate.send(
             sender=models.Customer,
@@ -230,6 +232,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         filters.CustomerAccountingStartDateFilter,
     )
     filter_class = filters.ProjectFilter
+    destroy_validators = partial_update_validators = [utils.check_customer_blocked]
 
     def get_serializer_context(self):
         context = super(ProjectViewSet, self).get_serializer_context()
@@ -345,6 +348,8 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         if not self.can_create_project_with(customer):
             raise PermissionDenied()
+
+        utils.check_customer_blocked(customer)
 
         customer.validate_quota_change({'nc_project_count': 1}, raise_exception=True)
 
@@ -524,6 +529,8 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         if not scope.can_manage_role(self.request.user, role, expiration_time):
             raise PermissionDenied()
 
+        utils.check_customer_blocked(scope)
+
         if self.quota_scope_field:
             quota_scope = getattr(scope, self.quota_scope_field)
         else:
@@ -537,6 +544,8 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
         permission = serializer.instance
         scope = getattr(permission, self.scope_field)
         role = permission.role
+
+        utils.check_customer_blocked(scope)
 
         new_expiration_time = serializer.validated_data.get('expiration_time')
         old_expiration_time = permission.expiration_time
@@ -562,6 +571,8 @@ class BasePermissionViewSet(viewsets.ModelViewSet):
 
         if not scope.can_manage_role(self.request.user, role, expiration_time):
             raise PermissionDenied()
+
+        utils.check_customer_blocked(scope)
 
         scope.remove_user(affected_user, role, removed_by=self.request.user)
 
@@ -889,6 +900,8 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
 
     update_permissions = partial_update_permissions = [can_user_update_settings,
                                                        permissions.check_access_to_services_management]
+
+    update_validators = partial_update_validators = [utils.check_customer_blocked]
 
     @detail_route()
     def stats(self, request, uuid=None):
