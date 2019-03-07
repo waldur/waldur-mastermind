@@ -367,6 +367,7 @@ class Plan(core_models.UuidMixin,
     offering = models.ForeignKey(Offering, related_name='plans')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
+    backend_id = models.CharField(max_length=255, blank=True)
     max_amount = models.PositiveSmallIntegerField(
         blank=True,
         null=True,
