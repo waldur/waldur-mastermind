@@ -1,12 +1,14 @@
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from djangosaml2.backends import Saml2Backend, get_saml_user_model
+from djangosaml2.backends import Saml2Backend
+
+User = get_user_model()
 
 
 class WaldurSaml2Backend(Saml2Backend):
-    def get_saml2_user(self, create, main_attribute, attributes, attribute_mapping):
-        User = get_saml_user_model()
+    def is_authorized(self, attributes, attribute_mapping):
         email = self.get_attribute_value('email', attributes, attribute_mapping)
-        if email and create and User.objects.filter(email=email).exists():
+        username = self.get_attribute_value('username', attributes, attribute_mapping)
+        if email and User.objects.filter(email=email).exclude(username=username).exists():
             raise ValidationError('User with this email already exists')
-        return super(WaldurSaml2Backend, self).get_saml2_user(
-            create, main_attribute, attributes, attribute_mapping)
+        return True
