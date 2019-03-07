@@ -101,7 +101,7 @@ class RequestCreateTest(BaseTest):
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
 
-    def test_add_backlink_to_order_item_details_into_created_service_desk_ticket(self):
+    def submit_order_item(self):
         fixture = fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
 
@@ -113,12 +113,22 @@ class RequestCreateTest(BaseTest):
         serialized_order = core_utils.serialize_instance(order_item.order)
         serialized_user = core_utils.serialize_instance(fixture.staff)
         marketplace_tasks.process_order(serialized_order, serialized_user)
+        return order_item
+
+    def test_add_backlink_to_order_item_details_into_created_service_desk_ticket(self):
+        order_item = self.submit_order_item()
         self.assertTrue(support_models.Offering.objects.filter(name='item_name').exists())
         offering = support_models.Offering.objects.get(name='item_name')
         link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
         order_item_url = link_template.format(order_item_uuid=order_item.uuid,
                                               project_uuid=order_item.order.project.uuid)
         self.assertTrue(order_item_url in offering.issue.description)
+
+    def test_resource_name_is_propagated(self):
+        self.submit_order_item()
+        offering = support_models.Offering.objects.get(name='item_name')
+        resource = marketplace_models.Resource.objects.get(scope=offering)
+        self.assertEqual(resource.attributes['name'], 'item_name')
 
 
 @freeze_time('2019-01-01')

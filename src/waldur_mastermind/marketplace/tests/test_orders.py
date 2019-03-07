@@ -226,6 +226,13 @@ class OrderCreateTest(test.APITransactionTestCase):
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_order_creating_is_not_available_for_blocked_organization(self):
+        user = self.fixture.owner
+        self.fixture.customer.blocked = True
+        self.fixture.customer.save()
+        response = self.create_order(user)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
@@ -287,6 +294,12 @@ class OrderApproveTest(test.APITransactionTestCase):
         self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 1)
         self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], order.uuid)
 
+    def test_order_approving_is_not_available_for_blocked_organization(self):
+        self.order.project.customer.blocked = True
+        self.order.project.customer.save()
+        response = self.approve_order(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def approve_order(self, user):
         self.client.force_authenticate(user)
 
@@ -343,6 +356,13 @@ class OrderRejectTest(test.APITransactionTestCase):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
+    def test_order_rejecting_is_not_available_for_blocked_organization(self):
+        self.order.project.customer.blocked = True
+        self.order.project.customer.save()
+        self.client.force_authenticate(self.fixture.manager)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class OrderDeleteTest(test.APITransactionTestCase):
@@ -370,6 +390,12 @@ class OrderDeleteTest(test.APITransactionTestCase):
         response = self.delete_order(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(models.Order.objects.filter(created_by=self.manager).exists())
+
+    def test_order_deleting_is_not_available_for_blocked_organization(self):
+        self.fixture.customer.blocked = True
+        self.fixture.customer.save()
+        response = self.delete_order('owner')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def delete_order(self, user):
         user = getattr(self.fixture, user)

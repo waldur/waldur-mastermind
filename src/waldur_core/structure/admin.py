@@ -192,10 +192,11 @@ class CustomerAdmin(FormRequestAdminMixin,
               'agreement_number', 'email', 'phone_number', 'access_subnets',
               'country', 'vat_code', 'is_company', 'owners', 'support_users',
               'type', 'address', 'postal', 'bank_name', 'bank_account',
-              'accounting_start_date', 'default_tax_percent')
+              'accounting_start_date', 'default_tax_percent', 'blocked')
     list_display = ('name', 'uuid', 'abbreviation',
                     'created', 'accounting_start_date',
                     'get_vm_count', 'get_app_count', 'get_private_cloud_count')
+    list_filter = ('blocked',)
     search_fields = ('name', 'uuid', 'abbreviation')
     readonly_fields = ('uuid',)
     inlines = [QuotaInline]

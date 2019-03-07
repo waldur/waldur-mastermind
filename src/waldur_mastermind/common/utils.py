@@ -4,7 +4,8 @@ from decimal import Decimal, ROUND_UP
 
 from dateutil import parser
 from django.utils.timezone import get_current_timezone
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, APIClient
+from rest_framework.reverse import reverse
 
 from waldur_core.core.views import RefreshTokenMixin
 
@@ -46,6 +47,26 @@ def delete_request(view, user, **extra):
     factory = APIRequestFactory()
     request = factory.delete('', **get_headers(user))
     return view(request, **extra)
+
+
+def get_response(user, url_name, data=None, action=None, uuid=None):
+    client = APIClient()
+
+    if uuid:
+        url = 'http://localhost%s' % reverse(url_name, kwargs={'uuid': uuid})
+    else:
+        url = 'http://localhost%s' % reverse(url_name)
+
+    if action:
+        url += action + '/'
+
+    client.force_authenticate(user)
+    response = client.post(url, data)
+    return response
+
+
+def approve_order(user, uuid):
+    return get_response(user, 'marketplace-order-detail', uuid=uuid, action='approve')
 
 
 def parse_datetime(timestr):

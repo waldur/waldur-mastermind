@@ -20,6 +20,7 @@ class AuthSocialExtension(WaldurExtension):
             'TARA_SECRET': '',
             'TARA_CLIENT_ID': '',
             'TARA_SANDBOX': True,
+            'TARA_LABEL': 'Riigi Autentimisteenus',
 
             'USER_ACTIVATION_URL_TEMPLATE': 'http://example.com/#/activate/{user_uuid}/{token}/',
         }
@@ -32,6 +33,7 @@ class AuthSocialExtension(WaldurExtension):
             'SMARTIDEE_CLIENT_ID',
             'TARA_CLIENT_ID',
             'TARA_SANDBOX',
+            'TARA_LABEL',
         ]
 
     @staticmethod

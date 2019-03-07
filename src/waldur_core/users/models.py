@@ -43,7 +43,7 @@ class Invitation(core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessa
     def get_expiration_time(self):
         return self.created + settings.WALDUR_CORE['INVITATION_LIFETIME']
 
-    def accept(self, user, replace_email=False):
+    def accept(self, user):
         if self.project_role is not None:
             self.project.add_user(user, self.project_role, self.created_by)
         else:
@@ -51,9 +51,6 @@ class Invitation(core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessa
 
         self.state = self.State.ACCEPTED
         self.save(update_fields=['state'])
-        if replace_email:
-            user.email = self.email
-            user.save(update_fields=['email'])
 
     def cancel(self):
         self.state = self.State.CANCELED

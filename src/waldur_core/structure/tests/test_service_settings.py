@@ -173,6 +173,14 @@ class ServiceSettingsUpdateTest(test.APITransactionTestCase):
         self.service_settings.refresh_from_db()
         self.assertNotEqual(self.service_settings.name, 'Valid new name')
 
+    def test_service_setting_updating_is_not_available_for_blocked_organization(self):
+        customer = self.fixture.customer
+        customer.blocked = True
+        customer.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.update_service_settings()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def update_service_settings(self):
         return self.client.patch(self.url, {'name': 'Valid new name'})
 
@@ -285,6 +293,17 @@ class SharedServiceSettingUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.service_settings.refresh_from_db()
         self.assertIn(required_field_name, self.service_settings.options)
+
+    def test_unshared_service_setting_updating_is_not_available_for_blocked_organization(self):
+        self.service_settings.shared = False
+        self.service_settings.save()
+        customer = self.fixture.customer
+        customer.blocked = True
+        customer.save()
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        response = self.client.patch(self.url, data=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @ddt

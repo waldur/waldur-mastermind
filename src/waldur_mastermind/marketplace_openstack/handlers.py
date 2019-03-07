@@ -123,6 +123,8 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
             scope=service_settings,
             shared=False,
             category=category,
+            # OpenStack instance and volume offerings are charged as a part of its tenant
+            billable=False,
         )
 
         fields = (

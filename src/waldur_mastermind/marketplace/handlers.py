@@ -9,7 +9,7 @@ from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
 
-from . import callbacks, tasks, models, utils
+from . import callbacks, tasks, models, utils, serializers
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,9 @@ def notifications_order_approval(sender, instance, created=False, **kwargs):
         return
 
     if instance.state == models.Order.States.EXECUTING:
+        return
+
+    if serializers.check_availability_of_auto_approving(instance.items.all(), instance.created_by, instance.project):
         return
 
     transaction.on_commit(lambda: tasks.notify_order_approvers.delay(instance.uuid))

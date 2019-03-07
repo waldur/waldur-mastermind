@@ -444,6 +444,12 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('scope' in response.data.keys())
 
+    def test_offering_creating_is_not_available_for_blocked_organization(self):
+        self.customer.blocked = True
+        self.customer.save()
+        response = self.create_offering('owner')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class OfferingUpdateTest(test.APITransactionTestCase):
@@ -463,6 +469,12 @@ class OfferingUpdateTest(test.APITransactionTestCase):
     def test_unauthorized_user_can_not_update_offering(self, user):
         response, offering = self.update_offering(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_offering_updating_is_not_available_for_blocked_organization(self):
+        self.customer.blocked = True
+        self.customer.save()
+        response, offering = self.update_offering('owner')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def update_offering(self, user):
         user = getattr(self.fixture, user)
@@ -499,6 +511,12 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         response = self.delete_offering(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+
+    def test_offering_deleting_is_not_available_for_blocked_organization(self):
+        self.customer.blocked = True
+        self.customer.save()
+        response = self.delete_offering('owner')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def delete_offering(self, user):
         user = getattr(self.fixture, user)
@@ -665,6 +683,13 @@ class OfferingStateTest(test.APITransactionTestCase):
         response, offering = self.update_offering_state('staff', 'pause')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
         self.assertEqual(offering.state, offering.States.DRAFT)
+
+    @data('activate', 'pause', 'archive')
+    def test_offering_state_changing_is_not_available_for_blocked_organization(self, state):
+        self.customer.blocked = True
+        self.customer.save()
+        response, offering = self.update_offering_state('owner', state)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def update_offering_state(self, user, state):
         user = getattr(self.fixture, user)

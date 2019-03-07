@@ -12,8 +12,13 @@ class OrderHandlersTest(TransactionTestCase):
 
     def test_order_approval_notifications_sent_out_if_just_created(self):
         with patch('waldur_mastermind.marketplace.tasks.notify_order_approvers') as mocked_task:
-            factories.OrderFactory(project=self.fixture.project, created_by=self.fixture.staff)
+            factories.OrderFactory(project=self.fixture.project, created_by=self.fixture.manager)
             mocked_task.delay.assert_called()
+
+    def test_order_approval_notifications_does_not_sent_out_if_approval_is_auto(self):
+        with patch('waldur_mastermind.marketplace.tasks.notify_order_approvers') as mocked_task:
+            factories.OrderFactory(project=self.fixture.project, created_by=self.fixture.staff)
+            mocked_task.delay.assert_not_called()
 
     def test_order_approval_notifications_not_sent_out_if_executing_state(self):
         with patch('waldur_mastermind.marketplace.tasks.notify_order_approvers') as mocked_task:
