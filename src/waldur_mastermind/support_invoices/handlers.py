@@ -40,15 +40,22 @@ def switch_plan_resource(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not isinstance(instance.scope, support_models.Offering):
+    resource = instance
+    support_offering = resource.scope
+
+    if not isinstance(support_offering, support_models.Offering):
         return
 
-    if not instance.tracker.has_changed('plan_id'):
+    if not resource.tracker.has_changed('plan_id'):
         return
 
-    request_based_offering = support_models.Offering.objects.get(pk=instance.scope.pk)
-    registrators.RegistrationManager.terminate(request_based_offering, timezone.now())
-    registrators.RegistrationManager.register(request_based_offering, timezone.now())
+    registrators.RegistrationManager.terminate(support_offering, timezone.now())
+
+    if resource.plan.scope:
+        support_offering.plan = resource.plan.scope
+        support_offering.save(update_fields=['plan'])
+
+    registrators.RegistrationManager.register(support_offering, timezone.now())
 
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):

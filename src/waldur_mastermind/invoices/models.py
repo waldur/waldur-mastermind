@@ -284,10 +284,10 @@ class GenericInvoiceItem(InvoiceItem):
 
     @property
     def name(self):
-        if self.scope:
-            return registrators.RegistrationManager.get_name(self.scope)
         if self.details.get('name'):
             return self.details.get('name')
+        if self.scope:
+            return registrators.RegistrationManager.get_name(self.scope)
         # Ilja: temporary workaround to unlock creation of new invoices due to issues caused by 0027 migration
         if self.details:
             return ', '.join(['%s: %s' % (k, v) for k, v in self.details.items()])

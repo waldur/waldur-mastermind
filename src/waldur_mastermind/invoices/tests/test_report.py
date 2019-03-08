@@ -17,7 +17,7 @@ class BaseReportFormatterTest(TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         package = fixtures.create_package(100, self.fixture.openstack_tenant)
-        package.template.name = 'PackageTemplate'
+        package.template.name = 'New package template'
         package.template.save()
         self.customer = package.tenant.service_project_link.project.customer
 
