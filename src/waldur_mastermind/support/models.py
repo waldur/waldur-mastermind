@@ -230,6 +230,14 @@ class Offering(core_models.UuidMixin,
     def get_log_fields(self):
         return super(Offering, self).get_log_fields() + ('state', )
 
+    def terminate(self):
+        self.state = Offering.States.TERMINATED
+        self.save()
+
+    def set_ok(self):
+        self.state = Offering.States.OK
+        self.save()
+
     @property
     def type(self):
         return self.template.name

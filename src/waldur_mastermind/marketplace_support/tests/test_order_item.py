@@ -144,7 +144,7 @@ class RequestActionBaseTest(BaseTest):
             type=PLUGIN_NAME)
 
         self.request = support_factories.OfferingFactory(template=self.offering.scope, project=self.project)
-        self.current_plan = marketplace_factories.PlanFactory(offering=self.offering)
+        self.current_plan = marketplace_factories.PlanFactory(offering=self.offering, unit_price=10)
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED)
@@ -229,7 +229,7 @@ class RequestDeleteTest(RequestActionBaseTest):
 class RequestSwitchPlanTest(RequestActionBaseTest):
     def setUp(self):
         super(RequestSwitchPlanTest, self).setUp()
-        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering, unit_price=50)
         marketplace_factories.PlanComponentFactory(
             plan=self.plan,
             component=self.offering_component,
