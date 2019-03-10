@@ -39,58 +39,42 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         offering = source
 
         try:
-            resource = marketplace_models.Resource.objects.get(scope=offering)
-
-            if not resource.plan:
-                logger.warning('Skipping support invoice creation because resource does not have plan. '
-                               'Resource ID: %s', resource.id)
+            plan = marketplace_models.Resource.objects.get(scope=offering).plan
+            if not plan:
+                logger.warning('Skipping support invoice creation because '
+                               'billing is not enabled for offering. '
+                               'Offering ID: %s', offering.id)
                 return
-
-            for offering_component in resource.offering.components.all():
-                try:
-                    plan_component = offering_component.components.get(plan=resource.plan)
-                    invoice_models.GenericInvoiceItem.objects.get_or_create(
-                        scope=offering,
-                        project=offering.project,
-                        invoice=invoice,
-                        start=start,
-                        end=end,
-                        details={'name': offering_component.type},
-                        defaults={'product_code': offering.product_code,
-                                  'article_code': offering.article_code,
-                                  'unit_price': plan_component.price,
-                                  'unit': invoice_models.GenericInvoiceItem.Units.QUANTITY,
-                                  'quantity': utils.get_quantity(plan_component, resource, start, end),
-                                  }
-                    )
-                except marketplace_models.PlanComponent.DoesNotExist:
-                    pass
         except ObjectDoesNotExist:
-            invoice_models.GenericInvoiceItem.objects.get_or_create(
-                scope=offering,
-                project=offering.project,
-                invoice=invoice,
-                start=start,
-                end=end,
-                defaults={'unit_price': offering.unit_price,
-                          'unit': offering.unit,
-                          'product_code': offering.product_code,
-                          'article_code': offering.article_code,
-                          'details': self.get_details(offering),
-                          }
-            )
+            plan = offering
+
+        return invoice_models.GenericInvoiceItem.objects.create(
+            scope=offering,
+            project=offering.project,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=self.get_details(offering),
+            unit_price=plan.unit_price,
+            unit=plan.unit,
+            product_code=plan.product_code,
+            article_code=plan.article_code,
+        )
 
     def get_details(self, source):
         offering = source
         return {
-            'name': '%s (%s)' % (offering.name, offering.type),
+            'name': self.get_name(offering),
             'offering_type': offering.type,
             'offering_name': offering.name,
             'offering_uuid': offering.uuid.hex,
         }
 
-    def get_name(self, source):
-        return '%s (%s)' % (source.name, source.type)
+    def get_name(self, offering):
+        if offering.plan:
+            return '%s (%s / %s)' % (offering.name, offering.type, offering.plan.name)
+        else:
+            return '%s (%s)' % (offering.name, offering.type)
 
     def terminate(self, source, now=None):
         super(OfferingRegistrator, self).terminate(source, now)

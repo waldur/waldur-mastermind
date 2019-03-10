@@ -15,7 +15,7 @@ class InvoiceFixture(packages_fixtures.PackageFixture):
 
 
 def create_package_template(component_price=10, component_amount=1):
-    template = packages_factories.PackageTemplateFactory()
+    template = packages_factories.PackageTemplateFactory(name='PackageTemplate')
     template.components.update(
         price=component_price,
         amount=component_amount,

@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 3.3.6
+Version: 3.3.7
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -53,7 +53,7 @@ Requires: python-country >= 1.20, python-country < 2.0
 Requires: python-croniter >= 0.3.4, python-croniter < 0.3.6
 Requires: python2-cryptography >= 1.7.2
 Requires: python-digitalocean >= 1.5
-Requires: python2-django = 1.11.18
+Requires: python2-django >= 1.11.18, python2-django < 2.0.0
 Requires: python-django-admin-tools = 0.8.0
 Requires: python-django-auth-ldap >= 1.3.0
 Requires: python-django-cors-headers = 2.1.0
@@ -109,7 +109,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 # python-setuptools package is needed to run 'python setup.py <cmd>'
 # systemd package provides _unitdir RPM macro
 BuildRequires: gettext
-BuildRequires: python2-django = 1.11.18
+BuildRequires: python2-django = 1.11.20
 BuildRequires: python-django-filter = 1.0.2
 BuildRequires: python-django-fluent-dashboard
 BuildRequires: python-django-jsoneditor >= 0.0.7
@@ -302,6 +302,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Sun Mar 10 2019 Jenkins <jenkins@opennodecloud.com> - 3.3.7-1.el7
+- New upstream release
+
 * Thu Mar 7 2019 Jenkins <jenkins@opennodecloud.com> - 3.3.6-1.el7
 - New upstream release
 
