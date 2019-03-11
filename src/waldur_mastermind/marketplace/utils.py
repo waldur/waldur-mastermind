@@ -74,12 +74,16 @@ def create_order_pdf(order):
 
 def import_resource_metadata(resource):
     instance = resource.scope
-    fields = {'action', 'action_details', 'state', 'runtime_state'}
+    fields_metadata = {'action', 'action_details', 'state', 'runtime_state'}
+    fields = {'name'}
 
-    for field in fields:
+    for field in fields | fields_metadata:
         if field == 'state':
             value = instance.get_state_display()
         else:
             value = getattr(instance, field, None)
-        resource.backend_metadata[field] = value
-    resource.save(update_fields=['backend_metadata'])
+        if field in fields_metadata:
+            resource.backend_metadata[field] = value
+        else:
+            resource.attributes[field] = value
+    resource.save(update_fields=['backend_metadata', 'attributes'])

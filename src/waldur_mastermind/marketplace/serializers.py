@@ -564,6 +564,7 @@ class OrderItemSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
         model = models.OrderItem
         fields = BaseRequestSerializer.Meta.fields + (
+            'order_uuid',
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'resource_uuid', 'resource_type',
@@ -573,6 +574,7 @@ class OrderItemSerializer(BaseRequestSerializer):
         read_only_fields = ('cost', 'state')
         protected_fields = ('offering', 'plan')
 
+    order_uuid = serializers.ReadOnlyField(source='order.uuid')
     customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
     project_name = serializers.ReadOnlyField(source='order.project.name')

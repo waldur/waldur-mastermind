@@ -9,6 +9,7 @@ class MarketplaceSupportConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace_support import PLUGIN_NAME
         from waldur_mastermind.support import models as support_models
 
@@ -55,3 +56,5 @@ class MarketplaceSupportConfig(AppConfig):
                          update_resource_processor=processor.UpdateRequestProcessor,
                          delete_resource_processor=processor.DeleteRequestProcessor,
                          scope_model=support_models.Offering)
+
+        marketplace_handlers.connect_resource_metadata_handlers(support_models.Offering)
