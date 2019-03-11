@@ -175,6 +175,10 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         return self.price * self.invoice.tax_percent / 100
 
     @property
+    def tax_current(self):
+        return self.price_current * self.invoice.tax_percent / 100
+
+    @property
     def total(self):
         return self.price + self.tax
 
