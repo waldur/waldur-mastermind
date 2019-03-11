@@ -208,7 +208,7 @@ def connect_resource_handlers(*resources):
 
 
 def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
-    fields = {'action', 'action_details', 'state', 'runtime_state'}
+    fields = {'action', 'action_details', 'state', 'runtime_state', 'name'}
     if not created and not set(instance.tracker.changed()) & fields:
         return
 

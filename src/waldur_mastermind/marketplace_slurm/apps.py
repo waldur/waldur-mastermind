@@ -46,3 +46,5 @@ class MarketplaceSlurmConfig(AppConfig):
                              Component(type='gpu', name='GPU', measured_unit='hours', billing_type=USAGE),
                              Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE),
                          ))
+
+        marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
