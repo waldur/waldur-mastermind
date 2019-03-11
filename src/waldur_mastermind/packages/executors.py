@@ -1,5 +1,6 @@
 from waldur_core.core import executors as core_executors, tasks as core_tasks, utils as core_utils
 from waldur_core.structure import executors as structure_executors
+from waldur_mastermind.packages.serializers import _get_template_quotas
 from waldur_openstack.openstack import executors as openstack_executors
 
 from . import tasks
@@ -56,8 +57,10 @@ class OpenStackPackageChangeExecutor(core_executors.BaseExecutor):
 
     @classmethod
     def get_task_signature(cls, tenant, serialized_tenant, new_template, old_package, service_settings, **kwargs):
-        quotas = tenant.quotas.all()
-        quotas = {q.name: int(q.limit) for q in quotas}
+        quotas = {
+            quota_field.name: value
+            for quota_field, value in _get_template_quotas(new_template).items()
+        }
         push_quotas = openstack_executors.TenantPushQuotasExecutor.as_signature(tenant, quotas=quotas)
 
         serialized_new_template = core_utils.serialize_instance(new_template)

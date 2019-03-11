@@ -53,8 +53,8 @@ def _get_template_quotas(template):
     components = {c.type: c.amount for c in template.components.all()}
     mapping = models.OpenStackPackage.get_quota_to_component_mapping()
     return {
-        quota_name: components[component_type]
-        for quota_name, component_type in mapping.items()
+        quota_field: components[component_type]
+        for quota_field, component_type in mapping.items()
     }
 
 
