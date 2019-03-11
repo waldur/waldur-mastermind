@@ -81,8 +81,10 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
 class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     total = serializers.SerializerMethodField()
     current = serializers.SerializerMethodField()
+    tax = serializers.SerializerMethodField()
+    tax_current = serializers.SerializerMethodField()
 
-    def get_total(self, obj):
+    def _parse_period(self):
         request = self.context['request']
 
         try:
@@ -95,19 +97,37 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         except ValueError:
             year = month = None
 
+        return year, month
+
+    def _get_current_period(self):
+        return utils.get_current_year(), utils.get_current_month()
+
+    def get_total(self, obj):
+        year, month = self._parse_period()
+
         if year and month:
             return obj.get_total(year=year, month=month)
 
         return obj.total
 
     def get_current(self, obj):
-        year = utils.get_current_year()
-        month = utils.get_current_month()
+        year, month = self._get_current_period()
         return obj.get_total(year=year, month=month, current=True)
+
+    def get_tax(self, obj):
+        year, month = self._parse_period()
+        if not year or not month:
+            year, month = self._get_current_period()
+
+        return obj.get_tax(year=year, month=month)
+
+    def get_tax_current(self, obj):
+        year, month = self._get_current_period()
+        return obj.get_tax(year=year, month=month, current=True)
 
     class Meta:
         model = models.PriceEstimate
-        fields = ('url', 'threshold', 'total', 'current', 'limit')
+        fields = ('url', 'threshold', 'total', 'current', 'limit', 'tax', 'tax_current')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'billing-price-estimate-detail'},
         }
@@ -121,7 +141,9 @@ def get_price_estimate(serializer, scope):
             'threshold': 0.0,
             'total': 0.0,
             'current': 0.0,
-            'limit': -1.0
+            'limit': -1.0,
+            'tax': 0.0,
+            'tax_current': 0.0,
         }
     else:
         serializer = NestedPriceEstimateSerializer(instance=estimate, context=serializer.context)

@@ -38,23 +38,22 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
     def get_estimated_models(cls):
         return structure_models.Project, structure_models.Customer
 
-    def get_total(self, year, month, current=False):
+    def _get_sum(self, year, month, field):
+        items = invoices_models.GenericInvoiceItem.objects.filter(
+            invoice__year=year,
+            invoice__month=month
+        )
         if self.content_type.model_class() == structure_models.Project:
-            return sum(item.price
-                       for item in invoices_models.GenericInvoiceItem.objects.filter(invoice__year=year,
-                                                                                     invoice__month=month,
-                                                                                     project__uuid=self.scope.uuid.hex))
+            items = items.filter(project__uuid=self.scope.uuid.hex)
         elif self.content_type.model_class() == structure_models.Customer:
-            try:
-                total_property = 'total' if not current else 'total_current'
-                invoice = invoices_models.Invoice.objects.get(
-                    customer=self.scope,
-                    year=year,
-                    month=month,
-                )
-                return getattr(invoice, total_property)
-            except invoices_models.Invoice.DoesNotExist:
-                return 0
+            items = items.filter(invoice__customer=self.scope)
+        return sum(getattr(item, field) for item in items)
+
+    def get_total(self, year, month, current=False):
+        return self._get_sum(year, month, current and 'price_current' or 'price')
+
+    def get_tax(self, year, month, current=False):
+        return self._get_sum(year, month, current and 'tax_current' or 'tax')
 
     def update_total(self):
         current_year = invoices_utils.get_current_year()
