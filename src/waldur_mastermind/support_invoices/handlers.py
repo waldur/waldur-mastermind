@@ -55,6 +55,9 @@ def switch_plan_resource(sender, instance, created=False, **kwargs):
         support_offering.plan = resource.plan.scope
         support_offering.save(update_fields=['plan'])
 
+    support_offering.unit_price = instance.plan.unit_price
+    support_offering.unit = instance.plan.unit
+    support_offering.save()
     registrators.RegistrationManager.register(support_offering, timezone.now())
 
 
