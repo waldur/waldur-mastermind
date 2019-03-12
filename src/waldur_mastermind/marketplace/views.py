@@ -523,5 +523,4 @@ for view in (structure_views.ProjectCountersView, structure_views.CustomerCounte
             for counter in counters
         }
 
-
     view.register_dynamic_counter(inject_resources_counter)
