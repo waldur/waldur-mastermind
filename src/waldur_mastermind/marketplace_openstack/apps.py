@@ -15,7 +15,11 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
 
-        from . import handlers, processors, INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE
+        from . import (
+            handlers, processors,
+            INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
+            RAM_TYPE, CORES_TYPE, STORAGE_TYPE,
+        )
 
         signals.post_save.connect(
             handlers.create_offering_from_tenant,
@@ -53,9 +57,9 @@ class MarketplaceOpenStackConfig(AppConfig):
                          update_resource_processor=processors.PackageUpdateProcessor,
                          delete_resource_processor=processors.PackageDeleteProcessor,
                          components=(
-                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=FIXED),
-                             Component(type='cores', name='Cores', measured_unit='cores', billing_type=FIXED),
-                             Component(type='storage', name='Storage', measured_unit='GB', billing_type=FIXED),
+                             Component(type=RAM_TYPE, name='RAM', measured_unit='GB', billing_type=FIXED),
+                             Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
+                             Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
                          scope_model=structure_models.ServiceSettings)
 
