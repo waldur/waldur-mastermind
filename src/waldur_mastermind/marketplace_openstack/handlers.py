@@ -6,6 +6,7 @@ from django.db import transaction
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_openstack import RAM_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
@@ -68,11 +69,20 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
 
     if not package_models.PackageComponent.objects.filter(
             template=template, type=component.component.type).exists():
+
+        amount = component.amount
+        price = component.price
+
+        # In marketplace RAM and storage is stored in GB, but in package plugin it is stored in MB.
+        if component.component.type in (RAM_TYPE, STORAGE_TYPE):
+            amount = amount * 1024
+            price = price / 1024.0
+
         package_models.PackageComponent.objects.create(
             template=template,
             type=component.component.type,
-            amount=component.amount,
-            price=component.price,
+            amount=amount,
+            price=price,
         )
 
 
