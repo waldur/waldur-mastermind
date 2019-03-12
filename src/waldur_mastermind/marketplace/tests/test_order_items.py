@@ -190,10 +190,11 @@ class ItemDeleteTest(test.APITransactionTestCase):
         return response
 
 
-class ProjectResourceCountTest(test.APITransactionTestCase):
+class AggregateResourceCountTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
+        self.customer = self.fixture.customer
         self.plan = factories.PlanFactory()
         self.resource = models.Resource.objects.create(
             project=self.project,
@@ -205,8 +206,10 @@ class ProjectResourceCountTest(test.APITransactionTestCase):
     def test_when_resource_scope_is_updated_resource_count_is_increased(self):
         self.resource.scope = self.fixture.resource
         self.resource.save()
-        self.assertEqual(models.ProjectResourceCount.objects.get(
-            project=self.project, category=self.category).count, 1)
+        self.assertEqual(models.AggregateResourceCount.objects.get(
+            scope=self.project, category=self.category).count, 1)
+        self.assertEqual(models.AggregateResourceCount.objects.get(
+            scope=self.customer, category=self.category).count, 1)
 
     def test_when_resource_scope_is_updated_resource_count_is_decreased(self):
         self.resource.scope = self.fixture.resource
@@ -214,14 +217,18 @@ class ProjectResourceCountTest(test.APITransactionTestCase):
         self.resource.scope = None
         self.resource.save()
 
-        self.assertEqual(models.ProjectResourceCount.objects.get(
-            project=self.project, category=self.category).count, 0)
+        self.assertEqual(models.AggregateResourceCount.objects.get(
+            scope=self.project, category=self.category).count, 0)
+        self.assertEqual(models.AggregateResourceCount.objects.get(
+            scope=self.customer, category=self.category).count, 0)
 
     def test_recalculate_count(self):
         self.resource.scope = self.fixture.resource
         self.resource.save()
-        models.ProjectResourceCount.objects.all().delete()
+        models.AggregateResourceCount.objects.all().delete()
         quota_signals.recalculate_quotas.send(sender=self)
 
-        self.assertEqual(models.ProjectResourceCount.objects.get(
-            project=self.project, category=self.category).count, 1)
+        self.assertEqual(models.AggregateResourceCount.objects.get(
+            scope=self.project, category=self.category).count, 1)
+        self.assertEqual(models.AggregateResourceCount.objects.get(
+            scope=self.customer, category=self.category).count, 1)
