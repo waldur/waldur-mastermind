@@ -22,11 +22,10 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
-from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
-from . import models, attribute_types, plugins, utils, permissions
+from . import models, attribute_types, plugins, utils, permissions, tasks
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -628,6 +627,9 @@ class CartSubmitSerializer(serializers.Serializer):
 
 
 def check_availability_of_auto_approving(items, user, project):
+    if user.is_staff:
+        return True
+
     if permissions.user_can_approve_order(user, project):
         only_create_private = all(
             item.type == models.OrderItem.Types.CREATE and not item.offering.shared
@@ -670,8 +672,7 @@ def create_order(project, user, items, request):
     order.save()
 
     if check_availability_of_auto_approving(items, user, project):
-        common_utils.approve_order(user, order.uuid)
-        order.refresh_from_db()
+        tasks.approve_order(order, user)
 
     return order
 
