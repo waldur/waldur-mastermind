@@ -4,7 +4,6 @@ from django.db import transaction
 from django.db.models import Count, OuterRef, Subquery, F
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
@@ -15,7 +14,6 @@ from rest_framework.decorators import detail_route, list_route
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
@@ -220,16 +218,7 @@ class OrderViewSet(BaseMarketplaceView):
 
     @detail_route(methods=['post'])
     def approve(self, request, uuid=None):
-        order = self.get_object()
-        order.approve()
-        order.approved_by = request.user
-        order.approved_at = timezone.now()
-        order.save()
-
-        serialized_order = core_utils.serialize_instance(order)
-        serialized_user = core_utils.serialize_instance(request.user)
-        tasks.process_order.delay(serialized_order, serialized_user)
-        tasks.create_order_pdf.delay(order.pk)
+        tasks.approve_order(self.get_object(), request.user)
 
         return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
 
