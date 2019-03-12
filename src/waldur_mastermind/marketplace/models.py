@@ -630,6 +630,10 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     objects = managers.MixinManager('scope')
 
     @property
+    def customer(self):
+        return self.project.customer
+
+    @property
     def name(self):
         return self.attributes.get('name')
 
@@ -787,16 +791,16 @@ class ComponentUsage(TimeStampedModel):
         unique_together = ('resource', 'component', 'date')
 
 
-class ProjectResourceCount(models.Model):
+class AggregateResourceCount(ScopeMixin):
     """
-    This model allows to count current number of project resources by category.
+    This model allows to count current number of project or customer resources by category.
     """
-    project = models.ForeignKey(structure_models.Project, related_name='+')
     category = models.ForeignKey(Category, related_name='+')
     count = models.PositiveIntegerField(default=0)
+    objects = managers.MixinManager('scope')
 
     class Meta:
-        unique_together = ('project', 'category')
+        unique_together = ('category', 'content_type', 'object_id')
 
 
 class OfferingFile(core_models.UuidMixin,

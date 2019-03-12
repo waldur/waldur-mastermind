@@ -515,11 +515,13 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_owner]
 
 
-def inject_project_resources_counter(project):
-    return {
-        'marketplace_category_{}'.format(counter.category.uuid): counter.count
-        for counter in models.ProjectResourceCount.objects.filter(project=project).only('count', 'category')
-    }
+for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
+    def inject_resources_counter(scope):
+        counters = models.AggregateResourceCount.objects.filter(scope=scope).only('count', 'category')
+        return {
+            'marketplace_category_{}'.format(counter.category.uuid): counter.count
+            for counter in counters
+        }
 
 
-structure_views.ProjectCountersView.register_dynamic_counter(inject_project_resources_counter)
+    view.register_dynamic_counter(inject_resources_counter)
