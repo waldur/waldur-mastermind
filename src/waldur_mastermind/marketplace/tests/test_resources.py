@@ -142,8 +142,8 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch('waldur_mastermind.marketplace.views.tasks')
-    def test_order_has_been_approved_if_user_has_got_permissions(self, mock_tasks):
+    @mock.patch('waldur_mastermind.marketplace.tasks.process_order')
+    def test_order_has_been_approved_if_user_has_got_permissions(self, mock_task):
         # Arrange
         self.plan2.max_amount = 10
         self.plan2.save()
@@ -154,8 +154,10 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         # Assert
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_tasks.process_order.delay.assert_called_once_with('marketplace.order:%s' % order.id,
-                                                               'core.user:%s' % self.fixture.owner.id)
+        mock_task.delay.assert_called_once_with(
+            'marketplace.order:%s' % order.id,
+            'core.user:%s' % self.fixture.owner.id
+        )
 
     @mock.patch('waldur_mastermind.marketplace.views.tasks')
     def test_order_has_not_been_approved_if_user_has_not_got_permissions(self, mock_tasks):
