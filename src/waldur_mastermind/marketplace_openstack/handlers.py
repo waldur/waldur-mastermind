@@ -1,3 +1,4 @@
+import decimal
 import logging
 
 from django.contrib.contenttypes.models import ContentType
@@ -76,7 +77,7 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
         # In marketplace RAM and storage is stored in GB, but in package plugin it is stored in MB.
         if component.component.type in (RAM_TYPE, STORAGE_TYPE):
             amount = amount * 1024
-            price = price / 1024.0
+            price = decimal.Decimal(price) / decimal.Decimal(1024.0)
 
         package_models.PackageComponent.objects.create(
             template=template,

@@ -1,5 +1,8 @@
+import uuid
+
 from ddt import ddt, data
 from django.core.exceptions import ObjectDoesNotExist
+import mock
 from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
@@ -115,6 +118,13 @@ class PlanComponentsTest(test.APITransactionTestCase):
             'category': marketplace_factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(fixture.customer),
             'type': PACKAGE_TYPE,
+            'service_attributes': {
+                'backend_url': 'http://example.com/',
+                'username': 'root',
+                'password': 'secret',
+                'tenant_name': 'admin',
+                'external_network_id': uuid.uuid4(),
+            },
             'plans': [
                 {
                     'name': 'small',
@@ -127,7 +137,8 @@ class PlanComponentsTest(test.APITransactionTestCase):
         if components:
             payload['plans'][0]['prices'] = self.prices
             payload['plans'][0]['quotas'] = self.quotas
-        return self.client.post(url, payload)
+        with mock.patch('waldur_core.structure.models.ServiceSettings.get_backend'):
+            return self.client.post(url, payload)
 
 
 @ddt
