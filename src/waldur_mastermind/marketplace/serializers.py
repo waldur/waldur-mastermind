@@ -20,6 +20,7 @@ from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices import models as invoices_models
@@ -285,8 +286,9 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     plans = NestedPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
-    scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
+    scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
+    service_attributes = serializers.JSONField(required=False, write_only=True)
     files = NestedOfferingFileSerializer(many=True, read_only=True)
 
     class Meta(object):
@@ -297,7 +299,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files')
+                  'service_attributes', 'scope', 'scope_uuid', 'files')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -331,7 +333,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             self._validate_attributes(offering_attributes, category)
 
         self._validate_plans(attrs)
-        self._validate_scope(attrs)
         return attrs
 
     def validate_type(self, offering_type):
@@ -412,19 +413,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             plan['unit_price'] = sum(prices[component] * quotas[component]
                                      for component in fixed_types)
 
-    def _validate_scope(self, attrs):
-        offering_scope = attrs.get('scope')
-        offering_type = attrs.get('type')
-
-        if offering_scope:
-            offering_scope_model = plugins.manager.get_scope_model(offering_type)
-
-            if offering_scope_model:
-                if not isinstance(offering_scope, offering_scope_model):
-                    raise serializers.ValidationError({
-                        'scope': _('Invalid scope model.')
-                    })
-
     @transaction.atomic
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
@@ -434,6 +422,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             raise serializers.ValidationError({
                 'plans': _('At least one plan should be specified.')
             })
+
+        offering_type = validated_data.get('type')
+        service_type = plugins.manager.get_service_type(offering_type)
+        if service_type:
+            validated_data = self._create_service(service_type, validated_data)
 
         offering = super(OfferingSerializer, self).create(validated_data)
         fixed_components = plugins.manager.get_components(offering.type)
@@ -452,6 +445,43 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             self._create_plan(offering, plan_data, components)
 
         return offering
+
+    def _create_service(self, service_type, validated_data):
+        """
+        Marketplace offering model does not accept service_attributes field as is,
+        therefore we should remove it from validated_data and create service settings object.
+        Then we need to specify created object and offering's scope.
+        """
+        name = validated_data['name']
+        service_attributes = validated_data.pop('service_attributes', {})
+        if not service_attributes:
+            raise ValidationError({
+                'service_attributes': _('This field is required.')
+            })
+        payload = dict(
+            name=name,
+            # It is expected that customer URL is passed to the service settings serializer
+            customer=self.initial_data['customer'],
+            type=service_type,
+            **service_attributes
+        )
+        serializer_class = SupportedServices.get_service_serializer_for_key(service_type)
+        serializer = serializer_class(data=payload, context=self.context)
+        serializer.is_valid(raise_exception=True)
+        service = serializer.save()
+        # Usually we don't allow users to create new shared service settings via REST API.
+        # That's shared flag is marked as read-only in service settings serializer.
+        # But shared offering should be created with shared service settings.
+        # That's why we set it to shared only after service settings object is created.
+        if validated_data.get('shared'):
+            service.settings.shared = True
+            service.settings.save()
+            # Usually connect shared settings task is called when service is created.
+            # But as we set shared flag after serializer has been executed,
+            # we need to connect shared settings manually.
+            connect_shared_settings(service.settings)
+        validated_data['scope'] = service.settings
+        return validated_data
 
     def _create_plan(self, offering, plan_data, components):
         quotas = plan_data.pop('quotas', {})

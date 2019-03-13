@@ -20,7 +20,7 @@ class PluginManager(object):
                  update_resource_processor=None,
                  delete_resource_processor=None,
                  components=None,
-                 scope_model=None):
+                 service_type=None):
         """
 
         :param offering_type: string which consists of application name and model name,
@@ -30,7 +30,7 @@ class PluginManager(object):
         :param delete_resource_processor: class which receives order item
         :param components: tuple available plan components, for example
                            Component(type='storage', name='Storage', measured_unit='GB')
-        :param scope_model: available model for an offering scope field
+        :param service_type: optional string indicates service type to be used
         :return:
         """
         self.backends[offering_type] = {
@@ -38,7 +38,7 @@ class PluginManager(object):
             'update_resource_processor': update_resource_processor,
             'delete_resource_processor': delete_resource_processor,
             'components': components,
-            'scope_model': scope_model,
+            'service_type': service_type,
         }
 
     def get_offering_types(self):
@@ -66,13 +66,13 @@ class PluginManager(object):
         elif order_item.type == models.RequestTypeMixin.Types.TERMINATE:
             return backend.get('delete_resource_processor')
 
-    def get_scope_model(self, offering_type):
+    def get_service_type(self, offering_type):
         """
-        Return a scope model class for given offering_type.
+        Return a service type for given offering_type.
         :param offering_type: offering type name
-        :return: scope model class
+        :return: string or None
         """
-        return self.backends.get(offering_type, {}).get('scope_model')
+        return self.backends.get(offering_type, {}).get('service_type')
 
     def get_components(self, offering_type):
         """
@@ -89,9 +89,6 @@ class PluginManager(object):
         :return: set of component types
         """
         return {component.type for component in self.get_components(offering_type)}
-
-    def get_scope_models(self):
-        return {b['scope_model'] for b in self.backends.values() if b['scope_model']}
 
     def process(self, order_item, user):
         processor = self.get_processor(order_item)

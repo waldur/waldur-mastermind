@@ -12,7 +12,7 @@ class MarketplaceSlurmConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
         from waldur_slurm import models as slurm_models
-        from waldur_core.structure import models as structure_models
+        from waldur_slurm.apps import SlurmConfig
 
         from . import handlers, processor
 
@@ -35,16 +35,15 @@ class MarketplaceSlurmConfig(AppConfig):
         )
 
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)
+        marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
 
         USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(PLUGIN_NAME,
                          create_resource_processor=processor.CreateAllocationProcessor,
                          delete_resource_processor=processor.DeleteAllocationProcessor,
-                         scope_model=structure_models.ServiceSettings,
                          components=(
                              Component(type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE),
                              Component(type='gpu', name='GPU', measured_unit='hours', billing_type=USAGE),
                              Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE),
-                         ))
-
-        marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
+                         ),
+                         service_type=SlurmConfig.service_name)

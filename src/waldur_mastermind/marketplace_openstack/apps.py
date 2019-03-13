@@ -9,6 +9,7 @@ class MarketplaceOpenStackConfig(AppConfig):
     def ready(self):
         from waldur_core.structure import models as structure_models
         from waldur_openstack.openstack import models as openstack_models
+        from waldur_openstack.openstack.apps import OpenStackConfig
         from waldur_openstack.openstack_tenant import models as tenant_models
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
@@ -33,11 +34,9 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.archive_offering',
         )
 
-        marketplace_handlers.connect_resource_handlers(
-            openstack_models.Tenant,
-            tenant_models.Instance,
-            tenant_models.Volume
-        )
+        resource_models = (tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant)
+        marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
+        marketplace_handlers.connect_resource_handlers(*resource_models)
 
         signals.post_save.connect(
             handlers.create_template_for_plan,
@@ -61,17 +60,15 @@ class MarketplaceOpenStackConfig(AppConfig):
                              Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
                              Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
-                         scope_model=structure_models.ServiceSettings)
+                         service_type=OpenStackConfig.service_name)
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
-                         delete_resource_processor=processors.InstanceDeleteProcessor,
-                         scope_model=structure_models.ServiceSettings)
+                         delete_resource_processor=processors.InstanceDeleteProcessor)
 
         manager.register(offering_type=VOLUME_TYPE,
                          create_resource_processor=processors.VolumeCreateProcessor,
-                         delete_resource_processor=processors.VolumeDeleteProcessor,
-                         scope_model=structure_models.ServiceSettings)
+                         delete_resource_processor=processors.VolumeDeleteProcessor)
 
         signals.post_save.connect(
             handlers.synchronize_volume_metadata,
@@ -96,6 +93,3 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=tenant_models.FloatingIP,
             dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_floating_ips',
         )
-
-        resource_models = (tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant)
-        marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
