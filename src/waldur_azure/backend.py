@@ -1,6 +1,6 @@
 import logging
 
-from waldur_azure.client import AzureClient, AzureBackendError
+from waldur_azure.client import AzureClient, AzureBackendError, reraise
 from waldur_core.structure import ServiceBackend
 
 from . import models
@@ -16,7 +16,9 @@ class AzureBackend(ServiceBackend):
     def ping(self, raise_exception=False):
         try:
             self.client.list_locations()
-        except AzureBackendError:
+        except AzureBackendError as e:
+            if raise_exception:
+                reraise(e)
             return False
         else:
             return True
