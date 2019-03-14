@@ -61,6 +61,9 @@ class WaldurClient(object):
         Tenant = 'openstack-tenants'
         TenantSecurityGroup = 'openstack-security-groups'
         Volume = 'openstacktenant-volumes'
+        MarketplaceOffering = 'marketplace-offerings'
+        MarketplacePlan = 'marketplace-plans'
+        MarketplaceOrder = 'marketplace-orders'
 
     def __init__(self, api_url, access_token):
         """
@@ -741,6 +744,38 @@ class WaldurClient(object):
         )
         if wait:
             self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
+
+    def _get_offering(self, identifier):
+        return self._get_resource(self.Endpoints.MarketplaceOffering, identifier)
+
+    def _get_plan(self, identifier):
+        return self._get_resource(self.Endpoints.MarketplacePlan, identifier)
+
+    def create_marketplace_order(self, project, offering, plan, attributes=None, limits=None):
+        """
+        Create order with one item in Waldur Marketplace.
+
+        :param project: the name or UUID of the project
+        :param offering: the name or UUID of the offering
+        :param plan: the name or UUID of the plan.
+        :param attributes: order item attributes.
+        :param limits: order item limits.
+        """
+        project_url = self._get_project(project)['url']
+        offering_url = self._get_offering(offering)['url']
+        plan_url = self._get_plan(plan)['url']
+        attributes = attributes or {}
+        limits = limits or {}
+        payload = {
+            'project': project_url,
+            'items': [{
+                'offering': offering_url,
+                'plan': plan_url,
+                'attributes': attributes,
+                'limits': limits,
+            }],
+        }
+        return self._create_resource(self.Endpoints.MarketplaceOrder, payload=payload)
 
 
 def waldur_full_argument_spec(**kwargs):
