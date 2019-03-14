@@ -89,7 +89,7 @@ def update_category_offerings_count(sender, **kwargs):
         category.set_quota_usage(models.Category.Quotas.offering_count, value)
 
 
-def update_project_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
+def update_aggregate_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
     def apply_change(delta):
         for field in ('project', 'customer'):
             counter, _ = models.AggregateResourceCount.objects.get_or_create(
@@ -111,7 +111,7 @@ def update_project_resources_count_when_resource_is_updated(sender, instance, cr
         apply_change(-1)
 
 
-def update_project_resources_count(sender, **kwargs):
+def update_aggregate_resources_count(sender, **kwargs):
     for field, content_type in (
         ('project_id', ContentType.objects.get_for_model(Project)),
         ('project__customer_id', ContentType.objects.get_for_model(Customer)),
