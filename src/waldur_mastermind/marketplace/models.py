@@ -13,6 +13,7 @@ from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
@@ -294,6 +295,10 @@ class Offering(core_models.UuidMixin,
     def get_usage_components(self):
         components = self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE)
         return {component.type: component for component in components}
+
+    @cached_property
+    def is_usage_based(self):
+        return self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE).exists()
 
 
 class OfferingComponent(BaseComponent):

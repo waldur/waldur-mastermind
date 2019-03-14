@@ -9,6 +9,35 @@ from . import factories
 from .. import models
 
 
+class ResourceGetTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+        self.plan = factories.PlanFactory()
+        self.offering = self.plan.offering
+        self.resource = models.Resource.objects.create(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+        )
+
+    def get_resource(self):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_url(self.resource)
+        return self.client.get(url)
+
+    def test_resource_is_usage_based(self):
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+        )
+
+        self.assertTrue(self.get_resource().data['is_usage_based'])
+
+    def test_resource_is_not_usage_based(self):
+        self.assertFalse(self.get_resource().data['is_usage_based'])
+
+
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
