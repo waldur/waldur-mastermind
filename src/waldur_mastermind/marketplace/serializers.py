@@ -791,7 +791,7 @@ class ResourceSerializer(BaseItemSerializer):
             'project', 'project_uuid', 'project_name',
             'customer_uuid', 'customer_name',
             'offering_uuid', 'offering_name',
-            'backend_metadata',
+            'backend_metadata', 'is_usage_based',
         )
         read_only_fields = ('backend_metadata', 'scope',)
 
@@ -810,6 +810,8 @@ class ResourceSerializer(BaseItemSerializer):
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
+    # If resource is usage-based, frontend would render button to show and report usage
+    is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):

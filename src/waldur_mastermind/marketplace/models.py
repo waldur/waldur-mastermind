@@ -295,6 +295,10 @@ class Offering(core_models.UuidMixin,
         components = self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE)
         return {component.type: component for component in components}
 
+    @property
+    def is_usage_based(self):
+        return self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE).exists()
+
 
 class OfferingComponent(BaseComponent):
     class Meta(object):
