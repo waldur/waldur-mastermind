@@ -31,6 +31,7 @@ setup(
         'waldur_os_security_group',
         'waldur_os_snapshot',
         'waldur_os_volume',
+        'waldur_marketplace',
     ],
     install_requires=install_requires,
     tests_require=tests_requires,
