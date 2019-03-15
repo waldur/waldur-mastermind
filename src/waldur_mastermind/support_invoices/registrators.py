@@ -7,6 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.support import models as support_models
 
 from . import utils
@@ -63,12 +64,15 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
     def get_details(self, source):
         offering = source
-        return {
+        details = {
             'name': self.get_name(offering),
             'offering_type': offering.type,
             'offering_name': offering.name,
             'offering_uuid': offering.uuid.hex,
         }
+        service_provider_info = marketplace_utils.get_service_provider_info(source)
+        details.update(service_provider_info)
+        return details
 
     def get_name(self, offering):
         if offering.plan:

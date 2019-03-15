@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 import datetime
+import six
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
@@ -9,6 +10,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import month_end
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import fixtures
@@ -24,6 +26,8 @@ class InvoicesTest(test.APITransactionTestCase):
         super(InvoicesTest, self).setUp()
         self.fixture = fixtures.SupportFixture()
         self.order_item = self.fixture.order_item
+        marketplace_factories.ServiceProviderFactory(customer=self.order_item.offering.customer,
+                                                     description='ServiceProvider\'s description')
         self.order_item_process(self.order_item)
 
     def test_create_invoice(self):
@@ -74,6 +78,15 @@ class InvoicesTest(test.APITransactionTestCase):
             end=end,
         )
         self.assertTrue(self.fixture.new_plan.name in new_item.details['name'])
+
+    def test_invoice_item_should_include_service_provider_info(self):
+        invoice = self.get_invoice()
+        details = invoice.items.first().details
+        self.assertTrue('service_provider_name' in details.keys())
+        self.assertEqual(details['service_provider_name'], self.order_item.offering.customer.name)
+        self.assertTrue('service_provider_uuid' in details.keys())
+        self.assertEqual(details['service_provider_uuid'],
+                         six.text_type(self.order_item.offering.customer.serviceprovider.uuid))
 
     def order_item_process(self, order_item):
         serialized_order = core_utils.serialize_instance(order_item.order)
