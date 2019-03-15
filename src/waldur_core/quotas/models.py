@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
 from collections import defaultdict
-import functools
 from functools import reduce
 import inspect
 import logging
@@ -89,22 +88,6 @@ class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, ReversionMixin, model
         return self.usage >= self.threshold
 
 
-def _fail_silently(method):
-
-    @functools.wraps(method)
-    def wrapped(self, quota_name, *args, **kwargs):
-        try:
-            return method(self, quota_name, *args, **kwargs)
-        except Quota.DoesNotExist:
-            if not kwargs.get('fail_silently', False):
-                raise Quota.DoesNotExist(_('Object %(object)s does not have quota with name %(name)s.') % {
-                    'object': self,
-                    'name': quota_name
-                })
-
-    return wrapped
-
-
 class QuotaModelMixin(models.Model):
     """
     Add general fields and methods to model for quotas usage.
@@ -145,26 +128,29 @@ class QuotaModelMixin(models.Model):
 
     quotas = ct_fields.GenericRelation('quotas.Quota', related_query_name='quotas')
 
-    @_fail_silently
+    def get_or_create_quota(self, quota_name_or_field):
+        if isinstance(quota_name_or_field, six.string_types):
+            quota_name_or_field = getattr(self.Quotas, quota_name_or_field)
+        quota, _ = quota_name_or_field.get_or_create_quota(self)
+        return quota
+
     @transaction.atomic
-    def set_quota_limit(self, quota_name, limit, fail_silently=False):
-        quota = self.quotas.select_for_update(skip_locked=True).get(name=quota_name)
+    def set_quota_limit(self, quota_name, limit):
+        quota = self.get_or_create_quota(quota_name)
         if quota.limit != limit:
             quota.limit = limit
             quota.save(update_fields=['limit'])
 
-    @_fail_silently
     @transaction.atomic
-    def set_quota_usage(self, quota_name, usage, fail_silently=False):
-        quota = self.quotas.select_for_update(skip_locked=True).get(name=quota_name)
+    def set_quota_usage(self, quota_name, usage):
+        quota = self.get_or_create_quota(quota_name)
         if quota.usage != usage:
             quota.usage = usage
             quota.save(update_fields=['usage'])
 
-    @_fail_silently
     @transaction.atomic
-    def add_quota_usage(self, quota_name, usage_delta, fail_silently=False, validate=False):
-        quota = self.quotas.select_for_update(skip_locked=True).get(name=quota_name)
+    def add_quota_usage(self, quota_name, usage_delta, validate=False):
+        quota = self.get_or_create_quota(quota_name)
         if validate and quota.is_exceeded(usage_delta):
             raise exceptions.QuotaValidationError(
                 _('%(quota)s "%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.') % dict(

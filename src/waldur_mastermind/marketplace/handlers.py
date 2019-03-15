@@ -79,7 +79,7 @@ def update_category_quota_when_offering_is_created(sender, instance, created=Fal
 
 def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
     if instance.state == models.Offering.States.ACTIVE:
-        instance.category.add_quota_usage(models.Category.Quotas.offering_count, -1, fail_silently=True)
+        instance.category.add_quota_usage(models.Category.Quotas.offering_count, -1)
 
 
 def update_category_offerings_count(sender, **kwargs):
