@@ -301,6 +301,7 @@ class Offering(core_models.UuidMixin,
         return self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE).exists()
 
 
+@python_2_unicode_compatible
 class OfferingComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
@@ -360,6 +361,9 @@ class OfferingComponent(BaseComponent):
                     total + amount, self.limit_amount)
             )
 
+    def __str__(self):
+        return self.name
+
 
 @python_2_unicode_compatible
 class Plan(core_models.UuidMixin,
@@ -369,6 +373,12 @@ class Plan(core_models.UuidMixin,
            common_mixins.UnitPriceMixin,
            common_mixins.ProductCodeMixin,
            ScopeMixin):
+    """
+    Plan unit price is computed as a sum of its fixed components'
+    price multiplied by component amount when offering with plans
+    is created via REST API. Usage-based components don't contribute to plan price.
+    It is assumed that plan price is updated manually when plan component is managed via Django ORM.
+    """
     offering = models.ForeignKey(Offering, related_name='plans')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
@@ -405,6 +415,10 @@ class Plan(core_models.UuidMixin,
     def __str__(self):
         return self.name
 
+    @property
+    def has_connected_resources(self):
+        return Resource.objects.filter(plan=self).exists()
+
 
 class PlanComponent(models.Model):
     class Meta(object):
@@ -421,6 +435,11 @@ class PlanComponent(models.Model):
                                 decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit per billing period.'))
+    tracker = FieldTracker()
+
+    @property
+    def has_connected_resources(self):
+        return self.plan.has_connected_resources
 
 
 @python_2_unicode_compatible
