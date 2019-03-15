@@ -3,6 +3,7 @@ from django.utils import timezone
 from waldur_core.structure.permissions import _get_project
 from waldur_mastermind.invoices import models as invoices_models, utils as invoices_utils
 from waldur_mastermind.invoices.registrators import BaseRegistrator
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.packages import models as packages_models
 
 from . import utils
@@ -89,7 +90,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
     def get_details(self, source):
         package = source
-        return {
+        details = {
             'name': utils.get_invoice_item_name(package),
             'tenant_name': package.tenant.name,
             'tenant_uuid': package.tenant.uuid.hex,
@@ -97,6 +98,9 @@ class OpenStackItemRegistrator(BaseRegistrator):
             'template_uuid': package.template.uuid.hex,
             'template_category': package.template.get_category_display(),
         }
+        service_provider_info = marketplace_utils.get_service_provider_info(source)
+        details.update(service_provider_info)
+        return details
 
     def get_name(self, source):
         return utils.get_invoice_item_name(source)
