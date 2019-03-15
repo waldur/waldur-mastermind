@@ -250,7 +250,7 @@ class BaseOpenStackBackend(ServiceBackend):
         for quota_name, limit in self.get_tenant_quotas_limits(backend_id).items():
             scope.set_quota_limit(quota_name, limit)
         for quota_name, usage in self.get_tenant_quotas_usage(backend_id).items():
-            scope.set_quota_usage(quota_name, usage, fail_silently=True)
+            scope.set_quota_usage(quota_name, usage)
 
     def get_tenant_quotas_limits(self, tenant_backend_id):
         nova = self.nova_client
