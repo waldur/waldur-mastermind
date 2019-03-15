@@ -316,7 +316,7 @@ class CustomerOfferingViewSet(views.APIView):
 class OrderItemViewSet(BaseMarketplaceView):
     queryset = models.OrderItem.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    serializer_class = serializers.OrderItemSerializer
+    serializer_class = serializers.OrderItemDetailsSerializer
     filter_class = filters.OrderItemFilter
 
     def check_permissions_for_order_items_change(request, view, order_item=None):
@@ -389,7 +389,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 resource=resource,
                 offering=resource.offering,
                 plan=plan,
-                type=models.OrderItem.Types.UPDATE
+                type=models.OrderItem.Types.UPDATE,
+                limits=resource.limits or {},
             )
             order = serializers.create_order(
                 project=resource.project,
