@@ -14,21 +14,23 @@ def merge_two_dicts(x, y):
 
 
 available_categories = {
-    'vpc': ('Private clouds', 'Virtual private clouds'),
+    'backup': ('Backup', 'Backup solution'),
+    'consultancy': ('Consultancy', 'Experts for hire'),
+    'collocation': ('Collocation', 'Collocation services'),
+    'cms': ('CMS', 'Content Management Systems'),
+    'db': ('Databases', 'Relational DBMS'),
+    'email': ('E-mail', 'E-mail services'),
+    'hpc': ('HPC', 'High Performance Computing'),
     'licenses': ('Licenses', 'Application and OS licenses'),
     'vm': ('VMs', 'Virtual machines'),
-    'storage': ('Storage', 'Data preservation'),
-    'db': ('Databases', 'Relational DBMS'),
-    'backup': ('Backup', 'Backup solution'),
-    'security': ('Security', 'Security services'),
-    'cms': ('CMS', 'Content Management Systems'),
-    'hpc': ('HPC', 'High Performance Computing'),
-    'operations': ('Operations', 'Reliable support'),
-    'consultancy': ('Consultancy', 'Experts for hire'),
+    'vpc': ('Private clouds', 'Virtual private clouds'),
     'network': ('Network', 'Network services'),
+    'operations': ('Operations', 'Reliable support'),
+    'security': ('Security', 'Security services'),
+    'storage': ('Storage', 'Data preservation'),
     # devices
+    'microscope': ('Microscope', 'Available microscopes'),
     'spectrometry': ('Spectrometry', 'Available spectrometers'),
-    'microscope': ('Microscope', 'Available microscopes')
 }
 
 category_columns = {
@@ -66,13 +68,20 @@ common_sections = {
         ('terms_of_services_link', 'ToS link', 'string'),
     ],
     'SLA': [
-        ('sla_response_wh', 'Response time (working hours)', 'integer'),
-        ('sla_resolution_wh', 'Resolution time (working hours)', 'integer'),
-        ('sla_response_nwh', 'Response time (non-working hours)', 'integer'),
-        ('sla_resolution_nwh', 'Resolution time (non-working hours)', 'integer'),
-        # ('low_',),
-        # ('medium_', ),
-        # ('high_',),
+        ('low_sla_response_wh', 'Response time (low priority, working hours)', 'integer'),
+        ('low_sla_resolution_wh', 'Resolution time (low priority, working hours)', 'integer'),
+        ('low_sla_response_nwh', 'Response time (low priority, non-working hours)', 'integer'),
+        ('low_sla_resolution_nwh', 'Resolution time (low priority, non-working hours)', 'integer'),
+
+        ('medium_sla_response_wh', 'Response time (medium priority, working hours)', 'integer'),
+        ('medium_sla_resolution_wh', 'Resolution time (medium priority, working hours)', 'integer'),
+        ('medium_sla_response_nwh', 'Response time (medium priority, non-working hours)', 'integer'),
+        ('medium_sla_resolution_nwh', 'Resolution time (medium priority, non-working hours)', 'integer'),
+
+        ('high_sla_response_wh', 'Response time (high priority, working hours)', 'integer'),
+        ('high_sla_resolution_wh', 'Resolution time (high priority, working hours)', 'integer'),
+        ('high_sla_response_nwh', 'Response time (high priority, non-working hours)', 'integer'),
+        ('high_sla_resolution_nwh', 'Resolution time (high priority, non-working hours)', 'integer'),
     ],
     'Security': [
         ('certification', 'Certification', 'list'),
@@ -107,6 +116,16 @@ hpc_sections = {
     ],
 }
 
+collocation_sections = {
+    'features': [
+        ('collocation_remote_access', 'Remote access', 'choice'),
+        ('computing_network', 'Network access', 'list'),
+        ('collocation_dimensions', 'Dimensions', 'list'),
+        ('collocation_power', 'Power (A)', 'integer'),
+        ('collocation_cages', 'Locked cages', 'boolean'),
+    ],
+}
+
 spectrometry_sections = {
     'properties': [
         ('spectrometry_type', 'Type', 'choice'),
@@ -130,7 +149,9 @@ microscope_sections = {
 computing_common_sections = {
     'details': [
         ('virtualization', 'Virtualization', 'choice'),
-        ('computing_network', 'Network', 'list')
+        ('computing_network', 'Network', 'list'),
+        ('ha', 'High Availability', 'boolean'),
+        ('av_monitoring', 'Availability monitoring', 'boolean'),
     ],
     'application': [
         ('os', 'Operating system', 'list'),
@@ -144,11 +165,22 @@ vpc_sections = {
 
 vm_sections = {
     'software': [
-        ('antivirus', 'Antivirus', 'bool'),
+        ('antivirus', 'Antivirus', 'boolean'),
     ],
     'remote_access': [
         ('vm_remote_access', 'Remote access', 'list'),
         ('vm_access_level', 'Access level', 'choice'),
+    ]
+}
+
+email_sections = {
+    'software': [
+        ('email_software', 'Software', 'choice'),
+    ],
+    'features': [
+        ('delegated_domain_administration', 'Delegated domain administration', 'boolean'),
+        ('calendar', 'Calendar management', 'boolean'),
+        ('webchat', 'Webchat', 'boolean'),
     ]
 }
 
@@ -157,13 +189,13 @@ storage_sections = {
         ('storage_type', 'Storage type', 'choice'),
     ],
     'access': [
-        ('web_interface', 'Web interface', 'bool'),
-        ('api', 'API', 'bool'),
+        ('web_interface', 'Web interface', 'boolean'),
+        ('api', 'API', 'boolean'),
         ('api_flavor', 'API flavor', 'list'),
     ],
     'encryption': [
-        ('encryption_at_rest', 'Encryption at-rest', 'bool'),
-        ('encryption_in_transit', 'Encryption in-transit', 'bool'),
+        ('encryption_at_rest', 'Encryption at-rest', 'boolean'),
+        ('encryption_in_transit', 'Encryption in-transit', 'boolean'),
     ]
 }
 
@@ -187,7 +219,7 @@ consultancy_sections = {
 security_sections = {
     'Application': [
         ('security_application', 'Application', 'string'),
-        ('hardware_module', 'Hardware module', 'bool'),
+        ('hardware_module', 'Hardware module', 'boolean'),
         ('vendor_name', 'Vendor name', 'string'),
         ('application_version', 'Application version', 'string'),
     ],
@@ -196,8 +228,18 @@ security_sections = {
     ]
 }
 
+network_section = {
+    'Technology': [
+        ('computing_network', 'Connected network', 'list'),
+        ('vpn_technology', 'VPN technology', 'list'),
+    ]
+}
+
 specific_sections = {
+    'collocation': collocation_sections,
+    'computing': merge_two_dicts(computing_common_sections, vm_sections),
     'consultancy': merge_two_dicts(common_expert_sections, consultancy_sections),
+    'email': email_sections,
     'hpc': hpc_sections,
     'microscope': microscope_sections,
     'operations': merge_two_dicts(common_expert_sections, operations_sections),
@@ -218,9 +260,17 @@ enums = {
         ('sw', 'Swedish'),
         ('fi', 'Finnish'),
     ],
+    'collocation_dimensions': [
+        ('600x800', '600 x 800'),
+        ('600x1000', '600 x 1000'),
+    ],
     'deployment_type': [
         ('appliance', 'Appliance (Managed)'),
         ('remote', 'Remote (SaaS)')
+    ],
+    'email_software': [
+        ('zimbra', 'Zimbra'),
+        ('ibm_lotus', 'IBM Lotus'),
     ],
     'workdays': [
         ('base', '5 days'),
@@ -288,6 +338,13 @@ enums = {
     'computing_network': [
         ('private', 'Private (own)'),
         ('aso', 'ASO'),
+        ('ddn', 'DDN'),
+        ('banglagovnet', 'BanglaGovNet'),
+        ('public', 'Public Internet'),
+    ],
+    'vpn_technology': [
+        ('ipsec', 'IPSEC'),
+        ('gre+ipsec', 'GRE + IPSEC'),
     ],
     'vm_access_level': [
         ('root', 'Root / Administrator'),
@@ -303,6 +360,9 @@ enums = {
         ('ssh_rdp', 'SSH/RDP'),
         ('direct_access', 'Direct access'),
     ],
+    'collocation_remote_access': [
+        ('vpn', 'VPN'),
+    ],
     'os': [
         ('ubuntu16.04', 'Ubuntu 16.04'),
         ('centos7', 'CentOS 7'),
@@ -311,6 +371,11 @@ enums = {
     'application': [
         ('zevenet', 'Zevenet'),
         ('owncloud', 'Owncloud'),
+        ('lamp', 'LAMP'),
+        ('nginx', 'Nginx'),
+        ('iis', 'IIS'),
+        ('mssql2017', 'MS SQL Server 2017'),
+        ('mysql57', 'MySQL 5.7'),
     ],
 }
 
