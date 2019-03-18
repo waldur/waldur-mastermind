@@ -621,8 +621,8 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
 
     order_uuid = serializers.ReadOnlyField(source='order.uuid')
 
-    created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
-    created_by_civil_number = serializers.ReadOnlyField(source='created_by.civil_number')
+    created_by_full_name = serializers.ReadOnlyField(source='order.created_by.full_name')
+    created_by_civil_number = serializers.ReadOnlyField(source='order.created_by.civil_number')
 
     customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
