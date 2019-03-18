@@ -589,42 +589,70 @@ class BaseRequestSerializer(BaseItemSerializer):
         fields = BaseItemSerializer.Meta.fields + ('type',)
 
 
-class OrderItemSerializer(BaseRequestSerializer):
+class NestedOrderItemSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
         model = models.OrderItem
         fields = BaseRequestSerializer.Meta.fields + (
-            'order_uuid',
-            'customer_name', 'customer_uuid',
-            'project_name', 'project_uuid',
-            'resource_uuid', 'resource_type',
+            'resource_uuid', 'resource_type', 'resource_name',
             'cost', 'state', 'marketplace_resource_uuid',
         )
 
         read_only_fields = ('cost', 'state')
         protected_fields = ('offering', 'plan')
 
-    order_uuid = serializers.ReadOnlyField(source='order.uuid')
-    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
-    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
-    project_name = serializers.ReadOnlyField(source='order.project.name')
-    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
     marketplace_resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
+    resource_name = serializers.ReadOnlyField(source='resource.name')
     resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
 
+class OrderItemDetailsSerializer(NestedOrderItemSerializer):
+    class Meta(NestedOrderItemSerializer.Meta):
+        fields = NestedOrderItemSerializer.Meta.fields + (
+            'order_uuid', 'order_approved_at', 'order_approved_by',
+            'created_by_full_name', 'created_by_civil_number',
+            'customer_name', 'customer_uuid',
+            'project_name', 'project_uuid',
+            'old_plan_name', 'new_plan_name',
+            'old_cost_estimate', 'new_cost_estimate',
+        )
+
+    order_uuid = serializers.ReadOnlyField(source='order.uuid')
+    order_approved_at = serializers.ReadOnlyField(source='order.approved_at')
+    order_approved_by = serializers.ReadOnlyField(source='order.approved_by.full_name')
+
+    created_by_full_name = serializers.ReadOnlyField(source='order.created_by.full_name')
+    created_by_civil_number = serializers.ReadOnlyField(source='order.created_by.civil_number')
+
+    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
+
+    project_name = serializers.ReadOnlyField(source='order.project.name')
+    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
+
+    old_plan_name = serializers.ReadOnlyField(source='resource.plan.name')
+    new_plan_name = serializers.ReadOnlyField(source='plan.name')
+
+    old_cost_estimate = serializers.ReadOnlyField(source='resource.cost')
+    new_cost_estimate = serializers.ReadOnlyField(source='cost')
+
+
 class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    estimate = serializers.ReadOnlyField(source='cost')
 
     class Meta(BaseRequestSerializer.Meta):
         model = models.CartItem
         fields = BaseRequestSerializer.Meta.fields + ('estimate',)
 
+    @transaction.atomic
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        return super(CartItemSerializer, self).create(validated_data)
+        item = super(CartItemSerializer, self).create(validated_data)
+        item.init_cost()
+        return item
 
 
 class CartSubmitSerializer(serializers.Serializer):
@@ -712,7 +740,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                       serializers.HyperlinkedModelSerializer):
 
     state = serializers.ReadOnlyField(source='get_state_display')
-    items = OrderItemSerializer(many=True)
+    items = NestedOrderItemSerializer(many=True)
 
     class Meta(object):
         model = models.Order
@@ -755,7 +783,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                     offering=item['offering'],
                     plan=item.get('plan'),
                     attributes=item.get('attributes', {}),
-                    limits=item.get('limits'),
+                    limits=item.get('limits', {}),
                     type=item.get('type'),
                 )
             except ValidationError as e:

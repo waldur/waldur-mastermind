@@ -76,7 +76,8 @@ def resource_update_succeeded(resource):
         close_resource_plan_period(resource)
 
         resource.plan = order_item.plan
-        resource.save(update_fields=['plan'])
+        resource.init_cost()
+        resource.save(update_fields=['plan', 'cost'])
 
         create_resource_plan_period(resource)
 

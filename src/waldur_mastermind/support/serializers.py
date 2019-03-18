@@ -337,7 +337,7 @@ class ConfigurableFormDescriptionMixin(object):
     def _form_description(self, configuration, validated_data):
         result = []
 
-        for key in configuration['order']:
+        for key in configuration.get('order') or []:
             if key not in validated_data:
                 continue
 

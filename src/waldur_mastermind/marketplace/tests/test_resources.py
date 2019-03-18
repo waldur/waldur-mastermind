@@ -3,10 +3,12 @@ from __future__ import unicode_literals
 import mock
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures
+from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import factories
-from .. import models
+from .. import callbacks, models, tasks
 
 
 class ResourceGetTest(test.APITransactionTestCase):
@@ -352,3 +354,51 @@ class PlanUsageTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['usage'], 4)
         self.assertEqual(response.data[0]['customer_provider_uuid'], plan.offering.customer.uuid)
+
+
+class ResourceCostEstimateTest(test.APITransactionTestCase):
+
+    @override_support_settings(
+        ENABLED=True,
+        ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend',
+    )
+    def test_when_order_item_is_processed_cost_estimate_is_initialized(self):
+        # Arrange
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        plan = factories.PlanFactory(unit_price=10)
+
+        order_item = factories.OrderItemFactory(
+            offering=offering,
+            plan=plan,
+            attributes={'name': 'item_name', 'description': 'Description'}
+        )
+
+        # Act
+        serialized_order = core_utils.serialize_instance(order_item.order)
+        serialized_user = core_utils.serialize_instance(fixture.staff)
+        tasks.process_order(serialized_order, serialized_user)
+
+        # Assert
+        order_item.refresh_from_db()
+        self.assertEqual(order_item.resource.cost, plan.unit_price)
+
+    def test_when_plan_is_switched_cost_estimate_is_updated(self):
+        # Arrange
+        old_plan = factories.PlanFactory(unit_price=10)
+        new_plan = factories.PlanFactory(unit_price=100)
+        resource = factories.ResourceFactory(plan=old_plan)
+
+        factories.OrderItemFactory(
+            state=models.OrderItem.States.EXECUTING,
+            type=models.OrderItem.Types.UPDATE,
+            resource=resource,
+            plan=new_plan,
+        )
+
+        # Act
+        callbacks.resource_update_succeeded(resource)
+        resource.refresh_from_db()
+
+        # Assert
+        self.assertEqual(resource.cost, new_plan.unit_price)

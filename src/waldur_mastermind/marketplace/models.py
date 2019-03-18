@@ -484,19 +484,27 @@ class RequestTypeMixin(models.Model):
         abstract = True
 
 
-class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
+class CostEstimateMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    # Cost estimate is computed with respect to fixed plan components and usage-based limits
+    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    limits = BetterJSONField(blank=True, default=dict)
+
+    def init_cost(self):
+        if self.plan:
+            self.cost = self.plan.get_estimate(self.limits)
+
+
+class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEstimateMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
-    plan = models.ForeignKey('Plan', null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
 
     class Meta(object):
         ordering = ('created',)
-
-    @property
-    def estimate(self):
-        return self.plan.get_estimate(self.limits)
 
 
 class Order(core_models.UuidMixin, TimeStampedModel):
@@ -608,7 +616,7 @@ class Order(core_models.UuidMixin, TimeStampedModel):
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
 
 
-class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
+class Resource(CostEstimateMixin, core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     """
     Core resource is abstract model, marketplace resource is not abstract,
     therefore we don't need to compromise database query efficiency when
@@ -646,10 +654,8 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
     backend_metadata = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
 
@@ -712,7 +718,8 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
     plan = models.ForeignKey(Plan)
 
 
-class OrderItem(core_models.UuidMixin,
+class OrderItem(CostEstimateMixin,
+                core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
                 TimeStampedModel):
@@ -736,9 +743,6 @@ class OrderItem(core_models.UuidMixin,
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, null=True, default=dict)
-    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey('Plan', null=True, blank=True)
     resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
@@ -787,10 +791,6 @@ class OrderItem(core_models.UuidMixin,
         raise ValidationError(
             _('Offering "%s" is not allowed in organization "%s".') % (offering.name, customer.name)
         )
-
-    def init_cost(self):
-        if self.plan:
-            self.cost = self.plan.get_estimate(self.limits)
 
 
 class ComponentQuota(models.Model):
