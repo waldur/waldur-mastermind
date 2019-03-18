@@ -589,7 +589,7 @@ class BaseRequestSerializer(BaseItemSerializer):
         fields = BaseItemSerializer.Meta.fields + ('type',)
 
 
-class BaseOrderItemSerializer(BaseRequestSerializer):
+class NestedOrderItemSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
         model = models.OrderItem
         fields = BaseRequestSerializer.Meta.fields + (
@@ -608,9 +608,9 @@ class BaseOrderItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
 
-class OrderItemDetailsSerializer(BaseOrderItemSerializer):
-    class Meta(BaseOrderItemSerializer.Meta):
-        fields = BaseOrderItemSerializer.Meta.fields + (
+class OrderItemDetailsSerializer(NestedOrderItemSerializer):
+    class Meta(NestedOrderItemSerializer.Meta):
+        fields = NestedOrderItemSerializer.Meta.fields + (
             'order_uuid',
             'created_by_full_name', 'created_by_civil_number',
             'customer_name', 'customer_uuid',
@@ -635,10 +635,6 @@ class OrderItemDetailsSerializer(BaseOrderItemSerializer):
 
     old_cost_estimate = serializers.ReadOnlyField(source='resource.cost')
     new_cost_estimate = serializers.ReadOnlyField(source='cost')
-
-
-class NestedOrderItemSerializer(BaseOrderItemSerializer):
-    pass
 
 
 class CartItemSerializer(BaseRequestSerializer):
