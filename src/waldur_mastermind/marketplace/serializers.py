@@ -639,14 +639,18 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
 
 class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    estimate = serializers.ReadOnlyField(source='cost')
 
     class Meta(BaseRequestSerializer.Meta):
         model = models.CartItem
         fields = BaseRequestSerializer.Meta.fields + ('estimate',)
 
+    @transaction.atomic
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        return super(CartItemSerializer, self).create(validated_data)
+        item = super(CartItemSerializer, self).create(validated_data)
+        item.init_cost()
+        return item
 
 
 class CartSubmitSerializer(serializers.Serializer):

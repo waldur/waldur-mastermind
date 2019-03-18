@@ -484,19 +484,27 @@ class RequestTypeMixin(models.Model):
         abstract = True
 
 
-class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
+class CostEstimateMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    # Cost estimate is computed with respect to fixed plan components and usage-based limits
+    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    limits = BetterJSONField(blank=True, default=dict)
+
+    def init_cost(self):
+        if self.plan:
+            self.cost = self.plan.get_estimate(self.limits)
+
+
+class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEstimateMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
-    plan = models.ForeignKey('Plan', null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
 
     class Meta(object):
         ordering = ('created',)
-
-    @property
-    def estimate(self):
-        return self.plan.get_estimate(self.limits)
 
 
 class Order(core_models.UuidMixin, TimeStampedModel):
@@ -606,20 +614,6 @@ class Order(core_models.UuidMixin, TimeStampedModel):
 
     def init_total_cost(self):
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
-
-
-class CostEstimateMixin(models.Model):
-    class Meta(object):
-        abstract = True
-
-    # Cost estimate is computed with respect to fixed plan components and usage-based limits
-    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
-    limits = BetterJSONField(blank=True, default=dict)
-
-    def init_cost(self):
-        if self.plan:
-            self.cost = self.plan.get_estimate(self.limits)
 
 
 class Resource(CostEstimateMixin, core_models.UuidMixin, TimeStampedModel, ScopeMixin):
