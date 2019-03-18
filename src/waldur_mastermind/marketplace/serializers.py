@@ -611,7 +611,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
 class OrderItemDetailsSerializer(NestedOrderItemSerializer):
     class Meta(NestedOrderItemSerializer.Meta):
         fields = NestedOrderItemSerializer.Meta.fields + (
-            'order_uuid',
+            'order_uuid', 'order_approved_at', 'order_approved_by',
             'created_by_full_name', 'created_by_civil_number',
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
@@ -620,6 +620,8 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
         )
 
     order_uuid = serializers.ReadOnlyField(source='order.uuid')
+    order_approved_at = serializers.ReadOnlyField(source='order.approved_at')
+    order_approved_by = serializers.ReadOnlyField(source='order.approved_by')
 
     created_by_full_name = serializers.ReadOnlyField(source='order.created_by.full_name')
     created_by_civil_number = serializers.ReadOnlyField(source='order.created_by.civil_number')
