@@ -469,6 +469,32 @@ class ImportVolumeTest(BaseBackendTest):
         self.assertEqual(volume.name, self.backend_volume.name)
 
 
+class PullVolumeTest(BaseBackendTest):
+
+    def setUp(self):
+        super(PullVolumeTest, self).setUp()
+        self.spl = self.fixture.spl
+        self.backend_volume_id = 'backend_id'
+        self.backend_volume = self._get_valid_volume(self.backend_volume_id)
+
+        self.cinder_client_mock.volumes.get.return_value = self.backend_volume
+
+    def test_volume_instance_is_pulled(self):
+        vm = factories.InstanceFactory(backend_id='instance_backend_id', service_project_link=self.spl)
+        volume = factories.VolumeFactory(
+            backend_id=self.backend_volume_id,
+            instance=vm,
+            service_project_link=self.spl,
+        )
+        self.backend_volume.attachments = [
+            dict(server_id=vm.backend_id)
+        ]
+        self.tenant_backend.pull_volume(volume)
+        volume.refresh_from_db()
+
+        self.assertEqual(volume.instance, vm)
+
+
 class PullInstanceTest(BaseBackendTest):
 
     def setUp(self):
