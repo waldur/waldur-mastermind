@@ -13,6 +13,7 @@ from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
@@ -295,7 +296,12 @@ class Offering(core_models.UuidMixin,
         components = self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE)
         return {component.type: component for component in components}
 
+    @cached_property
+    def is_usage_based(self):
+        return self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE).exists()
 
+
+@python_2_unicode_compatible
 class OfferingComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
@@ -355,6 +361,9 @@ class OfferingComponent(BaseComponent):
                     total + amount, self.limit_amount)
             )
 
+    def __str__(self):
+        return self.name
+
 
 @python_2_unicode_compatible
 class Plan(core_models.UuidMixin,
@@ -364,6 +373,12 @@ class Plan(core_models.UuidMixin,
            common_mixins.UnitPriceMixin,
            common_mixins.ProductCodeMixin,
            ScopeMixin):
+    """
+    Plan unit price is computed as a sum of its fixed components'
+    price multiplied by component amount when offering with plans
+    is created via REST API. Usage-based components don't contribute to plan price.
+    It is assumed that plan price is updated manually when plan component is managed via Django ORM.
+    """
     offering = models.ForeignKey(Offering, related_name='plans')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
@@ -400,6 +415,10 @@ class Plan(core_models.UuidMixin,
     def __str__(self):
         return self.name
 
+    @property
+    def has_connected_resources(self):
+        return Resource.objects.filter(plan=self).exists()
+
 
 class PlanComponent(models.Model):
     class Meta(object):
@@ -416,6 +435,11 @@ class PlanComponent(models.Model):
                                 decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit per billing period.'))
+    tracker = FieldTracker()
+
+    @property
+    def has_connected_resources(self):
+        return self.plan.has_connected_resources
 
 
 @python_2_unicode_compatible
@@ -460,19 +484,27 @@ class RequestTypeMixin(models.Model):
         abstract = True
 
 
-class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
+class CostEstimateMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    # Cost estimate is computed with respect to fixed plan components and usage-based limits
+    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    limits = BetterJSONField(blank=True, default=dict)
+
+    def init_cost(self):
+        if self.plan:
+            self.cost = self.plan.get_estimate(self.limits)
+
+
+class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEstimateMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
-    plan = models.ForeignKey('Plan', null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
 
     class Meta(object):
         ordering = ('created',)
-
-    @property
-    def estimate(self):
-        return self.plan.get_estimate(self.limits)
 
 
 class Order(core_models.UuidMixin, TimeStampedModel):
@@ -584,7 +616,7 @@ class Order(core_models.UuidMixin, TimeStampedModel):
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
 
 
-class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
+class Resource(CostEstimateMixin, core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     """
     Core resource is abstract model, marketplace resource is not abstract,
     therefore we don't need to compromise database query efficiency when
@@ -622,12 +654,14 @@ class Resource(core_models.UuidMixin, TimeStampedModel, ScopeMixin):
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict)
     backend_metadata = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
+
+    @property
+    def customer(self):
+        return self.project.customer
 
     @property
     def name(self):
@@ -684,7 +718,8 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
     plan = models.ForeignKey(Plan)
 
 
-class OrderItem(core_models.UuidMixin,
+class OrderItem(CostEstimateMixin,
+                core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
                 TimeStampedModel):
@@ -708,9 +743,6 @@ class OrderItem(core_models.UuidMixin,
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
-    limits = BetterJSONField(blank=True, null=True, default=dict)
-    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey('Plan', null=True, blank=True)
     resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
@@ -760,10 +792,6 @@ class OrderItem(core_models.UuidMixin,
             _('Offering "%s" is not allowed in organization "%s".') % (offering.name, customer.name)
         )
 
-    def init_cost(self):
-        if self.plan:
-            self.cost = self.plan.get_estimate(self.limits)
-
 
 class ComponentQuota(models.Model):
     resource = models.ForeignKey(Resource, related_name='quotas')
@@ -787,16 +815,16 @@ class ComponentUsage(TimeStampedModel):
         unique_together = ('resource', 'component', 'date')
 
 
-class ProjectResourceCount(models.Model):
+class AggregateResourceCount(ScopeMixin):
     """
-    This model allows to count current number of project resources by category.
+    This model allows to count current number of project or customer resources by category.
     """
-    project = models.ForeignKey(structure_models.Project, related_name='+')
     category = models.ForeignKey(Category, related_name='+')
     count = models.PositiveIntegerField(default=0)
+    objects = managers.MixinManager('scope')
 
     class Meta:
-        unique_together = ('project', 'category')
+        unique_together = ('category', 'content_type', 'object_id')
 
 
 class OfferingFile(core_models.UuidMixin,

@@ -1,7 +1,5 @@
 import sys
 
-import six
-
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, \
@@ -9,14 +7,14 @@ from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, \
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.network.models import NetworkInterface, NetworkInterfaceIPConfiguration, \
     NetworkSecurityGroup, SecurityRule
-from azure.mgmt.resource import ResourceManagementClient
-from azure.mgmt.resource import SubscriptionClient
 from azure.mgmt.rdbms.postgresql import PostgreSQLManagementClient
 from azure.mgmt.rdbms.postgresql.models import ServerForCreate, \
     ServerPropertiesForDefaultCreate, ServerVersion, StorageProfile
+from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
 from django.utils.functional import cached_property
-from msrestazure.azure_exceptions import CloudError
+from msrest.exceptions import ClientException
+import six
 
 from waldur_core.structure import ServiceBackendError
 
@@ -74,7 +72,7 @@ class AzureClient(object):
     def list_locations(self):
         try:
             return self.subscription_client.subscriptions.list_locations(self.subscription_id)
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def get_resource_group_locations(self):
@@ -88,7 +86,7 @@ class AzureClient(object):
         """
         try:
             provider = self.resource_client.providers.get('Microsoft.Resources')
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
         else:
             for resource in provider.resource_types:
@@ -98,7 +96,7 @@ class AzureClient(object):
     def list_resource_groups(self):
         try:
             return self.resource_client.resource_groups.list()
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_resource_group(self, location, resource_group_name):
@@ -107,19 +105,19 @@ class AzureClient(object):
                 resource_group_name,
                 {'location': location}
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def delete_resource_group(self, resource_group_name):
         try:
             return self.resource_client.resource_groups.delete(resource_group_name)
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_virtual_machine_sizes(self, location):
         try:
             return self.compute_client.virtual_machine_sizes.list(location)
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_virtual_machine_images(self, location):
@@ -155,19 +153,19 @@ class AzureClient(object):
                                 sku.name,
                                 version.name,
                             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_all_virtual_machines(self):
         try:
             return self.compute_client.virtual_machines.list_all()
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_virtual_machines_in_group(self, resource_group_name):
         try:
             return self.compute_client.virtual_machines.list(resource_group_name)
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def get_virtual_machine(self, resource_group_name, vm_name):
@@ -176,7 +174,7 @@ class AzureClient(object):
                 resource_group_name,
                 vm_name
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_virtual_machine(self, location, resource_group_name,
@@ -218,7 +216,7 @@ class AzureClient(object):
                     },
                 },
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def delete_virtual_machine(self, resource_group_name, vm_name):
@@ -227,7 +225,7 @@ class AzureClient(object):
                 resource_group_name,
                 vm_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def start_virtual_machine(self, resource_group_name, vm_name):
@@ -236,7 +234,7 @@ class AzureClient(object):
                 resource_group_name,
                 vm_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def restart_virtual_machine(self, resource_group_name, vm_name):
@@ -245,7 +243,7 @@ class AzureClient(object):
                 resource_group_name,
                 vm_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def stop_virtual_machine(self, resource_group_name, vm_name):
@@ -254,7 +252,7 @@ class AzureClient(object):
                 resource_group_name,
                 vm_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_storage_account(self, location, resource_group_name, account_name):
@@ -268,7 +266,7 @@ class AzureClient(object):
                     'location': location
                 }
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_disk(self, location, resource_group_name, disk_name, disk_size_gb):
@@ -284,7 +282,7 @@ class AzureClient(object):
                     }
                 }
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_network(self, location, resource_group_name, network_name, cidr):
@@ -299,7 +297,7 @@ class AzureClient(object):
                     }
                 }
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_subnet(self, resource_group_name, network_name, subnet_name, cidr):
@@ -312,7 +310,7 @@ class AzureClient(object):
                     'address_prefix': cidr,
                 }
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def get_network_interface(self, resource_group_name, network_interface_name):
@@ -321,7 +319,7 @@ class AzureClient(object):
                 resource_group_name,
                 network_interface_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_network_interface(self, location, resource_group_name,
@@ -349,7 +347,7 @@ class AzureClient(object):
                 interface_name,
                 interface_parameters
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_ssh_security_group(self, location, resource_group_name, network_security_group_name):
@@ -376,7 +374,7 @@ class AzureClient(object):
                 network_security_group_name,
                 security_group,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def get_public_ip(self, resource_group_name, public_ip_address_name):
@@ -385,13 +383,13 @@ class AzureClient(object):
                 resource_group_name,
                 public_ip_address_name
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_all_public_ips(self):
         try:
             return self.network_client.public_ip_addresses.list_all()
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_public_ip(self, location, resource_group_name, public_ip_address_name):
@@ -403,7 +401,7 @@ class AzureClient(object):
                     'location': location
                 }
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def delete_public_ip(self, resource_group_name, public_ip_address_name):
@@ -412,19 +410,19 @@ class AzureClient(object):
                 resource_group_name,
                 public_ip_address_name
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_all_sql_servers(self):
         try:
             return self.pgsql_client.servers.list()
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_sql_servers_in_group(self, resource_group_name):
         try:
             return self.pgsql_client.servers.list_by_resource_group(resource_group_name)
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def get_sql_server(self, resource_group_name, server_name):
@@ -433,7 +431,7 @@ class AzureClient(object):
                 resource_group_name,
                 server_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_sql_server(self, location, resource_group_name, server_name,
@@ -457,13 +455,13 @@ class AzureClient(object):
                 )
             )
             return poller.result()
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def delete_sql_server(self, resource_group_name, server_name):
         try:
             return self.pgsql_client.servers.delete(resource_group_name, server_name)
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_sql_firewall_rule(self, resource_group_name, server_name, firewall_rule_name,
@@ -477,7 +475,7 @@ class AzureClient(object):
                 end_ip_address,
             )
             return poller.result()
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def get_sql_database(self, resource_group_name, server_name, database_name):
@@ -487,7 +485,7 @@ class AzureClient(object):
                 server_name,
                 database_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def create_sql_database(self, resource_group_name, server_name, database_name,
@@ -500,7 +498,7 @@ class AzureClient(object):
                 charset,
                 collation,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def list_sql_databases_in_server(self, resource_group_name, server_name):
@@ -509,7 +507,7 @@ class AzureClient(object):
                 resource_group_name,
                 server_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)
 
     def delete_sql_database(self, resource_group_name, server_name, database_name):
@@ -519,5 +517,5 @@ class AzureClient(object):
                 server_name,
                 database_name,
             )
-        except CloudError as exc:
+        except ClientException as exc:
             reraise(exc)

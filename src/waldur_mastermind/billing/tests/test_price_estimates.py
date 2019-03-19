@@ -1,3 +1,5 @@
+import decimal
+
 from ddt import ddt, data
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -110,7 +112,7 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
         fixture = packages_fixtures.PackageFixture()
         package = fixture.openstack_package
         estimate = models.PriceEstimate.objects.get(scope=getattr(fixture, scope))
-        self.assertEqual(estimate.total, package.template.price * 31)
+        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(package.template.price * 31))
 
     def test_when_openstack_package_is_extended_project_total_is_updated(self):
         fixture = packages_fixtures.PackageFixture()
@@ -177,7 +179,7 @@ class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         estimate = models.PriceEstimate.objects.get(scope=self.fixture.project)
-        self.assertEqual(estimate.total, float(self.new_template.price * 30))
+        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(self.new_template.price * 30))
 
     @data('project', 'customer')
     def test_if_extended_package_cost_exceeds_limit_provision_is_disabled(self, scope):
@@ -187,7 +189,7 @@ class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
 
         estimate = models.PriceEstimate.objects.get(scope=self.fixture.project)
-        self.assertEqual(estimate.total, self.package.template.price * 31)
+        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(self.package.template.price * 31))
 
     def extend_package(self, total_price):
         self.new_template = packages_factories.PackageTemplateFactory(

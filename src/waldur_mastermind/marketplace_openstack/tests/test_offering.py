@@ -1,5 +1,8 @@
+import uuid
+
 from ddt import ddt, data
 from django.core.exceptions import ObjectDoesNotExist
+import mock
 from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
@@ -8,6 +11,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
@@ -24,21 +28,55 @@ class TemplateOfferingTest(BaseOpenStackTest):
             scope=fixture.openstack_service_settings
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
-        component = marketplace_models.OfferingComponent.objects.create(
+        ram_component = marketplace_models.OfferingComponent.objects.create(
             offering=offering,
-            type='ram',
+            type=RAM_TYPE,
         )
         marketplace_models.PlanComponent.objects.create(
             plan=plan,
-            component=component,
-            amount=10240,
+            component=ram_component,
+            amount=20,
             price=10,
+        )
+
+        cores_component = marketplace_models.OfferingComponent.objects.create(
+            offering=offering,
+            type=CORES_TYPE,
+        )
+        marketplace_models.PlanComponent.objects.create(
+            plan=plan,
+            component=cores_component,
+            amount=10,
+            price=3,
+        )
+
+        storage_component = marketplace_models.OfferingComponent.objects.create(
+            offering=offering,
+            type=STORAGE_TYPE,
+        )
+        marketplace_models.PlanComponent.objects.create(
+            plan=plan,
+            component=storage_component,
+            amount=100,
+            price=1,
         )
         plan.refresh_from_db()
 
         template = plan.scope
         self.assertTrue(isinstance(template, package_models.PackageTemplate))
-        self.assertEqual(template.components.get(type='ram').price, 10)
+
+        template_ram_component = template.components.get(type=RAM_TYPE)
+        template_cores_component = template.components.get(type=CORES_TYPE)
+        template_storage_component = template.components.get(type=STORAGE_TYPE)
+
+        self.assertEqual(template_ram_component.amount, 20 * 1024)
+        self.assertEqual(template_ram_component.price, 10.0 / 1024)
+
+        self.assertEqual(template_cores_component.amount, 10)
+        self.assertEqual(template_cores_component.price, 3)
+
+        self.assertEqual(template_storage_component.amount, 100 * 1024)
+        self.assertEqual(template_storage_component.price, 1.0 / 1024)
 
     def test_template_for_plan_is_not_created_if_type_is_invalid(self):
         offering = marketplace_factories.OfferingFactory(type='INVALID')
@@ -80,6 +118,13 @@ class PlanComponentsTest(test.APITransactionTestCase):
             'category': marketplace_factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(fixture.customer),
             'type': PACKAGE_TYPE,
+            'service_attributes': {
+                'backend_url': 'http://example.com/',
+                'username': 'root',
+                'password': 'secret',
+                'tenant_name': 'admin',
+                'external_network_id': uuid.uuid4(),
+            },
             'plans': [
                 {
                     'name': 'small',
@@ -92,7 +137,8 @@ class PlanComponentsTest(test.APITransactionTestCase):
         if components:
             payload['plans'][0]['prices'] = self.prices
             payload['plans'][0]['quotas'] = self.quotas
-        return self.client.post(url, payload)
+        with mock.patch('waldur_core.structure.models.ServiceSettings.get_backend'):
+            return self.client.post(url, payload)
 
 
 @ddt

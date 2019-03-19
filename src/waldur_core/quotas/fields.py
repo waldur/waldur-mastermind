@@ -52,7 +52,7 @@ class QuotaLimitField(models.IntegerField):
         def func(instance, value, quota_field=self._quota_field):
             # a hook to properly init quota after object saved to DB
             quota_field.scope_default_limit(instance, value)
-            instance.set_quota_limit(quota_field, value, fail_silently=True)
+            instance.set_quota_limit(quota_field, value)
 
         return func
 
@@ -193,11 +193,11 @@ class CounterQuotaField(QuotaField):
         current_usage = self.get_current_usage(self.target_models, scope)
         scope.set_quota_usage(self.name, current_usage)
 
-    def add_usage(self, target_instance, delta, fail_silently=False):
+    def add_usage(self, target_instance, delta):
         scope = self._get_scope(target_instance)
         delta *= self.get_delta(target_instance)
         if self.is_connected_to_scope(scope):
-            scope.add_quota_usage(self.name, delta, fail_silently=fail_silently, validate=True)
+            scope.add_quota_usage(self.name, delta, validate=True)
 
     def _get_scope(self, target_instance):
         return reduce(getattr, self.path_to_scope.split('.'), target_instance)

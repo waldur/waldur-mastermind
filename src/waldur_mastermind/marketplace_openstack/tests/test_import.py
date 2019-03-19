@@ -1,7 +1,7 @@
 from waldur_core.core.models import StateMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Resource
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE
+from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
@@ -9,6 +9,9 @@ from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant
 
 from .. import utils
 from .utils import BaseOpenStackTest
+
+
+Types = package_models.PackageComponent.Types
 
 
 class TemplateImportTest(BaseOpenStackTest):
@@ -39,6 +42,10 @@ class TemplateImportTest(BaseOpenStackTest):
         self.assertEqual(self.template.price, plan.unit_price)
 
     def test_components_are_imported(self):
+        self.template.components.filter(type=Types.RAM).update(amount=20 * 1024, price=10.0 / 1024)
+        self.template.components.filter(type=Types.CORES).update(amount=10, price=3)
+        self.template.components.filter(type=Types.STORAGE).update(amount=100 * 1024, price=1.0 / 1024)
+
         self.import_offering()
         plan = marketplace_models.Plan.objects.get(scope=self.template)
 
@@ -48,6 +55,18 @@ class TemplateImportTest(BaseOpenStackTest):
 
         self.assertEqual(plan_components.count(), template_components.count())
         self.assertEqual(offering_components.count(), template_components.count())
+
+        ram_comp = plan_components.get(component__type=RAM_TYPE)
+        cores_comp = plan_components.get(component__type=CORES_TYPE)
+        storage_comp = plan_components.get(component__type=STORAGE_TYPE)
+
+        self.assertEqual(ram_comp.amount, 20)
+        self.assertEqual(cores_comp.amount, 10)
+        self.assertEqual(storage_comp.amount, 100)
+
+        self.assertEqual(ram_comp.price, 10)
+        self.assertEqual(cores_comp.price, 3)
+        self.assertEqual(storage_comp.price, 1)
 
     def test_existing_template_is_skipped(self):
         self.import_offering()

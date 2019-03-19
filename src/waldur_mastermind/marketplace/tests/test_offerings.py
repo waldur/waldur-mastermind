@@ -1,8 +1,10 @@
 from __future__ import unicode_literals
 
 import json
+import uuid
 
 from ddt import data, ddt
+import mock
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
@@ -11,8 +13,6 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
-from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_mastermind.support.tests import factories as support_factories
 
 from . import factories
 from .. import serializers
@@ -221,6 +221,43 @@ class OfferingCreateTest(test.APITransactionTestCase):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @mock.patch('waldur_azure.backend.AzureClient')
+    def test_create_offering_with_shared_service_settings(self, mocked_backend):
+        plans_request = {
+            'type': 'Azure.VirtualMachine',
+            'service_attributes': {
+                'tenant_id': uuid.uuid4(),
+                'client_id': uuid.uuid4(),
+                'client_secret': uuid.uuid4(),
+                'subscription_id': uuid.uuid4(),
+            },
+            'shared': True
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering = models.Offering.objects.get(uuid=response.data['uuid'])
+        self.assertIsNotNone(response.data['scope'])
+        self.assertEqual(offering.scope.type, 'Azure')
+        self.assertTrue(offering.scope.shared)
+
+    @mock.patch('waldur_azure.backend.AzureClient')
+    def test_create_offering_with_private_service_settings(self, mocked_backend):
+        plans_request = {
+            'type': 'Azure.VirtualMachine',
+            'service_attributes': {
+                'tenant_id': uuid.uuid4(),
+                'client_id': uuid.uuid4(),
+                'client_secret': uuid.uuid4(),
+                'subscription_id': uuid.uuid4(),
+            },
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering = models.Offering.objects.get(uuid=response.data['uuid'])
+        self.assertFalse(offering.scope.shared)
+
     def test_create_offering_with_plans(self):
         plans_request = {
             'plans': [
@@ -356,30 +393,6 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('type' in response.data)
 
-    def test_create_offering_with_scope(self):
-        scope_request = {
-            'scope': structure_factories.ServiceSettingsFactory.get_url(),
-            'type': 'Packages.Template',
-            'plans': [
-                {
-                    'name': 'Basic',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 1, 'ram': 1, 'storage': 1},
-                    'quotas': {'cores': 10, 'ram': 10240, 'storage': 10240},
-                }
-            ]
-        }
-        response = self.create_offering('staff', attributes=True, add_payload=scope_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-    def test_not_create_offering_if_scope_model_is_invalid(self):
-        scope_request = {
-            'scope': openstack_factories.FlavorFactory.get_url(),
-            'type': 'Packages.Template',
-        }
-        response = self.create_offering('staff', attributes=True, add_payload=scope_request)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     def test_validate_required_attribute(self):
         user = getattr(self.fixture, 'staff')
         self.client.force_authenticate(user)
@@ -432,17 +445,6 @@ class OfferingCreateTest(test.APITransactionTestCase):
             payload.update(add_payload)
 
         return self.client.post(url, payload)
-
-    def test_create_offering_if_scope_is_valid(self):
-        response = self.create_offering('staff',
-                                        add_payload={'scope': support_factories.OfferingFactory.get_url()})
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_not_create_offering_if_scope_is_not_valid(self):
-        response = self.create_offering('staff',
-                                        add_payload={'scope': structure_factories.ServiceSettingsFactory.get_url()})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('scope' in response.data.keys())
 
     def test_offering_creating_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True

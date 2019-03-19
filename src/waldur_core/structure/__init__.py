@@ -173,6 +173,10 @@ class SupportedServices(object):
     @classmethod
     def get_service_serializer(cls, model):
         key = cls.get_model_key(model)
+        return cls.get_service_serializer_for_key(key)
+
+    @classmethod
+    def get_service_serializer_for_key(cls, key):
         return cls._registry[key]['serializer']
 
     @classmethod

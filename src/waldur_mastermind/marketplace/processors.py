@@ -97,7 +97,7 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
 
         with transaction.atomic():
             scope = self.get_scope_from_response(response)
-            resource = models.Resource.objects.create(
+            resource = models.Resource(
                 project=self.order_item.order.project,
                 offering=self.order_item.offering,
                 plan=self.order_item.plan,
@@ -105,6 +105,8 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
                 attributes=self.order_item.attributes,
                 scope=scope,
             )
+            resource.init_cost()
+            resource.save()
             resource.init_quotas()
             self.order_item.resource = resource
             self.order_item.save(update_fields=['resource'])

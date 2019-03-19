@@ -51,37 +51,40 @@ def check_expired_permissions():
             permission.revoke()
 
 
+def connect_shared_settings(service_settings):
+    logger.debug('About to connect service settings "%s" to all available customers' % service_settings.name)
+    if not service_settings.shared:
+        raise ValueError('It is impossible to connect non-shared settings')
+    service_model = SupportedServices.get_service_models()[service_settings.type]['service']
+
+    with transaction.atomic():
+        for customer in models.Customer.objects.all():
+            defaults = {'available_for_all': True}
+            try:
+                service, _ = service_model.objects.get_or_create(
+                    customer=customer, settings=service_settings, defaults=defaults)
+            except QuotaValidationError:
+                logger.warning('Unable to connect shared service '
+                               'settings to customer because quota is exceeded. '
+                               'Service settings ID: %s, customer ID: %s',
+                               service_settings.id, customer.id)
+                continue
+
+            service_project_link_model = service.projects.through
+            for project in service.customer.projects.all():
+                try:
+                    service_project_link_model.objects.get_or_create(project=project, service=service)
+                except QuotaValidationError:
+                    logger.warning('Unable to connect shared service to project because '
+                                   'quota is exceeded. Service ID: %s, project ID: %s',
+                                   service.id, project.id)
+                    continue
+
+
 class ConnectSharedSettingsTask(core_tasks.Task):
 
     def execute(self, service_settings):
-        logger.debug('About to connect service settings "%s" to all available customers' % service_settings.name)
-        if not service_settings.shared:
-            raise ValueError('It is impossible to connect non-shared settings')
-        service_model = SupportedServices.get_service_models()[service_settings.type]['service']
-
-        with transaction.atomic():
-            for customer in models.Customer.objects.all():
-                defaults = {'available_for_all': True}
-                try:
-                    service, _ = service_model.objects.get_or_create(
-                        customer=customer, settings=service_settings, defaults=defaults)
-                except QuotaValidationError:
-                    logger.warning('Unable to connect shared service '
-                                   'settings to customer because quota is exceeded. '
-                                   'Service settings ID: %s, customer ID: %s',
-                                   service_settings.id, customer.id)
-                    continue
-
-                service_project_link_model = service.projects.through
-                for project in service.customer.projects.all():
-                    try:
-                        service_project_link_model.objects.get_or_create(project=project, service=service)
-                    except QuotaValidationError:
-                        logger.warning('Unable to connect shared service to project because '
-                                       'quota is exceeded. Service ID: %s, project ID: %s',
-                                       service.id, project.id)
-                        continue
-
+        connect_shared_settings(service_settings)
         logger.info('Successfully connected service settings "%s" to all available customers' % service_settings.name)
 
 

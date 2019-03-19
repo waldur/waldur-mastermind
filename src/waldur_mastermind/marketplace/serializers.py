@@ -20,13 +20,13 @@ from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
-from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
-from . import models, attribute_types, plugins, utils, permissions
+from . import models, attribute_types, plugins, utils, permissions, tasks
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -286,8 +286,9 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
     plans = NestedPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
-    scope = GenericRelatedField(related_models=plugins.manager.get_scope_models, required=False)
+    scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
+    service_attributes = serializers.JSONField(required=False, write_only=True)
     files = NestedOfferingFileSerializer(many=True, read_only=True)
 
     class Meta(object):
@@ -298,7 +299,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files')
+                  'service_attributes', 'scope', 'scope_uuid', 'files')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -332,7 +333,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             self._validate_attributes(offering_attributes, category)
 
         self._validate_plans(attrs)
-        self._validate_scope(attrs)
         return attrs
 
     def validate_type(self, offering_type):
@@ -413,19 +413,6 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             plan['unit_price'] = sum(prices[component] * quotas[component]
                                      for component in fixed_types)
 
-    def _validate_scope(self, attrs):
-        offering_scope = attrs.get('scope')
-        offering_type = attrs.get('type')
-
-        if offering_scope:
-            offering_scope_model = plugins.manager.get_scope_model(offering_type)
-
-            if offering_scope_model:
-                if not isinstance(offering_scope, offering_scope_model):
-                    raise serializers.ValidationError({
-                        'scope': _('Invalid scope model.')
-                    })
-
     @transaction.atomic
     def create(self, validated_data):
         plans = validated_data.pop('plans', [])
@@ -435,6 +422,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             raise serializers.ValidationError({
                 'plans': _('At least one plan should be specified.')
             })
+
+        offering_type = validated_data.get('type')
+        service_type = plugins.manager.get_service_type(offering_type)
+        if service_type:
+            validated_data = self._create_service(service_type, validated_data)
 
         offering = super(OfferingSerializer, self).create(validated_data)
         fixed_components = plugins.manager.get_components(offering.type)
@@ -453,6 +445,43 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             self._create_plan(offering, plan_data, components)
 
         return offering
+
+    def _create_service(self, service_type, validated_data):
+        """
+        Marketplace offering model does not accept service_attributes field as is,
+        therefore we should remove it from validated_data and create service settings object.
+        Then we need to specify created object and offering's scope.
+        """
+        name = validated_data['name']
+        service_attributes = validated_data.pop('service_attributes', {})
+        if not service_attributes:
+            raise ValidationError({
+                'service_attributes': _('This field is required.')
+            })
+        payload = dict(
+            name=name,
+            # It is expected that customer URL is passed to the service settings serializer
+            customer=self.initial_data['customer'],
+            type=service_type,
+            **service_attributes
+        )
+        serializer_class = SupportedServices.get_service_serializer_for_key(service_type)
+        serializer = serializer_class(data=payload, context=self.context)
+        serializer.is_valid(raise_exception=True)
+        service = serializer.save()
+        # Usually we don't allow users to create new shared service settings via REST API.
+        # That's shared flag is marked as read-only in service settings serializer.
+        # But shared offering should be created with shared service settings.
+        # That's why we set it to shared only after service settings object is created.
+        if validated_data.get('shared'):
+            service.settings.shared = True
+            service.settings.save()
+            # Usually connect shared settings task is called when service is created.
+            # But as we set shared flag after serializer has been executed,
+            # we need to connect shared settings manually.
+            connect_shared_settings(service.settings)
+        validated_data['scope'] = service.settings
+        return validated_data
 
     def _create_plan(self, offering, plan_data, components):
         quotas = plan_data.pop('quotas', {})
@@ -560,42 +589,70 @@ class BaseRequestSerializer(BaseItemSerializer):
         fields = BaseItemSerializer.Meta.fields + ('type',)
 
 
-class OrderItemSerializer(BaseRequestSerializer):
+class NestedOrderItemSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
         model = models.OrderItem
         fields = BaseRequestSerializer.Meta.fields + (
-            'order_uuid',
-            'customer_name', 'customer_uuid',
-            'project_name', 'project_uuid',
-            'resource_uuid', 'resource_type',
-            'cost', 'state', 'marketplace_resource_uuid',
+            'resource_uuid', 'resource_type', 'resource_name',
+            'cost', 'state', 'marketplace_resource_uuid', 'error_message',
         )
 
-        read_only_fields = ('cost', 'state')
+        read_only_fields = ('cost', 'state', 'error_message')
         protected_fields = ('offering', 'plan')
 
-    order_uuid = serializers.ReadOnlyField(source='order.uuid')
-    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
-    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
-    project_name = serializers.ReadOnlyField(source='order.project.name')
-    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
     marketplace_resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
+    resource_name = serializers.ReadOnlyField(source='resource.name')
     resource_uuid = serializers.ReadOnlyField(source='resource.backend_uuid')
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
 
 
+class OrderItemDetailsSerializer(NestedOrderItemSerializer):
+    class Meta(NestedOrderItemSerializer.Meta):
+        fields = NestedOrderItemSerializer.Meta.fields + (
+            'order_uuid', 'order_approved_at', 'order_approved_by',
+            'created_by_full_name', 'created_by_civil_number',
+            'customer_name', 'customer_uuid',
+            'project_name', 'project_uuid',
+            'old_plan_name', 'new_plan_name',
+            'old_cost_estimate', 'new_cost_estimate',
+        )
+
+    order_uuid = serializers.ReadOnlyField(source='order.uuid')
+    order_approved_at = serializers.ReadOnlyField(source='order.approved_at')
+    order_approved_by = serializers.ReadOnlyField(source='order.approved_by.full_name')
+
+    created_by_full_name = serializers.ReadOnlyField(source='order.created_by.full_name')
+    created_by_civil_number = serializers.ReadOnlyField(source='order.created_by.civil_number')
+
+    customer_name = serializers.ReadOnlyField(source='order.project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='order.project.customer.uuid')
+
+    project_name = serializers.ReadOnlyField(source='order.project.name')
+    project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
+
+    old_plan_name = serializers.ReadOnlyField(source='resource.plan.name')
+    new_plan_name = serializers.ReadOnlyField(source='plan.name')
+
+    old_cost_estimate = serializers.ReadOnlyField(source='resource.cost')
+    new_cost_estimate = serializers.ReadOnlyField(source='cost')
+
+
 class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    estimate = serializers.ReadOnlyField(source='cost')
 
     class Meta(BaseRequestSerializer.Meta):
         model = models.CartItem
         fields = BaseRequestSerializer.Meta.fields + ('estimate',)
 
+    @transaction.atomic
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        return super(CartItemSerializer, self).create(validated_data)
+        item = super(CartItemSerializer, self).create(validated_data)
+        item.init_cost()
+        return item
 
 
 class CartSubmitSerializer(serializers.Serializer):
@@ -628,6 +685,9 @@ class CartSubmitSerializer(serializers.Serializer):
 
 
 def check_availability_of_auto_approving(items, user, project):
+    if user.is_staff:
+        return True
+
     if permissions.user_can_approve_order(user, project):
         only_create_private = all(
             item.type == models.OrderItem.Types.CREATE and not item.offering.shared
@@ -670,8 +730,7 @@ def create_order(project, user, items, request):
     order.save()
 
     if check_availability_of_auto_approving(items, user, project):
-        common_utils.approve_order(user, order.uuid)
-        order.refresh_from_db()
+        tasks.approve_order(order, user)
 
     return order
 
@@ -681,7 +740,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                       serializers.HyperlinkedModelSerializer):
 
     state = serializers.ReadOnlyField(source='get_state_display')
-    items = OrderItemSerializer(many=True)
+    items = NestedOrderItemSerializer(many=True)
 
     class Meta(object):
         model = models.Order
@@ -724,7 +783,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                     offering=item['offering'],
                     plan=item.get('plan'),
                     attributes=item.get('attributes', {}),
-                    limits=item.get('limits'),
+                    limits=item.get('limits', {}),
                     type=item.get('type'),
                 )
             except ValidationError as e:
@@ -760,7 +819,7 @@ class ResourceSerializer(BaseItemSerializer):
             'project', 'project_uuid', 'project_name',
             'customer_uuid', 'customer_name',
             'offering_uuid', 'offering_name',
-            'backend_metadata',
+            'backend_metadata', 'is_usage_based',
         )
         read_only_fields = ('backend_metadata', 'scope',)
 
@@ -779,6 +838,8 @@ class ResourceSerializer(BaseItemSerializer):
     customer_name = serializers.ReadOnlyField(source='project.customer.name')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
+    # If resource is usage-based, frontend would render button to show and report usage
+    is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):

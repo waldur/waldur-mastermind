@@ -54,7 +54,6 @@ class MarketplaceSupportConfig(AppConfig):
         manager.register(PLUGIN_NAME,
                          create_resource_processor=processor.CreateRequestProcessor,
                          update_resource_processor=processor.UpdateRequestProcessor,
-                         delete_resource_processor=processor.DeleteRequestProcessor,
-                         scope_model=support_models.Offering)
+                         delete_resource_processor=processor.DeleteRequestProcessor)
 
         marketplace_handlers.connect_resource_metadata_handlers(support_models.Offering)

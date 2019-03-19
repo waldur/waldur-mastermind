@@ -8,7 +8,9 @@ from waldur_core.core.utils import serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
 from waldur_mastermind.marketplace.utils import import_resource_metadata
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE
+from waldur_mastermind.marketplace_openstack import (
+    INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE, RAM_TYPE, STORAGE_TYPE
+)
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
@@ -97,11 +99,20 @@ def copy_plan_components_from_template(plan, offering, template):
     for (key, component_data) in component_map.items():
         plan_component = component_map.get(key)
         offering_component = offering.components.get(type=key)
+
+        amount = plan_component.amount
+        price = plan_component.price
+
+        # In marketplace RAM and storage is stored in GB, but in package plugin it is stored in MB.
+        if key in (RAM_TYPE, STORAGE_TYPE):
+            amount = int(amount / 1024)
+            price = price * 1024
+
         marketplace_models.PlanComponent.objects.create(
             plan=plan,
             component=offering_component,
-            amount=plan_component.amount,
-            price=plan_component.price,
+            amount=amount,
+            price=price,
         )
 
 

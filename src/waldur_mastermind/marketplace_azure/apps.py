@@ -7,8 +7,8 @@ class MarketplaceAzureConfig(AppConfig):
     verbose_name = 'Marketplace Azure'
 
     def ready(self):
-        from waldur_core.structure import models as structure_models
         from waldur_azure import models as azure_models
+        from waldur_azure.apps import AzureConfig
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
 
@@ -38,9 +38,9 @@ class MarketplaceAzureConfig(AppConfig):
         manager.register(offering_type=VIRTUAL_MACHINE_TYPE,
                          create_resource_processor=processors.VirtualMachineCreateProcessor,
                          delete_resource_processor=processors.VirtualMachineDeleteProcessor,
-                         scope_model=structure_models.ServiceSettings)
+                         service_type=AzureConfig.service_name)
 
         manager.register(offering_type=SQL_SERVER_TYPE,
                          create_resource_processor=processors.SQLServerCreateProcessor,
                          delete_resource_processor=processors.SQLServerDeleteProcessor,
-                         scope_model=structure_models.ServiceSettings)
+                         service_type=AzureConfig.service_name)

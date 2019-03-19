@@ -39,7 +39,7 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
                 component.save()
         else:
             for component_type in self.get_required_component_types():
-                self.components.get_or_create(type=component_type, price=random.randint(10, 20), amount=1)
+                self.components.get_or_create(type=component_type, price=random.randint(1, 2), amount=1)
 
 
 # XXX: this factory is useless. On template creation its components are already

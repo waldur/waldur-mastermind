@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.contrib import admin
+from django.core.urlresolvers import resolve
 from django.forms.models import ModelForm
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -75,15 +76,78 @@ class PlansInline(admin.TabularInline):
               'product_code', 'article_code', 'archived', 'max_amount')
 
 
-class PlanComponentInline(admin.TabularInline):
+class ConnectedResourceMixin(object):
+    """
+    Protects object from modification if there are connected resources.
+    """
+
+    protected_fields = ()
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super(ConnectedResourceMixin, self).get_readonly_fields(request, obj)
+        if obj and obj.has_connected_resources:
+            return fields + self.protected_fields
+        else:
+            return fields
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.has_connected_resources:
+            return False
+        return True
+
+
+class ParentInlineMixin(object):
+    def get_parent_object_from_request(self, request):
+        """
+        Returns the parent object from the request or None.
+
+        Note that this only works for Inlines, because the `parent_model`
+        is not available in the regular admin.ModelAdmin as an attribute.
+        """
+        resolved = resolve(request.path_info)
+        if resolved.args:
+            return self.parent_model.objects.get(pk=resolved.args[0])
+        return None
+
+
+class PlanComponentInline(ConnectedResourceMixin,
+                          ParentInlineMixin,
+                          admin.TabularInline):
     model = models.PlanComponent
+    protected_fields = ('component', 'amount', 'price')
+
+    def has_add_permission(self, request, obj=None):
+        plan = self.get_parent_object_from_request(request)
+        if plan and plan.has_connected_resources:
+            return False
+        else:
+            return True
+
+    def get_extra(self, request, obj=None, **kwargs):
+        plan = self.get_parent_object_from_request(request)
+        if plan and plan.has_connected_resources:
+            return 0
+        else:
+            return super(PlanComponentInline, self).get_extra(request, obj, **kwargs)
 
 
-class PlanAdmin(admin.ModelAdmin):
+class PlanAdmin(ConnectedResourceMixin, admin.ModelAdmin):
     list_display = ('name', 'offering', 'archived', 'unit', 'unit_price')
     list_filter = ('offering', 'archived')
     search_fields = ('name', 'offering__name')
     inlines = [PlanComponentInline]
+    protected_fields = ('unit', 'unit_price', 'product_code', 'article_code')
+    readonly_fields = ('scope_link', 'backend_id')
+    fields = (
+        'name', 'description', 'unit', 'unit_price',
+        'product_code', 'article_code', 'max_amount',
+        'archived',
+    ) + readonly_fields
+
+    def scope_link(self, obj):
+        return get_admin_link_for_scope(obj.scope)
+
+    scope_link.short_description = 'Scope'
 
 
 class OfferingAdminForm(ModelForm):

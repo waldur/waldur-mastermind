@@ -4,7 +4,6 @@ from django.db import transaction
 from django.db.models import Count, OuterRef, Subquery, F
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
@@ -15,7 +14,6 @@ from rest_framework.decorators import detail_route, list_route
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
@@ -220,16 +218,7 @@ class OrderViewSet(BaseMarketplaceView):
 
     @detail_route(methods=['post'])
     def approve(self, request, uuid=None):
-        order = self.get_object()
-        order.approve()
-        order.approved_by = request.user
-        order.approved_at = timezone.now()
-        order.save()
-
-        serialized_order = core_utils.serialize_instance(order)
-        serialized_user = core_utils.serialize_instance(request.user)
-        tasks.process_order.delay(serialized_order, serialized_user)
-        tasks.create_order_pdf.delay(order.pk)
+        tasks.approve_order(self.get_object(), request.user)
 
         return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
 
@@ -327,7 +316,7 @@ class CustomerOfferingViewSet(views.APIView):
 class OrderItemViewSet(BaseMarketplaceView):
     queryset = models.OrderItem.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    serializer_class = serializers.OrderItemSerializer
+    serializer_class = serializers.OrderItemDetailsSerializer
     filter_class = filters.OrderItemFilter
 
     def check_permissions_for_order_items_change(request, view, order_item=None):
@@ -400,7 +389,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 resource=resource,
                 offering=resource.offering,
                 plan=plan,
-                type=models.OrderItem.Types.UPDATE
+                type=models.OrderItem.Types.UPDATE,
+                limits=resource.limits or {},
             )
             order = serializers.create_order(
                 project=resource.project,
@@ -515,11 +505,12 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_owner]
 
 
-def inject_project_resources_counter(project):
-    return {
-        'marketplace_category_{}'.format(counter.category.uuid): counter.count
-        for counter in models.ProjectResourceCount.objects.filter(project=project).only('count', 'category')
-    }
+for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
+    def inject_resources_counter(scope):
+        counters = models.AggregateResourceCount.objects.filter(scope=scope).only('count', 'category')
+        return {
+            'marketplace_category_{}'.format(counter.category.uuid): counter.count
+            for counter in counters
+        }
 
-
-structure_views.ProjectCountersView.register_dynamic_counter(inject_project_resources_counter)
+    view.register_dynamic_counter(inject_resources_counter)

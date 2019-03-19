@@ -13,6 +13,8 @@ from django.core.files.storage import default_storage as storage
 from django.core.serializers.json import DjangoJSONEncoder
 from django.template.loader import render_to_string
 
+from waldur_mastermind.marketplace import models
+
 
 def create_screenshot_thumbnail(screenshot):
     pic = screenshot.image
@@ -87,3 +89,17 @@ def import_resource_metadata(resource):
         else:
             resource.attributes[field] = value
     resource.save(update_fields=['backend_metadata', 'attributes'])
+
+
+def get_service_provider_info(source):
+    try:
+        resource = models.Resource.objects.get(scope=source)
+        customer = resource.offering.customer
+        service_provider = getattr(customer, 'serviceprovider', None)
+
+        return {
+            'service_provider_name': customer.name,
+            'service_provider_uuid': '' if not service_provider else service_provider.uuid,
+        }
+    except models.Resource.DoesNotExist:
+        return {}

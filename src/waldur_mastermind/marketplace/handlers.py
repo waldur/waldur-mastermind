@@ -2,12 +2,14 @@ from __future__ import unicode_literals
 
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, signals
 from django.db import transaction
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.models import Project, Customer
 
 from . import callbacks, tasks, models, utils, serializers
 
@@ -77,7 +79,7 @@ def update_category_quota_when_offering_is_created(sender, instance, created=Fal
 
 def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
     if instance.state == models.Offering.States.ACTIVE:
-        instance.category.add_quota_usage(models.Category.Quotas.offering_count, -1, fail_silently=True)
+        instance.category.add_quota_usage(models.Category.Quotas.offering_count, -1)
 
 
 def update_category_offerings_count(sender, **kwargs):
@@ -87,18 +89,19 @@ def update_category_offerings_count(sender, **kwargs):
         category.set_quota_usage(models.Category.Quotas.offering_count, value)
 
 
-def update_project_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
+def update_aggregate_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
     def apply_change(delta):
-        counter, _ = models.ProjectResourceCount.objects.get_or_create(
-            project=instance.project,
-            category=instance.offering.category,
-        )
-        if delta == 1:
-            counter.count += 1
-        elif delta == -1:
-            counter.count = max(0, counter.count - 1)
+        for field in ('project', 'customer'):
+            counter, _ = models.AggregateResourceCount.objects.get_or_create(
+                scope=getattr(instance, field),
+                category=instance.offering.category,
+            )
+            if delta == 1:
+                counter.count += 1
+            elif delta == -1:
+                counter.count = max(0, counter.count - 1)
 
-        counter.save(update_fields=['count'])
+            counter.save(update_fields=['count'])
 
     if instance.scope and (created or not instance.tracker.previous('object_id')):
         apply_change(1)
@@ -108,17 +111,22 @@ def update_project_resources_count_when_resource_is_updated(sender, instance, cr
         apply_change(-1)
 
 
-def update_project_resources_count(sender, **kwargs):
-    rows = models.Resource.objects\
-        .exclude(state=models.Resource.States.TERMINATED)\
-        .values('project', 'offering__category')\
-        .annotate(count=Count('*'))
-    for row in rows:
-        models.ProjectResourceCount.objects.update_or_create(
-            project_id=row['project'],
-            category_id=row['offering__category'],
-            defaults={'count': row['count']},
-        )
+def update_aggregate_resources_count(sender, **kwargs):
+    for field, content_type in (
+        ('project_id', ContentType.objects.get_for_model(Project)),
+        ('project__customer_id', ContentType.objects.get_for_model(Customer)),
+    ):
+        rows = models.Resource.objects\
+            .exclude(state=models.Resource.States.TERMINATED)\
+            .values(field, 'offering__category')\
+            .annotate(count=Count('*'))
+        for row in rows:
+            models.AggregateResourceCount.objects.update_or_create(
+                content_type=content_type,
+                object_id=row[field],
+                category_id=row['offering__category'],
+                defaults={'count': row['count']},
+            )
 
 
 def close_resource_plan_period_when_resource_is_terminated(sender, instance, created=False, **kwargs):
