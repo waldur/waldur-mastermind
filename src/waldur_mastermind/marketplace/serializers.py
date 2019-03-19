@@ -594,10 +594,10 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
         model = models.OrderItem
         fields = BaseRequestSerializer.Meta.fields + (
             'resource_uuid', 'resource_type', 'resource_name',
-            'cost', 'state', 'marketplace_resource_uuid',
+            'cost', 'state', 'marketplace_resource_uuid', 'error_message',
         )
 
-        read_only_fields = ('cost', 'state')
+        read_only_fields = ('cost', 'state', 'error_message')
         protected_fields = ('offering', 'plan')
 
     marketplace_resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
