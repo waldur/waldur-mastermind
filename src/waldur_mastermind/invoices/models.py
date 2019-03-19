@@ -192,7 +192,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             return self.quantity
         elif self.unit == self.Units.PER_DAY:
             if current:
-                return utils.get_full_days(self.start, timezone.now())
+                return utils.get_full_days(self.start, min(self.end, timezone.now()))
             else:
                 return self.usage_days
         elif self.unit == self.Units.PER_HALF_MONTH:

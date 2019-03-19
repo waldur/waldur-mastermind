@@ -1,17 +1,18 @@
 from django.test import TestCase
-from freezegun import freeze_time
 
-from .. import fixtures
+from waldur_mastermind.common.utils import parse_datetime
+
+from .. import factories
 
 
-class OpenStackItemTest(TestCase):
+class InvoiceItemTest(TestCase):
     def setUp(self):
-        self.fixture = fixtures.InvoiceFixture()
+        self.invoice = factories.InvoiceFactory()
+        self.item = factories.GenericInvoiceItemFactory(
+            start=parse_datetime('2016-11-17 14:00:00'),
+            end=parse_datetime('2016-12-1 14:00:00'),
+        )
 
-    def test_usage_days_cannot_be_larger_than_end_field(self):
-        with freeze_time('2016-11-17 14:00:00'):
-            items = self.fixture.invoice.generic_items.all()
-
-        with freeze_time('2016-12-1 14:00:00'):
-            for item in items:
-                self.assertEqual(item.usage_days, item.end)
+    def test_usage_days_and_current_factor_cannot_be_larger_than_end_field(self):
+        self.assertEqual(self.item.usage_days, 14)
+        self.assertEqual(self.item.get_factor(current=True), 14)
