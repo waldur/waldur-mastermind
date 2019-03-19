@@ -452,8 +452,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 detach_volumes_tasks +
                 delete_volumes_tasks +
                 delete_instance_tasks +
-                delete_internal_ips_tasks +
-                release_floating_ips_tasks
+                release_floating_ips_tasks +
+                delete_internal_ips_tasks
             )
 
         # Case 3. Instance exists at backend.
@@ -462,8 +462,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
             return chain(
                 detach_volumes_tasks +
                 delete_instance_tasks +
-                delete_internal_ips_tasks +
-                release_floating_ips_tasks
+                release_floating_ips_tasks +
+                delete_internal_ips_tasks
             )
 
     @classmethod
