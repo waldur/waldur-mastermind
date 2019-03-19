@@ -5,6 +5,7 @@ import logging
 from celery import shared_task
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -25,8 +26,8 @@ def approve_order(order, user):
 
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)
-    process_order.delay(serialized_order, serialized_user)
-    create_order_pdf.delay(order.pk)
+    transaction.on_commit(lambda: process_order.delay(serialized_order, serialized_user))
+    transaction.on_commit(lambda: create_order_pdf.delay(order.pk))
 
 
 @shared_task(name='marketplace.process_order')
