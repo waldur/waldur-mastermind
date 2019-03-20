@@ -459,29 +459,22 @@ class ServiceBackend(object):
     def ping(self, raise_exception=False):
         raise ServiceBackendNotImplemented
 
-    def ping_resource(self, resource):
-        raise ServiceBackendNotImplemented
-
     def sync(self):
-        raise ServiceBackendNotImplemented
+        self.pull_service_properties()
+        self.pull_resources()
+        self.pull_subresources()
+
+    def pull_service_properties(self):
+        pass
+
+    def pull_resources(self):
+        pass
+
+    def pull_subresources(self):
+        pass
 
     def has_global_properties(self):
         return False
-
-    def provision(self, resource, *args, **kwargs):
-        raise ServiceBackendNotImplemented
-
-    def destroy(self, resource, force=False):
-        raise ServiceBackendNotImplemented
-
-    def stop(self, resource):
-        raise ServiceBackendNotImplemented
-
-    def start(self, resource):
-        raise ServiceBackendNotImplemented
-
-    def restart(self, resource):
-        raise ServiceBackendNotImplemented
 
     def get_resources_for_import(self):
         raise ServiceBackendNotImplemented

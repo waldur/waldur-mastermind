@@ -204,9 +204,19 @@ CACHES = {
 
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {
-    'pull-service-settings': {
-        'task': 'waldur_core.structure.ServiceSettingsListPullTask',
-        'schedule': timedelta(minutes=30),
+    'pull-service-properties': {
+        'task': 'waldur_core.structure.ServicePropertiesListPullTask',
+        'schedule': timedelta(hours=24),
+        'args': (),
+    },
+    'pull-service-resources': {
+        'task': 'waldur_core.structure.ServiceResourcesListPullTask',
+        'schedule': timedelta(hours=1),
+        'args': (),
+    },
+    'pull-service-subresources': {
+        'task': 'waldur_core.structure.ServiceSubResourcesListPullTask',
+        'schedule': timedelta(hours=2),
         'args': (),
     },
     'check-expired-permissions': {

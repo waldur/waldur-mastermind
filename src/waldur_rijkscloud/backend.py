@@ -52,10 +52,12 @@ class RijkscloudBackend(ServiceBackend):
         else:
             return True
 
-    def sync(self):
+    def pull_service_properties(self):
         self.pull_flavors()
         self.pull_floating_ips()
         self.pull_networks()
+
+    def pull_resources(self):
         self.pull_volumes()
         self.pull_instances()
 

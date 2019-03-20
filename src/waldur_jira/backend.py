@@ -82,8 +82,7 @@ class JiraBackend(ServiceBackend):
         self.project = project
         self.verify = verify
 
-    def sync(self):
-        self.ping(raise_exception=True)
+    def pull_service_properties(self):
         self.pull_project_templates()
         self.pull_priorities()
 

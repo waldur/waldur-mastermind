@@ -43,8 +43,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self.issue_settings = settings.WALDUR_SUPPORT.get('ISSUE', {})
         self.use_old_api = settings.WALDUR_SUPPORT.get('USE_OLD_API', False)
 
-    def sync(self):
-        super(ServiceDeskBackend, self).sync()
+    def pull_service_properties(self):
+        super(ServiceDeskBackend, self).pull_service_properties()
         self.pull_request_types()
 
     @reraise_exceptions
