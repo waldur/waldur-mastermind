@@ -390,21 +390,14 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 'plan': _('Plan should be related to the same template.'),
             })
 
-        attributes = validated_data.get('attributes')
-        if attributes:
-            if not isinstance(template.config, dict) or not(template.config.get('options')):
-                raise serializers.ValidationError({'attributes': _('Extra attributes are not allowed.')})
+        attributes = validated_data.get('attributes', {})
+        if isinstance(template.config, dict) and template.config.get('options'):
             try:
                 validate_options(template.config['options'], attributes)
             except serializers.ValidationError as exc:
                 raise serializers.ValidationError({'attributes': exc})
             else:
                 validated_data.update(attributes)
-        else:
-            if template.config.get('options'):
-                raise serializers.ValidationError({
-                    'attributes': _('This field is required.'),
-                })
 
         offering_configuration = template.config
         type_label = offering_configuration.get('label', template.name)
