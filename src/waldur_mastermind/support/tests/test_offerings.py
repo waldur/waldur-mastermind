@@ -92,6 +92,24 @@ class OfferingCreateTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.Issue.objects.count(), 1)
 
+    def test_issue_is_created_without_attributes_if_all_custom_attributes_are_optional(self):
+        # Arrange
+        conf = self.offering_template.config['options']
+        conf['storage']['required'] = False
+        conf['ram']['required'] = False
+        conf['cpu_count']['required'] = False
+        self.offering_template.save()
+
+        request_data = self._get_valid_request()
+        del request_data['attributes']
+
+        # Act
+        response = self.client.post(self.url, data=request_data)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(models.Issue.objects.count(), 1)
+
     def test_issue_is_created_with_explicit_plan(self):
         payload = self._get_valid_request()
         plan = factories.OfferingPlanFactory(template=self.offering_template)
