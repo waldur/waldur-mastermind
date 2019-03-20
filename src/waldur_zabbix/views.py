@@ -74,13 +74,6 @@ class ZabbixServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkView
     serializer_class = serializers.ServiceProjectLinkSerializer
 
 
-class BaseZabbixResourceViewSet(structure_views.ResourceViewSet):
-    def perform_provision(self, serializer):
-        resource = serializer.save()
-        backend = resource.get_backend()
-        backend.provision(resource)
-
-
 class NoHostsException(exceptions.APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = 'There are no OK hosts that match given query.'
@@ -95,7 +88,7 @@ class HostViewSet(structure_views.ResourceViewSet):
     """ Representation of Zabbix hosts and related actions. """
     queryset = models.Host.objects.all()
     serializer_class = serializers.HostSerializer
-    filter_backends = BaseZabbixResourceViewSet.filter_backends + (
+    filter_backends = structure_views.ResourceViewSet.filter_backends + (
         filters.HostScopeFilterBackend,
     )
     create_executor = executors.HostCreateExecutor

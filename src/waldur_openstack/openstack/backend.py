@@ -36,14 +36,15 @@ class OpenStackBackend(BaseOpenStackBackend):
         else:
             return True
 
-    def sync(self):
-        # pull service properties
+    def pull_service_properties(self):
         self.pull_flavors()
         self.pull_images()
         self.pull_service_settings_quotas()
 
-        # pull resources
+    def pull_resources(self):
         self.pull_tenants()
+
+    def pull_subresources(self):
         self.pull_security_groups()
         self.pull_floating_ips()
         self.pull_networks()

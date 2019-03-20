@@ -36,7 +36,7 @@ class SlurmBackend(ServiceBackend):
             use_sudo=settings.options.get('use_sudo', False),
         )
 
-    def sync(self):
+    def pull_resources(self):
         self.sync_usage()
 
     def ping(self, raise_exception=False):

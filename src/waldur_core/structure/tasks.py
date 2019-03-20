@@ -160,21 +160,48 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
             self.pull_task().apply_async(args=(serialized,), kwargs={})
 
 
-class ServiceSettingsBackgroundPullTask(BackgroundPullTask):
-
-    def pull(self, service_settings):
-        backend = service_settings.get_backend()
-        backend.sync()
-
-
-class ServiceSettingsListPullTask(BackgroundListPullTask):
-    name = 'waldur_core.structure.ServiceSettingsListPullTask'
+class ServiceListPullTask(BackgroundListPullTask):
     model = models.ServiceSettings
-    pull_task = ServiceSettingsBackgroundPullTask
 
     def get_pulled_objects(self):
         States = self.model.States
         return self.model.objects.filter(state__in=[States.ERRED, States.OK])
+
+
+class ServicePropertiesPullTask(BackgroundPullTask):
+
+    def pull(self, service_settings):
+        backend = service_settings.get_backend()
+        backend.pull_service_properties()
+
+
+class ServiceResourcesPullTask(BackgroundPullTask):
+
+    def pull(self, service_settings):
+        backend = service_settings.get_backend()
+        backend.pull_resources()
+
+
+class ServiceSubResourcesPullTask(BackgroundPullTask):
+
+    def pull(self, service_settings):
+        backend = service_settings.get_backend()
+        backend.pull_subresources()
+
+
+class ServicePropertiesListPullTask(ServiceListPullTask):
+    name = 'waldur_core.structure.ServicePropertiesListPullTask'
+    pull_task = ServicePropertiesPullTask
+
+
+class ServiceResourcesListPullTask(ServiceListPullTask):
+    name = 'waldur_core.structure.ServiceResourcesListPullTask'
+    pull_task = ServiceResourcesPullTask
+
+
+class ServiceSubResourcesListPullTask(ServiceListPullTask):
+    name = 'waldur_core.structure.ServiceSubResourcesListPullTask'
+    pull_task = ServiceSubResourcesPullTask
 
 
 class RetryUntilAvailableTask(core_tasks.Task):

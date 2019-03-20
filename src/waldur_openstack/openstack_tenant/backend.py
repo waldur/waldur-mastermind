@@ -171,8 +171,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def external_network_id(self):
         return self.settings.options['external_network_id']
 
-    def sync(self):
-        # pull service properties
+    def pull_service_properties(self):
         self.pull_flavors()
         self.pull_images()
         self.pull_security_groups()
@@ -182,7 +181,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_internal_ips()
         self.pull_floating_ips()
 
-        # pull resources
+    def pull_resources(self):
         self.pull_volumes()
         self.pull_snapshots()
         self.pull_instances()

@@ -67,8 +67,7 @@ class DigitalOceanBackend(ServiceBackend):
         self.settings = settings
         self.manager = digitalocean.Manager(token=settings.token)
 
-    def sync(self):
-        self.pull_service_properties()
+    def pull_resources(self):
         self.pull_droplets()
 
     @digitalocean_error_handler

@@ -23,7 +23,7 @@ class AzureBackend(ServiceBackend):
         else:
             return True
 
-    def sync(self):
+    def pull_service_properties(self):
         self.pull_locations()
 
         location = models.Location.objects.filter(settings=self.settings).last()
