@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from __builtin__ import super
 import base64
 from decimal import Decimal
 import StringIO
@@ -24,6 +25,7 @@ import six
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.validators import ImageValidator
+from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
@@ -208,7 +210,8 @@ class Offering(core_models.UuidMixin,
                quotas_models.QuotaModelMixin,
                structure_models.StructureModel,
                TimeStampedModel,
-               ScopeMixin):
+               ScopeMixin,
+               LoggableMixin):
 
     class States(object):
         DRAFT = 1
@@ -372,7 +375,8 @@ class Plan(core_models.UuidMixin,
            core_models.DescribableMixin,
            common_mixins.UnitPriceMixin,
            common_mixins.ProductCodeMixin,
-           ScopeMixin):
+           ScopeMixin,
+           LoggableMixin):
     """
     Plan unit price is computed as a sum of its fixed components'
     price multiplied by component amount when offering with plans
@@ -507,7 +511,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEs
         ordering = ('created',)
 
 
-class Order(core_models.UuidMixin, TimeStampedModel):
+class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
@@ -615,8 +619,24 @@ class Order(core_models.UuidMixin, TimeStampedModel):
     def init_total_cost(self):
         self.total_cost = sum(item.cost or 0 for item in self.items.all())
 
+    def get_log_fields(self):
+        return (
+            'uuid', 'name', 'created', 'modified',
+            'created_by', 'approved_by', 'approved_at',
+            'project', 'get_state_display', 'total_cost',
+        )
 
-class Resource(CostEstimateMixin, core_models.UuidMixin, TimeStampedModel, ScopeMixin):
+    def _get_log_context(self, entity_name):
+        context = super(Order, self)._get_log_context(entity_name)
+        context['order_items'] = [item._get_log_context('') for item in self.items.all()]
+        return context
+
+
+class Resource(CostEstimateMixin,
+               core_models.UuidMixin,
+               TimeStampedModel,
+               ScopeMixin,
+               LoggableMixin):
     """
     Core resource is abstract model, marketplace resource is not abstract,
     therefore we don't need to compromise database query efficiency when
@@ -709,6 +729,13 @@ class Resource(CostEstimateMixin, core_models.UuidMixin, TimeStampedModel, Scope
                         limit=value
                     )
 
+    def get_log_fields(self):
+        return (
+            'uuid', 'name', 'project', 'offering', 'created', 'modified',
+            'attributes', 'cost', 'plan', 'limits', 'get_state_display',
+            'backend_metadata', 'backend_uuid', 'backend_type',
+        )
+
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
     """
@@ -722,6 +749,7 @@ class OrderItem(CostEstimateMixin,
                 core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
+                LoggableMixin,
                 TimeStampedModel):
     class States(object):
         PENDING = 1
@@ -790,6 +818,14 @@ class OrderItem(CostEstimateMixin,
 
         raise ValidationError(
             _('Offering "%s" is not allowed in organization "%s".') % (offering.name, customer.name)
+        )
+
+    def get_log_fields(self):
+        return (
+            'uuid', 'created', 'modified',
+            'cost', 'limits', 'attributes',
+            'offering', 'resource', 'plan',
+            'get_state_display', 'get_type_display',
         )
 
 
