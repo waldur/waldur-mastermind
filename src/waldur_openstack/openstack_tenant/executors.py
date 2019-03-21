@@ -304,7 +304,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
             _tasks.append(core_tasks.BackendMethodTask().si(
                 serialized_volume,
                 'pull_volume',
-                update_fields=['runtime_state']
+                update_fields=['runtime_state', 'bootable']
             ))
 
             # Mark volume as OK
