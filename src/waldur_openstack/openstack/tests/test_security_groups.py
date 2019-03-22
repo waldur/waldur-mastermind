@@ -58,6 +58,23 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
 
+    def test_user_can_not_create_security_group_rule_for_any_protocol_with_non_null_range(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(self.url, data={
+            'name': 'allow-all',
+            'rules': [
+                {
+                    'protocol': '',
+                    'from_port': 80,
+                    'to_port': 80,
+                    'cidr': '0.0.0.0/0',
+                }
+            ]
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_can_not_create_security_group_with_invalid_protocol(self):
         self.client.force_authenticate(self.fixture.staff)
 
