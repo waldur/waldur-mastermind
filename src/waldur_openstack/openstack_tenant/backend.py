@@ -975,12 +975,12 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         nova = self.nova_client
         try:
             backend_instance = nova.servers.get(backend_instance_id)
-            flavor = nova.flavors.get(backend_instance.flavor['id'])
             attached_volume_ids = [v.volumeId for v in nova.volumes.get_server_volumes(backend_instance_id)]
+            flavor_id = backend_instance.flavor['id']
         except nova_exceptions.ClientException as e:
             reraise(e)
 
-        instance = self._backend_instance_to_instance(backend_instance, flavor)
+        instance = self._backend_instance_to_instance(backend_instance, flavor_id)
         with transaction.atomic():
             # import instance volumes, or use existed if they already exist in Waldur.
             volumes = []
@@ -1001,7 +1001,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         return instance
 
-    def _backend_instance_to_instance(self, backend_instance, backend_flavor=None):
+    def _backend_instance_to_instance(self, backend_instance, backend_flavor_id=None):
         # parse launch time
         try:
             d = dateparse.parse_datetime(backend_instance.to_dict()['OS-SRV-USG:launched_at'])
@@ -1023,13 +1023,28 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             backend_id=backend_instance.id,
         )
 
-        if backend_flavor:
-            instance.flavor_name = backend_flavor.name
-            instance.flavor_disk = backend_flavor.disk
-            instance.cores = backend_flavor.vcpus
-            instance.ram = backend_flavor.ram
+        if backend_flavor_id:
+            try:
+                flavor = models.Flavor.objects.get(settings=self.settings, backend_id=backend_flavor_id)
+                instance.flavor_name = flavor.name
+                instance.flavor_disk = flavor.disk
+                instance.cores = flavor.cores
+                instance.ram = flavor.ram
+            except models.Flavor.DoesNotExist:
+                backend_flavor = self._get_flavor(backend_flavor_id)
+                instance.flavor_name = backend_flavor.name
+                instance.flavor_disk = self.gb2mb(backend_flavor.disk)
+                instance.cores = backend_flavor.vcpus
+                instance.ram = backend_flavor.ram
 
         return instance
+
+    def _get_flavor(self, flavor_id):
+        nova = self.nova_client
+        try:
+            return nova.flavors.get(flavor_id)
+        except nova_exceptions.ClientException as e:
+            reraise(e)
 
     def _get_backend_resource(self, model, resources):
         registered_backend_ids = model.objects.filter(
@@ -1040,15 +1055,13 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         nova = self.nova_client
         try:
             backend_instances = nova.servers.list()
-            backend_flavors = nova.flavors.list()
         except nova_exceptions.ClientException as e:
             reraise(e)
 
-        backend_flavors_map = {flavor.id: flavor for flavor in backend_flavors}
         instances = []
         for backend_instance in backend_instances:
-            instance_flavor = backend_flavors_map.get(backend_instance.flavor['id'])
-            instances.append(self._backend_instance_to_instance(backend_instance, instance_flavor))
+            flavor_id = backend_instance.flavor['id']
+            instances.append(self._backend_instance_to_instance(backend_instance, flavor_id))
         return instances
 
     def get_instances_for_import(self):
