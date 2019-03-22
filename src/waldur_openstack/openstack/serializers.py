@@ -230,16 +230,16 @@ class SecurityGroupRuleSerializer(serializers.ModelSerializer):
                 })
 
         elif protocol == '':
-            if from_port is not None and to_port is not None:
-                if from_port > to_port:
-                    raise serializers.ValidationError(_('"from_port" should be less or equal to "to_port"'))
-            if from_port is not None and from_port < -1:
+            # See also: https://github.com/openstack/neutron/blob/af130e79cbe5d12b7c9f9f4dcbcdc8d972bfcfd4/neutron/db/securitygroups_db.py#L500
+
+            if from_port != -1:
                 raise serializers.ValidationError({
-                    'from_port': _('Value should be in range [-1, 65535], found %d') % from_port
+                    'from_port': _('Port range is not supported if protocol is not specified.')
                 })
-            if to_port is not None and to_port < -1:
+
+            if to_port != -1:
                 raise serializers.ValidationError({
-                    'to_port': _('Value should be in range [-1, 65535], found %d') % to_port
+                    'to_port': _('Port range is not supported if protocol is not specified.')
                 })
 
         else:
