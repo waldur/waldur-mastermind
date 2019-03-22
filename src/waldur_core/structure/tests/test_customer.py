@@ -800,3 +800,29 @@ class CustomerBlockedTest(CustomerBaseTest):
         self.client.force_authenticate(user=self.user)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class CustomerDivisionFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.division = factories.DivisionFactory()
+        self.customer1 = factories.CustomerFactory()
+        self.customer2 = factories.CustomerFactory(division=self.division)
+        self.user = fixtures.UserFixture().staff
+        self.url = factories.CustomerFactory.get_list_url()
+
+    def test_filters(self):
+        """Test of customers' list filter by division name and division UUID."""
+        filters = [
+            {'name': 'division_name', 'correct': self.division.name[2:], 'uncorrect': 'uncorrect'},
+            {'name': 'division_uuid', 'correct': self.division.uuid, 'uncorrect': 'uncorrect'},
+        ]
+
+        self.client.force_authenticate(self.user)
+
+        for f in filters:
+            response = self.client.get(self.url, data={f['name']: f['correct']})
+            self.assertEqual(status.HTTP_200_OK, response.status_code)
+            self.assertEqual(len(response.data), 1)
+            response = self.client.get(self.url, data={f['name']: f['uncorrect']})
+            self.assertEqual(status.HTTP_200_OK, response.status_code)
+            self.assertEqual(len(response.data), 0)

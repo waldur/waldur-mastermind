@@ -108,6 +108,8 @@ class CustomerFilter(NameFilterSet):
     native_name = django_filters.CharFilter(lookup_expr='icontains')
     abbreviation = django_filters.CharFilter(lookup_expr='icontains')
     contact_details = django_filters.CharFilter(lookup_expr='icontains')
+    division_uuid = django_filters.UUIDFilter(name='division__uuid')
+    division_name = django_filters.CharFilter(name='division__name', lookup_expr='icontains')
 
     class Meta(object):
         model = models.Customer
@@ -790,3 +792,14 @@ class ServiceSummaryFilterBackend(core_filters.SummaryFilter):
 
     def get_base_filter(self):
         return BaseServiceFilter
+
+
+class DivisionFilter(NameFilterSet):
+    type = django_filters.CharFilter(name='type__name', lookup_expr='iexact')
+    parent = django_filters.UUIDFilter(name='parent__uuid')
+
+    class Meta(object):
+        model = models.Division
+        fields = [
+            'name',
+        ]
