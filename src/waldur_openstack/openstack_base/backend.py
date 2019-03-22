@@ -1,5 +1,6 @@
 import datetime
 import hashlib
+import json
 import logging
 import sys
 
@@ -85,7 +86,14 @@ class OpenStackSession(dict):
             args['project_name'] = session['project_name']
             args['project_domain_name'] = session['project_domain_name']
 
-        ks_session = keystone_session.Session(auth=v3.Token(**args), verify=verify_ssl)
+        auth_method = v3.Token(**args)
+        auth_data = {
+            'auth_token': session['auth_ref'].auth_token,
+            'body': session['auth_ref']._data
+        }
+        auth_state = json.dumps(auth_data)
+        auth_method.set_auth_state(auth_state)
+        ks_session = keystone_session.Session(auth=auth_method, verify=verify_ssl)
         return cls(ks_session=ks_session)
 
     def validate(self):
