@@ -309,6 +309,8 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
     country = serializers.ChoiceField(required=False, choices=COUNTRIES, allow_blank=True)
     country_name = serializers.ReadOnlyField(source='get_country_display')
     display_name = serializers.ReadOnlyField(source='get_display_name')
+    division_name = serializers.ReadOnlyField(source='division.name')
+    division_uuid = serializers.ReadOnlyField(source='division.uuid')
 
     class Meta(object):
         model = models.Customer
@@ -316,7 +318,9 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
             'url',
             'uuid',
             'created',
-            'name', 'native_name', 'abbreviation', 'contact_details',
+            'name', 'native_name', 'abbreviation',
+            'division', 'division_name', 'division_uuid',
+            'contact_details',
             'domain', 'display_name',
             'agreement_number', 'email', 'phone_number', 'access_subnets',
             'projects',
@@ -332,6 +336,7 @@ class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
         read_only_fields = ('access_subnets', 'accounting_start_date', 'default_tax_percent')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
+            'division': {'lookup_field': 'uuid'},
         }
 
     def get_fields(self):
@@ -1721,3 +1726,16 @@ class PrivateCloudSerializer(BaseResourceSerializer):
 
     class Meta(BaseResourceSerializer.Meta):
         fields = BaseResourceSerializer.Meta.fields + ('extra_configuration',)
+
+
+class DivisionSerializer(serializers.HyperlinkedModelSerializer):
+    type = serializers.ReadOnlyField(source='type.name')
+    parent_uuid = serializers.ReadOnlyField(source='parent.uuid')
+
+    class Meta(object):
+        model = models.Division
+        fields = ('uuid', 'url', 'name', 'type', 'parent_uuid', 'parent')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'parent': {'lookup_field': 'uuid'},
+        }

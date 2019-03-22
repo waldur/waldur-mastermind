@@ -187,7 +187,7 @@ class CustomerAdmin(FormRequestAdminMixin,
                     ProtectedModelMixin,
                     admin.ModelAdmin):
     form = CustomerAdminForm
-    fields = ('name', 'uuid', 'image', 'native_name', 'abbreviation', 'contact_details',
+    fields = ('name', 'uuid', 'image', 'native_name', 'abbreviation', 'division', 'contact_details',
               'registration_code', 'backend_id',
               'agreement_number', 'email', 'phone_number', 'access_subnets',
               'country', 'vat_code', 'is_company', 'owners', 'support_users',
@@ -196,7 +196,7 @@ class CustomerAdmin(FormRequestAdminMixin,
     list_display = ('name', 'uuid', 'abbreviation',
                     'created', 'accounting_start_date',
                     'get_vm_count', 'get_app_count', 'get_private_cloud_count')
-    list_filter = ('blocked',)
+    list_filter = ('blocked', 'division')
     search_fields = ('name', 'uuid', 'abbreviation')
     readonly_fields = ('uuid',)
     inlines = [QuotaInline]
@@ -605,9 +605,22 @@ class VirtualMachineAdmin(ResourceAdmin):
     detect_coordinates.short_description = _('Detect coordinates of virtual machines')
 
 
+class DivisionTypeAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ['name']
+
+
+class DivisionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'type', 'parent')
+    search_fields = ['name']
+    list_filter = ('type',)
+
+
 admin.site.register(models.ServiceCertification, ServiceCertificationAdmin)
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
+admin.site.register(models.DivisionType, DivisionTypeAdmin)
+admin.site.register(models.Division, DivisionAdmin)

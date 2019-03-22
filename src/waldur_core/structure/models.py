@@ -306,6 +306,46 @@ def get_next_agreement_number():
 
 
 @python_2_unicode_compatible
+class DivisionType(core_models.UuidMixin,
+                   core_models.NameMixin,
+                   models.Model):
+
+    class Meta(object):
+        verbose_name = _('division type')
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
+class Division(core_models.UuidMixin,
+               core_models.NameMixin,
+               models.Model):
+
+    type = models.ForeignKey('DivisionType')
+    parent = models.ForeignKey('Division', null=True, blank=True)
+
+    class Meta(object):
+        verbose_name = _('division')
+        ordering = ('name',)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'division'
+
+    def __str__(self):
+        full_path = [self.name]
+        d = self.parent
+
+        while d is not None:
+            full_path.append(d.name)
+            d = d.parent
+
+        return ' -> '.join(full_path[::-1])
+
+
+@python_2_unicode_compatible
 class Customer(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescendantMixin,
@@ -345,6 +385,7 @@ class Customer(core_models.UuidMixin,
     default_tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
                                               validators=[MinValueValidator(0), MaxValueValidator(100)])
     blocked = models.BooleanField(default=False)
+    division = models.ForeignKey('Division', null=True, blank=True, on_delete=models.SET_NULL)
     tracker = FieldTracker()
 
     class Meta(object):

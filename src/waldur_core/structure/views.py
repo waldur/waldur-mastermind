@@ -1854,3 +1854,11 @@ class ServiceCertificationViewSet(core_views.ActionsViewSet):
     unsafe_methods_permissions = [permissions.is_staff]
     serializer_class = serializers.ServiceCertificationSerializer
     queryset = models.ServiceCertification.objects.all()
+
+
+class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.Division.objects.all().order_by('name')
+    serializer_class = serializers.DivisionSerializer
+    lookup_field = 'uuid'
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = filters.DivisionFilter

@@ -20,6 +20,7 @@ def register_in(router):
     router.register(r'users', views.UserViewSet)
     router.register(r'keys', views.SshKeyViewSet)
     router.register(r'service-certifications', views.ServiceCertificationViewSet, base_name='service-certification')
+    router.register(r'divisions', views.DivisionViewSet, base_name='division')
 
 
 urlpatterns = [
