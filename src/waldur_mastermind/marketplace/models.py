@@ -346,6 +346,10 @@ class OfferingComponent(BaseComponent):
     measured_unit = models.CharField(max_length=30,
                                      help_text=_('Unit of measurement, for example, GB.'),
                                      blank=True)
+    disable_quotas = models.BooleanField(
+        default=False,
+        help_text=_('Do not allow user to specify quotas when offering is provisioned.')
+    )
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:
