@@ -269,7 +269,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
-                  'limit_period', 'limit_amount')
+                  'limit_period', 'limit_amount', 'disable_quotas')
         extra_kwargs = {
             'billing_type': {'required': True},
         }
@@ -571,6 +571,7 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
         if limits:
             valid_component_types = offering.components \
                 .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE) \
+                .exclude(disable_quotas=True) \
                 .values_list('type', flat=True)
             invalid_types = set(limits.keys()) - set(valid_component_types)
             if invalid_types:
