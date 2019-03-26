@@ -1,28 +1,136 @@
-version: '3'
+version: '2'
 
 services:
-  db:
-    build:
-      context: db
+  # PostgreSQL
+  waldur-db:
+    container_name: waldur-db
+    image: 'bitnami/postgresql:latest'
+    networks:
+      - waldur
     environment:
-      - POSTGRESQL_DATABASE=test_waldur
-      - POSTGRESQL_USER=root
-      - POSTGRESQL_PASSWORD=waldur
-    ports:
-      - "5432"
-    tmpfs: /var/lib/postgresql/data
-
-  api:
-    build:
-      context: api
+      - POSTGRESQL_USERNAME=waldur
+      - POSTGRESQL_PASSWORD
+      - POSTGRESQL_DATABASE=waldur
     volumes:
-      - ../:/mnt
-      - ./pip-cache/:/tmp/pip-cache/
-    links:
-      - db
+      - 'waldur_db:/bitnami'
+  # Redis
+  waldur-queue:
+    container_name: waldur-queue
+    image: 'bitnami/redis:latest'
+    networks:
+      - waldur
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - 'waldur_queue:/bitnami'
+  # Elasticsearch
+  waldur-events:
+    container_name: waldur-events
+    image: 'bitnami/elasticsearch:latest'
+    networks:
+      - waldur
+    volumes:
+      - 'waldur_events:/bitnami'
+  # Logstash
+  waldur-logs:
+    container_name: waldur-logs
+    image: 'docker.elastic.co/logstash/logstash:5.6.0'
+    networks:
+      - waldur
+    environment:
+      - XPACK_MONITORING_ENABLED=false
+    volumes:
+      - 'waldur_logs_pipeline:/usr/share/logstash/pipeline'
+      - 'waldur_logs_settings:/usr/share/logstash/config'
+  # Postfix
+  waldur-smtp:
+    container_name: waldur-smtp
+    image: 'eeacms/postfix:latest'
+    networks:
+      - waldur
+    environment:
+      - MTP_HOST=demo.waldur.com
+  # Celery
+  waldur-mastermind-worker:
+    container_name: waldur-mastermind-worker
+    image: 'opennode/waldur-mastermind:latest'
+    networks:
+      - waldur
+    environment:
+      - GLOBAL_SECRET_KEY
+      - POSTGRESQL_PASSWORD
+    depends_on:
+      - waldur-db
+      - waldur-queue
+      - waldur-events
+      - waldur-logs
+      - waldur-smtp
+    command: worker
+  # Celery-beat
+  waldur-mastermind-beat:
+    container_name: waldur-mastermind-beat
+    image: 'opennode/waldur-mastermind:latest'
+    networks:
+      - waldur
+    environment:
+      - GLOBAL_SECRET_KEY
+      - POSTGRESQL_PASSWORD
+    depends_on:
+      - waldur-mastermind-worker
+    command: beat
+  # MasterMind uwsgi
+  waldur-mastermind-uwsgi:
+    container_name: waldur-mastermind-uwsgi
+    image: 'opennode/waldur-mastermind:latest'
+    networks:
+      - waldur
+    environment:
+      - GLOBAL_SECRET_KEY
+      - POSTGRESQL_PASSWORD
+    depends_on:
+      - waldur-mastermind-beat
+    command: mastermind
+  # MasterMind API
+  waldur-mastermind-api:
+    container_name: waldur-mastermind-api
+    image: 'bitnami/nginx:latest'
+    labels:
+      kompose.service.type: nodeport
+    ports:
+      - '8080:8080'
+    networks:
+      - waldur
+    volumes:
+      - 'waldur_mastermind_api:/bitnami'
+    depends_on:
+      - waldur-mastermind-uwsgi
+  # HomePort
+  waldur-homeport:
+    container_name: waldur-homeport
+    image: 'opennode/waldur-homeport:latest'
+    labels:
+      kompose.service.type: nodeport
+    ports:
+      - '80:80'
+    networks:
+      - waldur
+    depends_on:
+      - waldur-mastermind-api
 
 networks:
-  default:
-    driver: bridge
-    driver_opts:
-      com.docker.network.driver.mtu: 1450
+  waldur:
+    external: true
+
+volumes:
+  waldur_db:
+    driver: local
+  waldur_queue:
+    driver: local
+  waldur_events:
+    driver: local
+  waldur_logs_pipeline:
+    external: true
+  waldur_logs_settings:
+    external: true
+  waldur_mastermind_api:
+    external: true

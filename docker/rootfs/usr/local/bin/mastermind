@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+SOCKET=$( crudini --get /etc/waldur/uwsgi.ini uwsgi socket )
+
+echo "INFO: Running Mastermind on port $SOCKET"
+mkdir -p /run/waldur/uwsgi
+chown -R waldur:waldur /run/waldur/uwsgi
+gosu waldur sh -c "/usr/sbin/uwsgi --ini /etc/waldur/uwsgi.ini"
+
+exit 0

@@ -1,0 +1,15 @@
+#!/bin/bash
+set -e
+
+DEFAULT_PWD="admin"
+PASSWORD=${1:-$DEFAULT_PWD}
+
+DEFAULT_PWD_COMMENT=''
+if [ "$PASSWORD" == "$DEFAULT_PWD" ]; then
+    DEFAULT_PWD_COMMENT="(default: admin:admin)"
+fi
+
+echo "INFO: Creating admin user $DEFAULT_PWD_COMMENT"
+gosu waldur sh -c "waldur createstaffuser -u admin -p $PASSWORD"
+
+exit 0
