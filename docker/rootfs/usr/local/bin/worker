@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+: ${LOGGING_LOG_LEVEL:=INFO}
+
+echo "INFO: Running Celery Worker..."
+mkdir -p /run/waldur/celery
+chown -R waldur:waldur /run/waldur/celery
+gosu waldur sh -c "/usr/bin/celery -A waldur_core.server worker --concurrency=20 --loglevel=$LOGGING_LOG_LEVEL"
+
+exit 0
