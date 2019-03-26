@@ -79,6 +79,16 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
             schedule.save()
 
 
+class DeleteIncompleteInstanceTask(core_tasks.Task):
+
+    def execute(self, instance):
+        with transaction.atomic():
+            scopes = [instance] + list(instance.volumes.all()) + list(instance.floating_ips)
+            for scope in scopes:
+                if not scope.backend_id:
+                    scope.decrease_backend_quotas_usage()
+
+
 class ForceDeleteBackupTask(core_tasks.DeletionTask):
 
     def execute(self, backup):

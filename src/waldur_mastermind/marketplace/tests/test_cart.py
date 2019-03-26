@@ -79,6 +79,37 @@ class CartSubmitTest(test.APITransactionTestCase):
         order_item = models.OrderItem.objects.last()
         self.assertEqual(order_item.limits['cpu_count'], 5)
 
+    def test_limits_are_not_allowed_for_components_with_disabled_quotas(self):
+        limits = {
+            'storage': 1000,
+            'ram': 30,
+            'cpu_count': 5,
+        }
+
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        plan = factories.PlanFactory(offering=offering)
+
+        for key in limits.keys():
+            models.OfferingComponent.objects.create(
+                offering=offering,
+                type=key,
+                billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                disable_quotas=True,
+            )
+
+        payload = {
+            'offering': factories.OfferingFactory.get_url(offering),
+            'plan': factories.PlanFactory.get_url(plan),
+            'limits': limits,
+        }
+
+        fixture = fixtures.ProjectFixture()
+        self.client.force_authenticate(fixture.staff)
+
+        url = factories.CartItemFactory.get_list_url()
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class CartUpdateTest(test.APITransactionTestCase):
     def setUp(self):

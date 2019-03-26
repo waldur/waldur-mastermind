@@ -20,9 +20,27 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.notifications_order_approval,
+            handlers.log_order_events,
             sender=models.Order,
-            dispatch_uid='waldur_mastermind.marketplace.notifications_order_approval',
+            dispatch_uid='waldur_mastermind.marketplace.log_order_events',
+        )
+
+        signals.post_save.connect(
+            handlers.log_order_item_events,
+            sender=models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketplace.log_order_item_events',
+        )
+
+        signals.post_save.connect(
+            handlers.log_resource_events,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.log_resource_events',
+        )
+
+        signals.post_save.connect(
+            handlers.notify_order_approvers,
+            sender=models.Order,
+            dispatch_uid='waldur_mastermind.marketplace.notify_order_approvers',
         )
 
         signals.post_save.connect(

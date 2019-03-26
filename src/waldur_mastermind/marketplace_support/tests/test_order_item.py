@@ -130,6 +130,12 @@ class RequestCreateTest(BaseTest):
         resource = marketplace_models.Resource.objects.get(scope=offering)
         self.assertEqual(resource.attributes['name'], 'item_name')
 
+    def test_service_provider_name_is_propagated(self):
+        order_item = self.submit_order_item()
+        name = order_item.offering.customer.name
+        description = support_models.Offering.objects.get(name='item_name').issue.description
+        self.assertTrue(name in description)
+
 
 @freeze_time('2019-01-01')
 class RequestActionBaseTest(BaseTest):

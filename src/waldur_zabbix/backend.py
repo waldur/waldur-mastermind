@@ -125,7 +125,7 @@ class ZabbixBackend(ServiceBackend):
         else:
             return True
 
-    def sync(self):
+    def pull_service_properties(self):
         self._get_or_create_group_id(self.host_group_name)
         self.pull_templates()
         self.pull_user_groups()

@@ -45,7 +45,10 @@ class BaseBackendTest(TestCase):
             'status': 'ACTIVE',
             'key_name': '',
             'created': '2012-04-23T08:10:00Z',
-            'OS-SRV-USG:launched_at': '2012-04-23T09:15'
+            'OS-SRV-USG:launched_at': '2012-04-23T09:15',
+            'flavor': {
+                'id': backend_id
+            }
         })
 
     def _get_valid_flavor(self, backend_id):
@@ -469,6 +472,32 @@ class ImportVolumeTest(BaseBackendTest):
         self.assertEqual(volume.name, self.backend_volume.name)
 
 
+class PullVolumeTest(BaseBackendTest):
+
+    def setUp(self):
+        super(PullVolumeTest, self).setUp()
+        self.spl = self.fixture.spl
+        self.backend_volume_id = 'backend_id'
+        self.backend_volume = self._get_valid_volume(self.backend_volume_id)
+
+        self.cinder_client_mock.volumes.get.return_value = self.backend_volume
+
+    def test_volume_instance_is_pulled(self):
+        vm = factories.InstanceFactory(backend_id='instance_backend_id', service_project_link=self.spl)
+        volume = factories.VolumeFactory(
+            backend_id=self.backend_volume_id,
+            instance=vm,
+            service_project_link=self.spl,
+        )
+        self.backend_volume.attachments = [
+            dict(server_id=vm.backend_id)
+        ]
+        self.tenant_backend.pull_volume(volume)
+        volume.refresh_from_db()
+
+        self.assertEqual(volume.instance, vm)
+
+
 class PullInstanceTest(BaseBackendTest):
 
     def setUp(self):
@@ -838,14 +867,12 @@ class GetInstancesTest(BaseBackendTest):
     def test_all_instances_returned(self):
         backend_instances = self._generate_instances(backend=True, count=3)
         instances = backend_instances + self._generate_instances()
-        flavors = []
-        for instance in instances:
-            flavor = self._get_valid_flavor(backend_id=instance.id)
-            instance.flavor = flavor._info
-            flavors.append(flavor)
+
+        def get_volume(backend_id):
+            return self._get_valid_flavor(backend_id=backend_id)
 
         self.nova_client_mock.servers.list.return_value = instances
-        self.nova_client_mock.flavors.list.return_value = flavors
+        self.nova_client_mock.flavors.get.side_effect = get_volume
 
         result = self.tenant_backend.get_instances()
 

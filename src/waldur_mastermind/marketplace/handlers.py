@@ -11,7 +11,7 @@ from django.utils.timezone import now
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Project, Customer
 
-from . import callbacks, tasks, models, utils, serializers
+from . import callbacks, tasks, log, models, utils, serializers
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,43 @@ def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
     transaction.on_commit(lambda: tasks.create_screenshot_thumbnail.delay(instance.uuid))
 
 
-def notifications_order_approval(sender, instance, created=False, **kwargs):
+def log_order_events(sender, instance, created=False, **kwargs):
+    order = instance
+    if created:
+        log.log_order_created(order)
+    elif not order.tracker.has_changed('state'):
+        return
+    elif order.state == models.Order.States.EXECUTING:
+        log.log_order_approved(order)
+    elif order.state == models.Order.States.REJECTED:
+        log.log_order_rejected(order)
+    elif order.state == models.Order.States.DONE:
+        log.log_order_completed(order)
+    elif order.state == models.Order.States.TERMINATED:
+        log.log_order_terminated(order)
+    elif order.state == models.Order.States.ERRED:
+        log.log_order_failed(order)
+
+
+def log_order_item_events(sender, instance, created=False, **kwargs):
+    order_item = instance
+    if not created:
+        return
+    elif not order_item.resource:
+        return
+    elif order_item.type == models.OrderItem.Types.TERMINATE:
+        log.log_resource_terminate_requested(order_item.resource)
+    elif order_item.type == models.OrderItem.Types.UPDATE:
+        log.log_resource_update_requested(order_item.resource)
+
+
+def log_resource_events(sender, instance, created=False, **kwargs):
+    resource = instance
+    if created:
+        log.log_resource_creation_requested(resource)
+
+
+def notify_order_approvers(sender, instance, created=False, **kwargs):
     if not created:
         return
 

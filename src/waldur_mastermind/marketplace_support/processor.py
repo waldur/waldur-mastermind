@@ -41,6 +41,7 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         order_item_url = link_template.format(order_item_uuid=order_item.uuid,
                                               project_uuid=order_item.order.project.uuid)
         description += "\n[Order item|%s]." % order_item_url
+        description += "\nVendor: %s." % order_item.offering.customer.name
 
         if order_item.plan and order_item.plan.scope:
             post_data['plan'] = reverse('support-offering-plan-detail', kwargs={

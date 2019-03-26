@@ -335,7 +335,7 @@ class LoggableMixin(object):
             self.__class__.__name__ + '_uuid': self.uuid.hex
         }
 
-    def _get_log_context(self, entity_name):
+    def _get_log_context(self, entity_name=None):
 
         context = {}
         for field in self.get_log_fields():
@@ -344,7 +344,10 @@ class LoggableMixin(object):
 
             value = getattr(self, field)
 
-            name = "{}_{}".format(entity_name, field)
+            if entity_name:
+                name = "{}_{}".format(entity_name, field)
+            else:
+                name = field
             if isinstance(value, uuid.UUID):
                 context[name] = value.hex
             elif isinstance(value, LoggableMixin):
@@ -355,6 +358,8 @@ class LoggableMixin(object):
                 context[name] = float(value)
             elif isinstance(value, dict):
                 context[name] = value
+            elif callable(value):
+                context[name] = value()
             else:
                 context[name] = six.text_type(value)
 

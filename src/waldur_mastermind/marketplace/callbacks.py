@@ -6,7 +6,7 @@ from django.utils.timezone import now
 
 from waldur_core.core.models import StateMixin
 
-from . import models
+from . import log, models
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,8 @@ def resource_creation_succeeded(resource):
     if resource.plan:
         create_resource_plan_period(resource)
 
+    log.log_resource_creation_succeeded(resource)
+
 
 def resource_creation_failed(resource):
     resource.set_state_erred()
@@ -61,6 +63,8 @@ def resource_creation_failed(resource):
         models.RequestTypeMixin.Types.CREATE,
         models.OrderItem.States.ERRED,
     )
+
+    log.log_resource_creation_failed(resource)
 
 
 def resource_update_succeeded(resource):
@@ -81,6 +85,8 @@ def resource_update_succeeded(resource):
 
         create_resource_plan_period(resource)
 
+    log.log_resource_update_succeeded(resource)
+
 
 def resource_update_failed(resource):
     resource.set_state_erred()
@@ -90,6 +96,8 @@ def resource_update_failed(resource):
         models.RequestTypeMixin.Types.UPDATE,
         models.OrderItem.States.ERRED,
     )
+
+    log.log_resource_update_failed(resource)
 
 
 def resource_deletion_succeeded(resource):
@@ -104,6 +112,8 @@ def resource_deletion_succeeded(resource):
     if resource.plan:
         close_resource_plan_period(resource)
 
+    log.log_resource_terminate_succeeded(resource)
+
 
 def resource_deletion_failed(resource):
     resource.set_state_erred()
@@ -113,6 +123,8 @@ def resource_deletion_failed(resource):
         models.RequestTypeMixin.Types.TERMINATE,
         models.OrderItem.States.ERRED,
     )
+
+    log.log_resource_terminate_failed(resource)
 
 
 def set_order_item_state(resource, type, new_state):

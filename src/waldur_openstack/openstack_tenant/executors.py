@@ -300,8 +300,12 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
                 erred_state='error',
             ).set(countdown=30 if index == 0 else 0))
 
-            # Pull volume to sure that it is bootable
-            _tasks.append(core_tasks.BackendMethodTask().si(serialized_volume, 'pull_volume'))
+            # Pull volume runtime state
+            _tasks.append(core_tasks.BackendMethodTask().si(
+                serialized_volume,
+                'pull_volume',
+                update_fields=['runtime_state', 'bootable']
+            ))
 
             # Mark volume as OK
             _tasks.append(core_tasks.StateTransitionTask().si(serialized_volume, state_transition='set_ok'))
@@ -489,6 +493,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                     serialized_volume,
                     'is_volume_deleted'
                 ))
+
+        _tasks += tasks.DeleteIncompleteInstanceTask().si(serialized_instance)
 
         return _tasks
 

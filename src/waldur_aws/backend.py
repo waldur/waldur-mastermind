@@ -205,9 +205,6 @@ class AWSBackend(ServiceBackend):
         return ExtendedEC2NodeDriver(
             self.settings.username, self.settings.token, region=region)
 
-    def sync(self):
-        self.pull_service_properties()
-
     def ping(self, raise_exception=False):
         try:
             self._get_api().list_key_pairs()
