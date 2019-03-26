@@ -494,6 +494,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                     'is_volume_deleted'
                 ))
 
+        _tasks += tasks.DeleteIncompleteInstanceTask().si(serialized_instance)
+
         return _tasks
 
     @classmethod
