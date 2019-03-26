@@ -14,6 +14,8 @@ script:
 - cd docker && docker build -t opennode/waldur-mastermind .
 after_script:
 - docker images
+before_deploy:
+- echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 deploy:
 - provider: pypi
   user: opennode
