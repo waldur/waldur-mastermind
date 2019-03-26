@@ -24,7 +24,7 @@ deploy:
     repo: opennode/waldur-mastermind
   distributions: "sdist bdist_wheel"
 - provider: script
-  script: cd docker && docker push "opennode/waldur-mastermind:latest"
+  script: docker push "opennode/waldur-mastermind:latest"
   on:
     branch: develop
 env:
