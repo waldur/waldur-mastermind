@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load humanize %}
+{% load waldur_core %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -106,6 +107,10 @@
         {{ item.attributes.description }}
         {% elif item.offering.description %}
         {{ item.offering.description }}
+        {% endif %}
+
+        {% if item.attributes %}
+        <pre><small>{{ item.attributes | pretty_json }}</small></pre>
         {% endif %}
       </td>
       <td class="unit">
