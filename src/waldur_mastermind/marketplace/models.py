@@ -844,7 +844,9 @@ class ComponentQuota(models.Model):
         unique_together = ('resource', 'component')
 
 
-class ComponentUsage(TimeStampedModel):
+class ComponentUsage(TimeStampedModel,
+                     core_models.DescribableMixin,
+                     core_models.UuidMixin):
     resource = models.ForeignKey(Resource, related_name='usages')
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})

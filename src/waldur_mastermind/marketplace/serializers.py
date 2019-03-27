@@ -888,9 +888,28 @@ class CategoryComponentUsageSerializer(core_serializers.RestrictedSerializerMixi
 
 
 class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
+    resource_name = serializers.ReadOnlyField(source='resource.name')
+    resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
+
+    offering_name = serializers.ReadOnlyField(source='resource.offering.name')
+    offering_uuid = serializers.ReadOnlyField(source='resource.offering.uuid')
+
+    project_name = serializers.ReadOnlyField(source='resource.project.name')
+    project_uuid = serializers.ReadOnlyField(source='resource.project.uuid')
+
+    customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
+
     class Meta(object):
         model = models.ComponentUsage
-        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
+        fields = (
+            'uuid', 'created', 'description',
+            'type', 'name', 'measured_unit', 'usage', 'date',
+            'resource_name', 'resource_uuid',
+            'offering_name', 'offering_uuid',
+            'project_name', 'project_uuid',
+            'customer_name', 'customer_uuid',
+        )
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):

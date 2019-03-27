@@ -178,6 +178,9 @@ class CategoryComponentUsageFilter(django_filters.FilterSet):
 class ComponentUsageFilter(django_filters.FilterSet):
     resource = core_filters.URLFilter(view_name='marketplace-resource-detail', name='resource__uuid')
     resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
+    offering_uuid = django_filters.UUIDFilter(name='resource__offering__uuid')
+    project_uuid = django_filters.UUIDFilter(name='resource__project__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='resource__project__customer__uuid')
     date_before = django_filters.DateFilter(name='date', lookup_expr='lte')
     date_after = django_filters.DateFilter(name='date', lookup_expr='gte')
     type = django_filters.CharFilter(name='component__type')
