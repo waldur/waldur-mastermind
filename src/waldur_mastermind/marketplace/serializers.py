@@ -903,8 +903,8 @@ class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSeriali
     class Meta(object):
         model = models.ComponentUsage
         fields = (
-            'type', 'name', 'measured_unit', 'usage',
-            'date', 'created', 'description',
+            'uuid', 'created', 'description',
+            'type', 'name', 'measured_unit', 'usage', 'date',
             'resource_name', 'resource_uuid',
             'offering_name', 'offering_uuid',
             'project_name', 'project_uuid',
