@@ -126,8 +126,10 @@
     </tfoot>
   </table>
 
+  <h3>{% trans "Details of order items" %}</h3>
   {% for item in order.items.all %}
     <header class="clearfix">
+      {{ forloop.counter }}.
       {% if item.attributes.name %}
         {{ item.attributes.name }}
       {% elif item.offering.name %}
@@ -136,7 +138,7 @@
     </header>
 
     {% if item.attributes %}
-      <p>{% trans "Attributes" %}</p>
+      <p>{% trans "Offering request details" %}</p>
       <table border="0" cellspacing="0" cellpadding="0">
         <thead>
           <tr>
@@ -158,7 +160,7 @@
     {% endif %}
 
     {% if item.plan %}
-      <p>{% trans "Plan components" %}</p>
+      <p>{% trans "Billing plan components" %}</p>
       <table border="0" cellspacing="0" cellpadding="0">
         <thead>
           <tr>
