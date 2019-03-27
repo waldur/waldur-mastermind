@@ -109,9 +109,6 @@
         {{ item.offering.description }}
         {% endif %}
 
-        {% if item.attributes %}
-        <pre><small>{{ item.attributes | pretty_json }}</small></pre>
-        {% endif %}
       </td>
       <td class="unit">
         {{ item.plan.name }}
@@ -129,6 +126,70 @@
     </tr>
     </tfoot>
   </table>
+
+  {% for item in order.items.all %}
+    <header class="clearfix">
+      {% if item.attributes.name %}
+        {{ item.attributes.name }}
+      {% elif item.offering.name %}
+        {{ item.offering.name }}
+      {% endif %}
+    </header>
+
+    {% if item.attributes %}
+      <p>{% trans "Attributes" %}</p>
+      <table border="0" cellspacing="0" cellpadding="0">
+        <thead>
+          <tr>
+            <th class="no">#</th>
+            <th class="desc">{% trans "NAME" %}</th>
+            <th class="desc">{% trans "VALUE" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key, value in item.attributes.items|dictsort:"0.lower" %}
+            <tr>
+              <td class="no">{{ forloop.counter }}</td>
+              <td class="desc">{{ key }}</td>
+              <td class="desc">{{ value | pretty_json }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    {% if item.plan %}
+      <p>{% trans "Plan components" %}</p>
+      <table border="0" cellspacing="0" cellpadding="0">
+        <thead>
+          <tr>
+            <th class="no">#</th>
+            <th class="desc">{% trans "NAME" %}</th>
+            <th class="desc">{% trans "TYPE" %}</th>
+            <th class="unit">{% trans "AMOUNT" %}</th>
+            <th class="total">{% trans "PRICE PER UNIT" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for component in item.plan.components.all %}
+            <tr>
+              <td class="no">{{ forloop.counter }}</td>
+              <td class="desc">{{ component.component.name }}</td>
+              <td class="desc">{{ component.component.get_billing_type_display }}</td>
+              <td class="unit">{{ component.amount }} {{ component.measured_unit }}</td>
+              <td class="total">{{ currency }} {{ component.price | floatformat:4 | intcomma }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4">{% trans "TOTAL" %}</td>
+            <td>{{ currency }} {{ item.plan.unit_price | floatformat:2 | intcomma}}</td>
+          </tr>
+        </tfoot>
+      </table>
+    {% endif %}
+  {% endfor %}
 </main>
 </body>
 </html>
