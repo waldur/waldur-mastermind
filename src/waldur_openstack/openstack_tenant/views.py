@@ -12,7 +12,7 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 
-from . import models, serializers, filters, executors, utils
+from . import models, serializers, filters, executors
 
 
 class TelemetryMixin(object):
