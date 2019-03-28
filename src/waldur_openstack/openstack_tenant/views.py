@@ -1,11 +1,15 @@
 from django.db.models import Count
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import decorators, response, status, exceptions, serializers as rf_serializers
+from rest_framework import decorators, response, status, exceptions, serializers as rf_serializers, generics
 
 from waldur_core.core import exceptions as core_exceptions, validators as core_validators
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views, filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import serializers as structure_serializers
+from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 
 from . import models, serializers, filters, executors
@@ -783,3 +787,35 @@ class SnapshotScheduleViewSet(BaseScheduleViewSet):
     queryset = models.SnapshotSchedule.objects.all().order_by('name')
     serializer_class = serializers.SnapshotScheduleSerializer
     filter_class = filters.SnapshotScheduleFilter
+
+
+class SharedSettingsBaseView(generics.GenericAPIView):
+    def get_private_settings(self):
+        queryset = structure_models.ServiceSettings.objects.filter(type=OpenStackConfig.service_name)
+        shared_settings = generics.get_object_or_404(queryset, uuid=self.kwargs.get('uuid'))
+
+        tenants = openstack_models.Tenant.objects.filter(service_project_link__service__settings=shared_settings)
+        return structure_models.ServiceSettings.objects.filter(scope__in=tenants)
+
+    def get(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.get_queryset())
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+
+class SharedSettingsInstances(SharedSettingsBaseView):
+
+    serializer_class = serializers.InstanceSerializer
+
+    def get_queryset(self):
+        private_settings = self.get_private_settings()
+        return models.Instance.objects.filter(service_project_link__service__settings__in=private_settings)
+
+
+class SharedSettingsCustomers(SharedSettingsBaseView):
+
+    serializer_class = structure_serializers.CustomerSerializer
+
+    def get_queryset(self):
+        private_settings = self.get_private_settings()
+        return structure_models.Customer.objects.filter(pk__in=private_settings.values('customer'))
