@@ -936,6 +936,7 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
 class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
+    description = serializers.CharField(required=False, allow_blank=True)
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
@@ -981,6 +982,9 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             else:
                 attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
 
+        if len(attrs['usages']) == 0:
+            raise rf_exceptions.ValidationError({'usages': _('This field is required.')})
+
         for usage in attrs['usages']:
             component_type = usage['type']
             offering = resource.plan.offering
@@ -1003,13 +1007,14 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         for usage in self.validated_data['usages']:
             component = usage['component']
             amount = usage['amount']
+            description = usage.get('description', '')
             component.validate_amount(resource, amount, date)
 
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 date=date,
-                defaults={'usage': amount},
+                defaults={'usage': amount, 'description': description},
             )
 
 

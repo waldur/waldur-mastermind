@@ -52,6 +52,13 @@ class TestUsageApi(test.APITransactionTestCase):
                                                              component=self.offering_component,
                                                              date=datetime.date.today()).exists())
 
+    def test_submit_usage_with_description(self):
+        description = 'My first usage report'
+        response = self.submit_usage(**self.get_valid_payload(description=description))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        report = models.ComponentUsage.objects.get(resource=self.resource)
+        self.assertEqual(report.description, description)
+
     @data('staff', 'owner')
     def test_authenticated_user_can_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
@@ -181,12 +188,13 @@ class TestUsageApi(test.APITransactionTestCase):
         )
         return payload
 
-    def get_usage_data(self, component_type='cpu', amount=5):
+    def get_usage_data(self, component_type='cpu', amount=5, description=''):
         return {
             'date': datetime.date.today(),
             'resource': self.resource.uuid,
             'usages': [{
                 'type': component_type,
-                'amount': amount
+                'amount': amount,
+                'description': description,
             }]
         }
