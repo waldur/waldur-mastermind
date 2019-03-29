@@ -24,6 +24,6 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(r'^api/openstack-shared-settings-instances/(?P<uuid>[a-f0-9]{32})/$', views.SharedSettingsInstances.as_view()),
-    url(r'^api/openstack-shared-settings-customers/(?P<uuid>[a-f0-9]{32})/$', views.SharedSettingsCustomers.as_view()),
+    url(r'^api/openstack-shared-settings-instances/$', views.SharedSettingsInstances.as_view()),
+    url(r'^api/openstack-shared-settings-customers/$', views.SharedSettingsCustomers.as_view()),
 ]

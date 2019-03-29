@@ -56,7 +56,8 @@ class GenericKeyMixin(object):
             kwargs[self.content_type_field] = generic_key_content_type
         elif suffix == 'in':
             kwargs[self.object_id_field + '__in'] = [obj.id for obj in generic_key_value]
-            kwargs[self.content_type_field] = ContentType.objects.get_for_model(generic_key_value[0])
+            content_type = ContentType.objects.get_for_model(generic_key_value[0]) if generic_key_value else None
+            kwargs[self.content_type_field] = content_type
         elif suffix == 'isnull':
             kwargs[self.object_id_field + '__isnull'] = generic_key_value
             kwargs[self.content_type_field + '__isnull'] = generic_key_value
