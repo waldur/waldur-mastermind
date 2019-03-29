@@ -47,16 +47,20 @@ class BaseRegistrator(object):
         if not now:
             now = timezone.now()
 
-        item = self._find_item(source, now)
-        if item:
-            item.terminate(end=now)
+        items = self._find_item(source, now)
+        if items:
+            if not hasattr(items, '__iter__'):
+                items = [items]
+
+            for item in items:
+                item.terminate(end=now)
 
     def _find_item(self, source, now):
         """
-        Find item by source and date.
+        Find an item or some items by source and date.
         :param source: object that was bought by customer.
         :param now: date of invoice with invoice items.
-        :return: invoice item or None
+        :return: invoice item, item's list (or another iterable object, f.e. tuple or queryset) or None
         """
         raise NotImplementedError()
 

@@ -35,13 +35,32 @@ class StatsTest(test.APITransactionTestCase):
 
     def test_reported_usage_is_aggregated_for_project_and_customer(self):
         # Arrange
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            start=parse_date('2019-01-01'),
+            resource=self.resource,
+            plan=self.plan,
+        )
+
         models.ComponentUsage.objects.create(resource=self.resource,
                                              component=self.offering_component,
                                              date=parse_date('2019-01-10'),
+                                             plan_period=plan_period,
                                              usage=100)
+
+        self.new_resource = factories.ResourceFactory(project=self.project,
+                                                      offering=self.offering,
+                                                      plan=self.plan)
+
+        new_plan_period = models.ResourcePlanPeriod.objects.create(
+            start=parse_date('2019-01-01'),
+            resource=self.new_resource,
+            plan=self.plan,
+        )
+
         models.ComponentUsage.objects.create(resource=self.resource,
                                              component=self.offering_component,
                                              date=parse_date('2019-01-20'),
+                                             plan_period=new_plan_period,
                                              usage=200)
 
         # Act

@@ -2,6 +2,7 @@ import logging
 import datetime
 
 from django.db import transaction, IntegrityError
+from django.db.models import Q
 from django.core import exceptions as django_exceptions
 
 from waldur_core.structure import models as structure_models
@@ -74,11 +75,16 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
                 offering=resource.offering,
                 type=component.type
             )
+            plan_period = marketplace_models.ResourcePlanPeriod.objects. \
+                filter(Q(start__lte=date) | Q(start__isnull=True)). \
+                filter(Q(end__gt=date) | Q(end__isnull=True)). \
+                get(resource=resource)
             marketplace_models.ComponentUsage.objects.create(
                 resource=resource,
                 component=plan_component,
                 usage=usage,
                 date=date,
+                plan_period=plan_period,
             )
         except django_exceptions.ObjectDoesNotExist:
             logger.warning('Skipping AllocationUsage synchronization because this '

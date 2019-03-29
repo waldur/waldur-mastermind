@@ -4,13 +4,13 @@ from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
+from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import factories
-from waldur_mastermind.marketplace import models
-from waldur_mastermind.invoices import models as invoices_models
 
 
 @ddt
@@ -36,6 +36,14 @@ class TestUsageApi(test.APITransactionTestCase):
             project=self.fixture.project,
         )
 
+        factories.OrderItemFactory(
+            resource=self.resource,
+            type=models.RequestTypeMixin.Types.CREATE,
+            state=models.OrderItem.States.EXECUTING,
+            plan=self.plan
+        )
+        callbacks.resource_creation_succeeded(self.resource)
+
     def test_valid_signature(self):
         payload = self.get_valid_payload()
         response = self.client.post('/api/marketplace-public-api/check_signature/', payload)
@@ -58,6 +66,17 @@ class TestUsageApi(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         report = models.ComponentUsage.objects.get(resource=self.resource)
         self.assertEqual(report.description, description)
+
+    def test_plan_period_linking(self):
+        response = self.submit_usage()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        usage = models.ComponentUsage.objects.get(resource=self.resource,
+                                                  component=self.offering_component,
+                                                  date=datetime.date.today())
+        plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource,
+                                                            start=datetime.date(2017, 1, 10),
+                                                            end__isnull=True)
+        self.assertEqual(usage.plan_period, plan_period)
 
     @data('staff', 'owner')
     def test_authenticated_user_can_submit_usage_via_api(self, role):
@@ -96,12 +115,7 @@ class TestUsageApi(test.APITransactionTestCase):
         self.offering_component.limit_amount = 7
         self.offering_component.save()
 
-        models.ComponentUsage.objects.create(
-            resource=self.resource,
-            component=self.offering_component,
-            date=core_utils.month_start(datetime.date.today()),
-            usage=5,
-        )
+        self.submit_usage()
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -110,12 +124,7 @@ class TestUsageApi(test.APITransactionTestCase):
         self.offering_component.limit_amount = 15
         self.offering_component.save()
 
-        models.ComponentUsage.objects.create(
-            resource=self.resource,
-            component=self.offering_component,
-            date=core_utils.month_start(datetime.date.today()),
-            usage=5,
-        )
+        self.submit_usage()
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -153,16 +162,6 @@ class TestUsageApi(test.APITransactionTestCase):
         )
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @freeze_time('2017-01-18 00:00:00')
-    def test_round_date_if_unit_is_per_half_month(self):
-        self.plan.unit = UnitPriceMixin.Units.PER_HALF_MONTH
-        self.plan.save()
-        response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.ComponentUsage.objects.filter().exists())
-        usage = models.ComponentUsage.objects.first()
-        self.assertEqual(usage.date.day, 16)
 
     def test_dry_run_mode(self):
         response = self.submit_usage(dry_run=True)

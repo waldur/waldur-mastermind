@@ -33,7 +33,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         overlapping_item = utils.get_openstack_items().filter(
             invoice=invoice,
             end__day=start.day,
-            details__contains=package.tenant.name,
+            details__tenant_name=package.tenant.name,
         ).order_by('-unit_price').first()
 
         daily_price = package.template.price

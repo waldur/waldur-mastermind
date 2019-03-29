@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import datetime
+import logging
 
 import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
@@ -15,18 +16,18 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
-from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
-from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions, tasks
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -269,7 +270,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
-                  'limit_period', 'limit_amount', 'disable_quotas')
+                  'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code')
         extra_kwargs = {
             'billing_type': {'required': True},
         }
@@ -947,16 +948,27 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         resource = attrs['resource']
         date = attrs['date']
-        plan = resource.plan
 
         if resource.state == models.Resource.States.TERMINATED:
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource is terminated.')
             })
 
-        if not plan:
+        try:
+            plan_period = models.ResourcePlanPeriod.objects. \
+                filter(Q(start__lte=date) | Q(start__isnull=True)). \
+                filter(Q(end__gt=date) | Q(end__isnull=True)). \
+                get(resource=resource)
+            attrs['plan_period'] = plan_period
+        except models.ResourcePlanPeriod.DoesNotExist:
             raise rf_exceptions.ValidationError({
-                'resource': _('Resource does not have billing plan.')
+                'resource': _('Resource does not have plan period.')
+            })
+        except models.ResourcePlanPeriod.MultipleObjectsReturned:
+            logger.warning('Multiple ResourcePlanPeriod objects found. Resource ID: %s, date: %s.',
+                           resource.id, date)
+            raise rf_exceptions.ValidationError({
+                'resource': _('Multiple ResourcePlanPeriod objects found.')
             })
 
         if date > datetime.date.today():
@@ -972,18 +984,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 'date':
                     _('Cannot update usage information. Billing period is closed.')
             })
-
-        if plan.unit == UnitPriceMixin.Units.PER_MONTH:
-            attrs['date'] = core_utils.month_start(date)
-
-        if plan.unit == UnitPriceMixin.Units.PER_HALF_MONTH:
-            if date.day < 16:
-                attrs['date'] = core_utils.month_start(date)
-            else:
-                attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
-
-        if len(attrs['usages']) == 0:
-            raise rf_exceptions.ValidationError({'usages': _('This field is required.')})
 
         for usage in attrs['usages']:
             component_type = usage['type']
@@ -1003,6 +1003,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     def save(self):
         date = self.validated_data['date']
         resource = self.validated_data['resource']
+        plan_period = self.validated_data['plan_period']
 
         for usage in self.validated_data['usages']:
             component = usage['component']
@@ -1013,8 +1014,8 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
-                date=date,
-                defaults={'usage': amount, 'description': description},
+                plan_period=plan_period,
+                defaults={'usage': amount, 'date': date, 'description': description},
             )
 
 
