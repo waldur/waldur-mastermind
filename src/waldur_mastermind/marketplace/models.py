@@ -305,7 +305,7 @@ class Offering(core_models.UuidMixin,
 
 
 @python_2_unicode_compatible
-class OfferingComponent(BaseComponent):
+class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
 
@@ -852,9 +852,12 @@ class ComponentUsage(TimeStampedModel,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
+    plan_period = models.ForeignKey('ResourcePlanPeriod')
+
+    tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('resource', 'component', 'date')
+        unique_together = ('resource', 'component', 'plan_period')
 
 
 class AggregateResourceCount(ScopeMixin):

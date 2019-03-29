@@ -42,6 +42,12 @@ class SupportInvoicesConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.update_invoice_item,
+            sender=marketplace_models.ComponentUsage,
+            dispatch_uid='support_invoices.handlers.update_invoice_item',
+        )
+
+        signals.post_save.connect(
             handlers.add_new_offering_details_to_invoice,
             sender=support_models.Offering,
             dispatch_uid='waldur_mastermind.invoices.add_new_offering_details_to_invoice',

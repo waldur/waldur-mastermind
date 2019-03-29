@@ -1,4 +1,5 @@
 from django.utils.functional import cached_property
+from django.db.models import Sum
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -7,6 +8,14 @@ from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 
 class SupportFixture(structure_fixtures.ProjectFixture):
+    def __init__(self):
+        self.plan_component_cpu
+        self.plan_component_ram
+        self.new_plan_component_cpu
+        self.new_plan_component_ram
+        self.service_provider
+        self.update_plan_prices()
+
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
@@ -16,22 +25,28 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         plan = marketplace_factories.PlanFactory(
             offering=self.offering,
             name='Standard plan',
-            unit_price=10,
+            unit_price=0,
             unit=marketplace_models.Plan.Units.PER_MONTH,
         )
-        marketplace_factories.PlanComponentFactory(
-            plan=plan,
+        return plan
+
+    @cached_property
+    def plan_component_cpu(self):
+        return marketplace_factories.PlanComponentFactory(
+            plan=self.plan,
             component=self.offering_component_cpu,
             price=4,
             amount=1,
         )
-        marketplace_factories.PlanComponentFactory(
-            plan=plan,
+
+    @cached_property
+    def plan_component_ram(self):
+        return marketplace_factories.PlanComponentFactory(
+            plan=self.plan,
             component=self.offering_component_ram,
             price=3,
             amount=2,
         )
-        return plan
 
     @cached_property
     def order(self):
@@ -65,21 +80,27 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     def new_plan(self):
         new_plan = marketplace_factories.PlanFactory(
             offering=self.offering,
-            unit_price=5,
+            unit_price=0,
             name='Small plan',
             unit=marketplace_models.Plan.Units.PER_MONTH,
         )
-        marketplace_factories.PlanComponentFactory(
-            plan=new_plan,
+        return new_plan
+
+    @cached_property
+    def new_plan_component_cpu(self):
+        return marketplace_factories.PlanComponentFactory(
+            plan=self.new_plan,
             component=self.offering_component_cpu,
             price=3
         )
-        marketplace_factories.PlanComponentFactory(
-            plan=new_plan,
+
+    @cached_property
+    def new_plan_component_ram(self):
+        return marketplace_factories.PlanComponentFactory(
+            plan=self.new_plan,
             component=self.offering_component_ram,
             price=2
         )
-        return new_plan
 
     @cached_property
     def new_order(self):
@@ -93,3 +114,18 @@ class SupportFixture(structure_fixtures.ProjectFixture):
             plan=self.plan,
             order=self.new_order
         )
+
+    @cached_property
+    def service_provider(self):
+        return marketplace_factories.ServiceProviderFactory(customer=self.order_item.offering.customer,
+                                                            description='ServiceProvider\'s description')
+
+    def update_plan_prices(self):
+        self._update_plan_price('plan')
+        self._update_plan_price('new_plan')
+
+    def _update_plan_price(self, plan_name):
+        plan = getattr(self, plan_name)
+        plan.unit_price = \
+            plan.components.filter(component__billing_type='fixed').aggregate(price=Sum('price'))['price']
+        plan.save()

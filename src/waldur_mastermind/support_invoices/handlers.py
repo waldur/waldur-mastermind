@@ -3,7 +3,7 @@ from django.utils import timezone
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.support import models as support_models
 
-from .utils import is_request_based
+from .utils import is_request_based, component_usage_register
 
 
 def add_new_offering_to_invoice(sender, instance, created=False, **kwargs):
@@ -86,3 +86,15 @@ def add_new_offering_details_to_invoice(sender, instance, created=False, **kwarg
     if (state == support_models.Offering.States.TERMINATED and
             support_models.Offering.States.OK == instance.tracker.previous('state')):
         registrators.RegistrationManager.terminate(instance, timezone.now())
+
+
+def update_invoice_item(sender, instance, created=False, **kwargs):
+    component_usage = instance
+
+    if not created and not component_usage.tracker.has_changed('usage'):
+            return
+
+    if not isinstance(component_usage.resource.scope, support_models.Offering):
+        return
+
+    component_usage_register(component_usage)

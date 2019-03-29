@@ -21,7 +21,7 @@ from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.exceptions import IncorrectStateException
-from waldur_core.core.fields import JSONField
+from django.contrib.postgres.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.packages import models as package_models
