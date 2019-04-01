@@ -245,7 +245,7 @@ def broadcast_mail(app, event_type, context, recipient_list):
 
     text_template_name = '%s/%s_message.txt' % (app, event_type)
     text_template = get_template(text_template_name).template
-    text_message = get_template(text_template, Context(context, autoescape=False))
+    text_message = text_template.render(Context(context, autoescape=False))
 
     html_template_name = '%s/%s_message.html' % (app, event_type)
     html_message = render_to_string(html_template_name, context)
