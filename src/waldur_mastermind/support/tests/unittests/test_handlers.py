@@ -91,6 +91,16 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(new_summary in mail.outbox[0].subject)
 
+    def test_subject_does_not_use_autoescape(self):
+        issue = factories.IssueFactory()
+
+        new_summary = "Request for 'Custom VPC'"
+        issue.summary = new_summary
+        issue.save()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue(new_summary in mail.outbox[0].subject)
+
     def test_email_notification_body_if_custom_template_not_exists(self):
         issue = factories.IssueFactory()
         factories.TemplateStatusNotificationFactory()
