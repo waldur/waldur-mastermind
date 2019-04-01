@@ -19,7 +19,8 @@ from django.core.management.base import BaseCommand
 from django.db.models import F
 from django.db.models.sql.query import get_order_dir
 from django.http import QueryDict
-from django.template.loader import render_to_string
+from django.template import Context
+from django.template.loader import get_template, render_to_string
 from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
@@ -238,14 +239,16 @@ def broadcast_mail(app, event_type, context, recipient_list):
     :param context: dictionary passed to the template for rendering.
     :param recipient_list: list of strings, each an email address.
     """
+    subject_template_name = '%s/%s_subject.txt' % (app, event_type)
+    subject_template = get_template(subject_template_name).template
+    subject = subject_template.render(Context(context, autoescape=False)).strip()
 
-    subject_template = '%s/%s_subject.txt' % (app, event_type)
-    text_template = '%s/%s_message.txt' % (app, event_type)
-    html_template = '%s/%s_message.html' % (app, event_type)
+    text_template_name = '%s/%s_message.txt' % (app, event_type)
+    text_template = get_template(text_template_name).template
+    text_message = get_template(text_template, Context(context, autoescape=False))
 
-    subject = render_to_string(subject_template, context).strip()
-    text_message = render_to_string(text_template, context)
-    html_message = render_to_string(html_template, context)
+    html_template_name = '%s/%s_message.html' % (app, event_type)
+    html_message = render_to_string(html_template_name, context)
 
     for recipient in recipient_list:
         send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [recipient], html_message=html_message)
