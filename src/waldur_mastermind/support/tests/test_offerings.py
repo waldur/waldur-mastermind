@@ -164,6 +164,21 @@ class OfferingCreateTest(BaseTest):
         self.assertEqual(offering.template, self.offering_template)
         self.assertEqual(offering.type_label, offering.config['label'])
 
+    def test_article_code_and_product_code_is_copied_from_template(self):
+        # Arrange
+        self.offering_template.config['product_code'] = 'OS-VM'
+        self.offering_template.config['article_code'] = 'AA201901'
+        self.offering_template.save()
+
+        # Act
+        request_data = self._get_valid_request()
+        response = self.client.post(self.url, data=request_data)
+
+        # Assert
+        offering = models.Offering.objects.first()
+        self.assertEqual(offering.product_code, 'OS-VM')
+        self.assertEqual(offering.article_code, 'AA201901')
+
     def test_user_cannot_create_offering_if_he_has_no_permissions_to_the_project(self):
         request_data = self._get_valid_request()
         request_data['project'] = structure_factories.ProjectFactory.get_url()

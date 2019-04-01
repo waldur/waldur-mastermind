@@ -426,6 +426,12 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 unit=plan.unit,
                 plan=plan,
             ))
+        else:
+            # Temporary workaround for backward compatibility
+            payload.update(dict(
+                product_code=offering_configuration.get('product_code', ''),
+                article_code=offering_configuration.get('article_code', ''),
+            ))
 
         offering = models.Offering.objects.create(**payload)
 
