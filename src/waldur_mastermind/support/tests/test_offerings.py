@@ -172,7 +172,7 @@ class OfferingCreateTest(BaseTest):
 
         # Act
         request_data = self._get_valid_request()
-        response = self.client.post(self.url, data=request_data)
+        self.client.post(self.url, data=request_data)
 
         # Assert
         offering = models.Offering.objects.first()
