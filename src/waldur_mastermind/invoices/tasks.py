@@ -5,13 +5,13 @@ import logging
 
 from celery import shared_task
 from django.conf import settings
-from django.core.mail import send_mail
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.csv import UnicodeDictWriter
+from waldur_core.core.utils import broadcast_mail
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 
@@ -63,14 +63,10 @@ def send_invoice_notification(invoice_uuid, link_template):
         'link': link_template.format(uuid=invoice_uuid)
     }
 
-    subject = render_to_string('invoices/notification_subject.txt', context).strip()
-    text_message = render_to_string('invoices/notification_message.txt', context)
-    html_message = render_to_string('invoices/notification_message.html', context)
-
     emails = [owner.email for owner in invoice.customer.get_owners()]
 
     logger.debug('About to send invoice {invoice} notification to {emails}'.format(invoice=invoice, emails=emails))
-    send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, emails, html_message=html_message)
+    broadcast_mail('invoices', 'notification', context, emails)
 
 
 @shared_task(name='invoices.send_invoice_report')

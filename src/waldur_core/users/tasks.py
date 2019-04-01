@@ -5,10 +5,9 @@ from smtplib import SMTPException
 
 from celery import shared_task
 from django.conf import settings
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
 from django.utils import timezone
 
+from waldur_core.core.utils import broadcast_mail
 from waldur_core.structure.models import ProjectRole
 from waldur_core.users import models
 
@@ -47,14 +46,10 @@ def send_invitation(invitation_uuid, sender_name):
     context['sender'] = sender_name
     context['link'] = invitation.link_template.format(uuid=invitation_uuid)
 
-    subject = render_to_string('users/invitation_subject.txt', context)
-    text_message = render_to_string('users/invitation_message.txt', context)
-    html_message = render_to_string('users/invitation_message.html', context)
-
     logger.debug('About to send invitation to {email} to join {name} {type} as {role}'.format(
         email=invitation.email, **context))
     try:
-        send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [invitation.email], html_message=html_message)
+        broadcast_mail('users', 'invitation', context, [invitation.email])
     except SMTPException as e:
         invitation.error_message = str(e)
         invitation.save(update_fields=['error_message'])

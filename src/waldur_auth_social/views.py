@@ -406,7 +406,7 @@ class RegistrationView(generics.CreateAPIView):
         user = serializer.save()
         user.is_active = False
         user.save()
-        tasks.send_activation_email.delay(user.uuid.hex)
+        transaction.on_commit(lambda: tasks.send_activation_email.delay(user.uuid.hex))
 
 
 class ActivationView(views.APIView):

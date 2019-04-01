@@ -1,8 +1,11 @@
+from decimal import Decimal
+
+from django.test import override_settings
 import mock
 from ddt import ddt, data
-from rest_framework import test, status
-from decimal import Decimal
+from django.core import mail
 from freezegun import freeze_time
+from rest_framework import test, status
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
@@ -52,6 +55,20 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self._get_payload())
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_settings(task_always_eager=True)
+    def test_notification_email_is_rendered(self):
+        # Arrange
+        self.fixture.owner
+
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.post(self.url, self._get_payload())
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue('invoice' in mail.outbox[0].subject)
+        self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
 
     def test_user_cannot_send_invoice_notification_with_invalid_link_template(self):
         self.client.force_authenticate(self.fixture.staff)

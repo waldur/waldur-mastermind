@@ -1,7 +1,9 @@
 import json
 import mock
 
+from django.core import mail
 from django.conf import settings
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -113,6 +115,13 @@ class LocalSignupTest(test.APITransactionTestCase):
         response = self.post_request()
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertTrue('Authentication method is disabled.' in response.content)
+
+    @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNUP'])
+    @override_settings(task_always_eager=True)
+    def test_activation_email_is_sent(self):
+        response = self.post_request()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(response.data['email'], mail.outbox[0].to[0])
 
 
 @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNIN'])

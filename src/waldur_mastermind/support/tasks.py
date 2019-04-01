@@ -7,7 +7,7 @@ from celery import shared_task
 from celery.task import Task as CeleryTask
 from django.conf import settings
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
+from django.template.loader import get_template
 from django.template import Template, Context
 from django.utils import timezone
 
@@ -87,13 +87,17 @@ def _send_issue_notification(issue, template, receiver=None):
 
     try:
         notification_template = models.TemplateStatusNotification.objects.get(status=issue.status)
-        html_message = Template(notification_template.html).render(Context(context))
-        text_message = Template(notification_template.text).render(Context(context))
-        subject = Template(notification_template.subject).render(Context(context))
+        html_template = Template(notification_template.html)
+        text_template = Template(notification_template.text)
+        subject_template = Template(notification_template.subject)
     except models.TemplateStatusNotification.DoesNotExist:
-        html_message = render_to_string('support/notification_%s.html' % template, context)
-        text_message = render_to_string('support/notification_%s.txt' % template, context)
-        subject = render_to_string('support/notification_%s_subject.txt' % template, context).strip()
+        html_template = get_template('support/notification_%s.html' % template).template
+        text_template = get_template('support/notification_%s.txt' % template).template
+        subject_template = get_template('support/notification_%s_subject.txt' % template).template
+
+    html_message = html_template.render(Context(context))
+    text_message = text_template.render(Context(context, autoescape=False))
+    subject = subject_template.render(Context(context, autoescape=False)).strip()
 
     logger.debug('About to send an issue update notification to %s' % receiver.email)
 
