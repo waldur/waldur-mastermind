@@ -63,4 +63,5 @@ class TotalCustomerCostView(views.APIView):
         invoices = invoices.filter(year=year, month=month)
 
         total = sum(invoice.total for invoice in invoices)
-        return response.Response({'total': total}, status=status.HTTP_200_OK)
+        price = sum(invoice.price for invoice in invoices)
+        return response.Response({'total': total, 'price': price}, status=status.HTTP_200_OK)
