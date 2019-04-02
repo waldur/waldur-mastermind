@@ -65,12 +65,12 @@ class CategoryAdmin(admin.ModelAdmin):
     inlines = [SectionInline, CategoryColumnInline, CategoryComponentInline]
 
 
-class ScreenshotsInline(admin.TabularInline):
+class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
     fields = ('name', 'description', 'image')
 
 
-class PlansInline(admin.TabularInline):
+class PlansInline(admin.StackedInline):
     model = models.Plan
     fields = ('name', 'description', 'unit_price', 'unit',
               'product_code', 'article_code', 'archived', 'max_amount')
@@ -159,7 +159,7 @@ class OfferingAdminForm(ModelForm):
         }
 
 
-class OfferingComponentInline(admin.TabularInline):
+class OfferingComponentInline(admin.StackedInline):
     model = models.OfferingComponent
 
 
