@@ -871,6 +871,15 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         return attrs
 
 
+class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
+    plan_name = serializers.ReadOnlyField(source='plan.name')
+    plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
+
+    class Meta:
+        model = models.ResourcePlanPeriod
+        fields = ('plan_name', 'plan_uuid', 'start', 'end')
+
+
 class BaseComponentSerializer(serializers.Serializer):
     type = serializers.ReadOnlyField(source='component.type')
     name = serializers.ReadOnlyField(source='component.name')
