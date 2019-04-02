@@ -62,7 +62,7 @@ class NestedAttributeSerializer(serializers.ModelSerializer):
 
     class Meta(object):
         model = models.Attribute
-        fields = ('key', 'title', 'type', 'options', 'required',)
+        fields = ('key', 'title', 'type', 'options', 'required', 'default')
 
 
 class NestedSectionSerializer(serializers.ModelSerializer):
@@ -342,29 +342,31 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         return offering_type
 
     def _validate_attributes(self, offering_attributes, category):
-        offering_attribute_keys = offering_attributes.keys()
-        required_category_attributes = list(models.Attribute.objects.filter(section__category=category,
-                                                                            required=True))
-        unfilled_attributes = {attr.key for attr in required_category_attributes} - set(offering_attribute_keys)
+        category_attributes = models.Attribute.objects.filter(section__category=category)
+        required_attributes = category_attributes.filter(required=True).values_list('key', flat=True)
+        missing_attributes = set(required_attributes) - set(offering_attributes.keys())
 
-        if unfilled_attributes:
-            raise rf_exceptions.ValidationError(
-                {'attributes': _('Required fields %s are not filled' % list(unfilled_attributes))})
+        if missing_attributes:
+            raise rf_exceptions.ValidationError({
+                'attributes': _('These attributes are required: %s' % ', '.join(sorted(missing_attributes)))
+            })
 
-        category_attributes = list(models.Attribute.objects.filter(section__category=category,
-                                                                   key__in=offering_attribute_keys))
-        for key, value in offering_attributes.items():
-            match_attributes = filter(lambda a: a.key == key, category_attributes)
-            attribute = match_attributes[0] if match_attributes else None
+        for attribute in category_attributes:
+            value = offering_attributes.get(attribute.key)
+            if value is None:
+                # Use default attribute value if it is defined
+                if attribute.default is not None:
+                    offering_attributes[attribute.key] = attribute.default
+                continue
 
-            if attribute:
-                klass = attribute_types.get_attribute_type(attribute.type)
-                if klass:
-                    try:
-                        klass.validate(value, list(attribute.options.values_list('key', flat=True)))
-                    except ValidationError as e:
-                        err = rf_exceptions.ValidationError({'attributes': e.message})
-                        raise err
+            validator = attribute_types.get_attribute_type(attribute.type)
+            if not validator:
+                continue
+
+            try:
+                validator.validate(value, list(attribute.options.values_list('key', flat=True)))
+            except ValidationError as e:
+                raise rf_exceptions.ValidationError({'attributes': e.message})
 
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)
