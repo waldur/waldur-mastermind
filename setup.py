@@ -35,7 +35,7 @@ install_requires = [
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
     'django-taggit>=0.20.2',
-    'Django>=1.11.18,<2.0',
+    'Django>=1.11.20,<2.0',
     'djangorestframework>=3.6.3,<3.7.0',
     'djangosaml2==0.17.1',
     'elasticsearch==5.4.0',
