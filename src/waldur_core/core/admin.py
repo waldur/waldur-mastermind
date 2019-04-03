@@ -225,7 +225,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
 
 class SshPublicKeyAdmin(admin.ModelAdmin):
     list_display = ('user', 'name', 'fingerprint')
-    search_fields = ('user__name', 'name', 'fingerprint')
+    search_fields = ('user__username', 'name', 'fingerprint')
     readonly_fields = ('user', 'name', 'fingerprint', 'public_key')
 
 
