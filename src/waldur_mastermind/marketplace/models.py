@@ -852,7 +852,7 @@ class ComponentUsage(TimeStampedModel,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
-    plan_period = models.ForeignKey('ResourcePlanPeriod')
+    plan_period = models.ForeignKey('ResourcePlanPeriod', related_name='components')
 
     tracker = FieldTracker()
 

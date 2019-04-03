@@ -871,15 +871,6 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         return attrs
 
 
-class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
-    plan_name = serializers.ReadOnlyField(source='plan.name')
-    plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
-
-    class Meta:
-        model = models.ResourcePlanPeriod
-        fields = ('plan_name', 'plan_uuid', 'start', 'end')
-
-
 class BaseComponentSerializer(serializers.Serializer):
     type = serializers.ReadOnlyField(source='component.type')
     name = serializers.ReadOnlyField(source='component.name')
@@ -899,7 +890,16 @@ class CategoryComponentUsageSerializer(core_serializers.RestrictedSerializerMixi
                   'date', 'reported_usage', 'fixed_usage', 'scope')
 
 
-class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
+class BaseComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
+    class Meta(object):
+        model = models.ComponentUsage
+        fields = (
+            'uuid', 'created', 'description',
+            'type', 'name', 'measured_unit', 'usage', 'date',
+        )
+
+
+class ComponentUsageSerializer(BaseComponentUsageSerializer):
     resource_name = serializers.ReadOnlyField(source='resource.name')
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
 
@@ -912,16 +912,23 @@ class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSeriali
     customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
     customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
 
-    class Meta(object):
-        model = models.ComponentUsage
-        fields = (
-            'uuid', 'created', 'description',
-            'type', 'name', 'measured_unit', 'usage', 'date',
+    class Meta(BaseComponentUsageSerializer.Meta):
+        fields = BaseComponentUsageSerializer.Meta.fields + (
             'resource_name', 'resource_uuid',
             'offering_name', 'offering_uuid',
             'project_name', 'project_uuid',
             'customer_name', 'customer_uuid',
         )
+
+
+class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ResourcePlanPeriod
+        fields = ('plan_name', 'plan_uuid', 'start', 'end', 'components')
+
+    plan_name = serializers.ReadOnlyField(source='plan.name')
+    plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
+    components = BaseComponentUsageSerializer(many=True)
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
