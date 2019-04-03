@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='componentusage',
             name='plan_period',
-            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, to='marketplace.ResourcePlanPeriod'),
+            field=models.ForeignKey(default=None, on_delete=django.db.models.deletion.CASCADE, to='marketplace.ResourcePlanPeriod', related_name='components'),
             preserve_default=False,
         ),
         migrations.AlterUniqueTogether(
