@@ -9,6 +9,7 @@ from rest_framework import test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import month_end
+from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -185,8 +186,8 @@ class UsagesTest(InvoicesBaseTest):
     def test_case_when_usage_is_reported_for_new_plan(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._switch_plan()
-        fixed_price = (Decimal(self.fixture.plan.unit_price) * Decimal(15 / 31.0)) + \
-                      (Decimal(self.fixture.new_plan.unit_price) * Decimal(17 / 31.0))
+        fixed_price = (Decimal(self.fixture.plan.unit_price) * quantize_price(Decimal(15 / 31.0))) + \
+                      (Decimal(self.fixture.new_plan.unit_price) * quantize_price(Decimal(17 / 31.0)))
         self.assertEqual(self.invoice.price, fixed_price)
         self._create_usage(usage=10)
 
@@ -197,8 +198,8 @@ class UsagesTest(InvoicesBaseTest):
     def test_case_when_usage_is_reported_for_switched_plan(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._switch_plan()
-        fixed_price = (Decimal(self.fixture.plan.unit_price) * Decimal(15 / 31.0)) + \
-                      (Decimal(self.fixture.new_plan.unit_price) * Decimal(17 / 31.0))
+        fixed_price = (Decimal(self.fixture.plan.unit_price) * quantize_price(Decimal(15 / 31.0))) + \
+                      (Decimal(self.fixture.new_plan.unit_price) * quantize_price(Decimal(17 / 31.0)))
         self.assertEqual(self.invoice.price, fixed_price)
         self._create_usage(datetime.date(2018, 1, 10), usage=10)
 

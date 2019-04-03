@@ -12,6 +12,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.packages.tests import fixtures as package_fixtures, factories as packages_factories
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -171,7 +172,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             offering.state = support_models.Offering.States.OK
             offering.save(update_fields=['state'])
 
-        expected_price = offering.unit_price * decimal.Decimal((usage_days / month_days))
+        expected_price = offering.unit_price * quantize_price(decimal.Decimal((usage_days / month_days)))
         offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
         self.assertEqual(offering_item.price, expected_price)
 
@@ -184,7 +185,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             offering.save(update_fields=['state'])
 
         month_days = monthrange(2017, 7)[1]
-        expected_price = offering.unit_price * decimal.Decimal(1 + (usage_days / (month_days / 2)))
+        expected_price = offering.unit_price * quantize_price(1 + (usage_days / decimal.Decimal(month_days / 2)))
         offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
         self.assertEqual(offering_item.price, expected_price)
 
@@ -231,7 +232,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         end_date = timezone.datetime(2017, 7, 20)
         usage_days = 5
         offering, offering_item = self._start_end_offering(start_date, end_date)
-        expected_price = offering.unit_price * decimal.Decimal(1 + (usage_days / (month_days / 2)))
+        expected_price = offering.unit_price * quantize_price(1 + (usage_days / decimal.Decimal(month_days / 2)))
         self.assertEqual(offering_item.price, expected_price)
 
     def _start_end_offering(self, start_date, end_date):
