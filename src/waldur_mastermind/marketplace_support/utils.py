@@ -77,7 +77,8 @@ def init_offerings_and_resources(category, customer):
             plans_counter += 1
 
         # create resource
-        marketplace_models.Resource.objects.create(
+        resource = marketplace_models.Resource.objects.create(
+            created=support_offering.created,
             project=support_offering.project,
             offering=offering,
             plan=marketplace_plan,
@@ -87,6 +88,13 @@ def init_offerings_and_resources(category, customer):
                         'description': support_offering.issue.description,
                         'name': support_offering.name}
         )
+        if marketplace_plan:
+            marketplace_models.ResourcePlanPeriod.objects.create(
+                resource=resource,
+                plan=marketplace_plan,
+                start=support_offering.created,
+                end=support_offering.terminated_at,
+            )
         resources_counter += 1
 
     return offerings_counter, plans_counter, resources_counter

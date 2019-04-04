@@ -227,6 +227,12 @@ def import_openstack_tenants(dry_run=False):
                 user_password=tenant.user_password,
             )
         )
+        if plan and tenant.backend_id:
+            marketplace_models.ResourcePlanPeriod.objects.create(
+                resource=resource,
+                plan=plan,
+                start=tenant.created,
+            )
         import_resource_metadata(resource)
         return resource
 
