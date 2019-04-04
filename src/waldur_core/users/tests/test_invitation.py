@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from ddt import ddt, data
 from django.conf import settings
+from django.core import mail
+from django.test import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
 from mock_django import mock_signal_receiver
@@ -181,6 +183,13 @@ class InvitationPermissionApiTest(BaseInvitationTest):
         response = self.client.post(factories.CustomerInvitationFactory.get_url(self.customer_invitation,
                                                                                 action='send'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_settings(task_always_eager=True)
+    def test_invitation_email_is_rendered_correctly(self):
+        self.client.force_authenticate(user=self.staff)
+        self.client.post(factories.CustomerInvitationFactory.get_url(self.customer_invitation, action='send'))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(self.customer_invitation.email, mail.outbox[0].to[0])
 
     @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
     def test_owner_can_not_send_customer_invitation_if_settings_are_tweaked(self):

@@ -21,9 +21,10 @@ from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.core.exceptions import IncorrectStateException
-from waldur_core.core.fields import JSONField
+from django.contrib.postgres.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.packages import models as package_models
 
 from . import managers, utils, registrators
@@ -201,18 +202,18 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             elif (self.start.day == 1 and self.end.day == month_days):
                 return 2
             elif (self.start.day == 1 and self.end.day > 15):
-                return 1 + (self.end.day - 15) / (month_days / 2)
+                return quantize_price(1 + (self.end.day - 15) / decimal.Decimal(month_days / 2))
             elif (self.start.day < 16 and self.end.day == month_days):
-                return 1 + (16 - self.start.day) / (month_days / 2)
+                return quantize_price(1 + (16 - self.start.day) / decimal.Decimal(month_days / 2))
             else:
-                return (self.end.day - self.start.day + 1) / (month_days / 2)
+                return (self.end.day - self.start.day + 1) / (month_days / 2.0)
         # By default PER_MONTH
         else:
             if self.start.day == 1 and self.end.day == month_days:
                 return 1
 
             use_days = (self.end - self.start).days + 1
-            return use_days / month_days
+            return quantize_price(decimal.Decimal(use_days) / month_days)
 
     @property
     def price(self):

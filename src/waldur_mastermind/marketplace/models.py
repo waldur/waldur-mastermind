@@ -1,6 +1,5 @@
 from __future__ import unicode_literals
 
-from __builtin__ import super
 import base64
 from decimal import Decimal
 import StringIO
@@ -148,6 +147,7 @@ class Attribute(TimeStampedModel):
     section = models.ForeignKey(Section, related_name='attributes')
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
     required = models.BooleanField(default=False, help_text=_('A value must be provided for the attribute.'))
+    default = BetterJSONField(null=True, blank=True)
 
     def __str__(self):
         return six.text_type(self.title)
@@ -305,7 +305,7 @@ class Offering(core_models.UuidMixin,
 
 
 @python_2_unicode_compatible
-class OfferingComponent(BaseComponent):
+class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
 
@@ -844,15 +844,20 @@ class ComponentQuota(models.Model):
         unique_together = ('resource', 'component')
 
 
-class ComponentUsage(TimeStampedModel):
+class ComponentUsage(TimeStampedModel,
+                     core_models.DescribableMixin,
+                     core_models.UuidMixin):
     resource = models.ForeignKey(Resource, related_name='usages')
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateField()
+    plan_period = models.ForeignKey('ResourcePlanPeriod', related_name='components')
+
+    tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('resource', 'component', 'date')
+        unique_together = ('resource', 'component', 'plan_period')
 
 
 class AggregateResourceCount(ScopeMixin):

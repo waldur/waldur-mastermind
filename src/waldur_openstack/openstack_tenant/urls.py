@@ -1,3 +1,5 @@
+from django.conf.urls import url
+
 from . import views
 
 
@@ -19,3 +21,9 @@ def register_in(router):
                     base_name='openstacktenant-snapshot-schedule')
     router.register(r'openstacktenant-subnets', views.SubNetViewSet, base_name='openstacktenant-subnet')
     router.register(r'openstacktenant-networks', views.NetworkViewSet, base_name='openstacktenant-network')
+
+
+urlpatterns = [
+    url(r'^api/openstack-shared-settings-instances/$', views.SharedSettingsInstances.as_view()),
+    url(r'^api/openstack-shared-settings-customers/$', views.SharedSettingsCustomers.as_view()),
+]

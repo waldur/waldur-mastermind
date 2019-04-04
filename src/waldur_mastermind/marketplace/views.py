@@ -415,6 +415,13 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         terminate_validators = [core_validators.StateValidator(models.Resource.States.OK),
                                 structure_utils.check_customer_blocked]
 
+    @detail_route(methods=['get'])
+    def plan_periods(self, request, uuid=None):
+        resource = self.get_object()
+        qs = models.ResourcePlanPeriod.objects.filter(resource=resource)
+        serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.CategoryComponentUsage.objects.all().order_by('-date', 'component__type')

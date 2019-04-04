@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import datetime
+import logging
 
 import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
@@ -15,18 +16,18 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
-from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
-from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions, tasks
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
@@ -61,7 +62,7 @@ class NestedAttributeSerializer(serializers.ModelSerializer):
 
     class Meta(object):
         model = models.Attribute
-        fields = ('key', 'title', 'type', 'options', 'required',)
+        fields = ('key', 'title', 'type', 'options', 'required', 'default')
 
 
 class NestedSectionSerializer(serializers.ModelSerializer):
@@ -269,7 +270,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
-                  'limit_period', 'limit_amount', 'disable_quotas')
+                  'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code')
         extra_kwargs = {
             'billing_type': {'required': True},
         }
@@ -341,29 +342,31 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         return offering_type
 
     def _validate_attributes(self, offering_attributes, category):
-        offering_attribute_keys = offering_attributes.keys()
-        required_category_attributes = list(models.Attribute.objects.filter(section__category=category,
-                                                                            required=True))
-        unfilled_attributes = {attr.key for attr in required_category_attributes} - set(offering_attribute_keys)
+        category_attributes = models.Attribute.objects.filter(section__category=category)
+        required_attributes = category_attributes.filter(required=True).values_list('key', flat=True)
+        missing_attributes = set(required_attributes) - set(offering_attributes.keys())
 
-        if unfilled_attributes:
-            raise rf_exceptions.ValidationError(
-                {'attributes': _('Required fields %s are not filled' % list(unfilled_attributes))})
+        if missing_attributes:
+            raise rf_exceptions.ValidationError({
+                'attributes': _('These attributes are required: %s' % ', '.join(sorted(missing_attributes)))
+            })
 
-        category_attributes = list(models.Attribute.objects.filter(section__category=category,
-                                                                   key__in=offering_attribute_keys))
-        for key, value in offering_attributes.items():
-            match_attributes = filter(lambda a: a.key == key, category_attributes)
-            attribute = match_attributes[0] if match_attributes else None
+        for attribute in category_attributes:
+            value = offering_attributes.get(attribute.key)
+            if value is None:
+                # Use default attribute value if it is defined
+                if attribute.default is not None:
+                    offering_attributes[attribute.key] = attribute.default
+                continue
 
-            if attribute:
-                klass = attribute_types.get_attribute_type(attribute.type)
-                if klass:
-                    try:
-                        klass.validate(value, list(attribute.options.values_list('key', flat=True)))
-                    except ValidationError as e:
-                        err = rf_exceptions.ValidationError({'attributes': e.message})
-                        raise err
+            validator = attribute_types.get_attribute_type(attribute.type)
+            if not validator:
+                continue
+
+            try:
+                validator.validate(value, list(attribute.options.values_list('key', flat=True)))
+            except ValidationError as e:
+                raise rf_exceptions.ValidationError({'attributes': e.message})
 
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)
@@ -887,10 +890,45 @@ class CategoryComponentUsageSerializer(core_serializers.RestrictedSerializerMixi
                   'date', 'reported_usage', 'fixed_usage', 'scope')
 
 
-class ComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
+class BaseComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
     class Meta(object):
         model = models.ComponentUsage
-        fields = ('type', 'name', 'measured_unit', 'usage', 'date')
+        fields = (
+            'uuid', 'created', 'description',
+            'type', 'name', 'measured_unit', 'usage', 'date',
+        )
+
+
+class ComponentUsageSerializer(BaseComponentUsageSerializer):
+    resource_name = serializers.ReadOnlyField(source='resource.name')
+    resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
+
+    offering_name = serializers.ReadOnlyField(source='resource.offering.name')
+    offering_uuid = serializers.ReadOnlyField(source='resource.offering.uuid')
+
+    project_name = serializers.ReadOnlyField(source='resource.project.name')
+    project_uuid = serializers.ReadOnlyField(source='resource.project.uuid')
+
+    customer_name = serializers.ReadOnlyField(source='resource.project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='resource.project.customer.uuid')
+
+    class Meta(BaseComponentUsageSerializer.Meta):
+        fields = BaseComponentUsageSerializer.Meta.fields + (
+            'resource_name', 'resource_uuid',
+            'offering_name', 'offering_uuid',
+            'project_name', 'project_uuid',
+            'customer_name', 'customer_uuid',
+        )
+
+
+class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ResourcePlanPeriod
+        fields = ('plan_name', 'plan_uuid', 'start', 'end', 'components')
+
+    plan_name = serializers.ReadOnlyField(source='plan.name')
+    plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
+    components = BaseComponentUsageSerializer(many=True)
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
@@ -917,6 +955,7 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
 class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
+    description = serializers.CharField(required=False, allow_blank=True)
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
@@ -927,16 +966,27 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         resource = attrs['resource']
         date = attrs['date']
-        plan = resource.plan
 
         if resource.state == models.Resource.States.TERMINATED:
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource is terminated.')
             })
 
-        if not plan:
+        try:
+            plan_period = models.ResourcePlanPeriod.objects. \
+                filter(Q(start__lte=date) | Q(start__isnull=True)). \
+                filter(Q(end__gt=date) | Q(end__isnull=True)). \
+                get(resource=resource)
+            attrs['plan_period'] = plan_period
+        except models.ResourcePlanPeriod.DoesNotExist:
             raise rf_exceptions.ValidationError({
-                'resource': _('Resource does not have billing plan.')
+                'resource': _('Resource does not have plan period.')
+            })
+        except models.ResourcePlanPeriod.MultipleObjectsReturned:
+            logger.warning('Multiple ResourcePlanPeriod objects found. Resource ID: %s, date: %s.',
+                           resource.id, date)
+            raise rf_exceptions.ValidationError({
+                'resource': _('Multiple ResourcePlanPeriod objects found.')
             })
 
         if date > datetime.date.today():
@@ -952,15 +1002,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 'date':
                     _('Cannot update usage information. Billing period is closed.')
             })
-
-        if plan.unit == UnitPriceMixin.Units.PER_MONTH:
-            attrs['date'] = core_utils.month_start(date)
-
-        if plan.unit == UnitPriceMixin.Units.PER_HALF_MONTH:
-            if date.day < 16:
-                attrs['date'] = core_utils.month_start(date)
-            else:
-                attrs['date'] = datetime.date(year=date.year, month=date.month, day=16)
 
         for usage in attrs['usages']:
             component_type = usage['type']
@@ -980,17 +1021,19 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
     def save(self):
         date = self.validated_data['date']
         resource = self.validated_data['resource']
+        plan_period = self.validated_data['plan_period']
 
         for usage in self.validated_data['usages']:
             component = usage['component']
             amount = usage['amount']
+            description = usage.get('description', '')
             component.validate_amount(resource, amount, date)
 
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
-                date=date,
-                defaults={'usage': amount},
+                plan_period=plan_period,
+                defaults={'usage': amount, 'date': date, 'description': description},
             )
 
 

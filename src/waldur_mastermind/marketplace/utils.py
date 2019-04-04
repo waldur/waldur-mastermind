@@ -99,7 +99,7 @@ def get_service_provider_info(source):
 
         return {
             'service_provider_name': customer.name,
-            'service_provider_uuid': '' if not service_provider else service_provider.uuid,
+            'service_provider_uuid': '' if not service_provider else service_provider.uuid.hex,
         }
     except models.Resource.DoesNotExist:
         return {}

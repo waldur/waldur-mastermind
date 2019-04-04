@@ -413,6 +413,30 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('required_attribute' in response.content)
 
+    def test_default_attribute_value_is_used_if_user_did_not_override_it(self):
+        category = factories.CategoryFactory()
+        section = factories.SectionFactory(category=category)
+        factories.AttributeFactory(section=section, key='support_phone', default='support@example.com')
+
+        response = self.create_offering('staff', add_payload={
+            'category': factories.CategoryFactory.get_url(category),
+            'attributes': {},
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['attributes']['support_phone'], 'support@example.com')
+
+    def test_default_attribute_value_is_not_used_if_user_has_overriden_it(self):
+        category = factories.CategoryFactory()
+        section = factories.SectionFactory(category=category)
+        factories.AttributeFactory(section=section, key='support_phone', default='support@example.com')
+
+        response = self.create_offering('staff', add_payload={
+            'category': factories.CategoryFactory.get_url(category),
+            'attributes': {'support_phone': 'admin@example.com'}
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['attributes']['support_phone'], 'admin@example.com')
+
     def create_offering(self, user, attributes=False, add_payload=None):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
