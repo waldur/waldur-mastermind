@@ -9,7 +9,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0071_plan_period_to_usage'),
+        ('marketplace', '0073_plan_period_to_usage'),
     ]
 
     operations = [

@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0069_componentusage_uuid'),
+        ('marketplace', '0071_componentusage_uuid_unique'),
     ]
 
     operations = [
