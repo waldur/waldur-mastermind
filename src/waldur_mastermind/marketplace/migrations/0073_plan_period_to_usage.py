@@ -9,7 +9,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0070_offering_component_product_code'),
+        ('marketplace', '0072_offering_component_product_code'),
     ]
 
     operations = [
