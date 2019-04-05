@@ -370,3 +370,22 @@ class InternalIPFactory(factory.DjangoModelFactory):
     instance = factory.SubFactory(InstanceFactory)
     subnet = factory.SubFactory(SubNetFactory)
     settings = factory.SelfAttribute('subnet.settings')
+
+
+class VolumeTypeFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.VolumeType
+
+    name = factory.Sequence(lambda n: 'volume_type_%s' % n)
+    backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+
+    @classmethod
+    def get_url(cls, volume_type=None):
+        if volume_type is None:
+            volume_type = VolumeTypeFactory()
+        return 'http://testserver' + reverse('openstacktenant-volume-type-detail', kwargs={'uuid': volume_type.uuid})
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstacktenant-volume-type-list')

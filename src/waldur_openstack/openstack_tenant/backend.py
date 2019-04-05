@@ -180,6 +180,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_subnets()
         self.pull_internal_ips()
         self.pull_floating_ips()
+        self.pull_volume_types()
 
     def pull_resources(self):
         self.pull_volumes()
@@ -481,7 +482,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         if volume.source_snapshot:
             kwargs['snapshot_id'] = volume.source_snapshot.backend_id
         if volume.type:
-            kwargs['volume_type'] = volume.type
+            kwargs['volume_type'] = volume.type.backend_id
         if volume.image:
             kwargs['imageRef'] = volume.image.backend_id
         cinder = self.cinder_client
@@ -566,13 +567,22 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         return volume
 
     def _backend_volume_to_volume(self, backend_volume):
+        volume_type = None
+
+        try:
+            if backend_volume.volume_type:
+                volume_type = models.VolumeType.objects.get(backend_id=backend_volume.volume_type.id,
+                                                            service_project_link__service__settings=self.settings)
+        except models.VolumeType.DoesNotExist:
+            pass
+
         volume = models.Volume(
             name=backend_volume.name,
             description=backend_volume.description or '',
             size=self.gb2mb(backend_volume.size),
             metadata=backend_volume.metadata,
             backend_id=backend_volume.id,
-            type=backend_volume.volume_type or '',
+            type=volume_type,
             bootable=backend_volume.bootable == 'true',
             runtime_state=backend_volume.status,
             state=models.Volume.States.OK,
@@ -1443,3 +1453,23 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             return nova.servers.get_console_output(instance.backend_id, length)
         except nova_exceptions.ClientException as e:
             reraise(e)
+
+    def pull_volume_types(self):
+        try:
+            volume_types = self.cinder_client.volume_types.list()
+        except nova_exceptions.ClientException as e:
+            reraise(e)
+
+        with transaction.atomic():
+            cur_volume_types = self._get_current_properties(models.VolumeType)
+            for backend_type in volume_types:
+                cur_volume_types.pop(backend_type.id, None)
+                models.VolumeType.objects.update_or_create(
+                    settings=self.settings,
+                    backend_id=backend_type.id,
+                    defaults={
+                        'name': backend_type.name,
+                        'description': backend_type.description or '',
+                    })
+
+            models.VolumeType.objects.filter(backend_id__in=cur_volume_types.keys(), settings=self.settings).delete()

@@ -137,3 +137,8 @@ class SecurityGroupFilter(structure_filters.ServicePropertySettingsFilter):
 class ImageFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
+
+
+class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.VolumeType
