@@ -21,6 +21,7 @@ def register_in(router):
                     base_name='openstacktenant-snapshot-schedule')
     router.register(r'openstacktenant-subnets', views.SubNetViewSet, base_name='openstacktenant-subnet')
     router.register(r'openstacktenant-networks', views.NetworkViewSet, base_name='openstacktenant-network')
+    router.register(r'openstacktenant-volume-types', views.VolumeTypeViewSet, base_name='openstacktenant-volume-type')
 
 
 urlpatterns = [

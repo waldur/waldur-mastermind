@@ -165,7 +165,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     image = models.ForeignKey(Image, blank=True, null=True, on_delete=models.SET_NULL)
     image_name = models.CharField(max_length=150, blank=True)
     image_metadata = JSONField(blank=True)
-    type = models.CharField(max_length=100, blank=True)
+    type = models.ForeignKey('VolumeType', blank=True, null=True, on_delete=models.SET_NULL)
     source_snapshot = models.ForeignKey('Snapshot', related_name='volumes', blank=True, null=True,
                                         on_delete=models.SET_NULL)
     # TODO: Move this fields to resource model.
@@ -477,3 +477,16 @@ class InternalIP(openstack_base_models.Port):
 
     class Meta:
         unique_together = ('backend_id', 'settings')
+
+
+@python_2_unicode_compatible
+class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
+    class Meta(object):
+        unique_together = ('settings', 'backend_id')
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstacktenant-volume-type'
