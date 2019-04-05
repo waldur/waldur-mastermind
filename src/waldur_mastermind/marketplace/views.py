@@ -193,10 +193,33 @@ class PlanUsageReporter(object):
         return self.view.get_paginated_response(serializer.data)
 
 
+def validate_plan_update(plan):
+    if models.Resource.objects.filter(plan=plan).exists():
+        raise rf_exceptions.ValidationError(_('It is not possible to update plan because it is used by resources.'))
+
+
+def validate_plan_archive(plan):
+    if plan.archived:
+        raise rf_exceptions.ValidationError(_('Plan is already archived.'))
+
+
 class PlanViewSet(BaseMarketplaceView):
     queryset = models.Plan.objects.all()
     serializer_class = serializers.PlanSerializer
     filter_class = filters.PlanFilter
+
+    disabled_actions = ['destroy']
+    update_validators = partial_update_validators = [validate_plan_update]
+
+    archive_permissions = [structure_permissions.is_owner]
+    archive_validators = [validate_plan_archive]
+
+    @detail_route(methods=['post'])
+    def archive(self, request, uuid=None):
+        plan = self.get_object()
+        plan.archived = True
+        plan.save(update_fields=['archived'])
+        return Response({'detail': _('Plan has been archived.')}, status=status.HTTP_200_OK)
 
     @list_route()
     def usage_stats(self, request):
