@@ -27,6 +27,10 @@ def component_usage_register(component_usage):
     from waldur_mastermind.support_invoices.registrators import OfferingRegistrator
 
     plan_period = component_usage.plan_period
+    if not plan_period:
+        logger.warning('Skipping processing of component usage with ID %s because '
+                       'plan period is not defined.', component_usage.id)
+        return
     plan = plan_period.plan
 
     try:
