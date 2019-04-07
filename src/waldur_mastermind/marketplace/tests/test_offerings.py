@@ -484,37 +484,139 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
+        self.url = factories.OfferingFactory.get_url(self.offering)
+
     @data('staff', 'owner')
     def test_authorized_user_can_update_offering(self, user):
-        response, offering = self.update_offering(user)
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(offering.name, 'new_offering')
-        self.assertTrue(models.Offering.objects.filter(name='new_offering').exists())
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.name, 'new_offering')
 
     @data('user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_update_offering(self, user):
-        response, offering = self.update_offering(user)
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_offering_updating_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True
         self.customer.save()
-        response, offering = self.update_offering('owner')
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def update_offering(self, user):
-        user = getattr(self.fixture, user)
-        self.client.force_authenticate(user)
-        factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(customer=self.customer, shared=True)
-        url = factories.OfferingFactory.get_url(offering)
+    def test_if_category_is_updated_required_attributes_are_validated(self):
+        # Arrange
+        category = factories.CategoryFactory()
+        section = factories.SectionFactory(category=category)
+        factories.AttributeFactory(section=section, key='userSupportOptions', required=True)
 
-        response = self.client.patch(url, {
-            'name': 'new_offering'
-        })
-        offering.refresh_from_db()
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        category_url = factories.CategoryFactory.get_url(category)
+        response = self.client.patch(self.url, {'category': category_url})
 
-        return response, offering
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_if_category_is_updated_attributes_are_validated(self):
+        # Arrange
+        category = factories.CategoryFactory()
+        section = factories.SectionFactory(category=category)
+        factories.AttributeFactory(section=section, key='userSupportOptions', required=True)
+
+        # Act
+        attributes = {'userSupportOptions': 'email'}
+        category_url = factories.CategoryFactory.get_url(category)
+        payload = {'category': category_url, 'attributes': attributes}
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.category, category)
+
+    def test_it_should_not_be_possible_to_delete_components_if_they_are_used(self):
+        # Arrange
+        factories.OfferingComponentFactory(offering=self.offering)
+        factories.ResourceFactory(offering=self.offering)
+
+        # Act
+        payload = {'components': []}
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_it_should_be_possible_to_delete_components_if_they_are_not_used(self):
+        # Arrange
+        factories.OfferingComponentFactory(offering=self.offering)
+
+        # Act
+        payload = {'components': []}
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(0, self.offering.components.count())
+
+    def test_it_should_be_possible_to_create_new_components(self):
+        # Act
+        components = [
+            {
+                'type': 'cores',
+                'name': 'Cores',
+                'measured_unit': 'hours',
+                'billing_type': 'fixed',
+            }
+        ]
+        payload = {'components': components}
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component = self.offering.components.get()
+        self.assertEqual('cores', component.type)
+        self.assertEqual('hours', component.measured_unit)
+        self.assertEqual(models.OfferingComponent.BillingTypes.FIXED, component.billing_type)
+
+    def test_it_should_be_possible_to_update_existing_components(self):
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            type='cores',
+            name='CPU',
+            measured_unit='H',
+        )
+        # Act
+        components = [
+            {
+                'type': 'cores',
+                'name': 'Cores',
+                'measured_unit': 'hours',
+                'billing_type': 'fixed',
+            }
+        ]
+        payload = {'components': components}
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component = self.offering.components.get()
+        self.assertEqual('Cores', component.name)
+        self.assertEqual('hours', component.measured_unit)
+        self.assertEqual(models.OfferingComponent.BillingTypes.FIXED, component.billing_type)
 
 
 @ddt
@@ -616,18 +718,24 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         self.attribute.type = attribute_type
         self.attribute.save()
         attributes = {
-            'userSupportOptions': value,
+            'attributes': {
+                'userSupportOptions': value,
+            },
+            'category': self.category
         }
-        self.assertIsNone(self.serializer._validate_attributes(attributes, self.category))
+        self.assertIsNone(self.serializer._validate_attributes(attributes))
 
     def _not_valid(self, attribute_type, value):
         self.attribute.type = attribute_type
         self.attribute.save()
         attributes = {
-            'userSupportOptions': value,
+            'attributes': {
+                'userSupportOptions': value,
+            },
+            'category': self.category,
         }
         self.assertRaises(rest_exceptions.ValidationError, self.serializer._validate_attributes,
-                          attributes, self.category)
+                          attributes)
 
 
 class OfferingQuotaTest(test.APITransactionTestCase):
