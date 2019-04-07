@@ -188,11 +188,15 @@ class BaseComponent(core_models.DescribableMixin):
                                      blank=True)
 
 
+@python_2_unicode_compatible
 class CategoryComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'category')
 
     category = models.ForeignKey(Category, related_name='components')
+
+    def __str__(self):
+        return '%s, category: %s' % (self.name, self.category.title)
 
 
 class CategoryComponentUsage(ScopeMixin):
@@ -201,6 +205,9 @@ class CategoryComponentUsage(ScopeMixin):
     reported_usage = models.PositiveIntegerField(null=True)
     fixed_usage = models.PositiveIntegerField(null=True)
     objects = managers.MixinManager('scope')
+
+    def __str__(self):
+        return 'component: %s, date: %s' % (six.text_type(self.component.name), self.date)
 
 
 @python_2_unicode_compatible
@@ -369,7 +376,7 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
             )
 
     def __str__(self):
-        return self.name
+        return six.text_type(self.name)
 
 
 @python_2_unicode_compatible
@@ -421,13 +428,14 @@ class Plan(core_models.UuidMixin,
         return cost
 
     def __str__(self):
-        return self.name
+        return six.text_type(self.name)
 
     @property
     def has_connected_resources(self):
         return Resource.objects.filter(plan=self).exists()
 
 
+@python_2_unicode_compatible
 class PlanComponent(models.Model):
     class Meta(object):
         unique_together = ('plan', 'component')
@@ -448,6 +456,12 @@ class PlanComponent(models.Model):
     @property
     def has_connected_resources(self):
         return self.plan.has_connected_resources
+
+    def __str__(self):
+        name = self.component and self.component.name
+        if name:
+            return '%s, plan: %s' % (name, self.plan.name)
+        return 'for plan: %s' % self.plan.name
 
 
 @python_2_unicode_compatible
@@ -506,6 +520,7 @@ class CostEstimateMixin(models.Model):
             self.cost = self.plan.get_estimate(self.limits)
 
 
+@python_2_unicode_compatible
 class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEstimateMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
@@ -514,7 +529,11 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEs
     class Meta(object):
         ordering = ('created',)
 
+    def __str__(self):
+        return 'user: %s, offering: %s' % (self.user.username, self.offering.name)
 
+
+@python_2_unicode_compatible
 class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
@@ -635,7 +654,11 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         context['order_items'] = [item._get_log_context('') for item in self.items.all()]
         return context
 
+    def __str__(self):
+        return 'project: %s, created by: %s' % (self.project.name, self.created_by.username)
 
+
+@python_2_unicode_compatible
 class Resource(CostEstimateMixin,
                core_models.UuidMixin,
                TimeStampedModel,
@@ -740,7 +763,11 @@ class Resource(CostEstimateMixin,
             'backend_metadata', 'backend_uuid', 'backend_type',
         )
 
+    def __str__(self):
+        return six.text_type(self.name)
 
+
+@python_2_unicode_compatible
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
     """
     This model allows to track billing plan for timeframes during resource lifecycle.
@@ -748,7 +775,11 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
     resource = models.ForeignKey(Resource, related_name='+')
     plan = models.ForeignKey(Plan)
 
+    def __str__(self):
+        return six.text_type(self.resource.name)
 
+
+@python_2_unicode_compatible
 class OrderItem(CostEstimateMixin,
                 core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
@@ -832,7 +863,11 @@ class OrderItem(CostEstimateMixin,
             'get_state_display', 'get_type_display',
         )
 
+    def __str__(self):
+        return 'type: %s, created_by: %s' % (self.get_type_display(), self.order.created_by)
 
+
+@python_2_unicode_compatible
 class ComponentQuota(models.Model):
     resource = models.ForeignKey(Resource, related_name='quotas')
     component = models.ForeignKey(OfferingComponent,
@@ -843,7 +878,11 @@ class ComponentQuota(models.Model):
     class Meta:
         unique_together = ('resource', 'component')
 
+    def __str__(self):
+        return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
+
+@python_2_unicode_compatible
 class ComponentUsage(TimeStampedModel,
                      core_models.DescribableMixin,
                      core_models.UuidMixin):
@@ -859,7 +898,11 @@ class ComponentUsage(TimeStampedModel,
     class Meta:
         unique_together = ('resource', 'component', 'plan_period')
 
+    def __str__(self):
+        return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
+
+@python_2_unicode_compatible
 class AggregateResourceCount(ScopeMixin):
     """
     This model allows to count current number of project or customer resources by category.
@@ -871,7 +914,11 @@ class AggregateResourceCount(ScopeMixin):
     class Meta:
         unique_together = ('category', 'content_type', 'object_id')
 
+    def __str__(self):
+        return six.text_type(self.category.title)
 
+
+@python_2_unicode_compatible
 class OfferingFile(core_models.UuidMixin,
                    core_models.NameMixin,
                    structure_models.StructureModel,
@@ -885,3 +932,6 @@ class OfferingFile(core_models.UuidMixin,
     @classmethod
     def get_url_name(cls):
         return 'marketplace-offering-file'
+
+    def __str__(self):
+        return 'offering: %s' % self.offering
