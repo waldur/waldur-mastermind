@@ -489,7 +489,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.url = factories.OfferingFactory.get_url(self.offering)
 
     @data('staff', 'owner')
-    def test_authorized_user_can_update_offering(self, user):
+    def test_staff_and_owner_can_update_offering_in_draft_state(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -502,6 +502,28 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
+    def test_owner_can_not_update_offering_in_active_or_paused_state(self, state):
+        # Arrange
+        self.offering.state = state
+        self.offering.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, {'name': 'new_offering'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
+    def test_staff_can_update_offering_in_active_or_paused_state(self, state):
+        # Arrange
+        self.offering.state = state
+        self.offering.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {'name': 'new_offering'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_offering_updating_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True

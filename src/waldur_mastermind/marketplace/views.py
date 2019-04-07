@@ -83,6 +83,18 @@ class CategoryViewSet(EagerLoadMixin, core_views.ActionsViewSet):
         [structure_permissions.is_staff]
 
 
+def can_update_offering(request, view, obj=None):
+    offering = obj
+
+    if not offering:
+        return
+
+    if offering.state == models.Offering.States.DRAFT:
+        structure_permissions.is_owner(request, view, offering)
+    else:
+        structure_permissions.is_staff(request, view)
+
+
 class OfferingViewSet(BaseMarketplaceView):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingSerializer
@@ -126,6 +138,10 @@ class OfferingViewSet(BaseMarketplaceView):
         destroy_validators = \
         partial_update_validators = \
         [structure_utils.check_customer_blocked]
+
+    update_permissions = \
+        partial_update_permissions = \
+        [can_update_offering]
 
     def perform_create(self, serializer):
         customer = serializer.validated_data['customer']
