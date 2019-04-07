@@ -503,7 +503,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
+    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED, models.Offering.States.ARCHIVED)
     def test_owner_can_not_update_offering_in_active_or_paused_state(self, state):
         # Arrange
         self.offering.state = state
@@ -514,7 +514,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
+    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED, models.Offering.States.ARCHIVED)
     def test_staff_can_update_offering_in_active_or_paused_state(self, state):
         # Arrange
         self.offering.state = state
