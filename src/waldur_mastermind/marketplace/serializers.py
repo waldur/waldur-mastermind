@@ -412,7 +412,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 })
 
             quotas = plan.get('quotas', {})
-            quota_components = set(quotas.keys())
+            # Zero is default value for plan component amount so it is okay to skip it
+            quota_components = {key for (key, value) in quotas.items() if value != 0}
             if quota_components != fixed_types:
                 raise serializers.ValidationError({
                     'plans': _('Invalid quota components.')
