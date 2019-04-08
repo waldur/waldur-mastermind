@@ -44,7 +44,8 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'external_network_id': _('It is used to automatically assign floating IP to your virtual machine.'),
         'console_type': _('The type of remote console. '
                           'The valid values are novnc, xvpvnc, rdp-html5, '
-                          'spice-html5, serial, and webmks.')
+                          'spice-html5, serial, and webmks.'),
+        'default_volume_type_name': _('Volume type name to use when creating volumes.'),
     }
 
     # Expose service settings quotas as service quotas as a temporary workaround.
@@ -53,7 +54,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.OpenStackTenantService
-        required_fields = ('backend_url', 'username', 'password', 'tenant_id')
+        required_fields = ('backend_url', 'username', 'password', 'tenant_id',)
         extra_field_options = {
             'backend_url': {
                 'label': 'API URL',
