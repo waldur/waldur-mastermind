@@ -203,11 +203,12 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
                 volume_type = VolumeType.objects.get(name=volume_type_name, settings=self.service_settings)
                 self.type = volume_type
             except VolumeType.DoesNotExist:
-                logger.error('Volume type is not filled because volume type %s is not found. Settings UUID: %s',
+                logger.error('Volume type is not set as volume type with name %s is not found. Settings UUID: %s',
                              (volume_type_name,
                               self.service_settings.uuid.hex))
             except VolumeType.MultipleObjectsReturned:
-                logger.error('Volume type is not filled because some volume types %s are found. Settings UUID: %s',
+                logger.error('Volume type is not set as multiple volume types with name %s are found.'
+                             'Service settings UUID: %s',
                              (volume_type_name,
                               self.service_settings.uuid.hex))
 
