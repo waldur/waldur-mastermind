@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import logging
 
 from django.core.validators import RegexValidator
 from django.db import models
@@ -16,6 +17,8 @@ from waldur_core.quotas import models as quotas_models, fields as quotas_fields
 from waldur_core.structure import models as structure_models, utils as structure_utils
 from waldur_openstack.openstack_base import models as openstack_base_models
 from waldur_openstack.openstack import models as openstack_models
+
+logger = logging.getLogger(__name__)
 
 
 TenantQuotas = openstack_models.Tenant.Quotas
@@ -192,6 +195,23 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     def get_backend_fields(cls):
         return super(Volume, cls).get_backend_fields() + ('name', 'description', 'size', 'metadata', 'type', 'bootable',
                                                           'runtime_state', 'device', 'instance')
+
+    def save(self, *args, **kwargs):
+        volume_type_name = self.service_settings.options.get('default_volume_type_name')
+        if not self.pk and not self.type and volume_type_name:
+            try:
+                volume_type = VolumeType.objects.get(name=volume_type_name, settings=self.service_settings)
+                self.type = volume_type
+            except VolumeType.DoesNotExist:
+                logger.error('Volume type is not filled because volume type %s is not found. Settings UUID: %s',
+                             (volume_type_name,
+                              self.service_settings.uuid.hex))
+            except VolumeType.MultipleObjectsReturned:
+                logger.error('Volume type is not filled because some volume types %s are found. Settings UUID: %s',
+                             (volume_type_name,
+                              self.service_settings.uuid.hex))
+
+        super(Volume, self).save(*args, **kwargs)
 
 
 class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
