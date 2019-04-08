@@ -133,9 +133,9 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
-                  'offering', 'max_amount')
+                  'offering', 'max_amount', 'archived')
         protected_fields = ('offering',)
-        read_ony_fields = ('unit_price',)
+        read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -323,17 +323,9 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         if not self.instance:
             structure_permissions.is_owner(self.context['request'], None, attrs['customer'])
 
-        offering_attributes = attrs.get('attributes')
-        if offering_attributes is not None:
-            if not isinstance(offering_attributes, dict):
-                raise rf_exceptions.ValidationError({
-                    'attributes': _('Dictionary is expected.'),
-                })
-
-            category = attrs.get('category', getattr(self.instance, 'category', None))
-            self._validate_attributes(offering_attributes, category)
-
+        self._validate_attributes(attrs)
         self._validate_plans(attrs)
+
         return attrs
 
     def validate_type(self, offering_type):
@@ -341,10 +333,23 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             raise rf_exceptions.ValidationError(_('Invalid value.'))
         return offering_type
 
-    def _validate_attributes(self, offering_attributes, category):
+    def _validate_attributes(self, attrs):
+        category = attrs.get('category')
+        if category is None and self.instance:
+            category = self.instance.category
+
+        attributes = attrs.get('attributes')
+        if attributes is not None and not isinstance(attributes, dict):
+            raise rf_exceptions.ValidationError({
+                'attributes': _('Dictionary is expected.'),
+            })
+
+        if attributes is None and self.instance:
+            attributes = self.instance.attributes
+
         category_attributes = models.Attribute.objects.filter(section__category=category)
         required_attributes = category_attributes.filter(required=True).values_list('key', flat=True)
-        missing_attributes = set(required_attributes) - set(offering_attributes.keys())
+        missing_attributes = set(required_attributes) - (set(attributes.keys()) if attributes else set())
 
         if missing_attributes:
             raise rf_exceptions.ValidationError({
@@ -352,11 +357,11 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             })
 
         for attribute in category_attributes:
-            value = offering_attributes.get(attribute.key)
+            value = attributes.get(attribute.key)
             if value is None:
                 # Use default attribute value if it is defined
                 if attribute.default is not None:
-                    offering_attributes[attribute.key] = attribute.default
+                    attributes[attribute.key] = attribute.default
                 continue
 
             validator = attribute_types.get_attribute_type(attribute.type)
@@ -407,7 +412,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 })
 
             quotas = plan.get('quotas', {})
-            quota_components = set(quotas.keys())
+            # Zero is default value for plan component amount so it is okay to skip it
+            quota_components = {key for (key, value) in quotas.items() if value != 0}
             if quota_components != fixed_types:
                 raise serializers.ValidationError({
                     'plans': _('Invalid quota components.')
@@ -499,10 +505,53 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 price=prices[name],
             )
 
+    def _update_components(self, instance, validated_data):
+        resources_exist = models.Resource.objects.filter(offering=instance).exists()
+
+        old_components = {
+            component.type: component
+            for component in instance.components.all()
+        }
+
+        new_components = {
+            component['type']: models.OfferingComponent(offering=instance, **component)
+            for component in validated_data.pop('components', [])
+        }
+
+        removed_components = set(old_components.keys()) - set(new_components.keys())
+        added_components = set(new_components.keys()) - set(old_components.keys())
+        updated_components = set(new_components.keys()) & set(old_components.keys())
+
+        if removed_components:
+            if resources_exist:
+                raise serializers.ValidationError({
+                    'components': _('These components cannot be removed because they are already used: %s') %
+                    ', '.join(removed_components)
+                })
+            else:
+                models.OfferingComponent.objects.filter(type__in=removed_components).delete()
+
+        for key in added_components:
+            new_components[key].save()
+
+        COMPONENT_KEYS = (
+            'name', 'description',
+            'billing_type', 'measured_unit',
+            'limit_period', 'limit_amount', 'disable_quotas',
+            'product_code', 'article_code',
+        )
+
+        for component_key in updated_components:
+            new_component = new_components[component_key]
+            old_component = old_components[component_key]
+            for key in COMPONENT_KEYS:
+                setattr(old_component, key, getattr(new_component, key))
+            old_component.save()
+
+    @transaction.atomic
     def update(self, instance, validated_data):
-        # TODO: Implement support for nested plan update
+        self._update_components(instance, validated_data)
         validated_data.pop('plans', [])
-        validated_data.pop('components', [])
         offering = super(OfferingSerializer, self).update(instance, validated_data)
         return offering
 

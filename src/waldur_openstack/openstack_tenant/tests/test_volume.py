@@ -341,6 +341,8 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.image_url = factories.ImageFactory.get_url(self.image)
         self.spl_url = factories.OpenStackTenantServiceProjectLinkFactory.get_url(self.fixture.spl)
         self.client.force_authenticate(self.fixture.owner)
+        self.type = factories.VolumeTypeFactory(settings=self.settings)
+        self.type_url = factories.VolumeTypeFactory.get_url(self.type)
 
     def test_image_name_populated_on_volume_creation(self):
         url = factories.VolumeFactory.get_list_url()
@@ -375,3 +377,92 @@ class VolumeCreateTest(test.APITransactionTestCase):
 
         system_volume = response.data['volumes'][0]
         self.assertEqual(system_volume['image_name'], self.image.name)
+
+    def test_type_populated_on_volume_creation(self):
+        url = factories.VolumeFactory.get_list_url()
+        payload = {
+            'name': 'Test volume',
+            'type': self.type_url,
+            'service_project_link': self.spl_url,
+            'size': 10240
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['type'], self.type_url)
+
+    def test_validation_volume_type(self):
+        url = factories.VolumeFactory.get_list_url()
+        payload = {
+            'name': 'Test volume',
+            'type': factories.VolumeTypeFactory.get_url(),
+            'service_project_link': self.spl_url,
+            'size': 10240
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('type', response.data)
+
+    def test_use_default_volume_type_if_type_not_populated(self):
+        url = factories.VolumeFactory.get_list_url()
+        self.settings.options['default_volume_type_name'] = self.type.name
+        self.settings.save()
+        payload = {
+            'name': 'Test volume',
+            'service_project_link': self.spl_url,
+            'size': 10240
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['type_name'], self.type.name)
+
+    @mock.patch('waldur_openstack.openstack_tenant.models.logger')
+    def test_not_use_default_volume_type_if_it_not_exists(self, mock_logger):
+        url = factories.VolumeFactory.get_list_url()
+        self.settings.options['default_volume_type_name'] = 'not_exists_value_type'
+        self.settings.save()
+        payload = {
+            'name': 'Test volume',
+            'service_project_link': self.spl_url,
+            'size': 10240
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['type_name'], None)
+        mock_logger.error.assert_called_once()
+
+    @mock.patch('waldur_openstack.openstack_tenant.models.logger')
+    def test_not_use_default_volume_type_if_two_types_exist(self, mock_logger):
+        url = factories.VolumeFactory.get_list_url()
+        factories.VolumeTypeFactory(name=self.type.name, settings=self.settings)
+        self.settings.options['default_volume_type_name'] = self.type.name
+        self.settings.save()
+        payload = {
+            'name': 'Test volume',
+            'service_project_link': self.spl_url,
+            'size': 10240
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['type_name'], None)
+        mock_logger.error.assert_called_once()
+
+    def test_use_type_populated_if_default_type_is_defined(self):
+        url = factories.VolumeFactory.get_list_url()
+        default_type = factories.VolumeTypeFactory(settings=self.settings)
+        self.settings.options['default_volume_type_name'] = default_type.name
+        self.settings.save()
+        payload = {
+            'name': 'Test volume',
+            'type': self.type_url,
+            'service_project_link': self.spl_url,
+            'size': 10240
+        }
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['type_name'], self.type.name)

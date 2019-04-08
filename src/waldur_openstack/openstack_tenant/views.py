@@ -832,3 +832,10 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
     def get_queryset(self):
         private_settings = self.get_private_settings()
         return structure_models.Customer.objects.filter(pk__in=private_settings.values('customer'))
+
+
+class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.VolumeType.objects.all().order_by('settings', 'name')
+    serializer_class = serializers.VolumeTypeSerializer
+    lookup_field = 'uuid'
+    filter_class = filters.VolumeTypeFilter

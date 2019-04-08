@@ -55,6 +55,7 @@ class OpenStackTenantFixture(ProjectFixture):
             service_project_link=self.spl,
             state=models.Volume.States.OK,
             runtime_state=models.Volume.RuntimeStates.OFFLINE,
+            type=self.volume_type,
         )
 
     @cached_property
@@ -110,4 +111,10 @@ class OpenStackTenantFixture(ProjectFixture):
         return factories.InternalIPFactory(
             subnet=self.subnet,
             instance=self.instance,
+        )
+
+    @cached_property
+    def volume_type(self):
+        return factories.VolumeTypeFactory(
+            settings=self.openstack_tenant_service_settings,
         )

@@ -19,6 +19,7 @@ from waldur_core.core import (serializers as core_serializers,
                               signals as core_signals)
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 
@@ -43,7 +44,8 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'external_network_id': _('It is used to automatically assign floating IP to your virtual machine.'),
         'console_type': _('The type of remote console. '
                           'The valid values are novnc, xvpvnc, rdp-html5, '
-                          'spice-html5, serial, and webmks.')
+                          'spice-html5, serial, and webmks.'),
+        'default_volume_type_name': _('Volume type name to use when creating volumes.'),
     }
 
     # Expose service settings quotas as service quotas as a temporary workaround.
@@ -52,7 +54,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.OpenStackTenantService
-        required_fields = ('backend_url', 'username', 'password', 'tenant_id')
+        required_fields = ('backend_url', 'username', 'password', 'tenant_id',)
         extra_field_options = {
             'backend_url': {
                 'label': 'API URL',
@@ -236,25 +238,27 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.SerializerMethodField()
+    type_name = serializers.CharField(source='type.name', read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Volume
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'source_snapshot', 'size', 'bootable', 'metadata',
-            'image', 'image_metadata', 'image_name', 'type', 'runtime_state',
+            'image', 'image_metadata', 'image_name', 'type', 'type_name', 'runtime_state',
             'device', 'action', 'action_details', 'instance', 'instance_name',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'image_metadata', 'image_name', 'bootable', 'source_snapshot', 'runtime_state', 'device', 'metadata',
-            'action', 'instance', 'type',
+            'action', 'instance'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'size', 'image',
+            'size', 'image', 'type',
         )
         extra_kwargs = dict(
             instance={'lookup_field': 'uuid', 'view_name': 'openstacktenant-instance-detail'},
             image={'lookup_field': 'uuid', 'view_name': 'openstacktenant-image-detail'},
             source_snapshot={'lookup_field': 'uuid', 'view_name': 'openstacktenant-snapshot-detail'},
+            type={'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-type-detail'},
             size={'required': False, 'allow_null': True},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
@@ -285,6 +289,10 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
                 raise serializers.ValidationError({
                     'size': _('Volume size should be equal or greater than %s for selected image') % image.min_disk
                 })
+            # type validation
+            type = attrs.get('type')
+            if type and type.settings != spl.service.settings:
+                raise serializers.ValidationError({'type': _('Volume type must belong to the same service settings')})
         return attrs
 
     def create(self, validated_data):
@@ -505,10 +513,12 @@ class NestedVolumeSerializer(core_serializers.AugmentedSerializerMixin,
                              serializers.HyperlinkedModelSerializer,
                              structure_serializers.BasicResourceSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
+    type_name = serializers.CharField(source='type.name', read_only=True)
 
     class Meta:
         model = models.Volume
-        fields = 'url', 'uuid', 'name', 'image_name', 'state', 'bootable', 'size', 'device', 'resource_type'
+        fields = ('url', 'uuid', 'name', 'image_name', 'state', 'bootable', 'size', 'device', 'resource_type',
+                  'type', 'type_name')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'}
         }
@@ -1471,3 +1481,21 @@ class InstanceImportSerializer(InstanceImportableSerializer):
 
 class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
+
+
+class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
+    settings = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.ServiceSettings.objects.all(),
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.VolumeType
+        fields = ('url', 'uuid', 'name', 'description', 'settings')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'settings': {'lookup_field': 'uuid'},
+        }
