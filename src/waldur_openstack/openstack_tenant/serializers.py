@@ -520,7 +520,8 @@ class NestedVolumeSerializer(core_serializers.AugmentedSerializerMixin,
         fields = ('url', 'uuid', 'name', 'image_name', 'state', 'bootable', 'size', 'device', 'resource_type',
                   'type', 'type_name')
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'}
+            'url': {'lookup_field': 'uuid'},
+            'type': {'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-type-detail'},
         }
 
 
