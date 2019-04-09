@@ -97,7 +97,9 @@ def can_update_offering(request, view, obj=None):
 
 class OfferingViewSet(BaseMarketplaceView):
     queryset = models.Offering.objects.all()
-    serializer_class = serializers.OfferingSerializer
+    serializer_class = serializers.OfferingDetailsSerializer
+    create_serializer_class = serializers.OfferingCreateSerializer
+    update_serializer_class = partial_update_serializer_class = serializers.OfferingUpdateSerializer
     filter_class = filters.OfferingFilter
     filter_backends = (DjangoFilterBackend, filters.OfferingCustomersFilterBackend)
 
@@ -221,7 +223,7 @@ def validate_plan_archive(plan):
 
 class PlanViewSet(BaseMarketplaceView):
     queryset = models.Plan.objects.all()
-    serializer_class = serializers.PlanSerializer
+    serializer_class = serializers.PlanDetailsSerializer
     filter_class = filters.PlanFilter
 
     disabled_actions = ['destroy']
