@@ -1042,10 +1042,12 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 instance.ram = flavor.ram
             except models.Flavor.DoesNotExist:
                 backend_flavor = self._get_flavor(backend_flavor_id)
-                instance.flavor_name = backend_flavor.name
-                instance.flavor_disk = self.gb2mb(backend_flavor.disk)
-                instance.cores = backend_flavor.vcpus
-                instance.ram = backend_flavor.ram
+                # If flavor has been removed in OpenStack cloud, we should skip update
+                if backend_flavor:
+                    instance.flavor_name = backend_flavor.name
+                    instance.flavor_disk = self.gb2mb(backend_flavor.disk)
+                    instance.cores = backend_flavor.vcpus
+                    instance.ram = backend_flavor.ram
 
         return instance
 
@@ -1053,6 +1055,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         nova = self.nova_client
         try:
             return nova.flavors.get(flavor_id)
+        except nova_exceptions.NotFound:
+            logger.info('OpenStack flavor %s is gone.', flavor_id)
+            return None
         except nova_exceptions.ClientException as e:
             reraise(e)
 
