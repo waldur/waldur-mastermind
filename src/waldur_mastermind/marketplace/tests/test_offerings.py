@@ -640,6 +640,103 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertEqual('hours', component.measured_unit)
         self.assertEqual(models.OfferingComponent.BillingTypes.FIXED, component.billing_type)
 
+    def test_it_should_be_possible_to_update_plan_name(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering, name='Old name')
+
+        # Act
+        payload = {
+            'plans': [
+                {
+                    'uuid': plan.uuid.hex,
+                    'name': 'New name',
+                }
+            ]
+        }
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        plan.refresh_from_db()
+        self.assertEqual(plan.name, 'New name')
+
+    def test_it_should_be_possible_to_update_plan_components(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+        offering_component = factories.OfferingComponentFactory(offering=self.offering, type='ram')
+        plan_component = factories.PlanComponentFactory(
+            plan=plan,
+            component=offering_component,
+            amount=10,
+            price=1,
+        )
+
+        # Act
+        payload = {
+            'plans': [
+                {
+                    'uuid': plan.uuid.hex,
+                    'quotas': {
+                        'ram': 20,
+                    },
+                    'prices': {
+                        'ram': 2,
+                    }
+                }
+            ]
+        }
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan_component.refresh_from_db()
+        self.assertEqual(plan_component.amount, 20)
+        self.assertEqual(plan_component.price, 2)
+
+    def test_it_should_be_possible_to_archive_plan(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+
+        # Act
+        payload = {
+            'plans': []
+        }
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        plan.refresh_from_db()
+        self.assertTrue(plan.archived)
+
+    def test_it_should_be_possible_to_add_new_plan(self):
+        payload = {
+            'components': [
+                {
+                    'type': 'cores',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'billing_type': 'fixed',
+                }
+            ],
+            'plans': [
+                {
+                    'name': 'small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 10},
+                }
+            ]
+        }
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(1, self.offering.plans.count())
+
 
 @ddt
 class OfferingDeleteTest(test.APITransactionTestCase):
@@ -680,7 +777,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
 class OfferingAttributesTest(test.APITransactionTestCase):
 
     def setUp(self):
-        self.serializer = serializers.OfferingSerializer()
+        self.serializer = serializers.OfferingCreateSerializer()
         self.category = factories.CategoryFactory()
         self.section = factories.SectionFactory(category=self.category)
         self.attribute = factories.AttributeFactory(

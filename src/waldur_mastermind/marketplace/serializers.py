@@ -128,14 +128,48 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
         }
 
 
-class PlanSerializer(core_serializers.AugmentedSerializerMixin,
-                     serializers.HyperlinkedModelSerializer):
+PriceSerializer = serializers.DecimalField(
+    min_value=0,
+    max_digits=models.PlanComponent.PRICE_MAX_DIGITS,
+    decimal_places=models.PlanComponent.PRICE_DECIMAL_PLACES,
+)
+
+
+class BasePlanSerializer(core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
+    prices = serializers.DictField(child=PriceSerializer, write_only=True, required=False)
+    quotas = serializers.DictField(child=serializers.IntegerField(min_value=0),
+                                   write_only=True, required=False)
+
     class Meta(object):
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
-                  'offering', 'max_amount', 'archived')
-        protected_fields = ('offering',)
+                  'prices', 'quotas', 'max_amount', 'archived')
         read_ony_fields = ('unit_price', 'archived')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
+        }
+
+    def get_fields(self):
+        fields = super(BasePlanSerializer, self).get_fields()
+        method = self.context['view'].request.method
+        if method == 'GET':
+            fields['prices'] = serializers.SerializerMethodField()
+            fields['quotas'] = serializers.SerializerMethodField()
+        return fields
+
+    def get_prices(self, plan):
+        return {item.component.type: item.price for item in plan.components.all()}
+
+    def get_quotas(self, plan):
+        return {item.component.type: item.amount for item in plan.components.all()}
+
+
+class PlanDetailsSerializer(BasePlanSerializer):
+    class Meta(BasePlanSerializer.Meta):
+        model = models.Plan
+        fields = BasePlanSerializer.Meta.fields + ('offering',)
+        protected_fields = ('offering',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
             'offering': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -146,13 +180,6 @@ class PlanSerializer(core_serializers.AugmentedSerializerMixin,
             structure_permissions.is_owner(self.context['request'], None, attrs['offering'].customer)
 
         return attrs
-
-
-PriceSerializer = serializers.DecimalField(
-    min_value=0,
-    max_digits=models.PlanComponent.PRICE_MAX_DIGITS,
-    decimal_places=models.PlanComponent.PRICE_DECIMAL_PLACES,
-)
 
 
 class PlanUsageRequestSerializer(serializers.Serializer):
@@ -172,36 +199,6 @@ class PlanUsageResponseSerializer(serializers.Serializer):
 
     customer_provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
     customer_provider_name = serializers.ReadOnlyField(source='offering.customer.name')
-
-
-class NestedPlanSerializer(core_serializers.AugmentedSerializerMixin,
-                           serializers.HyperlinkedModelSerializer):
-    prices = serializers.DictField(child=PriceSerializer, write_only=True, required=False)
-    quotas = serializers.DictField(child=serializers.IntegerField(min_value=0),
-                                   write_only=True, required=False)
-
-    class Meta(object):
-        model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
-                  'prices', 'quotas', 'max_amount')
-        read_ony_fields = ('unit_price',)
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
-        }
-
-    def get_fields(self):
-        fields = super(NestedPlanSerializer, self).get_fields()
-        method = self.context['view'].request.method
-        if method == 'GET':
-            fields['prices'] = serializers.SerializerMethodField()
-            fields['quotas'] = serializers.SerializerMethodField()
-        return fields
-
-    def get_prices(self, plan):
-        return {item.component.type: item.price for item in plan.components.all()}
-
-    def get_quotas(self, plan):
-        return {item.component.type: item.amount for item in plan.components.all()}
 
 
 class NestedScreenshotSerializer(serializers.ModelSerializer):
@@ -276,20 +273,20 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         }
 
 
-class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
-                         core_serializers.RestrictedSerializerMixin,
-                         serializers.HyperlinkedModelSerializer):
+class OfferingDetailsSerializer(core_serializers.AugmentedSerializerMixin,
+                                core_serializers.RestrictedSerializerMixin,
+                                serializers.HyperlinkedModelSerializer):
+
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(required=False)
     components = OfferingComponentSerializer(required=False, many=True)
     geolocations = core_serializers.GeoLocationField(required=False)
     order_item_count = serializers.SerializerMethodField()
-    plans = NestedPlanSerializer(many=True, required=False)
+    plans = BasePlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    service_attributes = serializers.JSONField(required=False, write_only=True)
     files = NestedOfferingFileSerializer(many=True, read_only=True)
 
     class Meta(object):
@@ -300,12 +297,12 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'service_attributes', 'scope', 'scope_uuid', 'files')
+                  'scope', 'scope_uuid', 'files')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
         }
-        protected_fields = ('customer', 'type', 'scope')
+        protected_fields = ('customer', 'type')
         read_only_fields = ('state',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
@@ -318,6 +315,9 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             return offering.quotas.get(name='order_item_count').usage
         except ObjectDoesNotExist:
             return 0
+
+
+class OfferingModifySerializer(OfferingDetailsSerializer):
 
     def validate(self, attrs):
         if not self.instance:
@@ -380,6 +380,8 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
     def _validate_plans(self, attrs):
         custom_components = attrs.get('components')
+        if not custom_components and self.instance:
+            custom_components = self.instance.components.all().values()
 
         offering_type = attrs.get('type', getattr(self.instance, 'type', None))
         builtin_components = plugins.manager.get_components(offering_type)
@@ -422,22 +424,20 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
             plan['unit_price'] = sum(prices[component] * quotas[component]
                                      for component in fixed_types)
 
-    @transaction.atomic
-    def create(self, validated_data):
-        plans = validated_data.pop('plans', [])
-        custom_components = validated_data.pop('components', [])
+    def _create_plan(self, offering, plan_data, components):
+        quotas = plan_data.pop('quotas', {})
+        prices = plan_data.pop('prices', {})
+        plan = models.Plan.objects.create(offering=offering, **plan_data)
 
-        if len(plans) < 1:
-            raise serializers.ValidationError({
-                'plans': _('At least one plan should be specified.')
-            })
+        for name, component in components.items():
+            models.PlanComponent.objects.create(
+                plan=plan,
+                component=component,
+                amount=quotas.get(name) or 0,
+                price=prices[name],
+            )
 
-        offering_type = validated_data.get('type')
-        service_type = plugins.manager.get_service_type(offering_type)
-        if service_type:
-            validated_data = self._create_service(service_type, validated_data)
-
-        offering = super(OfferingSerializer, self).create(validated_data)
+    def _create_components(self, offering, custom_components):
         fixed_components = plugins.manager.get_components(offering.type)
 
         for component_data in fixed_components:
@@ -449,9 +449,38 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         for component_data in custom_components:
             models.OfferingComponent.objects.create(offering=offering, **component_data)
 
+    def _create_plans(self, offering, plans):
         components = {component.type: component for component in offering.components.all()}
         for plan_data in plans:
             self._create_plan(offering, plan_data, components)
+
+
+class OfferingCreateSerializer(OfferingModifySerializer):
+    class Meta(OfferingModifySerializer.Meta):
+        fields = OfferingModifySerializer.Meta.fields + ('service_attributes',)
+
+    service_attributes = serializers.JSONField(required=False, write_only=True)
+
+    def validate_plans(self, plans):
+        if len(plans) < 1:
+            raise serializers.ValidationError({
+                'plans': _('At least one plan should be specified.')
+            })
+        return plans
+
+    @transaction.atomic
+    def create(self, validated_data):
+        plans = validated_data.pop('plans', [])
+        custom_components = validated_data.pop('components', [])
+
+        offering_type = validated_data.get('type')
+        service_type = plugins.manager.get_service_type(offering_type)
+        if service_type:
+            validated_data = self._create_service(service_type, validated_data)
+
+        offering = super(OfferingCreateSerializer, self).create(validated_data)
+        self._create_components(offering, custom_components)
+        self._create_plans(offering, plans)
 
         return offering
 
@@ -492,20 +521,20 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
         validated_data['scope'] = service.settings
         return validated_data
 
-    def _create_plan(self, offering, plan_data, components):
-        quotas = plan_data.pop('quotas', {})
-        prices = plan_data.pop('prices', {})
-        plan = models.Plan.objects.create(offering=offering, **plan_data)
 
-        for name, component in components.items():
-            models.PlanComponent.objects.create(
-                plan=plan,
-                component=component,
-                amount=quotas.get(name) or 0,
-                price=prices[name],
-            )
+class PlanUpdateSerializer(BasePlanSerializer):
 
-    def _update_components(self, instance, validated_data):
+    class Meta(BasePlanSerializer.Meta):
+        extra_kwargs = {
+            'uuid': {'read_only': False},
+        }
+
+
+class OfferingUpdateSerializer(OfferingModifySerializer):
+
+    plans = PlanUpdateSerializer(many=True, required=False, write_only=True)
+
+    def _update_components(self, instance, components):
         resources_exist = models.Resource.objects.filter(offering=instance).exists()
 
         old_components = {
@@ -515,7 +544,7 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
 
         new_components = {
             component['type']: models.OfferingComponent(offering=instance, **component)
-            for component in validated_data.pop('components', [])
+            for component in components
         }
 
         removed_components = set(old_components.keys()) - set(new_components.keys())
@@ -548,11 +577,70 @@ class OfferingSerializer(core_serializers.AugmentedSerializerMixin,
                 setattr(old_component, key, getattr(new_component, key))
             old_component.save()
 
+    def _update_quotas(self, old_plan, new_plan):
+        new_quotas = new_plan.get('quotas', {})
+        new_prices = new_plan.get('prices', {})
+        component_map = {
+            component.component.type: component
+            for component in old_plan.components.all()
+        }
+        for key, old_component in component_map.items():
+            new_amount = new_quotas.get(key, 0)
+            if old_component.amount != new_amount:
+                old_component.amount = new_amount
+                old_component.save(update_fields=['amount'])
+
+            new_price = new_prices.get(key, 0)
+            if old_component.price != new_price:
+                old_component.price = new_price
+                old_component.save(update_fields=['price'])
+
+    def _update_plan_details(self, old_plan, new_plan):
+        PLAN_FIELDS = (
+            'name', 'description',
+            'unit', 'max_amount',
+            'product_code', 'article_code',
+        )
+
+        for key in PLAN_FIELDS:
+            if key in new_plan:
+                setattr(old_plan, key, new_plan.get(key))
+        old_plan.save()
+
+    def _update_plans(self, offering, new_plans):
+        old_plans = offering.plans.all()
+        old_ids = set(old_plans.values_list('uuid', flat=True))
+
+        new_map = {plan['uuid']: plan for plan in new_plans if 'uuid' in plan}
+        added_plans = [plan for plan in new_plans if 'uuid' not in plan]
+
+        removed_ids = set(old_ids) - set(new_map.keys())
+        updated_ids = set(new_map.keys()) & set(old_ids)
+
+        removed_plans = models.Plan.objects.filter(uuid__in=removed_ids).exclude(archived=True)
+        updated_plans = {plan.uuid: plan for plan in models.Plan.objects.filter(uuid__in=updated_ids)}
+
+        for plan_uuid, old_plan in updated_plans.items():
+            new_plan = new_map[plan_uuid]
+            self._update_plan_details(old_plan, new_plan)
+            self._update_quotas(old_plan, new_plan)
+
+        if added_plans:
+            self._create_plans(offering, added_plans)
+
+        for plan in removed_plans:
+            plan.archived = True
+            plan.save()
+
     @transaction.atomic
     def update(self, instance, validated_data):
-        self._update_components(instance, validated_data)
-        validated_data.pop('plans', [])
-        offering = super(OfferingSerializer, self).update(instance, validated_data)
+        if 'components' in validated_data:
+            components = validated_data.pop('components', [])
+            self._update_components(instance, components)
+        if 'plans' in validated_data:
+            new_plans = validated_data.pop('plans', [])
+            self._update_plans(instance, new_plans)
+        offering = super(OfferingUpdateSerializer, self).update(instance, validated_data)
         return offering
 
 
