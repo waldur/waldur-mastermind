@@ -254,6 +254,17 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('internal_ips_set', response.data)
 
+    def test_volume_type_if_default_volume_type_name_is_defined_in_settings(self):
+        data = self.get_valid_data()
+        volume_type = factories.VolumeTypeFactory(settings=self.openstack_settings)
+        self.openstack_settings.options['default_volume_type_name'] = volume_type.name
+        self.openstack_settings.save()
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['volumes'][0]['type_name'], volume_type.name)
+
 
 class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def setUp(self):
