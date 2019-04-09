@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from celery import chain
+from django.db import transaction
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
@@ -784,6 +785,7 @@ class BackupCreateExecutor(core_executors.CreateExecutor):
 class BackupDeleteExecutor(core_executors.DeleteExecutor):
 
     @classmethod
+    @transaction.atomic
     def pre_apply(cls, backup, **kwargs):
         for snapshot in backup.snapshots.all():
             snapshot.schedule_deleting()
