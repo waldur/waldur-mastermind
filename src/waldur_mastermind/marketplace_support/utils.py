@@ -101,6 +101,23 @@ def init_offerings_and_resources(category, customer):
 
 
 def get_issue_resource(issue):
+    """
+    This utility method is called from support backend create_issue method
+    to traverse from support issue to marketplace resource.
+
+    1) When marketplace resource is created, we need to fetch
+    related support offering and then marketplace resource:
+
+    Support Issue <- Support Offering <- Marketplace Resource
+
+    2) When marketplace resource plan is switched, we need to traverse
+    from support issue to marketplace order item and then marketplace resource:
+
+    Support issue -> Marketplace Order Item -> Marketplace resource
+    """
+
+    if isinstance(issue.resource, marketplace_models.OrderItem):
+        return issue.resource.resource
     try:
         offering = support_models.Offering.objects.get(issue=issue)
         return marketplace_models.Resource.objects.get(scope=offering)
