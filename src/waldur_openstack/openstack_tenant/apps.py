@@ -114,6 +114,12 @@ class OpenStackTenantConfig(AppConfig):
                 dispatch_uid='openstack_tenant.handlers.update_%s' % name,
             )
 
+            signals.post_save.connect(
+                handler.import_handler,
+                sender=model,
+                dispatch_uid='openstack_tenant.handlers.import_%s' % name,
+            )
+
             signals.post_delete.connect(
                 handler.delete_handler,
                 sender=model,

@@ -50,6 +50,13 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
 
         self.assertTrue(security_group_property.rules.filter(backend_id=openstack_security_rule.backend_id).exists())
 
+    def test_security_group_import(self):
+        resource = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        self.assertTrue(models.SecurityGroup.objects.filter(
+            settings=self.service_settings,
+            backend_id=resource.backend_id
+        ).exists())
+
     def test_security_group_update(self):
         openstack_security_group = openstack_factories.SecurityGroupFactory(
             tenant=self.tenant,
