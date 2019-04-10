@@ -254,6 +254,15 @@ class BaseSynchronizationHandler(object):
             if settings and not self.get_service_property(instance, settings):
                 self.create_service_property(instance, settings)
 
+    def import_handler(self, sender, instance, created=False, **kwargs):
+        """
+        Creates service property on when resource is imported.
+        """
+        if created and instance.state == StateMixin.States.OK:
+            settings = self.get_service_settings(instance)
+            if settings and not self.get_service_property(instance, settings):
+                self.create_service_property(instance, settings)
+
     def update_handler(self, sender, instance, name, source, target, **kwargs):
         """
         Updates service property on resource transition from 'UPDATING' state to 'OK'.

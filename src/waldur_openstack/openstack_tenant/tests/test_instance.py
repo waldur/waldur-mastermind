@@ -1,5 +1,6 @@
 import uuid
 
+from celery import Signature
 from cinderclient import exceptions as cinder_exceptions
 from ddt import ddt, data
 from django.conf import settings
@@ -9,11 +10,12 @@ from rest_framework import status, test
 import mock
 from six.moves import urllib
 
-from waldur_openstack.openstack.tests.unittests import test_backend
+from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack.tests.unittests import test_backend
 
 from . import factories, fixtures, helpers
-from .. import models, views
+from .. import executors, models, views
 
 
 @ddt
@@ -254,15 +256,18 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('internal_ips_set', response.data)
 
-    def test_volume_type_if_default_volume_type_name_is_defined_in_settings(self):
-        data = self.get_valid_data()
-        volume_type = factories.VolumeTypeFactory(settings=self.openstack_settings)
-        self.openstack_settings.options['default_volume_type_name'] = volume_type.name
-        self.openstack_settings.save()
-
-        response = self.client.post(self.url, data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+    def test_show_volume_type_in_instance_serializer(self):
+        instance = factories.InstanceFactory()
+        settings = instance.service_project_link.service.settings
+        volume_type = factories.VolumeTypeFactory(settings=settings)
+        factories.VolumeFactory(service_project_link=instance.service_project_link,
+                                instance=instance,
+                                type=volume_type)
+        url = factories.InstanceFactory.get_url(instance)
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['volumes'][0]['type_name'], volume_type.name)
 
 
@@ -438,6 +443,18 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
             'delete_volumes': False
         })
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
+
+    def test_incomplete_instance_deletion_executor_produces_celery_signature(self):
+        # Arrange
+        self.instance.backend_id = None
+        self.instance.save()
+
+        # Act
+        serialized_instance = serialize_instance(self.instance)
+        signature = executors.InstanceDeleteExecutor.get_task_signature(self.instance, serialized_instance)
+
+        # Assert
+        self.assertIsInstance(signature, Signature)
 
 
 class InstanceCreateBackupSchedule(test.APITransactionTestCase):

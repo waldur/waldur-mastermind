@@ -417,8 +417,7 @@ class PullSubnetsTest(BaseBackendTest):
         self.assertEqual(subnet.name, 'subnet-1')
 
 
-class GetVolumesTest(BaseBackendTest):
-
+class VolumesBaseTest(BaseBackendTest):
     def _generate_volumes(self, backend=False, count=1):
         volumes = []
         for i in range(count):
@@ -430,6 +429,8 @@ class GetVolumesTest(BaseBackendTest):
 
         return volumes
 
+
+class GetVolumesTest(VolumesBaseTest):
     def test_all_backend_volumes_are_returned(self):
         backend_volumes = self._generate_volumes(backend=True, count=2)
         volumes = backend_volumes + self._generate_volumes()
@@ -440,6 +441,55 @@ class GetVolumesTest(BaseBackendTest):
         returned_backend_ids = [item.backend_id for item in result]
         expected_backend_ids = [item.id for item in volumes]
         self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+
+
+class CreateVolumesTest(VolumesBaseTest):
+    def setUp(self):
+        super(CreateVolumesTest, self).setUp()
+        self.patcher = mock.patch('waldur_openstack.openstack_base.backend.OpenStackClient')
+        mock_client = self.patcher.start()
+        cinder = mock.MagicMock()
+        cinder.volumes.create.return_value = self._generate_volumes()[0]
+        mock_client().cinder = cinder
+
+    def tearDown(self):
+        super(CreateVolumesTest, self).tearDown()
+        mock.patch.stopall()
+
+    def test_use_default_volume_type_if_type_not_populated(self):
+        volume_type = factories.VolumeTypeFactory(settings=self.settings)
+        self.settings.options['default_volume_type_name'] = volume_type.name
+        self.settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.type.name, volume_type.name)
+
+    @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
+    def test_not_use_default_volume_type_if_it_not_exists(self, mock_logger):
+        self.settings.options['default_volume_type_name'] = 'not_exists_value_type'
+        self.settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.type, None)
+        mock_logger.error.assert_called_once()
+
+    @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
+    def test_not_use_default_volume_type_if_two_types_exist(self, mock_logger):
+        volume_type = factories.VolumeTypeFactory(settings=self.settings)
+        factories.VolumeTypeFactory(name=volume_type.name, settings=self.settings)
+        self.settings.options['default_volume_type_name'] = volume_type.name
+        self.settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.type, None)
+        mock_logger.error.assert_called_once()
+
+    def _get_volume(self):
+        volume = factories.VolumeFactory(
+            service_project_link=self.fixture.spl,
+            backend_id=None,
+        )
+
+        backend = OpenStackTenantBackend(self.settings)
+        backend.create_volume(volume)
+        return volume
 
 
 class ImportVolumeTest(BaseBackendTest):

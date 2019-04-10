@@ -483,6 +483,22 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             kwargs['snapshot_id'] = volume.source_snapshot.backend_id
         if volume.type:
             kwargs['volume_type'] = volume.type.backend_id
+        else:
+            volume_type_name = volume.service_project_link.service.settings.options.get('default_volume_type_name')
+            if volume_type_name:
+                try:
+                    volume_type = models.VolumeType.objects.get(name=volume_type_name,
+                                                                settings=volume.service_project_link.service.settings)
+                    volume.type = volume_type
+                    kwargs['volume_type'] = volume_type.backend_id
+                except models.VolumeType.DoesNotExist:
+                    logger.error('Volume type is not set as volume type with name %s is not found. Settings UUID: %s' %
+                                 (volume_type_name, volume.service_project_link.service.settings.uuid.hex))
+                except models.VolumeType.MultipleObjectsReturned:
+                    logger.error('Volume type is not set as multiple volume types with name %s are found.'
+                                 'Service settings UUID: %s' %
+                                 (volume_type_name,
+                                  volume.service_project_link.service.settings.uuid.hex))
         if volume.image:
             kwargs['imageRef'] = volume.image.backend_id
         cinder = self.cinder_client
@@ -571,10 +587,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         try:
             if backend_volume.volume_type:
-                volume_type = models.VolumeType.objects.get(backend_id=backend_volume.volume_type.id,
-                                                            service_project_link__service__settings=self.settings)
+                volume_type = models.VolumeType.objects.get(name=backend_volume.volume_type, settings=self.settings)
         except models.VolumeType.DoesNotExist:
             pass
+        except models.VolumeType.MultipleObjectsReturned:
+            logger.error('Volume type is not set as multiple volume types with name %s are found.'
+                         'Service settings UUID: %s',
+                         (backend_volume.volume_type,
+                          self.settings.uuid.hex))
 
         volume = models.Volume(
             name=backend_volume.name,
