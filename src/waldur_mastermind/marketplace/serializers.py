@@ -14,6 +14,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
+from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.structure import models as structure_models, SupportedServices
@@ -22,7 +23,6 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
-from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions, tasks
@@ -1061,7 +1061,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ResourcePlanPeriod
-        fields = ('plan_name', 'plan_uuid', 'start', 'end', 'components')
+        fields = ('uuid', 'plan_name', 'plan_uuid', 'start', 'end', 'components')
 
     plan_name = serializers.ReadOnlyField(source='plan.name')
     plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
@@ -1097,73 +1097,44 @@ class ComponentUsageItemSerializer(serializers.Serializer):
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
     usages = ComponentUsageItemSerializer(many=True)
-    resource = serializers.SlugRelatedField(queryset=models.Resource.objects.all(), slug_field='uuid')
-    date = serializers.DateField()
+    plan_period = serializers.SlugRelatedField(queryset=models.ResourcePlanPeriod.objects.all(), slug_field='uuid')
+
+    def validate_plan_period(self, plan_period):
+        date = datetime.date.today()
+        if plan_period.end and plan_period.end < core_utils.month_start(date):
+            raise serializers.ValidationError(_('Billing period is closed.'))
+        return plan_period
 
     def validate(self, attrs):
-        resource = attrs['resource']
-        date = attrs['date']
+        attrs = super(ComponentUsageCreateSerializer, self).validate(attrs)
+        plan_period = attrs['plan_period']
+        resource = plan_period.resource
+        offering = resource.plan.offering
 
         if resource.state == models.Resource.States.TERMINATED:
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource is terminated.')
             })
 
-        try:
-            plan_period = models.ResourcePlanPeriod.objects. \
-                filter(Q(start__lte=date) | Q(start__isnull=True)). \
-                filter(Q(end__gt=date) | Q(end__isnull=True)). \
-                get(resource=resource)
-            attrs['plan_period'] = plan_period
-        except models.ResourcePlanPeriod.DoesNotExist:
-            raise rf_exceptions.ValidationError({
-                'resource': _('Resource does not have plan period.')
-            })
-        except models.ResourcePlanPeriod.MultipleObjectsReturned:
-            logger.warning('Multiple ResourcePlanPeriod objects found. Resource ID: %s, date: %s.',
-                           resource.id, date)
-            raise rf_exceptions.ValidationError({
-                'resource': _('Multiple ResourcePlanPeriod objects found.')
-            })
+        valid_components = set(offering.get_usage_components().keys())
+        actual_components = {usage['type'] for usage in attrs['usages']}
+        invalid_components = ', '.join(sorted(valid_components - actual_components))
 
-        if date > datetime.date.today():
-            raise rf_exceptions.ValidationError({'date': _('Invalid date value.')})
-
-        if invoices_models.Invoice.objects.filter(customer=resource.project.customer,
-                                                  year=date.year,
-                                                  month=date.month). \
-                filter(state__in=[invoices_models.Invoice.States.CREATED,
-                                  invoices_models.Invoice.States.PAID]).exists():
-            # If an invoice exists, and invoice state is created or paid then a billing period is closed.
-            raise rf_exceptions.ValidationError({
-                'date':
-                    _('Cannot update usage information. Billing period is closed.')
-            })
-
-        for usage in attrs['usages']:
-            component_type = usage['type']
-            offering = resource.plan.offering
-            try:
-                component = models.OfferingComponent.objects.get(
-                    offering=offering,
-                    type=component_type,
-                    billing_type=models.OfferingComponent.BillingTypes.USAGE,
-                )
-                usage['component'] = component
-            except models.OfferingComponent.DoesNotExist:
-                raise rf_exceptions.ValidationError(_('Component "%s" is not found.') % component_type)
+        if invalid_components:
+            raise rf_exceptions.ValidationError(_('These components are invalid: %s.') % invalid_components)
 
         return attrs
 
     def save(self):
-        date = self.validated_data['date']
-        resource = self.validated_data['resource']
         plan_period = self.validated_data['plan_period']
+        resource = plan_period.resource
+        components = resource.plan.offering.get_usage_components()
+        date = datetime.date.today()
 
         for usage in self.validated_data['usages']:
-            component = usage['component']
             amount = usage['amount']
             description = usage.get('description', '')
+            component = components[usage['type']]
             component.validate_amount(resource, amount, date)
 
             models.ComponentUsage.objects.update_or_create(

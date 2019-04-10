@@ -768,7 +768,7 @@ class Resource(CostEstimateMixin,
 
 
 @python_2_unicode_compatible
-class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel):
+class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
     This model allows to track billing plan for timeframes during resource lifecycle.
     """

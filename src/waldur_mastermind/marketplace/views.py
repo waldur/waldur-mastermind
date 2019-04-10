@@ -481,7 +481,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     def set_usage(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        resource = serializer.validated_data['resource']
+        resource = serializer.validated_data['plan_period'].resource
         if not _has_owner_access(request.user, resource.offering.customer):
             raise PermissionDenied(
                 _('Only staff and service provider owner is allowed '
