@@ -6,7 +6,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
-from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import utils
@@ -43,6 +43,7 @@ class TestUsageApi(test.APITransactionTestCase):
             plan=self.plan
         )
         callbacks.resource_creation_succeeded(self.resource)
+        self.plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource)
 
     def test_valid_signature(self):
         payload = self.get_valid_payload()
@@ -139,27 +140,9 @@ class TestUsageApi(test.APITransactionTestCase):
         usage = models.ComponentUsage.objects.first()
         self.assertEqual(usage.usage, 15)
 
-    @freeze_time('2017-01-18 00:00:00')
-    @data(invoices_models.Invoice.States.PENDING, invoices_models.Invoice.States.CANCELED)
-    def test_usage_is_updated_if_billing_period_is_open(self, state):
-        invoices_models.Invoice.objects.create(
-            customer=self.resource.project.customer,
-            year=2017,
-            month=1,
-            state=state
-        )
-        response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    @freeze_time('2017-01-18 00:00:00')
-    @data(invoices_models.Invoice.States.CREATED, invoices_models.Invoice.States.PAID)
-    def test_usage_is_not_updated_if_billing_period_is_closed(self, state):
-        invoices_models.Invoice.objects.create(
-            customer=self.resource.project.customer,
-            year=2017,
-            month=1,
-            state=state
-        )
+    def test_usage_is_not_updated_if_billing_period_is_closed(self):
+        self.plan_period.end = parse_datetime('2016-01-10')
+        self.plan_period.save()
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -189,8 +172,7 @@ class TestUsageApi(test.APITransactionTestCase):
 
     def get_usage_data(self, component_type='cpu', amount=5, description=''):
         return {
-            'date': datetime.date.today(),
-            'resource': self.resource.uuid,
+            'plan_period': self.plan_period.uuid,
             'usages': [{
                 'type': component_type,
                 'amount': amount,
