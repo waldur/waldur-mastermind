@@ -486,6 +486,7 @@ class InternalIP(openstack_base_models.Port):
 class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
     class Meta(object):
         unique_together = ('settings', 'backend_id')
+        # TODO: validate behaviour in different OpenStack versions and add unique_together = ('settings', 'name')
 
     def __str__(self):
         return self.name
