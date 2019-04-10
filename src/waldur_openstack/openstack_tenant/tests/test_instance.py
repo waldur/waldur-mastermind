@@ -1,5 +1,6 @@
 import uuid
 
+from celery import Signature
 from cinderclient import exceptions as cinder_exceptions
 from ddt import ddt, data
 from django.conf import settings
@@ -9,11 +10,12 @@ from rest_framework import status, test
 import mock
 from six.moves import urllib
 
-from waldur_openstack.openstack.tests.unittests import test_backend
+from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack.tests.unittests import test_backend
 
 from . import factories, fixtures, helpers
-from .. import models, views
+from .. import executors, models, views
 
 
 @ddt
@@ -438,6 +440,18 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
             'delete_volumes': False
         })
         self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
+
+    def test_incomplete_instance_deletion_executor_produces_celery_signature(self):
+        # Arrange
+        self.instance.backend_id = None
+        self.instance.save()
+
+        # Act
+        serialized_instance = serialize_instance(self.instance)
+        signature = executors.InstanceDeleteExecutor.get_task_signature(self.instance, serialized_instance)
+
+        # Assert
+        self.assertIsInstance(signature, Signature)
 
 
 class InstanceCreateBackupSchedule(test.APITransactionTestCase):
