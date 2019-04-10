@@ -196,24 +196,6 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
         return super(Volume, cls).get_backend_fields() + ('name', 'description', 'size', 'metadata', 'type', 'bootable',
                                                           'runtime_state', 'device', 'instance')
 
-    def save(self, *args, **kwargs):
-        volume_type_name = self.service_settings.options.get('default_volume_type_name')
-        if not self.pk and not self.type and volume_type_name:
-            try:
-                volume_type = VolumeType.objects.get(name=volume_type_name, settings=self.service_settings)
-                self.type = volume_type
-            except VolumeType.DoesNotExist:
-                logger.error('Volume type is not set as volume type with name %s is not found. Settings UUID: %s',
-                             (volume_type_name,
-                              self.service_settings.uuid.hex))
-            except VolumeType.MultipleObjectsReturned:
-                logger.error('Volume type is not set as multiple volume types with name %s are found.'
-                             'Service settings UUID: %s',
-                             (volume_type_name,
-                              self.service_settings.uuid.hex))
-
-        super(Volume, self).save(*args, **kwargs)
-
 
 class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
     # backend_id is nullable on purpose, otherwise
