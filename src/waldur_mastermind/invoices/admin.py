@@ -40,7 +40,7 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     readonly_fields = ('customer', 'total', 'year', 'month', 'pdf_file')
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
-    search_fields = ('customer', 'uuid')
+    search_fields = ('customer__name', 'uuid')
     actions = ('create_pdf',)
 
     class CreatePDFAction(core_admin.ExecutorAdminAction):
