@@ -7,7 +7,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
-from waldur_mastermind.marketplace.utils import import_resource_metadata
+from waldur_mastermind.marketplace.utils import import_resource_metadata, format_list
 from waldur_mastermind.marketplace_openstack import (
     INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE, RAM_TYPE, STORAGE_TYPE
 )
@@ -71,13 +71,6 @@ def get_resource_state(state):
         SrcStates.ERRED: DstStates.ERRED,
     }
     return mapping.get(state, DstStates.ERRED)
-
-
-def format_list(resources):
-    """
-    Format comma-separated list of IDs from Django queryset.
-    """
-    return ', '.join(map(str, sorted(resources.values_list('id', flat=True))))
 
 
 def create_offering_components(offering):
