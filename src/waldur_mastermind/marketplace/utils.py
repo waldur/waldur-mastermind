@@ -103,3 +103,10 @@ def get_service_provider_info(source):
         }
     except models.Resource.DoesNotExist:
         return {}
+
+
+def format_list(resources):
+    """
+    Format comma-separated list of IDs from Django queryset.
+    """
+    return ', '.join(map(str, sorted(resources.values_list('id', flat=True))))

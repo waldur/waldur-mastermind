@@ -24,6 +24,9 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
     if plan.offering.type != PLUGIN_NAME:
         return
 
+    if plan.scope:
+        return
+
     if not isinstance(plan.offering.scope, structure_models.ServiceSettings):
         logger.warning('Skipping plan synchronization because offering scope is not service settings. '
                        'Plan ID: %s', plan.id)
