@@ -45,7 +45,6 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'console_type': _('The type of remote console. '
                           'The valid values are novnc, xvpvnc, rdp-html5, '
                           'spice-html5, serial, and webmks.'),
-        'default_volume_type_name': _('Volume type name to use when creating volumes.'),
     }
 
     # Expose service settings quotas as service quotas as a temporary workaround.
