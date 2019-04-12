@@ -78,11 +78,12 @@ test_requires = [
     'mock-django==0.6.9',
     'six>=1.9.0',
     'sqlalchemy>=1.0.12',
+    'responses',
 ]
 
 setup(
     name='waldur-mastermind',
-    version='3.4.7',
+    version='3.4.8',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -105,6 +106,7 @@ setup(
             'waldur_auth_openid = waldur_auth_openid.extension:WaldurAuthOpenIDExtension',
             'waldur_auth_saml2 = waldur_auth_saml2.extension:SAML2Extension',
             'waldur_auth_valimo = waldur_auth_valimo.extension:AuthValimoExtension',
+            'waldur_auth_bcc = waldur_auth_bcc.extension:AuthBCCExtension',
             'waldur_aws = waldur_aws.extension:AWSExtension',
             'waldur_azure = waldur_azure.extension:AzureExtension',
             'waldur_digitalocean = waldur_digitalocean.extension:DigitalOceanExtension',

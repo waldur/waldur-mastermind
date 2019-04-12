@@ -458,15 +458,15 @@ class CreateVolumesTest(VolumesBaseTest):
 
     def test_use_default_volume_type_if_type_not_populated(self):
         volume_type = factories.VolumeTypeFactory(settings=self.settings)
-        self.settings.options['default_volume_type_name'] = volume_type.name
-        self.settings.save()
+        self.tenant.default_volume_type_name = volume_type.name
+        self.tenant.save()
         volume = self._get_volume()
         self.assertEqual(volume.type.name, volume_type.name)
 
     @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
     def test_not_use_default_volume_type_if_it_not_exists(self, mock_logger):
-        self.settings.options['default_volume_type_name'] = 'not_exists_value_type'
-        self.settings.save()
+        self.tenant.default_volume_type_name = 'not_exists_value_type'
+        self.tenant.save()
         volume = self._get_volume()
         self.assertEqual(volume.type, None)
         mock_logger.error.assert_called_once()
@@ -475,8 +475,8 @@ class CreateVolumesTest(VolumesBaseTest):
     def test_not_use_default_volume_type_if_two_types_exist(self, mock_logger):
         volume_type = factories.VolumeTypeFactory(settings=self.settings)
         factories.VolumeTypeFactory(name=volume_type.name, settings=self.settings)
-        self.settings.options['default_volume_type_name'] = volume_type.name
-        self.settings.save()
+        self.tenant.default_volume_type_name = volume_type.name
+        self.tenant.save()
         volume = self._get_volume()
         self.assertEqual(volume.type, None)
         mock_logger.error.assert_called_once()

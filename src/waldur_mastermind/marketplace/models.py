@@ -440,8 +440,8 @@ class PlanComponent(models.Model):
     class Meta(object):
         unique_together = ('plan', 'component')
 
-    PRICE_MAX_DIGITS = 14
-    PRICE_DECIMAL_PLACES = 10
+    PRICE_MAX_DIGITS = 15
+    PRICE_DECIMAL_PLACES = 7
 
     plan = models.ForeignKey(Plan, related_name='components')
     component = models.ForeignKey(OfferingComponent, related_name='components', null=True)
