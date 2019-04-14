@@ -45,7 +45,7 @@ def create_team_invitations(team, project, current_user):
             link_template=settings.WALDUR_EXPERTS['INVITATION_LINK_TEMPLATE'],
         )
         username = current_user.full_name or current_user.username
-        user_tasks.send_invitation.delay(invitation.uuid.hex, username)
+        user_tasks.process_invitation.delay(invitation.uuid.hex, username)
 
 
 def cancel_team_invitations(team, project):

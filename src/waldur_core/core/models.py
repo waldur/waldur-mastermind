@@ -134,8 +134,25 @@ class ScheduleMixin(models.Model):
         super(ScheduleMixin, self).save(*args, **kwargs)
 
 
+class UserDetailsMixin(models.Model):
+    """
+    This mixin is shared by User and Invitation model. All fields are optional.
+    User is populated with these details when invitation is approved.
+    Note that civil_number and email fields are not included in this mixin
+    because they have different constraints in User and Invitation model.
+    """
+    class Meta(object):
+        abstract = True
+
+    full_name = models.CharField(_('full name'), max_length=100, blank=True)
+    native_name = models.CharField(_('native name'), max_length=100, blank=True)
+    phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
+    organization = models.CharField(_('organization'), max_length=80, blank=True)
+    job_title = models.CharField(_('job title'), max_length=40, blank=True)
+
+
 @python_2_unicode_compatible
-class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, PermissionsMixin):
+class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDetailsMixin, PermissionsMixin):
     username = models.CharField(
         _('username'), max_length=128, unique=True,
         help_text=_('Required. 128 characters or fewer. Letters, numbers and '
@@ -146,11 +163,6 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, Permiss
     # Civil number is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     civil_number = models.CharField(_('civil number'), max_length=50, unique=True, blank=True, null=True, default=None)
-    full_name = models.CharField(_('full name'), max_length=100, blank=True)
-    native_name = models.CharField(_('native name'), max_length=100, blank=True)
-    phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
-    organization = models.CharField(_('organization'), max_length=80, blank=True)
-    job_title = models.CharField(_('job title'), max_length=40, blank=True)
     email = models.EmailField(_('email address'), max_length=75, blank=True)
 
     is_staff = models.BooleanField(_('staff status'), default=False,

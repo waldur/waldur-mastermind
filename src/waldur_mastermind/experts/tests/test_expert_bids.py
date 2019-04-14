@@ -189,7 +189,7 @@ class ExpertBidAcceptTest(ExpertBidBaseTest):
             actual_message = mocked_info.call_args_list[-1][0][0]
             self.assertEqual(expected_message, actual_message)
 
-    @mock.patch('waldur_core.users.tasks.send_invitation')
+    @mock.patch('waldur_core.users.tasks.process_invitation')
     def test_when_bid_accepted_invitations_for_expert_team_members_are_created(self, mocked_task):
         # Arrange
         expert_users = structure_factories.UserFactory.create_batch(3)

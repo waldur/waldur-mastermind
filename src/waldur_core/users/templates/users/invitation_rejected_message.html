@@ -1,0 +1,26 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Invitation to {{ name }} {{ type }}</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+  The following invitation has been rejected.
+</p>
+
+<p>
+  Full name: {{ invitation.full_name }}
+</p>
+
+<p>
+  Target: {{ name }} {{ type }}
+</p>
+
+<p>
+  Role: {{ role|lower }}
+</p>
+</body>
+</html>

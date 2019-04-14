@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
-from rest_framework.decorators import detail_route
+from rest_framework.decorators import detail_route, list_route
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
@@ -12,6 +13,7 @@ from waldur_core.core.views import ProtectedViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.users import models, filters, serializers, tasks
+from waldur_core.users.utils import parse_invitation_token
 
 User = get_user_model()
 
@@ -55,7 +57,54 @@ class InvitationViewSet(ProtectedViewSet):
             raise PermissionDenied()
 
         invitation = serializer.save()
-        tasks.send_invitation.delay(invitation.uuid.hex, self.request.user.full_name or self.request.user.username)
+        sender = self.request.user.full_name or self.request.user.username
+        if settings.WALDUR_CORE['ONLY_STAFF_CAN_INVITE_USERS'] and not self.request.user.is_staff:
+            invitation.state = models.Invitation.State.REQUESTED
+            invitation.save()
+            transaction.on_commit(lambda: tasks.send_invitation_requested.delay(invitation.uuid.hex, sender))
+        else:
+            transaction.on_commit(lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender))
+
+    @list_route(methods=['post'], permission_classes=[])
+    def approve(self, request):
+        """
+        For user's convenience invitation approval is performed without authentication.
+        User UUID and invitation UUID is encoded into cryptographically signed token.
+        """
+        token = request.data.get('token')
+        if not token:
+            raise ValidationError('token is required parameter')
+
+        user, invitation = parse_invitation_token(token)
+        invitation.approve(user)
+
+        sender = ''
+        if invitation.created_by:
+            sender = invitation.created_by.full_name or invitation.created_by.username
+        transaction.on_commit(lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender))
+
+        return Response({'detail': _('Invitation has been approved.')},
+                        status=status.HTTP_200_OK)
+
+    @list_route(methods=['post'], permission_classes=[])
+    def reject(self, request):
+        """
+        For user's convenience invitation reject action is performed without authentication.
+        User UUID and invitation UUID is encoded into cryptographically signed token.
+        """
+        token = request.data.get('token')
+        if not token:
+            raise ValidationError('token is required parameter')
+        user, invitation = parse_invitation_token(token)
+        invitation.reject()
+
+        sender = ''
+        if invitation.created_by:
+            sender = invitation.created_by.full_name or invitation.created_by.username
+        transaction.on_commit(lambda: tasks.send_invitation_rejected.delay(invitation.uuid.hex, sender))
+
+        return Response({'detail': _('Invitation has been rejected.')},
+                        status=status.HTTP_200_OK)
 
     @detail_route(methods=['post'])
     def send(self, request, uuid=None):
@@ -65,8 +114,7 @@ class InvitationViewSet(ProtectedViewSet):
                                                invitation.customer_role,
                                                invitation.project_role):
             raise PermissionDenied()
-        elif invitation.state == models.Invitation.State.ACCEPTED or \
-                invitation.state == models.Invitation.State.CANCELED:
+        elif invitation.state not in (models.Invitation.State.PENDING, models.Invitation.State.EXPIRED):
             raise ValidationError(_('Only pending and expired invitations can be resent.'))
 
         if invitation.state == models.Invitation.State.EXPIRED:
@@ -74,7 +122,8 @@ class InvitationViewSet(ProtectedViewSet):
             invitation.created = timezone.now()
             invitation.save()
 
-        tasks.send_invitation.delay(invitation.uuid.hex, self.request.user.full_name or self.request.user.username)
+        sender = request.user.full_name or request.user.username
+        tasks.send_invitation_created.delay(invitation.uuid.hex, sender)
         return Response({'detail': _('Invitation sending has been successfully scheduled.')},
                         status=status.HTTP_200_OK)
 
@@ -123,6 +172,14 @@ class InvitationViewSet(ProtectedViewSet):
                     raise ValidationError(_('This email is already taken.'))
                 else:
                     replace_email = True
+
+        if settings.WALDUR_CORE['INVITATION_DISABLE_MULTIPLE_ROLES']:
+            has_customer = structure_models.CustomerPermission.objects.filter(
+                user=request.user, is_active=True).exists()
+            has_project = structure_models.ProjectPermission.objects.filter(
+                user=request.user, is_active=True).exists()
+            if has_customer or has_project:
+                raise ValidationError(_('User already has role within another customer or project.'))
 
         invitation.accept(request.user)
         if replace_email:
