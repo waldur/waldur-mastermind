@@ -9,7 +9,6 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('structure', '0038_add_project_and_customer_permissions'),
-        #('users', '0004_migrate_to_new_permissions_model'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

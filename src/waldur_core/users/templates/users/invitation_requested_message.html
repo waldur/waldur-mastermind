@@ -1,0 +1,65 @@
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title>Invitation request</title>
+</head>
+<body>
+<p>
+  Hello!
+</p>
+<p>
+  {{ sender }} has created invitation request for the following user
+  to join {{ name }} {{ type }} in {{ role|lower }} role.
+</p>
+
+{% if invitation.civil_number %}
+  <p>
+    Civil number: {{ invitation.civil_number }}
+  </p>
+{% endif %}
+
+{% if invitation.tax_number %}
+  <p>
+    Tax number: {{ invitation.tax_number }}
+  </p>
+{% endif %}
+
+{% if invitation.phone_number %}
+  <p>
+    Phone number: {{ invitation.phone_number }}
+  </p>
+{% endif %}
+
+<p>
+  E-mail: {{ invitation.email }}
+</p>
+
+{% if invitation.full_name %}
+  <p>
+    Full name: {{ invitation.full_name }}
+  </p>
+{% endif %}
+
+{% if invitation.native_name %}
+  <p>
+    Native name: {{ invitation.native_name }}
+  </p>
+{% endif %}
+
+{% if invitation.organization %}
+  <p>
+    Organization: {{ invitation.organization }}
+  </p>
+{% endif %}
+
+{% if invitation.job_title %}
+  <p>
+    Job title: {{ invitation.job_title }}
+  </p>
+{% endif %}
+
+<p>
+  Please <a href="{{ approve_link }}">approve</a> or <a href="{{ reject_link }}">reject</a> invitation.
+</p>
+</body>
+</html>

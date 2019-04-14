@@ -1,0 +1,9 @@
+Hello!
+
+The following invitation has been rejected.
+
+Full name: {{ invitation.full_name }}
+
+Target: {{ name }} {{ type }}
+
+Role: {{ role|lower }}

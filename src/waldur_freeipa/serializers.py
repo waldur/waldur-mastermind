@@ -1,12 +1,11 @@
 from __future__ import unicode_literals
 
-from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 
-from . import models
+from . import models, utils
 
 
 class ProfileSerializer(core_serializers.AugmentedSerializerMixin,
@@ -40,9 +39,6 @@ class ProfileSerializer(core_serializers.AugmentedSerializerMixin,
                 'agree_with_policy': _('User must agree with the policy.')
             })
 
-        # Prepend username suffix
-        prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
-        if prefix:
-            validated_data['username'] = '%s%s' % (prefix, validated_data['username'])
+        validated_data['username'] = utils.generate_username(validated_data['username'])
 
         return super(ProfileSerializer, self).create(validated_data)

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.cache import cache
 
 QUOTA_NAME = 'freeipa_quota'
@@ -40,3 +41,11 @@ def get_names(full_name):
     else:
         last_name = 'N/A'
     return first_name, last_name, initials
+
+
+def generate_username(username):
+    # Prepend username suffix
+    prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
+    if prefix:
+        username = '%s%s' % (prefix, username)
+    return username

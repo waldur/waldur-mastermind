@@ -1,0 +1,38 @@
+Hello!
+
+{{ sender }} has created invitation request for the following user
+to join {{ name }} {{ type }} in {{ role|lower }} role.
+
+{% if invitation.civil_number %}
+Civil number: {{ invitation.civil_number }}
+{% endif %}
+
+{% if invitation.tax_number %}
+Tax number: {{ invitation.tax_number }}
+{% endif %}
+
+{% if invitation.phone_number %}
+Phone number: {{ invitation.phone_number }}
+{% endif %}
+
+E-mail: {{ invitation.email }}
+
+{% if invitation.full_name %}
+Full name: {{ invitation.full_name }}
+{% endif %}
+
+{% if invitation.native_name %}
+Native name: {{ invitation.native_name }}
+{% endif %}
+
+{% if invitation.organization %}
+Organization: {{ invitation.organization }}
+{% endif %}
+
+{% if invitation.job_title %}
+Job title: {{ invitation.job_title }}
+{% endif %}
+
+Please visit the link below to approve invitation: {{ approve_link }}
+
+Alternatively, you may reject invitation: {{ reject_link }}
