@@ -4,5 +4,5 @@ from . import views
 
 
 urlpatterns = [
-    url(r'^api-auth/bcc/user-details/$', views.get_user_details)
+    url(r'^api-auth/bcc/user-details/$', views.UserDetailsViewSet.as_view())
 ]

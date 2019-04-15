@@ -59,7 +59,7 @@ def get_user_details(nid, vno):
 
     name = data['nameen']
     if not name:
-        raise BCCException(detail='Invalid NID or VNO.')
+        raise BCCException(detail='Invalid input parameters.')
 
     return UserDetails(
         name=data['nameen'],
