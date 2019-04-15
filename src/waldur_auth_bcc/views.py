@@ -1,25 +1,27 @@
 from __future__ import unicode_literals
 
 from django.conf import settings
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from rest_framework import views
+from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
-from . import client
+from . import client, serializers
 
 
-@login_required
-def get_user_details(request):
-    if not settings.WALDUR_AUTH_BCC['ENABLED']:
-        return JsonResponse({'details': 'This feature is disabled'}, status=400)
+class UserDetailsViewSet(views.APIView):
 
-    nid = request.GET.get('nid')
-    vno = request.GET.get('vno')
+    def get(self, request, *args, **kwargs):
+        if not settings.WALDUR_AUTH_BCC['ENABLED']:
+            raise ValidationError('This feature is disabled.')
 
-    if not nid or not vno:
-        return JsonResponse({'details': 'nid and vno are required parameters'}, status=400)
+        serializer = serializers.UserDetailRequestSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
 
-    try:
-        user_details = client.get_user_details(nid, vno)
-        return JsonResponse(user_details._asdict(), json_dumps_params={'ensure_ascii': False})
-    except client.BCCException as e:
-        return JsonResponse({'details': e.detail}, status=e.code)
+        civil_number = serializer.validated_data['civil_number']
+        tax_number = serializer.validated_data['tax_number']
+
+        try:
+            user_details = client.get_user_details(civil_number, tax_number)
+            return Response(user_details._asdict())
+        except client.BCCException as e:
+            return Response({'details': e.detail}, status=e.code)
