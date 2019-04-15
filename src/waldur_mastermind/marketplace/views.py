@@ -95,6 +95,11 @@ def can_update_offering(request, view, obj=None):
         structure_permissions.is_staff(request, view)
 
 
+def validate_offering_update(offering):
+    if offering.state == models.Offering.States.ARCHIVED:
+        raise rf_exceptions.ValidationError(_('It is not possible to update archived offering.'))
+
+
 class OfferingViewSet(BaseMarketplaceView):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingDetailsSerializer
@@ -138,12 +143,15 @@ class OfferingViewSet(BaseMarketplaceView):
         pause_validators = \
         archive_validators = \
         destroy_validators = \
-        partial_update_validators = \
         [structure_utils.check_customer_blocked]
 
     update_permissions = \
         partial_update_permissions = \
         [can_update_offering]
+
+    update_validators = \
+        partial_update_validators = \
+        [validate_offering_update, structure_utils.check_customer_blocked]
 
     def perform_create(self, serializer):
         customer = serializer.validated_data['customer']
