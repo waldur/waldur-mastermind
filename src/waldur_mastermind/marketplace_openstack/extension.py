@@ -10,6 +10,7 @@ class MarketplaceOpenStackExtension(WaldurExtension):
             'TENANT_CATEGORY_UUID': None,
             'INSTANCE_CATEGORY_UUID': None,
             'VOLUME_CATEGORY_UUID': None,
+            'AUTOMATICALLY_CREATE_PRIVATE_OFFERING': True,
         }
 
     @staticmethod

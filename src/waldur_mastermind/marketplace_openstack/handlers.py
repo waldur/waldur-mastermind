@@ -1,6 +1,7 @@
 import decimal
 import logging
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -98,6 +99,9 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
         return
 
     if instance.state != instance.States.OK:
+        return
+
+    if not settings.WALDUR_MARKETPLACE_OPENSTACK['AUTOMATICALLY_CREATE_PRIVATE_OFFERING']:
         return
 
     tenant = instance
