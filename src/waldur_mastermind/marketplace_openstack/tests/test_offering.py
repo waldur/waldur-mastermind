@@ -17,7 +17,7 @@ from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
 
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
-from .utils import BaseOpenStackTest
+from .utils import BaseOpenStackTest, override_plugin_settings
 
 
 class TemplateOfferingTest(BaseOpenStackTest):
@@ -152,6 +152,14 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
 
         self.assertTrue(isinstance(service_settings, structure_models.ServiceSettings))
         self.assertEqual(service_settings.scope, tenant)
+
+    @data(INSTANCE_TYPE, VOLUME_TYPE)
+    @override_plugin_settings(AUTOMATICALLY_CREATE_PRIVATE_OFFERING=False)
+    def test_offering_is_not_created_if_feature_is_disabled(self, offering_type):
+        self.trigger_offering_creation()
+
+        self.assertRaises(marketplace_models.Offering.DoesNotExist,
+                          lambda: marketplace_models.Offering.objects.get(type=offering_type))
 
     @data(INSTANCE_TYPE, VOLUME_TYPE)
     def test_offering_is_not_created_if_tenant_is_not_created_via_marketplace(self, offering_type):
