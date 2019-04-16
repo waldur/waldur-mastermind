@@ -226,7 +226,7 @@ class FreeIPABackend(object):
     def _format_ssh_keys(self, user):
         return list(user.sshpublickey_set.values_list('public_key', flat=True))
 
-    def create_profile(self, profile):
+    def create_profile(self, profile, password=None):
         waldur_user = profile.user
         ssh_keys = self._format_ssh_keys(waldur_user)
         first_name, last_name, _ = utils.get_names(profile.user.full_name)
@@ -237,11 +237,13 @@ class FreeIPABackend(object):
             last_name=last_name,
             full_name=waldur_user.full_name,
             mail=waldur_user.email,
+            organization_unit=waldur_user.organization,
             job_title=waldur_user.job_title,
             preferred_language=waldur_user.preferred_language,
             telephonenumber=waldur_user.phone_number,
             ssh_key=ssh_keys,
             gecos=profile.gecos,
+            user_password=password,
         )
 
     def disable_profile(self, profile):

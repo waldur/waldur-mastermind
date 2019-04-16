@@ -110,6 +110,8 @@ class ProfileCreateTest(BaseProfileTest):
             preferred_language=self.user.preferred_language,
             ssh_key=[],
             gecos=','.join([self.user.full_name, self.user.email, self.user.phone_number]),
+            user_password=None,
+            organization_unit=self.user.organization,
         )
 
     def test_when_profile_created_ssh_keys_are_attached(self, mock_client):

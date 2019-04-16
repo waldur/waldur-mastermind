@@ -30,10 +30,15 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
         model = models.Invitation
+        detail_fields = (
+            'full_name', 'native_name',
+            'tax_number', 'phone_number',
+            'organization', 'job_title',
+        )
         fields = ('url', 'uuid', 'link_template', 'email', 'civil_number',
                   'project', 'project_role', 'project_name',
                   'customer', 'customer_role', 'customer_name',
-                  'state', 'error_message', 'created', 'expires')
+                  'state', 'error_message', 'created', 'expires') + detail_fields
         read_only_fields = ('url', 'uuid', 'state', 'error_message', 'created', 'expires')
         extra_kwargs = {
             'url': {

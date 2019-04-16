@@ -514,7 +514,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED, models.Offering.States.ARCHIVED)
+    @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
     def test_staff_can_update_offering_in_active_or_paused_state(self, state):
         # Arrange
         self.offering.state = state
@@ -524,6 +524,16 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(self.url, {'name': 'new_offering'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_staff_can_not_update_offering_in_archived_state(self):
+        # Arrange
+        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {'name': 'new_offering'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_offering_updating_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True

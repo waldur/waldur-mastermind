@@ -309,6 +309,13 @@ WALDUR_CORE = {
     'LOGGING_REPORT_DIRECTORY': '/var/log/waldur',
     'LOGGING_REPORT_INTERVAL': timedelta(days=7),
     'HTTP_CHUNK_SIZE': 50,
+    'ONLY_STAFF_CAN_INVITE_USERS': False,
+    'INVITATION_APPROVE_URL': 'https://example.com/#/invitation_approve/{token}/',
+    'INVITATION_REJECT_URL': 'https://example.com/#/invitation_reject/{token}/',
+    'INVITATION_MAX_AGE': None,
+    'INVITATION_CREATE_MISSING_USER': False,
+    'INVITATION_DISABLE_MULTIPLE_ROLES': False,
+    'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS': [],
 }
 
 WALDUR_CORE_PUBLIC_SETTINGS = [
@@ -321,6 +328,7 @@ WALDUR_CORE_PUBLIC_SETTINGS = [
     'COMPANY_TYPES',
     'NATIVE_NAME_ENABLED',
     'ONLY_STAFF_MANAGES_SERVICES',
+    'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',
 ]
 
 for ext in WaldurExtension.get_extensions():

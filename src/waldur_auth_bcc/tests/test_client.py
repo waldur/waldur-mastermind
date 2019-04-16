@@ -1,8 +1,6 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
-import json
-
 from django.test import TestCase
 from django.test import override_settings
 import responses
@@ -23,7 +21,7 @@ class ClientTest(TestCase):
     @override_settings(WALDUR_AUTH_BCC={'ENABLED': True})
     def test_required_params_are_validated(self):
         self.client.force_login(UserFactory())
-        response = self.client.get(self.URL, {'nid': 'nid'})
+        response = self.client.get(self.URL, {'civil_number': 'nid'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @responses.activate
@@ -36,9 +34,9 @@ class ClientTest(TestCase):
     def test_error_is_handled(self):
         self.client.force_login(UserFactory())
         responses.add(responses.GET, 'http://example.com/', json={'error': 'Invalid request'})
-        response = self.client.get(self.URL, {'nid': 'nid', 'vno': 'vno'})
+        response = self.client.get(self.URL, {'civil_number': '123', 'tax_number': '456-789'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.json()['details'], 'Invalid request')
+        self.assertEqual(response.data['details'], 'Invalid request')
 
     @responses.activate
     @override_settings(WALDUR_AUTH_BCC={
@@ -55,7 +53,7 @@ class ClientTest(TestCase):
             'desig': '',
             'office': '',
         })
-        response = self.client.get(self.URL, {'nid': 'nid', 'vno': 'vno'})
+        response = self.client.get(self.URL, {'civil_number': '123', 'tax_number': '456-789'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @responses.activate
@@ -73,9 +71,9 @@ class ClientTest(TestCase):
             'desig': 'সহকারী সচিব',
             'office': 'Secretariat',
         })
-        response = self.client.get(self.URL, {'nid': 'nid', 'vno': 'vno'})
+        response = self.client.get(self.URL, {'civil_number': '123', 'tax_number': '456-789'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(json.loads(response.content), {
+        self.assertEqual(response.data, {
             'name': 'User',
             'native_name': 'User',
             'job_title': 'সহকারী সচিব',

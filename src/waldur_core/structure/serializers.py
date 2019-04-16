@@ -732,6 +732,15 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
 
         if request.method in ('PUT', 'PATCH'):
             fields['username'].read_only = True
+            protected_methods = settings.WALDUR_CORE['PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS']
+            if user.registration_method and user.registration_method in protected_methods:
+                detail_fields = (
+                    'full_name', 'native_name',
+                    'job_title', 'email', 'phone_number',
+                    'organization',
+                )
+                for field in detail_fields:
+                    fields[field].read_only = True
 
         return fields
 

@@ -9,8 +9,9 @@ from waldur_core.users import models
 
 class InvitationBaseFactory(factory.DjangoModelFactory):
     @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('user-invitation-list')
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('user-invitation-list')
+        return url if action is None else url + action + '/'
 
     @classmethod
     def get_url(cls, invitation, action=None):
