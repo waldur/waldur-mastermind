@@ -114,6 +114,7 @@ def get_or_create_user(invitation):
     user = core_models.User.objects.create_user(
         username=username,
         email=invitation.email,
+        registration_method='FREEIPA',
         **payload
     )
     user.set_unusable_password()

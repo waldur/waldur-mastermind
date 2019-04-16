@@ -9,6 +9,7 @@ from rest_framework import test
 from six.moves import mock
 
 from waldur_core.core.models import User
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.serializers import PasswordSerializer
 from waldur_core.structure.tests import factories
@@ -516,6 +517,20 @@ class UserUpdateTest(test.APITransactionTestCase):
         response = self.client.put(self.url, self.valid_payload)
         self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('token_lifetime', response.data)
+
+    @override_waldur_core_settings(PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=['PROTECTED'])
+    def test_user_can_not_update_profile_if_registration_method_is_protected(self):
+        # Arrange
+        self.user.registration_method = 'PROTECTED'
+        self.user.save()
+
+        # Act
+        self.valid_payload['organization'] = 'New org'
+        self.client.put(self.url, self.valid_payload)
+
+        # Assert
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.organization, 'New org')
 
 
 @mock.patch('waldur_core.structure.handlers.event_logger')
