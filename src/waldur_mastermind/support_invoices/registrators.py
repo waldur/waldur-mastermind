@@ -90,6 +90,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
             'offering_type': offering.type,
             'offering_name': offering.name,
             'offering_uuid': offering.uuid.hex,
+            'plan_name': offering.plan.name if offering.plan else ''
         }
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)
@@ -113,6 +114,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         details.update({
             'plan_component_id': plan_component.id,
             'offering_component_type': plan_component.component.type,
+            'offering_component_name': plan_component.component.name,
             'offering_component_measured_unit': plan_component.component.measured_unit,
         })
         return details
