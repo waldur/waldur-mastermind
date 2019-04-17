@@ -134,6 +134,9 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
                     request.delete()
                     # callbacks.resource_deletion_succeeded will called in terminate_resource handler
                 elif order_item.type == marketplace_models.OrderItem.Types.UPDATE:
+                    if request.issue != issue:
+                        request.issue = issue
+                        request.save(update_fields=['issue'])
                     callbacks.resource_update_succeeded(order_item.resource)
         else:
             with transaction.atomic():
