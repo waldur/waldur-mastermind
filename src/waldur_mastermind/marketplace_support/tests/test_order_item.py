@@ -130,6 +130,11 @@ class RequestCreateTest(BaseTest):
         resource = marketplace_models.Resource.objects.get(scope=offering)
         self.assertEqual(resource.attributes['name'], 'item_name')
 
+    def test_description_formatting(self):
+        self.submit_order_item()
+        offering = support_models.Offering.objects.get(name='item_name')
+        self.assertTrue('Order item' in offering.issue.description)
+
     def test_service_provider_name_is_propagated(self):
         order_item = self.submit_order_item()
         name = order_item.offering.customer.name
@@ -213,6 +218,22 @@ class RequestDeleteTest(RequestActionBaseTest):
         url = marketplace_factories.ResourceFactory.get_url(resource=self.resource, action='terminate')
         self.client.force_authenticate(user)
         return self.client.post(url)
+
+    def test_description_formatting(self):
+        issue = self.get_issue()
+        self.assertTrue('Terminate resource' in issue.description)
+
+    def get_issue(self):
+        response = self.request_resource_termination()
+        order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
+        order_item = order.items.first()
+        manager.process(order_item, self.user)
+
+        order_item_content_type = ContentType.objects.get_for_model(order_item)
+        return support_models.Issue.objects.get(
+            resource_object_id=order_item.id,
+            resource_content_type=order_item_content_type
+        )
 
     def get_order_item(self, issue_status):
         self.request_resource_termination()
@@ -314,6 +335,10 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         response = self.request_switch_plan(add_payload={'plan': marketplace_factories.PlanFactory.get_url()})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_description_formatting(self):
+        issue = self.get_issue()
+        self.assertTrue('Switch plan for resource' in issue.description)
+
     def request_switch_plan(self, user=None, add_payload=None):
         user = user or self.user
         url = marketplace_factories.ResourceFactory.get_url(resource=self.resource, action='switch_plan')
@@ -326,6 +351,18 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
 
         self.client.force_authenticate(user)
         return self.client.post(url, payload)
+
+    def get_issue(self):
+        response = self.request_switch_plan()
+        order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
+        order_item = order.items.first()
+        manager.process(order_item, self.user)
+
+        order_item_content_type = ContentType.objects.get_for_model(order_item)
+        return support_models.Issue.objects.get(
+            resource_object_id=order_item.id,
+            resource_content_type=order_item_content_type
+        )
 
     def get_order_item(self, issue_status):
         self.request_switch_plan()

@@ -287,7 +287,7 @@ class OfferingCreateProductTest(BaseOfferingTest):
         valid_request = self._get_valid_request()
         response = self.client.post(self.url, valid_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('Virtual machines count: &#39;1000&#39;', response.data['issue_description'])
+        self.assertIn("Virtual machines count: '1000'", response.data['issue_description'])
 
 
 class OfferingUpdateTest(BaseOfferingTest):

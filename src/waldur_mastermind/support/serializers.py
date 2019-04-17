@@ -29,7 +29,7 @@ def render_issue_template(config_name, issue):
 
     raw = issue_settings[config_name]
     template = Template(raw)
-    return template.render(Context({'issue': issue}))
+    return template.render(Context({'issue': issue}, autoescape=False))
 
 
 class IssueSerializer(core_serializers.AugmentedSerializerMixin,
