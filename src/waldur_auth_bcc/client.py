@@ -4,7 +4,7 @@ import logging
 from django.conf import settings
 import requests
 
-UserDetails = collections.namedtuple('UserDetails', ('name', 'native_name', 'organization', 'job_title'))
+UserDetails = collections.namedtuple('UserDetails', ('full_name', 'native_name', 'organization', 'job_title'))
 
 
 class BCCException(Exception):
@@ -62,7 +62,7 @@ def get_user_details(nid, vno):
         raise BCCException(detail='Invalid input parameters.')
 
     return UserDetails(
-        name=data['nameen'],
+        full_name=data['nameen'],
         native_name=data['namebn'],
         job_title=data['desig'],
         organization=data['office'],
