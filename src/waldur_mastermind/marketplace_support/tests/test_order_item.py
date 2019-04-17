@@ -250,6 +250,15 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
         self.assertEqual(self.resource.plan, self.plan)
 
+    def test_offering_issue_is_updated_when_issue_is_resolved(self):
+        order_item = self.get_order_item(self.success_issue_status)
+        order_item_content_type = ContentType.objects.get_for_model(order_item)
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id,
+                                                 resource_content_type=order_item_content_type)
+        offering = order_item.resource.scope
+        offering.refresh_from_db()
+        self.assertEqual(offering.issue, issue)
+
     def test_fail_switch_plan_if_issue_is_fail(self):
         order_item = self.get_order_item(self.error_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
