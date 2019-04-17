@@ -1,7 +1,9 @@
 import logging
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.template import Context, Template
 
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -124,3 +126,13 @@ def get_issue_resource(issue):
     except (ObjectDoesNotExist, MultipleObjectsReturned):
         logger.debug('Resource for issue is not found. Issue ID: %s', issue.id)
         return None
+
+
+def get_request_link(request):
+    link_template = settings.WALDUR_MARKETPLACE_SUPPORT['REQUEST_LINK_TEMPLATE']
+    return link_template.format(request_uuid=request.uuid)
+
+
+def format_description(template_name, context):
+    template = Template(settings.WALDUR_MARKETPLACE_SUPPORT[template_name])
+    return template.render(Context(context, autoescape=False))
