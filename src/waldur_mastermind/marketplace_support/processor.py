@@ -1,11 +1,12 @@
 import six
 
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import processors
+from waldur_mastermind.marketplace.utils import get_order_item_url
+from waldur_mastermind.marketplace_support.utils import format_description
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import views as support_views
 
@@ -37,16 +38,10 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         )
 
         description = attributes.pop('description', '')
-        link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-        order_item_url = link_template.format(order_item_uuid=order_item.uuid,
-                                              project_uuid=order_item.order.project.uuid)
-        description += "\n[Order item|%s]." % order_item_url
-        description += "\nVendor: %s." % order_item.offering.customer.name
-
-        if order_item.plan and order_item.plan.scope:
-            post_data['plan'] = reverse('support-offering-plan-detail', kwargs={
-                'uuid': order_item.plan.scope.uuid
-            })
+        description += format_description('CREATE_RESOURCE_TEMPLATE', {
+            'order_item': order_item,
+            'order_item_url': get_order_item_url(order_item),
+        })
 
         if order_item.limits:
             components_map = order_item.offering.get_usage_components()
@@ -54,6 +49,11 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
                 component = components_map[key]
                 description += "\n%s (%s): %s %s" % \
                                (component.name, component.type, value, component.measured_unit)
+
+        if order_item.plan and order_item.plan.scope:
+            post_data['plan'] = reverse('support-offering-plan-detail', kwargs={
+                'uuid': order_item.plan.scope.uuid
+            })
 
         if description:
             post_data['description'] = description

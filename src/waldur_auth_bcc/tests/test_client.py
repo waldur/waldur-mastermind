@@ -74,7 +74,7 @@ class ClientTest(TestCase):
         response = self.client.get(self.URL, {'civil_number': '123', 'tax_number': '456-789'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {
-            'name': 'User',
+            'full_name': 'User',
             'native_name': 'User',
             'job_title': 'সহকারী সচিব',
             'organization': 'Secretariat',

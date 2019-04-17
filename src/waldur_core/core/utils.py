@@ -218,6 +218,11 @@ def silent_call(name, *args, **options):
     call_command(name, stdout=open(os.devnull, 'w'), *args, **options)
 
 
+def format_text(template_name, context):
+    template = get_template(template_name).template
+    return template.render(Context(context, autoescape=False)).strip()
+
+
 def broadcast_mail(app, event_type, context, recipient_list):
     """
     Shorthand to format email message from template file and sent it to all recipients.
@@ -240,12 +245,10 @@ def broadcast_mail(app, event_type, context, recipient_list):
     :param recipient_list: list of strings, each an email address.
     """
     subject_template_name = '%s/%s_subject.txt' % (app, event_type)
-    subject_template = get_template(subject_template_name).template
-    subject = subject_template.render(Context(context, autoescape=False)).strip()
+    subject = format_text(subject_template_name, context)
 
     text_template_name = '%s/%s_message.txt' % (app, event_type)
-    text_template = get_template(text_template_name).template
-    text_message = text_template.render(Context(context, autoescape=False))
+    text_message = format_text(text_template_name, context)
 
     html_template_name = '%s/%s_message.html' % (app, event_type)
     html_message = render_to_string(html_template_name, context)

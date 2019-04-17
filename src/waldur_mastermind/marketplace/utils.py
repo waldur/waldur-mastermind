@@ -110,3 +110,9 @@ def format_list(resources):
     Format comma-separated list of IDs from Django queryset.
     """
     return ', '.join(map(str, sorted(resources.values_list('id', flat=True))))
+
+
+def get_order_item_url(order_item):
+    link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
+    return link_template.format(order_item_uuid=order_item.uuid,
+                                project_uuid=order_item.order.project.uuid)

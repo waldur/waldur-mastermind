@@ -11,6 +11,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import views as core_views
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_support.utils import get_request_link, format_description
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
@@ -53,18 +54,21 @@ class IssueViewSet(core_views.ActionsViewSet):
         uuid = request.data['uuid']
         order_item = marketplace_models.OrderItem.objects.get(uuid=uuid)
         summary = 'Request to switch plan for %s' % order_item.resource.scope.name
-        link_template = settings.WALDUR_MARKETPLACE_SUPPORT['REQUEST_LINK_TEMPLATE']
-        request_url = link_template.format(request_uuid=order_item.resource.scope.uuid)
-        description = "\n[Switch plan for resource %s|%s]." % (order_item.resource.scope.name, request_url)
-        description += "\nSwitch from %s plan to %s." % (order_item.resource.plan, order_item.plan)
+        request_url = get_request_link(order_item.resource.scope)
+        description = format_description('UPDATE_RESOURCE_TEMPLATE', {
+            'order_item': order_item,
+            'request_url': request_url,
+        })
         create_issue(order_item, description, summary)
         return Response(status=status.HTTP_202_ACCEPTED)
 
     def destroy(self, request, uuid, *args, **kwargs):
         order_item = marketplace_models.OrderItem.objects.get(uuid=uuid)
         summary = 'Request to terminate resource %s' % order_item.resource.scope.name
-        link_template = settings.WALDUR_MARKETPLACE_SUPPORT['REQUEST_LINK_TEMPLATE']
-        request_url = link_template.format(request_uuid=order_item.resource.scope.uuid)
-        description = "\n[Terminate resource %s|%s]." % (order_item.resource.scope.name, request_url)
+        request_url = get_request_link(order_item.resource.scope)
+        description = format_description('TERMINATE_RESOURCE_TEMPLATE', {
+            'order_item': order_item,
+            'request_url': request_url,
+        })
         create_issue(order_item, description, summary)
         return Response(status=status.HTTP_202_ACCEPTED)
