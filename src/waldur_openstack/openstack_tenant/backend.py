@@ -1377,6 +1377,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.servers.start(instance.backend_id)
         except nova_exceptions.ClientException as e:
+            if e.code == 409 and 'it is in vm_state active' in e.message:
+                logger.info('OpenStack instance %s is already started', instance.backend_id)
+                return
             reraise(e)
 
     @log_backend_action()
@@ -1385,6 +1388,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.servers.stop(instance.backend_id)
         except nova_exceptions.ClientException as e:
+            if e.code == 409 and 'it is in vm_state stopped' in e.message:
+                logger.info('OpenStack instance %s is already stopped', instance.backend_id)
+                return
             reraise(e)
         else:
             instance.start_time = None
