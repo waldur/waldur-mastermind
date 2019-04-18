@@ -1214,6 +1214,13 @@ def get_marketplace_resource_uuid(serializer, scope):
         return
 
 
+def get_is_usage_based(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.is_usage_based
+    except ObjectDoesNotExist:
+        return
+
+
 def add_marketplace_offering(sender, fields, **kwargs):
     fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
@@ -1229,6 +1236,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+
+    fields['is_usage_based'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_usage_based', get_is_usage_based)
 
 
 core_signals.pre_serializer_fields.connect(
