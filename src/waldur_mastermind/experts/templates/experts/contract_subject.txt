@@ -1,1 +1,0 @@
-Contract for expert request under {{ customer_name }} / {{ project_name }} has been created.
