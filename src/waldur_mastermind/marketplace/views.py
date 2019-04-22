@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 from django.db import transaction
-from django.db.models import Count, OuterRef, Subquery, F
+from django.db.models import Count, OuterRef, Subquery, F, ExpressionWrapper, PositiveSmallIntegerField
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
@@ -177,8 +177,13 @@ class PlanUsageReporter(object):
             plans = self.apply_filters(query, plans)
 
         resources = self.get_subquery()
-        plans = plans.annotate(usage=Subquery(resources[:1]), limit=F('max_amount'))
-        plans = order_with_nulls(plans, '-usage')
+        remaining = ExpressionWrapper(
+            F('limit') - F('usage'),
+            output_field=PositiveSmallIntegerField()
+        )
+        plans = plans.annotate(usage=Subquery(resources[:1]), limit=F('max_amount'))\
+            .annotate(remaining=remaining)
+        plans = self.apply_ordering(plans)
 
         return self.serialize(plans)
 
@@ -212,6 +217,10 @@ class PlanUsageReporter(object):
             plans = plans.filter(offering__customer__uuid=query.get('customer_provider_uuid'))
 
         return plans
+
+    def apply_ordering(self, plans):
+        param = self.request.query_params and self.request.query_params.get('o') or '-usage'
+        return order_with_nulls(plans, param)
 
     def serialize(self, plans):
         page = self.view.paginate_queryset(plans)

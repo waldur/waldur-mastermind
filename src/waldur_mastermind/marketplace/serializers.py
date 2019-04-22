@@ -185,6 +185,10 @@ class PlanDetailsSerializer(BasePlanSerializer):
 class PlanUsageRequestSerializer(serializers.Serializer):
     offering_uuid = serializers.UUIDField(required=False)
     customer_provider_uuid = serializers.UUIDField(required=False)
+    o = serializers.ChoiceField(choices=(
+        'usage', 'limit', 'remaining',
+        '-usage', '-limit', '-remaining',
+    ), required=False)
 
 
 class PlanUsageResponseSerializer(serializers.Serializer):
@@ -193,6 +197,7 @@ class PlanUsageResponseSerializer(serializers.Serializer):
 
     limit = serializers.ReadOnlyField()
     usage = serializers.ReadOnlyField()
+    remaining = serializers.ReadOnlyField()
 
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
