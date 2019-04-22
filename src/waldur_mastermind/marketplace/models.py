@@ -434,6 +434,13 @@ class Plan(core_models.UuidMixin,
     def has_connected_resources(self):
         return Resource.objects.filter(plan=self).exists()
 
+    @property
+    def is_active(self):
+        if not self.max_amount:
+            return True
+        usage = Resource.objects.filter(plan=self).exclude(state=Resource.States.TERMINATED).count()
+        return self.max_amount > usage
+
 
 @python_2_unicode_compatible
 class PlanComponent(models.Model):
