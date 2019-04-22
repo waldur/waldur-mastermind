@@ -118,6 +118,8 @@ def aggregate_fixed_usage(start, end, scope):
 def calculate_usage_for_scope(start, end, scope):
     reported_usage = aggregate_reported_usage(start, end, scope)
     fixed_usage = aggregate_fixed_usage(start, end, scope)
+    # It needs to cover a case when a key is None because OfferingComponent.parent can be None.
+    fixed_usage.pop(None, None)
     components = set(reported_usage.keys()) | set(fixed_usage.keys())
     content_type = ContentType.objects.get_for_model(scope)
 
