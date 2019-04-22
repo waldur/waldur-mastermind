@@ -83,7 +83,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.5.0',
+    version='3.5.1',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -127,7 +127,6 @@ setup(
             'waldur_invoices = waldur_mastermind.invoices.extension:InvoicesExtension',
             'waldur_support = waldur_mastermind.support.extension:SupportExtension',
             'waldur_analytics = waldur_mastermind.analytics.extension:AnalyticsExtension',
-            'waldur_experts = waldur_mastermind.experts.extension:ExpertsExtension',
             'waldur_billing = waldur_mastermind.billing.extension:BillingExtension',
             'waldur_slurm_invoices = waldur_mastermind.slurm_invoices.extension:SlurmInvoicesExtension',
             'waldur_ansible_estimator = waldur_mastermind.ansible_estimator.extension:AnsibleEstimatorExtension',

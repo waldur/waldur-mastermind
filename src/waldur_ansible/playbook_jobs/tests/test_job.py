@@ -135,7 +135,7 @@ class JobDeleteTest(JobBaseTest):
 
 
 class CountersTest(JobBaseTest):
-    def test_project_counter_has_experts(self):
+    def test_project_counter_has_jobs(self):
         url = structure_factories.ProjectFactory.get_url(self.fixture.project, action='counters')
         self.client.force_authenticate(self.fixture.owner)
 

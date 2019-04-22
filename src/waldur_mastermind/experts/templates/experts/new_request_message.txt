@@ -1,7 +1,0 @@
-{{ request.customer.name }} is looking for experts to help with: {{ request.name }}.
-
-{% if request.planned_budget > 0 %}
-Estimated budget is price is {{ request.planned_budget }} {{ currency_name }}.
-{% endif %}
-
-Visit {{ request_link }} to find our more details and submit your proposal.

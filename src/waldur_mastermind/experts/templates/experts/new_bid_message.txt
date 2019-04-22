@@ -1,3 +1,0 @@
-A new bid has been added by {{ bid.team.customer.name }} to your request for {{ request.name }}.
-
-Go to {{ request_link }} to see the details.

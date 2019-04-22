@@ -125,7 +125,9 @@ class OrderItemFilter(django_filters.FilterSet):
 class ResourceFilter(django_filters.FilterSet):
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+    offering_type = django_filters.CharFilter(name='offering__type')
     project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    project_name = django_filters.CharFilter(name='project__name')
     customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
     category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(name='offering__customer__uuid')

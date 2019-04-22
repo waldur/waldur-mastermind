@@ -144,7 +144,7 @@ class BasePlanSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
-                  'prices', 'quotas', 'max_amount', 'archived')
+                  'prices', 'quotas', 'max_amount', 'archived', 'is_active')
         read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
@@ -185,6 +185,10 @@ class PlanDetailsSerializer(BasePlanSerializer):
 class PlanUsageRequestSerializer(serializers.Serializer):
     offering_uuid = serializers.UUIDField(required=False)
     customer_provider_uuid = serializers.UUIDField(required=False)
+    o = serializers.ChoiceField(choices=(
+        'usage', 'limit', 'remaining',
+        '-usage', '-limit', '-remaining',
+    ), required=False)
 
 
 class PlanUsageResponseSerializer(serializers.Serializer):
@@ -193,6 +197,7 @@ class PlanUsageResponseSerializer(serializers.Serializer):
 
     limit = serializers.ReadOnlyField()
     usage = serializers.ReadOnlyField()
+    remaining = serializers.ReadOnlyField()
 
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
@@ -1160,13 +1165,10 @@ def validate_plan(plan):
     """"
     Ensure that maximum amount of resources with current plan is not reached yet.
     """
-    if plan.max_amount:
-        plan_usage = models.Resource.objects.filter(plan=plan) \
-            .exclude(state=models.Resource.States.TERMINATED).count()
-        if plan_usage >= plan.max_amount:
-            raise rf_exceptions.ValidationError({
-                'plan': _('Plan is not available because limit has been reached.')
-            })
+    if not plan.is_active:
+        raise rf_exceptions.ValidationError({
+            'plan': _('Plan is not available because limit has been reached.')
+        })
 
 
 def get_is_service_provider(serializer, scope):
@@ -1214,6 +1216,13 @@ def get_marketplace_resource_uuid(serializer, scope):
         return
 
 
+def get_is_usage_based(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.is_usage_based
+    except ObjectDoesNotExist:
+        return
+
+
 def add_marketplace_offering(sender, fields, **kwargs):
     fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
@@ -1229,6 +1238,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+
+    fields['is_usage_based'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_usage_based', get_is_usage_based)
 
 
 core_signals.pre_serializer_fields.connect(

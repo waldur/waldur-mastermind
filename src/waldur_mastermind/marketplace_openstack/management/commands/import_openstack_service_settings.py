@@ -11,6 +11,7 @@ class Command(DryRunCommand):
     help = """Import OpenStack service settings as marketplace offerings."""
 
     def add_arguments(self, parser):
+        super(Command, self).add_arguments(parser)
         parser.add_argument('--customer', dest='customer_uuid', required=True,
                             help='Default customer argument is used for shared service setting.')
 

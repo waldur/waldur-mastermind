@@ -228,11 +228,11 @@ def broadcast_mail(app, event_type, context, recipient_list):
     Shorthand to format email message from template file and sent it to all recipients.
 
     It is assumed that there are there are 3 templates available for event type in application.
-    For example, if app is 'experts' and event_type is 'new_request', then there should be 3 files:
+    For example, if app is 'users' and event_type is 'invitation_rejected', then there should be 3 files:
 
-    1) experts/new_request_subject.txt is template for email subject
-    2) experts/new_request_message.txt is template for email body as text
-    3) experts/new_request_message.html is template for email body as HTML
+    1) users/invitation_rejected_subject.txt is template for email subject
+    2) users/invitation_rejected_message.txt is template for email body as text
+    3) users/invitation_rejected_message.html is template for email body as HTML
 
     By default, built-in Django send_mail is used, all members
     of the recipient list will see the other recipients in the 'To' field.

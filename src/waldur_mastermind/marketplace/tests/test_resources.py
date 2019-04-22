@@ -323,6 +323,32 @@ class PlanUsageTest(test.APITransactionTestCase):
         response = self.get_stats()
         self.assertEqual(response.data[1]['usage'], 2)
 
+    def test_order_by_remaining_ascending(self):
+        self.plan1.max_amount = 100
+        self.plan1.save()
+
+        self.plan2.max_amount = 10
+        self.plan2.save()
+
+        response = self.get_stats({'o': 'remaining'})
+        data = response.data
+
+        self.assertEqual(data[0]['remaining'], 10 - 2)
+        self.assertEqual(data[1]['remaining'], 100 - 3)
+
+    def test_order_by_remaining_descending(self):
+        self.plan1.max_amount = 100
+        self.plan1.save()
+
+        self.plan2.max_amount = 10
+        self.plan2.save()
+
+        response = self.get_stats({'o': '-remaining'})
+        data = response.data
+
+        self.assertEqual(data[0]['remaining'], 100 - 3)
+        self.assertEqual(data[1]['remaining'], 10 - 2)
+
     def test_filter_plans_by_offering_uuid(self):
         plan = factories.PlanFactory()
 
