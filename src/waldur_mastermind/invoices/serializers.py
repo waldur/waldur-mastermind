@@ -16,7 +16,7 @@ from . import models
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
-    factor = serializers.IntegerField(source='get_factor')
+    factor = serializers.ReadOnlyField(source='get_factor')
 
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.SerializerMethodField()
