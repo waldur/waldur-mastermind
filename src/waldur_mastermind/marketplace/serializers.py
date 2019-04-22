@@ -144,7 +144,7 @@ class BasePlanSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
-                  'prices', 'quotas', 'max_amount', 'archived')
+                  'prices', 'quotas', 'max_amount', 'archived', 'is_active')
         read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},
@@ -1165,13 +1165,10 @@ def validate_plan(plan):
     """"
     Ensure that maximum amount of resources with current plan is not reached yet.
     """
-    if plan.max_amount:
-        plan_usage = models.Resource.objects.filter(plan=plan) \
-            .exclude(state=models.Resource.States.TERMINATED).count()
-        if plan_usage >= plan.max_amount:
-            raise rf_exceptions.ValidationError({
-                'plan': _('Plan is not available because limit has been reached.')
-            })
+    if not plan.is_active:
+        raise rf_exceptions.ValidationError({
+            'plan': _('Plan is not available because limit has been reached.')
+        })
 
 
 def get_is_service_provider(serializer, scope):
