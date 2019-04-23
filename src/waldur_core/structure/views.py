@@ -1766,6 +1766,11 @@ class QuotaTimelineCollector(object):
         return table
 
 
+def check_resource_backend_id(resource):
+    if not resource.backend_id:
+        raise ValidationError(_('Resource does not have backend ID.'))
+
+
 class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     """ Basic view set for all resource view sets. """
     lookup_field = 'uuid'
@@ -1784,7 +1789,10 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         return Response({'detail': _('Pull operation was successfully scheduled.')}, status=status.HTTP_202_ACCEPTED)
 
     pull_executor = NotImplemented
-    pull_validators = [core_validators.StateValidator(models.NewResource.States.OK, models.NewResource.States.ERRED)]
+    pull_validators = [
+        core_validators.StateValidator(models.NewResource.States.OK, models.NewResource.States.ERRED),
+        check_resource_backend_id,
+    ]
 
 
 class BaseResourceViewSet(six.with_metaclass(ResourceViewMetaclass, ResourceViewSet)):
