@@ -798,6 +798,7 @@ class CartItemSerializer(BaseRequestSerializer):
         validated_data['user'] = self.context['request'].user
         item = super(CartItemSerializer, self).create(validated_data)
         item.init_cost()
+        item.save(update_fields=['cost'])
         return item
 
 
