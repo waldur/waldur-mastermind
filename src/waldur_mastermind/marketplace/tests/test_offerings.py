@@ -832,7 +832,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
     def test_integer_attribute_is_valid(self):
         self._valid('integer', 1)
 
-    @data(['web_chat'], 'web_chat', False)
+    @data(['web_chat'], 'web_chat', -1)
     def test_integer_attribute_is_not_valid(self, value):
         self._not_valid('integer', value)
 

@@ -376,7 +376,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             try:
                 validator.validate(value, list(attribute.options.values_list('key', flat=True)))
             except ValidationError as e:
-                raise rf_exceptions.ValidationError({'attributes': e.message})
+                raise rf_exceptions.ValidationError({attribute.key: e.message})
 
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)
