@@ -99,6 +99,8 @@ class TenantAdmin(structure_admin.ResourceAdmin):
         def validate(self, tenant):
             if tenant.state not in (models.Tenant.States.OK, models.Tenant.States.ERRED):
                 raise ValidationError(_('Tenant has to be OK or erred.'))
+            if not tenant.backend_id:
+                raise ValidationError(_('Tenant does not have backend ID.'))
 
     pull = Pull()
 

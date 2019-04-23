@@ -414,6 +414,19 @@ class TenantPullTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mocked_task.assert_called_once_with(self.tenant)
 
+    def test_it_should_not_be_possible_to_pull_tenant_without_backend_id(self, mocked_task):
+        # Arrange
+        self.tenant.backend_id = ''
+        self.tenant.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.get_url())
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(0, mocked_task.call_count)
+
     def get_url(self):
         return factories.TenantFactory.get_url(self.tenant, 'pull')
 
