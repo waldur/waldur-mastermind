@@ -136,6 +136,8 @@ class ResourceFilter(django_filters.FilterSet):
         choice_mappings={representation: db_value for db_value, representation in models.Resource.States.CHOICES},
     )
 
+    o = django_filters.OrderingFilter(fields=('created',))
+
     class Meta(object):
         model = models.Resource
         fields = []
