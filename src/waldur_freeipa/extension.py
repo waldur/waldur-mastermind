@@ -12,6 +12,7 @@ class FreeIPAExtension(WaldurExtension):
             'USERNAME_PREFIX': 'waldur_',
             'GROUPNAME_PREFIX': 'waldur_',
             'BLACKLISTED_USERNAMES': ['root'],
+            'GROUP_SYNCHRONIZATION_ENABLED': True,
         }
 
     @staticmethod
