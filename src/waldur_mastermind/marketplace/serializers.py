@@ -394,7 +394,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         valid_types = set()
         fixed_types = set()
 
-        if builtin_components and custom_components:
+        if builtin_components and attrs.get('components'):
             raise serializers.ValidationError({
                 'components': _('Extra components are not allowed.')
             })
