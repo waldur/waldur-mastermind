@@ -152,6 +152,13 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Project.objects.filter(pk=project.pk).exists())
 
+    def test_soft_delete(self):
+        project = self.fixture.project
+        pk = project.pk
+        project.delete()
+        self.assertFalse(Project.objects.filter(pk=pk).exists())
+        self.assertTrue(Project.structure_objects.filter(pk=pk).exists())
+
 
 class ProjectCreateTest(test.APITransactionTestCase):
     def setUp(self):

@@ -13,14 +13,15 @@ from django.core.cache import cache
 from django.core.validators import MaxLengthValidator
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models, transaction
-from django.db.models import Q
+from django.db.models import Q, signals
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
-from model_utils.models import TimeStampedModel
+from model_utils.models import TimeStampedModel, SoftDeletableModel
+from model_utils.managers import SoftDeletableManagerMixin
 import pyvat
 from taggit.managers import TaggableManager
 
@@ -508,6 +509,14 @@ class Customer(core_models.UuidMixin,
             return '{name} ({domain})'.format(name=self.name, domain=self.domain)
         return self.name
 
+    def delete(self, *args, **kwargs):
+        """Delete customers' projects if they all mark as 'removed'."""
+        if not self.projects.count():
+            for project in Project.structure_objects.filter(customer=self):
+                project.delete(soft=False)
+
+        return super(Customer, self).delete(*args, **kwargs)
+
     def __str__(self):
         if self.abbreviation:
             return '%(name)s (%(abbreviation)s)' % {
@@ -574,6 +583,10 @@ class ProjectType(core_models.DescribableMixin, core_models.UuidMixin, core_mode
         return self.name
 
 
+class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
+    pass
+
+
 @python_2_unicode_compatible
 class Project(core_models.DescribableMixin,
               core_models.UuidMixin,
@@ -583,7 +596,8 @@ class Project(core_models.DescribableMixin,
               PermissionMixin,
               StructureLoggableMixin,
               TimeStampedModel,
-              StructureModel):
+              StructureModel,
+              SoftDeletableModel):
     class Permissions(object):
         customer_path = 'customer'
         project_path = 'self'
@@ -642,6 +656,9 @@ class Project(core_models.DescribableMixin,
     type = models.ForeignKey(
         ProjectType, verbose_name=_('project type'), blank=True, null=True, on_delete=models.PROTECT)
 
+    objects = SoftDeletableManager()
+    structure_objects = StructureManager()
+
     @property
     def full_name(self):
         return self.name
@@ -655,6 +672,28 @@ class Project(core_models.DescribableMixin,
             query = query & Q(projectpermission__role=role)
 
         return get_user_model().objects.filter(query).order_by('username')
+
+    @transaction.atomic()
+    def _soft_delete(self, using=None):
+        """ Method for project soft delete. It doesn't delete a project, only mark as 'removed',
+        but it sends needed signals and delete ServiceProjectLink objects
+        """
+        signals.pre_delete.send(sender=self.__class__, instance=self, using=using)
+        self.is_removed = True
+        self.save(using=using)
+
+        for model in ServiceProjectLink.get_all_models():
+            for spl in model.objects.filter(project=self):
+                spl.delete()
+
+        signals.post_delete.send(sender=self.__class__, instance=self, using=using)
+
+    def delete(self, using=None, soft=True, *args, **kwargs):
+        """Use soft delete, i.e. mark a project as 'removed'."""
+        if soft:
+            self._soft_delete(using)
+        else:
+            return super(SoftDeletableModel, self).delete(using=using, *args, **kwargs)
 
     def __str__(self):
         return '%(name)s | %(customer)s' % {
