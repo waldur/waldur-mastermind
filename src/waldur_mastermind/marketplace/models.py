@@ -813,6 +813,7 @@ class OrderItem(CostEstimateMixin,
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
+    old_plan = models.ForeignKey(Plan, related_name='+', null=True, blank=True)
     resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()
