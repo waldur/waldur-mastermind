@@ -34,8 +34,11 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.ServiceProvider
-        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description',
-                  'enable_notifications',)
+        fields = (
+            'url', 'uuid', 'created', 'description', 'enable_notifications',
+            'customer', 'customer_name', 'customer_uuid', 'customer_image',
+            'customer_abbreviation', 'customer_native_name',
+        )
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }
@@ -44,6 +47,8 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-service-provider-detail'},
             'customer': {'lookup_field': 'uuid'},
         }
+
+    customer_image = serializers.ImageField(source='customer.image', read_only=True)
 
     def validate(self, attrs):
         if not self.instance:
