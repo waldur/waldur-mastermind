@@ -767,6 +767,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'old_plan_name', 'new_plan_name',
+            'old_plan_uuid', 'new_plan_uuid',
             'old_cost_estimate', 'new_cost_estimate',
         )
 
@@ -783,8 +784,11 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
     project_name = serializers.ReadOnlyField(source='order.project.name')
     project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
 
-    old_plan_name = serializers.ReadOnlyField(source='resource.plan.name')
+    old_plan_name = serializers.ReadOnlyField(source='old_plan.name')
     new_plan_name = serializers.ReadOnlyField(source='plan.name')
+
+    old_plan_uuid = serializers.ReadOnlyField(source='old_plan.uuid')
+    new_plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
 
     old_cost_estimate = serializers.ReadOnlyField(source='resource.cost')
     new_cost_estimate = serializers.ReadOnlyField(source='cost')

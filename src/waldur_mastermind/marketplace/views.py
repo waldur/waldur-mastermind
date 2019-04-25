@@ -446,6 +446,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             order_item = models.OrderItem(
                 resource=resource,
                 offering=resource.offering,
+                old_plan=resource.plan,
                 plan=plan,
                 type=models.OrderItem.Types.UPDATE,
                 limits=resource.limits or {},
