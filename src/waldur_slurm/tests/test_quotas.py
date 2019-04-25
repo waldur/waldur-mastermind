@@ -1,8 +1,9 @@
 from django.test import TestCase
 
-from . import factories, fixtures
+from . import factories, fixtures, utils
 
 
+@utils.override_plugin_settings(ENABLED=True)
 class QuotasTest(TestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()

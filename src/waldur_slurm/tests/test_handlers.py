@@ -9,9 +9,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa import models as freeipa_models
 
 from .. import tasks
-from . import fixtures
+from . import fixtures, utils
 
 
+@utils.override_plugin_settings(ENABLED=True)
 class SlurmAssociationSynchronizationTest(TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()

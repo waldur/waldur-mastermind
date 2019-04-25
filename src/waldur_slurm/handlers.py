@@ -1,3 +1,6 @@
+import functools
+
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
 
@@ -7,6 +10,16 @@ from waldur_freeipa import models as freeipa_models
 from . import models, tasks, utils
 
 
+def if_plugin_enabled(f):
+    """Calls decorated handler only if plugin is enabled."""
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        if settings.WALDUR_SLURM['ENABLED']:
+            return f(*args, **kwargs)
+    return wrapped
+
+
+@if_plugin_enabled
 def process_user_creation(sender, instance, created=False, **kwargs):
     if not created:
         return
@@ -14,11 +27,13 @@ def process_user_creation(sender, instance, created=False, **kwargs):
                           tasks.add_user.delay(core_utils.serialize_instance(instance)))
 
 
+@if_plugin_enabled
 def process_user_deletion(sender, instance, **kwargs):
     transaction.on_commit(lambda:
                           tasks.delete_user.delay(core_utils.serialize_instance(instance)))
 
 
+@if_plugin_enabled
 def process_role_granted(sender, structure, user, role, **kwargs):
     try:
         freeipa_profile = freeipa_models.Profile.objects.get(user=user)
@@ -30,6 +45,7 @@ def process_role_granted(sender, structure, user, role, **kwargs):
         pass
 
 
+@if_plugin_enabled
 def process_role_revoked(sender, structure, user, role, **kwargs):
     try:
         freeipa_profile = freeipa_models.Profile.objects.get(user=user)
@@ -41,6 +57,7 @@ def process_role_revoked(sender, structure, user, role, **kwargs):
         pass
 
 
+@if_plugin_enabled
 def update_quotas_on_allocation_usage_update(sender, instance, created=False, **kwargs):
     if created:
         return
