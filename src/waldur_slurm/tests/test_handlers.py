@@ -7,11 +7,13 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa import models as freeipa_models
+from waldur_slurm.tests.utils import override_plugin_settings
 
 from .. import tasks
 from . import fixtures
 
 
+@override_plugin_settings(ENABLED=True)
 class SlurmAssociationSynchronizationTest(TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
