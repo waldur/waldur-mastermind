@@ -975,7 +975,7 @@ class ResourceSerializer(BaseItemSerializer):
             'project', 'project_uuid', 'project_name',
             'customer_uuid', 'customer_name',
             'offering_uuid', 'offering_name',
-            'backend_metadata', 'is_usage_based',
+            'backend_metadata', 'is_usage_based', 'name',
         )
         read_only_fields = ('backend_metadata', 'scope',)
 
