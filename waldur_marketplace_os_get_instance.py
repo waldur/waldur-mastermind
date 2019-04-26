@@ -11,7 +11,7 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 
 DOCUMENTATION = '''
 ---
-module: waldur_os_get_instance
+module: waldur_marketplace_os_get_instance
 short_description: Get existing OpenStack instance
 version_added: 0.1
 description:
@@ -44,7 +44,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: get instance
-      waldur_os_get_instance:
+      waldur_marketplace_os_get_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         name: Warehouse instance
@@ -63,7 +63,7 @@ def main():
 
     client = waldur_client_from_module(module)
     try:
-        instance = client.get_instance(
+        instance = client.get_instance_via_marketplace(
             name=module.params['name'],
             project=module.params['project'],
         )

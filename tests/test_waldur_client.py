@@ -42,14 +42,13 @@ class BaseWaldurClientTest(unittest.TestCase):
         }
 
 
-class InstanceCreateTest(BaseWaldurClientTest):
+class InstanceCreateBaseTest(BaseWaldurClientTest):
 
     def setUp(self):
-        super(InstanceCreateTest, self).setUp()
+        super(InstanceCreateBaseTest, self).setUp()
 
         self.params = {
             'name': 'instance',
-            'provider': 'provider',
             'project': 'project',
             'networks': [{
                 'subnet': 'subnet',
@@ -97,11 +96,6 @@ class InstanceCreateTest(BaseWaldurClientTest):
             obj = self._get_object(name)
             responses.add(responses.GET, self._get_url(mapping[name]), json=[obj])
 
-        provider = self._get_object('provider')
-        provider['settings_uuid'] = 'settings_uuid'
-        responses.add(responses.GET, self._get_url('openstacktenant'),
-                      json=[provider])
-
         service_project_link = self._get_object('service_project_link')
         responses.add(responses.GET, self._get_url('openstacktenant-service-project-link'),
                       json=[service_project_link])
@@ -122,6 +116,17 @@ class InstanceCreateTest(BaseWaldurClientTest):
             json=[self.flavor],
             match_querystring=True
         )
+
+
+class InstanceCreateTest(InstanceCreateBaseTest):
+
+    def setUp(self):
+        super(InstanceCreateTest, self).setUp()
+        self.params['provider'] = 'provider'
+        provider = self._get_object('provider')
+        provider['settings_uuid'] = 'settings_uuid'
+        responses.add(responses.GET, self._get_url('openstacktenant'),
+                      json=[provider])
 
     @responses.activate
     def test_valid_body_is_sent(self):
@@ -190,6 +195,102 @@ class InstanceCreateTest(BaseWaldurClientTest):
         return json.loads(post_request.body.decode('utf-8'))
 
 
+class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
+
+    def setUp(self):
+        super(InstanceCreateViaMarketplaceTest, self).setUp()
+
+        self.params['offering'] = 'offering'
+
+        offering = self._get_object('offering')
+        offering['scope_uuid'] = 'settings_uuid'
+        responses.add(responses.GET, self._get_url('marketplace-offerings'), json=[offering])
+
+        self.order = {'uuid': 'order_uuid'}
+
+        url = self._get_url('marketplace-orders')
+        responses.add(responses.POST, url, json=self.order, status=201)
+
+        url = self._get_url('marketplace-orders/order_uuid/approve')
+        responses.add(responses.POST, url, json=self.order, status=200)
+
+        url = self._get_url('marketplace-resources')
+        scope_url = self._get_url('scope_url')
+        responses.add(responses.GET, url, json=[{'scope': scope_url}], status=200)
+
+        responses.add(responses.GET, scope_url, json={'name': 'instance', 'uuid': 'uuid'}, status=200)
+
+    @responses.activate
+    def test_valid_body_is_sent(self):
+        actual = self.create_instance()
+        self.assertEqual(actual, {'project': 'url_project',
+                                  'items': [{
+                                      'attributes':
+                                          {'name': 'instance',
+                                           'image': 'url_image',
+                                           'data_volume_size': 5120,
+                                           'user_data': 'user_data',
+                                           'floating_ips': [{'subnet': 'url_subnet'}],
+                                           'internal_ips_set': [{'subnet': 'url_subnet'}],
+                                           'ssh_public_key': 'url_ssh_key',
+                                           'system_volume_size': 10240,
+                                           'flavor': 'url_flavor',
+                                           'security_groups': [{'url': 'url_security_groups'}]
+                                           },
+                                      'offering': 'url_offering',
+                                      'limits': {}}
+                                  ]})
+
+    @responses.activate
+    def test_flavors_are_filtered_by_ram_and_cpu(self):
+        url = self._get_url('openstacktenant-flavors', {
+            'ram__gte': 2000,
+            'cores__gte': 2,
+            'o': 'cores,ram,disk'
+        })
+        responses.add(
+            method='GET',
+            url=url,
+            json=[self.flavor, self.flavor, self.flavor],
+            match_querystring=True
+        )
+
+        self.params.pop('flavor')
+        self.params['flavor_min_cpu'] = 2
+        self.params['flavor_min_ram'] = 2000
+
+        actual = self.create_instance()
+        self.assertEqual(actual['items'][0]['attributes']['flavor'], self.flavor['url'])
+
+    @responses.activate
+    def test_if_networks_do_no_have_a_subnet_error_is_raised(self):
+        del self.params['networks'][0]['subnet']
+
+        self.assertRaises(WaldurClientException, self.create_instance)
+
+    @responses.activate
+    def test_wait_for_floating_ip(self):
+        self.create_instance()
+        self.assertEqual(2, len([call for call in responses.calls
+                                 if call.request.url == self.instance_url]))
+
+    @responses.activate
+    def test_skip_floating_ip(self):
+        del self.instance['external_ips']
+        del self.params['networks'][0]['floating_ip']
+
+        self.create_instance()
+        self.assertEqual(1, len([call for call in responses.calls
+                                 if call.request.url == self.instance_url]))
+
+    def create_instance(self):
+        self.client.create_instance_via_marketplace(**self.params)
+        post_request = [call.request
+                        for call in responses.calls
+                        if call.request.method == 'POST'][0]
+        return json.loads(post_request.body.decode('utf-8'))
+
+
 class InstanceDeleteTest(BaseWaldurClientTest):
     def setUp(self):
         super(InstanceDeleteTest, self).setUp()
@@ -217,6 +318,29 @@ class InstanceDeleteTest(BaseWaldurClientTest):
                       self.expected_url,
                       status=400,
                       json={'details': 'Instance has invalid state.'})
+        self.assertRaises(WaldurClientException, self.client.delete_instance, '6b6e60870ad64085aadcdcbc1fd84a7e')
+
+
+class InstanceDeleteViaMarketplaceTest(BaseWaldurClientTest):
+    def setUp(self):
+        super(InstanceDeleteViaMarketplaceTest, self).setUp()
+        url = self._get_url('marketplace-resources')
+        scope_url = self._get_url('scope_url')
+        responses.add(responses.GET, url, json=[{'scope': scope_url, 'uuid': 'resource_uuid'}], status=200)
+        responses.add(responses.GET, scope_url,
+                      json={'name': 'instance', 'uuid': '6b6e60870ad64085aadcdcbc1fd84a7e'},
+                      status=200)
+        url = self._get_url('marketplace-resources/resource_uuid/terminate')
+        responses.add(responses.POST, url, json={'order_uuid': 'order_uuid'}, status=200)
+
+    @responses.activate
+    def test_deletion_parameters_are_passed_as_query_parameters(self):
+        self.client.delete_instance_via_marketplace('6b6e60870ad64085aadcdcbc1fd84a7e')
+        self.assertEqual([c.request.url for c in responses.calls if c.request.method == 'POST'][0],
+                         'http://example.com:8000/api/marketplace-resources/resource_uuid/terminate/')
+
+    @responses.activate
+    def test_error_is_raised_if_invalid_status_code_is_returned(self):
         self.assertRaises(WaldurClientException, self.client.delete_instance, '6b6e60870ad64085aadcdcbc1fd84a7e')
 
 
@@ -286,7 +410,7 @@ class SecurityGroupTest(BaseWaldurClientTest):
 
     @responses.activate
     def test_search_tenant_by_project_name(self):
-        project = {'uuid': str(uuid.uuid4()),}
+        project = {'uuid': str(uuid.uuid4()), }
         responses.add(responses.GET, self._get_url('projects'), json=[project])
 
         self.create_security_group(project='waldur')
