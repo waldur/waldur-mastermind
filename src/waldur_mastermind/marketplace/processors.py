@@ -103,6 +103,7 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
                 plan=self.order_item.plan,
                 limits=self.order_item.limits,
                 attributes=self.order_item.attributes,
+                name=self.order_item.attributes.get('name') or '',
                 scope=scope,
             )
             resource.init_cost()
