@@ -34,8 +34,11 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.ServiceProvider
-        fields = ('url', 'uuid', 'created', 'customer', 'customer_name', 'customer_uuid', 'description',
-                  'enable_notifications',)
+        fields = (
+            'url', 'uuid', 'created', 'description', 'enable_notifications',
+            'customer', 'customer_name', 'customer_uuid', 'customer_image',
+            'customer_abbreviation', 'customer_native_name',
+        )
         related_paths = {
             'customer': ('uuid', 'name', 'native_name', 'abbreviation')
         }
@@ -44,6 +47,8 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-service-provider-detail'},
             'customer': {'lookup_field': 'uuid'},
         }
+
+    customer_image = serializers.ImageField(source='customer.image', read_only=True)
 
     def validate(self, attrs):
         if not self.instance:
@@ -376,7 +381,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             try:
                 validator.validate(value, list(attribute.options.values_list('key', flat=True)))
             except ValidationError as e:
-                raise rf_exceptions.ValidationError({'attributes': e.message})
+                raise rf_exceptions.ValidationError({attribute.key: e.message})
 
     def validate_options(self, options):
         serializer = OfferingOptionsSerializer(data=options)
@@ -394,7 +399,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         valid_types = set()
         fixed_types = set()
 
-        if builtin_components and custom_components:
+        if builtin_components and attrs.get('components'):
             raise serializers.ValidationError({
                 'components': _('Extra components are not allowed.')
             })
@@ -762,6 +767,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'customer_name', 'customer_uuid',
             'project_name', 'project_uuid',
             'old_plan_name', 'new_plan_name',
+            'old_plan_uuid', 'new_plan_uuid',
             'old_cost_estimate', 'new_cost_estimate',
         )
 
@@ -778,8 +784,11 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
     project_name = serializers.ReadOnlyField(source='order.project.name')
     project_uuid = serializers.ReadOnlyField(source='order.project.uuid')
 
-    old_plan_name = serializers.ReadOnlyField(source='resource.plan.name')
+    old_plan_name = serializers.ReadOnlyField(source='old_plan.name')
     new_plan_name = serializers.ReadOnlyField(source='plan.name')
+
+    old_plan_uuid = serializers.ReadOnlyField(source='old_plan.uuid')
+    new_plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
 
     old_cost_estimate = serializers.ReadOnlyField(source='resource.cost')
     new_cost_estimate = serializers.ReadOnlyField(source='cost')
@@ -798,6 +807,7 @@ class CartItemSerializer(BaseRequestSerializer):
         validated_data['user'] = self.context['request'].user
         item = super(CartItemSerializer, self).create(validated_data)
         item.init_cost()
+        item.save(update_fields=['cost'])
         return item
 
 
@@ -965,7 +975,7 @@ class ResourceSerializer(BaseItemSerializer):
             'project', 'project_uuid', 'project_name',
             'customer_uuid', 'customer_name',
             'offering_uuid', 'offering_name',
-            'backend_metadata', 'is_usage_based',
+            'backend_metadata', 'is_usage_based', 'name',
         )
         read_only_fields = ('backend_metadata', 'scope',)
 

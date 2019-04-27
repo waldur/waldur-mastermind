@@ -4,6 +4,7 @@ from waldur_core.core import WaldurExtension
 class SlurmExtension(WaldurExtension):
     class Settings:
         WALDUR_SLURM = {
+            'ENABLED': False,
             'CUSTOMER_PREFIX': 'waldur_customer_',
             'PROJECT_PREFIX': 'waldur_project_',
             'ALLOCATION_PREFIX': 'waldur_allocation_',

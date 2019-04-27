@@ -542,7 +542,9 @@ class CustomerQuotasTest(test.APITransactionTestCase):
 
         self.assert_quota_usage('nc_user_count', count)
 
-        self.customer.projects.all().delete()
+        for p in self.customer.projects.all():
+            p.delete()
+
         self.assert_quota_usage('nc_user_count', 0)
 
     def assert_quota_usage(self, name, value):

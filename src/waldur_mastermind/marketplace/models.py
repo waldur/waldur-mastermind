@@ -670,7 +670,8 @@ class Resource(CostEstimateMixin,
                core_models.UuidMixin,
                TimeStampedModel,
                ScopeMixin,
-               LoggableMixin):
+               LoggableMixin,
+               core_models.NameMixin):
     """
     Core resource is abstract model, marketplace resource is not abstract,
     therefore we don't need to compromise database query efficiency when
@@ -716,10 +717,6 @@ class Resource(CostEstimateMixin,
     @property
     def customer(self):
         return self.project.customer
-
-    @property
-    def name(self):
-        return self.attributes.get('name')
 
     @transition(field=state, source=[States.ERRED, States.CREATING, States.UPDATING], target=States.OK)
     def set_state_ok(self):
@@ -813,6 +810,7 @@ class OrderItem(CostEstimateMixin,
     order = models.ForeignKey(Order, related_name='items')
     offering = models.ForeignKey(Offering)
     attributes = BetterJSONField(blank=True, default=dict)
+    old_plan = models.ForeignKey(Plan, related_name='+', null=True, blank=True)
     resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     tracker = FieldTracker()

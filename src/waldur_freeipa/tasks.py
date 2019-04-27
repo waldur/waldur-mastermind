@@ -25,6 +25,10 @@ def schedule_sync():
         logger.debug('Skipping FreeIPA synchronization because plugin is disabled.')
         return
 
+    if not settings.WALDUR_FREEIPA['GROUP_SYNCHRONIZATION_ENABLED']:
+        logger.debug('Skipping FreeIPA group synchronization because this feature is disabled.')
+        return
+
     utils.renew_task_status()
     _sync_groups.apply_async(countdown=10)
 

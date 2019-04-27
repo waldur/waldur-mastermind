@@ -10,7 +10,7 @@ class AttributeType(object):
     @staticmethod
     def available_values_validate(values):
         if values:
-            raise ValidationError(_('Available values must be empty for this attribute type.'))
+            raise ValidationError(_('Available values must be empty.'))
 
     @staticmethod
     def validate(values, available_values):
@@ -21,57 +21,57 @@ class BooleanAttribute(AttributeType):
     @staticmethod
     def validate(values, available_values=None):
         if not isinstance(values, bool):
-            raise ValidationError(_('Value must be a boolean type  for this attribute type.'))
+            raise ValidationError(_('Value must be a boolean.'))
 
 
 class StringAttribute(AttributeType):
     @staticmethod
     def validate(values, available_values=None):
         if not isinstance(values, six.text_type):
-            raise ValidationError(_('Value must be a boolean type  for this attribute type.'))
+            raise ValidationError(_('Value must be a string.'))
 
 
 class IntegerAttribute(AttributeType):
     @staticmethod
     def validate(values, available_values=None):
-        if isinstance(values, bool) or not isinstance(values, int):
-            raise ValidationError(_('Value must be an integer type  for this attribute type.'))
+        if not isinstance(values, int) or values < 0:
+            raise ValidationError(_('Value must be positive integer.'))
 
 
 class ChoiceAttribute(AttributeType):
     @staticmethod
     def available_values_validate(values):
         if not values:
-            raise ValidationError(_('Available values not must be empty for this attribute type.'))
+            raise ValidationError(_('Available values not must be empty.'))
 
         if not isinstance(values, list):
-            raise ValidationError(_('Available values must be a list for this attribute type.'))
+            raise ValidationError(_('Available values must be a list.'))
 
     @staticmethod
     def validate(values, available_values):
         if not isinstance(values, six.text_type):
-            raise ValidationError(_('Value must be a string for this attribute.'))
+            raise ValidationError(_('Value must be a string.'))
 
         if not(values in available_values):
-            raise ValidationError(_('This value is not available for this attribute.'))
+            raise ValidationError(_('This value is not available.'))
 
 
 class ListAttribute(AttributeType):
     @staticmethod
     def available_values_validate(values):
         if not values:
-            raise ValidationError(_('Available values not must be empty for this attribute type.'))
+            raise ValidationError(_('Available values not must be empty.'))
 
         if not isinstance(values, list):
-            raise ValidationError(_('Available values must be a list for this attribute type.'))
+            raise ValidationError(_('Available values must be a list.'))
 
     @staticmethod
     def validate(values, available_values):
         if not isinstance(values, list):
-            raise ValidationError(_('Value must be a list for this attribute.'))
+            raise ValidationError(_('Value must be a list.'))
 
         if not(set(values) <= set(available_values)):
-            raise ValidationError(_('These values are not available for this attribute.'))
+            raise ValidationError(_('These values are not available.'))
 
 
 ATTRIBUTE_TYPES = (

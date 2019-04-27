@@ -13,6 +13,10 @@ def merge_two_dicts(x, y):
     return z
 
 
+def humanize(name):
+    return name.replace("_", " ").capitalize()
+
+
 available_categories = {
     'backup': ('Backup', 'Backup solution'),
     'consultancy': ('Consultancy', 'Experts for hire'),
@@ -66,6 +70,11 @@ common_sections = {
         ('portal', 'Support portal', 'string'),
         ('description', 'Description', 'string'),
         ('terms_of_services_link', 'ToS link', 'string'),
+    ],
+    'SLA_simple': [
+        ('low_sla_response', 'Response time (low priority, mins)', 'integer'),
+        ('medium_sla_response_wh', 'Response time (medium priority, mins)', 'integer'),
+        ('high_sla_response_wh', 'Response time (high priority, mins)', 'integer'),
     ],
     'SLA': [
         ('low_sla_response_wh', 'Response time (low priority, working hours)', 'integer'),
@@ -339,6 +348,7 @@ enums = {
         ('private', 'Private (own)'),
         ('aso', 'ASO'),
         ('ddn', 'DDN'),
+        ('ogn', 'OGN'),
         ('banglagovnet', 'BanglaGovNet'),
         ('public', 'Public Internet'),
     ],
@@ -367,6 +377,7 @@ enums = {
         ('ubuntu16.04', 'Ubuntu 16.04'),
         ('centos7', 'CentOS 7'),
         ('windows2016', 'Windows 2016'),
+        ('rhel7', 'RHEL 7'),
     ],
     'application': [
         ('zevenet', 'Zevenet'),
@@ -383,7 +394,7 @@ enums = {
 def populate_category(category_code, category, sections):
     for section_key in sections.keys():
         section_prefix = '%s_%s' % (category_code, section_key)
-        sec, _ = Section.objects.get_or_create(key=section_prefix, title=section_key, category=category)
+        sec, _ = Section.objects.get_or_create(key=section_prefix, title=humanize(section_key), category=category)
         sec.is_standalone = True
         sec.save()
         for attribute in sections[section_key]:
@@ -405,11 +416,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('category', nargs='+', type=str, help='List of categories to load')
+        parser.add_argument('--basic_sla', nargs='?', type=bool, default=False, help='Use basic SLA for categories')
 
     def handle(self, *args, **options):
 
         all_categories = available_categories.keys()
-
+        if options['basic_sla']:
+            del common_sections['SLA']
         for category_short in options['category']:
             if category_short not in all_categories:
                 self.stdout.write(self.style.WARNING('Category "%s" is not available' % category_short))

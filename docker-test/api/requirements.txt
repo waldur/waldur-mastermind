@@ -1,5 +1,5 @@
 amqp==2.3.2
-apache-libcloud==2.1.0
+apache-libcloud==2.2.1
 apipkg==1.4
 appdirs==1.4.3
 asn1crypto==0.24.0

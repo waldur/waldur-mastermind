@@ -11,7 +11,7 @@ from setuptools import setup, find_packages
 # python-freeipa is required by FreeIPA plugin
 install_requires = [
     'ansible-waldur-module>=0.8.2',
-    'apache-libcloud>=1.1.0,<2.2.0',
+    'apache-libcloud>=1.1.0,<2.3.0',
     'azure-mgmt-compute==4.0.1',
     'azure-mgmt-network==2.0.0',
     'azure-mgmt-rdbms==1.2.0',
@@ -55,7 +55,7 @@ install_requires = [
     'python-ceilometerclient>=2.9.0',
     'python-cinderclient>=3.1.0',
     'python-digitalocean>=1.5',
-    'python-freeipa>=0.1.2',
+    'python-freeipa>=0.2.2',
     'python-glanceclient>=2.8.0',
     'python-keystoneclient>=3.13.0',
     'python-neutronclient>=6.5.0',
@@ -83,7 +83,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.5.1',
+    version='3.5.2',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
