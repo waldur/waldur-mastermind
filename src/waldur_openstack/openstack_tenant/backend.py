@@ -1193,6 +1193,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def push_instance_internal_ips(self, instance):
         # we assume that internal IP subnet cannot be changed
         neutron = self.neutron_client
+        nova = self.nova_client
+
         try:
             backend_internal_ips = neutron.list_ports(device_id=instance.backend_id)['ports']
         except neutron_exceptions.NeutronClientException as e:
@@ -1214,7 +1216,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             try:
                 port = {
                     'network_id': new_internal_ip.subnet.network.backend_id,
-                    'device_id': instance.backend_id,
                     # If you specify only a subnet ID, OpenStack Networking
                     # allocates an available IP from that subnet to the port.
                     'fixed_ips': [{
@@ -1224,6 +1225,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 logger.debug('About to create network port for instance %s in subnet %s.',
                              instance.backend_id, new_internal_ip.subnet.backend_id)
                 backend_internal_ip = neutron.create_port({'port': port})['port']
+                nova.servers.interface_attach(instance.backend_id, backend_internal_ip['id'], None, None)
             except neutron_exceptions.NeutronClientException as e:
                 reraise(e)
             new_internal_ip.mac_address = backend_internal_ip['mac_address']
