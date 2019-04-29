@@ -1228,6 +1228,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 nova.servers.interface_attach(instance.backend_id, backend_internal_ip['id'], None, None)
             except neutron_exceptions.NeutronClientException as e:
                 reraise(e)
+            except nova_exceptions.ClientException as e:
+                reraise(e)
             new_internal_ip.mac_address = backend_internal_ip['mac_address']
             new_internal_ip.ip4_address = backend_internal_ip['fixed_ips'][0]['ip_address']
             new_internal_ip.backend_id = backend_internal_ip['id']
