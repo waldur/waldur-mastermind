@@ -769,6 +769,7 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'old_plan_name', 'new_plan_name',
             'old_plan_uuid', 'new_plan_uuid',
             'old_cost_estimate', 'new_cost_estimate',
+            'can_terminate',
         )
 
     order_uuid = serializers.ReadOnlyField(source='order.uuid')
@@ -792,6 +793,17 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
 
     old_cost_estimate = serializers.ReadOnlyField(source='resource.cost')
     new_cost_estimate = serializers.ReadOnlyField(source='cost')
+
+    can_terminate = serializers.SerializerMethodField()
+
+    def get_can_terminate(self, order_item):
+        if not plugins.manager.can_terminate_order_item(order_item.offering.type):
+            return False
+
+        if order_item.state not in (models.OrderItem.States.PENDING, models.OrderItem.States.EXECUTING):
+            return False
+
+        return True
 
 
 class CartItemSerializer(BaseRequestSerializer):
