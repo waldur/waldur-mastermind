@@ -796,6 +796,7 @@ class OrderItem(CostEstimateMixin,
         DONE = 3
         ERRED = 4
         TERMINATED = 5
+        TERMINATING = 6
 
         CHOICES = (
             (PENDING, 'pending'),
@@ -803,6 +804,7 @@ class OrderItem(CostEstimateMixin,
             (DONE, 'done'),
             (ERRED, 'erred'),
             (TERMINATED, 'terminated'),
+            (TERMINATING, 'terminating'),
         )
 
         TERMINAL_STATES = {DONE, ERRED}
@@ -841,6 +843,10 @@ class OrderItem(CostEstimateMixin,
 
     @transition(field=state, source='*', target=States.TERMINATED)
     def set_state_terminated(self):
+        pass
+
+    @transition(field=state, source=[States.PENDING, States.EXECUTING], target=States.TERMINATING)
+    def set_state_terminating(self):
         pass
 
     def clean(self):

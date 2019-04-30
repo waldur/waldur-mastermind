@@ -20,7 +20,8 @@ class PluginManager(object):
                  update_resource_processor=None,
                  delete_resource_processor=None,
                  components=None,
-                 service_type=None):
+                 service_type=None,
+                 can_terminate_order_item=False):
         """
 
         :param offering_type: string which consists of application name and model name,
@@ -31,7 +32,7 @@ class PluginManager(object):
         :param components: tuple available plan components, for example
                            Component(type='storage', name='Storage', measured_unit='GB')
         :param service_type: optional string indicates service type to be used
-        :return:
+        :param can_terminate_order_item: optional boolean indicates whether order item can be terminated
         """
         self.backends[offering_type] = {
             'create_resource_processor': create_resource_processor,
@@ -39,6 +40,7 @@ class PluginManager(object):
             'delete_resource_processor': delete_resource_processor,
             'components': components,
             'service_type': service_type,
+            'can_terminate_order_item': can_terminate_order_item,
         }
 
     def get_offering_types(self):
@@ -89,6 +91,12 @@ class PluginManager(object):
         :return: set of component types
         """
         return {component.type for component in self.get_components(offering_type)}
+
+    def can_terminate_order_item(self, offering_type):
+        """
+        Returns true if order item can be terminated.
+        """
+        return self.backends.get(offering_type, {}).get('can_terminate_order_item')
 
     def process(self, order_item, user):
         processor = self.get_processor(order_item)

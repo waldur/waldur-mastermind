@@ -377,13 +377,35 @@ class OrderItemViewSet(BaseMarketplaceView):
     serializer_class = serializers.OrderItemDetailsSerializer
     filter_class = filters.OrderItemFilter
 
-    def check_permissions_for_order_items_change(request, view, order_item=None):
+    def order_items_destroy_validator(order_item):
         if not order_item:
             return
         if order_item.order.state != models.Order.States.REQUESTED_FOR_APPROVAL:
             raise rf_exceptions.PermissionDenied()
 
-    destroy_permissions = [check_permissions_for_order_items_change]
+    destroy_validators = [order_items_destroy_validator]
+    destroy_permissions = terminate_permissions = [structure_permissions.is_administrator]
+
+    @detail_route(methods=['post'])
+    def terminate(self, request, uuid=None):
+        order_item = self.get_object()
+        if not plugins.manager.can_terminate_order_item(order_item.offering.type):
+            return Response({
+                'details': 'Order item could not be terminated because it is not supported by plugin.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # It is expected that plugin schedules Celery task to call backend
+            # and then switches order item to terminated state.
+            order_item.set_state_terminating()
+            order_item.save(update_fields=['state'])
+        except TransitionNotAllowed:
+            return Response({
+                'details': 'Order item could not be terminated because it has been already processed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'details': 'Order item termination has been scheduled.'
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class CartItemViewSet(core_views.ActionsViewSet):
@@ -462,14 +484,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
-    def check_permissions_for_resource_actions(request, view, resource=None):
-        if not resource:
-            return
-
-        structure_permissions.is_administrator(request, view, resource)
-
     terminate_permissions = \
-        switch_plan_permissions = [check_permissions_for_resource_actions]
+        switch_plan_permissions = [structure_permissions.is_administrator]
     switch_plan_validators = \
         terminate_validators = [core_validators.StateValidator(models.Resource.States.OK),
                                 structure_utils.check_customer_blocked]
