@@ -274,6 +274,10 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         if volume.instance and volume.instance.runtime_state != models.Instance.RuntimeStates.SHUTOFF:
             raise core_exceptions.IncorrectStateException(_('Volume instance should be in shutoff state.'))
 
+    def _is_volume_instance_ok(volume):
+        if volume.instance and volume.instance.state != models.Instance.States.OK:
+            raise core_exceptions.IncorrectStateException(_('Volume instance should be in OK state.'))
+
     @decorators.detail_route(methods=['post'])
     def extend(self, request, uuid=None):
         """ Increase volume size """
@@ -289,6 +293,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         return response.Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
     extend_validators = [_is_volume_bootable,
+                         _is_volume_instance_ok,
                          _is_volume_instance_shutoff,
                          core_validators.StateValidator(models.Volume.States.OK)]
     extend_serializer_class = serializers.VolumeExtendSerializer
