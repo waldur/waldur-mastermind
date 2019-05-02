@@ -27,7 +27,9 @@ def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
 def log_order_events(sender, instance, created=False, **kwargs):
     order = instance
     if created:
-        log.log_order_created(order)
+        # Skip logging for imported orders
+        if order.state != models.Order.States.DONE:
+            log.log_order_created(order)
     elif not order.tracker.has_changed('state'):
         return
     elif order.state == models.Order.States.EXECUTING:
@@ -46,6 +48,9 @@ def log_order_item_events(sender, instance, created=False, **kwargs):
     order_item = instance
     if not created:
         return
+    if order_item.state != models.OrderItem.States.PENDING:
+        # Skip logging for imported order item
+        return
     elif not order_item.resource:
         return
     elif order_item.type == models.OrderItem.Types.TERMINATE:
@@ -56,6 +61,7 @@ def log_order_item_events(sender, instance, created=False, **kwargs):
 
 def log_resource_events(sender, instance, created=False, **kwargs):
     resource = instance
+    # Skip logging for imported resource
     if created and instance.state == models.Resource.States.CREATING:
         log.log_resource_creation_requested(resource)
 
