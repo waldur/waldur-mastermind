@@ -2,7 +2,11 @@ from __future__ import unicode_literals
 
 import datetime
 
+from django.core import mail
+from waldur_core.core import utils as core_utils
 from rest_framework import test
+
+from waldur_core.structure.tests import fixtures as structure_fixtures
 
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import tasks
@@ -42,3 +46,17 @@ class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
         self.offering_component.save()
         tasks.calculate_usage_for_current_month()
         self.assertEqual(models.CategoryComponentUsage.objects.count(), 0)
+
+
+class NotificationTest(test.APITransactionTestCase):
+    def test_notify_about_resource_change(self):
+        project_fixture = structure_fixtures.ProjectFixture()
+        admin = project_fixture.admin
+        project = project_fixture.project
+        resource = factories.ResourceFactory(project=project)
+        tasks.notify_about_resource_change('marketplace_resource_create_succeeded', {}, resource.uuid)
+        self.assertEqual(len(mail.outbox), 1)
+        subject_template_name = '%s/%s_subject.txt' % ('marketplace', 'marketplace_resource_create_succeeded')
+        subject = core_utils.format_text(subject_template_name, {'resource_name': resource.name})
+        self.assertEqual(mail.outbox[0].subject, subject)
+        self.assertEqual(mail.outbox[0].to[0], admin.email)

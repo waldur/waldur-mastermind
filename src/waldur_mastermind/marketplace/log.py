@@ -1,6 +1,9 @@
+from django.conf import settings
+from django.db import transaction
+
 from waldur_core.logging.loggers import EventLogger, event_logger
 
-from . import models
+from . import models, tasks
 
 
 class MarketplaceOrderLogger(EventLogger):
@@ -19,6 +22,25 @@ class MarketplaceOrderLogger(EventLogger):
 
 class MarketplaceResourceLogger(EventLogger):
     resource = models.Resource
+
+    def process(self, level, message_template, event_type='undefined', event_context=None):
+        super(MarketplaceResourceLogger, self).process(level, message_template, event_type, event_context)
+
+        if not event_context:
+            event_context = {}
+
+        if not settings.WALDUR_MARKETPLACE['NOTIFY_ABOUT_RESOURCE_CHANGE'] or event_type not in (
+                'marketplace_resource_create_succeeded',
+                'marketplace_resource_create_failed',
+                'marketplace_resource_update_succeeded',
+                'marketplace_resource_update_failed',
+                'marketplace_resource_terminate_succeeded',
+                'marketplace_resource_terminate_failed',):
+            return
+
+        context = self.compile_context(**event_context)
+        resource = event_context['resource']
+        transaction.on_commit(lambda: tasks.notify_about_resource_change.delay(event_type, context, resource.uuid))
 
     class Meta:
         event_types = (

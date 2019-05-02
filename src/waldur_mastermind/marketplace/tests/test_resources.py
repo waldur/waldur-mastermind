@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from ddt import data, ddt
 import mock
 from rest_framework import status, test
 
@@ -8,7 +9,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import factories
-from .. import callbacks, models, tasks
+from .. import callbacks, models, tasks, log
 
 
 class ResourceGetTest(test.APITransactionTestCase):
@@ -428,3 +429,19 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(resource.cost, new_plan.unit_price)
+
+
+@ddt
+class ResourceNotificationTest(test.APITransactionTestCase):
+    @data('log_resource_creation_succeeded',
+          'log_resource_creation_failed',
+          'log_resource_update_succeeded',
+          'log_resource_update_failed',
+          'log_resource_terminate_succeeded',
+          'log_resource_terminate_failed', )
+    @mock.patch('waldur_mastermind.marketplace.log.tasks')
+    def test_notify_about_resource_change(self, log_func_name, mock_tasks):
+        resource = factories.ResourceFactory()
+        log_func = getattr(log, log_func_name)
+        log_func(resource)
+        mock_tasks.notify_about_resource_change.delay.assert_called_once()

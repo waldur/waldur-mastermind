@@ -60,6 +60,13 @@ def notify_order_approvers(uuid):
     core_utils.broadcast_mail('marketplace', 'notification_approval', context, emails)
 
 
+@shared_task(name='marketplace.notify_about_resource_change')
+def notify_about_resource_change(event_type, context, resource_uuid):
+    resource = models.Resource.objects.get(uuid=resource_uuid)
+    emails = resource.project.get_users().values_list('email', flat=True)
+    core_utils.broadcast_mail('marketplace', event_type, context, emails)
+
+
 @shared_task
 def create_order_pdf(order_id):
     order = models.Order.objects.get(pk=order_id)
