@@ -434,6 +434,7 @@ def load_category(category_short):
                 widget=attribute.get('widget'),
             )
         )
+    return new_category
 
 
 class Command(BaseCommand):
