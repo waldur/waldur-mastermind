@@ -56,7 +56,7 @@ def log_order_item_events(sender, instance, created=False, **kwargs):
 
 def log_resource_events(sender, instance, created=False, **kwargs):
     resource = instance
-    if created:
+    if created and instance.state == models.Resource.States.CREATING:
         log.log_resource_creation_requested(resource)
 
 
