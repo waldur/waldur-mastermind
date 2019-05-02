@@ -54,6 +54,7 @@ class MarketplaceSupportConfig(AppConfig):
         manager.register(PLUGIN_NAME,
                          create_resource_processor=processor.CreateRequestProcessor,
                          update_resource_processor=processor.UpdateRequestProcessor,
-                         delete_resource_processor=processor.DeleteRequestProcessor)
+                         delete_resource_processor=processor.DeleteRequestProcessor,
+                         can_terminate_order_item=True)
 
         marketplace_handlers.connect_resource_metadata_handlers(support_models.Offering)

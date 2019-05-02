@@ -190,6 +190,44 @@ class ItemDeleteTest(test.APITransactionTestCase):
         return response
 
 
+@ddt
+class ItemTerminateTest(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.manager = self.fixture.manager
+        self.offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        self.order = factories.OrderFactory(project=self.project, created_by=self.manager)
+        self.order_item = factories.OrderItemFactory(order=self.order, offering=self.offering)
+
+    @data('staff', 'owner', 'admin', 'manager')
+    def test_authorized_user_can_terminate_item(self, user):
+        response = self.terminate_item(user)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, models.OrderItem.States.TERMINATING)
+
+    @data(models.OrderItem.States.DONE, models.OrderItem.States.ERRED, models.OrderItem.States.TERMINATED)
+    def test_order_item_cannot_be_terminated_if_it_is_in_terminal_state(self, state):
+        self.order_item.state = state
+        self.order_item.save()
+        response = self.terminate_item('staff')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_terminate_order_if_it_is_not_supported_by_offering(self):
+        self.offering.type = 'Packages.Template'
+        self.offering.save()
+        response = self.terminate_item('staff')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def terminate_item(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OrderItemFactory.get_url(self.order_item, 'terminate')
+        return self.client.post(url)
+
+
 class AggregateResourceCountTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
