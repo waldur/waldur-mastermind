@@ -38,7 +38,7 @@ available_categories = {
 }
 
 category_columns = {
-    'block': [
+    'storage': [
         {
             'title': 'Size',
             'widget': 'filesize',
@@ -408,6 +408,35 @@ def populate_category(category_code, category, sections):
                         attribute=attr, key='%s_%s_%s' % (section_prefix, key, val_key), title=val_label)
 
 
+def load_category(category_short):
+    category_name, category_description = available_categories[category_short]
+    new_category, _ = Category.objects.get_or_create(title=category_name, description=category_description)
+    category_icon = '%s.svg' % category_short
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
+    new_category.icon.save(category_icon,
+                           File(open(path + category_icon, 'r')))
+    new_category.save()
+    # populate category with common section
+    populate_category(category_short, new_category, common_sections)
+    # add specific sections
+    if category_short in specific_sections.keys():
+        populate_category(category_short, new_category, specific_sections[category_short])
+
+    # add category columns
+    columns = category_columns.get(category_short, [])
+    for index, attribute in enumerate(columns):
+        CategoryColumn.objects.get_or_create(
+            category=new_category,
+            title=attribute['title'],
+            defaults=dict(
+                index=index,
+                attribute=attribute.get('attribute', ''),
+                widget=attribute.get('widget'),
+            )
+        )
+    return new_category
+
+
 class Command(BaseCommand):
     help = 'Loads a categories for the Marketplace'
 
@@ -427,30 +456,5 @@ class Command(BaseCommand):
             if category_short not in all_categories:
                 self.stdout.write(self.style.WARNING('Category "%s" is not available' % category_short))
                 continue
-            category_name, category_description = available_categories[category_short]
-            new_category, _ = Category.objects.get_or_create(title=category_name, description=category_description)
-            category_icon = '%s.svg' % category_short
-            path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
-            new_category.icon.save(category_icon,
-                                   File(open(path + category_icon, 'r')))
-            new_category.save()
-            # populate category with common section
-            populate_category(category_short, new_category, common_sections)
-            # add specific sections
-            if category_short in specific_sections.keys():
-                populate_category(category_short, new_category, specific_sections[category_short])
-
-            # add category columns
-            columns = category_columns.get(category_short, [])
-            for index, attribute in enumerate(columns):
-                CategoryColumn.objects.get_or_create(
-                    category=new_category,
-                    title=attribute['title'],
-                    defaults=dict(
-                        index=index,
-                        attribute=attribute.get('attribute', ''),
-                        widget=attribute.get('widget'),
-                    )
-                )
-
+            new_category = load_category(category_short)
             self.stdout.write(self.style.SUCCESS('Loaded category %s, %s ' % (category_short, new_category.uuid)))
