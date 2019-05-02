@@ -293,6 +293,7 @@ def import_openstack_tenant_service_settings(dry_run=False):
                 shared=service_settings.shared,
                 type=offering_type,
                 state=marketplace_models.Offering.States.ACTIVE,
+                billable=False,
             )
             create_offering_components(offering)
             offerings_counter += 1
