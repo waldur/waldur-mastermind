@@ -70,7 +70,8 @@ def notify_order_approvers(sender, instance, created=False, **kwargs):
     if not created:
         return
 
-    if instance.state == models.Order.States.EXECUTING:
+    # Skip logging for imported orders
+    if instance.state != models.Order.States.REQUESTED_FOR_APPROVAL:
         return
 
     if serializers.check_availability_of_auto_approving(instance.items.all(), instance.created_by, instance.project):
