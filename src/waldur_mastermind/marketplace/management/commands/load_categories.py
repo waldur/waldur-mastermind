@@ -38,7 +38,7 @@ available_categories = {
 }
 
 category_columns = {
-    'block': [
+    'storage': [
         {
             'title': 'Size',
             'widget': 'filesize',
