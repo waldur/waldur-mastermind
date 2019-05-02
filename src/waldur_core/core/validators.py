@@ -187,6 +187,7 @@ ImageValidator = FileTypeValidator(
         'image/jpeg',
         'image/svg',
         'image/svg+xml',
+        'image/x-icon',
     ]
 )
 
