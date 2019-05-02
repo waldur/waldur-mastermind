@@ -207,6 +207,7 @@ def import_openstack_tenants(dry_run=False):
 
     def create_resource(offering, tenant, plan=None):
         resource = marketplace_models.Resource.objects.create(
+            name=tenant.name,
             created=tenant.created,
             offering=offering,
             plan=plan,
@@ -385,6 +386,7 @@ def import_openstack_instances_and_volumes(dry_run=False):
             plan = get_plan_for_resource(resource, offering)
 
             new_resource = marketplace_models.Resource.objects.create(
+                name=resource.name,
                 created=resource.created,
                 project=resource.project,
                 offering=offering,
