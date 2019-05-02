@@ -456,5 +456,5 @@ class Command(BaseCommand):
             if category_short not in all_categories:
                 self.stdout.write(self.style.WARNING('Category "%s" is not available' % category_short))
                 continue
-            load_category(category_short)
+            new_category = load_category(category_short)
             self.stdout.write(self.style.SUCCESS('Loaded category %s, %s ' % (category_short, new_category.uuid)))
