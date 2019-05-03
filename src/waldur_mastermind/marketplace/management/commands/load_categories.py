@@ -73,8 +73,8 @@ common_sections = {
     ],
     'SLA_simple': [
         ('low_sla_response', 'Response time (low priority, mins)', 'integer'),
-        ('medium_sla_response_wh', 'Response time (medium priority, mins)', 'integer'),
-        ('high_sla_response_wh', 'Response time (high priority, mins)', 'integer'),
+        ('medium_sla_response', 'Response time (medium priority, mins)', 'integer'),
+        ('high_sla_response', 'Response time (high priority, mins)', 'integer'),
     ],
     'SLA': [
         ('low_sla_response_wh', 'Response time (low priority, working hours)', 'integer'),
