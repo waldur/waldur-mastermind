@@ -1,1 +1,1 @@
-Resource {{resource_name}} has been deleted.
+Resource {{ resource_name }} has been deleted.
