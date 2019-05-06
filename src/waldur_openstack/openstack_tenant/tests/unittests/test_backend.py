@@ -463,7 +463,7 @@ class CreateVolumesTest(VolumesBaseTest):
         volume = self._get_volume()
         self.assertEqual(volume.type.name, volume_type.name)
 
-    def test_do_not_use_volume_type_if_settings_have_not_got_scope(self):
+    def test_do_not_use_volume_type_if_settings_have_no_scope(self):
         self.settings.scope = None
         self.settings.save()
         volume = self._get_volume()
