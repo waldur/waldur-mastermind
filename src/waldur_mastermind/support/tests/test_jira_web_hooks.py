@@ -48,6 +48,11 @@ class TestJiraWebHooks(APITransactionTestCase):
         self.client.post(self.url, self.request_data_issue_updated)
         self.assertTrue(self._call_update_issue(mock_jira))
 
+    def test_generic_update(self, mock_jira):
+        self.request_data_issue_updated['issue_event_type_name'] = 'issue_generic'
+        self.client.post(self.url, self.request_data_issue_updated)
+        self.assertTrue(self._call_update_issue(mock_jira))
+
     def test_comment_create(self, mock_jira):
         self.client.post(self.url, self.request_data_comment_create)
         self.assertTrue(self._call_create_comment(mock_jira))
