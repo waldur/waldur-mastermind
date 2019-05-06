@@ -1,1 +1,1 @@
-Resource {resource_name} has been updated.
+Resource {{ resource_name }} has been updated.

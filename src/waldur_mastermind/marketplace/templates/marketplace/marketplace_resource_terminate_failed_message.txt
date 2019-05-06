@@ -1,3 +1,3 @@
 Hello!
 
-Resource {resource_name} deletion has failed.
+Resource {{ resource_name }} deletion has failed.

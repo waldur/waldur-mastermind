@@ -53,10 +53,14 @@ class NotificationTest(test.APITransactionTestCase):
         project_fixture = structure_fixtures.ProjectFixture()
         admin = project_fixture.admin
         project = project_fixture.project
-        resource = factories.ResourceFactory(project=project)
-        tasks.notify_about_resource_change('marketplace_resource_create_succeeded', {}, resource.uuid)
+        resource = factories.ResourceFactory(project=project, name='Test resource')
+        tasks.notify_about_resource_change('marketplace_resource_create_succeeded',
+                                           {'resource_name': resource.name},
+                                           resource.uuid)
         self.assertEqual(len(mail.outbox), 1)
         subject_template_name = '%s/%s_subject.txt' % ('marketplace', 'marketplace_resource_create_succeeded')
         subject = core_utils.format_text(subject_template_name, {'resource_name': resource.name})
         self.assertEqual(mail.outbox[0].subject, subject)
         self.assertEqual(mail.outbox[0].to[0], admin.email)
+        self.assertTrue(resource.name in mail.outbox[0].body)
+        self.assertTrue(resource.name in mail.outbox[0].subject)
