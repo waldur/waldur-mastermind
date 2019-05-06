@@ -1,1 +1,1 @@
-Resource {resource_name} has been created.
+Resource {{resource_name}} has been created.
