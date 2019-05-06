@@ -484,8 +484,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         if volume.type:
             kwargs['volume_type'] = volume.type.backend_id
         else:
-            volume_type_name = volume.service_project_link.service.settings.scope and \
-                               volume.service_project_link.service.settings.scope.default_volume_type_name
+            volume_type_name = (volume.service_project_link.service.settings.scope and
+                                volume.service_project_link.service.settings.scope.default_volume_type_name)
             if volume_type_name:
                 try:
                     volume_type = models.VolumeType.objects.get(name=volume_type_name,
