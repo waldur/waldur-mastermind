@@ -38,6 +38,10 @@ class MarketplaceResourceLogger(EventLogger):
                 'marketplace_resource_terminate_failed',):
             return
 
+        if (settings.WALDUR_MARKETPLACE['DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE'] and
+                event_type == 'marketplace_resource_update_succeeded'):
+            return
+
         context = self.compile_context(**event_context)
         resource = event_context['resource']
         transaction.on_commit(lambda: tasks.notify_about_resource_change.delay(event_type, context, resource.uuid))

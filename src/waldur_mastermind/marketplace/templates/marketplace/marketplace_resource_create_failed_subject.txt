@@ -1,1 +1,1 @@
-Resource {resource_name} creation has failed.
+Resource {{ resource_name }} creation has failed.

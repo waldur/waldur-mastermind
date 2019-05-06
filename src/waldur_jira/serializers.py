@@ -491,7 +491,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                     if old_jira == 'issue_comment_deleted':
                         backend.delete_old_comments(issue)
 
-                    if old_jira == 'issue_updated':
+                    if old_jira in ('issue_updated', 'issue_generic'):
                         new_attachment = filter(lambda x: x['field'] == 'Attachment',
                                                 validated_data['changelog']['items'])
                         if new_attachment:

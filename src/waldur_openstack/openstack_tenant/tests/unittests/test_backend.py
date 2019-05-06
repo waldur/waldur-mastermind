@@ -463,6 +463,12 @@ class CreateVolumesTest(VolumesBaseTest):
         volume = self._get_volume()
         self.assertEqual(volume.type.name, volume_type.name)
 
+    def test_do_not_use_volume_type_if_settings_have_no_scope(self):
+        self.settings.scope = None
+        self.settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.type, None)
+
     @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
     def test_not_use_default_volume_type_if_it_not_exists(self, mock_logger):
         self.tenant.default_volume_type_name = 'not_exists_value_type'

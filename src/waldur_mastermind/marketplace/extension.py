@@ -15,6 +15,7 @@ class MarketplaceExtension(WaldurExtension):
             'ADMIN_CAN_APPROVE_ORDER': False,
             'NOTIFY_STAFF_ABOUT_APPROVALS': False,
             'NOTIFY_ABOUT_RESOURCE_CHANGE': True,
+            'DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE': True,
             'OWNER_CAN_REGISTER_SERVICE_PROVIDER': False,
             'ORDER_LINK_TEMPLATE': 'https://www.example.com/#/projects/'
                                    '{project_uuid}/marketplace-order-list/',

@@ -1,3 +1,3 @@
 Hello!
 
-Resource {resource_name} update has failed.
+Resource {{ resource_name }} update has failed.

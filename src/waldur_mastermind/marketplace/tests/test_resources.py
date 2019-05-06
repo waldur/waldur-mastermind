@@ -444,4 +444,7 @@ class ResourceNotificationTest(test.APITransactionTestCase):
         resource = factories.ResourceFactory()
         log_func = getattr(log, log_func_name)
         log_func(resource)
-        mock_tasks.notify_about_resource_change.delay.assert_called_once()
+        if log_func_name != 'log_resource_update_succeeded':
+            mock_tasks.notify_about_resource_change.delay.assert_called_once()
+        else:
+            mock_tasks.notify_about_resource_change.delay.assert_not_called()
