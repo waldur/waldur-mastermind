@@ -17,6 +17,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -298,6 +299,7 @@ class OfferingDetailsSerializer(core_serializers.AugmentedSerializerMixin,
     scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
     files = NestedOfferingFileSerializer(many=True, read_only=True)
+    quotas = serializers.SerializerMethodField()
 
     class Meta(object):
         model = models.Offering
@@ -307,7 +309,7 @@ class OfferingDetailsSerializer(core_serializers.AugmentedSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files')
+                  'scope', 'scope_uuid', 'files', 'quotas')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -325,6 +327,10 @@ class OfferingDetailsSerializer(core_serializers.AugmentedSerializerMixin,
             return offering.quotas.get(name='order_item_count').usage
         except ObjectDoesNotExist:
             return 0
+
+    def get_quotas(self, offering):
+        if offering.scope and hasattr(offering.scope, 'quotas'):
+            return BasicQuotaSerializer(offering.scope.quotas, many=True, context=self.context).data
 
 
 class OfferingModifySerializer(OfferingDetailsSerializer):
