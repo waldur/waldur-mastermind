@@ -72,11 +72,11 @@ options:
         It is required if neither 'floating_ip' nor 'subnet' provided.
   project:
     description:
-      - The name or id of the project to add an instance to.
+      - The name or UUID of the project to add an instance to.
         It is required if is state is 'present'.
-  provider:
+  offering:
     description:
-      - The name or id of the instance provider.
+      - The name or UUID of the marketplace offering.
         It is  required if is state is 'present'.
   release_floating_ips:
     description:
@@ -140,7 +140,7 @@ EXAMPLES = '''
           - floating_ip: 192.101.13.124
             subnet: vpc-1-tm-sub-net-2
         project: OpenStack Project
-        provider: VPC
+        offering: VPC
         security_groups:
           - web
 
@@ -156,7 +156,7 @@ EXAMPLES = '''
         image: CentOS 7 x86_64
         name: Build instance
         project: OpenStack Project
-        provider: VPC
+        offering: VPC
         ssh_key: ssh1.pub
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
@@ -179,7 +179,7 @@ EXAMPLES = '''
         image: CentOS 7 x86_64
         name: Build instance
         project: OpenStack Project
-        provider: VPC
+        offering: VPC
         ssh_key: ssh1.pub
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
@@ -205,7 +205,7 @@ EXAMPLES = '''
           - floating_ip: 192.101.13.124
             subnet: vpc-1-tm-sub-net-2
         project: OpenStack Project
-        provider: VPC
+        offering: VPC
         security_groups:
           - web
 
@@ -217,7 +217,7 @@ EXAMPLES = '''
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
-        provider: VPC
+        offering: VPC
         name: Warehouse instance
         image: CentOS 7
         flavor: m1.small
@@ -275,7 +275,7 @@ def send_request_to_waldur(client, module):
     has_changed = False
 
     try:
-        instance = client.get_instance(name, project)
+        instance = client.get_instance_via_marketplace(name, project)
         if not present:
             if instance['state'] == 'OK' and instance['runtime_state'] == 'ACTIVE':
                 client.stop_instance(
@@ -284,11 +284,7 @@ def send_request_to_waldur(client, module):
                     interval=module.params['interval'],
                     timeout=module.params['timeout'],
                 )
-            client.delete_instance(
-                instance['uuid'],
-                delete_volumes=module.params['delete_volumes'],
-                release_floating_ips=module.params['release_floating_ips'],
-            )
+            client.delete_instance_via_marketplace(instance['uuid'])
             has_changed = True
         else:
             actual_groups = [group['name'] for group in instance.get('security_groups') or []]
@@ -334,15 +330,17 @@ def send_request_to_waldur(client, module):
                     has_changed = True
     except ObjectDoesNotExist:
         if present:
+            if isinstance(subnet, list):
+                subnet = subnet[0]
             networks = module.params.get('networks') or [{
-                'subnet': module.params['subnet'],
+                'subnet': subnet,
                 'floating_ip': module.params.get('floating_ip')
             }]
 
-            instance = client.create_instance(
+            instance = client.create_instance_via_marketplace(
                 name=module.params['name'],
                 description=module.params['description'],
-                provider=module.params['provider'],
+                offering=module.params['offering'],
                 project=module.params['project'],
                 networks=networks,
                 image=module.params['image'],
@@ -377,7 +375,7 @@ def main():
             image=dict(type='str', default=None),
             networks=dict(type='list', default=None),
             project=dict(type='str', default=None),
-            provider=dict(type='str', default=None),
+            offering=dict(type='str', default=None),
             release_floating_ips=dict(type='bool', default=True),
             security_groups=dict(type='list', default=None),
             ssh_key=dict(type='str', default=None),
@@ -397,7 +395,7 @@ def main():
     name = module.params['name']
     state = module.params['state']
     project = module.params['project']
-    provider = module.params['provider']
+    offering = module.params['offering']
     image = module.params['image']
     flavor = module.params['flavor']
     flavor_min_cpu = module.params['flavor_min_cpu']
@@ -409,15 +407,15 @@ def main():
     instance_exists = True
     client = waldur_client_from_module(module)
     try:
-        client.get_instance(name, project)
+        client.get_instance_via_marketplace(name, project)
     except ObjectDoesNotExist:
         instance_exists = False
 
     if state == 'present' and not instance_exists:
         if not project:
             module.fail_json(msg="Parameter 'project' is required if state == 'present'")
-        if not provider:
-            module.fail_json(msg="Parameter 'provider' is required if state == 'present'")
+        if not offering:
+            module.fail_json(msg="Parameter 'offering' is required if state == 'present'")
         if not image:
             module.fail_json(msg="Parameter 'image' is required if state == 'present'")
         if not (flavor or (flavor_min_cpu and flavor_min_ram)):
