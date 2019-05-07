@@ -85,7 +85,8 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
     def validate_order_item(self, request):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=post_data, context={'request': request})
+        context = {'request': request, 'skip_permission_check': True}
+        serializer = serializer_class(data=post_data, context=context)
         serializer.is_valid(raise_exception=True)
 
     def process_order_item(self, user):
@@ -143,7 +144,8 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
     def validate_order_item(self, request):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=post_data, context={'request': request})
+        context = {'request': request, 'skip_permission_check': True}
+        serializer = serializer_class(data=post_data, context=context)
         serializer.is_valid(raise_exception=True)
 
     def process_order_item(self, user):

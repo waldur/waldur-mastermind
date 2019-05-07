@@ -37,6 +37,14 @@ def init_offerings_and_resources(category, customer):
             name=template.name,
             customer=customer,
             category=category,
+            state=marketplace_models.Offering.States.ACTIVE,
+            options={
+                'order': template.config.get('order', []),
+                'options': template.config.get('options', {})
+            },
+            description=template.config.get('description', ''),
+            full_description=template.config.get('summary', ''),
+            terms_of_service=template.config.get('terms_of_service', ''),
         )
         offerings_counter += 1
 
@@ -80,6 +88,7 @@ def init_offerings_and_resources(category, customer):
 
         # create resource
         resource = marketplace_models.Resource.objects.create(
+            name=support_offering.name,
             created=support_offering.created,
             project=support_offering.project,
             offering=offering,

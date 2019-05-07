@@ -1,6 +1,5 @@
 import mock
 from ddt import ddt, data
-from django.conf import settings
 from rest_framework import test, status
 from rest_framework.reverse import reverse
 
@@ -8,6 +7,7 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
+from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 
 from . import factories, fixtures, utils
 from .. import models
@@ -83,14 +83,16 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @override_openstack_settings(MANAGER_CAN_MANAGE_TENANTS=True)
     def test_manager_can_create_openstack_package_with_permission_from_settings(self):
-        openstack_settings = settings.WALDUR_OPENSTACK.copy()
-        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
         self.client.force_authenticate(user=self.fixture.manager)
+        response = self.client.post(self.url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        with self.settings(WALDUR_OPENSTACK=openstack_settings):
-            response = self.client.post(self.url, data=self.get_valid_payload())
-
+    @override_openstack_settings(ADMIN_CAN_MANAGE_TENANTS=True)
+    def test_admin_can_create_openstack_package_with_permission_from_settings(self):
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_tenant_quotas_are_defined_by_template(self):
@@ -198,14 +200,16 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
         response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @override_openstack_settings(MANAGER_CAN_MANAGE_TENANTS=True)
     def test_manager_can_extend_openstack_package_with_permission_from_settings(self):
-        openstack_settings = settings.WALDUR_OPENSTACK.copy()
-        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
         self.client.force_authenticate(user=self.fixture.manager)
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-        with self.settings(WALDUR_OPENSTACK=openstack_settings):
-            response = self.client.post(self.change_url, data=self.get_valid_payload())
-
+    @override_openstack_settings(ADMIN_CAN_MANAGE_TENANTS=True)
+    def test_admin_can_extend_openstack_package_with_permission_from_settings(self):
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.change_url, data=self.get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_package_is_replaced_on_extend(self):

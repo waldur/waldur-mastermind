@@ -6,7 +6,7 @@ import logging
 import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
+from django.db.models import OuterRef, Subquery, Count, IntegerField
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -107,10 +107,12 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
             .filter_for_user(request.user)
 
         allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')
-        if allowed_customer_uuid:
-            offerings = offerings.filter(Q(shared=True) |
-                                         Q(customer__uuid=allowed_customer_uuid) |
-                                         Q(allowed_customers__uuid=allowed_customer_uuid))
+        if allowed_customer_uuid and core_utils.is_uuid_like(allowed_customer_uuid):
+            offerings = offerings.filter_for_customer(allowed_customer_uuid)
+
+        project_uuid = request.query_params.get('project_uuid')
+        if project_uuid and core_utils.is_uuid_like(project_uuid):
+            offerings = offerings.filter_for_project(project_uuid)
 
         offerings = offerings \
             .annotate(count=Count('*'))\
@@ -891,8 +893,9 @@ def create_order(project, user, items, request):
             order_item = order.add_item(
                 offering=item.offering,
                 attributes=item.attributes,
-                resource=getattr(item, 'resource', None),
+                resource=getattr(item, 'resource', None),  # cart item does not have resource
                 plan=item.plan,
+                old_plan=getattr(item, 'old_plan', None),  # cart item does not have old plan
                 limits=item.limits,
                 type=item.type,
             )

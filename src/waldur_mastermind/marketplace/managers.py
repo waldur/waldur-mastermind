@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.db import models as django_models
 
@@ -23,6 +24,24 @@ class OfferingQuerySet(django_models.QuerySet):
             Q(shared=True) |
             Q(shared=False, allowed_customers__in=connected_customers) |
             Q(shared=False, customer__in=connected_customers)
+        )
+
+    def filter_for_customer(self, value):
+        return self.filter(Q(shared=True) |
+                           Q(customer__uuid=value) |
+                           Q(allowed_customers__uuid=value))
+
+    def filter_for_project(self, value):
+        settings_ct = ContentType.objects.get_for_model(structure_models.ServiceSettings)
+        service_settings = {
+            pk
+            for spl in structure_models.ServiceProjectLink.get_all_models()
+            for pk in spl.objects.filter(project__uuid=value).values_list('service__settings_id', flat=True)
+        }
+
+        return self.filter(
+            Q(content_type=settings_ct, object_id__in=service_settings) |
+            ~Q(content_type=settings_ct)
         )
 
 

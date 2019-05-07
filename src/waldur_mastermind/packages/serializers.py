@@ -87,11 +87,13 @@ def _set_tenant_extra_configuration(tenant, template):
 
 def _has_access_to_package(user, spl):
     """ Staff and owner always have access to package. Manager - only if correspondent flag is enabled """
-    manager_can_create = settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
+    check_manager = settings.WALDUR_OPENSTACK['MANAGER_CAN_MANAGE_TENANTS']
+    check_admin = settings.WALDUR_OPENSTACK['ADMIN_CAN_MANAGE_TENANTS']
     return (
         user.is_staff or
         spl.service.customer.has_user(user, structure_models.CustomerRole.OWNER) or
-        (manager_can_create and spl.project.has_user(user, structure_models.ProjectRole.MANAGER))
+        (check_manager and spl.project.has_user(user, structure_models.ProjectRole.MANAGER)) or
+        (check_admin and spl.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR))
     )
 
 
@@ -107,6 +109,11 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', )
 
     def _validate_service_project_link(self, spl):
+        # TODO: Drop permission check after migration to marketplace is completed [WAL-1901]
+        # We shall skip permission check when marketplace order item is being created
+        if 'skip_permission_check' in self.context:
+            return
+
         # It should be possible for owner to create package but impossible to create a package directly.
         # So we need to ignore tenant spl validation.
 
@@ -197,7 +204,7 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
         if package.tenant.state != openstack_models.Tenant.States.OK:
             raise serializers.ValidationError(_('Package\'s tenant must be in OK state.'))
 
-        if not _has_access_to_package(user, spl):
+        if 'skip_permission_check' not in self.context and not _has_access_to_package(user, spl):
             raise serializers.ValidationError(_('You do not have permissions to extend given package.'))
 
         return package

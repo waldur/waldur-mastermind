@@ -467,16 +467,31 @@ class TenantDeleteTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(mocked_task.call_count, 0)
 
+    @override_openstack_settings(MANAGER_CAN_MANAGE_TENANTS=True)
     def test_manager_can_delete_tenant_from_shared_settings_with_permission_from_settings(self, mocked_task):
+        # Arrange
         self.fixture.openstack_service_settings.shared = True
         self.fixture.openstack_service_settings.save()
-        openstack_settings = settings.WALDUR_OPENSTACK.copy()
-        openstack_settings['MANAGER_CAN_MANAGE_TENANTS'] = True
+
+        # Act
         self.client.force_authenticate(user=self.fixture.manager)
+        response = self.client.delete(self.get_url())
 
-        with self.settings(WALDUR_OPENSTACK=openstack_settings):
-            response = self.client.delete(self.get_url())
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, async=True, force=False)
 
+    @override_openstack_settings(ADMIN_CAN_MANAGE_TENANTS=True)
+    def test_admin_can_delete_tenant_from_shared_settings_with_permission_from_settings(self, mocked_task):
+        # Arrange
+        self.fixture.openstack_service_settings.shared = True
+        self.fixture.openstack_service_settings.save()
+
+        # Act
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.delete(self.get_url())
+
+        # Assert
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mocked_task.assert_called_once_with(self.tenant, async=True, force=False)
 
