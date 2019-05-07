@@ -893,6 +893,7 @@ def create_order(project, user, items, request):
                 attributes=item.attributes,
                 resource=getattr(item, 'resource', None),
                 plan=item.plan,
+                old_plan=item.old_plan,
                 limits=item.limits,
                 type=item.type,
             )
