@@ -80,6 +80,7 @@ def init_offerings_and_resources(category, customer):
 
         # create resource
         resource = marketplace_models.Resource.objects.create(
+            name=support_offering.name,
             created=support_offering.created,
             project=support_offering.project,
             offering=offering,
