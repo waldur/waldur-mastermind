@@ -6,7 +6,7 @@ import logging
 import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import OuterRef, Subquery, Count, IntegerField, Q
+from django.db.models import OuterRef, Subquery, Count, IntegerField
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
