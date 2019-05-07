@@ -10,6 +10,7 @@ from rest_framework import test, status
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests.fixtures import ServiceFixture
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
@@ -136,6 +137,19 @@ class OfferingFilterTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.global_support)
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
+
+    def test_filter_offerings_by_project(self):
+        fixture = ServiceFixture()
+        self.offering.scope = fixture.service_settings
+        self.offering.save()
+        fixture.service_project_link
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'project_uuid': fixture.project.uuid.hex})
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(self.url, {'project_uuid': self.fixture.project.uuid.hex})
+        self.assertEqual(len(response.data), 0)
 
 
 @ddt

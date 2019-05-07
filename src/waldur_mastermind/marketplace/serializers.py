@@ -107,10 +107,12 @@ class CategorySerializer(core_serializers.AugmentedSerializerMixin,
             .filter_for_user(request.user)
 
         allowed_customer_uuid = request.query_params.get('allowed_customer_uuid')
-        if allowed_customer_uuid:
-            offerings = offerings.filter(Q(shared=True) |
-                                         Q(customer__uuid=allowed_customer_uuid) |
-                                         Q(allowed_customers__uuid=allowed_customer_uuid))
+        if allowed_customer_uuid and core_utils.is_uuid_like(allowed_customer_uuid):
+            offerings = offerings.filter_for_customer(allowed_customer_uuid)
+
+        project_uuid = request.query_params.get('project_uuid')
+        if project_uuid and core_utils.is_uuid_like(project_uuid):
+            offerings = offerings.filter_for_project(project_uuid)
 
         offerings = offerings \
             .annotate(count=Count('*'))\
