@@ -88,9 +88,12 @@ class OpenStackExtension(WaldurExtension):
                 'ALLOCATION_POOL_END': '{first_octet}.{second_octet}.{third_octet}.200',
             },
             'DEFAULT_BLACKLISTED_USERNAMES': ['admin', 'service'],
+            # TODO: Delete these flags after migration to marketplace is completed
+            # They are superseded by MANAGER_CAN_APPROVE_ORDER and ADMIN_CAN_APPROVE_ORDER
             # If this flag is true - manager can execute actions that will
             # change cost of the project: delete tenants, change their configuration
             'MANAGER_CAN_MANAGE_TENANTS': False,
+            'ADMIN_CAN_MANAGE_TENANTS': False,
             'TENANT_CREDENTIALS_VISIBLE': True
         }
 
