@@ -109,6 +109,7 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
         fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', )
 
     def _validate_service_project_link(self, spl):
+        # TODO: Drop permission check after migration to marketplace is completed [WAL-1901]
         # We shall skip permission check when marketplace order item is being created
         if 'skip_permission_check' in self.context:
             return
