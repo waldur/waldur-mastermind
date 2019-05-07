@@ -891,9 +891,9 @@ def create_order(project, user, items, request):
             order_item = order.add_item(
                 offering=item.offering,
                 attributes=item.attributes,
-                resource=getattr(item, 'resource', None),
+                resource=getattr(item, 'resource', None),  # cart item does not have resource
                 plan=item.plan,
-                old_plan=item.old_plan,
+                old_plan=getattr(item, 'old_plan', None),  # cart item does not have old plan
                 limits=item.limits,
                 type=item.type,
             )
