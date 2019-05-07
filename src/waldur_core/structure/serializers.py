@@ -632,10 +632,12 @@ class ProjectPermissionSerializer(PermissionFieldFilteringMixin, BasePermissionS
 
 
 class BasicProjectPermissionSerializer(BasePermissionSerializer):
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+
     class Meta(BasePermissionSerializer.Meta):
         model = models.ProjectPermission
         fields = (
-            'url', 'pk', 'role', 'project_uuid', 'project_name',
+            'url', 'pk', 'role', 'project_uuid', 'project_name', 'customer_name',
         )
         related_paths = dict(
             project=('name', 'uuid'),
