@@ -1,3 +1,4 @@
+from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status, test
 
@@ -19,9 +20,12 @@ from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
 
 
+@ddt
 class TenantCreateTest(BaseOpenStackTest):
-    def test_when_order_is_created_items_are_validated(self):
-        response = self.create_order()
+
+    @data('staff', 'owner', 'manager', 'admin')
+    def test_when_order_is_created_items_are_validated(self, user):
+        response = self.create_order(user=user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_mandatory_attributes_are_checked(self):
@@ -29,7 +33,7 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('user_username' in response.data)
 
-    def create_order(self, add_attributes=None):
+    def create_order(self, add_attributes=None, user='staff'):
         fixture = package_fixtures.PackageFixture()
         project_url = structure_factories.ProjectFactory.get_url(fixture.project)
 
@@ -65,7 +69,7 @@ class TenantCreateTest(BaseOpenStackTest):
             ]
         }
 
-        self.client.force_login(fixture.staff)
+        self.client.force_login(getattr(fixture, user))
         url = marketplace_factories.OrderFactory.get_list_url()
         return self.client.post(url, payload)
 
@@ -142,6 +146,7 @@ class TenantMutateTest(test.APITransactionTestCase):
             scope=self.tenant,
             offering=self.offering,
             plan=self.plan,
+            project=self.fixture.project,
         )
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
@@ -184,6 +189,7 @@ class TenantDeleteTest(TenantMutateTest):
         self.tenant.refresh_from_db()
 
 
+@ddt
 class TenantUpdateTest(TenantMutateTest):
     def setUp(self):
         super(TenantUpdateTest, self).setUp()
@@ -203,6 +209,17 @@ class TenantUpdateTest(TenantMutateTest):
             type=marketplace_models.RequestTypeMixin.Types.UPDATE,
         )
         self.package = self.fixture.openstack_package
+
+    @data('staff', 'owner', 'manager', 'admin')
+    def test_user_can_create_order_item(self, user):
+        self.order_item.delete()
+        url = marketplace_factories.ResourceFactory.get_url(resource=self.resource, action='switch_plan')
+        payload = {
+            'plan': marketplace_factories.PlanFactory.get_url(self.new_plan)
+        }
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_update_is_scheduled(self):
         self.trigger_update()
