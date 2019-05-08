@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, OuterRef, Subquery, IntegerField
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, response, status, exceptions, serializers as rf_serializers, generics
@@ -8,7 +8,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views, filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
@@ -832,11 +831,24 @@ class SharedSettingsInstances(SharedSettingsBaseView):
 
 class SharedSettingsCustomers(SharedSettingsBaseView):
 
-    serializer_class = structure_serializers.CustomerSerializer
+    serializer_class = serializers.SharedSettingsCustomerSerializer
 
     def get_queryset(self):
         private_settings = self.get_private_settings()
-        return structure_models.Customer.objects.filter(pk__in=private_settings.values('customer'))
+        vms = models.Instance.objects.filter(
+            service_project_link__service__settings__in=private_settings,
+            project__customer=OuterRef('pk')
+        ).annotate(count=Count('*')).values('count')
+
+        # Workaround for Django bug:
+        # https://code.djangoproject.com/ticket/28296
+        # It allows to remove extra GROUP BY clause from the subquery.
+        vms.query.group_by = []
+
+        vm_count = Subquery(vms[:1], output_field=IntegerField())
+        return structure_models.Customer.objects.filter(
+            pk__in=private_settings.values('customer')
+        ).annotate(vm_count=vm_count)
 
 
 class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
