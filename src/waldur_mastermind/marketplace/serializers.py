@@ -699,6 +699,13 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
     category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
     offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
 
+    def get_fields(self):
+        fields = super(BaseItemSerializer, self).get_fields()
+        method = self.context['view'].request.method
+        if method == 'GET':
+            fields['attributes'] = serializers.ReadOnlyField(source='safe_attributes')
+        return fields
+
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
             raise rf_exceptions.ValidationError(_('Offering is not available.'))
