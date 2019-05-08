@@ -3,6 +3,7 @@ from datetime import timedelta
 from ddt import ddt, data
 from django.test import TestCase
 from django.utils import timezone
+from django.test.utils import override_settings
 from six.moves import mock
 
 from waldur_core.core import utils
@@ -13,6 +14,7 @@ from waldur_core.structure.tests import factories, models
 class TestDetectVMCoordinatesTask(TestCase):
 
     @mock.patch('requests.get')
+    @override_settings(IPSTACK_ACCESS_KEY='IPSTACK_ACCESS_KEY')
     def test_task_sets_coordinates(self, mock_request_get):
         ip_address = "127.0.0.1"
         expected_latitude = 20

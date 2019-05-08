@@ -364,3 +364,5 @@ SWAGGER_SETTINGS = {
         },
     },
 }
+
+IPSTACK_ACCESS_KEY = ''
