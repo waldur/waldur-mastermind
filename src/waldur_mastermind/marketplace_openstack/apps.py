@@ -60,7 +60,8 @@ class MarketplaceOpenStackConfig(AppConfig):
                              Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
                              Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
-                         service_type=OpenStackConfig.service_name)
+                         service_type=OpenStackConfig.service_name,
+                         secret_attributes=('user_username', 'user_password'))
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
