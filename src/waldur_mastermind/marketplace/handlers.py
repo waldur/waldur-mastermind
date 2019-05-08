@@ -155,21 +155,23 @@ def update_aggregate_resources_count_when_resource_is_updated(sender, instance, 
 
 
 def update_aggregate_resources_count(sender, **kwargs):
-    for field, content_type in (
-        ('project_id', ContentType.objects.get_for_model(Project)),
-        ('project__customer_id', ContentType.objects.get_for_model(Customer)),
-    ):
-        rows = models.Resource.objects\
-            .exclude(state=models.Resource.States.TERMINATED)\
-            .values(field, 'offering__category')\
-            .annotate(count=Count('*'))
-        for row in rows:
-            models.AggregateResourceCount.objects.update_or_create(
-                content_type=content_type,
-                object_id=row[field],
-                category_id=row['offering__category'],
-                defaults={'count': row['count']},
-            )
+    for category in models.Category.objects.all():
+        for field, content_type in (
+            ('project_id', ContentType.objects.get_for_model(Project)),
+            ('project__customer_id', ContentType.objects.get_for_model(Customer)),
+        ):
+            rows = models.Resource.objects\
+                .filter(offering__category=category)\
+                .exclude(state=models.Resource.States.TERMINATED)\
+                .values(field, 'offering__category')\
+                .annotate(count=Count('*'))
+            for row in rows:
+                models.AggregateResourceCount.objects.update_or_create(
+                    content_type=content_type,
+                    object_id=row[field],
+                    category=category,
+                    defaults={'count': row['count']},
+                )
 
 
 def close_resource_plan_period_when_resource_is_terminated(sender, instance, created=False, **kwargs):
