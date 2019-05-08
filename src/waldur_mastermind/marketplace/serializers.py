@@ -24,6 +24,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.marketplace.utils import validate_order_item
 from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions, tasks
@@ -901,7 +902,7 @@ def create_order(project, user, items, request):
             )
         except ValidationError as e:
             raise rf_exceptions.ValidationError(e)
-        plugins.manager.validate(order_item, request)
+        validate_order_item(order_item, request)
 
     order.init_total_cost()
     order.save()
@@ -965,7 +966,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                 )
             except ValidationError as e:
                 raise rf_exceptions.ValidationError(e)
-            plugins.manager.validate(order_item, self.context['request'])
+            validate_order_item(order_item, self.context['request'])
 
         order.init_total_cost()
         order.save()

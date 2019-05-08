@@ -12,8 +12,9 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import utils as invoice_utils
+from waldur_mastermind.marketplace.utils import process_order_item
 
-from . import utils, models, plugins
+from . import utils, models
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def process_order(serialized_order, serialized_user):
     order = core_utils.deserialize_instance(serialized_order)
     user = core_utils.deserialize_instance(serialized_user)
     for item in order.items.all():
-        plugins.manager.process(item, user)
+        process_order_item(item, user)
 
 
 @shared_task(name='marketplace.create_screenshot_thumbnail')
