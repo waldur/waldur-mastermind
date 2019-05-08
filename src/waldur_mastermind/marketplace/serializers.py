@@ -595,6 +595,17 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 setattr(old_component, key, getattr(new_component, key))
             old_component.save()
 
+    def _update_plan_components(self, old_plan, new_plan):
+        new_quotas = new_plan.get('quotas', {})
+        new_prices = new_plan.get('prices', {})
+
+        new_keys = set(new_quotas.keys()) | set(new_prices.keys())
+        old_keys = set(old_plan.components.values_list('component__type', flat=True))
+
+        for key in new_keys - old_keys:
+            component = old_plan.offering.components.get(type=key)
+            models.PlanComponent.objects.create(plan=old_plan, component=component)
+
     def _update_quotas(self, old_plan, new_plan):
         new_quotas = new_plan.get('quotas', {})
         new_prices = new_plan.get('prices', {})
@@ -641,6 +652,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         for plan_uuid, old_plan in updated_plans.items():
             new_plan = new_map[plan_uuid]
             self._update_plan_details(old_plan, new_plan)
+            self._update_plan_components(old_plan, new_plan)
             self._update_quotas(old_plan, new_plan)
 
         if added_plans:
