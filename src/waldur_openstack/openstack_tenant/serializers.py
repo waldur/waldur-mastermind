@@ -1499,3 +1499,11 @@ class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
             'url': {'lookup_field': 'uuid'},
             'settings': {'lookup_field': 'uuid'},
         }
+
+
+class SharedSettingsCustomerSerializer(serializers.Serializer):
+    name = serializers.ReadOnlyField()
+    uuid = serializers.ReadOnlyField()
+    created = serializers.ReadOnlyField()
+    abbreviation = serializers.ReadOnlyField()
+    vm_count = serializers.ReadOnlyField()
