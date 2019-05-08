@@ -723,10 +723,16 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         except (KeyError, AttributeError):
             return fields
 
-        if not user.is_staff and not user.is_support:
-            del fields['is_active']
-            del fields['is_staff']
-            del fields['description']
+        if not user.is_staff:
+            protected_fields = ('is_active', 'is_staff', 'is_support', 'description')
+            if user.is_support:
+                for field in protected_fields:
+                    if field in fields:
+                        fields[field].read_only = True
+            else:
+                for field in protected_fields:
+                    if field in fields:
+                        del fields[field]
 
         if not self._can_see_token(user):
             del fields['token']
