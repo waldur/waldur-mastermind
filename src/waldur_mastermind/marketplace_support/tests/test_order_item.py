@@ -14,8 +14,8 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
-from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -227,7 +227,7 @@ class RequestDeleteTest(RequestActionBaseTest):
         response = self.request_resource_termination()
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        manager.process(order_item, self.user)
+        process_order_item(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
         return support_models.Issue.objects.get(
@@ -242,7 +242,7 @@ class RequestDeleteTest(RequestActionBaseTest):
         if order_item.order.state != marketplace_models.Order.States.EXECUTING:
             order_item.order.approve()
             order_item.order.save()
-        manager.process(order_item, self.user)
+        process_order_item(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
         issue = support_models.Issue.objects.get(resource_object_id=order_item.id,
@@ -356,7 +356,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         response = self.request_switch_plan()
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         order_item = order.items.first()
-        manager.process(order_item, self.user)
+        process_order_item(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
         return support_models.Issue.objects.get(
@@ -368,7 +368,7 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         self.request_switch_plan()
         order = marketplace_models.Order.objects.get(project=self.project)
         order_item = order.items.first()
-        manager.process(order_item, self.user)
+        process_order_item(order_item, self.user)
 
         order_item_content_type = ContentType.objects.get_for_model(order_item)
         issue = support_models.Issue.objects.get(resource_object_id=order_item.id,

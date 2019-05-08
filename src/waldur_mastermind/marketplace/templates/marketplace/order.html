@@ -148,7 +148,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for key, value in item.attributes.items|dictsort:"0.lower" %}
+          {% for key, value in item.safe_attributes.items|dictsort:"0.lower" %}
             <tr>
               <td class="no">{{ forloop.counter }}</td>
               <td class="desc">{{ key }}</td>
