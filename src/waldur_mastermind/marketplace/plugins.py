@@ -81,7 +81,10 @@ class PluginManager(object):
         """
         Returns list of secret attributes for given offering type.
         """
-        return self.backends.get(offering_type, {}).get('secret_attributes') or []
+        secret_attributes = self.backends.get(offering_type, {}).get('secret_attributes')
+        if callable(secret_attributes):
+            secret_attributes = secret_attributes()
+        return secret_attributes or []
 
     def get_processor(self, offering_type, processor_type):
         """
