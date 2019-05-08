@@ -685,6 +685,34 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         plan.refresh_from_db()
         self.assertEqual(plan.name, 'New name')
 
+    def test_it_should_be_possible_to_create_plan_components(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+        offering_component = factories.OfferingComponentFactory(offering=self.offering, type='ram')
+
+        # Act
+        payload = {
+            'plans': [
+                {
+                    'uuid': plan.uuid.hex,
+                    'quotas': {
+                        'ram': 20,
+                    },
+                    'prices': {
+                        'ram': 2,
+                    }
+                }
+            ]
+        }
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan_component = models.PlanComponent.objects.get(plan=plan, component=offering_component)
+        self.assertEqual(plan_component.amount, 20)
+        self.assertEqual(plan_component.price, 2)
+
     def test_it_should_be_possible_to_update_plan_components(self):
         # Arrange
         plan = factories.PlanFactory(offering=self.offering)
