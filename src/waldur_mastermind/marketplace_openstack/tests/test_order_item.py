@@ -13,11 +13,39 @@ from waldur_mastermind.packages.tests import factories as package_factories
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_mastermind.packages.tests import utils as package_utils
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
 
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
+
+
+class TenantGetTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = package_fixtures.PackageFixture()
+        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.order = marketplace_factories.OrderFactory(project=self.fixture.project)
+        self.order_item = marketplace_factories.OrderItemFactory(
+            order=self.order,
+            offering=self.offering,
+            attributes=dict(user_username='admin', user_userpassword='secret')
+        )
+
+    def get_order_item(self):
+        self.client.force_login(self.fixture.manager)
+        url = marketplace_factories.OrderItemFactory.get_url(self.order_item)
+        return self.client.get(url)
+
+    @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
+    def test_secret_attributes_are_rendered(self):
+        response = self.get_order_item()
+        self.assertTrue('user_username' in response.data['attributes'])
+
+    @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=False)
+    def test_secret_attributes_are_not_rendered(self):
+        response = self.get_order_item()
+        self.assertFalse('user_username' in response.data['attributes'])
 
 
 @ddt

@@ -5,7 +5,6 @@ import os
 
 import jwt
 import pdfkit
-import six
 from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
