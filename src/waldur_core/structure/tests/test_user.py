@@ -156,6 +156,28 @@ class UserPermissionApiTest(test.APITransactionTestCase):
 
         self._ensure_user_cannot_change_field(self.users['owner'], 'email', data)
 
+    def test_user_cannot_make_himself_support(self):
+        user = factories.UserFactory(agreement_date=timezone.now())
+        url = factories.UserFactory.get_url(user)
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(url, {'is_support': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user.refresh_from_db()
+        self.assertFalse(user.is_support)
+
+    def test_support_cannot_make_himself_staff(self):
+        user = factories.UserFactory(agreement_date=timezone.now(), is_support=True)
+        self.client.force_authenticate(user)
+        url = factories.UserFactory.get_url(user)
+
+        response = self.client.patch(url, {'is_staff': True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        user.refresh_from_db()
+        self.assertFalse(user.is_staff)
+
     def test_staff_user_cannot_change_civil_number(self):
         self.client.force_authenticate(self.users['staff'])
 
