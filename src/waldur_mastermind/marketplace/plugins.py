@@ -15,7 +15,8 @@ class PluginManager(object):
                  delete_resource_processor=None,
                  components=None,
                  service_type=None,
-                 can_terminate_order_item=False):
+                 can_terminate_order_item=False,
+                 secret_attributes=None):
         """
 
         :param offering_type: string which consists of application name and model name,
@@ -27,6 +28,8 @@ class PluginManager(object):
                            Component(type='storage', name='Storage', measured_unit='GB')
         :param service_type: optional string indicates service type to be used
         :param can_terminate_order_item: optional boolean indicates whether order item can be terminated
+        :param secret_attributes: optional list of strings each of which corresponds to secret attribute key,
+        for example, VPC username and password.
         """
         self.backends[offering_type] = {
             'create_resource_processor': create_resource_processor,
@@ -35,6 +38,7 @@ class PluginManager(object):
             'components': components,
             'service_type': service_type,
             'can_terminate_order_item': can_terminate_order_item,
+            'secret_attributes': secret_attributes,
         }
 
     def get_offering_types(self):
@@ -72,6 +76,12 @@ class PluginManager(object):
         Returns true if order item can be terminated.
         """
         return self.backends.get(offering_type, {}).get('can_terminate_order_item')
+
+    def get_secret_attributes(self, offering_type):
+        """
+        Returns list of secret attributes for given offering type.
+        """
+        return self.backends.get(offering_type, {}).get('secret_attributes') or []
 
     def get_processor(self, offering_type, processor_type):
         """

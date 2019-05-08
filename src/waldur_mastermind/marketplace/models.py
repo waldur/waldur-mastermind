@@ -30,7 +30,7 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.images import get_upload_path
 
-from . import managers
+from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES
 from ..common import mixins as common_mixins
 
@@ -873,6 +873,19 @@ class OrderItem(CostEstimateMixin,
             'offering', 'resource', 'plan',
             'get_state_display', 'get_type_display',
         )
+
+    @property
+    def safe_attributes(self):
+        """
+        Get attributes excluding secret attributes, such as username and password.
+        """
+        secret_attributes = plugins.manager.get_secret_attributes(self.offering.type)
+        attributes = self.attributes or {}
+        return {
+            key: attributes[key]
+            for key in attributes.keys()
+            if key not in secret_attributes
+        }
 
     def __str__(self):
         return 'type: %s, created_by: %s' % (self.get_type_display(), self.order.created_by)
