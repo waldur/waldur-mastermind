@@ -24,6 +24,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.marketplace.utils import validate_order_item
 from waldur_mastermind.support import serializers as support_serializers
 
 from . import models, attribute_types, plugins, utils, permissions, tasks
@@ -595,6 +596,17 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 setattr(old_component, key, getattr(new_component, key))
             old_component.save()
 
+    def _update_plan_components(self, old_plan, new_plan):
+        new_quotas = new_plan.get('quotas', {})
+        new_prices = new_plan.get('prices', {})
+
+        new_keys = set(new_quotas.keys()) | set(new_prices.keys())
+        old_keys = set(old_plan.components.values_list('component__type', flat=True))
+
+        for key in new_keys - old_keys:
+            component = old_plan.offering.components.get(type=key)
+            models.PlanComponent.objects.create(plan=old_plan, component=component)
+
     def _update_quotas(self, old_plan, new_plan):
         new_quotas = new_plan.get('quotas', {})
         new_prices = new_plan.get('prices', {})
@@ -641,6 +653,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         for plan_uuid, old_plan in updated_plans.items():
             new_plan = new_map[plan_uuid]
             self._update_plan_details(old_plan, new_plan)
+            self._update_plan_components(old_plan, new_plan)
             self._update_quotas(old_plan, new_plan)
 
         if added_plans:
@@ -697,6 +710,13 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
     category_title = serializers.ReadOnlyField(source='offering.category.title')
     category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
     offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
+
+    def get_fields(self):
+        fields = super(BaseItemSerializer, self).get_fields()
+        method = self.context['view'].request.method
+        if method == 'GET':
+            fields['attributes'] = serializers.ReadOnlyField(source='safe_attributes')
+        return fields
 
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
@@ -901,7 +921,7 @@ def create_order(project, user, items, request):
             )
         except ValidationError as e:
             raise rf_exceptions.ValidationError(e)
-        plugins.manager.validate(order_item, request)
+        validate_order_item(order_item, request)
 
     order.init_total_cost()
     order.save()
@@ -965,7 +985,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
                 )
             except ValidationError as e:
                 raise rf_exceptions.ValidationError(e)
-            plugins.manager.validate(order_item, self.context['request'])
+            validate_order_item(order_item, self.context['request'])
 
         order.init_total_cost()
         order.save()

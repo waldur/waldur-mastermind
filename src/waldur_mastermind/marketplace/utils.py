@@ -5,15 +5,62 @@ import os
 
 import jwt
 import pdfkit
-import six
 from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.core.serializers.json import DjangoJSONEncoder
 from django.template.loader import render_to_string
+from django.utils import six
+from rest_framework import exceptions
 
-from waldur_mastermind.marketplace import models
+from . import models, plugins
+
+
+def get_order_item_processor(order_item):
+    if order_item.resource:
+        offering = order_item.resource.offering
+    else:
+        offering = order_item.offering
+
+    if order_item.type == models.RequestTypeMixin.Types.CREATE:
+        return plugins.manager.get_processor(offering.type, 'create_resource_processor')
+
+    elif order_item.type == models.RequestTypeMixin.Types.UPDATE:
+        return plugins.manager.get_processor(offering.type, 'update_resource_processor')
+
+    elif order_item.type == models.RequestTypeMixin.Types.TERMINATE:
+        return plugins.manager.get_processor(offering.type, 'delete_resource_processor')
+
+
+def process_order_item(order_item, user):
+    processor = get_order_item_processor(order_item)
+    if not processor:
+        order_item.error_message = 'Skipping order item processing because processor is not found.'
+        order_item.set_state_erred()
+        order_item.save(update_fields=['state', 'error_message'])
+        return
+
+    try:
+        processor(order_item).process_order_item(user)
+    except exceptions.APIException as e:
+        order_item.error_message = six.text_type(e)
+        order_item.set_state_erred()
+        order_item.save(update_fields=['state', 'error_message'])
+    else:
+        if order_item.state != models.OrderItem.States.DONE:
+            order_item.set_state_executing()
+            order_item.save(update_fields=['state'])
+
+
+def validate_order_item(order_item, request):
+    processor = get_order_item_processor(order_item)
+    if processor:
+        try:
+            processor(order_item).validate_order_item(request)
+        except NotImplementedError:
+            # It is okay if validation is not implemented yet
+            pass
 
 
 def create_screenshot_thumbnail(screenshot):

@@ -421,7 +421,7 @@ class CartItemViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
-        order_serializer = serializers.OrderSerializer(instance=order, context={'request': self.request})
+        order_serializer = serializers.OrderSerializer(instance=order, context=self.get_serializer_context())
         return Response(order_serializer.data, status=status.HTTP_201_CREATED)
 
     submit_serializer_class = serializers.CartSubmitSerializer

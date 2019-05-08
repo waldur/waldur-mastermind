@@ -12,8 +12,8 @@ from rest_framework.test import APIClient
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_mastermind.support import models as support_models
 
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ class OrderTest(object):
 
     def approve_order(self):
         self.get_response(self.owner, 'marketplace-order-detail', action='approve', uuid=self.order.uuid)
-        plugins.manager.process(self.order_item, self.owner)
+        process_order_item(self.order_item, self.owner)
 
         self.stdout('A %s order has been approved.' % self.get_request_type())
         self.stdout('Order UUID: %s' % self.order.uuid)

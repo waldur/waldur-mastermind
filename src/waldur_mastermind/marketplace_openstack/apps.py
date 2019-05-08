@@ -1,5 +1,11 @@
 from django.apps import AppConfig
+from django.conf import settings
 from django.db.models import signals
+
+
+def get_secret_attributes():
+    if not settings.WALDUR_OPENSTACK['TENANT_CREDENTIALS_VISIBLE']:
+        return 'user_username', 'user_password'
 
 
 class MarketplaceOpenStackConfig(AppConfig):
@@ -60,7 +66,8 @@ class MarketplaceOpenStackConfig(AppConfig):
                              Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
                              Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
-                         service_type=OpenStackConfig.service_name)
+                         service_type=OpenStackConfig.service_name,
+                         secret_attributes=get_secret_attributes)
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
