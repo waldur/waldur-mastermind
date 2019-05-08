@@ -8,7 +8,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views, filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
