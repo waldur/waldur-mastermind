@@ -6,6 +6,17 @@ from .. import models
 from . import factories
 
 
+class CartItemListTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.cart_item = factories.CartItemFactory()
+
+    def test_cart_item_renders_attributes(self):
+        self.client.force_authenticate(self.cart_item.user)
+        response = self.client.get(factories.CartItemFactory.get_list_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue('attributes' in response.data[0])
+
+
 class CartSubmitTest(test.APITransactionTestCase):
 
     def submit(self, project):
