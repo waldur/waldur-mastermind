@@ -1,6 +1,7 @@
 import collections
 import logging
 
+from django.conf import settings
 from django.db import models
 from django.db.migrations.topological_sort import stable_topological_sort
 from django.utils.lru_cache import lru_cache
@@ -20,7 +21,12 @@ class GeoIpException(Exception):
 
 
 def get_coordinates_by_ip(ip_address):
-    url = 'http://freegeoip.net/json/{}'.format(ip_address)
+    if not settings.IPSTACK_ACCESS_KEY:
+        raise GeoIpException("IPSTACK_ACCESS_KEY is empty.")
+
+    url = 'http://api.ipstack.com/{}?access_key={}&output=json&legacy=1'.format(
+        ip_address,
+        settings.IPSTACK_ACCESS_KEY)
 
     try:
         response = requests.get(url)
