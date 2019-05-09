@@ -341,6 +341,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
             'name': 'Virtual machine',
             'system_volume_size': image.min_disk,
             'internal_ips_set': [{'subnet': subnet_url}],
+            'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(
+                structure_factories.SshPublicKeyFactory(user=fixture.manager)
+            ),
         }
         attributes.update(kwargs)
 
@@ -358,7 +361,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(fixture.staff)
+        serialized_user = core_utils.serialize_instance(fixture.owner)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         order_item.refresh_from_db()
