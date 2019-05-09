@@ -269,44 +269,44 @@ class ProjectUserFilter(DjangoFilterBackend):
         ).distinct()
 
 
+def filter_visible_users(queryset, user, extra=None):
+    connected_customers_query = models.Customer.objects.all()
+    if not (user.is_staff or user.is_support):
+        connected_customers_query = connected_customers_query.filter(
+            Q(permissions__user=user, permissions__is_active=True) |
+            Q(projects__permissions__user=user, projects__permissions__is_active=True)
+        ).distinct()
+
+    connected_customers = list(connected_customers_query.all())
+
+    subquery = (
+        Q(customerpermission__customer__in=connected_customers,
+          customerpermission__is_active=True) |
+        Q(projectpermission__project__customer__in=connected_customers,
+          projectpermission__is_active=True)
+    )
+
+    queryset = queryset.filter(is_staff=False).filter(
+        subquery | Q(uuid=user.uuid) | (extra or Q())
+    ).distinct()
+
+    if not (user.is_staff or user.is_support):
+        queryset = queryset.filter(is_active=True, is_staff=False)
+
+    return queryset
+
+
 class UserFilterBackend(DjangoFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
-        # ?current
         current_user = request.query_params.get('current')
         if current_user is not None and not user.is_anonymous:
             queryset = User.objects.filter(uuid=user.uuid)
 
-        # TODO: refactor to a separate endpoint or structure
-        # a special query for all users with assigned privileges that the current user can remove privileges from
         if (not django_settings.WALDUR_CORE.get('SHOW_ALL_USERS', False) and
                 not (user.is_staff or user.is_support)):
-            connected_customers_query = models.Customer.objects.all()
-            # is user is not staff, allow only connected customers
-            if not (user.is_staff or user.is_support):
-                # XXX: Let the DB cry...
-                connected_customers_query = connected_customers_query.filter(
-                    Q(permissions__user=user, permissions__is_active=True) |
-                    Q(projects__permissions__user=user, projects__permissions__is_active=True)
-                ).distinct()
-
-            connected_customers = list(connected_customers_query.all())
-
-            queryset = queryset.filter(is_staff=False).filter(
-                # customer users
-                Q(customerpermission__customer__in=connected_customers,
-                  customerpermission__is_active=True) |
-                Q(projectpermission__project__customer__in=connected_customers,
-                  projectpermission__is_active=True) |
-                Q(uuid=user.uuid) |
-                self.get_extra_q(user)
-            ).distinct()
-
-        if not (user.is_staff or user.is_support):
-            queryset = queryset.filter(is_active=True)
-            # non-staff users cannot see staff through rest
-            queryset = queryset.filter(is_staff=False)
+            queryset = filter_visible_users(queryset, user, self.get_extra_q(user))
 
         return queryset.order_by('username')
 
