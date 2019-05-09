@@ -25,6 +25,7 @@ from waldur_core.monitoring.serializers import MonitoringSerializerMixin
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import (models, SupportedServices, ServiceBackendError, ServiceBackendNotImplemented,
                                    executors)
+from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import filter_queryset_for_user
 
 User = auth.get_user_model()
@@ -1675,7 +1676,8 @@ class VirtualMachineSerializer(BaseResourceSerializer):
             if ssh_public_key:
                 ssh_public_key.query_params = {'user_uuid': user.uuid.hex}
                 if not user.is_staff:
-                    subquery = Q(user=user) | Q(is_shared=True)
+                    visible_users = list(filter_visible_users(User.objects.all(), user))
+                    subquery = Q(user__in=visible_users) | Q(is_shared=True)
                     ssh_public_key.queryset = ssh_public_key.queryset.filter(subquery)
         return fields
 
