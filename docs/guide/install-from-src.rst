@@ -31,7 +31,7 @@ Additional requirements:
 
   .. code-block:: bash
 
-    venv/bin/pip install --requirement docker/api/requirements.txt
+    venv/bin/pip install --requirement docker-test/api/requirements.txt
     venv/bin/pip install --editable .
 
 4. Create and edit settings file (see 'Configuration' section for details):
