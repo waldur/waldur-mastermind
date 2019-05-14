@@ -208,6 +208,8 @@ class EventLogger(BaseLogger):
 
         context = self.compile_context(**event_context)
         msg = self.compile_message(message_template, context)
+        log = getattr(self.logger, level)
+        log(msg, extra={'event_type': event_type, 'event_context': context})
 
         event = models.Event.objects.create(
             event_type=event_type,

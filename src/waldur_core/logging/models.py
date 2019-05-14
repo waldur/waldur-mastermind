@@ -20,7 +20,6 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField, UUIDField
-from waldur_core.core.utils import timestamp_to_datetime
 from waldur_core.logging import managers
 
 logger = logging.getLogger(__name__)
@@ -232,7 +231,7 @@ class PushHook(BaseHook):
         payload = {
             'to': self.token,
             'notification': {
-                'body': event.get('message', 'New event'),
+                'body': event.message or 'New event',
                 'title': conf.get('NOTIFICATION_TITLE', 'Waldur notification'),
                 'image': 'icon',
             },
@@ -253,13 +252,10 @@ class EmailHook(BaseHook):
         if not self.email:
             logger.debug('Skipping processing of email hook (PK=%s) because email is not defined' % self.pk)
             return
-        # Prevent mutations of event because otherwise subsequent hook processors would fail
-        context = event.copy()
         subject = settings.WALDUR_CORE.get('NOTIFICATION_SUBJECT', 'Notifications from Waldur')
-        context['timestamp'] = timestamp_to_datetime(event['timestamp'])
-        text_message = context['message']
-        html_message = render_to_string('logging/email.html', {'events': [context]})
-        logger.debug('Submitting email hook to %s, payload: %s', self.email, context)
+        text_message = event.message
+        html_message = render_to_string('logging/email.html', {'events': [event]})
+        logger.debug('Submitting email hook to %s, payload: %s', self.email, text_message)
         send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [self.email], html_message=html_message)
 
 
