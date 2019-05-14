@@ -12,7 +12,7 @@ from waldur_core.core import serializers as core_serializers, filters as core_fi
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import camel_case_to_underscore
 from waldur_core.logging import models, utils
-from waldur_core.logging.loggers import expand_alert_groups, get_valid_events, expand_event_groups
+from waldur_core.logging.loggers import expand_alert_groups, expand_event_groups
 
 
 class AlertFilter(django_filters.FilterSet):
@@ -185,7 +185,11 @@ class EventFilterBackend(filters.BaseFilterBackend):
             if not visible.filter(pk=scope.pk).exists():
                 return queryset.none()
 
-            events = models.Feed.objects.filter(scope=scope).values_list('event_id', flat=True)
+            content_type = ContentType.objects.get_for_model(scope._meta.model)
+            events = models.Feed.objects.filter(
+                content_type=content_type,
+                object_id=scope.id,
+            ).values_list('event_id', flat=True)
             queryset = queryset.filter(id__in=events)
 
         elif not request.user.is_staff and not request.user.is_support:

@@ -44,6 +44,8 @@ class AlertSerializer(serializers.HyperlinkedModelSerializer):
 
 class EventSerializer(RestrictedSerializerMixin,
                       serializers.ModelSerializer):
+    context = serializers.JSONField(read_only=True)
+
     class Meta(object):
         model = models.Event
         fields = ('uuid', 'created', 'event_type', 'message', 'context')
