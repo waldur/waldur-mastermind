@@ -3,7 +3,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core.fields import MappedChoiceField, NaturalChoiceField
-from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.core.serializers import GenericRelatedField, RestrictedSerializerMixin
 from waldur_core.logging import models, utils, loggers
 
 
@@ -42,10 +42,11 @@ class AlertSerializer(serializers.HyperlinkedModelSerializer):
             return alert
 
 
-class EventSerializer(serializers.Serializer):
-    level = serializers.ChoiceField(choices=['debug', 'info', 'warning', 'error'])
-    message = serializers.CharField()
-    scope = GenericRelatedField(related_models=utils.get_loggable_models(), required=False)
+class EventSerializer(RestrictedSerializerMixin,
+                      serializers.ModelSerializer):
+    class Meta(object):
+        model = models.Event
+        fields = ('uuid', 'created', 'event_type', 'message', 'context')
 
 
 class BaseHookSerializer(serializers.HyperlinkedModelSerializer):

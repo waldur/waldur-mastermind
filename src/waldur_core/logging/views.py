@@ -13,8 +13,11 @@ from waldur_core.logging.loggers import get_event_groups, get_alert_groups, even
 
 
 class EventViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
+    queryset = models.Event.objects.all()
     permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly)
     serializer_class = serializers.EventSerializer
+    filter_backends = (DjangoFilterBackend, filters.EventFilterBackend)
+    filter_class = filters.EventFilter
 
     def list(self, request, *args, **kwargs):
         """

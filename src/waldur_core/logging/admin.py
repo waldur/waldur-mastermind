@@ -76,6 +76,21 @@ class AlertAdmin(admin.ModelAdmin):
     form = AlertAdminForm
 
 
+class EventAdminForm(ModelForm):
+    class Meta:
+        widgets = {
+            'context': JsonWidget(),
+        }
+
+
+class EventAdmin(admin.ModelAdmin):
+    list_display = ('uuid', 'event_type', 'message', 'created')
+    list_filter = ('event_type', 'created')
+    search_fields = ('message',)
+    ordering = ('-created',)
+    form = EventAdminForm
+
+
 class BaseHookAdmin(admin.ModelAdmin):
     form = BaseHookForm
     list_display = ('uuid', 'user', 'is_active', 'event_types', 'event_groups')
@@ -131,3 +146,4 @@ admin.site.register(models.WebHook, WebHookAdmin)
 admin.site.register(models.EmailHook, EmailHookAdmin)
 admin.site.register(models.PushHook, PushHookAdmin)
 admin.site.register(models.Report, ReportAdmin)
+admin.site.register(models.Event, EventAdmin)

@@ -1,19 +1,18 @@
 from __future__ import unicode_literals
 
-from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.translation import ugettext_lazy as _
 import django_filters
 from django_filters.widgets import BooleanWidget
-from rest_framework import settings, filters
+from rest_framework import filters
 from rest_framework.serializers import ValidationError
 
 from waldur_core.core import serializers as core_serializers, filters as core_filters
 from waldur_core.core.filters import ExternalFilterBackend
-from waldur_core.core.utils import camel_case_to_underscore, get_ordering
+from waldur_core.core.utils import camel_case_to_underscore
 from waldur_core.logging import models, utils
-from waldur_core.logging.loggers import event_logger, expand_event_groups, expand_alert_groups
+from waldur_core.logging.loggers import expand_alert_groups, get_valid_events, expand_event_groups
 
 
 class AlertFilter(django_filters.FilterSet):
@@ -152,3 +151,39 @@ class PushHookFilter(BaseHookFilter):
     class Meta(object):
         model = models.PushHook
         fields = ('type', 'device_id', 'device_manufacturer', 'device_model', 'token')
+
+
+class EventFilter(django_filters.FilterSet):
+    created_from = core_filters.TimestampFilter(name='created', lookup_expr='gte')
+    created_to = core_filters.TimestampFilter(name='created', lookup_expr='lt')
+    message = django_filters.CharFilter(lookup_expr='icontains')
+    o = django_filters.OrderingFilter(fields=('created',))
+
+    class Meta:
+        model = models.Event
+
+
+class EventFilterBackend(filters.BaseFilterBackend):
+
+    def filter_queryset(self, request, queryset, view):
+        event_types = request.query_params.getlist('event_type')
+        if event_types:
+            queryset = queryset.filter(event_type__in=event_types)
+
+        features = request.query_params.getlist('feature')
+        if features:
+            queryset = queryset.filter(event_type__in=expand_event_groups(features))
+
+        if 'scope' in request.query_params:
+            field = core_serializers.GenericRelatedField(related_models=utils.get_loggable_models())
+            field._context = {'request': request}
+            scope = field.to_internal_value(request.query_params['scope'])
+            events = models.Feed.objects.filter(scope=scope).values_list('event_id', flat=True)
+            queryset = queryset.filter(id__in=events)
+
+        elif not request.user.is_staff and not request.user.is_support:
+            # If user is not staff nor support, he is allowed to see
+            # events related to particular scope only.
+            queryset = queryset.none()
+
+        return queryset
