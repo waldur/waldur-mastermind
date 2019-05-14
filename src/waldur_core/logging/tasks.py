@@ -29,21 +29,22 @@ def process_event(event_id):
 
 
 def process_system_notification(event):
-    try:
-        project_uuid = event.context.get('project_uuid')
-        if is_uuid_like(project_uuid):
+    project = None
+    customer = None
+
+    project_uuid = event.context.get('project_uuid')
+    if is_uuid_like(project_uuid):
+        try:
             project = structure_models.Project.objects.get(uuid=project_uuid)
-        else:
-            return
-        customer_uuid = event.context.get('customer_uuid')
-        if is_uuid_like(customer_uuid):
-            customer = customer_uuid and structure_models.Customer.objects.get(uuid=customer_uuid)
-        else:
-            return
-    except structure_models.Project.DoesNotExist:
-        return
-    except structure_models.Customer.DoesNotExist:
-        return
+        except structure_models.Project.DoesNotExist:
+            pass
+
+    customer_uuid = event.context.get('customer_uuid')
+    if is_uuid_like(customer_uuid):
+        try:
+            customer = structure_models.Customer.objects.get(uuid=customer_uuid)
+        except structure_models.Customer.DoesNotExist:
+            pass
 
     for hook in SystemNotification.get_hooks(event.event_type, project=project, customer=customer):
         if check_event(event, hook):
