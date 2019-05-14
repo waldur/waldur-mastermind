@@ -8,9 +8,10 @@ from django.conf import settings
 from django.utils import timezone
 import six
 
-from waldur_core.core.utils import deserialize_instance
+from waldur_core.core.utils import deserialize_instance, is_uuid_like
 from waldur_core.logging.loggers import alert_logger
-from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification, Report, Feed
+from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin,\
+    SystemNotification, Report, Feed, Event
 from waldur_core.logging.utils import create_report_archive
 from waldur_core.structure import models as structure_models
 
@@ -18,29 +19,40 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name='waldur_core.logging.process_event')
-def process_event(event):
+def process_event(event_id):
+    event = Event.objects.get(id=event_id)
     for hook in BaseHook.get_active_hooks():
         if check_event(event, hook):
             hook.process(event)
 
+    process_system_notification(event)
+
+
+def process_system_notification(event):
     try:
-        project_uuid = event['context'].get('project_uuid')
-        project = project_uuid and structure_models.Project.objects.get(uuid=project_uuid)
-        customer_uuid = event['context'].get('customer_uuid')
-        customer = customer_uuid and structure_models.Customer.objects.get(uuid=customer_uuid)
+        project_uuid = event.context.get('project_uuid')
+        if is_uuid_like(project_uuid):
+            project = structure_models.Project.objects.get(uuid=project_uuid)
+        else:
+            return
+        customer_uuid = event.context.get('customer_uuid')
+        if is_uuid_like(customer_uuid):
+            customer = customer_uuid and structure_models.Customer.objects.get(uuid=customer_uuid)
+        else:
+            return
     except structure_models.Project.DoesNotExist:
         return
     except structure_models.Customer.DoesNotExist:
         return
 
-    for hook in SystemNotification.get_hooks(event['type'], project=project, customer=customer):
+    for hook in SystemNotification.get_hooks(event.event_type, project=project, customer=customer):
         if check_event(event, hook):
             hook.process(event)
 
 
 def check_event(event, hook):
     # Check that event matches with hook
-    if event['type'] not in hook.all_event_types:
+    if event.event_type not in hook.all_event_types:
         return False
 
     # Check permissions

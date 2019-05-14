@@ -10,46 +10,27 @@ from waldur_core.logging.loggers import get_valid_events
 from waldur_core.structure.tests import factories as structure_factories
 
 
-class EventFactory(object):
-    """
-    Event factory that provides default data for events.
+class EventFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Event
 
-    Created event fields can be accessible via .fields attribute of created event.
-    """
-
-    def __init__(self, **kwargs):
-        self.create(**kwargs)
-        self.save()
-
-    def create(self, **kwargs):
-        """
-        Creates event fields values.
-
-        If field is in kwargs - value from kwargs will be used for this field,
-        otherwise - default value will be used for field.
-        """
-        self.fields = {
-            '@timestamp': '2015-04-19T16:25:45.376+04:00',
-            '@version': 1,
-            'customer_abbreviation': 'TCAN',
-            'customer_contact_details': 'test details',
-            'customer_name': 'Test cusomter',
-            'customer_uuid': 'test_customer_uuid',
-            'event_type': 'test_event_type',
-            'host': 'example.com',
-            'importance': 'high',
-            'importance_code': 30,
-            'levelname': 'WARNING',
-            'logger': 'waldur_core.test',
-            'message': 'Test message',
-            'project_name': 'test_project',
-            'project_uuid': 'test_project_uuid',
-            'tags': ['_jsonparsefailure'],
-            'type': 'gcloud-event',
-            'user_uuid': 'test_user_uuid',
-        }
-        for key, value in kwargs.items():
-            self.fields[key] = value
+    message = factory.Sequence(lambda i: 'message#%s' % i)
+    event_type = factory.Iterator([
+        'first_event',
+        'second_event',
+        'third_event',
+        'fourth_event',
+    ])
+    context = {
+        'customer_abbreviation': 'TCAN',
+        'customer_contact_details': 'test details',
+        'customer_name': 'Test customer',
+        'customer_uuid': 'test_customer_uuid',
+        'host': 'example.com',
+        'project_name': 'test_project',
+        'project_uuid': 'test_project_uuid',
+        'user_uuid': 'test_user_uuid',
+    }
 
     @classmethod
     def get_list_url(cls):

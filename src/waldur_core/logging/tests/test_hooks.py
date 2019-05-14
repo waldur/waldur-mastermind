@@ -1,10 +1,7 @@
-import time
-
 from ddt import ddt, data
 from django.core import mail
 from django.urls import reverse
 from rest_framework import status, test
-import six
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging import loggers
@@ -171,36 +168,36 @@ class SystemNotificationTest(test.APITransactionTestCase):
         self.project = self.project_fixture.project
         self.admin = self.project_fixture.admin
         self.manager = self.project_fixture.manager
-        self.event = {
-            'type': self.event_types[0],
-            'context': {'project_uuid': six.text_type(self.project.uuid)},
-            'timestamp': time.time(),
-            'message': 'test message'
-        }
+        self.event = factories.EventFactory(
+            event_type=self.event_types[0],
+            context={'project_uuid': self.project.uuid.hex},
+        )
 
     def test_send_notification_if_user_is_not_subscribed_but_event_type_is_system_type(self):
         self.assertFalse(models.EmailHook.objects.count())
-        tasks.process_event(self.event)
+        tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(self.admin.email in mail.outbox[0].to)
 
     def test_not_send_notification_if_event_type_is_not_system_type(self):
         self.assertFalse(models.EmailHook.objects.count())
-        self.event['type'] = 'test_event_type'
-        tasks.process_event(self.event)
+        self.event.event_type = 'test_event_type'
+        self.event.save()
+        tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 0)
 
     def test_not_send_notification_if_wrong_project(self):
         self.assertFalse(models.EmailHook.objects.count())
-        self.event['context'] = {}
-        tasks.process_event(self.event)
+        self.event.context = {}
+        self.event.save()
+        tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 0)
 
     def test_not_send_notification_if_wrong_role(self):
         self.assertFalse(models.EmailHook.objects.count())
         self.system_notification.roles = ['manager']
         self.system_notification.save()
-        tasks.process_event(self.event)
+        tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
         self.assertFalse(self.admin.email in mail.outbox[0].to)
 
@@ -210,15 +207,15 @@ class SystemNotificationTest(test.APITransactionTestCase):
         self.system_notification.event_groups = [group]
         self.system_notification.event_types = []
         self.system_notification.save()
-        event_type = list(groups[group])[0]
-        self.event['type'] = event_type
-        tasks.process_event(self.event)
+        self.event.event_type = list(groups[group])[0]
+        self.event.save()
+        tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(self.admin.email in mail.outbox[0].to)
 
     @override_waldur_core_settings(NOTIFICATION_SUBJECT='Test Subject')
     def test_notification_subject(self):
         self.assertFalse(models.EmailHook.objects.count())
-        tasks.process_event(self.event)
+        tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].subject, 'Test Subject')
