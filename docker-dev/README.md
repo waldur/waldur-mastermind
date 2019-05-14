@@ -1,32 +1,28 @@
-.. image:: https://travis-ci.org/opennode/waldur-mastermind.svg?branch=develop
-    :target: https://travis-ci.org/opennode/waldur-mastermind
-    :alt: Build status
+# Waldur Mastermind Docker Compose Development Environment
 
-Waldur MasterMind
-=================
+## Instructions
 
-Waldur MasterMind is an open-source RESTful server for multi-tenant resource management.
-It provides an easy way for sharing access to external systems.
-It is used as a platform for creating private and public clouds.
+You must have [Docker](https://www.docker.com/) with [Docker Compose](https://docs.docker.com/compose/) installed.
+ 
+```bash
+git clone https://github.com/opennode/waldur-mastermind.git
+```
 
-Additional information can be found at http://docs.waldur.com.
+```bash
+cd docker-dev
+```
 
-Development environment setup
------------------------------
+```bash
+docker-compose up -d
+```
 
-Instructions here: https://github.com/opennode/waldur-mastermind/blob/develop/docs/guide/install-from-src.rst.
+Wait for the Mastermind Booting.. at the first time may take some minutes, in order to run migrations and user creation.
 
-Documentation
--------------
+Then, load http://localhost:8000
 
-Administration and usage guides can be found at http://docs.waldur.com .
+For the login there is one user:
 
-License
--------
+Username: staff
+Password: querty
 
-Waldur MasterMind is released under MIT license.
-
-Support
--------
-
-For professional support and integration services please contact info@opennodecloud.com.
+Enjoy.
