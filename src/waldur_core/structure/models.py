@@ -77,13 +77,8 @@ class StructureModel(models.Model):
 class StructureLoggableMixin(LoggableMixin):
 
     @classmethod
-    def get_permitted_objects_uuids(cls, user):
-        """
-        Return query dictionary to search objects available to user.
-        """
-        uuids = filter_queryset_for_user(cls.objects.all(), user).values_list('uuid', flat=True)
-        key = core_utils.camel_case_to_underscore(cls.__name__) + '_uuid'
-        return {key: uuids}
+    def get_permitted_objects(cls, user):
+        return filter_queryset_for_user(cls.objects.all(), user)
 
 
 class TagMixin(models.Model):
@@ -491,16 +486,15 @@ class Customer(core_models.UuidMixin,
         return timezone.now() >= self.accounting_start_date
 
     @classmethod
-    def get_permitted_objects_uuids(cls, user):
-        if user.is_staff:
-            customer_queryset = cls.objects.all()
+    def get_permitted_objects(cls, user):
+        if user.is_staff or user.is_support:
+            return cls.objects.all()
         else:
-            customer_queryset = cls.objects.filter(
+            return cls.objects.filter(
                 permissions__user=user,
                 permissions__role=CustomerRole.OWNER,
                 permissions__is_active=True
             )
-        return {'customer_uuid': filter_queryset_for_user(customer_queryset, user).values_list('uuid', flat=True)}
 
     def get_display_name(self):
         if self.abbreviation:

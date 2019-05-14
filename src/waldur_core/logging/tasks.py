@@ -10,7 +10,7 @@ import six
 
 from waldur_core.core.utils import deserialize_instance
 from waldur_core.logging.loggers import alert_logger, event_logger
-from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification, Report
+from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification, Report, Feed
 from waldur_core.logging.utils import create_report_archive
 from waldur_core.structure import models as structure_models
 
@@ -42,9 +42,13 @@ def check_event(event, hook):
     # Check that event matches with hook
     if event['type'] not in hook.all_event_types:
         return False
-    for key, uuids in event_logger.get_permitted_objects_uuids(hook.user).items():
-        if key in event['context'] and event['context'][key] in uuids:
+
+    # Check permissions
+    for feed in Feed.objects.filter(event=event):
+        qs = feed.content_type.model_class().get_permitted_objects(hook.user)
+        if qs.filter(id=feed.object_id).exists():
             return True
+
     return False
 
 

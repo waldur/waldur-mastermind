@@ -161,6 +161,7 @@ class EventFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Event
+        fields = []
 
 
 class EventFilterBackend(filters.BaseFilterBackend):
@@ -178,6 +179,12 @@ class EventFilterBackend(filters.BaseFilterBackend):
             field = core_serializers.GenericRelatedField(related_models=utils.get_loggable_models())
             field._context = {'request': request}
             scope = field.to_internal_value(request.query_params['scope'])
+
+            # Check permissions
+            visible = scope._meta.model.get_permitted_objects(request.user)
+            if not visible.filter(pk=scope.pk).exists():
+                return queryset.none()
+
             events = models.Feed.objects.filter(scope=scope).values_list('event_id', flat=True)
             queryset = queryset.filter(id__in=events)
 

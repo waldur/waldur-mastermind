@@ -372,8 +372,8 @@ class LoggableMixin(object):
         return context
 
     @classmethod
-    def get_permitted_objects_uuids(cls, user):
-        return {}
+    def get_permitted_objects(cls, user):
+        return cls.objects.none()
 
 
 class BaseLoggerRegistry(object):
@@ -414,14 +414,6 @@ class EventLoggerRegistry(BaseLoggerRegistry):
 
     def get_loggers(self):
         return [l for l in self.__dict__.values() if isinstance(l, EventLogger)]
-
-    def get_permitted_objects_uuids(self, user):
-        from waldur_core.logging.utils import get_loggable_models
-        permitted_objects_uuids = {}
-        for model in get_loggable_models():
-            for field, uuids in model.get_permitted_objects_uuids(user).items():
-                permitted_objects_uuids[field] = [uuid_obj.hex for uuid_obj in uuids]
-        return permitted_objects_uuids
 
 
 class AlertLoggerRegistry(BaseLoggerRegistry):
