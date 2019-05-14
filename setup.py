@@ -38,7 +38,6 @@ install_requires = [
     'Django>=1.11.20,<2.0',
     'djangorestframework>=3.6.3,<3.7.0',
     'djangosaml2==0.17.1',
-    'elasticsearch==5.4.0',
     'hiredis>=0.2.0',
     'influxdb>=4.1.0',
     'iptools>=0.6.1',

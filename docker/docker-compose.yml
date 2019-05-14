@@ -23,25 +23,6 @@ services:
       - ALLOW_EMPTY_PASSWORD=yes
     volumes:
       - 'waldur_queue:/bitnami'
-  # Elasticsearch
-  waldur-events:
-    container_name: waldur-events
-    image: 'bitnami/elasticsearch:latest'
-    networks:
-      - waldur
-    volumes:
-      - 'waldur_events:/bitnami'
-  # Logstash
-  waldur-logs:
-    container_name: waldur-logs
-    image: 'docker.elastic.co/logstash/logstash:5.6.0'
-    networks:
-      - waldur
-    environment:
-      - XPACK_MONITORING_ENABLED=false
-    volumes:
-      - 'waldur_logs_pipeline:/usr/share/logstash/pipeline'
-      - 'waldur_logs_settings:/usr/share/logstash/config'
   # Postfix
   waldur-smtp:
     container_name: waldur-smtp
@@ -62,8 +43,6 @@ services:
     depends_on:
       - waldur-db
       - waldur-queue
-      - waldur-events
-      - waldur-logs
       - waldur-smtp
     command: worker
   # Celery-beat
@@ -126,11 +105,5 @@ volumes:
     driver: local
   waldur_queue:
     driver: local
-  waldur_events:
-    driver: local
-  waldur_logs_pipeline:
-    external: true
-  waldur_logs_settings:
-    external: true
   waldur_mastermind_api:
     external: true

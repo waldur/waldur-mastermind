@@ -148,15 +148,6 @@ WALDUR_CORE.update({
     'EXTENSIONS_AUTOREGISTER': True,
 })
 
-# Example of settings for elasticsearch
-WALDUR_CORE['ELASTICSEARCH'] = {
-    'username': 'username',
-    'password': 'password',
-    'host': 'example.com',
-    'port': '9999',
-    'protocol': 'https',
-}
-
 # Enable detection of coordinates of virtual machines
 # Set to False in order to disable this feature
 WALDUR_CORE['ENABLE_GEOIP'] = True

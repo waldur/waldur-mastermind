@@ -46,7 +46,6 @@ django-taggit==0.22.2
 djangorestframework==3.6.4
 djangosaml2==0.17.1
 dogpile.cache==0.6.5
-elasticsearch==5.4.0
 enum34==1.1.6
 execnet==1.5.0
 factory-boy==2.4.1

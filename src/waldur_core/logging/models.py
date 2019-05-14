@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import logging
 import uuid
 
+from model_utils.fields import AutoCreatedField
 import requests
 from django.apps import apps
 from django.conf import settings
@@ -331,3 +332,17 @@ class Report(UuidMixin, TimeStampedModel):
     file_size = models.PositiveIntegerField(null=True)
     state = models.CharField(choices=States.CHOICES, default=States.PENDING, max_length=10)
     error_message = models.TextField(blank=True)
+
+
+class Event(UuidMixin):
+    created = AutoCreatedField()
+    event_type = models.CharField(max_length=100, db_index=True)
+    message = models.TextField()
+    context = BetterJSONField(blank=True)
+
+
+class Feed(models.Model):
+    event = models.ForeignKey(Event)
+    content_type = models.ForeignKey(ct_models.ContentType, on_delete=models.SET_NULL, db_index=True)
+    object_id = models.PositiveIntegerField(db_index=True)
+    scope = ct_fields.GenericForeignKey('content_type', 'object_id')

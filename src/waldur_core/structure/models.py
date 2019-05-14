@@ -1154,26 +1154,9 @@ class ResourceMixin(MonitoringModelMixin,
         context = super(ResourceMixin, self)._get_log_context(entity_name)
         # XXX: Add resource_full_name here, because event context does not support properties as fields
         context['resource_full_name'] = self.full_name
-        # required for lookups in ElasticSearch by the client
         context['resource_type'] = SupportedServices.get_name_for_model(self)
 
-        # XXX: a hack for IaaS / PaaS / SaaS tags
-        # XXX: should be moved to itacloud assembly
-        if self.pk:
-            if self.tags.filter(name='IaaS').exists():
-                context['resource_delivery_model'] = 'IaaS'
-            elif self.tags.filter(name='PaaS').exists():
-                context['resource_delivery_model'] = 'PaaS'
-            elif self.tags.filter(name='SaaS').exists():
-                context['resource_delivery_model'] = 'SaaS'
-
         return context
-
-    def filter_by_logged_object(self):
-        return {
-            'resource_uuid': self.uuid.hex,
-            'resource_type': SupportedServices.get_name_for_model(self)
-        }
 
     def get_parents(self):
         return [self.service_project_link]

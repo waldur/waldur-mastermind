@@ -5,13 +5,11 @@ from django.contrib.auth import get_user_model, authenticate
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.utils import OperationalError
-from elasticsearch.exceptions import ElasticsearchException
 from redis import exceptions as redis_exceptions
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.schemas import EndpointInspector
 
-from waldur_core.logging.elasticsearch_client import ElasticsearchClient, ElasticsearchClientError
 from waldur_core.server.celery import app as celery_app
 
 User = get_user_model()
@@ -35,7 +33,6 @@ class Command(BaseCommand):
             'database': ' - Database %(vendor)s connection',
             'workers': ' - Task runners (Celery workers)',
             'redis': ' - Queue and cache server (Redis) connection',
-            'elasticsearch': ' - Event store (Elasticsearch) connection',
         }
         padding = len(max(output_messages.values(), key=len))
         # If services checks didn't pass, skip API endpoints check
@@ -74,19 +71,6 @@ class Command(BaseCommand):
         finally:
             self.stdout.write(output_messages['workers'].ljust(padding) + celery_results['workers'])
             self.stdout.write(output_messages['redis'].ljust(padding) + celery_results['redis'])
-
-        # Check ElasticSearch
-        self.stdout.write(output_messages['elasticsearch'].ljust(padding), ending='')
-        try:
-            es_client = ElasticsearchClient()
-            if es_client.client.ping():
-                self.stdout.write(success_status)
-            else:
-                skip_endpoints = True
-                self.stdout.write(error_status)
-        except (ElasticsearchException, ElasticsearchClientError):
-            skip_endpoints = True
-            self.stdout.write(error_status)
 
         if skip_endpoints:
             self.stderr.write('API endpoints check skipped due to erred services')

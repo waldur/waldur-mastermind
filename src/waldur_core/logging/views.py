@@ -8,17 +8,13 @@ from rest_framework import response, viewsets, permissions, status, decorators, 
 
 from waldur_core.core import serializers as core_serializers, filters as core_filters, permissions as core_permissions
 from waldur_core.core.managers import SummaryQuerySet
-from waldur_core.logging import elasticsearch_client, models, serializers, filters, utils
+from waldur_core.logging import models, serializers, filters, utils
 from waldur_core.logging.loggers import get_event_groups, get_alert_groups, event_logger
 
 
 class EventViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly)
-    filter_backends = (filters.EventFilterBackend,)
     serializer_class = serializers.EventSerializer
-
-    def get_queryset(self):
-        return elasticsearch_client.ElasticsearchResultList()
 
     def list(self, request, *args, **kwargs):
         """

@@ -25,13 +25,6 @@ DEFAULT_PWD_COMMENT="******"
 : ${POSTGRESQL_NAME:=waldur}
 : ${POSTGRESQL_USER:=waldur}
 : ${POSTGRESQL_PASSWORD:=$DEFAULT_PWD}
-# events
-: ${ELASTICSEARCH_HOST:=waldur-events}
-: ${ELASTICSEARCH_PORT:=9200}
-: ${ELASTICSEARCH_PROTOCOL:=http}
-: ${ELASTICSEARCH_USERNAME:=}
-: ${ELASTICSEARCH_PASSWORD:=}
-: ${ELASTICSEARCH_VERIFY_CERTS:=true}
 # queue
 : ${REDIS_HOST:=waldur-queue}
 : ${REDIS_PORT:=6379}
@@ -109,27 +102,6 @@ EOF
 	fi  
 	echo "INFO: Setting [postgresql] password $DEFAULT_PWD_COMMENT"
 	crudini --set /etc/waldur/core.ini postgresql password $POSTGRESQL_PASSWORD
-
-	echo "INFO: Setting [elasticsearch] host = $ELASTICSEARCH_HOST"
-	crudini --set /etc/waldur/core.ini elasticsearch host $ELASTICSEARCH_HOST
-	echo "INFO: Setting [elasticsearch] port = $ELASTICSEARCH_PORT"
-	crudini --set /etc/waldur/core.ini elasticsearch port $ELASTICSEARCH_PORT
-	echo "INFO: Setting [elasticsearch] protocol = $ELASTICSEARCH_PROTOCOL"
-	crudini --set /etc/waldur/core.ini elasticsearch protocol $ELASTICSEARCH_PROTOCOL
-	if [ -n "$ELASTICSEARCH_USERNAME" ] && [ -n "$ELASTICSEARCH_PASSWORD" ]; then
-
-		echo "INFO: Setting [elasticsearch] username = $ELASTICSEARCH_USERNAME"
-		crudini --set /etc/waldur/core.ini elasticsearch username $ELASTICSEARCH_USERNAME
-		echo "INFO: Setting [elasticsearch] password = $ELASTICSEARCH_PASSWORD"
-		crudini --set /etc/waldur/core.ini elasticsearch password $ELASTICSEARCH_PASSWORD
-
-	fi
-	if [ "$ELASTICSEARCH_PROTOCOL" == "https" ]; then
-
-		echo "INFO: Setting [elasticsearch] verify_certs = $ELASTICSEARCH_VERIFY_CERTS"
-		crudini --set /etc/waldur/core.ini elasticsearch verify_certs $ELASTICSEARCH_VERIFY_CERTS
-
-	fi
 
 	echo "INFO: Setting [redis] host = $REDIS_HOST"
 	crudini --set /etc/waldur/core.ini redis host $REDIS_HOST

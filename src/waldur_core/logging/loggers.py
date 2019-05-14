@@ -1,4 +1,4 @@
-""" Custom loggers that allows to store logs in DB and Elastic """
+""" Custom loggers that allows to store logs in DB """
 
 from __future__ import unicode_literals
 
@@ -325,15 +325,6 @@ class LoggableMixin(object):
 
     def get_log_fields(self):
         return ('uuid', 'name')
-
-    def filter_by_logged_object(self):
-        """
-        Return query dictionary to search current object in ElasticSearch.
-        Model may return custom query, but backend doesn't need to know details.
-        """
-        return {
-            self.__class__.__name__ + '_uuid': self.uuid.hex
-        }
 
     def _get_log_context(self, entity_name=None):
 
