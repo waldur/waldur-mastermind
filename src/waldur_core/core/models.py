@@ -31,7 +31,6 @@ import six
 from waldur_core.core.fields import CronScheduleField, UUIDField
 from waldur_core.core.validators import validate_name, MinCronValueValidator
 from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.structure.filters import filter_visible_users
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +216,8 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
 
     @classmethod
     def get_permitted_objects(cls, user):
+        from waldur_core.structure.filters import filter_visible_users
+
         queryset = User.objects.all()
         if user.is_staff or user.is_support:
             return queryset
