@@ -83,10 +83,9 @@ class BaseLogger(object):
             self.fields = {
                 k: self.get_field_model(v)
                 for k, v in self.__class__.__dict__.items()
-                if (not k.startswith('_')
-                    and not isinstance(v, types.FunctionType)
-                    and not isinstance(v, staticmethod)
-                    and k != 'Meta')}
+                if (not k.startswith('_') and
+                    not isinstance(v, types.FunctionType) and
+                    not isinstance(v, staticmethod) and k != 'Meta')}
 
         missed = set(self.fields.keys()) - set(self.get_nullable_fields()) - set(kwargs.keys())
         if missed:

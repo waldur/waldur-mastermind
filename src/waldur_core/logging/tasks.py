@@ -9,7 +9,7 @@ from django.utils import timezone
 import six
 
 from waldur_core.core.utils import deserialize_instance
-from waldur_core.logging.loggers import alert_logger, event_logger
+from waldur_core.logging.loggers import alert_logger
 from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification, Report, Feed
 from waldur_core.logging.utils import create_report_archive
 from waldur_core.structure import models as structure_models
