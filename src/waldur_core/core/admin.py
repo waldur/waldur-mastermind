@@ -442,6 +442,34 @@ class UpdateOnlyModelAdmin(object):
         return False
 
 
+class ReadOnlyAdminMixin(object):
+    """
+    Disables all editing capabilities.
+    Please ensure that readonly_fields is specified in derived class.
+    """
+    change_form_template = 'admin/core/readonly_change_form.html'
+
+    def get_actions(self, request):
+        actions = super(ReadOnlyAdminMixin, self).get_actions(request)
+        del actions['delete_selected']
+        return actions
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        pass
+
+    def delete_model(self, request, obj):
+        pass
+
+    def save_related(self, request, form, formsets, change):
+        pass
+
+
 class GBtoMBWidget(widgets.AdminIntegerFieldWidget):
     def value_from_datadict(self, data, files, name):
         value = super(GBtoMBWidget, self).value_from_datadict(data, files, name) or 0

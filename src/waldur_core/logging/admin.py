@@ -9,10 +9,12 @@ from django.shortcuts import redirect
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-from waldur_core.core.admin import JsonWidget
 import six
 
-from waldur_core.core.admin import ExtraActionsMixin, UpdateOnlyModelAdmin
+from waldur_core.core.admin import (
+    JsonWidget, format_json_field, ReadOnlyAdminMixin,
+    ExtraActionsMixin, UpdateOnlyModelAdmin
+)
 from waldur_core.core.utils import serialize_instance
 from waldur_core.logging import models, tasks
 from waldur_core.logging.loggers import get_valid_events, get_event_groups
@@ -76,19 +78,19 @@ class AlertAdmin(admin.ModelAdmin):
     form = AlertAdminForm
 
 
-class EventAdminForm(ModelForm):
-    class Meta:
-        widgets = {
-            'context': JsonWidget(),
-        }
-
-
-class EventAdmin(admin.ModelAdmin):
+class EventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
     list_display = ('uuid', 'event_type', 'message', 'created')
+    readonly_fields = ('event_type', 'message', 'format_context')
+    exclude = ('context',)
     list_filter = ('event_type', 'created')
     search_fields = ('message',)
     ordering = ('-created',)
-    form = EventAdminForm
+
+    def format_context(self, obj):
+        return format_json_field(obj.context)
+
+    format_context.allow_tags = True
+    format_context.short_description = _('Details')
 
 
 class BaseHookAdmin(admin.ModelAdmin):
