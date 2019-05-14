@@ -177,6 +177,15 @@ class EventLogger(BaseLogger):
     def get_supported_groups(self):
         return getattr(self._meta, 'event_groups', {})
 
+    @staticmethod
+    def get_scopes(event_context):
+        """
+        This method receives event context and returns set of Django model objects.
+        For example, if resource is specified in event context then it should return
+        resource, project and customer.
+        """
+        return set()
+
     def info(self, *args, **kwargs):
         self.process('info', *args, **kwargs)
 
@@ -198,8 +207,14 @@ class EventLogger(BaseLogger):
         context = self.compile_context(**event_context)
         msg = self.compile_message(message_template, context)
 
-        log = getattr(self.logger, level)
-        log(msg, extra={'event_type': event_type, 'event_context': context})
+        event = models.Event.objects.create(
+            event_type=event_type,
+            message=msg,
+            context=context,
+        )
+        if event_context:
+            for scope in self.get_scopes(event_context):
+                models.Feed.objects.create(scope=scope, event=event)
 
 
 class AlertLogger(BaseLogger):

@@ -14,6 +14,15 @@ class IssueEventLogger(EventLogger):
             'jira': event_types
         }
 
+    @staticmethod
+    def get_scopes(event_context):
+        issue = event_context['issue']
+        project = issue.project.service_project_link.project
+        result = {project, project.customer}
+        if issue.resource:
+            result.add(issue.resource)
+        return result
+
 
 class CommentEventLogger(EventLogger):
     comment = Comment
@@ -25,6 +34,11 @@ class CommentEventLogger(EventLogger):
         event_groups = {
             'jira': event_types
         }
+
+    @staticmethod
+    def get_scopes(event_context):
+        issue = event_context['comment'].issue
+        return IssueEventLogger.get_scopes(issue)
 
 
 event_logger.register('jira_issue', IssueEventLogger)

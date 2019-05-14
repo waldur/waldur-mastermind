@@ -69,6 +69,12 @@ class ResourceActionEventLogger(EventLogger):
         )
         event_groups = {'resources': event_types}
 
+    @staticmethod
+    def get_scopes(event_context):
+        resource = event_context['resource']
+        project = resource.service_project_link.project
+        return {resource, project, project.customer}
+
 
 class BackupScheduleEventLogger(EventLogger):
     resource = models.Instance
@@ -84,6 +90,10 @@ class BackupScheduleEventLogger(EventLogger):
         )
         event_groups = {'resources': event_types}
 
+    @staticmethod
+    def get_scopes(event_context):
+        return ResourceActionEventLogger.get_scopes(event_context)
+
 
 class SnapshotScheduleEventLogger(EventLogger):
     resource = models.Volume
@@ -98,6 +108,10 @@ class SnapshotScheduleEventLogger(EventLogger):
             'resource_snapshot_schedule_cleaned_up',
         )
         event_groups = {'resources': event_types}
+
+    @staticmethod
+    def get_scopes(event_context):
+        return ResourceActionEventLogger.get_scopes(event_context)
 
 
 class BackupEventLogger(EventLogger):
@@ -118,6 +132,10 @@ class BackupEventLogger(EventLogger):
                        'resource_backup_schedule_deletion_succeeded',
                        'resource_backup_schedule_activated',
                        'resource_backup_schedule_deactivated')
+
+    @staticmethod
+    def get_scopes(event_context):
+        return ResourceActionEventLogger.get_scopes(event_context)
 
 
 event_logger.register('openstack_resource_action', ResourceActionEventLogger)

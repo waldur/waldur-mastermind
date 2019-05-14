@@ -343,6 +343,6 @@ class Event(UuidMixin):
 
 class Feed(models.Model):
     event = models.ForeignKey(Event)
-    content_type = models.ForeignKey(ct_models.ContentType, on_delete=models.SET_NULL, db_index=True)
+    content_type = models.ForeignKey(ct_models.ContentType, db_index=True)
     object_id = models.PositiveIntegerField(db_index=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
