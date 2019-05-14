@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  db:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DATABASE=waldur
+      - POSTGRES_USER=waldur
+      - POSTGRES_PASSWORD=waldur
+    ports:
+      - "5432"
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+  api:
+    build:
+      context: api
+    ports:
+      - "8000:8000"
+    links:
+      - db
