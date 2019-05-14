@@ -30,6 +30,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 'abstract': False,
+                'ordering': ['-created'],
             },
         ),
         migrations.CreateModel(

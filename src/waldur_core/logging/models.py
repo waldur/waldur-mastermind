@@ -340,6 +340,9 @@ class Event(UuidMixin):
     message = models.TextField()
     context = BetterJSONField(blank=True)
 
+    class Meta(object):
+        ordering = ('-created',)
+
 
 class Feed(models.Model):
     event = models.ForeignKey(Event)
