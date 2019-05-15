@@ -4,6 +4,7 @@ import re
 
 from ceilometerclient import exc as ceilometer_exceptions
 from cinderclient import exceptions as cinder_exceptions
+from cinderclient.v2.contrib import list_extensions
 from django.db import transaction, IntegrityError
 from django.utils import timezone, dateparse
 from django.utils.functional import cached_property
@@ -181,6 +182,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_internal_ips()
         self.pull_floating_ips()
         self.pull_volume_types()
+        self.pull_volume_availability_zones()
 
     def pull_resources(self):
         self.pull_volumes()
@@ -479,13 +481,16 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             'name': volume.name,
             'description': volume.description,
         }
+
         if volume.source_snapshot:
             kwargs['snapshot_id'] = volume.source_snapshot.backend_id
+
+        tenant = volume.service_project_link.service.settings.scope
+
         if volume.type:
             kwargs['volume_type'] = volume.type.backend_id
         else:
-            volume_type_name = (volume.service_project_link.service.settings.scope and
-                                volume.service_project_link.service.settings.scope.default_volume_type_name)
+            volume_type_name = (tenant and tenant.default_volume_type_name)
             if volume_type_name:
                 try:
                     volume_type = models.VolumeType.objects.get(name=volume_type_name,
@@ -500,6 +505,24 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                                  'Service settings UUID: %s' %
                                  (volume_type_name,
                                   volume.service_project_link.service.settings.uuid.hex))
+
+        if volume.availability_zone:
+            kwargs['availability_zone'] = volume.availability_zone.name
+        else:
+            volume_availability_zone_name = \
+                (tenant and tenant.service_settings.options.get('volume_availability_zone_name'))
+
+            if volume_availability_zone_name:
+                try:
+                    volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
+                        name=volume_availability_zone_name,
+                        settings=volume.service_project_link.service.settings)
+                    volume.availability_zone = volume_availability_zone
+                    kwargs['availability_zone'] = volume_availability_zone.name
+                except models.VolumeAvailabilityZone.DoesNotExist:
+                    logger.error('Volume availability zone with name %s is not found. Settings UUID: %s' %
+                                 (volume_availability_zone_name, volume.service_project_link.service.settings.uuid.hex))
+
         if volume.image:
             kwargs['imageRef'] = volume.image.backend_id
         cinder = self.cinder_client
@@ -585,6 +608,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     def _backend_volume_to_volume(self, backend_volume):
         volume_type = None
+        availability_zone = None
 
         try:
             if backend_volume.volume_type:
@@ -597,6 +621,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                          (backend_volume.volume_type,
                           self.settings.uuid.hex))
 
+        try:
+            backend_volume_availability_zone = getattr(backend_volume, 'availability_zone', None)
+            if backend_volume_availability_zone:
+                availability_zone = models.VolumeAvailabilityZone.objects.get(
+                    name=backend_volume_availability_zone,
+                    settings=self.settings)
+        except models.VolumeAvailabilityZone.DoesNotExist:
+            pass
+
         volume = models.Volume(
             name=backend_volume.name,
             description=backend_volume.description or '',
@@ -607,6 +640,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             bootable=backend_volume.bootable == 'true',
             runtime_state=backend_volume.status,
             state=models.Volume.States.OK,
+            availability_zone=availability_zone,
         )
         if getattr(backend_volume, 'volume_image_metadata', False):
             volume.image_metadata = backend_volume.volume_image_metadata
@@ -797,6 +831,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             return True
         except cinder_exceptions.ClientException as e:
             reraise(e)
+
+    def is_volume_availability_zone_supported(self):
+        return 'AvailabilityZones' in [e.name for e in list_extensions.ListExtManager(self.cinder_client).show_all()]
 
     @log_backend_action()
     def create_instance(self, instance, backend_flavor_id=None, public_key=None):
@@ -1509,3 +1546,23 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     })
 
             models.VolumeType.objects.filter(backend_id__in=cur_volume_types.keys(), settings=self.settings).delete()
+
+    def pull_volume_availability_zones(self):
+        if not self.is_volume_availability_zone_supported():
+            return
+
+        try:
+            volume_availability_zones = self.cinder_client.availability_zones.list()
+        except cinder_exceptions.ClientException as e:
+            reraise(e)
+
+        with transaction.atomic():
+            cur_zones = [p.name for p in models.VolumeAvailabilityZone.objects.filter(settings=self.settings)]
+
+            for zone in volume_availability_zones:
+                if zone.zoneName in cur_zones:
+                    cur_zones.pop(cur_zones.index(zone.zoneName))
+                else:
+                    models.VolumeAvailabilityZone.objects.create(settings=self.settings, name=zone.zoneName)
+
+            models.VolumeAvailabilityZone.objects.filter(name__in=cur_zones, settings=self.settings).delete()

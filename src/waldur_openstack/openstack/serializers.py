@@ -38,6 +38,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'tenant_name': '',
         'availability_zone': _('Default availability zone for provisioned instances'),
+        'volume_availability_zone_name': _('Default availability zone name for provisioned volumes'),
         'external_network_id': _('ID of OpenStack external network that will be connected to tenants'),
         'latitude': _('Latitude of the datacenter (e.g. 40.712784)'),
         'longitude': _('Longitude of the datacenter (e.g. -74.005941)'),
@@ -67,6 +68,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
             },
             'availability_zone': {
                 'placeholder': 'default',
+            },
+            'volume_availability_zone_name': {
+                'label': 'Name of default volume availability zone to use',
             },
             'access_url': {
                 'label': 'Access URL',
