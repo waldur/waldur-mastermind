@@ -1,7 +1,7 @@
 from functools import reduce
 
 from django.db import models
-from django.db.models import Sum
+from django.db.models import F, Sum
 import six
 
 from . import exceptions
@@ -267,22 +267,18 @@ class AggregatorQuotaField(QuotaField):
         scope.set_quota_usage(self.name, current_usage)
 
     def post_child_quota_save(self, scope, child_quota, created=False):
-        quota = scope.quotas.get(name=self.name)
         current_value = getattr(child_quota, self.aggregation_field)
         if created:
             diff = current_value
         else:
             diff = current_value - child_quota.tracker.previous(self.aggregation_field)
         if diff:
-            quota.usage += diff
-            quota.save()
+            scope.quotas.filter(name=self.name).update(usage=F('usage') + diff)
 
     def pre_child_quota_delete(self, scope, child_quota):
-        quota = scope.quotas.get(name=self.name)
         diff = getattr(child_quota, self.aggregation_field)
         if diff:
-            quota.usage -= diff
-            quota.save()
+            scope.quotas.filter(name=self.name).update(usage=F('usage') - diff)
 
 
 class UsageAggregatorQuotaField(AggregatorQuotaField):
