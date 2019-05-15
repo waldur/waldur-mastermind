@@ -13,8 +13,8 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 
 DOCUMENTATION = '''
 ---
-module: waldur_os_instance
-short_description: Create, update or delete OpenStack instance
+module: waldur_marketplace_os_instance
+short_description: Create, update or delete OpenStack instance via marketplace
 version_added: 0.8
 description:
   - Create, update or delete OpenStack compute instance via Waldur API.
@@ -127,7 +127,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
@@ -148,7 +148,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         flavor: m1.micro
@@ -171,7 +171,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         flavor: m1.micro
@@ -191,7 +191,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: add instance
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
@@ -213,7 +213,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: create instance
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
@@ -229,7 +229,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: delete instance
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
@@ -240,7 +240,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: update security groups of mysql server
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         name: mysql-server
@@ -254,7 +254,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: connect to multiple subnets
-      waldur_os_instance:
+      waldur_marketplace_os_instance:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
