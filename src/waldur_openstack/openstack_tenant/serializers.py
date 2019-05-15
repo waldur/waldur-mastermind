@@ -238,12 +238,14 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.SerializerMethodField()
     type_name = serializers.CharField(source='type.name', read_only=True)
+    availability_zone_name = serializers.CharField(source='availability_zone.name', read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Volume
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'source_snapshot', 'size', 'bootable', 'metadata',
             'image', 'image_metadata', 'image_name', 'type', 'type_name', 'runtime_state',
+            'availability_zone', 'availability_zone_name',
             'device', 'action', 'action_details', 'instance', 'instance_name',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
@@ -258,6 +260,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             image={'lookup_field': 'uuid', 'view_name': 'openstacktenant-image-detail'},
             source_snapshot={'lookup_field': 'uuid', 'view_name': 'openstacktenant-snapshot-detail'},
             type={'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-type-detail'},
+            availability_zone={'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-availability-zone-detail'},
             size={'required': False, 'allow_null': True},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
@@ -1495,6 +1498,24 @@ class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.VolumeType
         fields = ('url', 'uuid', 'name', 'description', 'settings')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'settings': {'lookup_field': 'uuid'},
+        }
+
+
+class VolumeAvailabilitySerializer(structure_serializers.BasePropertySerializer):
+    settings = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.ServiceSettings.objects.all(),
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.VolumeAvailabilityZone
+        fields = ('url', 'uuid', 'name', 'settings')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'settings': {'lookup_field': 'uuid'},

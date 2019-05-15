@@ -310,6 +310,10 @@ class Offering(core_models.UuidMixin,
     def is_usage_based(self):
         return self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE).exists()
 
+    @property
+    def is_private(self):
+        return not self.billable and not self.shared
+
 
 @python_2_unicode_compatible
 class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):

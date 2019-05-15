@@ -389,3 +389,22 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('openstacktenant-volume-type-list')
+
+
+class VolumeAvailabilityZoneFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.VolumeAvailabilityZone
+
+    name = factory.Sequence(lambda n: 'volume_availability_zone_%s' % n)
+    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+
+    @classmethod
+    def get_url(cls, volume_availability_zone=None):
+        if volume_availability_zone is None:
+            volume_availability_zone = VolumeAvailabilityZoneFactory()
+        return 'http://testserver' + reverse('openstacktenant-volume-availability-zone-detail',
+                                             kwargs={'uuid': volume_availability_zone.uuid})
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstacktenant-volume-availability-zone-list')

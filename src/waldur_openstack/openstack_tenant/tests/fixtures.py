@@ -56,6 +56,7 @@ class OpenStackTenantFixture(ProjectFixture):
             state=models.Volume.States.OK,
             runtime_state=models.Volume.RuntimeStates.OFFLINE,
             type=self.volume_type,
+            availability_zone=self.volume_availability_zone,
         )
 
     @cached_property
@@ -116,5 +117,11 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def volume_type(self):
         return factories.VolumeTypeFactory(
+            settings=self.openstack_tenant_service_settings,
+        )
+
+    @cached_property
+    def volume_availability_zone(self):
+        return factories.VolumeAvailabilityZoneFactory(
             settings=self.openstack_tenant_service_settings,
         )

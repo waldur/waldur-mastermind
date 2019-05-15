@@ -169,6 +169,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     image_name = models.CharField(max_length=150, blank=True)
     image_metadata = JSONField(blank=True)
     type = models.ForeignKey('VolumeType', blank=True, null=True, on_delete=models.SET_NULL)
+    availability_zone = models.ForeignKey('VolumeAvailabilityZone', blank=True, null=True, on_delete=models.SET_NULL)
     source_snapshot = models.ForeignKey('Snapshot', related_name='volumes', blank=True, null=True,
                                         on_delete=models.SET_NULL)
     # TODO: Move this fields to resource model.
@@ -194,7 +195,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     @classmethod
     def get_backend_fields(cls):
         return super(Volume, cls).get_backend_fields() + ('name', 'description', 'size', 'metadata', 'type', 'bootable',
-                                                          'runtime_state', 'device', 'instance')
+                                                          'runtime_state', 'device', 'instance', 'availability_zone')
 
 
 class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
@@ -494,3 +495,18 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
     @classmethod
     def get_url_name(cls):
         return 'openstacktenant-volume-type'
+
+
+@python_2_unicode_compatible
+class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
+    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+
+    class Meta(object):
+        unique_together = ('settings', 'name')
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstacktenant-volume-availability-zone'

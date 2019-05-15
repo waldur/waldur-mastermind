@@ -1,5 +1,4 @@
-from django.db import transaction
-from django.db.models import signals
+from django.db.models import F, signals
 
 from waldur_core.quotas import models, utils, fields
 from waldur_core.quotas.exceptions import CreationConditionFailedQuotaError
@@ -14,20 +13,14 @@ def create_global_quotas(**kwargs):
 
 def increase_global_quota(sender, instance=None, created=False, **kwargs):
     if created and hasattr(sender, 'GLOBAL_COUNT_QUOTA_NAME'):
-        with transaction.atomic():
-            global_quota = models.Quota.objects.select_for_update().get(
-                name=getattr(sender, 'GLOBAL_COUNT_QUOTA_NAME'))
-            global_quota.usage += 1
-            global_quota.save()
+        name = getattr(sender, 'GLOBAL_COUNT_QUOTA_NAME')
+        models.Quota.objects.filter(name=name).update(usage=F('usage') + 1)
 
 
 def decrease_global_quota(sender, **kwargs):
     if hasattr(sender, 'GLOBAL_COUNT_QUOTA_NAME'):
-        with transaction.atomic():
-            global_quota = models.Quota.objects.select_for_update().get(
-                name=getattr(sender, 'GLOBAL_COUNT_QUOTA_NAME'))
-            global_quota.usage -= 1
-            global_quota.save()
+        name = getattr(sender, 'GLOBAL_COUNT_QUOTA_NAME')
+        models.Quota.objects.filter(name=name).update(usage=F('usage') - 1)
 
 
 # new quotas
