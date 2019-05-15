@@ -9,7 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 import six
 
-from waldur_core.core.utils import deserialize_instance, is_uuid_like
+from waldur_core.core.utils import deserialize_instance
 from waldur_core.logging.loggers import alert_logger
 from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin,\
     SystemNotification, Report, Feed, Event
