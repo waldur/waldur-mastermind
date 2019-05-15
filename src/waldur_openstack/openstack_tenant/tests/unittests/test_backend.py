@@ -487,6 +487,27 @@ class CreateVolumesTest(VolumesBaseTest):
         self.assertEqual(volume.type, None)
         mock_logger.error.assert_called_once()
 
+    def test_use_default_volume_availability_zone_if_zone_not_populated(self):
+        volume_availability_zone = factories.VolumeAvailabilityZoneFactory(settings=self.settings)
+        self.tenant.service_settings.options['volume_availability_zone_name'] = volume_availability_zone.name
+        self.tenant.service_settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.availability_zone.name, volume_availability_zone.name)
+
+    def test_do_not_use_volume_availability_zone_if_settings_have_no_scope(self):
+        self.settings.scope = None
+        self.settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.availability_zone, None)
+
+    @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
+    def test_not_use_default_volume_availability_zone_if_it_not_exists(self, mock_logger):
+        self.tenant.service_settings.options['volume_availability_zone_name'] = 'not_exists_volume_availability_zone'
+        self.tenant.service_settings.save()
+        volume = self._get_volume()
+        self.assertEqual(volume.availability_zone, None)
+        mock_logger.error.assert_called_once()
+
     def _get_volume(self):
         volume = factories.VolumeFactory(
             service_project_link=self.fixture.spl,
