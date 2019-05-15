@@ -85,6 +85,22 @@ class OrderCreateTest(test.APITransactionTestCase):
         response = self.create_order(self.fixture.staff, offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @mock.patch('waldur_mastermind.marketplace.tasks.notify_order_approvers.delay')
+    def test_notification_is_sent_when_order_is_created(self, mock_task):
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE, shared=True, billable=True)
+        plan = factories.PlanFactory(offering=offering)
+        add_payload = {'items': [
+            {
+                'offering': factories.OfferingFactory.get_url(offering),
+                'plan': factories.PlanFactory.get_url(plan),
+                'attributes': {}
+            },
+        ]}
+        response = self.create_order(self.fixture.manager, offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_task.assert_called_once()
+
     def test_can_not_create_order_if_offering_is_not_available_to_customer(self):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE, shared=False)
         offering.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
@@ -287,12 +303,6 @@ class OrderApproveTest(test.APITransactionTestCase):
         response = self.approve_order(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(self.order.approved_by, None)
-
-    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
-    def test_notifications_are_issued_when_order_is_created(self, mock_tasks):
-        order = factories.OrderFactory(project=self.project, created_by=self.manager)
-        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_count, 1)
-        self.assertEqual(mock_tasks.notify_order_approvers.delay.call_args[0][0], order.uuid)
 
     def test_order_approving_is_not_available_for_blocked_organization(self):
         self.order.project.customer.blocked = True

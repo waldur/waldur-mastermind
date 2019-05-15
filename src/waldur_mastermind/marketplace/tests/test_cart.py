@@ -1,6 +1,9 @@
+import ddt
+from mock import patch
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_mastermind.marketplace.base import override_marketplace_settings
 
 from .. import models
 from . import factories
@@ -35,24 +38,6 @@ class CartSubmitTest(test.APITransactionTestCase):
         })
         response = self.submit(fixture.project)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_order_gets_approved_if_all_offerings_are_private(self):
-        fixture = fixtures.ProjectFixture()
-        offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
-            shared=False,
-            customer=fixture.customer
-        )
-
-        self.client.force_authenticate(fixture.staff)
-
-        self.client.post(factories.CartItemFactory.get_list_url(), {
-            'offering': factories.OfferingFactory.get_url(offering),
-        })
-
-        response = self.submit(fixture.project)
-        self.assertEqual(response.data['state'], 'executing')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_cart_item_limits_are_propagated_to_order_item(self):
         limits = {
@@ -120,6 +105,86 @@ class CartSubmitTest(test.APITransactionTestCase):
         url = factories.CartItemFactory.get_list_url()
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt.ddt
+@patch('waldur_mastermind.marketplace.tasks.notify_order_approvers')
+class AutoapproveTest(test.APITransactionTestCase):
+    def submit(self, project):
+        return self.client.post(factories.CartItemFactory.get_list_url('submit'), {
+            'project': structure_factories.ProjectFactory.get_url(project)
+        })
+
+    def submit_public_and_private(self, role):
+        fixture = fixtures.ProjectFixture()
+        private_offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+            shared=False,
+            billable=False,
+            customer=fixture.customer
+        )
+        public_offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+            shared=True,
+            billable=True,
+            customer=fixture.customer
+        )
+
+        self.client.force_authenticate(getattr(fixture, role))
+
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(private_offering),
+        })
+
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(public_offering),
+        })
+
+        return self.submit(fixture.project)
+
+    @ddt.data('staff', 'owner', 'manager', 'admin')
+    def test_order_gets_approved_if_all_offerings_are_private(self, role, mocked_task):
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+            shared=False,
+            billable=False,
+            customer=fixture.customer
+        )
+
+        self.client.force_authenticate(getattr(fixture, role))
+
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(offering),
+        })
+
+        response = self.submit(fixture.project)
+        self.assertEqual(response.data['state'], 'executing')
+        mocked_task.delay.assert_not_called()
+
+    @ddt.data('staff', 'owner')
+    def test_public_offering_is_autoapproved_if_user_is_owner_or_staff(self, role, mocked_task):
+        response = self.submit_public_and_private(role)
+        self.assertEqual(response.data['state'], 'executing')
+        mocked_task.delay.assert_not_called()
+
+    @ddt.data('manager', 'admin')
+    def test_public_offering_is_not_autoapproved_if_user_is_manager_or_admin(self, role, mocked_task):
+        response = self.submit_public_and_private(role)
+        self.assertEqual(response.data['state'], 'requested for approval')
+        mocked_task.delay.assert_called()
+
+    @override_marketplace_settings(MANAGER_CAN_APPROVE_ORDER=True)
+    def test_public_offering_is_autoapproved_if_feature_is_enabled_for_manager(self, mocked_task):
+        response = self.submit_public_and_private('manager')
+        self.assertEqual(response.data['state'], 'executing')
+        mocked_task.delay.assert_not_called()
+
+    @override_marketplace_settings(ADMIN_CAN_APPROVE_ORDER=True)
+    def test_public_offering_is_autoapproved_if_feature_is_enabled_for_admin(self, mocked_task):
+        response = self.submit_public_and_private('admin')
+        self.assertEqual(response.data['state'], 'executing')
+        mocked_task.delay.assert_not_called()
 
 
 class CartUpdateTest(test.APITransactionTestCase):
