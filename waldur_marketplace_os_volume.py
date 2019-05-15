@@ -12,8 +12,8 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
 
 DOCUMENTATION = '''
 ---
-module: waldur_os_volume
-short_description: Create/Update/Delete OpenStack volume
+module: waldur_marketplace_os_volume
+short_description: Create/Update/Delete OpenStack volume via marketplace
 version_added: 0.8
 description:
   - "Create/Update/Delete OpenStack volume"
@@ -78,7 +78,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: create volume
-      waldur_os_volume:
+      waldur_marketplace_os_volume:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         name: test volume
@@ -91,7 +91,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: remove existing volume
-      waldur_os_volume:
+      waldur_marketplace_os_volume:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         name: test volume
@@ -102,7 +102,7 @@ EXAMPLES = '''
   hosts: localhost
   tasks:
     - name: update volume description
-      waldur_os_volume:
+      waldur_marketplace_os_volume:
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         name: test volume
