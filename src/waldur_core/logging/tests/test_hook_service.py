@@ -25,6 +25,7 @@ class TestHookService(test.APITransactionTestCase):
         self.other_event = 'customer_deletion_succeeded'
         self.message = 'Customer {customer_name} has been updated.'
         self.event = EventFactory(event_type=self.event_type)
+        logging_models.Feed.objects.create(scope=self.customer, event=self.event)
 
         # Create email hook for another user
         self.other_hook = logging_models.EmailHook.objects.create(user=self.other_user,

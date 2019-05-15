@@ -5,6 +5,7 @@ import traceback
 
 from celery import shared_task
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 import six
 
@@ -29,22 +30,13 @@ def process_event(event_id):
 
 
 def process_system_notification(event):
-    project = None
-    customer = None
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    project_feed = Feed.objects.filter(event=event, content_type=project_ct).first()
+    project = project_feed and project_feed.scope
 
-    project_uuid = event.context.get('project_uuid')
-    if is_uuid_like(project_uuid):
-        try:
-            project = structure_models.Project.objects.get(uuid=project_uuid)
-        except structure_models.Project.DoesNotExist:
-            pass
-
-    customer_uuid = event.context.get('customer_uuid')
-    if is_uuid_like(customer_uuid):
-        try:
-            customer = structure_models.Customer.objects.get(uuid=customer_uuid)
-        except structure_models.Customer.DoesNotExist:
-            pass
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    customer_feed = Feed.objects.filter(event=event, content_type=customer_ct).first()
+    customer = customer_feed and customer_feed.scope
 
     for hook in SystemNotification.get_hooks(event.event_type, project=project, customer=customer):
         if check_event(event, hook):

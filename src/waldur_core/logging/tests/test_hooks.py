@@ -168,10 +168,8 @@ class SystemNotificationTest(test.APITransactionTestCase):
         self.project = self.project_fixture.project
         self.admin = self.project_fixture.admin
         self.manager = self.project_fixture.manager
-        self.event = factories.EventFactory(
-            event_type=self.event_types[0],
-            context={'project_uuid': self.project.uuid.hex},
-        )
+        self.event = factories.EventFactory(event_type=self.event_types[0])
+        self.feed = models.Feed.objects.create(scope=self.project, event=self.event)
 
     def test_send_notification_if_user_is_not_subscribed_but_event_type_is_system_type(self):
         self.assertFalse(models.EmailHook.objects.count())
@@ -188,7 +186,7 @@ class SystemNotificationTest(test.APITransactionTestCase):
 
     def test_not_send_notification_if_wrong_project(self):
         self.assertFalse(models.EmailHook.objects.count())
-        self.event.context = {}
+        self.feed.delete()
         self.event.save()
         tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 0)
