@@ -873,15 +873,6 @@ class WaldurClient(object):
         }
         return self._create_resource(self.Endpoints.MarketplaceOrder, payload=payload)
 
-    def approve_marketplace_order(self, order_uuid):
-        """
-        Approve marketplace order.
-
-        :param order_uuid: order UUID
-        """
-        url = self._build_resource_url(self.Endpoints.MarketplaceOrder, order_uuid, action='approve')
-        return self._post(url, valid_states=[200])
-
     def _create_scope_via_marketplace(
             self,
             name,
@@ -904,8 +895,7 @@ class WaldurClient(object):
                 'WALDUR_CHECK_MODE': True
             }
 
-        order = self.create_marketplace_order(project, offering['uuid'], attributes=attributes)
-        self.approve_marketplace_order(order['uuid'])
+        self.create_marketplace_order(project, offering['uuid'], attributes=attributes)
         scope = None
         waited = 0
         while not scope:
