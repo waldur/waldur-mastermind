@@ -11,7 +11,7 @@ from django.utils.timezone import now
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Project, Customer
 
-from . import callbacks, tasks, log, models, utils, serializers
+from . import callbacks, tasks, log, models, utils
 
 
 logger = logging.getLogger(__name__)
@@ -64,20 +64,6 @@ def log_resource_events(sender, instance, created=False, **kwargs):
     # Skip logging for imported resource
     if created and instance.state == models.Resource.States.CREATING:
         log.log_resource_creation_requested(resource)
-
-
-def notify_order_approvers(sender, instance, created=False, **kwargs):
-    if not created:
-        return
-
-    # Skip logging for imported orders
-    if instance.state != models.Order.States.REQUESTED_FOR_APPROVAL:
-        return
-
-    if serializers.check_availability_of_auto_approving(instance.items.all(), instance.created_by, instance.project):
-        return
-
-    transaction.on_commit(lambda: tasks.notify_order_approvers.delay(instance.uuid))
 
 
 def complete_order_when_all_items_are_done(sender, instance, created=False, **kwargs):

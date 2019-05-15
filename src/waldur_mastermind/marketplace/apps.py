@@ -38,12 +38,6 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.notify_order_approvers,
-            sender=models.Order,
-            dispatch_uid='waldur_mastermind.marketplace.notify_order_approvers',
-        )
-
-        signals.post_save.connect(
             handlers.reject_order,
             sender=models.Order,
             dispatch_uid='waldur_mastermind.marketplace.reject_order',
