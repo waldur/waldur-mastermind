@@ -18,5 +18,13 @@ class MarketplaceOpenStackExtension(WaldurExtension):
         return 'waldur_mastermind.marketplace_openstack'
 
     @staticmethod
+    def get_public_settings():
+        return [
+            'TENANT_CATEGORY_UUID',
+            'INSTANCE_CATEGORY_UUID',
+            'VOLUME_CATEGORY_UUID',
+        ]
+
+    @staticmethod
     def is_assembly():
         return True
