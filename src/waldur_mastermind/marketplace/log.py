@@ -19,6 +19,11 @@ class MarketplaceOrderLogger(EventLogger):
             'marketplace_order_failed',
         )
 
+    @staticmethod
+    def get_scopes(event_context):
+        order = event_context['order']
+        return {order, order.project, order.project.customer}
+
 
 class MarketplaceResourceLogger(EventLogger):
     resource = models.Resource
@@ -58,6 +63,11 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_terminate_succeeded',
             'marketplace_resource_terminate_failed',
         )
+
+    @staticmethod
+    def get_scopes(event_context):
+        resource = event_context['resource']
+        return {resource, resource.project, resource.project.customer}
 
 
 event_logger.register('marketplace_order', MarketplaceOrderLogger)

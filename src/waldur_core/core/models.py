@@ -215,11 +215,14 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
         send_mail(subject, message, from_email, [self.email])
 
     @classmethod
-    def get_permitted_objects_uuids(cls, user):
+    def get_permitted_objects(cls, user):
+        from waldur_core.structure.filters import filter_visible_users
+
+        queryset = User.objects.all()
         if user.is_staff or user.is_support:
-            return {'user_uuid': cls.objects.values_list('uuid', flat=True)}
+            return queryset
         else:
-            return {'user_uuid': [user.uuid]}
+            return filter_visible_users(queryset, user)
 
     def clean(self):
         super(User, self).clean()

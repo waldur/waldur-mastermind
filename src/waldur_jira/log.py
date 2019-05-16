@@ -3,6 +3,14 @@ from waldur_core.logging.loggers import EventLogger, event_logger
 from .models import Issue, Comment
 
 
+def get_issue_scopes(issue):
+    project = issue.project.service_project_link.project
+    result = {project, project.customer}
+    if issue.resource:
+        result.add(issue.resource)
+    return result
+
+
 class IssueEventLogger(EventLogger):
     issue = Issue
 
@@ -13,6 +21,11 @@ class IssueEventLogger(EventLogger):
         event_groups = {
             'jira': event_types
         }
+
+    @staticmethod
+    def get_scopes(event_context):
+        issue = event_context['issue']
+        return get_issue_scopes(issue)
 
 
 class CommentEventLogger(EventLogger):
@@ -25,6 +38,11 @@ class CommentEventLogger(EventLogger):
         event_groups = {
             'jira': event_types
         }
+
+    @staticmethod
+    def get_scopes(event_context):
+        issue = event_context['comment'].issue
+        return get_issue_scopes(issue)
 
 
 event_logger.register('jira_issue', IssueEventLogger)

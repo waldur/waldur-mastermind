@@ -1,4 +1,4 @@
-""" Custom loggers that allows to store logs in DB and Elastic """
+""" Custom loggers that allows to store logs in DB """
 
 from __future__ import unicode_literals
 
@@ -83,7 +83,9 @@ class BaseLogger(object):
             self.fields = {
                 k: self.get_field_model(v)
                 for k, v in self.__class__.__dict__.items()
-                if not k.startswith('_') and not isinstance(v, types.FunctionType) and k != 'Meta'}
+                if (not k.startswith('_') and
+                    not isinstance(v, types.FunctionType) and
+                    not isinstance(v, staticmethod) and k != 'Meta')}
 
         missed = set(self.fields.keys()) - set(self.get_nullable_fields()) - set(kwargs.keys())
         if missed:
@@ -177,6 +179,15 @@ class EventLogger(BaseLogger):
     def get_supported_groups(self):
         return getattr(self._meta, 'event_groups', {})
 
+    @staticmethod
+    def get_scopes(event_context):
+        """
+        This method receives event context and returns set of Django model objects.
+        For example, if resource is specified in event context then it should return
+        resource, project and customer.
+        """
+        return set()
+
     def info(self, *args, **kwargs):
         self.process('info', *args, **kwargs)
 
@@ -197,9 +208,18 @@ class EventLogger(BaseLogger):
 
         context = self.compile_context(**event_context)
         msg = self.compile_message(message_template, context)
-
         log = getattr(self.logger, level)
         log(msg, extra={'event_type': event_type, 'event_context': context})
+
+        event = models.Event.objects.create(
+            event_type=event_type,
+            message=msg,
+            context=context,
+        )
+        if event_context:
+            for scope in self.get_scopes(event_context):
+                if scope and scope.id:
+                    models.Feed.objects.create(scope=scope, event=event)
 
 
 class AlertLogger(BaseLogger):
@@ -326,15 +346,6 @@ class LoggableMixin(object):
     def get_log_fields(self):
         return ('uuid', 'name')
 
-    def filter_by_logged_object(self):
-        """
-        Return query dictionary to search current object in ElasticSearch.
-        Model may return custom query, but backend doesn't need to know details.
-        """
-        return {
-            self.__class__.__name__ + '_uuid': self.uuid.hex
-        }
-
     def _get_log_context(self, entity_name=None):
 
         context = {}
@@ -366,8 +377,8 @@ class LoggableMixin(object):
         return context
 
     @classmethod
-    def get_permitted_objects_uuids(cls, user):
-        return {}
+    def get_permitted_objects(cls, user):
+        return cls.objects.none()
 
 
 class BaseLoggerRegistry(object):
@@ -408,14 +419,6 @@ class EventLoggerRegistry(BaseLoggerRegistry):
 
     def get_loggers(self):
         return [l for l in self.__dict__.values() if isinstance(l, EventLogger)]
-
-    def get_permitted_objects_uuids(self, user):
-        from waldur_core.logging.utils import get_loggable_models
-        permitted_objects_uuids = {}
-        for model in get_loggable_models():
-            for field, uuids in model.get_permitted_objects_uuids(user).items():
-                permitted_objects_uuids[field] = [uuid_obj.hex for uuid_obj in uuids]
-        return permitted_objects_uuids
 
 
 class AlertLoggerRegistry(BaseLoggerRegistry):

@@ -20,5 +20,11 @@ class OpenStackPackageLogger(EventLogger):
         }
         nullable_fields = ('service_settings',)
 
+    @staticmethod
+    def get_scopes(event_context):
+        tenant = event_context['tenant']
+        project = tenant.service_project_link.project
+        return {tenant, project, project.customer}
+
 
 event_logger.register('openstack_package', OpenStackPackageLogger)

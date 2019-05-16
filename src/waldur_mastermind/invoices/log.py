@@ -13,5 +13,9 @@ class InvoiceLogger(EventLogger):
             'invoices': event_types,
         }
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['customer']}
+
 
 event_logger.register('invoice', InvoiceLogger)

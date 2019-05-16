@@ -15,6 +15,13 @@ class AuthEventLogger(EventLogger):
         event_groups = {'users': event_types}
         nullable_fields = ['user', 'username']
 
+    @staticmethod
+    def get_scopes(event_context):
+        if 'user' in event_context:
+            return {event_context['user']}
+        else:
+            return set()
+
 
 class UserEventLogger(EventLogger):
     affected_user = User
@@ -33,12 +40,20 @@ class UserEventLogger(EventLogger):
             'users': event_types,
         }
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['affected_user']}
+
 
 class TokenEventLogger(EventLogger):
     affected_user = User
 
     class Meta:
         event_types = ('token_created',)
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['affected_user']}
 
 
 class SshPublicKeyEventLogger(EventLogger):
@@ -52,6 +67,10 @@ class SshPublicKeyEventLogger(EventLogger):
             'ssh': event_types,
             'users': event_types,
         }
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['user']}
 
 
 event_logger.register('auth', AuthEventLogger)

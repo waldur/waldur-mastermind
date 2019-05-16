@@ -16,6 +16,10 @@ class CustomerEventLogger(EventLogger):
             'customers': event_types,
         }
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['customer']}
+
 
 class ProjectEventLogger(EventLogger):
     project = models.Project
@@ -27,6 +31,11 @@ class ProjectEventLogger(EventLogger):
         event_groups = {
             'projects': event_types,
         }
+
+    @staticmethod
+    def get_scopes(event_context):
+        project = event_context['project']
+        return {project, project.customer}
 
 
 class CustomerRoleEventLogger(EventLogger):
@@ -44,6 +53,10 @@ class CustomerRoleEventLogger(EventLogger):
         }
         nullable_fields = ['user']
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['customer']}
+
 
 class ProjectRoleEventLogger(EventLogger):
     project = models.Project
@@ -59,6 +72,11 @@ class ProjectRoleEventLogger(EventLogger):
             'users': event_types,
         }
         nullable_fields = ['user']
+
+    @staticmethod
+    def get_scopes(event_context):
+        project = event_context['project']
+        return {project, project.customer}
 
 
 class ResourceEventLogger(EventLogger):
@@ -93,6 +111,12 @@ class ResourceEventLogger(EventLogger):
             'resources': event_types,
         }
 
+    @staticmethod
+    def get_scopes(event_context):
+        resource = event_context['resource']
+        project = resource.service_project_link.project
+        return {resource, project, project.customer}
+
 
 class ServiceProjectLinkEventLogger(EventLogger):
     spl = models.ServiceProjectLink
@@ -100,6 +124,11 @@ class ServiceProjectLinkEventLogger(EventLogger):
     class Meta:
         event_types = ('spl_deletion_succeeded',
                        'spl_creation_succeeded')
+
+    @staticmethod
+    def get_scopes(event_context):
+        spl = event_context['spl']
+        return {spl.project, spl.project.customer}
 
 
 event_logger.register('customer_role', CustomerRoleEventLogger)

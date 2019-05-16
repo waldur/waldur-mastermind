@@ -16,6 +16,12 @@ class DropletResizeEventLogger(EventLogger):
         event_types = ('droplet_resize_scheduled',
                        'droplet_resize_succeeded')
 
+    @staticmethod
+    def get_scopes(event_context):
+        resource = event_context['droplet']
+        project = resource.service_project_link.project
+        return {resource, project, project.customer}
+
 
 alert_logger.register('digital_ocean', DigitalOceanAlertLogger)
 event_logger.register('droplet_resize', DropletResizeEventLogger)

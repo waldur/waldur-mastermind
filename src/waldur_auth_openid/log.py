@@ -13,5 +13,9 @@ class OpenIDEventLogger(EventLogger):
         event_types = ('auth_logged_in_with_openid',)
         event_groups = {'users': event_types}
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['user']}
+
 
 event_logger.register('auth_openid', OpenIDEventLogger)

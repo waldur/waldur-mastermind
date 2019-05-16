@@ -217,6 +217,8 @@ def log_resource_deleted(sender, instance, **kwargs):
 
 
 def log_resource_imported(sender, instance, **kwargs):
+    if not instance.pk:
+        return
     event_logger.resource.info(
         'Resource {resource_full_name} has been imported.',
         event_type='resource_import_succeeded',
