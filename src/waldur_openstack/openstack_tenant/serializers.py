@@ -182,7 +182,7 @@ class VolumeImportableSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Volume
-        model_fields = ('name', 'description', 'size', 'bootable', 'type', 'device',
+        model_fields = ('name', 'description', 'size', 'bootable', 'device',
                         'runtime_state', 'instance_name', 'instance_uuid')
         fields = ('service_project_link', 'backend_id') + model_fields
         read_only_fields = model_fields + ('backend_id',)

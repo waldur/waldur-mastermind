@@ -8,7 +8,7 @@ from django.db import transaction
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_openstack import RAM_TYPE, STORAGE_TYPE
+from waldur_mastermind.marketplace_openstack import RAM_TYPE, STORAGE_TYPE, utils as marketplace_openstack_utils
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
@@ -238,3 +238,71 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
             continue
 
         utils.import_instance_metadata(resource)
+
+
+def create_resource_of_volume_if_instance_created(sender, instance, created=False, **kwargs):
+    resource = instance
+
+    if not created or not resource.scope or not resource.offering.scope:
+        return
+
+    if resource.offering.type != INSTANCE_TYPE:
+        return
+
+    instance = resource.scope
+
+    volume_offering = utils.get_offering(VOLUME_TYPE, resource.offering.scope)
+    if not volume_offering:
+        return
+
+    for volume in instance.volumes.all():
+        if marketplace_models.Resource.objects.filter(scope=volume).exists():
+            continue
+
+        volume_resource = marketplace_models.Resource(
+            project=resource.project,
+            offering=volume_offering,
+            created=resource.created,
+            name=volume.name,
+            scope=volume,
+        )
+
+        volume_resource.init_cost()
+        volume_resource.save()
+        marketplace_openstack_utils.import_volume_metadata(volume_resource)
+        volume_resource.init_quotas()
+
+
+def create_marketplace_resource_for_imported_resources(sender, instance, created=False, **kwargs):
+    resource = marketplace_models.Resource(
+        project=instance.service_project_link.project,
+        name=instance.name,
+        scope=instance,
+        created=instance.created
+    )
+
+    if isinstance(instance, openstack_tenant_models.Instance):
+        offering = utils.get_offering(INSTANCE_TYPE, instance.service_settings)
+
+        if not offering:
+            return
+
+        resource.offering = offering
+
+        resource.init_cost()
+        resource.save()
+        marketplace_openstack_utils.import_instance_metadata(resource)
+        resource.init_quotas()
+
+    if isinstance(instance, openstack_tenant_models.Volume):
+        offering = utils.get_offering(VOLUME_TYPE, instance.service_settings)
+
+        if not offering:
+            return
+
+        resource.offering = offering
+
+        resource.init_cost()
+        resource.save()
+        marketplace_openstack_utils.import_volume_metadata(resource)
+        resource.init_quotas()
