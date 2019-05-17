@@ -57,7 +57,7 @@ def is_valid_idp(value):
 def get_idp_sso_supported_bindings(idp_entity_id, config):
     try:
         return config.metadata.service(idp_entity_id, 'idpsso_descriptor', 'single_sign_on_service').keys()
-    except UnknownSystemEntity:
+    except (UnknownSystemEntity, AttributeError):
         return []
 
 
