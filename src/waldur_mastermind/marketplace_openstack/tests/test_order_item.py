@@ -323,6 +323,12 @@ class InstanceCreateTest(test.APITransactionTestCase):
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
 
+    def test_create_resource_of_volume_if_instance_created(self):
+        order_item = self.trigger_instance_creation()
+        instance = order_item.resource.scope
+        volume = instance.volumes.first()
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=volume).exists())
+
     def trigger_instance_creation(self, **kwargs):
         fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         service_settings = fixture.openstack_tenant_service_settings
@@ -348,6 +354,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         attributes.update(kwargs)
 
         offering = marketplace_factories.OfferingFactory(type=INSTANCE_TYPE, scope=service_settings)
+        marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=service_settings)
         # Ensure that SPL exists
         fixture.spl
         order = marketplace_factories.OrderFactory(
