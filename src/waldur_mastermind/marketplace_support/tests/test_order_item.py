@@ -262,6 +262,10 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
             component=self.offering_component,
             price=Decimal(50)
         )
+        self.order_item = marketplace_factories.OrderItemFactory(resource=self.resource)
+        self.order_item.set_state_executing()
+        self.order_item.set_state_done()
+        self.order_item.save()
 
     def test_success_switch_plan_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)

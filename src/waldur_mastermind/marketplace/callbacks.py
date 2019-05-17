@@ -142,7 +142,7 @@ def set_order_item_state(resource, type, new_state):
                      'because there are multiple active order items are found. '
                      'Resource ID: %s', resource.id)
     else:
-        order_item.state = new_state
+        getattr(order_item, OrderItemStateRouter[new_state])()
         order_item.save(update_fields=['state'])
         return order_item
 
@@ -156,6 +156,15 @@ StateRouter = {
     (States.UPDATING, States.OK): resource_update_succeeded,
     (States.UPDATING, States.ERRED): resource_update_failed,
     (States.DELETING, States.ERRED): resource_deletion_failed,
+}
+
+
+OrderItemStateRouter = {
+    models.OrderItem.States.EXECUTING: 'set_state_executing',
+    models.OrderItem.States.DONE: 'set_state_done',
+    models.OrderItem.States.ERRED: 'set_state_erred',
+    models.OrderItem.States.TERMINATED: 'set_state_terminated',
+    models.OrderItem.States.TERMINATING: 'set_state_terminating',
 }
 
 
