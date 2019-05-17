@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common import mixins as common_mixins
@@ -81,3 +82,38 @@ def component_usage_register(component_usage):
                        component_usage.resource.content_type,
                        component_usage.resource.object_id,
                        component_usage.date)
+
+
+def resource_created_or_switched_plan(resource, date):
+    """Check whether Resource has been created or updated after a given date.
+
+        :param resource: marketplace resource.
+        :param date: date.
+        :return: tuple (has_been_created, has_been_switched).
+    """
+
+    create = False
+    switch = False
+
+    try:
+        marketplace_models.OrderItem.objects.get(resource=resource,
+                                                 type=marketplace_models.OrderItem.Types.CREATE,
+                                                 activated__gte=date)
+        create = True
+    except ObjectDoesNotExist:
+        pass
+    except MultipleObjectsReturned:
+        logger.debug('Multiple order items are found. resource ID: %s, type CREATE, activated__gte=%s',
+                     resource.id, date)
+
+    try:
+        marketplace_models.OrderItem.objects.get(resource=resource,
+                                                 type=marketplace_models.OrderItem.Types.UPDATE,
+                                                 activated__gte=date)
+        switch = True
+    except ObjectDoesNotExist:
+        pass
+    except MultipleObjectsReturned:
+        switch = True
+
+    return create, switch

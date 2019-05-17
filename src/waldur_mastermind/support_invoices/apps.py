@@ -19,7 +19,7 @@ class SupportInvoicesConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.add_new_offering_to_invoice,
-            sender=support_models.Offering,
+            sender=marketplace_models.OrderItem,
             dispatch_uid='support_invoices.handlers.add_new_offering_to_invoice',
         )
 

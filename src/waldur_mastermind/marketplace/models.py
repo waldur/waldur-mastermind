@@ -12,6 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
@@ -323,10 +324,15 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
     class BillingTypes(object):
         FIXED = 'fixed'
         USAGE = 'usage'
+        ONE_TIME = 'one'
+        ON_PLAN_SWITCH = 'few'
 
         CHOICES = (
             (FIXED, 'Fixed-price'),
             (USAGE, 'Usage-based'),
+            (ONE_TIME, 'One-time'),
+            # applies fee on resource activation and every time a plan has changed, using pricing of a new plan
+            (ON_PLAN_SWITCH, 'One-time on plan switch'),
         )
 
     class LimitPeriods(object):
@@ -819,6 +825,7 @@ class OrderItem(CostEstimateMixin,
     old_plan = models.ForeignKey(Plan, related_name='+', null=True, blank=True)
     resource = models.ForeignKey(Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
+    activated = models.DateTimeField(_('activation date'), null=True, blank=True)
     tracker = FieldTracker()
 
     class Permissions(object):
@@ -839,7 +846,8 @@ class OrderItem(CostEstimateMixin,
 
     @transition(field=state, source=States.EXECUTING, target=States.DONE)
     def set_state_done(self):
-        pass
+        self.activated = timezone.now()
+        self.save()
 
     @transition(field=state, source='*', target=States.ERRED)
     def set_state_erred(self):
