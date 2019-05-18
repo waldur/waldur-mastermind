@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 
 from waldur_core.core import models as core_models
@@ -429,3 +430,14 @@ def import_instance_metadata(resource):
     resource.backend_metadata['internal_ips'] = instance.internal_ips
     resource.backend_metadata['external_ips'] = instance.external_ips
     resource.save(update_fields=['backend_metadata'])
+
+
+def get_offering(offering_type, service_settings):
+    try:
+        return marketplace_models.Offering.objects.get(scope=service_settings, type=offering_type)
+    except ObjectDoesNotExist:
+        logger.warning('Marketplace offering is not found. '
+                       'ServiceSettings ID: %s', service_settings.id)
+    except MultipleObjectsReturned:
+        logger.warning('Few marketplace offerings are found. '
+                       'ServiceSettings ID: %s', service_settings.id)

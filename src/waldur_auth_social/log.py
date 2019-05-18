@@ -23,5 +23,9 @@ class SocialEventLogger(EventLogger):
         event_types = provider_event_type_mapping.values()
         event_groups = {'users': event_types}
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['user']}
+
 
 event_logger.register('auth_social', SocialEventLogger)

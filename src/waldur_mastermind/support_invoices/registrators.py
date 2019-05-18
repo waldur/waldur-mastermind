@@ -48,10 +48,18 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                                'Offering ID: %s', offering.id)
                 return
 
+            create, switch = utils.resource_created_or_switched_plan(resource, start)
+
+            fixed = marketplace_models.OfferingComponent.BillingTypes.FIXED
+            one_time_type = marketplace_models.OfferingComponent.BillingTypes.ONE_TIME
+            switch_type = marketplace_models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
+
             for plan_component in plan.components.all():
                 offering_component = plan_component.component
 
-                if offering_component.billing_type == marketplace_models.OfferingComponent.BillingTypes.FIXED:
+                if (offering_component.billing_type == fixed or
+                        (offering_component.billing_type == one_time_type and create) or
+                        (offering_component.billing_type == switch_type and (switch or create))):
                     details = self.get_component_details(offering, plan_component)
                     invoice_models.GenericInvoiceItem.objects.create(
                         content_type=ContentType.objects.get_for_model(offering),

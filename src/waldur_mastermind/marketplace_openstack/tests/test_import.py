@@ -1,15 +1,18 @@
+from rest_framework import test
+
 from waldur_core.core.models import StateMixin
+from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Resource
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
 
-from .. import utils
 from .utils import BaseOpenStackTest
-
+from .. import utils
 
 Types = package_models.PackageComponent.Types
 
@@ -258,3 +261,29 @@ class VolumeImportTest(BaseOpenStackTest):
         utils.import_openstack_service_settings(fixture.customer)
         resource = self.import_resource()
         self.assertEqual(resource.plan.scope, template)
+
+
+class ImportAsMarketplaceResourceTest(test.APITransactionTestCase):
+    def setUp(self):
+        super(ImportAsMarketplaceResourceTest, self).setUp()
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.volume = self.fixture.volume
+        self.instance = self.fixture.instance
+        marketplace_factories.OfferingFactory(scope=self.fixture.openstack_tenant_service_settings, type=VOLUME_TYPE)
+        marketplace_factories.OfferingFactory(scope=self.fixture.openstack_tenant_service_settings, type=INSTANCE_TYPE)
+
+    def test_import_volume_as_marketplace_resource(self):
+        structure_signals.resource_imported.send(
+            sender=self.volume.__class__,
+            instance=self.volume,
+        )
+
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=self.volume).exists())
+
+    def test_import_instance_as_marketplace_resource(self):
+        structure_signals.resource_imported.send(
+            sender=self.instance.__class__,
+            instance=self.instance,
+        )
+
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=self.instance).exists())

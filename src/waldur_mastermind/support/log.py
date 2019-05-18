@@ -14,6 +14,22 @@ class IssueEventLogger(EventLogger):
             'support': event_types,
         }
 
+    @staticmethod
+    def get_scopes(event_context):
+        issue = event_context['issue']
+        result = set()
+        if issue.resource:
+            project = issue.resource.service_project_link.project
+            result.add(issue.resource)
+            result.add(project)
+            result.add(project.customer)
+        if issue.project:
+            result.add(issue.project)
+            result.add(issue.customer)
+        if issue.customer:
+            result.add(issue.customer)
+        return result
+
 
 class OfferingEventLogger(EventLogger):
     offering = models.Offering
@@ -27,6 +43,11 @@ class OfferingEventLogger(EventLogger):
         event_groups = {
             'support': event_types,
         }
+
+    @staticmethod
+    def get_scopes(event_context):
+        offering = event_context['offering']
+        return {offering.project, offering.project.customer}
 
 
 event_logger.register('waldur_issue', IssueEventLogger)

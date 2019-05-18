@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 3.6.3
+Version: 3.6.4
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -70,7 +70,6 @@ Requires: python-django-rest-swagger = 2.1.2
 Requires: python-django-reversion = 2.0.8
 Requires: python-django-saml2 = 0.17.1-2
 Requires: python-django-taggit >= 0.20.2
-Requires: python-elasticsearch = 5.4.0
 Requires: python-freeipa >= 0.2.2
 Requires: python-glanceclient >= 1:2.8.0
 Requires: python-hiredis >= 0.2.0
@@ -302,6 +301,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Sat May 18 2019 Jenkins <jenkins@opennodecloud.com> - 3.6.4-1.el7
+- New upstream release
+
 * Wed May 15 2019 Jenkins <jenkins@opennodecloud.com> - 3.6.3-1.el7
 - New upstream release
 

@@ -5,12 +5,14 @@ import traceback
 
 from celery import shared_task
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 import six
 
 from waldur_core.core.utils import deserialize_instance
-from waldur_core.logging.loggers import alert_logger, event_logger
-from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin, SystemNotification, Report
+from waldur_core.logging.loggers import alert_logger
+from waldur_core.logging.models import BaseHook, Alert, AlertThresholdMixin,\
+    SystemNotification, Report, Feed, Event
 from waldur_core.logging.utils import create_report_archive
 from waldur_core.structure import models as structure_models
 
@@ -18,33 +20,40 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name='waldur_core.logging.process_event')
-def process_event(event):
+def process_event(event_id):
+    event = Event.objects.get(id=event_id)
     for hook in BaseHook.get_active_hooks():
         if check_event(event, hook):
             hook.process(event)
 
-    try:
-        project_uuid = event['context'].get('project_uuid')
-        project = project_uuid and structure_models.Project.objects.get(uuid=project_uuid)
-        customer_uuid = event['context'].get('customer_uuid')
-        customer = customer_uuid and structure_models.Customer.objects.get(uuid=customer_uuid)
-    except structure_models.Project.DoesNotExist:
-        return
-    except structure_models.Customer.DoesNotExist:
-        return
+    process_system_notification(event)
 
-    for hook in SystemNotification.get_hooks(event['type'], project=project, customer=customer):
+
+def process_system_notification(event):
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    project_feed = Feed.objects.filter(event=event, content_type=project_ct).first()
+    project = project_feed and project_feed.scope
+
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    customer_feed = Feed.objects.filter(event=event, content_type=customer_ct).first()
+    customer = customer_feed and customer_feed.scope
+
+    for hook in SystemNotification.get_hooks(event.event_type, project=project, customer=customer):
         if check_event(event, hook):
             hook.process(event)
 
 
 def check_event(event, hook):
     # Check that event matches with hook
-    if event['type'] not in hook.all_event_types:
+    if event.event_type not in hook.all_event_types:
         return False
-    for key, uuids in event_logger.get_permitted_objects_uuids(hook.user).items():
-        if key in event['context'] and event['context'][key] in uuids:
+
+    # Check permissions
+    for feed in Feed.objects.filter(event=event):
+        qs = feed.content_type.model_class().get_permitted_objects(hook.user)
+        if qs.filter(id=feed.object_id).exists():
             return True
+
     return False
 
 

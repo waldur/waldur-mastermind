@@ -11,6 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import month_end
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
@@ -244,3 +245,75 @@ class UsagesTest(InvoicesBaseTest):
         )
         option.update(kwargs)
         return marketplace_models.ComponentUsage.objects.create(**option)
+
+
+@freeze_time('2018-01-01 00:00:00')
+@override_support_settings(
+    ENABLED=True,
+    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
+)
+class OneTimeTest(InvoicesBaseTest):
+    def setUp(self):
+        super(OneTimeTest, self).setUp()
+        self.fixture.offering_component_cpu.billing_type = marketplace_models.OfferingComponent.BillingTypes.ONE_TIME
+        self.fixture.offering_component_cpu.save()
+        self.fixture.update_plan_prices()
+
+        self.order_item_process(self.order_item)
+        self.resource = self.order_item.resource
+        self.invoice = self.get_invoice()
+
+    @freeze_time('2018-01-01 00:00:00')
+    def test_calculate_one_time_component_if_resource_started_in_current_period(self):
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.price,
+                         self.fixture.plan_component_cpu.price + self.fixture.plan_component_ram.price)
+
+    @freeze_time('2018-02-01 00:00:00')
+    def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(self):
+        registrators.RegistrationManager.register(self.resource.scope)
+        self.invoice = self.get_invoice()
+        self.assertEqual(self.invoice.price, self.fixture.plan_component_ram.price)
+
+
+@freeze_time('2018-01-01 00:00:00')
+@override_support_settings(
+    ENABLED=True,
+    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
+)
+class OnPlanSwitchTest(InvoicesBaseTest):
+    def setUp(self):
+        super(OnPlanSwitchTest, self).setUp()
+        self.fixture.offering_component_cpu.billing_type = \
+            marketplace_models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
+        self.fixture.offering_component_cpu.save()
+        self.fixture.update_plan_prices()
+
+        self.order_item_process(self.order_item)
+        self.resource = self.order_item.resource
+        self.invoice = self.get_invoice()
+
+    @freeze_time('2018-01-01 00:00:00')
+    def test_calculate_on_plan_switch_component_if_resource_started_in_current_period(self):
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.price,
+                         self.fixture.plan_component_cpu.price + self.fixture.plan_component_ram.price)
+
+    @freeze_time('2018-02-01 00:00:00')
+    def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(self):
+        registrators.RegistrationManager.register(self.resource.scope)
+        self.invoice = self.get_invoice()
+        self.assertEqual(self.invoice.price, self.fixture.plan_component_ram.price)
+
+    @freeze_time('2018-03-01 00:00:00')
+    def test_calculate_on_plan_switch_component_if_plan_has_been_switched_in_current_period(self):
+        order_item = marketplace_factories.OrderItemFactory(type=marketplace_models.OrderItem.Types.UPDATE,
+                                                            resource=self.resource,
+                                                            plan=self.fixture.plan)
+        order_item.set_state_executing()
+        order_item.set_state_done()
+        order_item.save()
+        registrators.RegistrationManager.register(self.resource.scope)
+        self.invoice = self.get_invoice()
+        self.assertEqual(self.invoice.price, self.fixture.plan_component_cpu.price +
+                         self.fixture.plan_component_ram.price)

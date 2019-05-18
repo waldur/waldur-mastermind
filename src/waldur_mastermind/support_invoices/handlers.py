@@ -2,6 +2,7 @@ from django.utils import timezone
 
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.support import models as support_models
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from .utils import is_request_based, component_usage_register
 
@@ -10,9 +11,16 @@ def add_new_offering_to_invoice(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if instance.tracker.has_changed('state') and instance.state == support_models.Offering.States.OK and \
-            is_request_based(instance):
-        request_based_offering = support_models.Offering.objects.get(pk=instance.pk)
+    order_item = instance
+
+    if order_item.tracker.has_changed('state') and \
+            order_item.state == marketplace_models.OrderItem.States.DONE and \
+            order_item.type == marketplace_models.OrderItem.Types.CREATE and \
+            order_item.resource and \
+            order_item.resource.scope and \
+            isinstance(order_item.resource.scope, support_models.Offering) and \
+            is_request_based(order_item.resource.scope):
+        request_based_offering = support_models.Offering.objects.get(pk=order_item.resource.scope.pk)
         registrators.RegistrationManager.register(request_based_offering, timezone.now())
 
 

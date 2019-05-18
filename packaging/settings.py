@@ -35,16 +35,6 @@ config_defaults = {
         'token_lifetime': 3600,
         'session_lifetime': 3600,
     },
-    'elasticsearch': {
-        # This location is RHEL7-specific, may be different on other platforms
-        'ca_certs': '/etc/pki/tls/certs/ca-bundle.crt',  # only has effect if verify_certs is true
-        'host': 'localhost',
-        'password': '',
-        'port': '9200',
-        'protocol': 'http',
-        'username': '',
-        'verify_certs': 'true',  # only has effect if protocol is 'https'
-    },
     'events': {
         'hook': 'false',
         'log_file': '',  # empty to disable logging events to file
@@ -381,22 +371,10 @@ for app in INSTALLED_APPS:
 # Waldur Core internal configuration
 # See also: http://docs.waldur.com/
 WALDUR_CORE.update({
-    'ELASTICSEARCH': {
-        'host': config.get('elasticsearch', 'host'),
-        'password': config.get('elasticsearch', 'password'),
-        'port': config.get('elasticsearch', 'port'),
-        'protocol': config.get('elasticsearch', 'protocol'),
-        'username': config.get('elasticsearch', 'username'),
-    },
     'TOKEN_LIFETIME': timedelta(seconds=config.getint('auth', 'token_lifetime')),
     'OWNER_CAN_MANAGE_CUSTOMER': config.getboolean('global', 'owner_can_manage_customer'),
     'SHOW_ALL_USERS': config.getboolean('global', 'show_all_users'),
 })
-
-if WALDUR_CORE['ELASTICSEARCH']['protocol'] == 'https':
-    WALDUR_CORE['ELASTICSEARCH']['verify_certs'] = config.getboolean('elasticsearch', 'verify_certs')
-    if WALDUR_CORE['ELASTICSEARCH']['verify_certs']:
-        WALDUR_CORE['ELASTICSEARCH']['ca_certs'] = config.get('elasticsearch', 'ca_certs')
 
 # Swagger uses DRF session authentication which can be enabled in DEBUG mode
 if config.getboolean('global', 'debug'):

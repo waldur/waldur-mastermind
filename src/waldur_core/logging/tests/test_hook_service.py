@@ -1,5 +1,4 @@
 import logging
-import time
 
 from django.conf import settings
 from django.core import mail
@@ -9,6 +8,7 @@ from rest_framework import test
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.log import HookHandler
 from waldur_core.logging.tasks import process_event
+from waldur_core.logging.tests.factories import EventFactory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.tests import factories as structure_factories
@@ -24,12 +24,8 @@ class TestHookService(test.APITransactionTestCase):
         self.event_type = 'customer_update_succeeded'
         self.other_event = 'customer_deletion_succeeded'
         self.message = 'Customer {customer_name} has been updated.'
-        self.event = {
-            'message': self.message,
-            'type': self.event_type,
-            'context': event_logger.customer.compile_context(customer=self.customer),
-            'timestamp': time.time()
-        }
+        self.event = EventFactory(event_type=self.event_type)
+        logging_models.Feed.objects.create(scope=self.customer, event=self.event)
 
         # Create email hook for another user
         self.other_hook = logging_models.EmailHook.objects.create(user=self.other_user,
@@ -71,7 +67,7 @@ class TestHookService(test.APITransactionTestCase):
                                                              event_types=[self.event_type])
 
         # Trigger processing
-        process_event(self.event)
+        process_event(self.event.id)
 
         # Test that one message has been sent for email hook of customer owner
         self.assertEqual(len(mail.outbox), 1)
@@ -88,7 +84,7 @@ class TestHookService(test.APITransactionTestCase):
                                                               event_types=[self.event_type])
 
         # Trigger processing
-        process_event(self.event)
+        process_event(self.event.id)
 
         # Event is captured and POST request is triggered because event_type and user_uuid match
         requests_post.assert_called_once_with(

@@ -16,5 +16,9 @@ class FreeIPAEventLogger(EventLogger):
         )
         event_groups = {'users': event_types}
 
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context['user']}
+
 
 event_logger.register('freeipa', FreeIPAEventLogger)

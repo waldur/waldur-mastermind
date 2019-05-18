@@ -11,6 +11,11 @@ class InvoiceEventLogger(EventLogger):
                        'invoice_creation_succeeded')
         event_groups = {'invoices': event_types}
 
+    @staticmethod
+    def get_scopes(event_context):
+        invoice = event_context['invoice']
+        return {invoice.customer}
+
 
 class PaymentEventLogger(EventLogger):
     payment = Payment
@@ -20,6 +25,11 @@ class PaymentEventLogger(EventLogger):
                        'payment_approval_succeeded',
                        'payment_cancel_succeeded')
         event_groups = {'payments': event_types}
+
+    @staticmethod
+    def get_scopes(event_context):
+        payment = event_context['payment']
+        return {payment.customer}
 
 
 event_logger.register('paypal_invoice', InvoiceEventLogger)

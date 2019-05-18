@@ -18,11 +18,6 @@ Table of Contents
             * [Creating app network](#creating-app-network)
          * [Running PostgreSQL](#running-postgresql)
          * [Running Redis](#running-redis)
-         * [Running Elasticsearch](#running-elasticsearch)
-         * [Running Logstash](#running-logstash)
-            * [Create logstash pipeline configuration](#create-logstash-pipeline-configuration)
-            * [Create logstash configuration](#create-logstash-configuration)
-            * [Running Logstash container](#running-logstash-container)
          * [Running Postfix SMTP](#running-postfix-smtp)
 
 # Waldur Mastermind Docker Image
@@ -71,25 +66,6 @@ source ~/waldurrc
 # create app network
 docker network create waldur --driver bridge
 
-# create and populate logstash pipeline configuration
-VOLUME_NAME=waldur_logs_pipeline
-docker volume create --name=$VOLUME_NAME
-TARGET_DIR=$( docker volume inspect --format '{{ .Mountpoint }}' $VOLUME_NAME )
-cp files/waldur-logs/logstash.conf $TARGET_DIR
-chown root:root $TARGET_DIR/logstash.conf
-chmod 644 $TARGET_DIR/logstash.conf 
-
-# create and populate logstash settings
-VOLUME_NAME=waldur_logs_settings
-docker volume create --name=$VOLUME_NAME
-TARGET_DIR=$( docker volume inspect --format '{{ .Mountpoint }}' $VOLUME_NAME )
-cp files/waldur-logs/logstash.yml $TARGET_DIR
-chown root:root $TARGET_DIR/logstash.yml
-chmod 666 $TARGET_DIR/logstash.yml
-cp files/waldur-logs/log4j2.properties $TARGET_DIR
-chown root:root $TARGET_DIR/log4j2.properties
-chmod 644 $TARGET_DIR/log4j2.properties
-
 # create and populate mastermind-api nginx proxy configuration
 VOLUME_NAME=waldur_mastermind_api
 docker volume create --name=$VOLUME_NAME
@@ -115,10 +91,6 @@ sleep $INTERVAL
 # reconfigure Redis
 docker-compose run -T --rm waldur-queue sed -i 's/^protected-mode yes/protected-mode no/g' /bitnami/redis/conf/redis.conf
 docker-compose restart waldur-queue
-# launch Elasticsearch
-sysctl -w vm.max_map_count=262144
-sysctl -w fs.file-max=65536
-docker-compose up -d waldur-events
 # init DB and admin user
 docker-compose run -T --rm waldur-mastermind-worker initdb
 docker-compose run -T --rm waldur-mastermind-worker createadmin
@@ -154,8 +126,6 @@ Prerequisites:
 * App network
 * PostgreSQL database
 * Redis kv store
-* Elasticsearch 
-* Logstash
 * SMTP
 * local hostname resolution in your laptop /etc/hosts: waldur-mastermind-api -> your_docker_host
 
@@ -190,25 +160,12 @@ echo "GLOBAL_OWNER_CAN_MANAGE_CUSTOMER=\"true\"" >> mastermindrc
 echo "LOGGING_ADMIN_EMAIL=\"admin@example.com\"" >> mastermindrc
 echo "LOGGING_LOG_LEVEL=\"info\"" >> mastermindrc
 
-# user logs configuration (logstash)
-echo "EVENTS_LOGSERVER_HOST=\"waldur-logs\"" >> mastermindrc
-echo "EVENTS_LOGSERVER_PORT=\"5959\"" >> mastermindrc
-echo "EVENTS_LOG_LEVEL=\"info\"" >> mastermindrc
-
 # database connection (postgresql)
 echo "POSTGRESQL_HOST=\"waldur-db\"" >> mastermindrc
 echo "POSTGRESQL_PORT=\"5432\"" >> mastermindrc
 echo "POSTGRESQL_NAME=\"waldur\"" >> mastermindrc
 echo "POSTGRESQL_USER=\"waldur\"" >> mastermindrc
 echo "POSTGRESQL_PASSWORD=\"waldur\"" >> mastermindrc
-
-# events configuration (elasticsearch)
-echo "ELASTICSEARCH_HOST=\"waldur-events\"" >> mastermindrc
-echo "ELASTICSEARCH_PORT=\"9200\"" >> mastermindrc
-echo "ELASTICSEARCH_PROTOCOL=\"http\"" >> mastermindrc
-echo "ELASTICSEARCH_USERNAME=\"elastic\"" >> mastermindrc
-echo "ELASTICSEARCH_PASSWORD=\"elastic\"" >> mastermindrc
-echo "ELASTICSEARCH_VERIFY_CERTS=\"true\"" >> mastermindrc
 
 # queue configuration (redis)
 echo "REDIS_HOST=\"waldur-queue\"" >> mastermindrc
@@ -423,79 +380,6 @@ docker run -it --rm \
     --network waldur \
     bitnami/redis:latest redis-cli -h waldur-queue
 ```
-
-### Running Elasticsearch
-
-* https://github.com/bitnami/bitnami-docker-elasticsearch 
-
-```bash
-# docker host configuration
-sysctl -w vm.max_map_count=262144
-sysctl -w fs.file-max=65536
-
-docker pull bitnami/elasticsearch:latest
-
-docker volume create waldur_events
-docker volume inspect waldur_events
-
-docker run -d --name waldur-events \
-    --network waldur \
-    --mount source=waldur_events,target=/bitnami \
-    bitnami/elasticsearch:latest
-
-# verify
-docker logs -f waldur-events
-```
-
-### Running Logstash
-
-* https://www.elastic.co/guide/en/logstash/5.6/docker.html
-
-```bash
-docker pull docker.elastic.co/logstash/logstash:5.6.0
-```
-
-#### Create logstash pipeline configuration
-
-```bash
-cd ~/repos/waldur-mastermind
-VOLUME_NAME=waldur_logs_pipeline
-docker volume create --name=$VOLUME_NAME
-TARGET_DIR=$( docker volume inspect --format '{{ .Mountpoint }}' $VOLUME_NAME )
-cp files/waldur-logs/logstash.conf $TARGET_DIR
-chown root:root $TARGET_DIR/logstash.conf
-chmod 644 $TARGET_DIR/logstash.conf 
-```
-
-#### Create logstash configuration
-
-```bash
-cd ~/repos/waldur-mastermind
-VOLUME_NAME=waldur_logs_settings
-docker volume create --name=$VOLUME_NAME
-TARGET_DIR=$( docker volume inspect --format '{{ .Mountpoint }}' $VOLUME_NAME )
-cp files/waldur-logs/logstash.yml $TARGET_DIR
-chown root:root $TARGET_DIR/logstash.yml
-chmod 666 $TARGET_DIR/logstash.yml
-cp files/waldur-logs/log4j2.properties $TARGET_DIR
-chown root:root $TARGET_DIR/log4j2.properties
-chmod 644 $TARGET_DIR/log4j2.properties
-```
-
-#### Running Logstash container
-
-```bash
-docker run -d --name waldur-logs \
-    --network waldur \
-    --mount source=waldur_logs_pipeline,target=/usr/share/logstash/pipeline \
-    --mount source=waldur_logs_settings,target=/usr/share/logstash/config \
-    -e XPACK_MONITORING_ENABLED=false \
-    docker.elastic.co/logstash/logstash:5.6.0
-
-# verify
-docker logs -f waldur-logs
-```
-
 
 ### Running Postfix SMTP
 
