@@ -121,10 +121,18 @@ class JiraBackend(ServiceBackend):
             return getattr(self, '_manager')
         except AttributeError:
             try:
+                if self.settings.token:
+                    if getattr(self.settings, 'email', None):
+                        basic_auth = (self.settings.email, self.settings.token)
+                    else:
+                        basic_auth = (self.settings.username, self.settings.token)
+                else:
+                    basic_auth = (self.settings.username, self.settings.password)
+
                 self._manager = JIRA(
                     server=self.settings.backend_url,
                     options={'verify': self.verify},
-                    basic_auth=(self.settings.username, self.settings.password),
+                    basic_auth=basic_auth,
                     validate=False)
             except JIRAError as e:
                 if check_captcha(e):

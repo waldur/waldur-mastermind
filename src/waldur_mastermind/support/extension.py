@@ -18,6 +18,8 @@ class SupportExtension(WaldurExtension):
                 'server': 'http://example.com/',
                 'username': 'USERNAME',
                 'password': 'PASSWORD',
+                'email': '',
+                'token': '',
                 'verify_ssl': False,
             },
             'PROJECT': {
