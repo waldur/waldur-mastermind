@@ -23,7 +23,7 @@ from . import SupportBackend
 logger = logging.getLogger(__name__)
 
 
-Settings = collections.namedtuple('Settings', ['backend_url', 'username', 'password'])
+Settings = collections.namedtuple('Settings', ['backend_url', 'username', 'password', 'email', 'token'])
 
 
 class ServiceDeskBackend(JiraBackend, SupportBackend):
@@ -37,6 +37,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             backend_url=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('server'),
             username=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('username'),
             password=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('password'),
+            email=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('email'),
+            token=settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('token'),
         )
         self.verify = settings.WALDUR_SUPPORT.get('CREDENTIALS', {}).get('verify_ssl')
         self.project_settings = settings.WALDUR_SUPPORT.get('PROJECT', {})
