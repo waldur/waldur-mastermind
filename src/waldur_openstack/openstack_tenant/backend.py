@@ -183,6 +183,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_floating_ips()
         self.pull_volume_types()
         self.pull_volume_availability_zones()
+        self.pull_instance_availability_zones()
 
     def pull_resources(self):
         self.pull_volumes()
@@ -1139,6 +1140,23 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     def get_instances_for_import(self):
         return self._get_backend_resource(models.Instance, self.get_instances())
+
+    def pull_instance_availability_zones(self):
+        try:
+            backend_availability_zones = self.nova_client.availability_zones.list()
+        except nova_exceptions.ClientException as e:
+            reraise(e)
+
+        with transaction.atomic():
+            cur_zones = [p.name for p in models.InstanceAvailabilityZone.objects.filter(settings=self.settings)]
+
+            for zone in backend_availability_zones:
+                if zone.zoneName in cur_zones:
+                    cur_zones.pop(cur_zones.index(zone.zoneName))
+                else:
+                    models.InstanceAvailabilityZone.objects.create(settings=self.settings, name=zone.zoneName)
+
+            models.InstanceAvailabilityZone.objects.filter(name__in=cur_zones, settings=self.settings).delete()
 
     @log_backend_action()
     def pull_instance(self, instance, update_fields=None):
