@@ -1082,6 +1082,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if timezone.is_naive(d):
                 launch_time = timezone.make_aware(d, timezone.utc)
 
+        availability_zone = None
+        try:
+            availability_zone_name = backend_instance.to_dict().get('OS-EXT-AZ:availability_zone')
+            if availability_zone_name:
+                return models.InstanceAvailabilityZone.objects.get(
+                    name=availability_zone_name, settings=self.settings)
+        except models.InstanceAvailabilityZone.DoesNotExist:
+            pass
+
         instance = models.Instance(
             name=backend_instance.name or backend_instance.id,
             key_name=backend_instance.key_name or '',
@@ -1090,6 +1099,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             runtime_state=backend_instance.status,
             created=dateparse.parse_datetime(backend_instance.created),
             backend_id=backend_instance.id,
+            availability_zone=availability_zone,
         )
 
         if backend_flavor_id:
