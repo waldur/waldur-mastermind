@@ -4,7 +4,6 @@ import collections
 import logging
 import re
 
-from django.conf import settings as django_settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
@@ -40,6 +39,8 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'tenant_id': _('Tenant ID in OpenStack'),
         'availability_zone': _('Default availability zone for provisioned instances'),
+        'valid_availability_zones': _('Optional dictionary where key is Nova availability '
+                                      'zone name and value is Cinder availability zone name.'),
         'flavor_exclude_regex': _('Flavors matching this regex expression will not be pulled from the backend.'),
         'external_network_id': _('It is used to automatically assign floating IP to your virtual machine.'),
         'console_type': _('The type of remote console. '
@@ -372,8 +373,8 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
         if instance.service_project_link != volume.service_project_link:
             raise serializers.ValidationError(_('Volume and instance should belong to the same service and project.'))
         if volume.availability_zone and instance.availability_zone:
-            valid_zones = django_settings.WALDUR_OPENSTACK_TENANT['VALID_AVAILABILITY_ZONES']
-            if valid_zones.get(instance.availability_zone.name) != volume.availability_zone.name:
+            valid_zones = volume.service_project_link.service.settings.options.get('valid_availability_zones', {})
+            if valid_zones and valid_zones.get(instance.availability_zone.name) != volume.availability_zone.name:
                 raise serializers.ValidationError(
                     _('Volume cannot be attached to virtual machine related to the other availability zone.'))
         return instance
@@ -856,6 +857,25 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         return attrs
 
+    def _find_volume_availability_zone(self, instance):
+        # Find volume AZ using instance AZ. It is assumed that user can't select arbitrary
+        # combination of volume and instance AZ. Once instance AZ is selected,
+        # volume AZ is taken from settings.
+
+        volume_availability_zone = None
+        valid_zones = instance.service_project_link.service.settings.options.get('valid_availability_zones', {})
+        if instance.availability_zone and valid_zones:
+            volume_availability_zone_name = valid_zones.get(instance.availability_zone.name)
+            if volume_availability_zone_name:
+                try:
+                    volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
+                        name=volume_availability_zone_name,
+                        settings=instance.service_project_link.service.settings,
+                    )
+                except models.VolumeAvailabilityZone.DoesNotExist:
+                    pass
+        return volume_availability_zone
+
     @transaction.atomic
     def create(self, validated_data):
         """ Store flavor, ssh_key and image details into instance model.
@@ -901,22 +921,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         for floating_ip, subnet in floating_ips_with_subnets:
             _connect_floating_ip_to_instance(floating_ip, subnet, instance)
 
-        # Find volume AZ using instance AZ. It is assumed that user can't select arbitrary
-        # combination of volume and instance AZ. Once instance AZ is selected,
-        # volume AZ is taken from settings.
-
-        volume_availability_zone = None
-        if instance.availability_zone:
-            valid_zones = django_settings.WALDUR_OPENSTACK_TENANT['VALID_AVAILABILITY_ZONES']
-            volume_availability_zone_name = valid_zones.get(instance.availability_zone.name)
-            if volume_availability_zone_name:
-                try:
-                    volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
-                        name=volume_availability_zone_name,
-                        settings=instance.service_project_link.service.settings,
-                    )
-                except models.VolumeAvailabilityZone.DoesNotExist:
-                    pass
+        volume_availability_zone = self._find_volume_availability_zone(instance)
 
         # volumes
         volumes = []

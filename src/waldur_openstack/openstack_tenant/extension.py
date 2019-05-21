@@ -12,9 +12,6 @@ class OpenStackTenantExtension(WaldurExtension):
                 'OpenStackTenant.Snapshot': 4,
             },
             'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': False,
-            'VALID_AVAILABILITY_ZONES': {
-                # 'NOVA_AZ_NAME': 'CINDER_AZ_NAME',
-            },
         }
 
     @staticmethod
