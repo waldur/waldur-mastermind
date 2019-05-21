@@ -60,6 +60,12 @@ class OpenStackTenantFixture(ProjectFixture):
         )
 
     @cached_property
+    def instance_availability_zone(self):
+        return factories.InstanceAvailabilityZoneFactory(
+            settings=self.openstack_tenant_service_settings,
+        )
+
+    @cached_property
     def instance(self):
         return factories.InstanceFactory(
             service_project_link=self.spl,
