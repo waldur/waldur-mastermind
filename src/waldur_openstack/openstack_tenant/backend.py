@@ -1090,7 +1090,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             availability_zone_name = backend_instance.to_dict().get('OS-EXT-AZ:availability_zone')
             if availability_zone_name:
-                return models.InstanceAvailabilityZone.objects.get(
+                availability_zone = models.InstanceAvailabilityZone.objects.get(
                     name=availability_zone_name, settings=self.settings)
         except models.InstanceAvailabilityZone.DoesNotExist:
             pass
