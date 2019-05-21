@@ -884,9 +884,13 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 nics=nics,
                 key_name=backend_public_key.name if backend_public_key is not None else None,
             )
-            availability_zone = self.settings.options.get('availability_zone')
-            if availability_zone:
-                server_create_parameters['availability_zone'] = availability_zone
+            if instance.availability_zone:
+                server_create_parameters['availability_zone'] = instance.availability_zone.name
+            else:
+                availability_zone = self.settings.options.get('availability_zone')
+                if availability_zone:
+                    server_create_parameters['availability_zone'] = availability_zone
+
             if instance.user_data:
                 server_create_parameters['userdata'] = instance.user_data
 
