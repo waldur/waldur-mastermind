@@ -124,6 +124,7 @@ class OrderItemFilter(django_filters.FilterSet):
 
 
 class ResourceFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr='icontains')
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
     offering_type = django_filters.CharFilter(name='offering__type')
