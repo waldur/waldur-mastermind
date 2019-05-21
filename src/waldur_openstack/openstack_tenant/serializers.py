@@ -2,15 +2,15 @@ from __future__ import unicode_literals
 
 import collections
 import logging
-
-from django.core.exceptions import ObjectDoesNotExist
-import pytz
 import re
 
+from django.conf import settings as django_settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext, ugettext_lazy as _
+import pytz
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
@@ -295,6 +295,12 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             type = attrs.get('type')
             if type and type.settings != spl.service.settings:
                 raise serializers.ValidationError({'type': _('Volume type must belong to the same service settings')})
+
+            availability_zone = attrs.get('availability_zone')
+            if availability_zone and availability_zone.settings != spl.service.settings:
+                raise serializers.ValidationError(
+                    _('Availability zone must belong to the same service settings.'))
+
         return attrs
 
     def create(self, validated_data):
@@ -365,6 +371,11 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
         volume = self.instance
         if instance.service_project_link != volume.service_project_link:
             raise serializers.ValidationError(_('Volume and instance should belong to the same service and project.'))
+        if volume.availability_zone and instance.availability_zone:
+            valid_zones = django_settings.WALDUR_OPENSTACK_TENANT['VALID_AVAILABILITY_ZONES']
+            if instance.availability_zone.name not in valid_zones.get(volume.availability_zone.name, []):
+                raise serializers.ValidationError(
+                    _('Volume cannot be attached to virtual machine related to the other availability zone.'))
         return instance
 
     def validate(self, attrs):
@@ -837,6 +848,11 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         _validate_instance_internal_ips(internal_ips, settings)
         subnets = [internal_ip.subnet for internal_ip in internal_ips]
         _validate_instance_floating_ips(attrs.get('floating_ips', []), settings, subnets)
+
+        instance_availability_zone = attrs.get('availability_zone')
+        if instance_availability_zone and instance_availability_zone.settings != settings:
+            raise serializers.ValidationError(
+                _('Instance and availability zone must belong to the same service settings as service project link.'))
 
         return attrs
 
