@@ -121,6 +121,11 @@ class InternalIpInline(admin.TabularInline):
         return models.InternalIP.get_backend_fields() + ('backend_id', 'instance', 'subnet')
 
 
+class InstanceAvailabilityZoneAdmin(structure_admin.BackendModelAdmin):
+    list_filter = ('settings',)
+    list_display = ('name', 'settings')
+
+
 class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
     actions = structure_admin.VirtualMachineAdmin.actions + ['pull']
     exclude = ('action_details',)
@@ -185,6 +190,7 @@ admin.site.register(models.Volume, VolumeAdmin)
 admin.site.register(models.VolumeType, VolumeTypeAdmin)
 admin.site.register(models.VolumeAvailabilityZone, VolumeAvailabilityZoneAdmin)
 admin.site.register(models.Snapshot, SnapshotAdmin)
+admin.site.register(models.InstanceAvailabilityZone, InstanceAvailabilityZoneAdmin)
 admin.site.register(models.Instance, InstanceAdmin)
 admin.site.register(models.Backup, BackupAdmin)
 admin.site.register(models.BackupSchedule, BackupScheduleAdmin)
