@@ -373,7 +373,7 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
             raise serializers.ValidationError(_('Volume and instance should belong to the same service and project.'))
         if volume.availability_zone and instance.availability_zone:
             valid_zones = django_settings.WALDUR_OPENSTACK_TENANT['VALID_AVAILABILITY_ZONES']
-            if instance.availability_zone.name not in valid_zones.get(volume.availability_zone.name, []):
+            if valid_zones.get(instance.availability_zone.name) != volume.availability_zone.name:
                 raise serializers.ValidationError(
                     _('Volume cannot be attached to virtual machine related to the other availability zone.'))
         return instance
@@ -900,6 +900,24 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         # floating IPs
         for floating_ip, subnet in floating_ips_with_subnets:
             _connect_floating_ip_to_instance(floating_ip, subnet, instance)
+
+        # Find volume AZ using instance AZ. It is assumed that user can't select arbitrary
+        # combination of volume and instance AZ. Once instance AZ is selected,
+        # volume AZ is taken from settings.
+
+        volume_availability_zone = None
+        if instance.availability_zone:
+            valid_zones = django_settings.WALDUR_OPENSTACK_TENANT['VALID_AVAILABILITY_ZONES']
+            volume_availability_zone_name = valid_zones.get(instance.availability_zone.name)
+            if volume_availability_zone_name:
+                try:
+                    volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
+                        name=volume_availability_zone_name,
+                        settings=instance.service_project_link.service.settings,
+                    )
+                except models.VolumeAvailabilityZone.DoesNotExist:
+                    pass
+
         # volumes
         volumes = []
         system_volume = models.Volume.objects.create(
@@ -909,6 +927,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             image=image,
             image_name=image.name,
             bootable=True,
+            availability_zone=volume_availability_zone,
         )
         volumes.append(system_volume)
 
@@ -917,6 +936,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 name='{0}-data'.format(instance.name[:145]),  # volume name cannot be longer than 150 symbols
                 service_project_link=spl,
                 size=data_volume_size,
+                availability_zone=volume_availability_zone,
             )
             volumes.append(data_volume)
 
