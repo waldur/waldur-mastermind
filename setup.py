@@ -15,7 +15,7 @@ tests_requires = [
 
 setup(
     name='ansible-waldur-module',
-    version='0.9.2',
+    version='0.9.3',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='https://waldur.com',
@@ -24,6 +24,10 @@ setup(
     long_description=open('README.rst').read(),
     py_modules=[
         'waldur_client',
+        'waldur_marketplace',
+        'waldur_marketplace_os_get_instance',
+        'waldur_marketplace_os_instance',
+        'waldur_marketplace_os_volume',
         'waldur_os_floating_ip',
         'waldur_os_get_instance',
         'waldur_os_instance',
@@ -31,7 +35,6 @@ setup(
         'waldur_os_security_group',
         'waldur_os_snapshot',
         'waldur_os_volume',
-        'waldur_marketplace',
     ],
     install_requires=install_requires,
     tests_require=tests_requires,
