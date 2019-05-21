@@ -867,6 +867,6 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
 
 class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeAvailabilityZone.objects.all().order_by('settings', 'name')
-    serializer_class = serializers.VolumeAvailabilitySerializer
+    serializer_class = serializers.VolumeAvailabilityZoneSerializer
     lookup_field = 'uuid'
-    filter_class = filters.VolumeAvailabilityFilter
+    filter_class = filters.VolumeAvailabilityZoneFilter

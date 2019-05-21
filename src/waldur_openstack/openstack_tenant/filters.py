@@ -149,6 +149,6 @@ class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.VolumeType
 
 
-class VolumeAvailabilityFilter(structure_filters.ServicePropertySettingsFilter):
+class VolumeAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.VolumeAvailabilityZone

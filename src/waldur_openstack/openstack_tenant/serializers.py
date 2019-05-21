@@ -1533,7 +1533,7 @@ class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class VolumeAvailabilitySerializer(structure_serializers.BasePropertySerializer):
+class VolumeAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):
     settings = serializers.HyperlinkedRelatedField(
         queryset=structure_models.ServiceSettings.objects.all(),
         view_name='servicesettings-detail',
