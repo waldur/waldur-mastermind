@@ -89,6 +89,11 @@ class SnapshotFilter(structure_filters.BaseResourceFilter):
     )
 
 
+class InstanceAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.InstanceAvailabilityZone
+
+
 class InstanceFilter(structure_filters.BaseResourceFilter):
     external_ip = django_filters.CharFilter(name='internal_ips_set__floating_ips__address')
 

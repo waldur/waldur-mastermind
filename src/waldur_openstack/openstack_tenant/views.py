@@ -385,6 +385,13 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     import_resource_serializer_class = serializers.SnapshotImportSerializer
 
 
+class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.InstanceAvailabilityZone.objects.all().order_by('settings', 'name')
+    serializer_class = serializers.InstanceAvailabilityZoneSerializer
+    lookup_field = 'uuid'
+    filter_class = filters.InstanceAvailabilityZoneFilter
+
+
 class InstanceViewSet(structure_views.ImportableResourceViewSet):
     """
     OpenStack instance permissions

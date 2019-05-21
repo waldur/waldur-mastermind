@@ -253,7 +253,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             'action', 'instance'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'size', 'image', 'type',
+            'size', 'image', 'type', 'availability_zone',
         )
         extra_kwargs = dict(
             instance={'lookup_field': 'uuid', 'view_name': 'openstacktenant-instance-detail'},
@@ -705,6 +705,24 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
     return floating_ip
 
 
+class InstanceAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):
+    settings = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.ServiceSettings.objects.all(),
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.InstanceAvailabilityZone
+        fields = ('url', 'uuid', 'name', 'settings')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'settings': {'lookup_field': 'uuid'},
+        }
+
+
 class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -746,19 +764,30 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     volumes = NestedVolumeSerializer(many=True, required=False, read_only=True)
     action_details = serializers.JSONField(read_only=True)
 
+    availability_zone_name = serializers.CharField(source='availability_zone.name', read_only=True)
+
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
             'flavor', 'image', 'system_volume_size', 'data_volume_size',
             'security_groups', 'internal_ips', 'flavor_disk', 'flavor_name',
             'floating_ips', 'volumes', 'runtime_state', 'action', 'action_details', 'internal_ips_set',
+            'availability_zone', 'availability_zone_name',
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
             'flavor', 'image', 'system_volume_size', 'data_volume_size',
             'floating_ips', 'security_groups', 'internal_ips_set',
+            'availability_zone',
         )
         read_only_fields = structure_serializers.VirtualMachineSerializer.Meta.read_only_fields + (
             'flavor_disk', 'runtime_state', 'flavor_name', 'action',
+        )
+        extra_kwargs = dict(
+            availability_zone={
+                'lookup_field': 'uuid',
+                'view_name': 'openstacktenant-instance-availability-zone-detail'
+            },
+            **structure_serializers.VirtualMachineSerializer.Meta.extra_kwargs
         )
 
     def get_fields(self):
