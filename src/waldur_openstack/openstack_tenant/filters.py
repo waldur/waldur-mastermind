@@ -59,6 +59,8 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
         view_name='openstacktenant-snapshot-detail', name='restoration__snapshot__uuid')
     snapshot_uuid = django_filters.UUIDFilter(name='restoration__snapshot__uuid')
 
+    availability_zone_name = django_filters.CharFilter(name='availability_zone__name')
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Volume
         fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
@@ -96,6 +98,7 @@ class InstanceAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFi
 
 class InstanceFilter(structure_filters.BaseResourceFilter):
     external_ip = django_filters.CharFilter(name='internal_ips_set__floating_ips__address')
+    availability_zone_name = django_filters.CharFilter(name='availability_zone__name')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Instance
