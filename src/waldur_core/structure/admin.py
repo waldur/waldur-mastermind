@@ -19,7 +19,11 @@ from django.utils.translation import ungettext
 import six
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.admin import get_admin_url, ExecutorAdminAction, PasswordWidget, NativeNameAdminMixin, JsonWidget
+from waldur_core.core.admin import (
+    get_admin_url, ExecutorAdminAction, PasswordWidget,
+    NativeNameAdminMixin, JsonWidget, ReadOnlyAdminMixin,
+)
+from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.core.models import User
 from waldur_core.core.tasks import send_task
 from waldur_core.core.validators import BackendURLValidator
@@ -507,6 +511,15 @@ class SharedServiceSettingsAdmin(PrivateServiceSettingsAdmin):
 class ServiceAdmin(admin.ModelAdmin):
     list_display = ('settings', 'customer')
     ordering = ('customer',)
+
+
+class ServicePropertyAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    search_fields = ('name',)
+    list_filter = (
+        ('settings', RelatedOnlyDropdownFilter),
+    )
+    readonly_fields = ('name', 'settings')
+    list_display = ('name', 'settings')
 
 
 class ServiceProjectLinkAdmin(admin.ModelAdmin):
