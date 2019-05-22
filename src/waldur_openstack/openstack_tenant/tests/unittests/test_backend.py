@@ -577,6 +577,61 @@ class PullVolumeTest(BaseBackendTest):
         self.assertEqual(volume.instance, vm)
 
 
+class PullInstanceAvailabilityZonesTest(BaseBackendTest):
+    def test_default_zone_is_not_pulled(self):
+        self.nova_client_mock.availability_zones.list.return_value = [
+            {
+                "zoneName": "nova",
+                "zoneState": {
+                    "available": True
+                }
+            }
+        ]
+        self.tenant_backend.pull_instance_availability_zones()
+        self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 0)
+
+    def test_missing_zone_is_created(self):
+        self.nova_client_mock.availability_zones.list.return_value = [
+            {
+                "zoneName": "AZ_T1",
+                "zoneState": {
+                    "available": True
+                }
+            }
+        ]
+
+        self.tenant_backend.pull_instance_availability_zones()
+        self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 1)
+
+        zone = models.InstanceAvailabilityZone.objects.get()
+        self.assertEqual(zone.name, 'AZ_T1')
+        self.assertTrue(zone.available)
+
+    def test_stale_zone_is_removed(self):
+        zone = self.fixture.instance_availability_zone
+        self.nova_client_mock.availability_zones.list.return_value = []
+
+        self.tenant_backend.pull_instance_availability_zones()
+        self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 0)
+
+    def test_existing_zone_is_updated(self):
+        zone = self.fixture.instance_availability_zone
+        self.nova_client_mock.availability_zones.list.return_value = [
+            {
+                "zoneName": zone.name,
+                "zoneState": {
+                    "available": False
+                }
+            }
+        ]
+
+        self.tenant_backend.pull_instance_availability_zones()
+        self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 1)
+
+        zone = models.InstanceAvailabilityZone.objects.get()
+        self.assertFalse(zone.available)
+
+
 class PullInstanceTest(BaseBackendTest):
 
     def setUp(self):
