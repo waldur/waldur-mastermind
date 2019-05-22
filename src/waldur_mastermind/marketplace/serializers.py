@@ -427,23 +427,26 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                            if component['billing_type'] == models.OfferingComponent.BillingTypes.FIXED}
 
         for plan in attrs.get('plans', []):
+            plan_name = plan.get('name')
+
             prices = plan.get('prices', {})
-            price_components = set(prices.keys())
-            if price_components != valid_types:
+            invalid_components = ', '.join(sorted(set(prices.keys()) - valid_types))
+            if invalid_components:
                 raise serializers.ValidationError({
-                    'plans': _('Invalid price components.')
+                    'plans': _('Invalid price components %s in plan "%s".') % (invalid_components, plan_name)
                 })
 
             quotas = plan.get('quotas', {})
-            # Zero is default value for plan component amount so it is okay to skip it
-            quota_components = {key for (key, value) in quotas.items() if value != 0}
-            if quota_components != fixed_types:
+            invalid_components = ', '.join(sorted(set(quotas.keys()) - fixed_types))
+            if invalid_components:
                 raise serializers.ValidationError({
-                    'plans': _('Invalid quota components.')
+                    'plans': _('Invalid quota components %s in plan "%s".') % (invalid_components, plan_name),
                 })
 
-            plan['unit_price'] = sum(prices[component] * quotas[component]
-                                     for component in fixed_types)
+            plan['unit_price'] = sum(
+                prices.get(component, 0) * quotas.get(component, 0)
+                for component in fixed_types
+            )
 
     def _create_plan(self, offering, plan_data, components):
         quotas = plan_data.pop('quotas', {})
@@ -455,7 +458,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 plan=plan,
                 component=component,
                 amount=quotas.get(name) or 0,
-                price=prices[name],
+                price=prices.get(name) or 0,
             )
 
     def _create_components(self, offering, custom_components):

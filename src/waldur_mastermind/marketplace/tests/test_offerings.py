@@ -388,6 +388,79 @@ class OfferingCreateTest(test.APITransactionTestCase):
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_zero_quotas_are_allowed_for_fixed_components(self):
+        plans_request = {
+            'components': [
+                {
+                    'billing_type': 'fixed',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'type': 'cores',
+                }
+            ],
+            'plans': [
+                {
+                    'name': 'Small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 0},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_zero_price_could_be_skipped_for_fixed_components(self):
+        plans_request = {
+            'components': [
+                {
+                    'billing_type': 'fixed',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'type': 'cores',
+                }
+            ],
+            'plans': [
+                {
+                    'name': 'Small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'quotas': {'cores': 10},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_invalid_price_components_are_not_allowed(self):
+        plans_request = {
+            'components': [
+                {
+                    'billing_type': 'fixed',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'type': 'cores',
+                }
+            ],
+            'plans': [
+                {
+                    'name': 'Small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'quotas': {
+                        'cores': 1,
+                        'invalid_component': 10,
+                    },
+                    'prices': {
+                        'cores': 1,
+                        'invalid_component': 10,
+                    },
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Small' in response.data['plans'][0])
+        self.assertTrue('invalid_component' in response.data['plans'][0])
+
     def test_create_offering_with_options(self):
         response = self.create_offering('staff', attributes=True, add_payload={'options': OFFERING_OPTIONS})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
