@@ -1156,9 +1156,16 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         return self._get_backend_resource(models.Instance, self.get_instances())
 
     @transaction.atomic()
-    def _pull_zones(self, backend_zones, frontend_model):
+    def _pull_zones(self, backend_zones, frontend_model, default_zone='nova'):
         """
         This method is called for Volume and Instance Availability zone synchronization.
+        It is assumed that default zone could not be used for Volume or Instance provisioning.
+        Therefore we do not pull default zone at all. Please note, however, that default zone
+        name could be changed in Nova and Cinder config. We don't support this use case either.
+
+        All availability zones are split into 3 subsets: stale, missing and common.
+        Stale zone are removed, missing zones are created.
+        If zone state has been changed, it is synchronized.
         """
         front_zones_map = {
             zone.name: zone
@@ -1168,6 +1175,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         back_zones_map = {
             zone.zoneName: zone.zoneState.get('available', True)
             for zone in backend_zones
+            if zone.zoneName != default_zone
         }
 
         missing_zones = set(back_zones_map.keys()) - set(front_zones_map.keys())
@@ -1185,14 +1193,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         common_zones = set(front_zones_map.keys()) & set(back_zones_map.keys())
         for zone_name in common_zones:
-            zone = front_zones_map[zone]
-            if zone.available != back_zones_map[zone_name]:
-                zone.available = back_zones_map[zone_name]
+            zone = front_zones_map[zone_name]
+            actual = back_zones_map[zone_name]
+            if zone.available != actual:
+                zone.available = actual
                 zone.save(update_fields=['available'])
 
     def pull_instance_availability_zones(self):
         try:
-            # By default detailed is True, but OS policy for detailed data is disabled.
+            # By default detailed flag is True, but OpenStack policy for detailed data is disabled.
             # Therefore we should explicitly pass detailed=False. Otherwise request fails.
             backend_zones = self.nova_client.availability_zones.list(detailed=False)
         except nova_exceptions.ClientException as e:
