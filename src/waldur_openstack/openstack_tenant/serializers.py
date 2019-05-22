@@ -83,6 +83,23 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
+class BaseAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):
+    settings = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.ServiceSettings.objects.all(),
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        fields = ('url', 'uuid', 'name', 'settings', 'available')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'settings': {'lookup_field': 'uuid'},
+        }
+
+
 class ImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Image
@@ -221,6 +238,11 @@ class VolumeImportSerializer(VolumeImportableSerializer):
         return volume
 
 
+class VolumeAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
+    class Meta(BaseAvailabilityZoneSerializer.Meta):
+        model = models.VolumeAvailabilityZone
+
+
 class VolumeSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -301,6 +323,8 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             if availability_zone and availability_zone.settings != spl.service.settings:
                 raise serializers.ValidationError(
                     _('Availability zone must belong to the same service settings.'))
+            if availability_zone and not availability_zone.available:
+                raise serializers.ValidationError(_('Zone is not available.'))
 
         return attrs
 
@@ -717,22 +741,9 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
     return floating_ip
 
 
-class InstanceAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):
-    settings = serializers.HyperlinkedRelatedField(
-        queryset=structure_models.ServiceSettings.objects.all(),
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
-        allow_null=True,
-        required=False,
-    )
-
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
+class InstanceAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
+    class Meta(BaseAvailabilityZoneSerializer.Meta):
         model = models.InstanceAvailabilityZone
-        fields = ('url', 'uuid', 'name', 'settings')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'settings': {'lookup_field': 'uuid'},
-        }
 
 
 class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
@@ -850,10 +861,12 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         subnets = [internal_ip.subnet for internal_ip in internal_ips]
         _validate_instance_floating_ips(attrs.get('floating_ips', []), settings, subnets)
 
-        instance_availability_zone = attrs.get('availability_zone')
-        if instance_availability_zone and instance_availability_zone.settings != settings:
+        availability_zone = attrs.get('availability_zone')
+        if availability_zone and availability_zone.settings != settings:
             raise serializers.ValidationError(
                 _('Instance and availability zone must belong to the same service settings as service project link.'))
+        if availability_zone and not availability_zone.available:
+            raise serializers.ValidationError(_('Zone is not available.'))
 
         return attrs
 
@@ -871,6 +884,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                     volume_availability_zone = models.VolumeAvailabilityZone.objects.get(
                         name=volume_availability_zone_name,
                         settings=instance.service_project_link.service.settings,
+                        available=True,
                     )
                 except models.VolumeAvailabilityZone.DoesNotExist:
                     pass
@@ -1568,24 +1582,6 @@ class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.VolumeType
         fields = ('url', 'uuid', 'name', 'description', 'settings')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'settings': {'lookup_field': 'uuid'},
-        }
-
-
-class VolumeAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):
-    settings = serializers.HyperlinkedRelatedField(
-        queryset=structure_models.ServiceSettings.objects.all(),
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
-        allow_null=True,
-        required=False,
-    )
-
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.VolumeAvailabilityZone
-        fields = ('url', 'uuid', 'name', 'settings')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'settings': {'lookup_field': 'uuid'},
