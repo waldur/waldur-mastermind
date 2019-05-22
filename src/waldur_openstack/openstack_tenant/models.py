@@ -355,7 +355,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     @classmethod
     def get_backend_fields(cls):
         return super(Instance, cls).get_backend_fields() + ('flavor_name', 'flavor_disk', 'ram', 'cores', 'disk',
-                                                            'runtime_state')
+                                                            'runtime_state', 'availability_zone')
 
     @classmethod
     def get_online_state(cls):

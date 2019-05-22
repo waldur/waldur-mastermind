@@ -598,14 +598,36 @@ class PullInstanceTest(BaseBackendTest):
             fault = {'message': 'OpenStack Nova error.'}
 
             def to_dict(self):
-                return {}
+                return {
+                    'OS-EXT-AZ:availability_zone': 'AZ_TST'
+                }
 
         self.nova_client_mock = mock.Mock()
         self.tenant_backend.nova_client = self.nova_client_mock
 
-        self.nova_client_mock.servers.get.return_value = MockInstance
+        self.nova_client_mock.servers.get.return_value = MockInstance()
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
         self.nova_client_mock.flavors.get.return_value = MockFlavor
+
+    def test_availability_zone_is_pulled(self):
+        zone = self.fixture.instance_availability_zone
+        zone.name = 'AZ_TST'
+        zone.save()
+
+        instance = self.fixture.instance
+
+        self.tenant_backend.pull_instance(instance)
+        instance.refresh_from_db()
+
+        self.assertEqual(instance.availability_zone, zone)
+
+    def test_invalid_availability_zone_is_skipped(self):
+        instance = self.fixture.instance
+
+        self.tenant_backend.pull_instance(instance)
+        instance.refresh_from_db()
+
+        self.assertEqual(instance.availability_zone, None)
 
     def test_error_message_is_synchronized(self):
         instance = self.fixture.instance
