@@ -206,10 +206,13 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
         offering['scope_uuid'] = 'settings_uuid'
         responses.add(responses.GET, self._get_url('marketplace-offerings'), json=[offering])
 
-        self.order = {'uuid': 'order_uuid'}
+        self.order = {'uuid': '9ae5e13294884628aaf984a82214f7c4', 'items': [{'state': 'executing'}]}
 
         url = self._get_url('marketplace-orders')
         responses.add(responses.POST, url, json=self.order, status=201)
+
+        url = self._get_url('marketplace-orders/%s' % self.order['uuid'])
+        responses.add(responses.GET, url, json=self.order, status=200)
 
         url = self._get_url('marketplace-orders/order_uuid/approve')
         responses.add(responses.POST, url, json=self.order, status=200)
