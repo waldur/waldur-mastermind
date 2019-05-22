@@ -633,6 +633,10 @@ class PullInstanceAvailabilityZonesTest(BaseBackendTest):
 
 
 class PullVolumeAvailabilityZonesTest(BaseBackendTest):
+    def setUp(self):
+        super(PullVolumeAvailabilityZonesTest, self).setUp()
+        self.tenant_backend.is_volume_availability_zone_supported = lambda: True
+
     def test_default_zone_is_not_pulled(self):
         self.cinder_client_mock.availability_zones.list.return_value = [
             mock.Mock(**{
