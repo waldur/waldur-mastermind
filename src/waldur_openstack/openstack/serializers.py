@@ -39,6 +39,8 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'tenant_name': '',
         'availability_zone': _('Default availability zone for provisioned instances'),
         'volume_availability_zone_name': _('Default availability zone name for provisioned volumes'),
+        'valid_availability_zones': _('Optional dictionary where key is Nova availability '
+                                      'zone name and value is Cinder availability zone name.'),
         'external_network_id': _('ID of OpenStack external network that will be connected to tenants'),
         'latitude': _('Latitude of the datacenter (e.g. 40.712784)'),
         'longitude': _('Longitude of the datacenter (e.g. -74.005941)'),

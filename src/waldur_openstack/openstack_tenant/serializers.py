@@ -21,6 +21,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
+from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
 from . import models, fields
 
@@ -39,8 +40,6 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'tenant_id': _('Tenant ID in OpenStack'),
         'availability_zone': _('Default availability zone for provisioned instances'),
-        'valid_availability_zones': _('Optional dictionary where key is Nova availability '
-                                      'zone name and value is Cinder availability zone name.'),
         'flavor_exclude_regex': _('Flavors matching this regex expression will not be pulled from the backend.'),
         'external_network_id': _('It is used to automatically assign floating IP to your virtual machine.'),
         'console_type': _('The type of remote console. '
@@ -397,7 +396,7 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
         if instance.service_project_link != volume.service_project_link:
             raise serializers.ValidationError(_('Volume and instance should belong to the same service and project.'))
         if volume.availability_zone and instance.availability_zone:
-            valid_zones = volume.service_project_link.service.settings.options.get('valid_availability_zones', {})
+            valid_zones = get_valid_availability_zones(volume)
             if valid_zones and valid_zones.get(instance.availability_zone.name) != volume.availability_zone.name:
                 raise serializers.ValidationError(
                     _('Volume cannot be attached to virtual machine related to the other availability zone.'))
@@ -876,7 +875,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         # volume AZ is taken from settings.
 
         volume_availability_zone = None
-        valid_zones = instance.service_project_link.service.settings.options.get('valid_availability_zones', {})
+        valid_zones = get_valid_availability_zones(instance)
         if instance.availability_zone and valid_zones:
             volume_availability_zone_name = valid_zones.get(instance.availability_zone.name)
             if volume_availability_zone_name:
