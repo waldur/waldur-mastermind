@@ -1092,7 +1092,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if availability_zone_name:
                 availability_zone = models.InstanceAvailabilityZone.objects.get(
                     name=availability_zone_name, settings=self.settings)
-        except models.InstanceAvailabilityZone.DoesNotExist:
+        except (KeyError, ValueError, TypeError, models.InstanceAvailabilityZone.DoesNotExist):
             pass
 
         instance = models.Instance(
@@ -1157,7 +1157,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     def pull_instance_availability_zones(self):
         try:
-            backend_availability_zones = self.nova_client.availability_zones.list()
+            # By default detailed is True, but OS policy for detailed data is disabled.
+            # Therefore we should explicitly pass detailed=False. Otherwise request fails.
+            backend_availability_zones = self.nova_client.availability_zones.list(detailed=False)
         except nova_exceptions.ClientException as e:
             reraise(e)
 
