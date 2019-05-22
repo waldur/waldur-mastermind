@@ -123,7 +123,8 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
             }
             nova_zones = models.InstanceAvailabilityZone.objects.filter(
                 settings=volume.service_project_link.service.settings,
-                name__in=zone_names
+                name__in=zone_names,
+                available=True,
             )
             queryset = queryset.filter(availability_zone__in=nova_zones)
         return queryset
