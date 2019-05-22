@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import uuid
+
 from ddt import data, ddt
 from django.test import TestCase
 from cinderclient.v2.volumes import Volume
@@ -1069,3 +1071,37 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 
         fip.refresh_from_db()
         self.assertEqual(ip2, fip.internal_ip)
+
+
+class CreateInstanceTest(VolumesBaseTest):
+    def setUp(self):
+        super(CreateInstanceTest, self).setUp()
+        self.flavor_id = 'small_flavor'
+        backend_flavor = self._get_valid_flavor(self.flavor_id)
+        self.nova_client_mock.flavors.get.return_value = backend_flavor
+        self.nova_client_mock.servers.create.return_value.id = uuid.uuid4()
+
+    def test_zone_name_is_passed_to_nova_client(self):
+        # Arrange
+        zone = self.fixture.instance_availability_zone
+        vm = self.fixture.instance
+        vm.availability_zone = zone
+        vm.save()
+
+        # Act
+        self.tenant_backend.create_instance(vm, self.flavor_id)
+
+        # Assert
+        kwargs = self.nova_client_mock.servers.create.mock_calls[0][2]
+        self.assertEqual(kwargs['availability_zone'], zone.name)
+
+    def test_default_zone_name_is_passed_to_nova_client(self):
+        # Arrange
+        self.settings.options['availability_zone'] = 'default_availability_zone'
+
+        # Act
+        self.tenant_backend.create_instance(self.fixture.instance, self.flavor_id)
+
+        # Assert
+        kwargs = self.nova_client_mock.servers.create.mock_calls[0][2]
+        self.assertEqual(kwargs['availability_zone'], 'default_availability_zone')
