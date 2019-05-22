@@ -206,10 +206,13 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
         offering['scope_uuid'] = 'settings_uuid'
         responses.add(responses.GET, self._get_url('marketplace-offerings'), json=[offering])
 
-        self.order = {'uuid': 'order_uuid'}
+        self.order = {'uuid': '9ae5e13294884628aaf984a82214f7c4', 'items': [{'state': 'executing'}]}
 
         url = self._get_url('marketplace-orders')
         responses.add(responses.POST, url, json=self.order, status=201)
+
+        url = self._get_url('marketplace-orders/%s' % self.order['uuid'])
+        responses.add(responses.GET, url, json=self.order, status=200)
 
         url = self._get_url('marketplace-orders/order_uuid/approve')
         responses.add(responses.POST, url, json=self.order, status=200)
@@ -282,6 +285,14 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
         self.create_instance()
         self.assertEqual(1, len([call for call in responses.calls
                                  if call.request.url == self.instance_url]))
+
+    @responses.activate
+    def test_raise_exception_if_order_item_state_is_erred(self):
+        self.order['items'][0]['state'] = 'erred'
+        self.order['items'][0]['error_message'] = 'error message'
+        url = self._get_url('marketplace-orders/%s' % self.order['uuid'])
+        responses.replace(responses.GET, url, json=self.order, status=200)
+        self.assertRaises(WaldurClientException, self.create_instance)
 
     def create_instance(self):
         self.client.create_instance_via_marketplace(**self.params)

@@ -895,11 +895,16 @@ class WaldurClient(object):
                 'WALDUR_CHECK_MODE': True
             }
 
-        self.create_marketplace_order(project, offering['uuid'], attributes=attributes)
+        order = self.create_marketplace_order(project, offering['uuid'], attributes=attributes)
+        order_uuid = order['uuid']
         scope = None
         waited = 0
         while not scope:
             time.sleep(interval)
+            order = self._get_resource(WaldurClient.Endpoints.MarketplaceOrder, order_uuid)
+            if order['items'][0]['state'] == 'erred':
+                raise InvalidStateError(order['items'][0]['error_message'])
+
             try:
                 resource, scope = self.get_marketplace_resource_scope(name, offering_type, project)
             except ObjectDoesNotExist:
