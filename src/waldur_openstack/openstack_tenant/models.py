@@ -255,6 +255,7 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
 @python_2_unicode_compatible
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
     settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    available = models.BooleanField(default=True)
 
     class Meta(object):
         unique_together = ('settings', 'name')
