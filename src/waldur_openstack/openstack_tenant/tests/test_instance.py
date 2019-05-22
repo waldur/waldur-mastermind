@@ -18,6 +18,47 @@ from . import factories, fixtures, helpers
 from .. import executors, models, views
 
 
+class InstanceFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.url = factories.InstanceFactory.get_list_url()
+
+    def test_filter_instance_by_valid_volume_uuid(self):
+        self.fixture.instance
+        response = self.client.get(self.url, {'attach_volume_uuid': self.fixture.volume.uuid})
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_instance_by_invalid_volume_uuid(self):
+        self.fixture.instance
+        response = self.client.get(self.url, {'attach_volume_uuid': 'invalid'})
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_instance_by_availability_zone(self):
+        vm_az = self.fixture.instance_availability_zone
+        vm = self.fixture.instance
+        vm.availability_zone = vm_az
+        vm.save()
+
+        volume_az = self.fixture.volume_availability_zone
+        volume = self.fixture.volume
+        volume.availability_zone = volume_az
+        volume.save()
+
+        private_settings = self.fixture.openstack_tenant_service_settings
+        shared_settings = private_settings.scope.service_settings
+
+        shared_settings.options = {
+            'valid_availability_zones': {
+                vm_az.name: volume_az.name
+            }
+        }
+        shared_settings.save()
+
+        response = self.client.get(self.url, {'attach_volume_uuid': volume.uuid})
+        self.assertEqual(len(response.data), 1)
+
+
 @ddt
 class InstanceCreateTest(test.APITransactionTestCase):
     def setUp(self):
