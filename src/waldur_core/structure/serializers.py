@@ -835,6 +835,9 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
             'url': {'lookup_field': 'uuid'},
         }
 
+    def validate_name(self, value):
+        return value.strip()
+
     def validate_public_key(self, value):
         value = value.strip()
         if len(value.splitlines()) > 1:

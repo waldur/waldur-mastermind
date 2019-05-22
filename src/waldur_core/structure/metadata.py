@@ -105,8 +105,7 @@ class ActionsMetadata(SimpleMetadata):
         for action_name, action in actions.items():
             if action_name == 'update':
                 view.request = clone_request(request, 'PUT')
-            else:
-                view.action = action_name
+            view.action = action_name
 
             data = ActionSerializer(action, action_name, request, view, resource)
             metadata[action_name] = data.serialize()

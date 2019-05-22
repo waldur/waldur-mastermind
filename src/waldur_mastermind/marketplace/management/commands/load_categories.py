@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import os
 
 from django.core.management.base import BaseCommand
@@ -33,8 +36,7 @@ available_categories = {
     'security': ('Security', 'Security services'),
     'storage': ('Storage', 'Data preservation'),
     # devices
-    'microscope': ('Microscope', 'Available microscopes'),
-    'spectrometry': ('Spectrometry', 'Available spectrometers'),
+    'measurement_devices': ('Measurement systems', 'Available measurement devices'),
 }
 
 category_columns = {
@@ -135,24 +137,21 @@ collocation_sections = {
     ],
 }
 
-spectrometry_sections = {
+measurement_devices_sections = {
     'properties': [
-        ('spectrometry_type', 'Type', 'choice'),
-        ('spectrometry_spectrum', 'Spectrum', 'choice'),
+        ('measurement_devices_type', 'Type', 'choice'),
+        ('measurement_devices_sample_matrix', 'Sample matrix', 'list'),
+        ('measurement_devices_principle', 'Measurement principle', 'list'),
     ],
     'model': [
-        ('spectrometry_mark', 'Mark', 'string'),
-        ('spectrometry_model', 'Model', 'string'),
-        ('spectrometry_manufacturer', 'Manufacturer', 'string')
+        ('measurement_devices_mark', 'Mark', 'string'),
+        ('measurement_devices_model', 'Model', 'string'),
+        ('measurement_devices_manufacturer', 'Manufacturer', 'string')
     ],
-}
-
-microscope_sections = {
-    'model': [
-        ('microscope_mark', 'Mark', 'string'),
-        ('microscope_model', 'Model', 'string'),
-        ('microscope_manufacturer', 'Manufacturer', 'string')
-    ],
+    'usage_info': [
+        ('measurement_devices_routine_application', 'Routine applications', 'text'),
+        ('measurement_devices_additional_components', 'Additional components', 'list')
+    ]
 }
 
 computing_common_sections = {
@@ -250,12 +249,11 @@ specific_sections = {
     'consultancy': merge_two_dicts(common_expert_sections, consultancy_sections),
     'email': email_sections,
     'hpc': hpc_sections,
-    'microscope': microscope_sections,
     'operations': merge_two_dicts(common_expert_sections, operations_sections),
     'vm': merge_two_dicts(computing_common_sections, vm_sections),
     'vpc': merge_two_dicts(computing_common_sections, vpc_sections),
     'security': security_sections,
-    'spectrometry': spectrometry_sections,
+    'measurement_devices': measurement_devices_sections,
     'storage': storage_sections,
 }
 
@@ -317,14 +315,32 @@ enums = {
         ('vmware', 'VMware'),
         ('Baremetal', 'Baremetal'),
     ],
-    'spectrometry_type': [
+    'measurement_devices_type': [
         ('aas', 'Atomic Absorption Spectrometer'),
         ('spectrophotometer', 'Spectrophotometer'),
         ('spectrometers', 'Spectrometers'),
     ],
-    'spectrometry_spectrum': [
-        ('visible', 'Visible'),
-        ('infrared', 'Infrared'),
+    'measurement_devices_sample_matrix': [
+        ('liquids', 'Liquids'),
+        ('solds', 'Solids'),
+    ],
+    'measurement_devices_principle': [
+        ('x-ray-diffraction', 'X-ray diffraction'),
+        ('chromatography', 'Chromatography'),
+        ('mass-spectrometry ', 'Mass-spectrometry'),
+        ('electrophoresis', 'Electrophoresis'),
+        ('magnetic-resonance', 'Magnetic resonance'),
+        ('physical-properties', 'Physical properties'),
+        ('infrapuna-spektromeeter', 'Infrapuna spektromeeter'),
+        ('thz-radiation-amplitude-and-phase', 'Measurement of THz radiation amplitude and phase'),
+    ],
+    'measurement_devices_additional_components': [
+        ('autosampler-with-cooling', 'Autosampler with cooling'),
+        ('autosampler', 'Autosampler'),
+        ('photodiode-array-detector', 'Photodiode array detector (PDA)'),
+        ('column-thermostate', 'Column thermostate'),
+        ('flame-ionization-detector', 'Flame ionization detector (FID)'),
+        ('thermal-conductivity-detector', 'Thermal conductivity detector (TCD)')
     ],
     'scope_of_services': [
         ('analysis', 'Analysis'),

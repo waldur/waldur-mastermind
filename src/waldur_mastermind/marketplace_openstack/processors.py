@@ -115,6 +115,7 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
         'description',
         'image',
         'size',
+        'availability_zone',
     )
 
 

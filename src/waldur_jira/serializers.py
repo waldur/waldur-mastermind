@@ -23,6 +23,7 @@ class ServiceSerializer(structure_serializers.BaseServiceSerializer):
         'backend_url': 'JIRA host (e.g. https://jira.example.com/)',
         'username': 'JIRA user with excessive privileges',
         'password': '',
+        'token': '',
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
