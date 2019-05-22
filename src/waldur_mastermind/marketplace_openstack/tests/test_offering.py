@@ -99,10 +99,9 @@ class PlanComponentsTest(test.APITransactionTestCase):
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(offering.plans.first().components.count(), 3)
 
-    def test_plan_without_components_is_invalid(self):
+    def test_plan_without_components_is_valid(self):
         response = self.create_offering(False)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('plans' in response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_total_price_is_calculated_from_components(self):
         response = self.create_offering()
