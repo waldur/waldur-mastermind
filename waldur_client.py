@@ -836,8 +836,26 @@ class WaldurClient(object):
         if wait:
             self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
 
-    def _get_offering(self, identifier):
-        return self._get_resource(self.Endpoints.MarketplaceOffering, identifier)
+    def _get_offering(self, offering, project=None):
+        """
+        Get marketplace offering.
+
+        :param offering: the name or UUID of the offering.
+        :param project: the name or UUID of the project. It is required if offering is not UUID.
+        :return: marketplace offering.
+        """
+        if is_uuid(offering):
+            return self._get_resource(self.Endpoints.MarketplaceOffering, offering)
+        elif project:
+            if is_uuid(project):
+                project_uuid = project
+            else:
+                project = self._get_resource(self.Endpoints.Project, project)
+                project_uuid = project['uuid']
+
+            return self._get_resource(self.Endpoints.MarketplaceOffering, offering, {'project_uuid': project_uuid})
+        else:
+            return
 
     def _get_plan(self, identifier):
         return self._get_resource(self.Endpoints.MarketplacePlan, identifier)
@@ -853,15 +871,15 @@ class WaldurClient(object):
         :param limits: order item limits.
         """
         project_url = self._get_project(project)['url']
-        offering_url = self._get_offering(offering)['url']
+        offering_url = self._get_offering(offering, project)['url']
 
         attributes = attributes or {}
         limits = limits or {}
         order_item = {
-                'offering': offering_url,
-                'attributes': attributes,
-                'limits': limits,
-            }
+            'offering': offering_url,
+            'attributes': attributes,
+            'limits': limits,
+        }
 
         if plan:
             plan_url = self._get_plan(plan)['url']
@@ -879,13 +897,27 @@ class WaldurClient(object):
             offering,
             project,
             attributes,
-            offering_type,
             scope_endpoint,
             interval=10,
             timeout=600,
             wait=True,
             check_mode=False):
-        offering = self._get_resource(self.Endpoints.MarketplaceOffering, offering)
+        """
+        Create marketplace resource scope via marketplace.
+
+        :param name: the name of scope.
+        :param offering: the name or UUID of marketplace offering.
+        :param project: the name or UUID of the project.
+        :param attributes: order item attributes.
+        :param scope_endpoint: scope endpoint.
+        :param interval: interval of instance state polling in seconds.
+        :param timeout: a maximum amount of time to wait for instance provisioning.
+        :param wait: defines whether the client has to wait for instance provisioning.
+        :param check_mode: True for check mode.
+        :return: scope.
+        """
+        offering = self._get_offering(offering, project)
+        offering_type = offering['type']
         
         if check_mode:
             return {
@@ -965,7 +997,7 @@ class WaldurClient(object):
         :param user_data: additional data that will be added to the instance.
         :return: an instance as a dictionary.
         """
-        offering = self._get_resource(self.Endpoints.MarketplaceOffering, offering)
+        offering = self._get_offering(offering, project)
         settings_uuid = offering['scope_uuid']
 
         # Collect attributes
@@ -1007,7 +1039,6 @@ class WaldurClient(object):
             offering['uuid'],
             project,
             attributes,
-            offering_type='OpenStackTenant.Instance',
             scope_endpoint=self.Endpoints.Instance,
             interval=interval,
             timeout=timeout,
@@ -1073,7 +1104,6 @@ class WaldurClient(object):
             offering,
             project,
             attributes,
-            offering_type='OpenStackTenant.Volume',
             scope_endpoint=self.Endpoints.Volume,
             interval=interval,
             timeout=timeout,
