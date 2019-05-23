@@ -204,6 +204,7 @@ class InstanceCreateViaMarketplaceTest(InstanceCreateBaseTest):
 
         offering = self._get_object('offering')
         offering['scope_uuid'] = 'settings_uuid'
+        offering['type'] = 'OpenStackTenant.Instance'
         responses.add(responses.GET, self._get_url('marketplace-offerings'), json=[offering])
 
         self.order = {'uuid': '9ae5e13294884628aaf984a82214f7c4', 'items': [{'state': 'executing'}]}
