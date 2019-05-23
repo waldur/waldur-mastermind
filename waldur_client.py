@@ -836,8 +836,17 @@ class WaldurClient(object):
         if wait:
             self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
 
-    def _get_offering(self, identifier):
-        return self._get_resource(self.Endpoints.MarketplaceOffering, identifier)
+    def _get_offering(self, identifier, project):
+        if is_uuid(identifier):
+            return self._get_resource(self.Endpoints.MarketplaceOffering, identifier)
+        else:
+            if is_uuid(project):
+                project_uuid = project
+            else:
+                project = self._get_resource(self.Endpoints.Project, project)
+                project_uuid = project['uuid']
+
+            return self._get_resource(self.Endpoints.MarketplaceOffering, identifier, {'project_uuid': project_uuid})
 
     def _get_plan(self, identifier):
         return self._get_resource(self.Endpoints.MarketplacePlan, identifier)
@@ -853,7 +862,7 @@ class WaldurClient(object):
         :param limits: order item limits.
         """
         project_url = self._get_project(project)['url']
-        offering_url = self._get_offering(offering)['url']
+        offering_url = self._get_offering(offering, project)['url']
 
         attributes = attributes or {}
         limits = limits or {}
@@ -885,7 +894,8 @@ class WaldurClient(object):
             timeout=600,
             wait=True,
             check_mode=False):
-        offering = self._get_resource(self.Endpoints.MarketplaceOffering, offering)
+
+        offering = self._get_offering(offering, project)
         
         if check_mode:
             return {
@@ -965,7 +975,7 @@ class WaldurClient(object):
         :param user_data: additional data that will be added to the instance.
         :return: an instance as a dictionary.
         """
-        offering = self._get_resource(self.Endpoints.MarketplaceOffering, offering)
+        offering = self._get_offering(offering, project)
         settings_uuid = offering['scope_uuid']
 
         # Collect attributes
