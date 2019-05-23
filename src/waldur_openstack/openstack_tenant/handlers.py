@@ -6,6 +6,7 @@ from django.core import exceptions as django_exceptions
 from django.db import transaction, IntegrityError
 
 from waldur_core.core.models import StateMixin
+from waldur_core.quotas.models import Quota
 from waldur_core.structure import models as structure_models
 
 from ..openstack import models as openstack_models, apps as openstack_apps
@@ -466,3 +467,19 @@ def update_service_settings(sender, instance, created=False, **kwargs):
 def sync_price_list_item_for_flavor(sender, instance, created=False, **kwargs):
     if created:
         utils.sync_price_list_item(instance)
+
+
+def sync_private_settings_quotas_with_tenant_quotas(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    quota = instance
+    if not isinstance(quota.scope, openstack_models.Tenant):
+        return
+
+    tenant = quota.scope
+    private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
+
+    Quota.objects\
+        .filter(scope__in=private_settings, name=quota.name)\
+        .update(limit=quota.limit, usage=quota.usage)
