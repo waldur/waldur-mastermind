@@ -152,6 +152,32 @@ class VolumeAttachTestCase(test.APITransactionTestCase):
         response = self.get_response()
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
+    def test_volume_AZ_should_match_instance_AZ(self):
+        volume_az = self.fixture.volume_availability_zone
+        self.volume.availability_zone = volume_az
+        self.volume.state = models.Volume.States.OK
+        self.volume.runtime_state = 'available'
+        self.volume.save()
+
+        instance_az = self.fixture.instance_availability_zone
+        self.instance.availability_zone = instance_az
+        self.instance.state = models.Instance.States.OK
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+
+        private_settings = self.fixture.openstack_tenant_service_settings
+        shared_settings = private_settings.scope.service_settings
+
+        shared_settings.options = {
+            'valid_availability_zones': {
+                instance_az.name: volume_az.name
+            }
+        }
+        shared_settings.save()
+
+        response = self.get_response()
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
 
 class VolumeSnapshotTestCase(test.APITransactionTestCase):
     def setUp(self):
@@ -341,6 +367,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.spl_url = factories.OpenStackTenantServiceProjectLinkFactory.get_url(self.fixture.spl)
         self.type = factories.VolumeTypeFactory(settings=self.settings)
         self.type_url = factories.VolumeTypeFactory.get_url(self.type)
+        self.client.force_authenticate(self.fixture.owner)
 
     def create_volume(self, **extra):
         payload = {
@@ -351,7 +378,6 @@ class VolumeCreateTest(test.APITransactionTestCase):
         payload.update(extra)
 
         url = factories.VolumeFactory.get_list_url()
-        self.client.force_authenticate(self.fixture.owner)
         return self.client.post(url, payload)
 
     def test_image_name_populated_on_volume_creation(self):
