@@ -15,6 +15,7 @@ class OpenStackTenantConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas.fields import QuotaField, TotalQuotaField
+        from waldur_core.quotas.models import Quota
         from waldur_core.structure.models import ServiceSettings, Project, Customer
         from waldur_core.structure import SupportedServices
         from waldur_openstack.openstack.models import Tenant
@@ -35,6 +36,12 @@ class OpenStackTenantConfig(AppConfig):
                         service_settings.type == OpenStackTenantConfig.service_name
                 )
             )
+
+        signals.post_save.connect(
+            handlers.sync_private_settings_quotas_with_tenant_quotas,
+            sender=Quota,
+            dispatch_uid='openstack_tenant.handlers.sync_private_settings_quotas_with_tenant_quotas',
+        )
 
         Project.add_quota_field(
             name='os_cpu_count',
