@@ -836,10 +836,10 @@ class WaldurClient(object):
         if wait:
             self._wait_for_resource(self.Endpoints.Instance, instance_uuid, interval, timeout)
 
-    def _get_offering(self, identifier, project):
+    def _get_offering(self, identifier, project=None):
         if is_uuid(identifier):
             return self._get_resource(self.Endpoints.MarketplaceOffering, identifier)
-        else:
+        elif project:
             if is_uuid(project):
                 project_uuid = project
             else:
@@ -847,6 +847,8 @@ class WaldurClient(object):
                 project_uuid = project['uuid']
 
             return self._get_resource(self.Endpoints.MarketplaceOffering, identifier, {'project_uuid': project_uuid})
+        else:
+            return
 
     def _get_plan(self, identifier):
         return self._get_resource(self.Endpoints.MarketplacePlan, identifier)
