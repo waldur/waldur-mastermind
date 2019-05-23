@@ -311,6 +311,66 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['volumes'][0]['type_name'], volume_type.name)
 
+    def test_user_can_define_instance_availability_zone(self):
+        zone = self.openstack_tenant_fixture.instance_availability_zone
+        data = self.get_valid_data(
+            availability_zone=factories.InstanceAvailabilityZoneFactory.get_url(zone))
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data['uuid'])
+        self.assertEqual(instance.availability_zone, zone)
+
+    def test_availability_zone_should_be_available(self):
+        zone = self.openstack_tenant_fixture.instance_availability_zone
+        zone.available = False
+        zone.save()
+        data = self.get_valid_data(
+            availability_zone=factories.InstanceAvailabilityZoneFactory.get_url(zone))
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_availability_zone_should_be_related_to_the_same_service_settings(self):
+        zone = factories.InstanceAvailabilityZoneFactory()
+        data = self.get_valid_data(
+            availability_zone=factories.InstanceAvailabilityZoneFactory.get_url(zone))
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_volume_AZ_should_be_matched_with_instance_AZ(self):
+        # Arrange
+        vm_az = self.openstack_tenant_fixture.instance_availability_zone
+        volume_az = self.openstack_tenant_fixture.volume_availability_zone
+
+        private_ss = self.openstack_tenant_fixture.openstack_tenant_service_settings
+        shared_ss = private_ss.scope.service_settings
+
+        shared_ss.options = {
+            'valid_availability_zones': {
+                vm_az.name: volume_az.name
+            }
+        }
+        shared_ss.save()
+
+        vm_az_url = factories.InstanceAvailabilityZoneFactory.get_url(vm_az)
+        data = self.get_valid_data(availability_zone=vm_az_url)
+
+        # Act
+        response = self.client.post(self.url, data)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        instance = models.Instance.objects.get(uuid=response.data['uuid'])
+
+        self.assertEqual(instance.availability_zone, vm_az)
+        self.assertEqual(instance.volumes.first().availability_zone, volume_az)
+        self.assertEqual(instance.volumes.last().availability_zone, volume_az)
+
 
 class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def setUp(self):

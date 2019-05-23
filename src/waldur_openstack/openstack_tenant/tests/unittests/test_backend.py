@@ -711,7 +711,8 @@ class PullInstanceTest(BaseBackendTest):
             status = 'ERRED'
             fault = {'message': 'OpenStack Nova error.'}
 
-            def to_dict(self):
+            @classmethod
+            def to_dict(cls):
                 return {
                     'OS-EXT-AZ:availability_zone': 'AZ_TST'
                 }
@@ -719,7 +720,7 @@ class PullInstanceTest(BaseBackendTest):
         self.nova_client_mock = mock.Mock()
         self.tenant_backend.nova_client = self.nova_client_mock
 
-        self.nova_client_mock.servers.get.return_value = MockInstance()
+        self.nova_client_mock.servers.get.return_value = MockInstance
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
         self.nova_client_mock.flavors.get.return_value = MockFlavor
 
