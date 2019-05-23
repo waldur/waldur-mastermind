@@ -1504,7 +1504,7 @@ class BaseResourceSerializer(six.with_metaclass(ResourceSerializerMetaclass,
         # skip validation on object update
         if not self.instance:
             service_type = SupportedServices.get_model_key(self.Meta.model)
-            if not fields['service_settings'].read_only:
+            if 'service_settings' in fields and not fields['service_settings'].read_only:
                 queryset = fields['service_settings'].queryset.filter(type=service_type)
                 fields['service_settings'].queryset = queryset
         return fields

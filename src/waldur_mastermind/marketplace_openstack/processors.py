@@ -100,6 +100,7 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
         'volumes',
         'ssh_public_key',
         'user_data',
+        'availability_zone',
     )
 
 
