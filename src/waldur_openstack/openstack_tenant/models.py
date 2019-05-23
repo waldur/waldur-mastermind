@@ -252,6 +252,22 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
         project_path = 'snapshot__service_project_link__project'
 
 
+@python_2_unicode_compatible
+class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
+    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    available = models.BooleanField(default=True)
+
+    class Meta(object):
+        unique_together = ('settings', 'name')
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstacktenant-instance-availability-zone'
+
+
 class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     class RuntimeStates(object):
@@ -282,6 +298,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='instances', on_delete=models.PROTECT)
 
+    availability_zone = models.ForeignKey(InstanceAvailabilityZone, blank=True, null=True, on_delete=models.SET_NULL)
     flavor_name = models.CharField(max_length=255, blank=True)
     flavor_disk = models.PositiveIntegerField(default=0, help_text=_('Flavor disk size in MiB'))
     security_groups = models.ManyToManyField(SecurityGroup, related_name='instances')
@@ -338,7 +355,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     @classmethod
     def get_backend_fields(cls):
         return super(Instance, cls).get_backend_fields() + ('flavor_name', 'flavor_disk', 'ram', 'cores', 'disk',
-                                                            'runtime_state')
+                                                            'runtime_state', 'availability_zone')
 
     @classmethod
     def get_online_state(cls):
@@ -500,6 +517,7 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
 @python_2_unicode_compatible
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
     settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    available = models.BooleanField(default=True)
 
     class Meta(object):
         unique_together = ('settings', 'name')

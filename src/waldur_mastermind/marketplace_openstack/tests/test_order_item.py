@@ -295,10 +295,22 @@ class TenantUpdateTest(TenantMutateTest):
 
 
 class InstanceCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.service_settings = self.fixture.openstack_tenant_service_settings
+
     def test_instance_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_instance_creation()
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
         self.assertTrue(openstack_tenant_models.Instance.objects.filter(name='Virtual machine').exists())
+
+    def test_availability_zone_is_passed_to_plugin(self):
+        availability_zone = openstack_tenant_factories.InstanceAvailabilityZoneFactory(
+            settings=self.fixture.openstack_tenant_service_settings)
+        az_url = openstack_tenant_factories.InstanceAvailabilityZoneFactory.get_url(
+            availability_zone)
+        order_item = self.trigger_instance_creation(availability_zone=az_url)
+        self.assertEqual(order_item.resource.scope.availability_zone, availability_zone)
 
     def test_request_payload_is_validated(self):
         order_item = self.trigger_instance_creation(system_volume_size=100)
@@ -330,17 +342,14 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertTrue(marketplace_models.Resource.objects.filter(scope=volume).exists())
 
     def trigger_instance_creation(self, **kwargs):
-        fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
-        service_settings = fixture.openstack_tenant_service_settings
-
         image = openstack_tenant_factories.ImageFactory(
-            settings=service_settings,
+            settings=self.service_settings,
             min_disk=10240,
             min_ram=1024
         )
-        flavor = openstack_tenant_factories.FlavorFactory(settings=service_settings)
+        flavor = openstack_tenant_factories.FlavorFactory(settings=self.service_settings)
 
-        subnet_url = openstack_tenant_factories.SubNetFactory.get_url(fixture.subnet)
+        subnet_url = openstack_tenant_factories.SubNetFactory.get_url(self.fixture.subnet)
         attributes = {
             'flavor': openstack_tenant_factories.FlavorFactory.get_url(flavor),
             'image': openstack_tenant_factories.ImageFactory.get_url(image),
@@ -348,17 +357,17 @@ class InstanceCreateTest(test.APITransactionTestCase):
             'system_volume_size': image.min_disk,
             'internal_ips_set': [{'subnet': subnet_url}],
             'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(
-                structure_factories.SshPublicKeyFactory(user=fixture.manager)
+                structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
             ),
         }
         attributes.update(kwargs)
 
-        offering = marketplace_factories.OfferingFactory(type=INSTANCE_TYPE, scope=service_settings)
-        marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=service_settings)
+        offering = marketplace_factories.OfferingFactory(type=INSTANCE_TYPE, scope=self.service_settings)
+        marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=self.service_settings)
         # Ensure that SPL exists
-        fixture.spl
+        self.fixture.spl
         order = marketplace_factories.OrderFactory(
-            project=fixture.project,
+            project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
         )
         order_item = marketplace_factories.OrderItemFactory(
@@ -368,7 +377,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(fixture.owner)
+        serialized_user = core_utils.serialize_instance(self.fixture.owner)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         order_item.refresh_from_db()
@@ -418,10 +427,22 @@ class InstanceDeleteTest(test.APITransactionTestCase):
 
 
 class VolumeCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.service_settings = self.fixture.openstack_tenant_service_settings
+
     def test_volume_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_volume_creation()
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
         self.assertTrue(openstack_tenant_models.Volume.objects.filter(name='Volume').exists())
+
+    def test_availability_zone_is_passed_to_plugin(self):
+        availability_zone = openstack_tenant_factories.VolumeAvailabilityZoneFactory(
+            settings=self.fixture.openstack_tenant_service_settings)
+        az_url = openstack_tenant_factories.VolumeAvailabilityZoneFactory.get_url(
+            availability_zone)
+        order_item = self.trigger_volume_creation(availability_zone=az_url)
+        self.assertEqual(order_item.resource.scope.availability_zone, availability_zone)
 
     def test_request_payload_is_validated(self):
         order_item = self.trigger_volume_creation(size=100)
@@ -441,11 +462,8 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.assertEqual(order_item.state, order_item.States.DONE)
 
     def trigger_volume_creation(self, **kwargs):
-        fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
-        service_settings = fixture.openstack_tenant_service_settings
-
         image = openstack_tenant_factories.ImageFactory(
-            settings=service_settings,
+            settings=self.service_settings,
             min_disk=10240,
             min_ram=1024
         )
@@ -457,7 +475,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
         }
         attributes.update(kwargs)
 
-        offering = marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=service_settings)
+        offering = marketplace_factories.OfferingFactory(type=VOLUME_TYPE, scope=self.service_settings)
 
         order_item = marketplace_factories.OrderItemFactory(offering=offering, attributes=attributes)
         order_item.order.approve()
@@ -465,7 +483,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
 
         service = openstack_tenant_models.OpenStackTenantService.objects.create(
             customer=order_item.order.project.customer,
-            settings=service_settings,
+            settings=self.service_settings,
         )
 
         openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.create(
@@ -474,7 +492,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
         )
 
         serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(fixture.staff)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         order_item.refresh_from_db()

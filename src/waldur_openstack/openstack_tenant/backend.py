@@ -183,6 +183,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_floating_ips()
         self.pull_volume_types()
         self.pull_volume_availability_zones()
+        self.pull_instance_availability_zones()
 
     def pull_resources(self):
         self.pull_volumes()
@@ -883,9 +884,13 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 nics=nics,
                 key_name=backend_public_key.name if backend_public_key is not None else None,
             )
-            availability_zone = self.settings.options.get('availability_zone')
-            if availability_zone:
-                server_create_parameters['availability_zone'] = availability_zone
+            if instance.availability_zone:
+                server_create_parameters['availability_zone'] = instance.availability_zone.name
+            else:
+                availability_zone = self.settings.options.get('availability_zone')
+                if availability_zone:
+                    server_create_parameters['availability_zone'] = availability_zone
+
             if instance.user_data:
                 server_create_parameters['userdata'] = instance.user_data
 
@@ -1081,6 +1086,15 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if timezone.is_naive(d):
                 launch_time = timezone.make_aware(d, timezone.utc)
 
+        availability_zone = None
+        try:
+            availability_zone_name = backend_instance.to_dict().get('OS-EXT-AZ:availability_zone')
+            if availability_zone_name:
+                availability_zone = models.InstanceAvailabilityZone.objects.get(
+                    name=availability_zone_name, settings=self.settings)
+        except (KeyError, ValueError, TypeError, models.InstanceAvailabilityZone.DoesNotExist):
+            pass
+
         instance = models.Instance(
             name=backend_instance.name or backend_instance.id,
             key_name=backend_instance.key_name or '',
@@ -1089,6 +1103,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             runtime_state=backend_instance.status,
             created=dateparse.parse_datetime(backend_instance.created),
             backend_id=backend_instance.id,
+            availability_zone=availability_zone,
         )
 
         if backend_flavor_id:
@@ -1139,6 +1154,60 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     def get_instances_for_import(self):
         return self._get_backend_resource(models.Instance, self.get_instances())
+
+    @transaction.atomic()
+    def _pull_zones(self, backend_zones, frontend_model, default_zone='nova'):
+        """
+        This method is called for Volume and Instance Availability zone synchronization.
+        It is assumed that default zone could not be used for Volume or Instance provisioning.
+        Therefore we do not pull default zone at all. Please note, however, that default zone
+        name could be changed in Nova and Cinder config. We don't support this use case either.
+
+        All availability zones are split into 3 subsets: stale, missing and common.
+        Stale zone are removed, missing zones are created.
+        If zone state has been changed, it is synchronized.
+        """
+        front_zones_map = {
+            zone.name: zone
+            for zone in frontend_model.objects.filter(settings=self.settings)
+        }
+
+        back_zones_map = {
+            zone.zoneName: zone.zoneState.get('available', True)
+            for zone in backend_zones
+            if zone.zoneName != default_zone
+        }
+
+        missing_zones = set(back_zones_map.keys()) - set(front_zones_map.keys())
+        for zone in missing_zones:
+            frontend_model.objects.create(
+                settings=self.settings,
+                name=zone,
+            )
+
+        stale_zones = set(front_zones_map.keys()) - set(back_zones_map.keys())
+        frontend_model.objects.filter(
+            name__in=stale_zones,
+            settings=self.settings
+        ).delete()
+
+        common_zones = set(front_zones_map.keys()) & set(back_zones_map.keys())
+        for zone_name in common_zones:
+            zone = front_zones_map[zone_name]
+            actual = back_zones_map[zone_name]
+            if zone.available != actual:
+                zone.available = actual
+                zone.save(update_fields=['available'])
+
+    def pull_instance_availability_zones(self):
+        try:
+            # By default detailed flag is True, but OpenStack policy for detailed data is disabled.
+            # Therefore we should explicitly pass detailed=False. Otherwise request fails.
+            backend_zones = self.nova_client.availability_zones.list(detailed=False)
+        except nova_exceptions.ClientException as e:
+            reraise(e)
+
+        self._pull_zones(backend_zones, models.InstanceAvailabilityZone)
 
     @log_backend_action()
     def pull_instance(self, instance, update_fields=None):
@@ -1552,17 +1621,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             return
 
         try:
-            volume_availability_zones = self.cinder_client.availability_zones.list()
+            backend_zones = self.cinder_client.availability_zones.list()
         except cinder_exceptions.ClientException as e:
             reraise(e)
 
-        with transaction.atomic():
-            cur_zones = [p.name for p in models.VolumeAvailabilityZone.objects.filter(settings=self.settings)]
-
-            for zone in volume_availability_zones:
-                if zone.zoneName in cur_zones:
-                    cur_zones.pop(cur_zones.index(zone.zoneName))
-                else:
-                    models.VolumeAvailabilityZone.objects.create(settings=self.settings, name=zone.zoneName)
-
-            models.VolumeAvailabilityZone.objects.filter(name__in=cur_zones, settings=self.settings).delete()
+        self._pull_zones(backend_zones, models.VolumeAvailabilityZone)

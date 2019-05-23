@@ -89,16 +89,6 @@ class VolumeAdmin(MetadataMixin,
     pull = Pull()
 
 
-class VolumeTypeAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
-    list_display = ('name', 'settings')
-
-
-class VolumeAvailabilityZoneAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
-    list_display = ('name', 'settings')
-
-
 class SnapshotAdmin(structure_admin.ResourceAdmin):
     class Pull(ExecutorAdminAction):
         executor = executors.SnapshotPullExecutor
@@ -182,9 +172,10 @@ admin.site.register(models.Image, ImageAdmin)
 admin.site.register(models.FloatingIP, FloatingIPAdmin)
 admin.site.register(models.SecurityGroup, SecurityGroupAdmin)
 admin.site.register(models.Volume, VolumeAdmin)
-admin.site.register(models.VolumeType, VolumeTypeAdmin)
-admin.site.register(models.VolumeAvailabilityZone, VolumeAvailabilityZoneAdmin)
+admin.site.register(models.VolumeType, structure_admin.ServicePropertyAdmin)
+admin.site.register(models.VolumeAvailabilityZone, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.Snapshot, SnapshotAdmin)
+admin.site.register(models.InstanceAvailabilityZone, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.Instance, InstanceAdmin)
 admin.site.register(models.Backup, BackupAdmin)
 admin.site.register(models.BackupSchedule, BackupScheduleAdmin)

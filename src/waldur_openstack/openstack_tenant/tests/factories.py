@@ -137,6 +137,25 @@ class VolumeFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
+class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.InstanceAvailabilityZone
+
+    name = factory.Sequence(lambda n: 'instance_availability_zone_%s' % n)
+    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
+
+    @classmethod
+    def get_url(cls, instance=None):
+        if instance is None:
+            instance = InstanceAvailabilityZoneFactory()
+        return 'http://testserver' + reverse('openstacktenant-instance-availability-zone-detail',
+                                             kwargs={'uuid': instance.uuid.hex})
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstacktenant-instance-availability-zone-list')
+
+
 class InstanceFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Instance

@@ -3,6 +3,7 @@ from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
+from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
 from . import models
 
@@ -59,6 +60,8 @@ class VolumeFilter(structure_filters.BaseResourceFilter):
         view_name='openstacktenant-snapshot-detail', name='restoration__snapshot__uuid')
     snapshot_uuid = django_filters.UUIDFilter(name='restoration__snapshot__uuid')
 
+    availability_zone_name = django_filters.CharFilter(name='availability_zone__name')
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Volume
         fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
@@ -89,8 +92,42 @@ class SnapshotFilter(structure_filters.BaseResourceFilter):
     )
 
 
+class InstanceAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.InstanceAvailabilityZone
+
+
 class InstanceFilter(structure_filters.BaseResourceFilter):
     external_ip = django_filters.CharFilter(name='internal_ips_set__floating_ips__address')
+    availability_zone_name = django_filters.CharFilter(name='availability_zone__name')
+    attach_volume_uuid = django_filters.UUIDFilter(method='filter_attach_volume')
+
+    def filter_attach_volume(self, queryset, name, value):
+        """
+        This filter is used for in volume attachment dialog.
+        It allows to filter out instances that could be attached to the given volume.
+        """
+        try:
+            volume = models.Volume.objects.get(uuid=value)
+        except models.Volume.DoesNotExist:
+            return queryset.none()
+
+        queryset = queryset.filter(service_project_link=volume.service_project_link)
+
+        zones_map = get_valid_availability_zones(volume)
+        if volume.availability_zone and zones_map:
+            zone_names = {
+                nova_zone
+                for (nova_zone, cinder_zone) in zones_map.items()
+                if cinder_zone == volume.availability_zone.name
+            }
+            nova_zones = models.InstanceAvailabilityZone.objects.filter(
+                settings=volume.service_project_link.service.settings,
+                name__in=zone_names,
+                available=True,
+            )
+            queryset = queryset.filter(availability_zone__in=nova_zones)
+        return queryset
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Instance
@@ -144,6 +181,6 @@ class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.VolumeType
 
 
-class VolumeAvailabilityFilter(structure_filters.ServicePropertySettingsFilter):
+class VolumeAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.VolumeAvailabilityZone
