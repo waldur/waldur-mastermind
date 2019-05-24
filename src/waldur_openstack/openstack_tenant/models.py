@@ -195,7 +195,8 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     @classmethod
     def get_backend_fields(cls):
         return super(Volume, cls).get_backend_fields() + ('name', 'description', 'size', 'metadata', 'type', 'bootable',
-                                                          'runtime_state', 'device', 'instance', 'availability_zone')
+                                                          'runtime_state', 'device', 'instance', 'availability_zone',
+                                                          'image')
 
 
 class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
