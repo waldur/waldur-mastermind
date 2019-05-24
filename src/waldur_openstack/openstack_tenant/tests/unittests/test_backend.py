@@ -576,6 +576,29 @@ class PullVolumeTest(BaseBackendTest):
 
         self.assertEqual(volume.instance, vm)
 
+    def test_volume_image_is_pulled(self):
+        volume = factories.VolumeFactory(
+            backend_id=self.backend_volume_id,
+            service_project_link=self.spl,
+        )
+        image = factories.ImageFactory(settings=self.settings)
+        self.backend_volume.volume_image_metadata = {'image_id': image.backend_id}
+        self.tenant_backend.pull_volume(volume)
+        volume.refresh_from_db()
+
+        self.assertEqual(volume.image, image)
+
+    def test_volume_image_is_not_pulled(self):
+        volume = factories.VolumeFactory(
+            backend_id=self.backend_volume_id,
+            service_project_link=self.spl,
+        )
+        self.backend_volume.volume_image_metadata = {}
+        self.tenant_backend.pull_volume(volume)
+        volume.refresh_from_db()
+
+        self.assertEqual(volume.image, None)
+
 
 class PullInstanceAvailabilityZonesTest(BaseBackendTest):
     def test_default_zone_is_not_pulled(self):
