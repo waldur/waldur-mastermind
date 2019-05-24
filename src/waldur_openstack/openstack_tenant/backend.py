@@ -645,8 +645,10 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         if getattr(backend_volume, 'volume_image_metadata', False):
             volume.image_metadata = backend_volume.volume_image_metadata
             try:
-                volume.image = models.Image.objects.get(
-                    settings=self.settings, backend_id=volume.image_metadata['image_id'])
+                image_id = volume.image_metadata.get('image_id')
+                if image_id:
+                    volume.image = models.Image.objects.get(
+                        settings=self.settings, backend_id=image_id)
             except models.Image.DoesNotExist:
                 pass
         # In our setup volume could be attached only to one instance.
