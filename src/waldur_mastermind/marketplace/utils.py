@@ -135,7 +135,9 @@ def import_resource_metadata(resource):
             resource.backend_metadata[field] = value
         else:
             resource.attributes[field] = value
-    resource.save(update_fields=['backend_metadata', 'attributes'])
+
+    resource.name = instance.name
+    resource.save(update_fields=['backend_metadata', 'attributes', 'name'])
 
 
 def get_service_provider_info(source):

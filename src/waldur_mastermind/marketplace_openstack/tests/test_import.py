@@ -121,8 +121,18 @@ class TenantImportTest(BaseOpenStackTest):
     def test_tenant_attributes_are_imported(self):
         resource = self.import_resource()
 
+        self.assertEqual(resource.name, self.tenant.name)
         self.assertEqual(resource.attributes['name'], self.tenant.name)
         self.assertEqual(resource.project, self.tenant.project)
+
+    def test_tenant_name_is_updated(self):
+        resource = self.import_resource()
+
+        self.tenant.name = 'New name'
+        self.tenant.save()
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.name, self.tenant.name)
 
     def test_tenant_state_is_imported(self):
         self.tenant.state = StateMixin.States.UPDATING
