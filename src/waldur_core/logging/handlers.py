@@ -12,4 +12,4 @@ def remove_related_alerts(sender, instance, **kwargs):
 
 
 def process_hook(sender, instance, created=False, **kwargs):
-    transaction.on_commit(lambda: tasks.process_event(instance.pk))
+    transaction.on_commit(lambda: tasks.process_event.delay(instance.pk))
