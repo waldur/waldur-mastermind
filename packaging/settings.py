@@ -219,7 +219,7 @@ LOGGING = {
             'level': config.get('events', 'log_level').upper(),
         },
         # Send logs to log server
-        # Note that waldur_core.logging.log.TCPEventHandler does not support exernal formatters
+        # Note that waldur_core.logging.log.TCPEventHandler does not support external formatters
         'tcp': {
             'class': 'waldur_core.logging.log.TCPEventHandler',
             'filters': ['is-not-event'],
@@ -231,13 +231,6 @@ LOGGING = {
             'host': config.get('events', 'logserver_host'),
             'level': config.get('events', 'log_level').upper(),
             'port': config.getint('events', 'logserver_port'),
-        },
-
-        # Send logs to web hook
-        'hook-event': {
-            'class': 'waldur_core.logging.log.HookHandler',
-            'filters': ['is-event'],
-            'level': config.get('events', 'log_level').upper(),
         },
     },
 

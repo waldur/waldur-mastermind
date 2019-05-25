@@ -25,6 +25,7 @@ class VolumeMetadataTest(BaseOpenStackTest):
         self.volume.action_details = {'message': 'Detaching volume from instance.'}
         self.volume.save()
         resource = self.import_resource()
+        self.assertEqual(resource.name, self.volume.name)
         self.assertEqual(resource.backend_metadata['size'], self.volume.size)
         self.assertEqual(resource.backend_metadata['state'], self.volume.get_state_display())
         self.assertEqual(resource.backend_metadata['runtime_state'], self.volume.runtime_state)
@@ -36,6 +37,9 @@ class VolumeMetadataTest(BaseOpenStackTest):
         self.assertEqual(resource.backend_metadata['instance_uuid'], self.instance.uuid.hex)
         self.assertEqual(resource.backend_metadata['instance_name'], self.instance.name)
 
+        instance = marketplace_models.Resource.objects.get(scope=self.instance)
+        self.assertEqual(instance.name, self.instance.name)
+
     def test_instance_name_is_updated(self):
         resource = self.import_resource()
         self.instance.name = 'Name has been changed'
@@ -43,6 +47,9 @@ class VolumeMetadataTest(BaseOpenStackTest):
 
         resource.refresh_from_db()
         self.assertEqual(resource.backend_metadata['instance_name'], self.instance.name)
+
+        instance = marketplace_models.Resource.objects.get(scope=self.instance)
+        self.assertEqual(instance.name, self.instance.name)
 
     def test_instance_has_been_detached(self):
         resource = self.import_resource()
