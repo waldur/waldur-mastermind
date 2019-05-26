@@ -302,9 +302,6 @@ if config.getboolean('events', 'syslog'):
     LOGGING['handlers']['syslog-event']['address'] = '/dev/log'
     LOGGING['loggers']['waldur_core']['handlers'].append('syslog-event')
 
-if config.getboolean('events', 'hook'):
-    LOGGING['loggers']['waldur_core']['handlers'].append('hook-event')
-
 # Static files
 # See also: https://docs.djangoproject.com/en/1.11/ref/settings/#static-files
 STATIC_ROOT = config.get('global', 'static_root')
