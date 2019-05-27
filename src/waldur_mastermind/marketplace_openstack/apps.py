@@ -105,12 +105,21 @@ class MarketplaceOpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.create_resource_of_volume_if_instance_created,
             sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketpace_openstack.create_resource_of_volume_if_instance_created',
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'create_resource_of_volume_if_instance_created',
         )
 
         for model in [tenant_models.Instance, tenant_models.Volume]:
             structure_signals.resource_imported.connect(
                 handlers.create_marketplace_resource_for_imported_resources,
                 sender=model,
-                dispatch_uid='waldur_mastermind.marketpace_openstack.create_resource_for_imported_%s' % model,
+                dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                             'create_resource_for_imported_%s' % model,
             )
+
+        signals.post_save.connect(
+            handlers.import_resource_metadata_when_resource_is_created,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'import_resource_metadata_when_resource_is_created',
+        )
