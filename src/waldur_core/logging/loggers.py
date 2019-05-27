@@ -11,8 +11,6 @@ import types
 import uuid
 
 from django.apps import apps
-from django.contrib.contenttypes import models as ct_models
-from django.db import transaction, IntegrityError
 import six
 
 from waldur_core.logging import models
@@ -27,10 +25,6 @@ class LoggerError(AttributeError):
 
 
 class EventLoggerError(AttributeError):
-    pass
-
-
-class AlertLoggerError(AttributeError):
     pass
 
 
@@ -222,122 +216,6 @@ class EventLogger(BaseLogger):
                     models.Feed.objects.create(scope=scope, event=event)
 
 
-class AlertLogger(BaseLogger):
-    """ Base alert logger API.
-
-        Fields which must be passed during alert log emitting (alert context)
-        should be defined as attributes for this class in the form of:
-
-        field_name = ObjectClass || '<app_label>.<class_name>'
-
-        A list of supported event types can be defined with help of method get_supported_types,
-        or 'alert_types' property of Meta class. Event type won't be validated if this list is empty.
-
-        Example usage:
-
-        .. code-block:: python
-
-            from waldur_core.logging.loggers import AlertLogger, alert_logger
-            from waldur_core.quotas import models
-
-            class QuotaAlertLogger(AlertLogger):
-                quota = models.Quota
-
-                class Meta:
-                    alert_types = ('quota_usage_is_over_threshold', )
-
-            alert_logger.register('quota', QuotaAlertLogger)
-
-
-            alert_logger.quota.warning(
-                'Quota {quota_name} is over threshold. Limit: {quota_limit}, usage: {quota_usage}',
-                scope=quota,
-                alert_type='quota_usage_is_over_threshold',
-                alert_context={
-                    'quota': quota
-                })
-    """
-
-    def get_supported_types(self):
-        return getattr(self._meta, 'alert_types', tuple())
-
-    def get_supported_groups(self):
-        return getattr(self._meta, 'alert_groups', {})
-
-    def info(self, *args, **kwargs):
-        return self.process(models.Alert.SeverityChoices.INFO, *args, **kwargs)
-
-    def error(self, *args, **kwargs):
-        return self.process(models.Alert.SeverityChoices.ERROR, *args, **kwargs)
-
-    def warning(self, *args, **kwargs):
-        return self.process(models.Alert.SeverityChoices.WARNING, *args, **kwargs)
-
-    def debug(self, *args, **kwargs):
-        return self.process(models.Alert.SeverityChoices.DEBUG, *args, **kwargs)
-
-    def process(self, severity, message_template, scope, alert_type='undefined', alert_context=None, fail_silently=True):
-        self.validate_logging_type(alert_type)
-
-        if not alert_context:
-            alert_context = {}
-
-        context = self.compile_context(**alert_context)
-        msg = self.compile_message(message_template, context)
-        content_type = ct_models.ContentType.objects.get_for_model(scope)
-
-        try:
-            with transaction.atomic():
-                alert = models.Alert.objects.select_for_update().get(
-                    content_type=content_type,
-                    object_id=scope.id,
-                    alert_type=alert_type,
-                    closed__isnull=True
-                )
-                if alert.severity != severity or alert.message != msg:
-                    alert.severity = severity
-                    alert.message = msg
-                    alert.save()
-
-                    logger.info(
-                        'Updated alert for scope %s (id: %s), with type %s',
-                        scope, scope.id, alert_type)
-
-                return alert, False
-        except models.Alert.DoesNotExist:
-            pass
-
-        try:
-            alert = models.Alert.objects.create(
-                scope=scope,
-                alert_type=alert_type,
-                severity=severity,
-                message=msg,
-                context=context
-            )
-            logger.info(
-                'Created new alert for scope %s (id: %s), with type %s',
-                scope, scope.id, alert_type)
-            return alert, True
-        except IntegrityError:
-            logger.warning(
-                'Could not create alert for scope %s (id: %s), with type %s due to concurrent update',
-                scope, scope.id, alert_type)
-            if fail_silently:
-                return None, False
-            else:
-                raise
-
-    def close(self, scope, alert_type):
-        try:
-            content_type = ct_models.ContentType.objects.get_for_model(scope)
-            alert = models.Alert.objects.get(
-                object_id=scope.id, content_type=content_type, alert_type=alert_type, closed__isnull=True)
-            alert.close()
-        except models.Alert.DoesNotExist:
-            pass
-
-
 class LoggableMixin(object):
     """ Mixin to serialize model in logs.
         Extends django model or custom class with fields extraction method.
@@ -421,18 +299,8 @@ class EventLoggerRegistry(BaseLoggerRegistry):
         return [l for l in self.__dict__.values() if isinstance(l, EventLogger)]
 
 
-class AlertLoggerRegistry(BaseLoggerRegistry):
-
-    def get_loggers(self):
-        return [l for l in self.__dict__.values() if isinstance(l, AlertLogger)]
-
-
 def get_valid_events():
     return event_logger.get_all_types()
-
-
-def get_valid_alerts():
-    return alert_logger.get_all_types()
 
 
 def get_event_groups():
@@ -443,16 +311,8 @@ def get_event_groups_keys():
     return sorted(get_event_groups().keys())
 
 
-def get_alert_groups():
-    return alert_logger.get_all_groups()
-
-
 def expand_event_groups(groups):
     return event_logger.expand_groups(groups)
-
-
-def expand_alert_groups(groups):
-    return alert_logger.expand_groups(groups)
 
 
 class CustomEventLogger(EventLogger):
@@ -466,16 +326,7 @@ class CustomEventLogger(EventLogger):
         nullable_fields = ('scope',)
 
 
-class ThresholdAlertLogger(AlertLogger):
-    object = 'logging.AlertThresholdMixin'
-
-    class Meta:
-        alert_types = ('threshold_exceeded',)
-
-
 # This global objects represent the default loggers registry
 event_logger = EventLoggerRegistry()
-alert_logger = AlertLoggerRegistry()
 
 event_logger.register('custom', CustomEventLogger)
-alert_logger.register('threshold', ThresholdAlertLogger)

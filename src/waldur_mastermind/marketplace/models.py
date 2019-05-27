@@ -680,7 +680,7 @@ class Resource(CostEstimateMixin,
                core_models.UuidMixin,
                TimeStampedModel,
                ScopeMixin,
-               LoggableMixin,
+               structure_models.StructureLoggableMixin,
                core_models.NameMixin):
     """
     Core resource is abstract model, marketplace resource is not abstract,
@@ -798,7 +798,7 @@ class OrderItem(CostEstimateMixin,
                 core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
-                LoggableMixin,
+                structure_models.StructureLoggableMixin,
                 TimeStampedModel):
     class States(object):
         PENDING = 1

@@ -3,6 +3,7 @@ import unittest
 from rest_framework import test, status
 
 from waldur_core.core import models as core_models
+from waldur_core.logging.tests.factories import EventFactory
 from waldur_core.structure.models import NewResource, ServiceSettings
 from waldur_core.structure.tests import factories, fixtures, models as test_models
 
@@ -162,4 +163,15 @@ class ResourceTagsTest(test.APITransactionTestCase):
 
         url = factories.TestNewInstanceFactory.get_list_url()
         response = self.client.get(url, {'tag': 'tag1'})
+        self.assertEqual(len(response.data), 1)
+
+
+class ResourceEventsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.client.force_authenticate(user=self.fixture.staff)
+        self.url = factories.TestNewInstanceFactory.get_url(self.fixture.resource)
+
+    def test_filter_events_for_resource_by_scope(self):
+        response = self.client.get(EventFactory.get_list_url(), {'scope': self.url})
         self.assertEqual(len(response.data), 1)

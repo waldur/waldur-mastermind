@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import OuterRef, Subquery
+from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.utils import order_with_nulls, get_ordering
@@ -22,8 +23,8 @@ class PriceEstimateScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return 'scope'
 
 
-class CustomerEstimatedCostFilter(core_filters.BaseExternalFilter):
-    def filter(self, request, queryset, view):
+class CustomerEstimatedCostFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
 
         order_by = get_ordering(request)
         if order_by not in ('estimated_cost', '-estimated_cost'):
@@ -35,8 +36,8 @@ class CustomerEstimatedCostFilter(core_filters.BaseExternalFilter):
         return order_with_nulls(queryset, order_by)
 
 
-class CustomerCurrentCostFilter(core_filters.BaseExternalFilter):
-    def filter(self, request, queryset, view):
+class CustomerCurrentCostFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
 
         order_by = get_ordering(request)
         if order_by not in ('current_cost', '-current_cost'):

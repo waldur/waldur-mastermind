@@ -1,9 +1,7 @@
 from __future__ import unicode_literals
 
 import logging
-import uuid
 
-from model_utils.fields import AutoCreatedField
 import requests
 from django.apps import apps
 from django.conf import settings
@@ -17,10 +15,11 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
+from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField, UUIDField
-from waldur_core.logging import managers
+from waldur_core.core.managers import GenericKeyMixin
 
 logger = logging.getLogger(__name__)
 
@@ -33,47 +32,6 @@ class UuidMixin(models.Model):
         abstract = True
 
     uuid = UUIDField()
-
-
-class Alert(UuidMixin, TimeStampedModel):
-    class Meta:
-        unique_together = ("content_type", "object_id", "alert_type", "is_closed")
-
-    class SeverityChoices(object):
-        DEBUG = 10
-        INFO = 20
-        WARNING = 30
-        ERROR = 40
-        CHOICES = ((DEBUG, 'Debug'), (INFO, 'Info'), (WARNING, 'Warning'), (ERROR, 'Error'))
-
-    alert_type = models.CharField(max_length=50, db_index=True)
-    message = models.CharField(max_length=255)
-    severity = models.SmallIntegerField(choices=SeverityChoices.CHOICES)
-    closed = models.DateTimeField(null=True, blank=True)
-    # Hack: This field stays blank until alert closing.
-    #       After closing it gets unique value to avoid unique together constraint break.
-    is_closed = models.CharField(blank=True, max_length=32)
-    acknowledged = models.BooleanField(default=False)
-    context = JSONField(blank=True)
-
-    content_type = models.ForeignKey(ct_models.ContentType, null=True, on_delete=models.SET_NULL)
-    object_id = models.PositiveIntegerField(null=True)
-    scope = ct_fields.GenericForeignKey('content_type', 'object_id')
-
-    objects = managers.AlertManager()
-
-    def close(self):
-        self.closed = timezone.now()
-        self.is_closed = uuid.uuid4().hex
-        self.save()
-
-    def acknowledge(self):
-        self.acknowledged = True
-        self.save()
-
-    def cancel_acknowledgment(self):
-        self.acknowledged = False
-        self.save()
 
 
 class AlertThresholdMixin(models.Model):
@@ -340,8 +298,13 @@ class Event(UuidMixin):
         ordering = ('-created',)
 
 
+class FeedManager(GenericKeyMixin, models.Manager):
+    pass
+
+
 class Feed(models.Model):
     event = models.ForeignKey(Event)
     content_type = models.ForeignKey(ct_models.ContentType, db_index=True)
     object_id = models.PositiveIntegerField(db_index=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+    objects = FeedManager()

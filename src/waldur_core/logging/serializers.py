@@ -1,45 +1,9 @@
-from django.db import IntegrityError
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
-from waldur_core.core.fields import MappedChoiceField, NaturalChoiceField
-from waldur_core.core.serializers import GenericRelatedField, RestrictedSerializerMixin
-from waldur_core.logging import models, utils, loggers
-
-
-class AlertSerializer(serializers.HyperlinkedModelSerializer):
-    scope = GenericRelatedField(related_models=utils.get_loggable_models())
-    severity = MappedChoiceField(
-        choices=[(v, k) for k, v in models.Alert.SeverityChoices.CHOICES],
-        choice_mappings={v: k for k, v in models.Alert.SeverityChoices.CHOICES},
-    )
-    context = serializers.JSONField(read_only=True)
-
-    class Meta(object):
-        model = models.Alert
-        fields = (
-            'url', 'uuid', 'alert_type', 'message', 'severity', 'scope',
-            'created', 'closed', 'context', 'acknowledged',
-        )
-        read_only_fields = ('uuid', 'created', 'closed')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-        }
-
-    def create(self, validated_data):
-        try:
-            alert, created = loggers.AlertLogger().process(
-                severity=validated_data['severity'],
-                message_template=validated_data['message'],
-                scope=validated_data['scope'],
-                alert_type=validated_data['alert_type'],
-            )
-        except IntegrityError:
-            # In case of simultaneous requests serializer validation can pass for both alerts,
-            # so we need to handle DB IntegrityError separately.
-            raise serializers.ValidationError(_('Alert with given type and scope already exists.'))
-        else:
-            return alert
+from waldur_core.core.fields import NaturalChoiceField
+from waldur_core.core.serializers import RestrictedSerializerMixin
+from waldur_core.logging import models, loggers
 
 
 class EventSerializer(RestrictedSerializerMixin,

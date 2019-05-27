@@ -1,17 +1,13 @@
 import digitalocean
 import mock
 
-from django.contrib.contenttypes.models import ContentType
 from rest_framework import test
 
-from waldur_core.logging.models import Alert
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 
 from . import factories
 from ..apps import DigitalOceanConfig
-from ..backend import TokenScopeError
-from .. import executors
 from ..models import Droplet
 from ..views import DropletViewSet
 
@@ -193,42 +189,3 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.assertEqual(droplet.state, Droplet.States.OK)
         self.assertEqual(droplet.runtime_state, Droplet.RuntimeStates.ONLINE)
         self.assertEqual(droplet.backend_id, self.mock_droplet.id)
-
-    def test_if_token_is_readonly_alert_is_raised(self):
-        self.droplet_api().create.side_effect = digitalocean.DataReadError(
-            'You do not have access for the attempted action.'
-        )
-
-        self.assertRaises(TokenScopeError, self.create_droplet)
-        self.assertTrue(Alert.objects.filter(
-            alert_type='token_is_read_only',
-            content_type=ContentType.objects.get_for_model(self.settings),
-            object_id=self.settings.id,
-            closed__isnull=True
-        ).exists())
-
-    def test_if_token_is_writable_alert_is_closed(self):
-        Alert.objects.create(
-            alert_type='token_is_read_only',
-            content_type=ContentType.objects.get_for_model(self.settings),
-            object_id=self.settings.id,
-            severity=Alert.SeverityChoices.WARNING
-        )
-        self.create_droplet()
-        self.assertFalse(Alert.objects.filter(
-            alert_type='token_is_read_only',
-            content_type=ContentType.objects.get_for_model(self.settings),
-            object_id=self.settings.id,
-            closed__isnull=True
-        ).exists())
-
-    def create_droplet(self):
-        instance = factories.DropletFactory(service_project_link__service=self.service,
-                                            state=Droplet.States.CREATION_SCHEDULED)
-        executors.DropletCreateExecutor().execute(
-            instance=instance,
-            async=False,
-            backend_region_id=self.region.backend_id,
-            backend_image_id=self.image.backend_id,
-            backend_size_id=self.size.backend_id
-        )

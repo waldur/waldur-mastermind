@@ -9,9 +9,6 @@ from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
 
 
-from .log import alert_logger
-
-
 class DigitalOceanService(structure_models.Service):
     projects = models.ManyToManyField(
         structure_models.Project, related_name='digitalocean_services', through='DigitalOceanServiceProjectLink')
@@ -26,17 +23,6 @@ class DigitalOceanService(structure_models.Service):
             target_models=lambda: [Droplet],
             path_to_scope='service_project_link.service'
         )
-
-    def raise_readonly_token_alert(self):
-        """ Raise alert if provided token is read-only """
-        alert_logger.digital_ocean.warning(
-            'DigitalOcean token for {settings_name} is read-only.',
-            scope=self.settings,
-            alert_type='token_is_read_only',
-            alert_context={'settings': self.settings})
-
-    def close_readonly_token_alert(self):
-        alert_logger.digital_ocean.close(scope=self.settings, alert_type='token_is_read_only')
 
     @classmethod
     def get_url_name(cls):

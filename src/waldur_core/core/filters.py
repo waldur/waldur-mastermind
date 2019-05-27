@@ -21,7 +21,7 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
     Methods 'get_related_models' and 'get_field_name' has to be implemented.
     Example:
 
-        class AlertScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+        class ScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
             def get_related_models(self):
                 return utils.get_loggable_models()
@@ -221,13 +221,6 @@ class ContentTypeFilter(django_filters.CharFilter):
             return qs.none()
 
 
-class BaseExternalFilter(object):
-    """ Interface for external alert filter """
-
-    def filter(self, request, queryset, view):
-        raise NotImplementedError
-
-
 class ExternalFilterBackend(BaseFilterBackend):
     """
     Support external filters registered in other apps
@@ -239,15 +232,15 @@ class ExternalFilterBackend(BaseFilterBackend):
 
     @classmethod
     def register(cls, external_filter):
-        assert isinstance(external_filter, BaseExternalFilter), 'Registered filter has to inherit BaseExternalFilter'
+        assert isinstance(external_filter, BaseFilterBackend), 'Registered filter has to inherit BaseFilterBackend'
         if hasattr(cls, '_filters'):
             cls._filters.append(external_filter)
         else:
             cls._filters = [external_filter]
 
     def filter_queryset(self, request, queryset, view):
-        for filt in self.__class__.get_registered_filters():
-            queryset = filt.filter(request, queryset, view)
+        for item in self.__class__.get_registered_filters():
+            queryset = item.filter_queryset(request, queryset, view)
         return queryset
 
 

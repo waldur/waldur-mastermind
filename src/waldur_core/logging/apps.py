@@ -9,14 +9,7 @@ class EventsConfig(AppConfig):
     verbose_name = 'Logging'
 
     def ready(self):
-        from waldur_core.logging import handlers, utils, models
-
-        for index, model in enumerate(utils.get_loggable_models()):
-            signals.post_delete.connect(
-                handlers.remove_related_alerts,
-                sender=model,
-                dispatch_uid='waldur_core.logging.handlers.remove_{}_{}_related_alerts'.format(model.__name__, index),
-            )
+        from waldur_core.logging import handlers, models
 
         signals.post_save.connect(
             handlers.process_hook,

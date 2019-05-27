@@ -231,21 +231,6 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=10),
         'args': (),
     },
-    'close-alerts-without-scope': {
-        'task': 'waldur_core.logging.close_alerts_without_scope',
-        'schedule': timedelta(minutes=30),
-        'args': (),
-    },
-    'cleanup-alerts': {
-        'task': 'waldur_core.logging.alerts_cleanup',
-        'schedule': timedelta(minutes=30),
-        'args': (),
-    },
-    'check-threshold': {
-        'task': 'waldur_core.logging.check_threshold',
-        'schedule': timedelta(minutes=30),
-        'args': (),
-    },
     'cancel-expired-invitations': {
         'task': 'waldur_core.users.cancel_expired_invitations',
         'schedule': timedelta(hours=24),
@@ -276,7 +261,6 @@ WALDUR_CORE = {
     'ALLOW_SIGNUP_WITHOUT_INVITATION': True,
     'VALIDATE_INVITATION_EMAIL': False,
     'TOKEN_LIFETIME': timedelta(hours=1),
-    'CLOSED_ALERTS_LIFETIME': timedelta(weeks=1),
     'INVITATION_LIFETIME': timedelta(weeks=1),
     'OWNERS_CAN_MANAGE_OWNERS': False,
     'OWNER_CAN_MANAGE_CUSTOMER': False,
