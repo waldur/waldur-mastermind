@@ -48,6 +48,7 @@ class TenantAdmin(structure_admin.ResourceAdmin):
     actions = ('pull', 'detect_external_networks', 'allocate_floating_ip', 'pull_security_groups',
                'pull_floating_ips', 'pull_quotas')
     inlines = [QuotaInline]
+    search_fields = ['name']
     form = TenantAdminForm
 
     class OKTenantAction(ExecutorAdminAction):
