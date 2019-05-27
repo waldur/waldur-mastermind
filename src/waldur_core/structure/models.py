@@ -348,7 +348,7 @@ class Customer(core_models.UuidMixin,
                quotas_models.ExtendableQuotaModelMixin,
                PermissionMixin,
                VATMixin,
-               LoggableMixin,
+               StructureLoggableMixin,
                ImageModelMixin,
                TimeStampedModel,
                StructureModel):
@@ -752,7 +752,7 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
                       core_models.NameMixin,
                       core_models.StateMixin,
                       TagMixin,
-                      LoggableMixin):
+                      StructureLoggableMixin):
 
     class Meta:
         verbose_name = "Service settings"
@@ -858,7 +858,7 @@ class PrivateServiceSettings(ServiceSettings):
 class Service(core_models.UuidMixin,
               core_models.DescendantMixin,
               quotas_models.QuotaModelMixin,
-              LoggableMixin,
+              StructureLoggableMixin,
               StructureModel):
     """ Base service class. """
 
@@ -1089,7 +1089,7 @@ class ResourceMixin(MonitoringModelMixin,
                     core_models.NameMixin,
                     core_models.DescendantMixin,
                     core_models.BackendModelMixin,
-                    LoggableMixin,
+                    StructureLoggableMixin,
                     TagMixin,
                     TimeStampedModel,
                     StructureModel):

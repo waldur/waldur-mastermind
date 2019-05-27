@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import logging
 import uuid
 
-from model_utils.fields import AutoCreatedField
 import requests
 from django.apps import apps
 from django.conf import settings
@@ -17,9 +16,11 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
+from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField, UUIDField
+from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.logging import managers
 
 logger = logging.getLogger(__name__)
@@ -340,8 +341,13 @@ class Event(UuidMixin):
         ordering = ('-created',)
 
 
+class FeedManager(GenericKeyMixin, models.Manager):
+    pass
+
+
 class Feed(models.Model):
     event = models.ForeignKey(Event)
     content_type = models.ForeignKey(ct_models.ContentType, db_index=True)
     object_id = models.PositiveIntegerField(db_index=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+    objects = FeedManager()
