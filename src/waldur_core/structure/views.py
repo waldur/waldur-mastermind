@@ -31,7 +31,6 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import datetime_to_timestamp, sort_dict
 from waldur_core.logging import models as logging_models
-from waldur_core.logging.loggers import expand_alert_groups
 from waldur_core.quotas.models import QuotaModelMixin, Quota
 from waldur_core.structure import (
     SupportedServices, ServiceBackendError, ServiceBackendNotImplemented,
@@ -1209,15 +1208,6 @@ class BaseCounterView(viewsets.GenericViewSet):
     def get_fields(self):
         raise NotImplementedError()
 
-    def _get_alerts(self, aggregate_by):
-        alert_types_to_exclude = expand_alert_groups(self.request.query_params.getlist('exclude_features'))
-        return filters.filter_alerts_by_aggregate(
-            logging_models.Alert.objects,
-            aggregate_by,
-            self.request.user,
-            self.object.uuid.hex,
-        ).filter(closed__isnull=True).exclude(alert_type__in=alert_types_to_exclude).count()
-
     @cached_property
     def object(self):
         return self.get_object()
@@ -1230,7 +1220,6 @@ class CustomerCountersView(BaseCounterView):
     .. code-block:: javascript
 
         {
-            "alerts": 12,
             "services": 1,
             "projects": 1,
             "users": 3
@@ -1245,14 +1234,10 @@ class CustomerCountersView(BaseCounterView):
 
     def get_fields(self):
         return {
-            'alerts': self.get_alerts,
             'projects': self.get_projects,
             'services': self.get_services,
             'users': self.get_users
         }
-
-    def get_alerts(self):
-        return self._get_alerts('customer')
 
     def get_users(self):
         return self.object.get_users().count()
@@ -1281,7 +1266,6 @@ class ProjectCountersView(BaseCounterView):
 
         {
             "users": 0,
-            "alerts": 2,
             "apps": 0,
             "vms": 1,
             "private_clouds": 1,
@@ -1297,7 +1281,6 @@ class ProjectCountersView(BaseCounterView):
 
     def get_fields(self):
         fields = {
-            'alerts': self.get_alerts,
             'vms': self.get_vms,
             'apps': self.get_apps,
             'private_clouds': self.get_private_clouds,
@@ -1305,9 +1288,6 @@ class ProjectCountersView(BaseCounterView):
             'users': self.get_users
         }
         return fields
-
-    def get_alerts(self):
-        return self._get_alerts('project')
 
     def get_vms(self):
         return self._total_count(models.VirtualMachine.get_all_models())

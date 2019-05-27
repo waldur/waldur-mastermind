@@ -20,9 +20,8 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
-from waldur_core.core.filters import BaseExternalFilter, ExternalFilterBackend
+from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import order_with_nulls, get_ordering, is_uuid_like
-from waldur_core.logging.filters import ExternalAlertFilterBackend
 from waldur_core.structure import SupportedServices
 from waldur_core.structure import models
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -713,61 +712,6 @@ class ServicePropertySettingsFilter(BaseServicePropertyFilter):
 
     class Meta(BaseServicePropertyFilter.Meta):
         fields = BaseServicePropertyFilter.Meta.fields + ('settings_uuid', 'settings')
-
-
-class AggregateFilter(BaseExternalFilter):
-    """
-    Filter by aggregate
-    """
-
-    def filter(self, request, queryset, view):
-        # Don't apply filter if aggregate is not specified
-        if 'aggregate' not in request.query_params:
-            return queryset
-
-        aggregate = request.query_params['aggregate']
-        uuid = request.query_params.get('uuid')
-
-        return filter_alerts_by_aggregate(queryset, aggregate, request.user, uuid)
-
-
-def filter_alerts_by_aggregate(queryset, aggregate, user, uuid=None):
-    valid_model_choices = {
-        'project': models.Project,
-        'customer': models.Customer,
-    }
-
-    error = '"%s" parameter is not found. Valid choices are: %s.' % (aggregate, ', '.join(valid_model_choices.keys()))
-    assert (aggregate in valid_model_choices), error
-
-    aggregate_query = filter_queryset_for_user(valid_model_choices[aggregate].objects, user)
-
-    if uuid:
-        aggregate_query = aggregate_query.filter(uuid=uuid)
-
-    aggregates_ids = aggregate_query.values_list('id', flat=True)
-    query = {'%s__in' % aggregate: aggregates_ids}
-
-    all_models = models.ResourceMixin.get_all_models() + models.ServiceProjectLink.get_all_models()
-    if aggregate == 'customer':
-        all_models += models.Service.get_all_models()
-        all_models.append(models.Project)
-
-    querysets = [aggregate_query]
-    for model in all_models:
-        qs = model.objects.filter(**query).all()
-        querysets.append(filter_queryset_for_user(qs, user))
-
-    aggregate_query = Q()
-    for qs in querysets:
-        content_type = ContentType.objects.get_for_model(qs.model)
-        ids = qs.values_list('id', flat=True)
-        aggregate_query |= Q(content_type=content_type, object_id__in=ids)
-
-    return queryset.filter(aggregate_query)
-
-
-ExternalAlertFilterBackend.register(AggregateFilter())
 
 
 class ResourceSummaryFilterBackend(core_filters.SummaryFilter):
