@@ -116,7 +116,7 @@ class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
     exclude = ('action_details',)
     inlines = [InternalIpInline]
     list_filter = structure_admin.VirtualMachineAdmin.list_filter + ('runtime_state',)
-    search_fields = structure_admin.VirtualMachineAdmin.search_fields + ('name', 'uuid', 'backend_id', 'runtime_state')
+    search_fields = structure_admin.VirtualMachineAdmin.search_fields + ('uuid', 'backend_id', 'runtime_state')
 
     class Pull(ExecutorAdminAction):
         executor = executors.InstancePullExecutor
