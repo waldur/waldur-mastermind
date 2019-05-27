@@ -8,14 +8,13 @@ from django.db import transaction
 
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_openstack import RAM_TYPE, STORAGE_TYPE, utils as marketplace_openstack_utils
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, utils
+from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils
 
 logger = logging.getLogger(__name__)
 
@@ -269,7 +268,7 @@ def create_resource_of_volume_if_instance_created(sender, instance, created=Fals
 
         volume_resource.init_cost()
         volume_resource.save()
-        marketplace_openstack_utils.import_volume_metadata(volume_resource)
+        utils.import_volume_metadata(volume_resource)
         volume_resource.init_quotas()
 
 
@@ -291,7 +290,7 @@ def create_marketplace_resource_for_imported_resources(sender, instance, created
 
         resource.init_cost()
         resource.save()
-        marketplace_openstack_utils.import_instance_metadata(resource)
+        utils.import_instance_metadata(resource)
         resource.init_quotas()
 
     if isinstance(instance, openstack_tenant_models.Volume):
@@ -304,5 +303,16 @@ def create_marketplace_resource_for_imported_resources(sender, instance, created
 
         resource.init_cost()
         resource.save()
-        marketplace_openstack_utils.import_volume_metadata(resource)
+        utils.import_volume_metadata(resource)
         resource.init_quotas()
+
+
+def import_resource_metadata_when_resource_is_created(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    if isinstance(instance, openstack_tenant_models.Volume):
+        utils.import_volume_metadata(instance)
+
+    if isinstance(instance, openstack_tenant_models.Instance):
+        utils.import_instance_metadata(instance)
