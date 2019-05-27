@@ -1,13 +1,11 @@
 import logging
-import sys
 
 from celery.task import Task as CeleryTask
-from django.utils import six
 
 from waldur_core.core import utils
-from waldur_core.core.tasks import BackendMethodTask, Task
+from waldur_core.core.tasks import Task
 
-from . import backend, log
+from . import log
 
 logger = logging.getLogger(__name__)
 
@@ -39,21 +37,3 @@ class LogDropletResized(Task):
             event_type='droplet_resize_succeeded',
             event_context={'droplet': droplet, 'size': size}
         )
-
-
-class SafeBackendMethodTask(BackendMethodTask):
-    """
-    Open alert if token scope is read-only.
-    Close alert if token scope if read-write.
-    It should be applied to droplet provisioning tasks.
-    """
-
-    def execute(self, droplet, *args, **kwargs):
-        try:
-            result = super(SafeBackendMethodTask, self).execute(droplet, *args, **kwargs)
-        except backend.TokenScopeError:
-            droplet.service_project_link.service.raise_readonly_token_alert()
-            six.reraise(*sys.exc_info())
-        else:
-            droplet.service_project_link.service.close_readonly_token_alert()
-            return result

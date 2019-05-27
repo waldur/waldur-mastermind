@@ -7,7 +7,6 @@ import factory
 from waldur_core.logging import models
 # Dependency from `structure` application exists only in tests
 from waldur_core.logging.loggers import get_valid_events
-from waldur_core.structure.tests import factories as structure_factories
 
 
 class EventFactory(factory.DjangoModelFactory):
@@ -35,30 +34,6 @@ class EventFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('event-list')
-
-
-class AlertFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.Alert
-
-    message = factory.Sequence(lambda i: 'message#%s' % i)
-    alert_type = factory.Iterator(['first_alert', 'second_alert', 'third_alert', 'fourth_alert'])
-    severity = factory.Iterator([
-        models.Alert.SeverityChoices.DEBUG, models.Alert.SeverityChoices.INFO,
-        models.Alert.SeverityChoices.WARNING, models.Alert.SeverityChoices.ERROR])
-    context = {'test': 'test'}
-    scope = factory.SubFactory(structure_factories.CustomerFactory)
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('alert-list')
-
-    @classmethod
-    def get_url(cls, alert=None, action=None):
-        if alert is None:
-            alert = AlertFactory()
-        url = 'http://testserver' + reverse('alert-detail', kwargs={'uuid': alert.uuid})
-        return url if action is None else url + action + '/'
 
 
 class WebHookFactory(factory.DjangoModelFactory):

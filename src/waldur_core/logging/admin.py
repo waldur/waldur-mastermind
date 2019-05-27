@@ -4,7 +4,6 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.db import transaction
-from django.forms import ModelForm
 from django.shortcuts import redirect
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
@@ -12,7 +11,7 @@ from django.utils.translation import ugettext_lazy as _
 import six
 
 from waldur_core.core.admin import (
-    JsonWidget, format_json_field, ReadOnlyAdminMixin,
+    format_json_field, ReadOnlyAdminMixin,
     ExtraActionsMixin, UpdateOnlyModelAdmin
 )
 from waldur_core.core.utils import serialize_instance
@@ -58,24 +57,9 @@ class SystemNotificationForm(BaseHookForm):
         self.fields['hook_content_type'].queryset = models.BaseHook.get_all_content_types()
 
 
-class AlertAdminForm(ModelForm):
-    class Meta:
-        widgets = {
-            'context': JsonWidget(),
-        }
-
-
 class SystemNotificationAdmin(admin.ModelAdmin):
     form = SystemNotificationForm
     list_display = ('name', 'hook_content_type', 'roles')
-
-
-class AlertAdmin(admin.ModelAdmin):
-    list_display = ('uuid', 'alert_type', 'created', 'closed', 'scope', 'severity')
-    list_filter = ('alert_type', 'created', 'closed', 'severity')
-    ordering = ('alert_type',)
-    base_model = models.Alert
-    form = AlertAdminForm
 
 
 class EventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
@@ -142,7 +126,6 @@ class ReportAdmin(UpdateOnlyModelAdmin, ExtraActionsMixin, admin.ModelAdmin):
 if admin.site.is_registered(Group):
     admin.site.unregister(Group)
 
-admin.site.register(models.Alert, AlertAdmin)
 admin.site.register(models.SystemNotification, SystemNotificationAdmin)
 admin.site.register(models.WebHook, WebHookAdmin)
 admin.site.register(models.EmailHook, EmailHookAdmin)
