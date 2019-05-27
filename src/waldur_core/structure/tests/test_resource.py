@@ -3,7 +3,6 @@ import unittest
 from rest_framework import test, status
 
 from waldur_core.core import models as core_models
-from waldur_core.logging.models import Feed
 from waldur_core.logging.tests.factories import EventFactory
 from waldur_core.structure.models import NewResource, ServiceSettings
 from waldur_core.structure.tests import factories, fixtures, models as test_models
