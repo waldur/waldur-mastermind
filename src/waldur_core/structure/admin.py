@@ -574,6 +574,7 @@ class ResourceAdmin(BackendModelAdmin):
     list_display = ('uuid', 'name', 'backend_id', 'state', 'created',
                     'get_service', 'get_project', 'error_message', 'get_settings_shared')
     list_filter = ('state', DerivedFromSharedSettingsResourceFilter)
+    search_fields = ('name',)
 
     def get_settings_shared(self, obj):
         return obj.service_project_link.service.settings.shared
