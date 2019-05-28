@@ -6,7 +6,7 @@ from celery import shared_task
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -111,7 +111,14 @@ def aggregate_reported_usage(start, end, scope):
 
 
 def aggregate_fixed_usage(start, end, scope):
-    queryset = models.ResourcePlanPeriod.objects.filter(start__gte=start, end__lte=end)
+    queryset = models.ResourcePlanPeriod.objects.filter(
+        # Resource has been active during billing period
+        Q(start__gte=start, end__lte=end) |
+        # Resource is still active
+        Q(end__isnull=True) |
+        # Resource has been launched in previous billing period and stopped in current
+        Q(end__gte=start, end__lte=end)
+    )
     queryset = filter_aggregate_by_scope(queryset, scope)
 
     queryset = queryset.values('plan__components__component__parent_id') \
