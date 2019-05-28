@@ -583,7 +583,7 @@ class WaldurClient(object):
             message = 'Ambiguous result. Endpoint: %s. Query: %s' % (url, params)
             raise MultipleObjectsReturned(message)
 
-        scope = self._get(result[0][scope], valid_states=[200])
+        scope = self._get(result[0], valid_states=[200])
         if not scope:
             message = 'Result is empty. Endpoint: %s. Query: %s' % (endpoint, params)
             raise ObjectDoesNotExist(message)
