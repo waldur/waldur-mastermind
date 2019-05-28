@@ -1,4 +1,5 @@
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import utils
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
@@ -19,6 +20,11 @@ class VolumeMetadataTest(BaseOpenStackTest):
         utils.import_openstack_tenant_service_settings()
         utils.import_openstack_instances_and_volumes()
         return marketplace_models.Resource.objects.get(scope=self.volume)
+
+    def test_volume_metadata_is_imported_when_resource_is_created(self):
+        resource = marketplace_factories.ResourceFactory(scope=self.volume)
+        resource.refresh_from_db()
+        self.assertEqual(resource.backend_metadata['size'], self.volume.size)
 
     def test_volume_metadata(self):
         self.volume.action = 'detach'

@@ -311,8 +311,8 @@ def import_resource_metadata_when_resource_is_created(sender, instance, created=
     if not created:
         return
 
-    if isinstance(instance, openstack_tenant_models.Volume):
+    if isinstance(instance.scope, openstack_tenant_models.Volume):
         utils.import_volume_metadata(instance)
 
-    if isinstance(instance, openstack_tenant_models.Instance):
+    if isinstance(instance.scope, openstack_tenant_models.Instance):
         utils.import_instance_metadata(instance)
