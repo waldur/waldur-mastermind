@@ -558,7 +558,14 @@ class WaldurClient(object):
 
         endpoint = self.Endpoints.MarketplaceResources
         url = self._build_url(endpoint)
-        params = {'offering_type': offering_type}
+        params = {
+            'offering_type': offering_type,
+        }
+
+        if is_uuid(name):
+            params['resource_uuid'] = name
+        else:
+            params['name_exact'] = name
 
         if project:
             if is_uuid(project):
@@ -572,28 +579,16 @@ class WaldurClient(object):
             message = 'Result is empty. Endpoint: %s. Query: %s' % (endpoint, params)
             raise ObjectDoesNotExist(message)
 
-        scope = None
-        resource = None
+        if len(result) > 1:
+            message = 'Ambiguous result. Endpoint: %s. Query: %s' % (url, params)
+            raise MultipleObjectsReturned(message)
 
-        for r in result:
-            scope_url = r['scope']
-            scope_result = self._get(scope_url, valid_states=[200])
-
-            if (not is_uuid(name) and scope_result['name'] == name) or \
-                    (is_uuid(name) and scope_result['uuid'] == name):
-
-                if not scope:
-                    scope = scope_result
-                    resource = r
-                else:
-                    message = 'Ambiguous result. Endpoint: %s. Query: %s' % (url, params)
-                    raise MultipleObjectsReturned(message)
-
+        scope = self._get(result[0]['scope'], valid_states=[200])
         if not scope:
             message = 'Result is empty. Endpoint: %s. Query: %s' % (endpoint, params)
             raise ObjectDoesNotExist(message)
 
-        return resource, scope
+        return result[0], scope
 
     def get_instance_via_marketplace(self, name, project=None):
         """Get an openstack instance via marketplace.
@@ -918,7 +913,7 @@ class WaldurClient(object):
         """
         offering = self._get_offering(offering, project)
         offering_type = offering['type']
-        
+
         if check_mode:
             return {
                 'attributes': attributes,

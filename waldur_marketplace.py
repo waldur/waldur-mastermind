@@ -115,10 +115,10 @@ def send_request_to_waldur(client, module):
 
     def get_file_content(path):
         if path:
-            value = yaml.load(path)
+            value = yaml.safe_load(path)
             if isinstance(value, six.string_types):
                 with open(value) as f:
-                    return yaml.load(f.read())
+                    return yaml.safe_load(f.read())
             else:
                 return value
 
