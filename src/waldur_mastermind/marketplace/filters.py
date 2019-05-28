@@ -24,6 +24,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
 
 class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
+    name_exact = django_filters.CharFilter(name='name')
     customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
     project_uuid = django_filters.UUIDFilter(method='filter_project')
@@ -125,6 +126,7 @@ class OrderItemFilter(django_filters.FilterSet):
 
 class ResourceFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
+    name_exact = django_filters.CharFilter(name='name')
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
     offering_type = django_filters.CharFilter(name='offering__type')
