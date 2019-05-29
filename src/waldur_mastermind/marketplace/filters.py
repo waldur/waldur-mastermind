@@ -7,6 +7,7 @@ from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import models as structure_models
 
 from . import models
@@ -127,6 +128,7 @@ class OrderItemFilter(django_filters.FilterSet):
 class ResourceFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     name_exact = django_filters.CharFilter(name='name')
+    query = django_filters.CharFilter(method='filter_query')
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
     offering_type = django_filters.CharFilter(name='offering__type')
@@ -144,6 +146,12 @@ class ResourceFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.Resource
         fields = []
+
+    def filter_query(self, queryset, name, value):
+        if is_uuid_like(value):
+            return queryset.filter(uuid=value)
+        else:
+            return queryset.filter(name__icontains=value)
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
