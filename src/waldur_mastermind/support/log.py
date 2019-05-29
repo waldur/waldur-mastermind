@@ -47,7 +47,7 @@ class OfferingEventLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         offering = event_context['offering']
-        return {offering.project, offering.project.customer}
+        return {offering, offering.project, offering.project.customer}
 
 
 event_logger.register('waldur_issue', IssueEventLogger)
