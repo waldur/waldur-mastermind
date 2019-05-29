@@ -648,14 +648,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             reraise(e)
 
         for port in ports.get('ports', []):
-            logger.info("Deleting port %s interface_router from tenant %s", port['id'], tenant.backend_id)
-            try:
-                neutron.remove_interface_router(port['device_id'], {'port_id': port['id']})
-            except neutron_exceptions.NotFound:
-                logger.debug("Port %s interface_router is already gone from tenant %s", port['id'],
-                             tenant.backend_id)
-            except neutron_exceptions.NeutronClientException as e:
-                reraise(e)
+            if 'device_id' in port:
+                logger.info("Deleting port %s interface_router from tenant %s", port['id'], tenant.backend_id)
+                try:
+                    neutron.remove_interface_router(port['device_id'], {'port_id': port['id']})
+                except neutron_exceptions.NotFound:
+                    logger.debug("Port %s interface_router is already gone from tenant %s", port['id'],
+                                 tenant.backend_id)
+                except neutron_exceptions.NeutronClientException as e:
+                    reraise(e)
 
             logger.info("Deleting port %s from tenant %s", port['id'], tenant.backend_id)
             try:
