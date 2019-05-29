@@ -43,24 +43,23 @@
         ({{ order.created_by.email }})
       </div>
       <div>
-        <span>{% trans "Requester registered via" %}:</span>
-        {{ order.created_by.registration_method }} {% trans "registration method" %}
+        <span>{% trans "Requested at" %}:</span>
+        {{ order.created|date:"SHORT_DATE_FORMAT" }}
+        {{ order.created|time:"H:i" }}
       </div>
+
       {% if order.approved_by %}
       <div>
         <span>{% trans "Approved by" %}:</span>
         {{ order.approved_by.full_name }}
         ({{ order.approved_by.email }})
       </div>
-      <div>
-        <span>{% trans "Approver registered via" %}:</span>
-        {{ order.approved_by.registration_method }} {% trans "registration method" %}
-      </div>
       {% endif %}
       {% if order.approved_at %}
       <div>
         <span>{% trans "Approved at" %}:</span>
         {{ order.approved_at|date:"SHORT_DATE_FORMAT" }}
+        {{ order.approved_at|time:"H:i" }}
       </div>
       {% endif %}
     </div>
@@ -68,14 +67,6 @@
       <h1>{% trans "Marketplace order" %}</h1>
       <div class="date">
         UUID: {{ order.uuid|upper }}
-      </div>
-      <div class="date">
-        {% trans "Status" %}: {{ order.get_state_display }}
-      </div>
-      <div class="date">
-        {% trans "Created at" %}:
-        {{ order.created|date:"SHORT_DATE_FORMAT" }}
-        {{ order.created|time:"H:i" }}
       </div>
     </div>
   </div>
