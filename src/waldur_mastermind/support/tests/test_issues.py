@@ -439,6 +439,18 @@ class IssueCommentTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Comment.objects.filter(issue=issue, description=payload['description']))
 
+    @data('owner', 'admin', 'manager', 'user')
+    def test_user_can_comment_on_issue_where_he_is_caller_without_project_and_customer(self, user):
+        current_user = getattr(self.fixture, user)
+        self.client.force_authenticate(current_user)
+        issue = factories.IssueFactory(caller=current_user, project=None)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(factories.IssueFactory.get_url(issue, action='comment'), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Comment.objects.filter(issue=issue, description=payload['description']))
+
     @data('admin', 'manager', 'user')
     def test_user_without_access_to_instance_cannot_comment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
