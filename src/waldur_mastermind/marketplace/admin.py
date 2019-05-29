@@ -263,7 +263,6 @@ class OrderAdmin(core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, ad
 
         return format_html('<a href="./pdf_file">download</a>')
 
-
     create_pdf_for_all.name = _('Create PDF for all orders')
 
 
