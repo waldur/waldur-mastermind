@@ -66,6 +66,17 @@ class OfferingTemplateAdmin(admin.ModelAdmin):
 
 class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendModelAdmin):
     exclude = ('resource_content_type', 'resource_object_id')
+    ordering = ('-created',)
+    search_fields = ('key', 'backend_id', 'summary')
+    list_filter = ('type', 'status', 'resolution')
+    list_display = ('key', 'summary', 'type', 'status', 'resolution', 'get_caller_full_name')
+
+    def get_caller_full_name(self, obj):
+        if obj.caller:
+            return obj.caller.full_name
+        return
+
+    get_caller_full_name.short_description = 'Caller name'
 
     def resolve(self, request, pk=None):
         issue = get_object_or_404(models.Issue, pk=pk)
