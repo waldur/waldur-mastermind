@@ -126,9 +126,20 @@ class IssueStatusAdmin(admin.ModelAdmin):
     list_display = ('name', 'type')
 
 
+class CommentAdmin(structure_admin.BackendModelAdmin):
+    list_display = ('get_issue_key', 'is_public', 'author', 'created')
+    list_filter = ('is_public', 'author')
+    search_fields = ('description',)
+
+    def get_issue_key(self, obj):
+        return "%s: %s" % (obj.issue.key, obj.issue.summary)
+
+    get_issue_key.short_description = 'Issue'
+
+
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
-admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
+admin.site.register(models.Comment, CommentAdmin)
 admin.site.register(models.Attachment)
 admin.site.register(models.SupportUser, SupportUserAdmin)
 admin.site.register(models.Template, TemplateAdmin)
