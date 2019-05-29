@@ -202,6 +202,7 @@ class CustomerAdmin(FormRequestAdminMixin,
                     'get_vm_count', 'get_app_count', 'get_private_cloud_count')
     list_filter = ('blocked', 'division')
     search_fields = ('name', 'uuid', 'abbreviation')
+    date_hierarchy = 'created'
     readonly_fields = ('uuid',)
     inlines = [QuotaInline]
 

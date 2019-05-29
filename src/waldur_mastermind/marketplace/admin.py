@@ -286,6 +286,7 @@ class ResourceAdmin(admin.ModelAdmin):
     readonly_fields = ('state', 'scope_link', 'project_link', 'offering_link',
                                 'plan_link', 'formatted_attributes', 'formatted_limits')
     fields = readonly_fields + ('plan',)
+    date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
 
     def category(self, obj):

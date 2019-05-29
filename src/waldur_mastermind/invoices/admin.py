@@ -41,6 +41,7 @@ class InvoiceAdmin(core_admin.ExtraActionsMixin,
     list_display = ('customer', 'total', 'year', 'month', 'state')
     list_filter = ('state', 'customer')
     search_fields = ('customer__name', 'uuid')
+    date_hierarchy = 'invoice_date'
     actions = ('create_pdf',)
 
     class CreatePDFAction(core_admin.ExecutorAdminAction):
