@@ -441,8 +441,9 @@ class IssueCommentTest(base.BaseTest):
 
     @data('owner', 'admin', 'manager', 'user')
     def test_user_can_comment_on_issue_where_he_is_caller_without_project_and_customer(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        issue = factories.IssueFactory(caller=user)
+        current_user = getattr(self.fixture, user)
+        self.client.force_authenticate(current_user)
+        issue = factories.IssueFactory(caller=current_user)
         payload = self._get_valid_payload()
 
         response = self.client.post(factories.IssueFactory.get_url(issue, action='comment'), data=payload)
