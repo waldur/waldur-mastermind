@@ -80,6 +80,9 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if user.is_staff or user.is_support or not obj:
             return
         issue = obj
+        # if it's a personal issue
+        if not issue.customer and not issue.project and issue.caller == user:
+            return
         if issue.customer and issue.customer.has_user(user, structure_models.CustomerRole.OWNER):
             return
         if (issue.project and (issue.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR) or

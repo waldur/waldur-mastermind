@@ -1,8 +1,10 @@
 from __future__ import unicode_literals
 
 from django.contrib import admin
+from django.conf.urls import url
 from django.core.urlresolvers import resolve
 from django.forms.models import ModelForm
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.html import format_html
@@ -220,8 +222,13 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = fields
 
 
-class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
+class OrderAdmin(core_admin.ReadOnlyAdminMixin, core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
+    fields = ['created_by', 'approved_by', 'approved_at', 'created', 'project', 'state',
+              'total_cost', 'modified', 'pdf_file']
+    readonly_fields = ('created', 'modified', 'created_by', 'approved_by', 'approved_at',
+                       'project', 'approved_by', 'total_cost', 'pdf_file')
+
     list_filter = ('state', 'created')
     ordering = ('-created',)
     inlines = [OrderItemInline]
@@ -231,11 +238,30 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
             self.create_pdf_for_all,
         ]
 
+    def get_urls(self):
+        my_urls = [
+            url(r'^(.+)/change/pdf_file/$', self.admin_site.admin_view(self.pdf_file_view)),
+        ]
+        return my_urls + super(OrderAdmin, self).get_urls()
+
     def create_pdf_for_all(self, request):
         tasks.create_pdf_for_all.delay()
         message = _('PDF creation has been scheduled')
         self.message_user(request, message)
         return redirect(reverse('admin:marketplace_order_changelist'))
+
+    def pdf_file_view(self, request, pk=None):
+        order = models.Order.objects.get(id=pk)
+        file_response = HttpResponse(order.file, content_type='application/pdf')
+        filename = order.get_filename()
+        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        return file_response
+
+    def pdf_file(self, obj):
+        if not obj.file:
+            return ''
+
+        return format_html('<a href="./pdf_file">download</a>')
 
     create_pdf_for_all.name = _('Create PDF for all orders')
 
@@ -260,6 +286,7 @@ class ResourceAdmin(admin.ModelAdmin):
     readonly_fields = ('state', 'scope_link', 'project_link', 'offering_link',
                                 'plan_link', 'formatted_attributes', 'formatted_limits')
     fields = readonly_fields + ('plan',)
+    date_hierarchy = 'created'
     search_fields = ('name', 'uuid')
 
     def category(self, obj):

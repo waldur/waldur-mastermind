@@ -66,6 +66,17 @@ class OfferingTemplateAdmin(admin.ModelAdmin):
 
 class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendModelAdmin):
     exclude = ('resource_content_type', 'resource_object_id')
+    ordering = ('-created',)
+    search_fields = ('key', 'backend_id', 'summary')
+    list_filter = ('type', 'status', 'resolution')
+    list_display = ('key', 'summary', 'type', 'status', 'resolution', 'get_caller_full_name')
+
+    def get_caller_full_name(self, obj):
+        if obj.caller:
+            return obj.caller.full_name
+        return
+
+    get_caller_full_name.short_description = 'Caller name'
 
     def resolve(self, request, pk=None):
         issue = get_object_or_404(models.Issue, pk=pk)
@@ -126,9 +137,20 @@ class IssueStatusAdmin(admin.ModelAdmin):
     list_display = ('name', 'type')
 
 
+class CommentAdmin(structure_admin.BackendModelAdmin):
+    list_display = ('get_issue_key', 'is_public', 'author', 'created')
+    list_filter = ('is_public', 'author')
+    search_fields = ('description',)
+
+    def get_issue_key(self, obj):
+        return "%s: %s" % (obj.issue.key, obj.issue.summary)
+
+    get_issue_key.short_description = 'Issue'
+
+
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Issue, IssueAdmin)
-admin.site.register(models.Comment, structure_admin.BackendModelAdmin)
+admin.site.register(models.Comment, CommentAdmin)
 admin.site.register(models.Attachment)
 admin.site.register(models.SupportUser, SupportUserAdmin)
 admin.site.register(models.Template, TemplateAdmin)
