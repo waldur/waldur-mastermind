@@ -449,7 +449,7 @@ class IssueCommentTest(base.BaseTest):
         response = self.client.post(factories.IssueFactory.get_url(issue, action='comment'), data=payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertFalse(models.Comment.objects.filter(issue=issue, description=payload['description']))
+        self.assertTrue(models.Comment.objects.filter(issue=issue, description=payload['description']))
 
     @data('admin', 'manager', 'user')
     def test_user_without_access_to_instance_cannot_comment(self, user):
