@@ -17,9 +17,9 @@ class MarketplaceSlurmConfig(AppConfig):
         from . import handlers, processor
 
         signals.post_save.connect(
-            handlers.create_slurm_package,
+            handlers.synchronize_slurm_package,
             sender=marketplace_models.PlanComponent,
-            dispatch_uid='waldur_mastermind.marketpace_slurm.create_slurm_package',
+            dispatch_uid='waldur_mastermind.marketpace_slurm.synchronize_slurm_package',
         )
 
         signals.post_save.connect(

@@ -15,7 +15,7 @@ from waldur_slurm.apps import SlurmConfig
 logger = logging.getLogger(__name__)
 
 
-def create_slurm_package(sender, instance, created=False, **kwargs):
+def synchronize_slurm_package(sender, instance, created=False, **kwargs):
     plan = instance.plan
 
     if not created and not set(instance.tracker.changed()) & {'amount', 'price'}:
