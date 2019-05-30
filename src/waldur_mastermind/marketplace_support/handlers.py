@@ -58,9 +58,12 @@ def terminate_resource(sender, instance, **kwargs):
         callbacks.resource_deletion_succeeded(resource)
 
 
-def create_support_plan(sender, instance, created=False, **kwargs):
+def create_or_update_support_plan(sender, instance, created=False, **kwargs):
     plan = instance
-    if plan.offering.type != PLUGIN_NAME or not created:
+    if plan.offering.type != PLUGIN_NAME:
+        return
+
+    if not created and not plan.tracker.has_changed('unit_price'):
         return
 
     if not isinstance(plan.offering.scope, support_models.OfferingTemplate):
@@ -79,6 +82,9 @@ def create_support_plan(sender, instance, created=False, **kwargs):
             )
             plan.scope = offering_plan
             plan.save()
+        else:
+            plan.scope.unit_price = plan.unit_price
+            plan.scope.save(update_fields=['unit_price'])
 
 
 def change_offering_state(sender, instance, created=False, **kwargs):

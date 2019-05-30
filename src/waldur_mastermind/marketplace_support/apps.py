@@ -34,9 +34,9 @@ class MarketplaceSupportConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.create_support_plan,
+            handlers.create_or_update_support_plan,
             sender=marketplace_models.Plan,
-            dispatch_uid='waldur_mastermind.marketpace_support.create_support_plan',
+            dispatch_uid='waldur_mastermind.marketpace_support.create_or_update_support_plan',
         )
 
         signals.post_save.connect(

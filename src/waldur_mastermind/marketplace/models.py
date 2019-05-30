@@ -415,6 +415,7 @@ class Plan(core_models.UuidMixin,
         help_text=_('Maximum number of plans that could be active. '
                     'Plan is disabled when maximum amount is reached.')
     )
+    tracker = FieldTracker()
 
     class Meta(object):
         ordering = ('name',)
