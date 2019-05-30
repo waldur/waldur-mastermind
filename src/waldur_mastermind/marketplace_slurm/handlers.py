@@ -44,14 +44,16 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
 
     if created:
         with transaction.atomic():
-            slurm_package = slurm_invoices_models.SlurmPackage.objects.create(
+            slurm_package, _ = slurm_invoices_models.SlurmPackage.objects.get_or_create(
                 service_settings=plan.offering.scope,
-                name=plan.name,
-                product_code=plan.product_code,
-                article_code=plan.article_code,
-                cpu_price=prices.get('cpu'),
-                gpu_price=prices.get('gpu'),
-                ram_price=prices.get('ram'),
+                defaults=dict(
+                    name=plan.name,
+                    product_code=plan.product_code,
+                    article_code=plan.article_code,
+                    cpu_price=prices.get('cpu'),
+                    gpu_price=prices.get('gpu'),
+                    ram_price=prices.get('ram'),
+                )
             )
             plan.scope = slurm_package
             plan.save()
