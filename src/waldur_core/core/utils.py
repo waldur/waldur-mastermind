@@ -13,7 +13,7 @@ import uuid
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db.models import F
@@ -223,7 +223,26 @@ def format_text(template_name, context):
     return template.render(Context(context, autoescape=False)).strip()
 
 
-def broadcast_mail(app, event_type, context, recipient_list):
+def send_mail_with_attachment(subject, body, to, from_email=None, html_message=None,
+                              filename=None, attachment=None, content_type='text/plain'):
+    from_email = from_email or settings.DEFAULT_FROM_EMAIL
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=body,
+        to=to,
+        from_email=from_email
+    )
+
+    if html_message:
+        email.attach_alternative(html_message, 'text/html')
+
+    if filename:
+        email.attach(filename, attachment, content_type)
+    return email.send()
+
+
+def broadcast_mail(app, event_type, context, recipient_list,
+                   filename=None, attachment=None, content_type='text/plain'):
     """
     Shorthand to format email message from template file and sent it to all recipients.
 
@@ -243,6 +262,9 @@ def broadcast_mail(app, event_type, context, recipient_list):
     :param event_type: postfix for template filename.
     :param context: dictionary passed to the template for rendering.
     :param recipient_list: list of strings, each an email address.
+    :param filename: name of the attached file
+    :param attachment: content of attachment
+    :param content_type: the content type of attachment
     """
     subject_template_name = '%s/%s_subject.txt' % (app, event_type)
     subject = format_text(subject_template_name, context)
@@ -254,7 +276,8 @@ def broadcast_mail(app, event_type, context, recipient_list):
     html_message = render_to_string(html_template_name, context)
 
     for recipient in recipient_list:
-        send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [recipient], html_message=html_message)
+        send_mail_with_attachment(subject, text_message, to=[recipient], html_message=html_message,
+                                  filename=filename, attachment=attachment, content_type=content_type)
 
 
 def get_ordering(request):

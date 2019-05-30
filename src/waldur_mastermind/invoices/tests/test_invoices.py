@@ -14,7 +14,7 @@ from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
-from . import factories, fixtures
+from . import factories, fixtures, utils as test_utils
 from .. import models, utils
 
 
@@ -44,56 +44,62 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.fixture.invoice.state = models.Invoice.States.CREATED
         self.fixture.invoice.save(update_fields=['state'])
 
+        self.patcher = mock.patch('waldur_mastermind.invoices.utils.pdfkit')
+        mock_pdfkit = self.patcher.start()
+        mock_pdfkit.from_string.return_value = ''
+
+    def tearDown(self):
+        super(InvoiceSendNotificationTest, self).tearDown()
+        mock.patch.stopall()
+
     @data('staff')
     def test_user_can_send_invoice_notification(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, self._get_payload())
+        response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data('manager', 'admin', 'user')
     def test_user_cannot_send_invoice_notification(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, self._get_payload())
+        response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_settings(task_always_eager=True)
+    @test_utils.override_invoices_settings(INVOICE_LINK_TEMPLATE='http://example.com/invoice/{uuid}')
     def test_notification_email_is_rendered(self):
         # Arrange
         self.fixture.owner
 
         # Act
         self.client.force_authenticate(self.fixture.staff)
-        self.client.post(self.url, self._get_payload())
+        self.client.post(self.url)
 
         # Assert
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue('invoice' in mail.outbox[0].subject)
         self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
 
+    @override_settings(task_always_eager=True)
+    @test_utils.override_invoices_settings(INVOICE_LINK_TEMPLATE='http://example.com/invoice/')
     def test_user_cannot_send_invoice_notification_with_invalid_link_template(self):
-        self.client.force_authenticate(self.fixture.staff)
-        payload = self._get_payload()
-        payload['link_template'] = 'http://example.com/invoice/'
+        # Arrange
+        self.fixture.owner
 
-        response = self.client.post(self.url, payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['link_template'], ["Link template must include '{uuid}' parameter."])
+        # Act
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.post(self.url)
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_user_cannot_send_invoice_notification_in_invalid_state(self):
         self.fixture.invoice.state = models.Invoice.States.PENDING
         self.fixture.invoice.save(update_fields=['state'])
         self.client.force_authenticate(self.fixture.staff)
-        payload = self._get_payload()
 
-        response = self.client.post(self.url, payload)
+        response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, ["Notification only for the created invoice can be sent."])
-
-    # Helper methods
-    def _get_payload(self):
-        return {
-            'link_template': 'http://example.com/invoice/{uuid}',
-        }
 
 
 class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):

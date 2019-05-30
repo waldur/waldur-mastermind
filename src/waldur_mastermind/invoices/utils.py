@@ -4,7 +4,6 @@ from calendar import monthrange
 
 import pdfkit
 from django.conf import settings
-from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -49,18 +48,6 @@ def check_past_date(year, month, day=None):
         return datetime.date(year=int(year), month=int(month), day=int(day)) <= timezone.now().date()
     except ValueError:
         return False
-
-
-def send_mail_attachment(subject, body, to, filename, attach_text, content_type='text/plain', from_email=None):
-    from_email = from_email or settings.DEFAULT_FROM_EMAIL
-    email = EmailMessage(
-        subject=subject,
-        body=body,
-        to=to,
-        from_email=from_email
-    )
-    email.attach(filename, attach_text, content_type)
-    return email.send()
 
 
 def parse_period(attrs, use_default=True):
