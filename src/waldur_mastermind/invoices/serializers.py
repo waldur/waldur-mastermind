@@ -2,7 +2,6 @@ from __future__ import unicode_literals
 
 import datetime
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
@@ -101,17 +100,6 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         return reverse('invoice-pdf',
                        kwargs={'uuid': obj.uuid},
                        request=self.context['request'])
-
-
-class InvoiceNotificationSerializer(serializers.Serializer):
-    link_template = serializers.URLField(help_text=_('The template must include {uuid} parameter '
-                                                     'e.g. http://example.com/invoice/{uuid}'))
-
-    def validate_link_template(self, link_template):
-        if '{uuid}' not in link_template:
-            raise serializers.ValidationError(_("Link template must include '{uuid}' parameter."))
-
-        return link_template
 
 
 class InvoiceItemReportSerializer(serializers.ModelSerializer):
