@@ -77,7 +77,7 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
         price = decimal.Decimal(price) / decimal.Decimal(1024.0)
 
     package_component = package_models.PackageComponent.objects.filter(
-            template=template, type=component.component.type).first()
+        template=template, type=component.component.type).first()
 
     if package_component:
         package_component.amount = amount
