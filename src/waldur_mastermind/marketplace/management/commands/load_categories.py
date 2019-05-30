@@ -68,19 +68,19 @@ category_columns = {
 category_components = {
     'vpc': [
         {
-          'type': 'storage',
-          'name': 'Storage',
-          'measured_unit': 'GB',
+            'type': 'storage',
+            'name': 'Storage',
+            'measured_unit': 'GB',
         },
         {
-          'type': 'ram',
-          'name': 'RAM',
-          'measured_unit': 'GB',
+            'type': 'ram',
+            'name': 'RAM',
+            'measured_unit': 'GB',
         },
         {
-          'type': 'cores',
-          'name': 'Cores',
-          'measured_unit': 'cores',
+            'type': 'cores',
+            'name': 'Cores',
+            'measured_unit': 'cores',
         }
     ]
 }
