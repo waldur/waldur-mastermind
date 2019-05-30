@@ -10,6 +10,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.management.commands.load_categories import load_category
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
@@ -93,11 +94,20 @@ class PlanComponentsTest(test.APITransactionTestCase):
     }
     quotas = prices
 
+    def setUp(self):
+        super(PlanComponentsTest, self).setUp()
+        self.category = load_category('vpc')
+
     def test_plan_components_are_validated(self):
         response = self.create_offering()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(offering.plans.first().components.count(), 3)
+
+    def test_plan_components_have_parent(self):
+        response = self.create_offering()
+        offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
+        self.assertEqual(3, offering.components.exclude(parent=None).count())
 
     def test_plan_without_components_is_valid(self):
         response = self.create_offering(False)
@@ -114,7 +124,7 @@ class PlanComponentsTest(test.APITransactionTestCase):
         self.client.force_authenticate(fixture.owner)
         payload = {
             'name': 'offering',
-            'category': marketplace_factories.CategoryFactory.get_url(),
+            'category': marketplace_factories.CategoryFactory.get_url(self.category),
             'customer': structure_factories.CustomerFactory.get_url(fixture.customer),
             'type': PACKAGE_TYPE,
             'service_attributes': {

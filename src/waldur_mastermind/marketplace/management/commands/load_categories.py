@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.core.files import File
 
 from waldur_mastermind.marketplace.models import Category, CategoryColumn, \
-    Section, Attribute, AttributeOption
+    CategoryComponent, Section, Attribute, AttributeOption
 
 
 def merge_two_dicts(x, y):
@@ -63,6 +63,26 @@ category_columns = {
             'widget': 'csv',
         },
     ],
+}
+
+category_components = {
+    'vpc': [
+        {
+          'type': 'storage',
+          'name': 'Storage',
+          'measured_unit': 'GB',
+        },
+        {
+          'type': 'ram',
+          'name': 'RAM',
+          'measured_unit': 'GB',
+        },
+        {
+          'type': 'cores',
+          'name': 'Cores',
+          'measured_unit': 'cores',
+        }
+    ]
 }
 
 common_sections = {
@@ -448,6 +468,18 @@ def load_category(category_short):
                 index=index,
                 attribute=attribute.get('attribute', ''),
                 widget=attribute.get('widget'),
+            )
+        )
+
+    # add category components
+    components = category_components.get(category_short, [])
+    for component in components:
+        CategoryComponent.objects.get_or_create(
+            category=new_category,
+            type=component['type'],
+            defaults=dict(
+                name=component['name'],
+                measured_unit=component.get('measured_unit'),
             )
         )
     return new_category
