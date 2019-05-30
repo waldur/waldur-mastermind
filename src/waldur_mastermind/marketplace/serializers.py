@@ -368,7 +368,8 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         if attributes is None and self.instance:
             attributes = self.instance.attributes
 
-        attributes = attributes or dict()
+        if attributes is None:
+            attributes = dict()
 
         category_attributes = models.Attribute.objects.filter(section__category=category)
         required_attributes = category_attributes.filter(required=True).values_list('key', flat=True)
