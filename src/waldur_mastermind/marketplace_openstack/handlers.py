@@ -56,7 +56,7 @@ def create_template_for_plan(sender, instance, created=False, **kwargs):
 def synchronize_plan_component(sender, instance, created=False, **kwargs):
     component = instance
 
-    if not created:
+    if not created and not set(instance.tracker.changed()) & {'amount', 'price'}:
         return
 
     if component.plan.offering.type != PACKAGE_TYPE:
@@ -68,17 +68,23 @@ def synchronize_plan_component(sender, instance, created=False, **kwargs):
                        'Offering ID: %s', component.plan.offering.id)
         return
 
-    if not package_models.PackageComponent.objects.filter(
-            template=template, type=component.component.type).exists():
+    amount = component.amount
+    price = component.price
 
-        amount = component.amount
-        price = component.price
+    # In marketplace RAM and storage is stored in GB, but in package plugin it is stored in MB.
+    if component.component.type in (RAM_TYPE, STORAGE_TYPE):
+        amount = amount * 1024
+        price = decimal.Decimal(price) / decimal.Decimal(1024.0)
 
-        # In marketplace RAM and storage is stored in GB, but in package plugin it is stored in MB.
-        if component.component.type in (RAM_TYPE, STORAGE_TYPE):
-            amount = amount * 1024
-            price = decimal.Decimal(price) / decimal.Decimal(1024.0)
+    package_component = package_models.PackageComponent.objects.filter(
+            template=template, type=component.component.type).first()
 
+    if package_component:
+        package_component.amount = amount
+        package_component.price = price
+        package_component.save(update_fields=['amount', 'price'])
+
+    elif created:
         package_models.PackageComponent.objects.create(
             template=template,
             type=component.component.type,

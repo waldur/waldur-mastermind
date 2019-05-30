@@ -18,13 +18,10 @@ logger = logging.getLogger(__name__)
 def create_slurm_package(sender, instance, created=False, **kwargs):
     plan = instance.plan
 
-    if not created:
+    if not created and not set(instance.tracker.changed()) & {'amount', 'price'}:
         return
 
     if plan.offering.type != PLUGIN_NAME:
-        return
-
-    if plan.scope:
         return
 
     if not isinstance(plan.offering.scope, structure_models.ServiceSettings):
@@ -45,18 +42,24 @@ def create_slurm_package(sender, instance, created=False, **kwargs):
     prices = {component.component.type: component.price
               for component in plan.components.all()}
 
-    with transaction.atomic():
-        slurm_package = slurm_invoices_models.SlurmPackage.objects.create(
-            service_settings=plan.offering.scope,
-            name=plan.name,
-            product_code=plan.product_code,
-            article_code=plan.article_code,
-            cpu_price=prices.get('cpu'),
-            gpu_price=prices.get('gpu'),
-            ram_price=prices.get('ram'),
-        )
-        plan.scope = slurm_package
-        plan.save()
+    if created:
+        with transaction.atomic():
+            slurm_package = slurm_invoices_models.SlurmPackage.objects.create(
+                service_settings=plan.offering.scope,
+                name=plan.name,
+                product_code=plan.product_code,
+                article_code=plan.article_code,
+                cpu_price=prices.get('cpu'),
+                gpu_price=prices.get('gpu'),
+                ram_price=prices.get('ram'),
+            )
+            plan.scope = slurm_package
+            plan.save()
+    elif plan.scope:
+        plan.scope.cpu_price = prices.get('cpu')
+        plan.scope.gpu_price = prices.get('gpu')
+        plan.scope.ram_price = prices.get('ram')
+        plan.scope.save(update_fields=['cpu_price', 'gpu_price', 'ram_price'])
 
 
 def create_slurm_usage(sender, instance, created=False, **kwargs):

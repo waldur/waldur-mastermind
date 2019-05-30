@@ -18,6 +18,18 @@ class OfferingTemplateCreateTest(test.APITransactionTestCase):
         template = support_models.OfferingTemplate.objects.get(name=offering.name)
         self.assertTrue(offering.scope, template)
 
+    def test_when_plan_price_is_updated_offering_template_is_synchronized(self):
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        offering.refresh_from_db()
+        plan = marketplace_factories.PlanFactory(offering=offering, unit_price=100)
+        plan.refresh_from_db()
+        self.assertTrue(plan.scope.unit_price, 100)
+
+        plan.unit_price += 1
+        plan.save()
+        plan.scope.refresh_from_db()
+        self.assertTrue(plan.scope.unit_price, 1001)
+
     def test_offering_template_is_not_created_for_invalid_type(self):
         offering = marketplace_factories.OfferingFactory()
         offering.refresh_from_db()

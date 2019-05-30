@@ -108,6 +108,15 @@ class PlanComponentsTest(test.APITransactionTestCase):
         offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
         self.assertEqual(offering.plans.first().unit_price, 10 * 10 + 100 * 100 + 1000 * 1000)
 
+    def test_plan_components_are_updated(self):
+        response = self.create_offering()
+        offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
+        component = offering.plans.first().components.get(component__type='cores')
+        component.amount += 1
+        component.save()
+        template = package_models.PackageTemplate.objects.get(service_settings=offering.scope)
+        self.assertEqual(template.components.get(type='cores').amount, component.amount)
+
     def create_offering(self, components=True):
         fixture = structure_fixtures.ProjectFixture()
         url = marketplace_factories.OfferingFactory.get_list_url()
