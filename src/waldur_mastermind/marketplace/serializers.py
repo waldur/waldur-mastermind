@@ -354,6 +354,11 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             raise rf_exceptions.ValidationError(_('Invalid value.'))
         return offering_type
 
+    def validate_terms_of_service(self, value):
+        if value:
+            value = value.strip()
+        return value
+
     def _validate_attributes(self, attrs):
         category = attrs.get('category')
         if category is None and self.instance:
