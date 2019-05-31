@@ -1169,9 +1169,9 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         resource = plan_period.resource
         offering = resource.plan.offering
 
-        if resource.state == models.Resource.States.TERMINATED:
+        if resource.state not in [models.Resource.States.OK, models.Resource.States.UPDATING]:
             raise rf_exceptions.ValidationError({
-                'resource': _('Resource is terminated.')
+                'resource': _('Resource is not in valid state.')
             })
 
         valid_components = set(offering.get_usage_components().keys())
