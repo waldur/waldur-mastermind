@@ -132,10 +132,8 @@ def update_aggregate_resources_count_when_resource_is_updated(sender, instance, 
 
             counter.save(update_fields=['count'])
 
-    if instance.scope and (created or not instance.tracker.previous('object_id')):
+    if created and instance.state != models.Resource.States.TERMINATED:
         apply_change(1)
-    elif not instance.scope and instance.tracker.previous('object_id'):
-        apply_change(-1)
     elif instance.tracker.has_changed('state') and instance.state == models.Resource.States.TERMINATED:
         apply_change(-1)
 
