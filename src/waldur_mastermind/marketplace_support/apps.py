@@ -34,9 +34,9 @@ class MarketplaceSupportConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.create_support_plan,
+            handlers.create_or_update_support_plan,
             sender=marketplace_models.Plan,
-            dispatch_uid='waldur_mastermind.marketpace_support.create_support_plan',
+            dispatch_uid='waldur_mastermind.marketpace_support.create_or_update_support_plan',
         )
 
         signals.post_save.connect(
@@ -49,6 +49,12 @@ class MarketplaceSupportConfig(AppConfig):
             handlers.update_order_item_if_issue_was_complete,
             sender=support_models.Issue,
             dispatch_uid='waldur_mastermind.marketpace_support.update_order_item_if_issue_was_complete',
+        )
+
+        signals.post_save.connect(
+            handlers.notify_about_request_based_item_creation,
+            sender=marketplace_models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketpace_support.notify_about_request_based_item_creation',
         )
 
         manager.register(PLUGIN_NAME,

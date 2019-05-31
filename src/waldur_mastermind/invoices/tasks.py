@@ -1,9 +1,10 @@
 from __future__ import unicode_literals
 
+import base64
 import cStringIO
 import logging
 
-from celery import shared_task
+from celery import shared_task, chain
 from django.conf import settings
 from django.db.models import Q
 from django.template.loader import render_to_string
@@ -11,7 +12,6 @@ from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.csv import UnicodeDictWriter
-from waldur_core.core.utils import broadcast_mail
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 
@@ -48,13 +48,27 @@ def create_monthly_invoices():
     if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
         send_invoice_report.delay()
 
-    create_pdf_for_new_invoices.delay()
+    if settings.WALDUR_INVOICES['SEND_CUSTOMER_INVOICES']:
+        chain(create_pdf_for_new_invoices.si(), send_new_invoices_notification.si())()
+    else:
+        create_pdf_for_new_invoices.delay()
 
 
 @shared_task(name='invoices.send_invoice_notification')
-def send_invoice_notification(invoice_uuid, link_template):
+def send_invoice_notification(invoice_uuid):
     """ Sends email notification with invoice link to customer owners """
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
+    link_template = settings.WALDUR_INVOICES['INVOICE_LINK_TEMPLATE']
+
+    if not link_template:
+        logger.error('INVOICE_LINK_TEMPLATE is not set. '
+                     'Sending of invoice notification is not available.')
+        return
+
+    if '{uuid}' not in link_template:
+        logger.error('INVOICE_LINK_TEMPLATE must include \'{uuid}\' parameter. '
+                     'Sending of invoice notification is not available.')
+        return
 
     context = {
         'month': invoice.month,
@@ -64,9 +78,19 @@ def send_invoice_notification(invoice_uuid, link_template):
     }
 
     emails = [owner.email for owner in invoice.customer.get_owners()]
+    filename = None
+    attachment = None
+    content_type = None
+
+    if invoice.file:
+        filename = '%s_%s_%s.pdf' % (settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
+                                     invoice.year, invoice.month)
+        attachment = base64.b64decode(invoice._file)
+        content_type = 'application/pdf'
 
     logger.debug('About to send invoice {invoice} notification to {emails}'.format(invoice=invoice, emails=emails))
-    broadcast_mail('invoices', 'notification', context, emails)
+    core_utils.broadcast_mail('invoices', 'notification', context, emails,
+                              filename=filename, attachment=attachment, content_type=content_type)
 
 
 @shared_task(name='invoices.send_invoice_report')
@@ -95,11 +119,11 @@ def send_invoice_report():
     # Please note that email body could be empty if there are no valid invoices
     emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
     logger.debug('About to send accounting report to {emails}'.format(emails=emails))
-    utils.send_mail_attachment(
+    core_utils.send_mail_with_attachment(
         subject=subject,
         body=body,
         to=emails,
-        attach_text=text_message,
+        attachment=text_message,
         filename=filename
     )
 
@@ -161,3 +185,11 @@ def create_pdf_for_new_invoices():
     date = timezone.now()
     for invoice in models.Invoice.objects.filter(year=date.year, month=date.month):
         utils.create_invoice_pdf(invoice)
+
+
+@shared_task
+def send_new_invoices_notification():
+    date = timezone.now()
+
+    for invoice in models.Invoice.objects.filter(year=date.year, month=date.month):
+        send_invoice_notification.delay(invoice.uuid.hex)

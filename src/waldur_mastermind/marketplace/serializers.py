@@ -354,6 +354,11 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             raise rf_exceptions.ValidationError(_('Invalid value.'))
         return offering_type
 
+    def validate_terms_of_service(self, value):
+        if value:
+            value = value.strip()
+        return value
+
     def _validate_attributes(self, attrs):
         category = attrs.get('category')
         if category is None and self.instance:
@@ -368,9 +373,12 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         if attributes is None and self.instance:
             attributes = self.instance.attributes
 
+        if attributes is None:
+            attributes = dict()
+
         category_attributes = models.Attribute.objects.filter(section__category=category)
         required_attributes = category_attributes.filter(required=True).values_list('key', flat=True)
-        missing_attributes = set(required_attributes) - (set(attributes.keys()) if attributes else set())
+        missing_attributes = set(required_attributes) - set(attributes.keys())
 
         if missing_attributes:
             raise rf_exceptions.ValidationError({
@@ -463,10 +471,15 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
 
     def _create_components(self, offering, custom_components):
         fixed_components = plugins.manager.get_components(offering.type)
+        category_components = {
+            component.type: component
+            for component in models.CategoryComponent.objects.filter(category=offering.category)
+        }
 
         for component_data in fixed_components:
             models.OfferingComponent.objects.create(
                 offering=offering,
+                parent=category_components.get(component_data.type, None),
                 **component_data._asdict()
             )
 
@@ -1161,9 +1174,9 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         resource = plan_period.resource
         offering = resource.plan.offering
 
-        if resource.state == models.Resource.States.TERMINATED:
+        if resource.state not in [models.Resource.States.OK, models.Resource.States.UPDATING]:
             raise rf_exceptions.ValidationError({
-                'resource': _('Resource is terminated.')
+                'resource': _('Resource is not in valid state.')
             })
 
         valid_components = set(offering.get_usage_components().keys())

@@ -49,6 +49,9 @@ class InvoicesExtension(WaldurExtension):
             # Default downtime duration may vary from 1 day to 30 days.
             'DOWNTIME_DURATION_MINIMAL': timedelta(days=1),
             'DOWNTIME_DURATION_MAXIMAL': timedelta(days=30),
+            'SEND_CUSTOMER_INVOICES': False,
+            # The front-end invoice link template must include {uuid} parameter, e.g. http://example.com/invoice/{uuid}
+            'INVOICE_LINK_TEMPLATE': '',
         }
 
     @staticmethod

@@ -4,7 +4,10 @@ import datetime
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
+from django.template import Context, Template
+from django.test import override_settings
 from freezegun import freeze_time
 from rest_framework import status
 
@@ -381,3 +384,47 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         issue.save()
         order_item.refresh_from_db()
         return order_item
+
+
+@override_settings(task_always_eager=True)
+class NotificationTest(BaseTest):
+    def setUp(self):
+        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
+        self.service_provider = marketplace_factories.ServiceProviderFactory(customer=self.offering.customer,
+                                                                             lead_email='to@example.com')
+
+    def test_send_notification_if_request_base_item_has_been_created(self):
+        marketplace_factories.OrderItemFactory(
+            offering=self.offering,
+            attributes={'name': 'item_name', 'description': 'Description'}
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_do_not_send_notification_if_lead_email_is_not_set(self):
+        self.service_provider.lead_email = ''
+        self.service_provider.save()
+        marketplace_factories.OrderItemFactory(
+            offering=self.offering,
+            attributes={'name': 'item_name', 'description': 'Description'}
+        )
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_notification_body_and_subject(self):
+        self.offering.name = 'Offering name'
+        self.offering.save()
+        self.service_provider.lead_body = '{{order_item.order}}; attributes: {{order_item.attributes}}; '\
+                                          'plan: {{order_item.plan}}; '\
+                                          'contacts: {{order_item.order.project.customer.contact_details}}'
+        self.service_provider.lead_subject = '{{order_item.offering.name}}'
+        self.service_provider.save()
+
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=self.offering,
+            attributes={'name': 'item_name', 'description': 'Description'}
+        )
+        self.assertEqual(mail.outbox[0].subject, self.offering.name)
+        body = Template(self.service_provider.lead_body).\
+            render(Context({'order_item': order_item}, autoescape=False))
+        self.assertEqual(mail.outbox[0].body, body)

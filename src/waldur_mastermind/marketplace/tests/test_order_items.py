@@ -252,7 +252,7 @@ class AggregateResourceCountTest(test.APITransactionTestCase):
     def test_when_resource_scope_is_updated_resource_count_is_decreased(self):
         self.resource.scope = self.fixture.resource
         self.resource.save()
-        self.resource.scope = None
+        self.resource.state = models.Resource.States.TERMINATED
         self.resource.save()
 
         self.assertEqual(models.AggregateResourceCount.objects.get(

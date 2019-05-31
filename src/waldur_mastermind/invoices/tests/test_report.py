@@ -86,7 +86,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 
 
 @freeze_time('2017-11-01')
-@mock.patch('waldur_mastermind.invoices.tasks.utils.send_mail_attachment')
+@mock.patch('waldur_mastermind.invoices.tasks.core_utils.send_mail_with_attachment')
 class InvoiceReportTaskTest(BaseReportFormatterTest):
     def setUp(self):
         super(InvoiceReportTaskTest, self).setUp()
@@ -100,7 +100,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.customer.accounting_start_date = timezone.now() + datetime.timedelta(days=10)
         self.customer.save()
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
@@ -110,7 +110,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.customer.accounting_start_date = timezone.now() + datetime.timedelta(days=10)
         self.customer.save()
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
@@ -120,7 +120,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=50)
         self.customer.save()
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
@@ -130,7 +130,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.customer.accounting_start_date = timezone.now() - datetime.timedelta(days=15)
         self.customer.save()
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(2, len(lines))
 
@@ -143,7 +143,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             item.delete()
 
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
@@ -157,7 +157,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
             item.save()
 
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(0, len(lines))
 
@@ -183,6 +183,6 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         customer.save()
 
         tasks.send_invoice_report()
-        message = send_mail_mock.call_args[1]['attach_text']
+        message = send_mail_mock.call_args[1]['attachment']
         lines = message.splitlines()
         self.assertEqual(3, len(lines))

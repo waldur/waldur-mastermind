@@ -38,12 +38,6 @@ class TemplateImportTest(BaseOpenStackTest):
         self.import_offering()
         self.assertEqual(1, package_models.PackageTemplate.objects.count())
 
-    def test_price_is_preserved(self):
-        self.import_offering()
-        plan = marketplace_models.Plan.objects.get(scope=self.template)
-
-        self.assertEqual(self.template.price, plan.unit_price)
-
     def test_components_are_imported(self):
         self.template.components.filter(type=Types.RAM).update(amount=20 * 1024, price=10.0 / 1024)
         self.template.components.filter(type=Types.CORES).update(amount=10, price=3)

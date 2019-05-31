@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace.tests import factories
 
 @ddt
 @freeze_time('2017-01-10 00:00:00')
-class TestUsageApi(test.APITransactionTestCase):
+class SubmitUsageTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.service_provider = factories.ServiceProviderFactory()
@@ -96,6 +96,14 @@ class TestUsageApi(test.APITransactionTestCase):
         self.assertFalse(models.ComponentUsage.objects.filter(resource=self.resource,
                                                               component=self.offering_component,
                                                               date=datetime.date.today()).exists())
+
+    @data(models.Resource.States.CREATING, models.Resource.States.TERMINATED)
+    def test_it_should_not_be_possible_to_submit_usage_for_pending_resource(self, state):
+        self.resource.state = state
+        self.resource.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_total_amount_exceeds_month_limit(self):
         self.offering_component.limit_period = models.OfferingComponent.LimitPeriods.MONTH
