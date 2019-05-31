@@ -2,11 +2,14 @@ import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.template import Context, Template
 
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
+
+from . import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -150,3 +153,30 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
                     callbacks.resource_deletion_failed(order_item.resource)
                 elif order_item.type == marketplace_models.OrderItem.Types.UPDATE:
                     callbacks.resource_update_failed(order_item.resource)
+
+
+def notify_about_request_based_item_creation(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    order_item = instance
+
+    if order_item.offering.type != PLUGIN_NAME:
+        return
+
+    service_provider = getattr(order_item.offering.customer, 'serviceprovider', None)
+
+    if not service_provider:
+        logger.warning('Customer providing an Offering is not registered as a Service Provider.')
+        return
+
+    if not service_provider.lead_email:
+        return
+
+    context = Context({'order_item': order_item}, autoescape=False)
+    template = Template(service_provider.lead_body)
+    message = template.render(context).strip()
+    template = Template(service_provider.lead_subject)
+    subject = template.render(context).strip()
+
+    transaction.on_commit(lambda: tasks.send_mail_notification.delay(subject, message, service_provider.lead_email))

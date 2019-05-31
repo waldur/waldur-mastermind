@@ -51,6 +51,12 @@ class MarketplaceSupportConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_support.update_order_item_if_issue_was_complete',
         )
 
+        signals.post_save.connect(
+            handlers.notify_about_request_based_item_creation,
+            sender=marketplace_models.OrderItem,
+            dispatch_uid='waldur_mastermind.marketpace_support.notify_about_request_based_item_creation',
+        )
+
         manager.register(PLUGIN_NAME,
                          create_resource_processor=processor.CreateRequestProcessor,
                          update_resource_processor=processor.UpdateRequestProcessor,

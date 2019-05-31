@@ -44,6 +44,15 @@ class ServiceProvider(core_models.UuidMixin,
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
     enable_notifications = models.BooleanField(default=True)
     api_secret_code = models.CharField(max_length=255, null=True, blank=True)
+    lead_email = models.EmailField(null=True, blank=True,
+                                   help_text=_('Email for notification about new request based order items. '
+                                               'If this field is set, notifications will be sent.'))
+    lead_subject = models.CharField(max_length=255, blank=True,
+                                    help_text=_('Notification subject template. '
+                                                'Django template variables can be used.'))
+    lead_body = models.TextField(blank=True,
+                                 help_text=_('Notification body template. '
+                                             'Django template variables can be used.'))
 
     class Permissions(object):
         customer_path = 'customer'
