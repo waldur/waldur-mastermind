@@ -11,18 +11,15 @@ from . import executors, models
 
 
 class FlavorAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
     list_display = ('name', 'settings', 'cores', 'ram', 'disk')
 
 
 class ImageAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
     list_display = ('name', 'settings', 'min_disk', 'min_ram')
 
 
 class FloatingIPAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
-    list_display = ('address', 'settings', 'runtime_state', 'backend_network_id', 'is_booked')
+    list_display = ('name', 'address', 'settings', 'runtime_state', 'backend_network_id', 'is_booked')
 
 
 class SecurityGroupRule(admin.TabularInline):
@@ -35,7 +32,6 @@ class SecurityGroupRule(admin.TabularInline):
 
 class SecurityGroupAdmin(structure_admin.BackendModelAdmin):
     inlines = [SecurityGroupRule]
-    list_filter = ('settings',)
     list_display = ('name', 'settings')
 
 
