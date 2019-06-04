@@ -170,7 +170,7 @@ class PlanUsageReporter(object):
         self.request = request
 
     def get_report(self):
-        plans = models.Plan.objects.all()
+        plans = models.Plan.objects.exclude(offering__billable=False)
 
         query = self.parse_query()
         if query:
