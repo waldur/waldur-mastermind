@@ -216,9 +216,7 @@ class SAFReportSerializer(serializers.Serializer):
         return self.format_date(date)
 
     def get_quantity(self, invoice_item):
-        if hasattr(invoice_item, 'quantity') and invoice_item.quantity:
-            return invoice_item.quantity
-        return invoice_item.usage_days
+        return invoice_item.get_factor(False)
 
     def get_total(self, invoice_item):
         return quantize_price(invoice_item.price)
