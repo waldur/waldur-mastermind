@@ -176,6 +176,10 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.scope = self.fixture.allocation
         self.item = models.GenericInvoiceItem.objects.filter(scope=self.scope).get()
+        self.item.unit = models.InvoiceItem.Units.QUANTITY
+        self.item.quantity = 10
+        self.item.unit_price = 10
+        self.item.save()
 
     def check_output(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -197,7 +201,13 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
     def test_scope_type_is_rendered_for_support_request(self):
         fixture = support_fixtures.SupportFixture()
         invoice = factories.InvoiceFactory(customer=fixture.customer)
-        models.GenericInvoiceItem.objects.create(scope=fixture.offering, invoice=invoice)
+        models.GenericInvoiceItem.objects.create(
+            scope=fixture.offering,
+            invoice=invoice,
+            unit=models.InvoiceItem.Units.QUANTITY,
+            quantity=10,
+            unit_price=10
+        )
         url = factories.InvoiceFactory.get_url(invoice)
 
         self.client.force_authenticate(fixture.owner)

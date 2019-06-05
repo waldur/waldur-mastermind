@@ -141,7 +141,9 @@ def format_invoice_csv(invoices):
         writer.writeheader()
 
         for invoice in invoices:
-            serializer = serializers.SAFReportSerializer(invoice.items, many=True)
+            items = invoice.items
+            items = utils.filter_invoice_items(items)
+            serializer = serializers.SAFReportSerializer(items, many=True)
             writer.writerows(serializer.data)
         return stream.getvalue().decode('utf-8')
 
