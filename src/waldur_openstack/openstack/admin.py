@@ -106,12 +106,10 @@ class TenantAdmin(structure_admin.ResourceAdmin):
 
 
 class FlavorAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
     list_display = ('name', 'settings', 'cores', 'ram', 'disk')
 
 
 class ImageAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings', )
     list_display = ('name', 'min_disk', 'min_ram')
 
 

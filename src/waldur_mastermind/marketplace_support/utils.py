@@ -34,7 +34,7 @@ def init_offerings_and_resources(category, customer):
         marketplace_models.Offering.objects.create(
             scope=template,
             type=PLUGIN_NAME,
-            name=template.name,
+            name=template.config.get('label', template.name),
             customer=customer,
             category=category,
             state=marketplace_models.Offering.States.ACTIVE,

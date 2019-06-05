@@ -8,7 +8,7 @@ from django.conf.urls import url
 from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.contrib.admin.widgets import FilteredSelectMultiple
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, FieldDoesNotExist
 from django.db import models as django_models
 from django.forms import ModelMultipleChoiceField, ModelForm, RadioSelect, ChoiceField, CharField
 from django.http import HttpResponseRedirect
@@ -34,6 +34,19 @@ logger = logging.getLogger(__name__)
 
 
 class BackendModelAdmin(admin.ModelAdmin):
+
+    def get_list_filter(self, request):
+        try:
+            self.model._meta.get_field('settings')
+            return ('settings__shared', ('settings', RelatedOnlyDropdownFilter))
+        except FieldDoesNotExist:
+            return self.list_filter
+
+    def lookup_allowed(self, lookup, value):
+        if lookup == 'settings__shared__exact':
+            return True
+        return super(BackendModelAdmin).lookup_allowed(lookup, value)
+
     def has_add_permission(self, request):
         return False
 
@@ -511,6 +524,10 @@ class SharedServiceSettingsAdmin(PrivateServiceSettingsAdmin):
 
 class ServiceAdmin(admin.ModelAdmin):
     list_display = ('settings', 'customer')
+    list_filter = (
+        ('settings', RelatedOnlyDropdownFilter),
+        ('customer', RelatedOnlyDropdownFilter),
+    )
     ordering = ('customer',)
 
 
@@ -574,7 +591,7 @@ class ResourceAdmin(BackendModelAdmin):
     readonly_fields = ('error_message',)
     list_display = ('uuid', 'name', 'backend_id', 'state', 'created',
                     'get_service', 'get_project', 'error_message', 'get_settings_shared')
-    list_filter = ('state', DerivedFromSharedSettingsResourceFilter)
+    list_filter = BackendModelAdmin.list_filter + ('state', DerivedFromSharedSettingsResourceFilter)
     search_fields = ('name',)
 
     def get_settings_shared(self, obj):

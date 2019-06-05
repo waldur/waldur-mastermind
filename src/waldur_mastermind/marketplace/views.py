@@ -170,7 +170,7 @@ class PlanUsageReporter(object):
         self.request = request
 
     def get_report(self):
-        plans = models.Plan.objects.all()
+        plans = models.Plan.objects.exclude(offering__billable=False)
 
         query = self.parse_query()
         if query:
@@ -484,11 +484,15 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
-    terminate_permissions = \
-        switch_plan_permissions = [structure_permissions.is_administrator]
-    switch_plan_validators = \
-        terminate_validators = [core_validators.StateValidator(models.Resource.States.OK),
-                                structure_utils.check_customer_blocked]
+    terminate_permissions = switch_plan_permissions = [structure_permissions.is_administrator]
+    switch_plan_validators = [
+        core_validators.StateValidator(models.Resource.States.OK),
+        structure_utils.check_customer_blocked
+    ]
+    terminate_validators = [
+        core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
+        structure_utils.check_customer_blocked
+    ]
 
     @detail_route(methods=['get'])
     def plan_periods(self, request, uuid=None):

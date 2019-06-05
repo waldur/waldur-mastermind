@@ -11,17 +11,14 @@ from . import executors, models
 
 
 class FlavorAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
     list_display = ('name', 'settings', 'cores', 'ram')
 
 
 class FloatingIPAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
     list_display = ('address', 'settings', 'is_available')
 
 
 class InternalIPAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('settings',)
     list_display = ('address', 'settings', 'is_available')
 
 

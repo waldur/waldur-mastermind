@@ -205,6 +205,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         mock_tasks.process_order.delay.assert_not_called()
 
 
+@ddt
 class ResourceTerminateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
@@ -231,9 +232,10 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.project, self.project)
 
-    def test_termination_request_is_not_accepted_if_resource_is_not_OK(self):
+    @data(models.Resource.States.CREATING, models.Resource.States.UPDATING, models.Resource.States.TERMINATING)
+    def test_termination_request_is_not_accepted_if_resource_is_not_ok_or_erred(self, state):
         # Arrange
-        self.resource.state = models.Resource.States.UPDATING
+        self.resource.state = state
         self.resource.save()
 
         # Act
@@ -241,6 +243,18 @@ class ResourceTerminateTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @data(models.Resource.States.OK, models.Resource.States.ERRED)
+    def test_termination_request_is_accepted_if_resource_is_ok_or_erred(self, state):
+        # Arrange
+        self.resource.state = state
+        self.resource.save()
+
+        # Act
+        response = self.terminate(self.fixture.owner)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_termination_request_is_not_accepted_if_user_is_not_authorized(self):
         # Act

@@ -84,6 +84,27 @@ class SafReportFormatterTest(BaseReportFormatterTest):
                         'PROJEKT; (Small / PackageTemplate);;;01.09.2017-30.09.2017'.format(self.invoice.number)
         self.assertEqual(lines[1], expected_data)
 
+    def test_usage_based_item_is_skipped_if_quantity_is_zero(self):
+        item = self.invoice.items.first()
+        item.unit = models.InvoiceItem.Units.QUANTITY
+        item.quantity = 0
+        item.save()
+
+        report = format_invoice_csv(self.invoice)
+        lines = report.splitlines()
+        self.assertEqual(0, len(lines))
+
+    def test_usage_based_item_is_skipped_if_unit_price_is_zero(self):
+        item = self.invoice.items.first()
+        item.unit = models.InvoiceItem.Units.QUANTITY
+        item.quantity = 10
+        item.unit_price = 0
+        item.save()
+
+        report = format_invoice_csv(self.invoice)
+        lines = report.splitlines()
+        self.assertEqual(0, len(lines))
+
 
 @freeze_time('2017-11-01')
 @mock.patch('waldur_mastermind.invoices.tasks.core_utils.send_mail_with_attachment')
