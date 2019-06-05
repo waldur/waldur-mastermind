@@ -232,12 +232,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.project, self.project)
 
-    @data(
-        models.Resource.States.CREATING,
-        models.Resource.States.UPDATING,
-        models.Resource.States.TERMINATING,
-        models.Resource.States.TERMINATED
-    )
+    @data(models.Resource.States.CREATING, models.Resource.States.UPDATING, models.Resource.States.TERMINATING)
     def test_termination_request_is_not_accepted_if_resource_is_not_ok_or_erred(self, state):
         # Arrange
         self.resource.state = state
