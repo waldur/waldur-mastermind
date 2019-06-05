@@ -9,7 +9,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common.utils import quantize_price
 
-from . import models
+from . import models, utils
 
 
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
@@ -59,7 +59,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     price = serializers.DecimalField(max_digits=15, decimal_places=7)
     tax = serializers.DecimalField(max_digits=15, decimal_places=7)
     total = serializers.DecimalField(max_digits=15, decimal_places=7)
-    items = GenericItemSerializer(many=True)
+    items = serializers.SerializerMethodField()
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()
     due_date = serializers.DateField()
@@ -100,6 +100,11 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
         return reverse('invoice-pdf',
                        kwargs={'uuid': obj.uuid},
                        request=self.context['request'])
+
+    def get_items(self, invoice):
+        items = utils.filter_invoice_items(invoice.items.all())
+        serializer = GenericItemSerializer(items, many=True, context=self.context)
+        return serializer.data
 
 
 class InvoiceItemReportSerializer(serializers.ModelSerializer):
