@@ -17,6 +17,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.media.serializers import ProtectedMediaSerializerMixin, ProtectedFileField
 from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
@@ -27,7 +28,7 @@ from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.marketplace.utils import validate_order_item
 from waldur_mastermind.support import serializers as support_serializers
 
-from . import models, attribute_types, plugins, utils, permissions, tasks
+from . import models, attribute_types, plugins, permissions, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
             'customer': {'lookup_field': 'uuid'},
         }
 
-    customer_image = serializers.ImageField(source='customer.image', read_only=True)
+    customer_image = ProtectedFileField(source='customer.image', read_only=True)
 
     def validate(self, attrs):
         if not self.instance:
@@ -92,7 +93,8 @@ class CategoryComponentSerializer(serializers.ModelSerializer):
         fields = ('type', 'name', 'description', 'measured_unit')
 
 
-class CategorySerializer(core_serializers.AugmentedSerializerMixin,
+class CategorySerializer(ProtectedMediaSerializerMixin,
+                         core_serializers.AugmentedSerializerMixin,
                          core_serializers.RestrictedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     offering_count = serializers.ReadOnlyField()
@@ -215,20 +217,22 @@ class PlanUsageResponseSerializer(serializers.Serializer):
     customer_provider_name = serializers.ReadOnlyField(source='offering.customer.name')
 
 
-class NestedScreenshotSerializer(serializers.ModelSerializer):
+class NestedScreenshotSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
     class Meta(object):
         model = models.Screenshot
         fields = ('name', 'description', 'image', 'thumbnail')
 
 
-class NestedOfferingFileSerializer(serializers.ModelSerializer):
+class NestedOfferingFileSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
     class Meta(object):
         model = models.OfferingFile
         fields = ('name', 'created', 'file',)
 
 
-class ScreenshotSerializer(core_serializers.AugmentedSerializerMixin,
+class ScreenshotSerializer(ProtectedMediaSerializerMixin,
+                           core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
+
     class Meta(object):
         model = models.Screenshot
         fields = ('url', 'uuid', 'name', 'description', 'image', 'thumbnail', 'offering')
@@ -289,7 +293,8 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         }
 
 
-class OfferingDetailsSerializer(core_serializers.AugmentedSerializerMixin,
+class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
+                                core_serializers.AugmentedSerializerMixin,
                                 core_serializers.RestrictedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
 
@@ -727,7 +732,7 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
     provider_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
     category_title = serializers.ReadOnlyField(source='offering.category.title')
     category_uuid = serializers.ReadOnlyField(source='offering.category.uuid')
-    offering_thumbnail = serializers.FileField(source='offering.thumbnail', read_only=True)
+    offering_thumbnail = ProtectedFileField(source='offering.thumbnail', read_only=True)
 
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
@@ -1145,7 +1150,7 @@ class ServiceProviderSignatureSerializer(serializers.Serializer):
             raise rf_exceptions.ValidationError(_('API secret code is not set.'))
 
         try:
-            data = utils.decode_api_data(attrs['data'], api_secret_code)
+            data = core_utils.decode_jwt_token(attrs['data'], api_secret_code)
             attrs['data'] = data
             return attrs
         except jwt.exceptions.DecodeError:
@@ -1208,8 +1213,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             )
 
 
-class OfferingFileSerializer(core_serializers.AugmentedSerializerMixin,
+class OfferingFileSerializer(ProtectedMediaSerializerMixin,
+                             core_serializers.RestrictedSerializerMixin,
+                             core_serializers.AugmentedSerializerMixin,
                              serializers.HyperlinkedModelSerializer):
+
     class Meta(object):
         model = models.OfferingFile
         fields = ('url', 'uuid', 'name', 'offering', 'created', 'file',)

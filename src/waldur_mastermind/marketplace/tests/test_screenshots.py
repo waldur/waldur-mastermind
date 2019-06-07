@@ -4,7 +4,7 @@ import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.structure.images import dummy_image
+from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
 

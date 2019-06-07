@@ -3,13 +3,11 @@ from __future__ import unicode_literals
 import base64
 import os
 
-import jwt
 import pdfkit
 from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
-from django.core.serializers.json import DjangoJSONEncoder
 from django.template.loader import render_to_string
 from django.utils import six
 from rest_framework import exceptions
@@ -88,14 +86,6 @@ def create_screenshot_thumbnail(screenshot):
     temp_thumb.seek(0)
     screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)
     temp_thumb.close()
-
-
-def decode_api_data(encoded_data, api_secret_code):
-    return jwt.decode(encoded_data, api_secret_code, algorithms=['HS256'])
-
-
-def encode_api_data(data, api_secret_code):
-    return jwt.encode(data, api_secret_code, algorithm='HS256', json_encoder=DjangoJSONEncoder)
 
 
 def create_order_pdf(order):

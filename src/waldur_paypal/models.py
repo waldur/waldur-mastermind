@@ -5,16 +5,14 @@ import logging
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
-from django_fsm import transition, FSMIntegerField
 from django.utils.translation import ugettext_lazy as _
+from django_fsm import transition, FSMIntegerField
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import UuidMixin, ErrorMessageMixin, BackendModelMixin
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.structure.models import Customer
-
-
 from . import backend
 
 logger = logging.getLogger(__name__)
@@ -107,10 +105,18 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
         UNPAID = 'UNPAID'
         PAYMENT_PENDING = 'PAYMENT_PENDING'
 
-        CHOICES = ((DRAFT, _('Draft')), (SENT, _('Sent')), (PAID, _('Paid')), (MARKED_AS_PAID, _('Marked as paid')),
-                   (CANCELLED, _('Cancelled')), (REFUNDED, _('Refunded')),
-                   (PARTIALLY_REFUNDED, _('Partially refunded')), (MARKED_AS_REFUNDED, _('Marked as refunded')),
-                   (UNPAID, _('Unpaid')), (PAYMENT_PENDING, _('Payment pending')))
+        CHOICES = (
+            (DRAFT, _('Draft')),
+            (SENT, _('Sent')),
+            (PAID, _('Paid')),
+            (MARKED_AS_PAID, _('Marked as paid')),
+            (CANCELLED, _('Cancelled')),
+            (REFUNDED, _('Refunded')),
+            (PARTIALLY_REFUNDED, _('Partially refunded')),
+            (MARKED_AS_REFUNDED, _('Marked as refunded')),
+            (UNPAID, _('Unpaid')),
+            (PAYMENT_PENDING, _('Payment pending')),
+        )
 
     customer = models.ForeignKey(Customer, related_name='paypal_invoices')
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.DRAFT)

@@ -11,8 +11,9 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers, exceptions
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models, SupportedServices, serializers as structure_serializers
-from waldur_jira.serializers import WebHookReceiverSerializer as JiraWebHookReceiverSerializer
+from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
@@ -231,7 +232,7 @@ class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
         )
 
 
-class WebHookReceiverSerializer(JiraWebHookReceiverSerializer):
+class WebHookReceiverSerializer(jira_serializers.WebHookReceiverSerializer):
     def get_project(self, project_key):
         class Project:
             def get_backend(self):
@@ -450,7 +451,9 @@ class OfferingCompleteSerializer(serializers.Serializer):
         return instance
 
 
-class AttachmentSerializer(core_serializers.AugmentedSerializerMixin,
+class AttachmentSerializer(ProtectedMediaSerializerMixin,
+                           core_serializers.RestrictedSerializerMixin,
+                           core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
@@ -481,7 +484,7 @@ class AttachmentSerializer(core_serializers.AugmentedSerializerMixin,
         raise exceptions.PermissionDenied()
 
 
-class TemplateAttachmentSerializer(serializers.ModelSerializer):
+class TemplateAttachmentSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
     class Meta(object):
         model = models.TemplateAttachment
         fields = ('name', 'file')

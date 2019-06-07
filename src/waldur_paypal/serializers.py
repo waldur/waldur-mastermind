@@ -4,9 +4,9 @@ import logging
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
-from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.media.serializers import ProtectedFileField
 from waldur_core.structure.models import VATException
 
 from . import models
@@ -73,7 +73,7 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(core_serializers.AugmentedSerializerMixin,
                         serializers.HyperlinkedModelSerializer):
 
-    pdf = serializers.SerializerMethodField()
+    pdf = ProtectedFileField(read_only=True)
     items = InvoiceItemSerializer(many=True, read_only=True)
     payment_url = serializers.SerializerMethodField()
     issuer_details = serializers.JSONField()
@@ -95,15 +95,6 @@ class InvoiceSerializer(core_serializers.AugmentedSerializerMixin,
     def get_payment_url(self, invoice):
         backend = invoice.get_backend()
         return backend.get_payment_view_url(invoice.backend_id) if invoice.backend_id else None
-
-    def get_pdf(self, invoice):
-        """
-        Format URL to PDF view if file is specified
-        """
-        if invoice.pdf:
-            return reverse('paypal-invoice-pdf',
-                           kwargs={'uuid': invoice.uuid},
-                           request=self.context['request'])
 
 
 class InvoiceUpdateWebHookSerializer(serializers.Serializer):

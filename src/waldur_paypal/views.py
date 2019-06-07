@@ -1,7 +1,6 @@
 import logging
 
 from django.conf import settings
-from django.views.static import serve
 from django_fsm import TransitionNotAllowed
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, exceptions, status, response, views
@@ -178,22 +177,6 @@ class InvoicesViewSet(CheckExtensionMixin, core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
     filter_class = filters.InvoiceFilter
-
-    def _serve_pdf(self, request, pdf):
-        if not pdf:
-            raise exceptions.NotFound("There's no PDF for this invoice.")
-
-        response = serve(request, pdf.name, document_root=settings.MEDIA_ROOT)
-        if request.query_params.get('download'):
-            filename = pdf.name.split('/')[-1]
-            response['Content-Type'] = 'application/pdf'
-            response['Content-Disposition'] = 'attachment; filename="{}"'.format(filename)
-
-        return response
-
-    @decorators.detail_route()
-    def pdf(self, request, uuid=None):
-        return self._serve_pdf(request, self.get_object().pdf)
 
 
 class InvoiceWebHookViewSet(CheckExtensionMixin, views.APIView):

@@ -4,8 +4,9 @@ from __future__ import unicode_literals
 from django.db import migrations, models
 import django.utils.timezone
 import model_utils.fields
-import waldur_core.structure.images
-import django.db.models.deletion
+
+import waldur_core.media.validators
+import waldur_core.media.models
 import waldur_core.core.fields
 import django.core.validators
 import django_fsm
@@ -35,7 +36,7 @@ class Migration(migrations.Migration):
                 ('contact_details', models.TextField(blank=True, validators=[django.core.validators.MaxLengthValidator(500)])),
                 ('billing_backend_id', models.CharField(max_length=255, blank=True)),
                 ('balance', models.DecimalField(null=True, max_digits=9, decimal_places=3, blank=True)),
-                ('image', models.ImageField(null=True, upload_to=waldur_core.structure.images.get_upload_path, blank=True)),
+                ('image', models.ImageField(null=True, upload_to=waldur_core.media.models.get_upload_path, blank=True)),
                 ('registration_code', models.CharField(default='', max_length=160, blank=True)),
             ],
             options={
@@ -123,7 +124,8 @@ class Migration(migrations.Migration):
                 ('backend_url', waldur_core.core.fields.BackendURLField(null=True, blank=True)),
                 ('username', models.CharField(max_length=100, null=True, blank=True)),
                 ('password', models.CharField(max_length=100, null=True, blank=True)),
-                ('certificate', models.FileField(blank=True, null=True, upload_to='certs', validators=[waldur_core.core.validators.FileTypeValidator(allowed_extensions=['pem'], allowed_types=['application/x-pem-file', 'application/x-x509-ca-cert', 'text/plain'])])),
+                ('certificate', models.FileField(blank=True, null=True, upload_to='certs', validators=[
+                    waldur_core.media.validators.FileTypeValidator(allowed_extensions=['pem'], allowed_types=['application/x-pem-file', 'application/x-x509-ca-cert', 'text/plain'])])),
                 ('token', models.CharField(max_length=255, null=True, blank=True)),
                 ('type', models.SmallIntegerField(choices=[(1, b'OpenStack'), (2, b'DigitalOcean'), (3, b'Amazon'), (4, b'Jira'), (5, b'GitLab'), (6, b'Oracle'), (7, b'Azure')])),
                 ('options', waldur_core.core.fields.JSONField(help_text='Extra options', blank=True)),

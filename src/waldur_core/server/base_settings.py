@@ -42,6 +42,7 @@ INSTALLED_APPS = (
     'waldur_core.structure',
     'waldur_core.cost_tracking',
     'waldur_core.users',
+    'waldur_core.media',
 
     'rest_framework',
     'rest_framework.authtoken',
@@ -300,6 +301,7 @@ WALDUR_CORE = {
     'INVITATION_CREATE_MISSING_USER': False,
     'INVITATION_DISABLE_MULTIPLE_ROLES': False,
     'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS': [],
+    'ATTACHMENT_LINK_MAX_AGE': timedelta(hours=1),
 }
 
 WALDUR_CORE_PUBLIC_SETTINGS = [

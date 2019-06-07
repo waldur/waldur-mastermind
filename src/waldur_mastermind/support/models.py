@@ -309,6 +309,7 @@ class Attachment(core_models.UuidMixin,
     file_size = models.PositiveIntegerField(_('Filesize, B'), blank=True, null=True)
     thumbnail = models.FileField(upload_to='support_attachments_thumbnails', blank=True, null=True)
     author = models.ForeignKey(SupportUser, related_name='attachments', blank=True, null=True)
+    objects = managers.AttachmentManager()
 
     @classmethod
     def get_url_name(cls):

@@ -10,6 +10,7 @@ from waldur_ansible.common import serializers as common_serializers
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
+from waldur_core.media.serializers import ProtectedMediaSerializerMixin, ProtectedFileField
 from waldur_core.structure import permissions as structure
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.openstack_tenant import models as openstack_models
@@ -25,7 +26,9 @@ class PlaybookParameterSerializer(serializers.ModelSerializer):
         fields = ('name', 'description', 'required', 'default')
 
 
-class PlaybookSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class PlaybookSerializer(ProtectedMediaSerializerMixin,
+                         core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
     archive = serializers.FileField(write_only=True)
     parameters = PlaybookParameterSerializer(many=True)
 
@@ -120,7 +123,7 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
     )
     playbook_name = serializers.ReadOnlyField(source='playbook.name')
     playbook_uuid = serializers.ReadOnlyField(source='playbook.uuid')
-    playbook_image = serializers.FileField(source='playbook.image', read_only=True)
+    playbook_image = ProtectedFileField(source='playbook.image', read_only=True)
     playbook_description = serializers.ReadOnlyField(source='playbook.description')
     arguments = serializers.JSONField(default=dict)
     state = serializers.SerializerMethodField()

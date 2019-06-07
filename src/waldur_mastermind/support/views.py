@@ -253,16 +253,7 @@ class AttachmentViewSet(CheckExtensionMixin,
 
     def get_queryset(self):
         queryset = super(AttachmentViewSet, self).get_queryset()
-
-        if not self.request.user.is_staff:
-            user_customers = structure_models.Customer.objects.filter(
-                permissions__role=structure_models.CustomerRole.OWNER,
-                permissions__user=self.request.user,
-                permissions__is_active=True)
-            subquery = Q(issue__customer__in=user_customers) | Q(issue__caller=self.request.user)
-            queryset = queryset.filter(subquery)
-
-        return queryset
+        return queryset.filter_for_user(self.request.user)
 
 
 class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):

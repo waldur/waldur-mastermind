@@ -30,12 +30,13 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import CoordinatesMixin, AbstractFieldTracker
-from waldur_core.core.validators import validate_name, validate_cidr_list, FileTypeValidator
+from waldur_core.core.validators import validate_name, validate_cidr_list
+from waldur_core.media.validators import CertificateValidator
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.monitoring.models import MonitoringModelMixin
 from waldur_core.quotas import models as quotas_models, fields as quotas_fields
 from waldur_core.structure import SupportedServices
-from waldur_core.structure.images import ImageModelMixin
+from waldur_core.media.models import ImageModelMixin
 from waldur_core.structure.managers import StructureManager, filter_queryset_for_user, \
     ServiceSettingsManager, PrivateServiceSettingsManager, SharedServiceSettingsManager
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
@@ -774,12 +775,7 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
     domain = models.CharField(max_length=200, blank=True, null=True)
     token = models.CharField(max_length=255, blank=True, null=True)
     certificate = models.FileField(upload_to='certs', blank=True, null=True,
-                                   validators=[FileTypeValidator(
-                                       allowed_types=[
-                                           'application/x-pem-file',
-                                           'application/x-x509-ca-cert',
-                                           'text/plain'],
-                                       allowed_extensions=['pem'])])
+                                   validators=[CertificateValidator])
     type = models.CharField(max_length=255, db_index=True, validators=[validate_service_type])
     options = JSONField(default=dict, help_text=_('Extra options'), blank=True)
     geolocations = JSONField(default=list, blank=True,
