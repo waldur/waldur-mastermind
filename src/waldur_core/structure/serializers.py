@@ -21,6 +21,7 @@ import six
 from waldur_core.core import (models as core_models, fields as core_fields, serializers as core_serializers,
                               utils as core_utils)
 from waldur_core.core.fields import MappedChoiceField
+from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.monitoring.serializers import MonitoringSerializerMixin
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import (models, SupportedServices, ServiceBackendError, ServiceBackendNotImplemented,
@@ -296,7 +297,8 @@ class ProjectSerializer(core_serializers.RestrictedSerializerMixin,
         return services
 
 
-class CustomerSerializer(core_serializers.RestrictedSerializerMixin,
+class CustomerSerializer(ProtectedMediaSerializerMixin,
+                         core_serializers.RestrictedSerializerMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer, ):
     projects = PermissionProjectSerializer(many=True, read_only=True)

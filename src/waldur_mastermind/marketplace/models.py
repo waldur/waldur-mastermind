@@ -24,12 +24,12 @@ import six
 
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
-from waldur_core.core.validators import ImageValidator
+from waldur_core.media.validators import ImageValidator
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.images import get_upload_path
+from waldur_core.media.models import get_upload_path
 
 from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES

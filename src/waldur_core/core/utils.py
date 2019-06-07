@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 from django.core.mail import EmailMultiAlternatives
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import F
 from django.db.models.sql.query import get_order_dir
 from django.http import QueryDict
@@ -25,6 +26,7 @@ from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.encoding import force_text
+import jwt
 from rest_framework.settings import api_settings
 
 
@@ -355,3 +357,27 @@ class DryRunCommand(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true',
                             help='Don\'t make any changes, instead show what objects would be created.')
+
+
+def encode_jwt_token(data, api_secret_code=None):
+    """
+    Encode Python dictionary as JWT token.
+    :param data: Dictionary with payload.
+    :param api_secret_code: optional string, application secret key is used by default.
+    :return: JWT token string with encoded and signed data.
+    """
+    if api_secret_code is None:
+        api_secret_code = settings.SECRET_KEY
+    return jwt.encode(data, api_secret_code, algorithm='HS256', json_encoder=DjangoJSONEncoder)
+
+
+def decode_jwt_token(encoded_data, api_secret_code=None):
+    """
+    Decode JWT token string to Python dictionary.
+    :param encoded_data: JWT token string with encoded and signed data.
+    :param api_secret_code: optional string, application secret key is used by default.
+    :return: Dictionary with payload.
+    """
+    if api_secret_code is None:
+        api_secret_code = settings.SECRET_KEY
+    return jwt.decode(encoded_data, api_secret_code, algorithms=['HS256'])

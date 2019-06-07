@@ -4,12 +4,12 @@ from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace.tests import factories
 
 
@@ -174,7 +174,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         data = self.get_usage_data(**kwargs)
         payload = dict(
             customer=self.service_provider.customer.uuid,
-            data=utils.encode_api_data(data, self.secret_code)
+            data=core_utils.encode_jwt_token(data, self.secret_code)
         )
         return payload
 

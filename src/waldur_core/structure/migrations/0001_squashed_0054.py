@@ -13,7 +13,8 @@ from django.db import migrations, models
 
 import waldur_core.core.fields
 import waldur_core.core.validators
-import waldur_core.structure.images
+import waldur_core.media.validators
+import waldur_core.media.models
 import waldur_core.structure.models
 
 
@@ -92,7 +93,7 @@ class Migration(migrations.Migration):
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name')),
                 ('uuid', waldur_core.core.fields.UUIDField()),
-                ('image', models.ImageField(blank=True, null=True, upload_to=waldur_core.structure.images.get_upload_path)),
+                ('image', models.ImageField(blank=True, null=True, upload_to=waldur_core.media.models.get_upload_path)),
                 ('vat_code', models.CharField(blank=True, help_text='VAT number', max_length=20)),
                 ('vat_name', models.CharField(blank=True, help_text='Optional business name retrieved for the VAT number.', max_length=255)),
                 ('vat_address', models.CharField(blank=True, help_text='Optional business address retrieved for the VAT number.', max_length=255)),
@@ -203,7 +204,8 @@ class Migration(migrations.Migration):
                 ('password', models.CharField(blank=True, max_length=100, null=True)),
                 ('domain', models.CharField(blank=True, max_length=200, null=True)),
                 ('token', models.CharField(blank=True, max_length=255, null=True)),
-                ('certificate', models.FileField(blank=True, null=True, upload_to='certs', validators=[waldur_core.core.validators.FileTypeValidator(allowed_extensions=['pem'], allowed_types=['application/x-pem-file', 'application/x-x509-ca-cert', 'text/plain'])])),
+                ('certificate', models.FileField(blank=True, null=True, upload_to='certs', validators=[
+                    waldur_core.media.validators.FileTypeValidator(allowed_extensions=['pem'], allowed_types=['application/x-pem-file', 'application/x-x509-ca-cert', 'text/plain'])])),
                 ('type', models.CharField(db_index=True, max_length=255, validators=[waldur_core.structure.models.validate_service_type])),
                 ('options', waldur_core.core.fields.JSONField(blank=True, default={}, help_text='Extra options')),
                 ('geolocations', waldur_core.core.fields.JSONField(blank=True, default=[], help_text='List of latitudes and longitudes. For example: [{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]')),
