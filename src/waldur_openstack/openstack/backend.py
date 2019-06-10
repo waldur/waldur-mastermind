@@ -538,7 +538,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             new_name = "%s_%s" % (name, get_random_string(3))
             truncation = len(new_name) - max_length
             if truncation > 0:
-                new_name = "%s_%s" % (name[:-truncation], get_random_string(7))
+                new_name = "%s_%s" % (name[:-truncation], get_random_string(3))
         return new_name
 
     def import_tenant(self, tenant_backend_id, service_project_link=None, save=True):
