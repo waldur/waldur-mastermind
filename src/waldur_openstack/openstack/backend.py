@@ -531,11 +531,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         names = [tenant.name for tenant in tenants]
         new_name = name
 
-        # If the tenant name already exists, add an underscore and a random 7
+        # If the tenant name already exists, add an underscore and a random 3
         # character alphanumeric string to the tenant name until the generated name doesn't exist.
         # Truncate original name if required, so the new name does not exceed the max_length.
         while new_name in names:
-            new_name = "%s_%s" % (name, get_random_string(7))
+            new_name = "%s_%s" % (name, get_random_string(3))
             truncation = len(new_name) - max_length
             if truncation > 0:
                 new_name = "%s_%s" % (name[:-truncation], get_random_string(7))
