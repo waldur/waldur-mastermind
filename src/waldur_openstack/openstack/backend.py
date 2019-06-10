@@ -5,6 +5,7 @@ import re
 from cinderclient import exceptions as cinder_exceptions
 from django.db import transaction
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
@@ -504,6 +505,41 @@ class OpenStackBackend(BaseOpenStackBackend):
             tenant.save(update_fields=['backend_id'])
         except keystone_exceptions.ClientException as e:
             reraise(e)
+
+    @log_backend_action()
+    def create_tenant_safe(self, tenant):
+        """
+        Check available tenant name before creating tenant.
+        It allows to avoid failure when name is already taken.
+        """
+        new_name = self.get_available_tenant_name(tenant.name)
+        if new_name != tenant.name:
+            tenant.name = new_name
+            tenant.save(update_fields=['name'])
+        self.create_tenant(tenant)
+
+    def get_available_tenant_name(self, name, max_length=64):
+        """
+        Returns a tenant name that's free on the target deployment.
+        """
+        keystone = self.keystone_admin_client
+        try:
+            tenants = keystone.projects.list(domain=self._get_domain())
+        except keystone_exceptions.ClientException as e:
+            reraise(e)
+
+        names = [tenant.name for tenant in tenants]
+        new_name = name
+
+        # If the tenant name already exists, add an underscore and a random 3
+        # character alphanumeric string to the tenant name until the generated name doesn't exist.
+        # Truncate original name if required, so the new name does not exceed the max_length.
+        while new_name in names:
+            new_name = "%s_%s" % (name, get_random_string(3))
+            truncation = len(new_name) - max_length
+            if truncation > 0:
+                new_name = "%s_%s" % (name[:-truncation], get_random_string(3))
+        return new_name
 
     def import_tenant(self, tenant_backend_id, service_project_link=None, save=True):
         keystone = self.keystone_admin_client

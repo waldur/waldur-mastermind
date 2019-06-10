@@ -60,7 +60,7 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
         serialized_network = core_utils.serialize_instance(network)
         serialized_subnet = core_utils.serialize_instance(subnet)
         creation_tasks = [
-            core_tasks.BackendMethodTask().si(serialized_tenant, 'create_tenant', state_transition='begin_creating'),
+            core_tasks.BackendMethodTask().si(serialized_tenant, 'create_tenant_safe', state_transition='begin_creating'),
             core_tasks.BackendMethodTask().si(serialized_tenant, 'add_admin_user_to_tenant'),
             core_tasks.BackendMethodTask().si(serialized_tenant, 'create_tenant_user'),
             core_tasks.BackendMethodTask().si(serialized_network, 'create_network', state_transition='begin_creating'),
