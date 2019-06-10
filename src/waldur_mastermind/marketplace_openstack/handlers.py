@@ -59,6 +59,9 @@ PLAN_FIELDS = {'name', 'archived', 'product_code', 'article_code'}
 def update_template_for_plan(sender, instance, created=False, **kwargs):
     plan = instance
 
+    if plan.offering.type != PACKAGE_TYPE:
+        return
+
     if created:
         return
 
