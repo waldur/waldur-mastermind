@@ -1,7 +1,7 @@
 from ddt import ddt, data
 from rest_framework import status
 
-from waldur_core.structure.images import dummy_image
+from waldur_core.media.utils import dummy_image
 
 from . import factories, base
 from .. import models

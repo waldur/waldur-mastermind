@@ -5,6 +5,7 @@ import logging
 import re
 
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings as django_settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -324,6 +325,9 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
                     _('Availability zone must belong to the same service settings.'))
             if availability_zone and not availability_zone.available:
                 raise serializers.ValidationError(_('Zone is not available.'))
+            if not availability_zone and django_settings.WALDUR_OPENSTACK_TENANT['REQUIRE_AVAILABILITY_ZONE']:
+                if models.VolumeAvailabilityZone.objects.filter(settings=spl.service.settings).count() > 0:
+                    raise serializers.ValidationError(_('Availability zone is mandatory.'))
 
         return attrs
 
@@ -866,6 +870,10 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 _('Instance and availability zone must belong to the same service settings as service project link.'))
         if availability_zone and not availability_zone.available:
             raise serializers.ValidationError(_('Zone is not available.'))
+
+        if not availability_zone and django_settings.WALDUR_OPENSTACK_TENANT['REQUIRE_AVAILABILITY_ZONE']:
+            if models.InstanceAvailabilityZone.objects.filter(settings=settings).count() > 0:
+                raise serializers.ValidationError(_('Availability zone is mandatory.'))
 
         return attrs
 

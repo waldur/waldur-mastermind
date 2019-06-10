@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from waldur_mastermind.invoices import registrators
 
+from . import models
 from .log import event_logger
 
 
@@ -33,11 +34,16 @@ def log_openstack_package_deletion(sender, instance, **kwargs):
 
 
 def add_new_openstack_package_details_to_invoice(sender, instance, created=False, **kwargs):
-    if not created:
-        return
-
-    registrators.RegistrationManager.register(instance, timezone.now())
+    if created and instance.tenant.backend_id:
+        registrators.RegistrationManager.register(instance, timezone.now())
 
 
 def update_invoice_on_openstack_package_deletion(sender, instance, **kwargs):
     registrators.RegistrationManager.terminate(instance, timezone.now())
+
+
+def add_new_openstack_tenant_to_invoice(sender, instance, created=False, **kwargs):
+    if instance.backend_id and (created or not instance.tracker.previous('backend_id')):
+        package = models.OpenStackPackage.objects.filter(tenant=instance).first()
+        if package:
+            registrators.RegistrationManager.register(package, timezone.now())

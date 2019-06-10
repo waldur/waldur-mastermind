@@ -5,6 +5,7 @@ import mock
 
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack_tenant.tests.helpers import override_openstack_tenant_settings
 
 from . import factories, fixtures
 from .. import models
@@ -435,4 +436,15 @@ class VolumeCreateTest(test.APITransactionTestCase):
 
         response = self.create_volume(
             availability_zone=factories.VolumeAvailabilityZoneFactory.get_url(zone))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_openstack_tenant_settings(REQUIRE_AVAILABILITY_ZONE=True)
+    def test_when_availability_zone_is_mandatory_and_exists_validation_fails(self):
+        self.fixture.volume_availability_zone
+        response = self.create_volume()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_openstack_tenant_settings(REQUIRE_AVAILABILITY_ZONE=True)
+    def test_when_availability_zone_is_mandatory_and_does_not_exist_validation_succeeds(self):
+        response = self.create_volume()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

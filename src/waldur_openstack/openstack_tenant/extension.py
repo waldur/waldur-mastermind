@@ -12,12 +12,14 @@ class OpenStackTenantExtension(WaldurExtension):
                 'OpenStackTenant.Snapshot': 4,
             },
             'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS': False,
+            'REQUIRE_AVAILABILITY_ZONE': False,
         }
 
     @staticmethod
     def get_public_settings():
         return [
             'ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS',
+            'REQUIRE_AVAILABILITY_ZONE',
         ]
 
     @staticmethod

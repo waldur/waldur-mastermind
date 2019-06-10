@@ -43,6 +43,7 @@ urlpatterns += [
     url(r'^docs/', WaldurSchemaView.as_view()),
     url(r'^api/', include(router.urls)),
     url(r'^api/', include('waldur_core.logging.urls')),
+    url(r'^api/', include('waldur_core.media.urls')),
     url(r'^api/', include('waldur_core.structure.urls')),
     url(r'^api/version/', core_views.version_detail),
     url(r'^api/configuration/', core_views.configuration_detail),

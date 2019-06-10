@@ -575,8 +575,7 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
     disabled_actions = ['update', 'partial_update']
 
     def check_create_permissions(request, view, obj=None):
-        serializer_class = view.get_serializer_class()
-        serializer = serializer_class(data=request.data)
+        serializer = view.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = request.user
         offering = serializer.validated_data['offering']

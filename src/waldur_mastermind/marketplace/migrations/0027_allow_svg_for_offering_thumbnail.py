@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 
 from django.db import migrations, models
 import waldur_core.core.validators
+import waldur_core.media.validators
 
 
 class Migration(migrations.Migration):
@@ -16,6 +17,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='offering',
             name='thumbnail',
-            field=models.FileField(blank=True, null=True, upload_to='marketplace_service_offering_thumbnails', validators=[waldur_core.core.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg', 'image/svg+xml'])]),
+            field=models.FileField(blank=True, null=True, upload_to='marketplace_service_offering_thumbnails', validators=[
+                waldur_core.media.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg', 'image/svg+xml'])]),
         ),
     ]

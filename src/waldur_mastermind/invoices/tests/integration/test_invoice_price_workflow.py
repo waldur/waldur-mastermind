@@ -17,6 +17,7 @@ from waldur_mastermind.packages.tests import fixtures as package_fixtures, facto
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support import models as support_models
+from waldur_openstack.openstack.models import Tenant
 
 from ... import models, tasks, utils
 
@@ -53,7 +54,6 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             - Check price of it in the end of the month;
             - Ensure that a new invoice has been generated in the new month;
             - Assert that end date of newly created openstack item set to the date of package deletion.
-        :return:
         """
         self.client.force_authenticate(user=self.fixture.staff)
 
@@ -61,6 +61,9 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         with freeze_time(middle_of_the_month):
             payload = self.get_package_create_payload()
             response = self.client.post(self.url, data=payload)
+            tenant = Tenant.objects.get()
+            tenant.backend_id = 'VALID_ID'
+            tenant.save()
             self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
             self.assertEqual(models.Invoice.objects.count(), 1)
 

@@ -69,6 +69,23 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
         package = self.fixture.openstack_package
         self.assertTrue(self.fixture.invoice.generic_items.filter(scope=package).exists())
 
+    def test_if_provisioning_failed_invoice_item_is_not_created(self):
+        self.fixture.customer = self.fixture.invoice.customer
+        self.fixture.openstack_tenant.backend_id = None
+        self.fixture.openstack_tenant.save()
+        package = self.fixture.openstack_package
+        self.assertFalse(self.fixture.invoice.generic_items.filter(scope=package).exists())
+
+    def test_if_provisioning_succeeded_invoice_item_is_created(self):
+        self.fixture.customer = self.fixture.invoice.customer
+        tenant = self.fixture.openstack_tenant
+        tenant.backend_id = None
+        tenant.save()
+        package = self.fixture.openstack_package
+        tenant.backend_id = 'VALID_ID'
+        tenant.save()
+        self.assertTrue(self.fixture.invoice.generic_items.filter(scope=package).exists())
+
     def test_new_invoice_is_created_on_openstack_package_creation(self):
         package = self.fixture.openstack_package
         invoice = invoices_models.Invoice.objects.get(customer=package.tenant.service_project_link.project.customer)
@@ -111,7 +128,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
                 tenant__service_project_link__project__customer=customer,
             )
 
-        old_components_price = old_package.template.price * ((package_change_date - start_date).days - 1)
+        old_components_price = old_package.template.price * (package_change_date - start_date).days
         second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month)
         new_components_price = new_package.template.price * second_component_usage_days
         expected_price = old_components_price + new_components_price

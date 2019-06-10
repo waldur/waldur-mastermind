@@ -3,12 +3,11 @@
 from __future__ import unicode_literals
 
 from django.db import migrations, models
-import django.db.models.deletion
 import django.utils.timezone
 import model_utils.fields
 import waldur_core.core.fields
 import waldur_core.core.validators
-from waldur_core.structure.images import get_upload_path
+from waldur_core.media.models import get_upload_path
 
 
 class Migration(migrations.Migration):

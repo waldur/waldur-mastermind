@@ -80,8 +80,11 @@ class SafReportFormatterTest(BaseReportFormatterTest):
                           'ARTPROJEKT;ARTNIMI;VALI;U_KONEDEARV;H_PERIOOD'
         self.assertEqual(lines[0], expected_header)
 
-        expected_data = '{};30.09.2017;26.09.2017;26.10.2017;100;100;;5;1500.00;0.00;20%;' \
-                        'PROJEKT; (Small / PackageTemplate);;;01.09.2017-30.09.2017'.format(self.invoice.number)
+        expected_data = (
+            '{};30.09.2017;26.09.2017;26.10.2017;100;100;;5;1500.00;0.00;20%;'
+            'PROJEKT;{} (Small / PackageTemplate);;;01.09.2017-30.09.2017'.format(
+                self.invoice.number, self.fixture.openstack_tenant)
+        )
         self.assertEqual(lines[1], expected_data)
 
     def test_usage_based_item_is_skipped_if_quantity_is_zero(self):
