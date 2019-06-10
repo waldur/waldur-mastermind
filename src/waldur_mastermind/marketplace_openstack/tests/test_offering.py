@@ -85,6 +85,117 @@ class TemplateOfferingTest(BaseOpenStackTest):
         plan.refresh_from_db()
         self.assertIsNone(plan.scope)
 
+    def test_when_plan_is_archived_template_is_updated(self):
+        # Arrange
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering)
+        plan.refresh_from_db()
+
+        # Act
+        plan.archived = True
+        plan.save()
+        template = plan.scope
+
+        # Assert
+        self.assertTrue(template.archived)
+
+    def test_when_plan_is_unarchived_template_is_updated(self):
+        # Arrange
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering, archived=True)
+        plan.refresh_from_db()
+
+        # Act
+        plan.archived = False
+        plan.save()
+        template = plan.scope
+
+        # Assert
+        self.assertFalse(template.archived)
+
+    def test_when_plan_name_is_updated_template_is_updated(self):
+        # Arrange
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering)
+        plan.refresh_from_db()
+
+        # Act
+        plan.name = 'Compute-intensive'
+        plan.save()
+        template = plan.scope
+
+        # Assert
+        self.assertEqual(template.name, plan.name)
+
+    def test_when_template_is_archived_plan_is_updated(self):
+        # Arrange
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering)
+        plan.refresh_from_db()
+        template = plan.scope
+
+        # Act
+        template.archived = True
+        template.save()
+        plan.refresh_from_db()
+
+        # Assert
+        self.assertTrue(plan.archived)
+
+    def test_when_template_is_unarchived_template_is_updated(self):
+        # Arrange
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering, archived=True)
+        plan.refresh_from_db()
+        template = plan.scope
+
+        # Act
+        template.archived = False
+        template.save()
+        plan.refresh_from_db()
+
+        # Assert
+        self.assertFalse(plan.archived)
+
+    def test_when_template_name_is_updated_template_is_synchornized(self):
+        # Arrange
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        plan = marketplace_factories.PlanFactory(offering=offering)
+        plan.refresh_from_db()
+        template = plan.scope
+
+        # Act
+        template.name = 'Compute-intensive'
+        template.save()
+        plan.refresh_from_db()
+
+        # Assert
+        self.assertEqual(plan.name, template.name)
+
 
 class PlanComponentsTest(test.APITransactionTestCase):
     prices = {

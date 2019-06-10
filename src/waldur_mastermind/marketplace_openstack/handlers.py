@@ -3,7 +3,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 
 from waldur_core.structure import models as structure_models
@@ -51,6 +51,48 @@ def create_template_for_plan(sender, instance, created=False, **kwargs):
         )
         plan.scope = template
         plan.save()
+
+
+PLAN_FIELDS = {'name', 'archived', 'product_code', 'article_code'}
+
+
+def update_template_for_plan(sender, instance, created=False, **kwargs):
+    plan = instance
+
+    if created:
+        return
+
+    update_fields = set(plan.tracker.changed()) & PLAN_FIELDS
+    if not update_fields:
+        return
+
+    if not plan.scope:
+        return
+
+    template = plan.scope
+    for field in update_fields:
+        setattr(template, field, getattr(plan, field))
+    template.save(update_fields=update_fields)
+
+
+def update_plan_for_template(sender, instance, created=False, **kwargs):
+    template = instance
+
+    if created:
+        return
+
+    update_fields = set(template.tracker.changed()) & PLAN_FIELDS
+    if not update_fields:
+        return
+
+    try:
+        plan = marketplace_models.Plan.objects.get(scope=template)
+    except (ObjectDoesNotExist, MultipleObjectsReturned):
+        return
+
+    for field in update_fields:
+        setattr(plan, field, getattr(template, field))
+    plan.save(update_fields=update_fields)
 
 
 def synchronize_plan_component(sender, instance, created=False, **kwargs):
