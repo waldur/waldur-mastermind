@@ -454,9 +454,13 @@ def update_service_settings(sender, instance, created=False, **kwargs):
         return
 
     try:
-        service_settings = structure_models.ServiceSettings.objects.get(scope=tenant,
-                                                                        type=apps.OpenStackTenantConfig.service_name)
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name
+        )
     except structure_models.ServiceSettings.DoesNotExist:
+        return
+    except structure_models.ServiceSettings.MultipleObjectsReturned:
         return
     else:
         service_settings.options['external_network_id'] = tenant.external_network_id

@@ -4,6 +4,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack import models as openstack_models, apps as openstack_apps
+from waldur_openstack.openstack.tests.factories import TenantFactory
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 
 from . import factories
@@ -34,7 +35,7 @@ class OpenStackFixture(ProjectFixture):
 
     @cached_property
     def openstack_tenant(self):
-        return openstack_models.Tenant.objects.create(
+        return TenantFactory(
             service_project_link=self.openstack_spl,
             state=openstack_models.Tenant.States.OK,
         )

@@ -16,7 +16,8 @@ class OpenStackItemRegistrator(BaseRegistrator):
 
     def get_sources(self, customer):
         return packages_models.OpenStackPackage.objects.filter(
-            tenant__service_project_link__project__customer=customer).distinct()
+            tenant__service_project_link__project__customer=customer
+        ).exclude(tenant__backend_id='').exclude(tenant__backend_id=None).distinct()
 
     def _find_item(self, source, now):
         result = utils.get_openstack_items().filter(
