@@ -13,6 +13,7 @@ from six.moves import urllib
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack.tests.unittests import test_backend
+from waldur_openstack.openstack_tenant.tests.helpers import override_openstack_tenant_settings
 
 from . import factories, fixtures, helpers
 from .. import executors, models, views
@@ -370,6 +371,23 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(instance.availability_zone, vm_az)
         self.assertEqual(instance.volumes.first().availability_zone, volume_az)
         self.assertEqual(instance.volumes.last().availability_zone, volume_az)
+
+    @override_openstack_tenant_settings(REQUIRE_AVAILABILITY_ZONE=True)
+    def test_when_availability_zone_is_mandatory_and_exists_validation_fails(self):
+        self.openstack_tenant_fixture.instance_availability_zone
+        data = self.get_valid_data()
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_openstack_tenant_settings(REQUIRE_AVAILABILITY_ZONE=True)
+    def test_when_availability_zone_is_mandatory_and_does_not_exist_validation_succeeds(self):
+        data = self.get_valid_data()
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
 class InstanceDeleteTest(test_backend.BaseBackendTestCase):
