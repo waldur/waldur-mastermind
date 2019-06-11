@@ -1,4 +1,5 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
+from waldur_core.structure.permissions import _get_project
 
 from . import models
 
@@ -19,7 +20,7 @@ class IssueEventLogger(EventLogger):
         issue = event_context['issue']
         result = set()
         if issue.resource:
-            project = issue.resource.service_project_link.project
+            project = _get_project(issue.resource)
             result.add(issue.resource)
             result.add(project)
             result.add(project.customer)

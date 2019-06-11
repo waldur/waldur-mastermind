@@ -9,7 +9,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.template import Context, Template
 from django.test import override_settings
 from freezegun import freeze_time
-from rest_framework import status
+from rest_framework import status, test
 
 from waldur_core.core.utils import month_end
 from waldur_core.core import utils as core_utils
@@ -23,6 +23,7 @@ from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
+from waldur_mastermind.support.log import IssueEventLogger
 
 
 class RequestCreateTest(BaseTest):
@@ -428,3 +429,14 @@ class NotificationTest(BaseTest):
         body = Template(self.service_provider.lead_body).\
             render(Context({'order_item': order_item}, autoescape=False))
         self.assertEqual(mail.outbox[0].body, body)
+
+
+class IssueLogTest(test.APITransactionTestCase):
+    def test_get_logger_scope_if_issue_resource_is_order_item(self):
+        order_item = marketplace_factories.OrderItemFactory()
+        issue = support_factories.IssueFactory()
+        issue.resource = order_item
+        issue.save()
+        logger = IssueEventLogger
+        scope = logger.get_scopes({'issue': issue})
+        self.assertTrue(order_item.order.project in scope)
