@@ -13,6 +13,7 @@ class SupportConfig(AppConfig):
         from . import handlers
 
         Issue = self.get_model('Issue')
+        Attachment = self.get_model('Attachment')
         Offering = self.get_model('Offering')
         Comment = self.get_model('Comment')
 
@@ -41,6 +42,18 @@ class SupportConfig(AppConfig):
             handlers.log_issue_delete,
             sender=Issue,
             dispatch_uid='waldur_mastermind.support.handlers.log_issue_delete',
+        )
+
+        signals.post_save.connect(
+            handlers.log_attachment_save,
+            sender=Attachment,
+            dispatch_uid='waldur_mastermind.support.handlers.log_attachment_save',
+        )
+
+        signals.post_delete.connect(
+            handlers.log_attachment_delete,
+            sender=Attachment,
+            dispatch_uid='waldur_mastermind.support.handlers.log_attachment_delete',
         )
 
         signals.post_save.connect(
