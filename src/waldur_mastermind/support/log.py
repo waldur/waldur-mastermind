@@ -16,6 +16,7 @@ def get_issue_scopes(issue):
         result.add(issue.customer)
     if issue.customer:
         result.add(issue.customer)
+    return result
 
 
 class IssueEventLogger(EventLogger):
