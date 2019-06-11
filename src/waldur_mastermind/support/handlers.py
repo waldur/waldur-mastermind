@@ -48,6 +48,32 @@ def log_issue_delete(sender, instance, **kwargs):
         })
 
 
+def log_attachment_save(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.waldur_attachment.info(
+            'Attachment for issue {issue_key} has been created.',
+            event_type='attachment_created',
+            event_context={
+                'attachment': instance,
+            })
+    else:
+        event_logger.waldur_attachment.info(
+            'Attachment for issue {issue_key} has been updated.',
+            event_type='attachment_updated',
+            event_context={
+                'attachment': instance,
+            })
+
+
+def log_attachment_delete(sender, instance, **kwargs):
+    event_logger.waldur_attachment.info(
+        'Attachment for issue {issue_key} has been deleted.',
+        event_type='attachment_deleted',
+        event_context={
+            'attachment': instance,
+        })
+
+
 def log_offering_created(sender, instance, created=False, **kwargs):
     if created:
         event_logger.waldur_offering.info(

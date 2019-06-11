@@ -211,7 +211,7 @@ class EventLogger(BaseLogger):
             context=context,
         )
         if event_context:
-            for scope in self.get_scopes(event_context):
+            for scope in self.get_scopes(event_context) or []:
                 if scope and scope.id:
                     models.Feed.objects.create(scope=scope, event=event)
 
