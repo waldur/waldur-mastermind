@@ -860,10 +860,27 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
 class CartItemSerializer(BaseRequestSerializer):
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
     estimate = serializers.ReadOnlyField(source='cost')
+    project = serializers.HyperlinkedRelatedField(
+        lookup_field='uuid',
+        view_name='project-detail',
+        queryset=structure_models.Project.objects.all(),
+    )
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
 
     class Meta(BaseRequestSerializer.Meta):
         model = models.CartItem
-        fields = BaseRequestSerializer.Meta.fields + ('estimate',)
+        fields = BaseRequestSerializer.Meta.fields + (
+            'estimate', 'project', 'project_name', 'project_uuid'
+        )
+        protected_fields = BaseRequestSerializer.Meta.protected_fields + ('project',)
+
+    def get_fields(self):
+        fields = super(CartItemSerializer, self).get_fields()
+        if 'project' in fields:
+            fields['project'].queryset = filter_queryset_for_user(
+                fields['project'].queryset, self.context['request'].user)
+        return fields
 
     @transaction.atomic
     def create(self, validated_data):
@@ -892,12 +909,12 @@ class CartSubmitSerializer(serializers.Serializer):
     @transaction.atomic()
     def create(self, validated_data):
         user = self.context['request'].user
+        project = validated_data['project']
 
-        items = models.CartItem.objects.filter(user=user)
+        items = models.CartItem.objects.filter(user=user, project=project)
         if items.count() == 0:
             raise serializers.ValidationError(_('Shopping cart is empty'))
 
-        project = validated_data['project']
         order = create_order(project, user, items, self.context['request'])
         items.delete()
         return order
