@@ -3,6 +3,7 @@ from rest_framework import test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -34,6 +35,23 @@ class OfferingTemplateCreateTest(test.APITransactionTestCase):
         offering = marketplace_factories.OfferingFactory()
         offering.refresh_from_db()
         self.assertIsNone(offering.scope)
+
+
+class OfferingTemplateUpdateTest(test.APITransactionTestCase):
+
+    def test_offering_template_is_updated(self):
+        # Arrange
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
+        offering.refresh_from_db()
+        template = support_models.OfferingTemplate.objects.get(name=offering.name)
+
+        # Act
+        offering.options = OFFERING_OPTIONS
+        offering.save()
+
+        # Assert
+        template.refresh_from_db()
+        self.assertEqual(template.config, offering.options)
 
 
 class SupportOfferingTest(BaseTest):

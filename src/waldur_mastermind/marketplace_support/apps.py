@@ -22,6 +22,12 @@ class MarketplaceSupportConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.update_support_template,
+            sender=marketplace_models.Offering,
+            dispatch_uid='waldur_mastermind.marketpace_support.update_support_template',
+        )
+
+        signals.post_save.connect(
             handlers.change_order_item_state,
             sender=support_models.Offering,
             dispatch_uid='waldur_mastermind.marketpace_support.change_order_item_state',
