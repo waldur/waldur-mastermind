@@ -412,6 +412,8 @@ class CartItemViewSet(core_views.ActionsViewSet):
     queryset = models.CartItem.objects.all()
     lookup_field = 'uuid'
     serializer_class = serializers.CartItemSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = filters.CartItemFilter
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)

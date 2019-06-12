@@ -550,8 +550,13 @@ class CostEstimateMixin(models.Model):
 @python_2_unicode_compatible
 class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEstimateMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
+    project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
     attributes = BetterJSONField(blank=True, default=dict)
+
+    class Permissions(object):
+        customer_path = 'project__customer'
+        project_path = 'project'
 
     class Meta(object):
         ordering = ('created',)

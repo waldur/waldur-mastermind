@@ -297,6 +297,7 @@ class OfferingPlan(core_models.UuidMixin,
 @python_2_unicode_compatible
 class Attachment(core_models.UuidMixin,
                  TimeStampedModel,
+                 structure_models.StructureLoggableMixin,
                  core_models.StateMixin):
     class Permissions(object):
         customer_path = 'issue__customer'
@@ -317,6 +318,9 @@ class Attachment(core_models.UuidMixin,
 
     def __str__(self):
         return '{} | {}'.format(self.issue, self.file.name.split('/')[-1])
+
+    def get_log_fields(self):
+        return ('uuid', 'issue', 'author', 'backend_id')
 
 
 class Template(core_models.UuidMixin,

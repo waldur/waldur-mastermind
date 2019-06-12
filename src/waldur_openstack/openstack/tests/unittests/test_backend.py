@@ -529,6 +529,36 @@ class ImportTenantSubnets(BaseBackendTestCase):
         self.assertEqual(models.SubNet.objects.count(), 0)
 
 
+class MockTenant(object):
+    def __init__(self, name, id=None):
+        self.name = name
+        self.id = id
+
+
+class CreateTenantTest(BaseBackendTestCase):
+    def test_name_is_replaced_if_it_is_already_taken(self):
+        self.tenant.name = 'First Tenant'
+        self.tenant.save()
+        self.mocked_keystone().projects.list.return_value = [
+            MockTenant('First Tenant'),
+            MockTenant('Second Tenant'),
+        ]
+        self.mocked_keystone().projects.create.return_value = MockTenant('First Tenant', 'VALID_ID')
+        self.backend.create_tenant_safe(self.tenant)
+        self.tenant.refresh_from_db()
+        self.assertNotEqual(self.tenant.name, 'First Tenant')
+        self.assertTrue(self.tenant.name.startswith('First Tenant'))
+
+    def test_name_is_not_replaced_if_it_is_not_taken(self):
+        self.tenant.name = 'First Tenant'
+        self.tenant.save()
+        self.mocked_keystone().projects.list.return_value = []
+        self.mocked_keystone().projects.create.return_value = MockTenant('First Tenant', 'VALID_ID')
+        self.backend.create_tenant_safe(self.tenant)
+        self.tenant.refresh_from_db()
+        self.assertEqual(self.tenant.name, 'First Tenant')
+
+
 class PullImagesTest(BaseBackendTestCase):
 
     def setUp(self):

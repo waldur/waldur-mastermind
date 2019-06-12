@@ -22,6 +22,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
+        from waldur_mastermind.packages import models as package_models
 
         from . import (
             handlers, processors,
@@ -49,6 +50,18 @@ class MarketplaceOpenStackConfig(AppConfig):
             handlers.create_template_for_plan,
             sender=marketplace_models.Plan,
             dispatch_uid='waldur_mastermind.marketpace_openstack.create_template_for_plan',
+        )
+
+        signals.post_save.connect(
+            handlers.update_template_for_plan,
+            sender=marketplace_models.Plan,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.update_template_for_plan',
+        )
+
+        signals.post_save.connect(
+            handlers.update_plan_for_template,
+            sender=package_models.PackageTemplate,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.update_plan_for_template',
         )
 
         signals.post_save.connect(

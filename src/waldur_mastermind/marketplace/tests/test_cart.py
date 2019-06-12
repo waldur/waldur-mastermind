@@ -39,7 +39,7 @@ class CartSubmitTest(test.APITransactionTestCase):
         response = self.submit(fixture.project)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_cart_item_limits_are_propagated_to_order_item(self):
+    def get_payload(self, project):
         limits = {
             'storage': 1000,
             'ram': 30,
@@ -56,16 +56,19 @@ class CartSubmitTest(test.APITransactionTestCase):
                 billing_type=models.OfferingComponent.BillingTypes.USAGE
             )
 
-        payload = {
+        return {
             'offering': factories.OfferingFactory.get_url(offering),
             'plan': factories.PlanFactory.get_url(plan),
+            'project': structure_factories.ProjectFactory.get_url(project),
             'limits': limits,
         }
 
+    def test_cart_item_limits_are_propagated_to_order_item(self):
         fixture = fixtures.ProjectFixture()
-        self.client.force_authenticate(fixture.staff)
+        self.client.force_authenticate(fixture.owner)
 
         url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(fixture.project)
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -74,6 +77,15 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         order_item = models.OrderItem.objects.last()
         self.assertEqual(order_item.limits['cpu_count'], 5)
+
+    def test_project_is_validated_when_cart_item_is_created(self):
+        fixture = fixtures.ProjectFixture()
+        self.client.force_authenticate(fixture.user)
+
+        url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(fixture.project)
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_limits_are_not_allowed_for_components_with_disabled_quotas(self):
         limits = {
@@ -134,10 +146,12 @@ class AutoapproveTest(test.APITransactionTestCase):
 
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(private_offering),
+            'project': structure_factories.ProjectFactory.get_url(fixture.project),
         })
 
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(public_offering),
+            'project': structure_factories.ProjectFactory.get_url(fixture.project),
         })
 
         return self.submit(fixture.project)
@@ -156,6 +170,7 @@ class AutoapproveTest(test.APITransactionTestCase):
 
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(offering),
+            'project': structure_factories.ProjectFactory.get_url(fixture.project),
         })
 
         response = self.submit(fixture.project)

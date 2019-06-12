@@ -84,6 +84,17 @@ class ScreenshotFilter(django_filters.FilterSet):
         fields = []
 
 
+class CartItemFilter(django_filters.FilterSet):
+    customer = core_filters.URLFilter(view_name='customer-detail', name='project__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
+    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(name='project__uuid')
+
+    class Meta(object):
+        model = models.CartItem
+        fields = []
+
+
 class OrderFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(view_name='customer-detail', name='project__customer__uuid')
     customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')

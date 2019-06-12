@@ -235,6 +235,7 @@ class CartItemFactory(factory.DjangoModelFactory):
 
     offering = factory.SubFactory(OfferingFactory)
     user = factory.SubFactory(structure_factories.UserFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
 
     @classmethod
     def get_url(cls, item=None):
