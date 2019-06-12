@@ -27,6 +27,26 @@ def create_support_template(sender, instance, created=False, **kwargs):
         instance.save()
 
 
+def update_support_template(sender, instance, created=False, **kwargs):
+    offering = instance
+
+    if offering.type != PLUGIN_NAME:
+        return
+
+    if created:
+        return
+
+    if not offering.tracker.has_changed('options'):
+        return
+
+    if not offering.scope:
+        return
+
+    template = offering.scope
+    template.config = offering.options
+    template.save(update_fields=['config'])
+
+
 def change_order_item_state(sender, instance, created=False, **kwargs):
     if created:
         return
