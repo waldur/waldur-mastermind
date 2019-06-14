@@ -65,7 +65,7 @@ config_defaults = {
         'cors_allowed_domains': 'localhost,127.0.0.1',
     },
     'sentry': {
-        'dsn': '',  # raven package is needed for this to work
+        'dsn': '',  # Please ensure that Python Sentry SDK is installed.
     },
 }
 
@@ -375,20 +375,13 @@ if config.getboolean('global', 'debug'):
 # Sentry integration
 # See also: https://docs.getsentry.com/hosted/clients/python/integrations/django/
 if config.get('sentry', 'dsn') != '':
-    INSTALLED_APPS = INSTALLED_APPS + ('raven.contrib.django.raven_compat',)
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
 
-    RAVEN_CONFIG = {
-        'dsn': config.get('sentry', 'dsn'),
-    }
-
-    # Send logs to Sentry
-    # See also: https://docs.getsentry.com/hosted/clients/python/integrations/django/#integration-with-logging
-    LOGGING['handlers']['sentry'] = {
-        'class': 'raven.contrib.django.raven_compat.handlers.SentryHandler',
-        'level': 'ERROR',
-    }
-    for logger in ['celery.worker', 'django', 'waldur_core', 'requests']:
-        LOGGING['loggers'][logger]['handlers'].append('sentry')
+    sentry_sdk.init(
+        dsn=config.get('sentry', 'dsn'),
+        integrations=[DjangoIntegration()]
+    )
 
 # Additional configuration files for Waldur
 # 'override.conf.py' must be the first element to override settings in core.ini but not plugin configuration.
