@@ -106,7 +106,11 @@ class OfferingViewSet(BaseMarketplaceView):
     create_serializer_class = serializers.OfferingCreateSerializer
     update_serializer_class = partial_update_serializer_class = serializers.OfferingUpdateSerializer
     filter_class = filters.OfferingFilter
-    filter_backends = (DjangoFilterBackend, filters.OfferingCustomersFilterBackend)
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.OfferingCustomersFilterBackend,
+        filters.ExternalOfferingFilterBackend,
+    )
 
     @detail_route(methods=['post'])
     def activate(self, request, uuid=None):
