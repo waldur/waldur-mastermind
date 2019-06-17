@@ -19,16 +19,19 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_openstack.openstack.apps import OpenStackConfig
         from waldur_openstack.openstack_tenant import models as tenant_models
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_mastermind.marketplace import filters as marketplace_filters
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.packages import models as package_models
 
         from . import (
-            handlers, processors,
+            filters, handlers, processors,
             INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
             RAM_TYPE, CORES_TYPE, STORAGE_TYPE,
         )
+
+        marketplace_filters.ExternalOfferingFilterBackend.register(filters.VpcExternalFilter())
 
         signals.post_save.connect(
             handlers.create_offering_from_tenant,

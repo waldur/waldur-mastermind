@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 import mock
 from rest_framework import status, test
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -19,6 +20,32 @@ from waldur_openstack.openstack import models as openstack_models
 
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
 from .utils import BaseOpenStackTest, override_plugin_settings
+
+
+class VpcExternalFilterTest(BaseOpenStackTest):
+    def setUp(self):
+        super(VpcExternalFilterTest, self).setUp()
+        self.fixture = package_fixtures.OpenStackFixture()
+        self.offering = marketplace_factories.OfferingFactory(category=self.tenant_category)
+        self.url = marketplace_factories.OfferingFactory.get_list_url()
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_staff_can_see_vpc_offering(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(1, len(response.data))
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
+    def test_other_users_can_not_see_vpc_offering_if_feature_is_enabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(0, len(response.data))
+
+    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=False)
+    def test_other_users_can_see_vpc_offering_if_feature_is_disabled(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(1, len(response.data))
 
 
 class TemplateOfferingTest(BaseOpenStackTest):
