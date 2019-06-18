@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 from waldur_core.core import WaldurExtension
 
 
-class VMwareConfig(WaldurExtension):
+class VMwareExtension(WaldurExtension):
 
     @staticmethod
     def django_app():
