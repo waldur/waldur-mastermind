@@ -73,3 +73,17 @@ class VMwareClient(object):
         """
         url = '{0}/vcenter/vm/{1}/power/stop'.format(self._base_url, vm_id)
         return self._session.post(url)
+
+    def create_vm(self, spec):
+        """
+        Creates a virtual machine.
+        """
+        url = '{0}/vcenter/vm'.format(self._base_url)
+        return self._session.post(url, json=spec)
+
+    def delete_vm(self, vm_id):
+        """
+        Deletes a virtual machine.
+        """
+        url = '{0}/vcenter/vm/{1}'.format(self._base_url, vm_id)
+        return self._session.delete(url)
