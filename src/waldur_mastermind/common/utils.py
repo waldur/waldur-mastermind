@@ -54,3 +54,16 @@ def parse_datetime(timestr):
 
 def parse_date(timestr):
     return parse_datetime(timestr).date()
+
+
+def get_price_per_day(price, unit):
+    from .mixins import UnitPriceMixin
+
+    if unit == UnitPriceMixin.Units.PER_DAY:
+        return price
+    elif unit == UnitPriceMixin.Units.PER_MONTH:
+        return price / Decimal(30)
+    elif unit == UnitPriceMixin.Units.PER_HALF_MONTH:
+        return price / Decimal(15)
+    else:
+        return price

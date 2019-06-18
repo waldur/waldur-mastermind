@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from waldur_core.cost_tracking.models import DefaultPriceListItem
+from waldur_mastermind.common import mixins as common_mixins
 
 from .. import factories, fixtures
 from ... import admin, models
@@ -30,6 +31,7 @@ class PackageTemplateTest(TestCase):
             'name': 'TEST',
             'category': 'small',
             'service_settings': cls.service_settings.id,
+            'unit': common_mixins.UnitPriceMixin.Units.PER_DAY,
 
             '_continue': '1',
             'components-TOTAL_FORMS': 3,

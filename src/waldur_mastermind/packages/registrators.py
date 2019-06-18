@@ -1,6 +1,8 @@
 from django.utils import timezone
 
 from waldur_core.structure.permissions import _get_project
+from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices import models as invoices_models, utils as invoices_utils
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -37,9 +39,14 @@ class OpenStackItemRegistrator(BaseRegistrator):
             details__tenant_name=package.tenant.name,
         ).order_by('-unit_price').first()
 
-        daily_price = package.template.price
         product_code = package.template.product_code
         article_code = package.template.article_code
+
+        if package.template.unit == common_mixins.UnitPriceMixin.Units.PER_DAY:
+            price = package.template.price
+        else:
+            price = package.template.monthly_price
+
         if overlapping_item:
             """
             Notes:
@@ -68,7 +75,10 @@ class OpenStackItemRegistrator(BaseRegistrator):
             |--03.01.2017-|-********-|-------|
                                      |-*****-|-06.01.2017-|-******-|
             """
-            if overlapping_item.unit_price > daily_price:
+            overlapping_price = common_utils.get_price_per_day(overlapping_item.unit_price, overlapping_item.unit)
+            template_price = common_utils.get_price_per_day(price, package.template.unit)
+
+            if overlapping_price > template_price:
                 if overlapping_item.end.day == invoices_utils.get_current_month_end().day:
                     utils.extend_to_the_end_of_the_day(overlapping_item)
                     end = start
@@ -80,8 +90,8 @@ class OpenStackItemRegistrator(BaseRegistrator):
         invoices_models.GenericInvoiceItem.objects.create(
             scope=package,
             project=_get_project(package),
-            unit_price=daily_price,
-            unit=invoices_models.GenericInvoiceItem.Units.PER_DAY,
+            unit_price=price,
+            unit=package.template.unit,
             product_code=product_code,
             article_code=article_code,
             invoice=invoice,
