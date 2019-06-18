@@ -48,6 +48,7 @@ def create_template_for_plan(sender, instance, created=False, **kwargs):
             description=plan.description,
             product_code=plan.product_code,
             article_code=plan.article_code,
+            unit=plan.unit,
         )
         plan.scope = template
         plan.save()

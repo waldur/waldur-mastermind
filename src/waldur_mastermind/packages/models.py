@@ -28,6 +28,8 @@ class PackageTemplate(core_models.UuidMixin,
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new packages.'))
     tracker = FieldTracker()
+    unit = models.CharField(default=common_mixins.UnitPriceMixin.Units.PER_DAY, max_length=30,
+                            choices=common_mixins.UnitPriceMixin.Units.CHOICES)
 
     class Categories(object):
         SMALL = 'small'
@@ -49,18 +51,25 @@ class PackageTemplate(core_models.UuidMixin,
         Price for whole template for one day.
         :rtype: Decimal
         """
-        price = self.components.aggregate(total=models.Sum(
-            models.F('price') * models.F('amount'),
-            output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
-        return quantize_price(price)
+        if self.unit == common_mixins.UnitPriceMixin.Units.PER_DAY:
+            price = self.components.aggregate(total=models.Sum(
+                models.F('price') * models.F('amount'),
+                output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
+            return quantize_price(price)
 
     @property
     def monthly_price(self):
         """
-        Price for one template for 30 days.
+        Return price for one month in case of monthly billing plan or price for 30 days otherwise.
         :rtype: Decimal
         """
-        return self.price * 30
+        if self.unit == common_mixins.UnitPriceMixin.Units.PER_MONTH:
+            price = self.components.aggregate(total=models.Sum(
+                models.F('price') * models.F('amount'),
+                output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
+            return quantize_price(price)
+        elif self.unit == common_mixins.UnitPriceMixin.Units.PER_DAY:
+            return self.price * 30
 
     @staticmethod
     def get_required_component_types():
@@ -117,7 +126,7 @@ class PackageComponent(models.Model):
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0, max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
-                                verbose_name=_('Price per unit per day'))
+                                verbose_name=_('Price per unit'))
     template = models.ForeignKey(PackageTemplate, related_name='components')
 
     def __str__(self):
