@@ -137,6 +137,7 @@ setup(
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
             'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',
             'waldur_support_invoices = waldur_mastermind.support_invoices.extension:SupportInvoicesExtension',
+            'waldur_vmware = waldur_vmware.extension:VMwareExtension',
         ),
     },
     include_package_data=True,
