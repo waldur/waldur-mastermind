@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import CommandError
 from django.db import transaction
 
-from waldur_core.core.utils import DryRunCommand
+from waldur_core.core.utils import DryRunCommand, month_start
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import format_list
 from waldur_slurm import models as slurm_models
@@ -87,20 +87,23 @@ def import_allocation(dry_run=False):
                 component=component_cpu,
                 usage=allocation_usage.cpu_usage,
                 date=date,
-                plan_period=resource_plan_period
+                billing_period=month_start(date),
+                plan_period=resource_plan_period,
             )
             marketplace_models.ComponentUsage.objects.create(
                 resource=resource,
                 component=component_gpu,
                 usage=allocation_usage.gpu_usage,
                 date=date,
-                plan_period=resource_plan_period
+                billing_period=month_start(date),
+                plan_period=resource_plan_period,
             )
             marketplace_models.ComponentUsage.objects.create(
                 resource=resource,
                 component=component_ram,
                 usage=allocation_usage.ram_usage,
                 date=date,
+                billing_period=month_start(date),
                 plan_period=resource_plan_period
             )
     return missing_allocations.count()
