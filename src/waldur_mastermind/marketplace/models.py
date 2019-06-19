@@ -807,6 +807,11 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
     def __str__(self):
         return six.text_type(self.resource.name)
 
+    @property
+    def current_components(self):
+        now = timezone.now()
+        return self.components.filter(date=core_utils.month_start(now))
+
 
 @python_2_unicode_compatible
 class OrderItem(CostEstimateMixin,
@@ -941,13 +946,14 @@ class ComponentUsage(TimeStampedModel,
     component = models.ForeignKey(OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
+    # Date refers to beginning of billing period, ie first day of corresponding month
     date = models.DateField()
     plan_period = models.ForeignKey('ResourcePlanPeriod', related_name='components', null=True)
 
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('resource', 'component', 'plan_period')
+        unique_together = ('resource', 'component', 'plan_period', 'date')
 
     def __str__(self):
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)

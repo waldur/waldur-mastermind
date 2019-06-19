@@ -13,6 +13,41 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories
 
 
+@freeze_time('2019-06-19 00:00:00')
+class PlanPeriodsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory()
+        self.component = factories.OfferingComponentFactory(offering=self.offering)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.resource = factories.ResourceFactory(offering=self.offering, plan=self.plan)
+        self.plan_period = models.ResourcePlanPeriod.objects.create(resource=self.resource, plan=self.plan)
+        self.client.force_authenticate(self.fixture.staff)
+        self.url = factories.ResourceFactory.get_url(self.resource, 'plan_periods')
+
+    def test_component_usages_are_filtered_by_current_month(self):
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.component,
+            usage=100,
+            date=parse_datetime('2019-05-01')
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data[0]['components']), 0)
+
+    def test_component_usages_are_rendered_for_current_month(self):
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.component,
+            usage=100,
+            date=parse_datetime('2019-06-01')
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.data[0]['components'][0]['usage'], 100)
+
+
 @ddt
 @freeze_time('2017-01-10 00:00:00')
 class SubmitUsageTest(test.APITransactionTestCase):
@@ -57,9 +92,10 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def test_create_usage(self):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        date = core_utils.month_start(datetime.date.today())
         self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
                                                              component=self.offering_component,
-                                                             date=datetime.date.today()).exists())
+                                                             date=date).exists())
 
     def test_submit_usage_with_description(self):
         description = 'My first usage report'
@@ -71,9 +107,10 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def test_plan_period_linking(self):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        date = core_utils.month_start(datetime.date.today())
         usage = models.ComponentUsage.objects.get(resource=self.resource,
                                                   component=self.offering_component,
-                                                  date=datetime.date.today())
+                                                  date=date)
         plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource,
                                                             start=datetime.date(2017, 1, 10),
                                                             end__isnull=True)
@@ -84,9 +121,10 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, role))
         response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        date = core_utils.month_start(datetime.date.today())
         self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
                                                              component=self.offering_component,
-                                                             date=datetime.date.today()).exists())
+                                                             date=date).exists())
 
     @data('admin', 'manager', 'user')
     def test_other_user_can_not_submit_usage_via_api(self, role):
@@ -104,6 +142,38 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @freeze_time('2019-06-19 00:00:00')
+    def test_component_usage_is_created_for_current_month_if_it_does_not_exist_yet(self):
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=100,
+            date=parse_datetime('2019-05-01')
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(2, models.ComponentUsage.objects.filter(
+            resource=self.resource, component=self.offering_component).count())
+
+    @freeze_time('2019-06-19 00:00:00')
+    def test_component_usage_is_updated_for_current_month_if_it_already_exists(self):
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=100,
+            date=parse_datetime('2019-06-01')
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(5, models.ComponentUsage.objects.filter(
+            resource=self.resource, component=self.offering_component).get().usage)
 
     def test_total_amount_exceeds_month_limit(self):
         self.offering_component.limit_period = models.OfferingComponent.LimitPeriods.MONTH

@@ -7,6 +7,7 @@ import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -1150,7 +1151,7 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
 
     plan_name = serializers.ReadOnlyField(source='plan.name')
     plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
-    components = BaseComponentUsageSerializer(many=True)
+    components = BaseComponentUsageSerializer(source='current_components', many=True)
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
@@ -1214,7 +1215,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         plan_period = self.validated_data['plan_period']
         resource = plan_period.resource
         components = resource.plan.offering.get_usage_components()
-        date = datetime.date.today()
+        date = core_utils.month_start(timezone.now())
 
         for usage in self.validated_data['usages']:
             amount = usage['amount']
@@ -1226,7 +1227,8 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 resource=resource,
                 component=component,
                 plan_period=plan_period,
-                defaults={'usage': amount, 'date': date, 'description': description},
+                date=date,
+                defaults={'usage': amount, 'description': description},
             )
 
 
