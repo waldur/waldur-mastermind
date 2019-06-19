@@ -4,6 +4,15 @@ from __future__ import unicode_literals
 
 from django.db import migrations
 
+from waldur_core.core.utils import month_start
+
+
+def update_component_usage_date(apps, schema_editor):
+    ComponentUsage = apps.get_model('marketplace', 'ComponentUsage')
+    for component_usage in ComponentUsage.objects.all():
+        component_usage.date = month_start(component_usage.date)
+        component_usage.save(update_fields=['date'])
+
 
 class Migration(migrations.Migration):
 
@@ -12,6 +21,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(update_component_usage_date),
         migrations.AlterUniqueTogether(
             name='componentusage',
             unique_together=set([('resource', 'component', 'plan_period', 'date')]),
