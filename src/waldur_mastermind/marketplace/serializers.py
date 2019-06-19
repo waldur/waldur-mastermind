@@ -1215,20 +1215,21 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         plan_period = self.validated_data['plan_period']
         resource = plan_period.resource
         components = resource.plan.offering.get_usage_components()
-        date = core_utils.month_start(timezone.now())
+        now = timezone.now()
+        billing_period = core_utils.month_start(now)
 
         for usage in self.validated_data['usages']:
             amount = usage['amount']
             description = usage.get('description', '')
             component = components[usage['type']]
-            component.validate_amount(resource, amount, date)
+            component.validate_amount(resource, amount, now)
 
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 plan_period=plan_period,
-                date=date,
-                defaults={'usage': amount, 'description': description},
+                billing_period=billing_period,
+                defaults={'usage': amount, 'date': now, 'description': description},
             )
 
 

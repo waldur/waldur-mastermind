@@ -1,6 +1,7 @@
 import datetime
 
 from ddt import data, ddt
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -31,7 +32,8 @@ class PlanPeriodsTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.component,
             usage=100,
-            date=parse_datetime('2019-05-01')
+            date=parse_datetime('2019-05-10'),
+            billing_period=parse_datetime('2019-05-01'),
         )
         response = self.client.get(self.url)
         self.assertEqual(len(response.data[0]['components']), 0)
@@ -42,7 +44,8 @@ class PlanPeriodsTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.component,
             usage=100,
-            date=parse_datetime('2019-06-01')
+            date=parse_datetime('2019-06-11'),
+            billing_period=parse_datetime('2019-06-01')
         )
         response = self.client.get(self.url)
         self.assertEqual(response.data[0]['components'][0]['usage'], 100)
@@ -92,10 +95,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def test_create_usage(self):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        date = core_utils.month_start(datetime.date.today())
-        self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
-                                                             component=self.offering_component,
-                                                             date=date).exists())
+        date = timezone.now()
+        billing_period = core_utils.month_start(date)
+        self.assertTrue(models.ComponentUsage.objects.filter(
+            resource=self.resource,
+            component=self.offering_component,
+            date=date,
+            billing_period=billing_period
+        ).exists())
 
     def test_submit_usage_with_description(self):
         description = 'My first usage report'
@@ -107,10 +114,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def test_plan_period_linking(self):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        date = core_utils.month_start(datetime.date.today())
-        usage = models.ComponentUsage.objects.get(resource=self.resource,
-                                                  component=self.offering_component,
-                                                  date=date)
+        date = timezone.now()
+        billing_period = core_utils.month_start(date)
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.offering_component,
+            date=date,
+            billing_period=billing_period
+        )
         plan_period = models.ResourcePlanPeriod.objects.get(resource=self.resource,
                                                             start=datetime.date(2017, 1, 10),
                                                             end__isnull=True)
@@ -121,10 +132,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, role))
         response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        date = core_utils.month_start(datetime.date.today())
-        self.assertTrue(models.ComponentUsage.objects.filter(resource=self.resource,
-                                                             component=self.offering_component,
-                                                             date=date).exists())
+        date = timezone.now()
+        billing_period = core_utils.month_start(date)
+        self.assertTrue(models.ComponentUsage.objects.filter(
+            resource=self.resource,
+            component=self.offering_component,
+            date=date,
+            billing_period=billing_period
+        ).exists())
 
     @data('admin', 'manager', 'user')
     def test_other_user_can_not_submit_usage_via_api(self, role):
@@ -150,7 +165,8 @@ class SubmitUsageTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.offering_component,
             usage=100,
-            date=parse_datetime('2019-05-01')
+            date=parse_datetime('2019-05-11'),
+            billing_period=parse_datetime('2019-05-01')
         )
 
         self.client.force_authenticate(self.fixture.staff)
@@ -166,7 +182,8 @@ class SubmitUsageTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.offering_component,
             usage=100,
-            date=parse_datetime('2019-06-01')
+            date=parse_datetime('2019-06-21'),
+            billing_period=parse_datetime('2019-06-01'),
         )
 
         self.client.force_authenticate(self.fixture.staff)
