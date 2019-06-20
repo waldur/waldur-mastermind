@@ -1,12 +1,19 @@
 import ddt
 from mock import patch
 from rest_framework import status, test
+from django.contrib.contenttypes.models import ContentType
 
-from waldur_core.structure.tests import fixtures, factories as structure_factories
+from waldur_core.structure.tests import fixtures, factories as structure_factories, models as test_models
+from waldur_core.quotas import models as quotas_models
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.tests import views as structure_test_views
+from waldur_core.structure.tests import serializers as structure_test_serializers
+from waldur_core.quotas.fields import TotalQuotaField
 from waldur_mastermind.marketplace.base import override_marketplace_settings
+from waldur_mastermind.marketplace.plugins import manager
 
 from .. import models
-from . import factories
+from . import factories, utils
 
 
 class CartItemListTest(test.APITransactionTestCase):
@@ -21,6 +28,17 @@ class CartItemListTest(test.APITransactionTestCase):
 
 
 class CartSubmitTest(test.APITransactionTestCase):
+    def setUp(self):
+        manager.register(offering_type='TEST_TYPE',
+                         create_resource_processor=utils.TestCreateProcessor)
+        self.service_settings = structure_factories.ServiceSettingsFactory(type='Test')
+        self.fixture = fixtures.ProjectFixture()
+        service = structure_factories.TestServiceFactory(settings=self.service_settings,
+                                                         customer=self.fixture.customer)
+        structure_factories.TestServiceProjectLinkFactory(service=service, project=self.fixture.project)
+        self.offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE,
+                                                  type='TEST_TYPE',
+                                                  scope=self.service_settings)
 
     def submit(self, project):
         return self.client.post(factories.CartItemFactory.get_list_url('submit'), {
@@ -28,15 +46,12 @@ class CartSubmitTest(test.APITransactionTestCase):
         })
 
     def test_user_can_not_submit_shopping_cart_in_project_without_permissions(self):
-        fixture = fixtures.ProjectFixture()
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-
-        self.client.force_authenticate(fixture.user)
+        self.client.force_authenticate(self.fixture.user)
 
         self.client.post(factories.CartItemFactory.get_list_url(), {
-            'offering': factories.OfferingFactory.get_url(offering),
+            'offering': factories.OfferingFactory.get_url(self.offering),
         })
-        response = self.submit(fixture.project)
+        response = self.submit(self.fixture.project)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def get_payload(self, project):
@@ -46,44 +61,42 @@ class CartSubmitTest(test.APITransactionTestCase):
             'cpu_count': 5,
         }
 
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-        plan = factories.PlanFactory(offering=offering)
+        plan = factories.PlanFactory(offering=self.offering)
 
         for key in limits.keys():
             models.OfferingComponent.objects.create(
-                offering=offering,
+                offering=self.offering,
                 type=key,
                 billing_type=models.OfferingComponent.BillingTypes.USAGE
             )
 
         return {
-            'offering': factories.OfferingFactory.get_url(offering),
+            'offering': factories.OfferingFactory.get_url(self.offering),
             'plan': factories.PlanFactory.get_url(plan),
             'project': structure_factories.ProjectFactory.get_url(project),
             'limits': limits,
+            'attributes': {'name': 'test'},
         }
 
     def test_cart_item_limits_are_propagated_to_order_item(self):
-        fixture = fixtures.ProjectFixture()
-        self.client.force_authenticate(fixture.owner)
+        self.client.force_authenticate(self.fixture.owner)
 
         url = factories.CartItemFactory.get_list_url()
-        payload = self.get_payload(fixture.project)
+        payload = self.get_payload(self.fixture.project)
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        response = self.submit(fixture.project)
+        response = self.submit(self.fixture.project)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         order_item = models.OrderItem.objects.last()
         self.assertEqual(order_item.limits['cpu_count'], 5)
 
     def test_project_is_validated_when_cart_item_is_created(self):
-        fixture = fixtures.ProjectFixture()
-        self.client.force_authenticate(fixture.user)
+        self.client.force_authenticate(self.fixture.user)
 
         url = factories.CartItemFactory.get_list_url()
-        payload = self.get_payload(fixture.project)
+        payload = self.get_payload(self.fixture.project)
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -94,25 +107,23 @@ class CartSubmitTest(test.APITransactionTestCase):
             'cpu_count': 5,
         }
 
-        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-        plan = factories.PlanFactory(offering=offering)
+        plan = factories.PlanFactory(offering=self.offering)
 
         for key in limits.keys():
             models.OfferingComponent.objects.create(
-                offering=offering,
+                offering=self.offering,
                 type=key,
                 billing_type=models.OfferingComponent.BillingTypes.USAGE,
                 disable_quotas=True,
             )
 
         payload = {
-            'offering': factories.OfferingFactory.get_url(offering),
+            'offering': factories.OfferingFactory.get_url(self.offering),
             'plan': factories.PlanFactory.get_url(plan),
             'limits': limits,
         }
 
-        fixture = fixtures.ProjectFixture()
-        self.client.force_authenticate(fixture.staff)
+        self.client.force_authenticate(self.fixture.staff)
 
         url = factories.CartItemFactory.get_list_url()
         response = self.client.post(url, payload)
@@ -122,6 +133,11 @@ class CartSubmitTest(test.APITransactionTestCase):
 @ddt.ddt
 @patch('waldur_mastermind.marketplace.tasks.notify_order_approvers')
 class AutoapproveTest(test.APITransactionTestCase):
+    def setUp(self):
+        manager.register(offering_type='TEST_TYPE',
+                         create_resource_processor=utils.TestCreateProcessor)
+        self.service_settings = structure_factories.ServiceSettingsFactory(type='Test')
+
     def submit(self, project):
         return self.client.post(factories.CartItemFactory.get_list_url('submit'), {
             'project': structure_factories.ProjectFactory.get_url(project)
@@ -129,17 +145,24 @@ class AutoapproveTest(test.APITransactionTestCase):
 
     def submit_public_and_private(self, role):
         fixture = fixtures.ProjectFixture()
+        service = structure_factories.TestServiceFactory(settings=self.service_settings,
+                                                         customer=fixture.customer)
+        structure_factories.TestServiceProjectLinkFactory(service=service, project=fixture.project)
         private_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=False,
             billable=False,
-            customer=fixture.customer
+            customer=fixture.customer,
+            type='TEST_TYPE',
+            scope=self.service_settings
         )
         public_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=True,
             billable=True,
-            customer=fixture.customer
+            customer=fixture.customer,
+            type='TEST_TYPE',
+            scope=self.service_settings
         )
 
         self.client.force_authenticate(getattr(fixture, role))
@@ -147,11 +170,13 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(private_offering),
             'project': structure_factories.ProjectFactory.get_url(fixture.project),
+            'attributes': {'name': 'test'},
         })
 
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(public_offering),
             'project': structure_factories.ProjectFactory.get_url(fixture.project),
+            'attributes': {'name': 'test'},
         })
 
         return self.submit(fixture.project)
@@ -159,11 +184,17 @@ class AutoapproveTest(test.APITransactionTestCase):
     @ddt.data('staff', 'owner', 'manager', 'admin')
     def test_order_gets_approved_if_all_offerings_are_private(self, role, mocked_task):
         fixture = fixtures.ProjectFixture()
+        service = structure_factories.TestServiceFactory(settings=self.service_settings,
+                                                         customer=fixture.customer)
+        structure_factories.TestServiceProjectLinkFactory(service=service, project=fixture.project)
+
         offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=False,
             billable=False,
-            customer=fixture.customer
+            customer=fixture.customer,
+            type='TEST_TYPE',
+            scope=self.service_settings
         )
 
         self.client.force_authenticate(getattr(fixture, role))
@@ -171,6 +202,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.client.post(factories.CartItemFactory.get_list_url(), {
             'offering': factories.OfferingFactory.get_url(offering),
             'project': structure_factories.ProjectFactory.get_url(fixture.project),
+            'attributes': {'name': 'test'}
         })
 
         response = self.submit(fixture.project)
@@ -220,3 +252,65 @@ class CartUpdateTest(test.APITransactionTestCase):
     def test_plan_validation(self):
         response = self.update(factories.PlanFactory())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class QuotasValidateTest(test.APITransactionTestCase):
+    def setUp(self):
+        class NewInstanceSerializer(structure_test_serializers.NewInstanceSerializer):
+            class Meta(structure_test_serializers.NewInstanceSerializer.Meta):
+                fields = structure_test_serializers.NewInstanceSerializer.Meta.fields + ('cores',)
+
+        class TestNewInstanceViewSet(structure_test_views.TestNewInstanceViewSet):
+            serializer_class = NewInstanceSerializer
+
+        class TestNewInstanceCreateProcessor(utils.TestCreateProcessor):
+            viewset = TestNewInstanceViewSet
+            fields = ['name', 'cores']
+
+        manager.register(offering_type='TEST_TYPE',
+                         create_resource_processor=TestNewInstanceCreateProcessor)
+        self.service_settings = structure_factories.ServiceSettingsFactory(type='Test')
+        self.fixture = fixtures.ProjectFixture()
+        service = structure_factories.TestServiceFactory(settings=self.service_settings,
+                                                         customer=self.fixture.customer)
+        structure_factories.TestServiceProjectLinkFactory(service=service, project=self.fixture.project)
+        self.offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE,
+                                                  type='TEST_TYPE',
+                                                  scope=self.service_settings)
+
+        structure_models.Project.add_quota_field(
+            name='test_cpu_count',
+            quota_field=TotalQuotaField(
+                target_models=[test_models.TestNewInstance],
+                path_to_scope='service_project_link.project',
+                target_field='cores',
+            )
+        )
+
+        quotas_models.Quota.objects.update_or_create(
+            name='test_cpu_count',
+            content_type=ContentType.objects.get_for_model(self.fixture.project),
+            object_id=self.fixture.project.id,
+            defaults={'limit': 1}
+        )
+
+    def test_cart_item_created_if_quotas_is_valid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(self.offering),
+            'project': structure_factories.ProjectFactory.get_url(self.fixture.project),
+            'attributes': {'name': 'test', 'cores': 1}
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_cart_item_does_not_created_if_quotas_is_not_valid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(self.offering),
+            'project': structure_factories.ProjectFactory.get_url(self.fixture.project),
+            'attributes': {'name': 'test', 'cores': 2}
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('"test_cpu_count" quota is over limit.' in response.data[0])
