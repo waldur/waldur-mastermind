@@ -27,6 +27,34 @@ class VMwareClient(object):
         self._session = requests.Session()
         self._session.verify = verify_ssl
 
+    def _get(self, endpoint):
+        url = '%s/%s' % (self._base_url, endpoint)
+        response = self._session.get(url)
+        response.raise_for_status()
+        if response.content:
+            return response.json()
+
+    def _post(self, endpoint, **kwargs):
+        url = '%s/%s' % (self._base_url, endpoint)
+        response = self._session.post(url, **kwargs)
+        response.raise_for_status()
+        if response.content:
+            return response.json()
+
+    def _patch(self, endpoint, **kwargs):
+        url = '%s/%s' % (self._base_url, endpoint)
+        response = self._session.patch(url, **kwargs)
+        response.raise_for_status()
+        if response.content:
+            return response.json()
+
+    def _delete(self, endpoint):
+        url = '%s/%s' % (self._base_url, endpoint)
+        response = self._session.delete(url)
+        response.raise_for_status()
+        if response.content:
+            return response.json()
+
     def login(self, username, password):
         """
         Login to vCenter server using username and password.
@@ -37,22 +65,27 @@ class VMwareClient(object):
         :type password: string
         :raises Unauthorized: raised if credentials are invalid.
         """
-        login_url = '{0}/com/vmware/cis/session'.format(self._base_url)
-        response = self._session.post(login_url, auth=(username, password))
+        response = self._post('com/vmware/cis/session', auth=(username, password))
 
         if not response.ok:
             raise Unauthorized(response.content)
 
         logger.info('Successfully logged in as {0}'.format(username))
 
-    def get_vms(self):
+    def list_vms(self):
         """
         Get all the VMs from vCenter inventory.
         """
-        url = '{0}/vcenter/vm'.format(self._base_url)
-        response = self._session.get(url)
-        if response.ok:
-            return response.json()['value']
+        return self._get('vcenter/vm')['value']
+
+    def get_vm(self, vm_id):
+        """
+        Returns information about a virtual machine.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}'.format(vm_id))['value']
 
     def create_vm(self, spec):
         """
@@ -60,9 +93,10 @@ class VMwareClient(object):
 
         :param spec: new virtual machine specification
         :type spec: dict
+        :return: Virtual machine identifier
+        :rtype: string
         """
-        url = '{0}/vcenter/vm'.format(self._base_url)
-        return self._session.post(url, json=spec)
+        return self._post('vcenter/vm', json=spec)['value']
 
     def delete_vm(self, vm_id):
         """
@@ -71,8 +105,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        url = '{0}/vcenter/vm/{1}'.format(self._base_url, vm_id)
-        return self._session.delete(url)
+        return self._delete('vcenter/vm/{}'.format(vm_id))
 
     def start_vm(self, vm_id):
         """
@@ -81,8 +114,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        url = '{0}/vcenter/vm/{1}/power/start'.format(self._base_url, vm_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/power/start'.format(vm_id))
 
     def stop_vm(self, vm_id):
         """
@@ -91,8 +123,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        url = '{0}/vcenter/vm/{1}/power/stop'.format(self._base_url, vm_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/power/stop'.format(vm_id))
 
     def reset_vm(self, vm_id):
         """
@@ -101,8 +132,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        url = '{0}/vcenter/vm/{1}/power/reset'.format(self._base_url, vm_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/power/reset'.format(vm_id))
 
     def suspend_vm(self, vm_id):
         """
@@ -111,8 +141,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        url = '{0}/vcenter/vm/{1}/power/suspend'.format(self._base_url, vm_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/power/suspend'.format(vm_id))
 
     def update_cpu(self, vm_id, spec):
         """
@@ -123,8 +152,7 @@ class VMwareClient(object):
         :param spec: CPU specification
         :type spec: dict
         """
-        url = '{0}/vcenter/vm/{1}/hardware/cpu'.format(self._base_url, vm_id)
-        return self._session.patch(url, json=spec)
+        return self._patch('vcenter/vm/{}/hardware/cpu'.format(vm_id), json=spec)
 
     def update_memory(self, vm_id, spec):
         """
@@ -135,8 +163,7 @@ class VMwareClient(object):
         :param spec: CPU specification
         :type spec: dict
         """
-        url = '{0}/vcenter/vm/{1}/hardware/memory'.format(self._base_url, vm_id)
-        return self._session.patch(url, json=spec)
+        return self._patch('vcenter/vm/{}/hardware/memory'.format(vm_id), json=spec)
 
     def create_disk(self, vm_id, spec):
         """
@@ -147,8 +174,7 @@ class VMwareClient(object):
         :param spec: new virtual disk specification
         :type spec: dict
         """
-        url = '{0}/vcenter/vm/{1}/hardware/disk'.format(self._base_url, vm_id)
-        return self._session.post(url, json=spec)
+        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)
 
     def delete_disk(self, vm_id, disk_id):
         """
@@ -163,8 +189,7 @@ class VMwareClient(object):
         :param disk_id: Virtual disk identifier.
         :type disk_id: string
         """
-        url = '{0}/vcenter/vm/{1}/hardware/disk/{2}'.format(self._base_url, vm_id, disk_id)
-        return self._session.delete(url)
+        return self._delete('vcenter/vm/{}/hardware/disk/{}'.format(vm_id, disk_id))
 
     def connect_cdrom(self, vm_id, cdrom_id):
         """
@@ -175,8 +200,7 @@ class VMwareClient(object):
         :param cdrom_id: Virtual CD-ROM device identifier.
         :type cdrom_id: string
         """
-        url = '{0}/vcenter/vm/{1}/hardware/cdrom/{2}/connect'.format(self._base_url, vm_id, cdrom_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/hardware/cdrom/{}/connect'.format(vm_id, cdrom_id))
 
     def disconnect_cdrom(self, vm_id, cdrom_id):
         """
@@ -187,8 +211,7 @@ class VMwareClient(object):
         :param cdrom_id: Virtual CD-ROM device identifier.
         :type cdrom_id: string
         """
-        url = '{0}/vcenter/vm/{1}/hardware/cdrom/{2}/disconnect'.format(self._base_url, vm_id, cdrom_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/hardware/cdrom/{}/disconnect'.format(vm_id, cdrom_id))
 
     def connect_nic(self, vm_id, nic_id):
         """
@@ -199,8 +222,7 @@ class VMwareClient(object):
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        url = '{0}/vcenter/vm/{1}/hardware/ethernet/{2}/connect'.format(self._base_url, vm_id, nic_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/hardware/ethernet/{}/connect'.format(vm_id, nic_id))
 
     def disconnect_nic(self, vm_id, nic_id):
         """
@@ -211,5 +233,4 @@ class VMwareClient(object):
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        url = '{0}/vcenter/vm/{1}/hardware/ethernet/{2}/disconnect'.format(self._base_url, vm_id, nic_id)
-        return self._session.post(url)
+        return self._post('vcenter/vm/{}/hardware/ethernet/{}/disconnect'.format(vm_id, nic_id))
