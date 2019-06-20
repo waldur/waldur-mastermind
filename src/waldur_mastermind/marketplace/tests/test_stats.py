@@ -41,11 +41,14 @@ class StatsTest(test.APITransactionTestCase):
             plan=self.plan,
         )
 
-        models.ComponentUsage.objects.create(resource=self.resource,
-                                             component=self.offering_component,
-                                             date=parse_date('2019-01-10'),
-                                             plan_period=plan_period,
-                                             usage=100)
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            date=parse_date('2019-01-10'),
+            billing_period=parse_date('2019-01-01'),
+            plan_period=plan_period,
+            usage=100
+        )
 
         self.new_resource = factories.ResourceFactory(project=self.project,
                                                       offering=self.offering,
@@ -57,11 +60,14 @@ class StatsTest(test.APITransactionTestCase):
             plan=self.plan,
         )
 
-        models.ComponentUsage.objects.create(resource=self.resource,
-                                             component=self.offering_component,
-                                             date=parse_date('2019-01-20'),
-                                             plan_period=new_plan_period,
-                                             usage=200)
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            date=parse_date('2019-01-20'),
+            billing_period=parse_date('2019-01-01'),
+            plan_period=new_plan_period,
+            usage=200
+        )
 
         # Act
         tasks.calculate_usage_for_current_month()

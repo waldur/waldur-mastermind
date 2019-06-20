@@ -3,6 +3,7 @@ import unittest
 
 from rest_framework import test
 
+from waldur_core.core.utils import month_start
 from waldur_core.structure.tests import fixtures as structure_fixtures, factories as structure_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -72,7 +73,8 @@ class ComponentUsageTest(BaseTest):
             resource=self.resource,
             component=self.resource.plan.components.first().component,
             usage=1,
-            date=datetime.date.today()
+            date=datetime.date.today(),
+            billing_period=month_start(datetime.date.today()),
         )
         invoice.refresh_from_db()
         self.assertEqual(invoice.price, 3)
