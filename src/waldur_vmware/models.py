@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
+from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
@@ -52,6 +53,7 @@ class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource
     cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
     ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
+    tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):

@@ -2,8 +2,6 @@ import logging
 
 import requests
 
-from waldur_vmware.exceptions import Unauthorized
-
 logger = logging.getLogger(__name__)
 
 
@@ -65,12 +63,20 @@ class VMwareClient(object):
         :type password: string
         :raises Unauthorized: raised if credentials are invalid.
         """
-        response = self._post('com/vmware/cis/session', auth=(username, password))
-
-        if not response.ok:
-            raise Unauthorized(response.content)
-
+        self._post('com/vmware/cis/session', auth=(username, password))
         logger.info('Successfully logged in as {0}'.format(username))
+
+    def list_clusters(self):
+        return self._get('vcenter/cluster')['value']
+
+    def list_datacenters(self):
+        return self._get('vcenter/datacenter')['value']
+
+    def list_datastores(self):
+        return self._get('vcenter/datastore')['value']
+
+    def list_folders(self):
+        return self._get('vcenter/folder')['value']
 
     def list_vms(self):
         """

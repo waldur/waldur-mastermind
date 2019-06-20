@@ -7,9 +7,9 @@ class VMwareExtension(WaldurExtension):
 
     class Settings:
         WALDUR_VMWARE = {
-            'VM_CLUSTER_NAME': '',
-            'VM_DATASTORE_NAME': '',
-            'VM_PORTGROUP_NAME': '',
+            'VM_DATASTORE': '',
+            'VM_FOLDER': '',
+            'VM_RESOURCE_POOL': '',
         }
 
     @staticmethod

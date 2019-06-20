@@ -54,27 +54,28 @@ class VMwareBackend(ServiceBackend):
         :param vm: Virtual machine to be created
         :type vm: :class:`waldur_vmware.models.VirtualMachine`
         """
+        spec = {
+            'name': vm.name,
+            'guest_OS': vm.guest_os,
+            'cpu': {
+                'count': vm.cores,
+                'cores_per_socket': vm.cores_per_socket,
+                'hot_add_enabled': True,
+                'hot_remove_enabled': True
+            },
+            'memory': {
+                'size_MiB': vm.ram,
+                'hot_add_enabled': True,
+            },
+            'placement': {
+                'datastore': settings.WALDUR_VMWARE['VM_DATASTORE'],
+                'folder': settings.WALDUR_VMWARE['VM_FOLDER'],
+                'resource_pool': settings.WALDUR_VMWARE['VM_RESOURCE_POOL'],
+            }
+        }
+
         try:
-            backend_id = self.client.create_vm({
-                'spec': {
-                    'name': vm.name,
-                    'guest_OS': vm.guest_os,
-                    'cpu': {
-                        'count': vm.cores,
-                        'cores_per_socket': vm.cores_per_socket,
-                        'hot_add_enabled': True,
-                        'hot_remove_enabled': True
-                    },
-                    'memory': {
-                        'size_MiB': vm.ram,
-                        'hot_add_enabled': True,
-                    },
-                    'placement': {
-                        'cluster': settings.WALDUR_VMWARE['VM_CLUSTER_NAME'],
-                        'datastore': settings.WALDUR_VMWARE['VM_DATASTORE_NAME'],
-                    }
-                }
-            })
+            backend_id = self.client.create_vm({'spec': spec})
         except requests.RequestException as e:
             reraise(e)
         else:
