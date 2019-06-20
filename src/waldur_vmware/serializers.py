@@ -47,7 +47,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'guest_os', 'cores', 'cores_per_socket', 'ram', 'disk'
+            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os',
