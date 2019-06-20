@@ -10,8 +10,9 @@ from waldur_core.structure import serializers as structure_serializers, models a
 from waldur_openstack.openstack import (
     apps as openstack_apps, models as openstack_models, serializers as openstack_serializers)
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
+from waldur_mastermind.common import exceptions
 
-from . import models, exceptions
+from . import models
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
