@@ -84,3 +84,15 @@ class VMwareBackend(ServiceBackend):
             vm.runtime_state = backend_vm['power_state']
             vm.save(update_fields=['backend_id', 'runtime_state'])
             return vm
+
+    def delete_virtual_machine(self, vm):
+        """
+        Deletes a virtual machine.
+
+        :param vm: Virtual machine to be deleted
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        try:
+            self.client.delete_vm(vm.backend_id)
+        except requests.RequestException as e:
+            reraise(e)

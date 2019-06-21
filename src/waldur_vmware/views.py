@@ -21,3 +21,4 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     serializer_class = serializers.VirtualMachineSerializer
     filter_class = filters.VirtualMachineFilter
     create_executor = executors.VirtualMachineCreateExecutor
+    delete_executor = executors.VirtualMachineDeleteExecutor
