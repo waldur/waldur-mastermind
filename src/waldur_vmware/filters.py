@@ -11,3 +11,9 @@ class ServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.VMwareServiceProjectLink
+
+
+class VirtualMachineFilter(structure_filters.BaseResourceFilter):
+    class Meta(structure_filters.BaseResourceFilter.Meta):
+        model = models.VirtualMachine
+        fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
