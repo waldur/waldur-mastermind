@@ -53,7 +53,7 @@ Requires: python-country >= 1.20, python-country < 2.0
 Requires: python-croniter >= 0.3.4, python-croniter < 0.3.6
 Requires: python2-cryptography >= 1.7.2
 Requires: python-digitalocean >= 1.5
-Requires: python2-django >= 1.11.20, python2-django < 2.0.0
+Requires: python2-django >= 1.11.21, python2-django < 2.0.0
 Requires: python-django-admin-tools = 0.8.0
 Requires: python-django-auth-ldap >= 1.3.0
 Requires: python-django-cors-headers = 2.1.0
@@ -108,7 +108,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 # python-setuptools package is needed to run 'python setup.py <cmd>'
 # systemd package provides _unitdir RPM macro
 BuildRequires: gettext
-BuildRequires: python2-django = 1.11.20
+BuildRequires: python2-django >= 1.11.21, python2-django < 2.0.0
 BuildRequires: python-django-filter = 1.0.2
 BuildRequires: python-django-fluent-dashboard
 BuildRequires: python-django-jsoneditor >= 0.0.7
