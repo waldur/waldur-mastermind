@@ -241,6 +241,7 @@ class UsagesTest(InvoicesBaseTest):
             component=self.fixture.offering_component_cpu,
             usage=10,
             date=date,
+            billing_period=core_utils.month_start(date),
             plan_period=plan_period
         )
         option.update(kwargs)

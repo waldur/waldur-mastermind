@@ -225,3 +225,7 @@ class OfferingFileFilter(django_filters.FilterSet):
     class Meta(object):
         model = models.OfferingFile
         fields = []
+
+
+class ExternalOfferingFilterBackend(core_filters.ExternalFilterBackend):
+    pass

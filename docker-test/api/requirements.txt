@@ -1,3 +1,4 @@
+adal==1.2.0
 amqp==2.3.2
 apache-libcloud==2.2.1
 apipkg==1.4
@@ -5,6 +6,15 @@ appdirs==1.4.3
 asn1crypto==0.24.0
 atomicwrites==1.1.5
 attrs==18.1.0
+azure-common==1.1.17
+azure-mgmt-compute==4.0.1
+azure-mgmt-network==2.0.0
+azure-mgmt-nspkg==3.0.2
+azure-mgmt-rdbms==1.2.0
+azure-mgmt-resource==2.0.0
+azure-mgmt-sql==0.5.1
+azure-mgmt-storage==2.0.0
+azure-nspkg==3.0.2
 Babel==2.6.0
 backports.ssl-match-hostname==3.5.0.1
 bandit==1.4.0
@@ -28,7 +38,7 @@ debtcollector==1.19.0
 decorator==4.3.0
 defusedxml==0.5.0
 deprecation==2.0.3
-Django==1.11.20
+Django==1.11.21
 django-admin-tools==0.8.0
 django-auth-ldap==1.6.1
 django-cors-headers==2.1.0
@@ -72,6 +82,7 @@ jsonpatch==1.23
 jsonpickle==0.9.6
 jsonpointer==2.0
 jsonschema==2.6.0
+keyring==18.0.0
 keystoneauth1==3.8.0
 kitchen==1.1.1
 kombu==4.2.1
@@ -84,6 +95,8 @@ mock-django==0.6.9
 monotonic==1.5
 more-itertools==4.2.0
 msgpack==0.5.6
+msrest==0.6.4
+msrestazure==0.4.34
 munch==2.3.2
 netaddr==0.7.19
 netifaces==0.10.7

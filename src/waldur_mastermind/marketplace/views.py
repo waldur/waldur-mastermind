@@ -1,9 +1,10 @@
 from __future__ import unicode_literals
 
 from django.db import transaction
-from django.db.models import Count, OuterRef, Subquery, F, ExpressionWrapper, PositiveSmallIntegerField
+from django.db.models import Count, OuterRef, Subquery, F, Q, ExpressionWrapper, PositiveSmallIntegerField
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
@@ -17,7 +18,7 @@ from rest_framework.response import Response
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
-from waldur_core.core.utils import order_with_nulls
+from waldur_core.core.utils import order_with_nulls, month_start
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -106,7 +107,11 @@ class OfferingViewSet(BaseMarketplaceView):
     create_serializer_class = serializers.OfferingCreateSerializer
     update_serializer_class = partial_update_serializer_class = serializers.OfferingUpdateSerializer
     filter_class = filters.OfferingFilter
-    filter_backends = (DjangoFilterBackend, filters.OfferingCustomersFilterBackend)
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.OfferingCustomersFilterBackend,
+        filters.ExternalOfferingFilterBackend,
+    )
 
     @detail_route(methods=['post'])
     def activate(self, request, uuid=None):
@@ -500,6 +505,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     def plan_periods(self, request, uuid=None):
         resource = self.get_object()
         qs = models.ResourcePlanPeriod.objects.filter(resource=resource)
+        qs = qs.filter(Q(end=None) | Q(end__gte=month_start(timezone.now())))
         serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

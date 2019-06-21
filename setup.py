@@ -35,7 +35,7 @@ install_requires = [
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
     'django-taggit>=0.20.2',
-    'Django>=1.11.20,<2.0',
+    'Django>=1.11.21,<2.0',
     'djangorestframework>=3.6.3,<3.7.0',
     'djangosaml2==0.17.1',
     'hiredis>=0.2.0',
@@ -82,7 +82,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.7.7',
+    version='3.7.8',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -136,7 +136,9 @@ setup(
             'waldur_marketplace_openstack = waldur_mastermind.marketplace_openstack.extension:MarketplaceOpenStackExtension',
             'waldur_marketplace_support = waldur_mastermind.marketplace_support.extension:MarketplaceSupportExtension',
             'waldur_marketplace_slurm = waldur_mastermind.marketplace_slurm.extension:MarketplaceSlurmExtension',
+            'waldur_marketplace_vmware = waldur_mastermind.marketplace_vmware.extension:MarketplaceVMwareExtension',
             'waldur_support_invoices = waldur_mastermind.support_invoices.extension:SupportInvoicesExtension',
+            'waldur_vmware = waldur_vmware.extension:VMwareExtension',
         ),
     },
     include_package_data=True,

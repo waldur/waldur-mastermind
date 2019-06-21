@@ -5,6 +5,7 @@ from django.db import transaction, IntegrityError
 from django.db.models import Q
 from django.core import exceptions as django_exceptions
 
+from waldur_core.core.utils import month_start
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -92,6 +93,7 @@ def create_slurm_usage(sender, instance, created=False, **kwargs):
                 component=plan_component,
                 usage=usage,
                 date=date,
+                billing_period=month_start(date),
                 plan_period=plan_period,
             )
         except django_exceptions.ObjectDoesNotExist:

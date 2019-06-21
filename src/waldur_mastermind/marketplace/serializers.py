@@ -7,6 +7,7 @@ import jwt
 from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import OuterRef, Subquery, Count, IntegerField
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
@@ -25,6 +26,8 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.common import exceptions
+from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.utils import validate_order_item
 from waldur_mastermind.support import serializers as support_serializers
 
@@ -882,12 +885,30 @@ class CartItemSerializer(BaseRequestSerializer):
                 fields['project'].queryset, self.context['request'].user)
         return fields
 
+    def quotas_validate(self, item, project, user, request):
+        try:
+            with transaction.atomic():
+                processor_class = manager.get_processor(item.offering.type, 'create_resource_processor')
+                order_params = dict(project=project, created_by=self.context['request'].user)
+                order = models.Order(**order_params)
+                item_params = get_item_params(item)
+                order_item = models.OrderItem(order=order, **item_params)
+                processor = processor_class(order_item)
+                post_data = processor.get_post_data()
+                serializer = processor.get_serializer_class()(data=post_data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                raise exceptions.TransactionRollback()
+        except exceptions.TransactionRollback:
+            pass
+
     @transaction.atomic
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         item = super(CartItemSerializer, self).create(validated_data)
         item.init_cost()
         item.save(update_fields=['cost'])
+        self.quotas_validate(item, validated_data['project'], validated_data['user'], self.context['request'])
         return item
 
 
@@ -931,6 +952,18 @@ def check_availability_of_auto_approving(items, user, project):
     return permissions.user_can_approve_order(user, project)
 
 
+def get_item_params(item):
+    return dict(
+        offering=item.offering,
+        attributes=item.attributes,
+        resource=getattr(item, 'resource', None),  # cart item does not have resource
+        plan=item.plan,
+        old_plan=getattr(item, 'old_plan', None),  # cart item does not have old plan
+        limits=item.limits,
+        type=item.type,
+    )
+
+
 def create_order(project, user, items, request):
     order_params = dict(project=project, created_by=user)
     order = models.Order.objects.create(**order_params)
@@ -944,15 +977,8 @@ def create_order(project, user, items, request):
             raise rf_exceptions.ValidationError(_('Pending order item for resource already exists.'))
 
         try:
-            order_item = order.add_item(
-                offering=item.offering,
-                attributes=item.attributes,
-                resource=getattr(item, 'resource', None),  # cart item does not have resource
-                plan=item.plan,
-                old_plan=getattr(item, 'old_plan', None),  # cart item does not have old plan
-                limits=item.limits,
-                type=item.type,
-            )
+            params = get_item_params(item)
+            order_item = order.add_item(**params)
         except ValidationError as e:
             raise rf_exceptions.ValidationError(e)
         validate_order_item(order_item, request)
@@ -1150,7 +1176,7 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
 
     plan_name = serializers.ReadOnlyField(source='plan.name')
     plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
-    components = BaseComponentUsageSerializer(many=True)
+    components = BaseComponentUsageSerializer(source='current_components', many=True)
 
 
 class ServiceProviderSignatureSerializer(serializers.Serializer):
@@ -1214,19 +1240,21 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         plan_period = self.validated_data['plan_period']
         resource = plan_period.resource
         components = resource.plan.offering.get_usage_components()
-        date = datetime.date.today()
+        now = timezone.now()
+        billing_period = core_utils.month_start(now)
 
         for usage in self.validated_data['usages']:
             amount = usage['amount']
             description = usage.get('description', '')
             component = components[usage['type']]
-            component.validate_amount(resource, amount, date)
+            component.validate_amount(resource, amount, now)
 
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 plan_period=plan_period,
-                defaults={'usage': amount, 'date': date, 'description': description},
+                billing_period=billing_period,
+                defaults={'usage': amount, 'date': now, 'description': description},
             )
 
 
