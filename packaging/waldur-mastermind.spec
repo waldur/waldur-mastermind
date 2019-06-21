@@ -108,7 +108,7 @@ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 # python-setuptools package is needed to run 'python setup.py <cmd>'
 # systemd package provides _unitdir RPM macro
 BuildRequires: gettext
-BuildRequires: python2-django >= 1.11.21, python2-django < 2.0.0
+BuildRequires: python2-django >= 1.11.21
 BuildRequires: python-django-filter = 1.0.2
 BuildRequires: python-django-fluent-dashboard
 BuildRequires: python-django-jsoneditor >= 0.0.7
