@@ -1,10 +1,11 @@
 from __future__ import unicode_literals
 
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers as rf_serializers, status
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
-from waldur_core.core import exceptions as core_exceptions, validators as core_validators
+from waldur_core.core import validators as core_validators
 from waldur_core.structure import views as structure_views
 
 from . import filters, executors, models, serializers
