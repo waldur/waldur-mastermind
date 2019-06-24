@@ -1,11 +1,12 @@
 import base64
+from calendar import timegm
+from datetime import datetime
 import os
 import tempfile
 
 from django.apps import apps
 from django.conf import settings
 from django.http import HttpResponse
-from django.utils import timezone
 import jwt
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
@@ -18,7 +19,8 @@ from waldur_core.structure.managers import filter_queryset_for_user
 
 def encode_attachment_token(user_uuid, obj, field):
     max_age = settings.WALDUR_CORE['ATTACHMENT_LINK_MAX_AGE']
-    expires_at = utils.datetime_to_timestamp(timezone.now() + max_age)
+    dt = datetime.utcnow() + max_age
+    expires_at = timegm(dt.utctimetuple())
     payload = {
         'usr': user_uuid,
         'ct': str(obj._meta),
@@ -32,7 +34,7 @@ def encode_attachment_token(user_uuid, obj, field):
 def decode_attachment_token(token):
     try:
         data = utils.decode_jwt_token(token)
-    except jwt.exceptions.DecodeError:
+    except jwt.exceptions.InvalidTokenError:
         raise ValidationError('Bad signature.')
 
     if not isinstance(data, dict):
@@ -40,9 +42,8 @@ def decode_attachment_token(token):
 
     user_uuid = data.get('usr')
     content_type = data.get('ct')
-    object_id = data.get('id')
+    object_uuid = data.get('id')
     field = data.get('field')
-    date = data.get('exp')
 
     if not user_uuid:
         raise ValidationError('User UUID is not provided.')
@@ -50,20 +51,13 @@ def decode_attachment_token(token):
     if not content_type:
         raise ValidationError('Content type is not provided.')
 
-    if not object_id:
+    if not object_uuid:
         raise ValidationError('Object UUID is not provided.')
 
     if not field:
         raise ValidationError('Field is not provided.')
 
-    if not date:
-        raise ValidationError('Expiration date is not provided.')
-
-    date = utils.timestamp_to_datetime(date)
-    if timezone.now() >= date:
-        raise ValidationError('Link has expired.')
-
-    return user_uuid, content_type, object_id, field
+    return user_uuid, content_type, object_uuid, field
 
 
 def encode_protected_url(obj, field, request=None, user_uuid=None):
