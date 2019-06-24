@@ -47,6 +47,11 @@ class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource
         on_delete=models.PROTECT
     )
 
+    class RuntimeStates(object):
+        POWERED_OFF = 'POWERED_OFF'
+        POWERED_ON = 'POWERED_ON'
+        SUSPENDED = 'SUSPENDED'
+
     guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
                                                            'types used for configuring a virtual machine'))
     cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
