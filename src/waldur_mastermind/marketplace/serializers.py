@@ -895,7 +895,7 @@ class CartItemSerializer(BaseRequestSerializer):
                 order_item = models.OrderItem(order=order, **item_params)
                 processor = processor_class(order_item)
                 post_data = processor.get_post_data()
-                serializer = processor.get_serializer_class()(data=post_data)
+                serializer = processor.get_serializer_class()(data=post_data, context=self.context)
                 serializer.is_valid(raise_exception=True)
                 serializer.save()
                 raise exceptions.TransactionRollback()
