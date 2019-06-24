@@ -256,7 +256,14 @@ class CartUpdateTest(test.APITransactionTestCase):
 
 class QuotasValidateTest(test.APITransactionTestCase):
     def setUp(self):
+        init_args = []
+        self.init_args = init_args
+
         class NewInstanceSerializer(structure_test_serializers.NewInstanceSerializer):
+            def __init__(self, *args, **kwargs):
+                init_args.extend([self, args, kwargs])
+                super(NewInstanceSerializer, self).__init__(*args, **kwargs)
+
             class Meta(structure_test_serializers.NewInstanceSerializer.Meta):
                 fields = structure_test_serializers.NewInstanceSerializer.Meta.fields + ('cores',)
 
@@ -314,3 +321,13 @@ class QuotasValidateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('"test_cpu_count" quota is over limit.' in response.data[0])
+
+    def test_context_is_passed_to_serializer(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.post(factories.CartItemFactory.get_list_url(), {
+            'offering': factories.OfferingFactory.get_url(self.offering),
+            'project': structure_factories.ProjectFactory.get_url(self.fixture.project),
+            'attributes': {'name': 'test', 'cores': 1}
+        })
+
+        self.assertTrue('context' in self.init_args[2].keys())
