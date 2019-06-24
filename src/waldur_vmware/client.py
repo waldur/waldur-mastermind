@@ -149,6 +149,15 @@ class VMwareClient(object):
         """
         return self._post('vcenter/vm/{}/power/suspend'.format(vm_id))
 
+    def get_cpu(self, vm_id):
+        """
+        Returns the CPU-related settings of a virtual machine.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/cpu'.format(vm_id))['value']
+
     def update_cpu(self, vm_id, spec):
         """
         Updates the CPU-related settings of a virtual machine.
@@ -159,6 +168,15 @@ class VMwareClient(object):
         :type spec: dict
         """
         return self._patch('vcenter/vm/{}/hardware/cpu'.format(vm_id), json=spec)
+
+    def get_memory(self, vm_id):
+        """
+        Returns the memory-related settings of a virtual machine.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/memory'.format(vm_id))['value']
 
     def update_memory(self, vm_id, spec):
         """

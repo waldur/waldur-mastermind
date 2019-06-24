@@ -67,3 +67,20 @@ class VirtualMachineSuspendExecutor(core_executors.ActionExecutor):
         return core_tasks.BackendMethodTask().si(
             serialized_volume, 'suspend_virtual_machine',
             state_transition='begin_updating')
+
+
+class VirtualMachineUpdateExecutor(core_executors.UpdateExecutor):
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        if {'cores', 'cores_per_socket', 'ram'} & set(kwargs['updated_fields']):
+            return core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'update_virtual_machine',
+                state_transition='begin_updating'
+            )
+        else:
+            return core_tasks.StateTransitionTask().si(
+                serialized_instance,
+                state_transition='begin_updating'
+            )
