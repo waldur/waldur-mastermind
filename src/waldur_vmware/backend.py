@@ -144,3 +144,47 @@ class VMwareBackend(ServiceBackend):
             self.client.suspend_vm(vm.backend_id)
         except requests.RequestException as e:
             reraise(e)
+
+    def update_virtual_machine(self, vm):
+        """
+        Updates CPU and RAM of virtual machine.
+        """
+        self.update_cpu(vm)
+        self.update_memory(vm)
+
+    def update_cpu(self, vm):
+        """
+        Updates CPU of virtual machine.
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        try:
+            cpu_spec = self.client.get_cpu(vm.backend_id)
+            if cpu_spec['cores_per_socket'] != vm.cores_per_socket or cpu_spec['count'] != vm.cores:
+                self.client.update_cpu(vm.backend_id, {
+                    'spec': {
+                        'cores_per_socket': vm.cores_per_socket,
+                        'count': vm.cores,
+                    }
+                })
+        except requests.RequestException as e:
+            reraise(e)
+
+    def update_memory(self, vm):
+        """
+        Updates RAM of virtual machine.
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        try:
+            memory_spec = self.client.get_memory(vm.backend_id)
+            if memory_spec['size_MiB'] != vm.ram:
+                self.client.update_memory(vm.backend_id, {
+                    'spec': {
+                        'size_MiB': vm.ram
+                    }
+                })
+        except requests.RequestException as e:
+            reraise(e)

@@ -28,6 +28,11 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     filter_class = filters.VirtualMachineFilter
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
+    update_executor = executors.VirtualMachineUpdateExecutor
+    update_validators = partial_update_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_OFF),
+    ]
 
     @detail_route(methods=['post'])
     def start(self, request, uuid=None):
