@@ -198,7 +198,18 @@ class VMwareClient(object):
         :param spec: new virtual disk specification
         :type spec: dict
         """
-        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)
+        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)['value']
+
+    def get_disk(self, vm_id, disk_id):
+        """
+        Returns information about a virtual disk.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        :param disk_id: Virtual disk identifier.
+        :type disk_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/disk/{}'.format(vm_id, disk_id))['value']
 
     def delete_disk(self, vm_id, disk_id):
         """

@@ -84,3 +84,31 @@ class VirtualMachineUpdateExecutor(core_executors.UpdateExecutor):
                 serialized_instance,
                 state_transition='begin_updating'
             )
+
+
+class DiskCreateExecutor(core_executors.CreateExecutor):
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            'create_disk',
+            state_transition='begin_creating'
+        )
+
+
+class DiskDeleteExecutor(core_executors.DeleteExecutor):
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        if instance.backend_id:
+            return core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'delete_disk',
+                state_transition='begin_deleting'
+            )
+        else:
+            return core_tasks.StateTransitionTask().si(
+                serialized_instance,
+                state_transition='begin_deleting'
+            )

@@ -1,9 +1,13 @@
 import sys
+import ssl
 
 import requests
 from django.conf import settings
 from django.utils import six
 from django.utils.functional import cached_property
+import pyVim.task
+import pyVim.connect
+from pyVmomi import vim
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_vmware.client import VMwareClient
@@ -33,6 +37,19 @@ class VMwareBackend(ServiceBackend):
         client = VMwareClient(hostname, verify_ssl=False)
         client.login(self.settings.username, self.settings.password)
         return client
+
+    @cached_property
+    def soap_client(self):
+        hostname = self.settings.backend_url.split('https://')[-1]
+        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        context.verify_mode = ssl.CERT_NONE
+        return pyVim.connect.SmartConnect(
+            host=hostname,
+            user=self.settings.username,
+            pwd=self.settings.password,
+            port=443,
+            sslContext=context
+        )
 
     def ping(self, raise_exception=False):
         """
@@ -188,3 +205,48 @@ class VMwareBackend(ServiceBackend):
                 })
         except requests.RequestException as e:
             reraise(e)
+
+    def create_disk(self, disk):
+        """
+        Creates a virtual disk.
+
+        :param disk: Virtual disk to be created
+        :type disk: :class:`waldur_vmware.models.Disk`
+        """
+        spec = {
+            'new_vmdk': {
+                # Convert from mebibytes to bytes because VMDK is specified in bytes
+                'capacity': 1024 * 1024 * disk.size,
+            }
+        }
+
+        try:
+            backend_id = self.client.create_disk(disk.vm.backend_id, {'spec': spec})
+        except requests.RequestException as e:
+            reraise(e)
+        else:
+            disk.backend_id = backend_id
+            disk.save(update_fields=['backend_id'])
+            return disk
+
+    def delete_disk(self, disk, delete_vmdk=True):
+        """
+        Deletes a virtual disk.
+
+        :param disk: Virtual disk to be deleted
+        :type disk: :class:`waldur_vmware.models.Disk`
+        :param delete_vmdk: Delete backing VMDK file.
+        """
+        try:
+            disk_info = self.client.get_disk(disk.vm.backend_id, disk.backend_id)
+            vmdk_file = disk_info['backing']['vmdk_file']
+            self.client.delete_disk(disk.vm.backend_id, disk.backend_id)
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        if delete_vmdk:
+            vdm = self.soap_client.content.virtualDiskManager
+            datacenter = vim.Datacenter(settings.WALDUR_VMWARE['VM_DATACENTER'], self.soap_client)
+            task = vdm.DeleteVirtualDisk(name=vmdk_file, datacenter=datacenter)
+            pyVim.task.WaitForTask(task)
