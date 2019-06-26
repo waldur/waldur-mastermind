@@ -66,3 +66,22 @@ class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource
 
     def __str__(self):
         return self.name
+
+
+@python_2_unicode_compatible
+class Disk(structure_models.NewResource):
+    service_project_link = models.ForeignKey(
+        VMwareServiceProjectLink,
+        related_name='+',
+        on_delete=models.PROTECT
+    )
+
+    size = models.PositiveIntegerField(help_text=_('Size in MiB'))
+    vm = models.ForeignKey(VirtualMachine, related_name='disks')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-disk'
+
+    def __str__(self):
+        return self.name

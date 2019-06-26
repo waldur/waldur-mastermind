@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers as rf_serializers, status
 from rest_framework.decorators import detail_route
@@ -91,3 +92,24 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         ),
     ]
     suspend_serializer_class = rf_serializers.Serializer
+
+    @detail_route(methods=['post'])
+    def create_disk(self, request, uuid=None):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        disk = serializer.save()
+
+        transaction.on_commit(lambda: executors.DiskCreateExecutor().execute(disk))
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    create_disk_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+    ]
+    create_disk_serializer_class = serializers.DiskSerializer
+
+
+class DiskViewSet(structure_views.BaseResourceViewSet):
+    queryset = models.Disk.objects.all()
+    serializer_class = serializers.DiskSerializer
+    disabled_actions = ['create', 'update', 'partial_update']
+    delete_executor = executors.DiskDeleteExecutor

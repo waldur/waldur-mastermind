@@ -8,6 +8,7 @@ class VMwareExtension(WaldurExtension):
     class Settings:
         WALDUR_VMWARE = {
             'VM_DATASTORE': '',
+            'VM_DATACENTER': '',
             'VM_FOLDER': '',
             'VM_RESOURCE_POOL': '',
         }

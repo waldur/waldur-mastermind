@@ -7,3 +7,5 @@ def register_in(router):
                     base_name='vmware-spl')
     router.register(r'vmware-virtual-machine', views.VirtualMachineViewSet,
                     base_name='vmware-virtual-machine')
+    router.register(r'vmware-disks', views.DiskViewSet,
+                    base_name='vmware-disk')
