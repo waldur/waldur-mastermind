@@ -58,13 +58,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks'
+            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
+            'runtime_state',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'disk',
+            'disk', 'runtime_state',
         )
 
 
@@ -78,6 +79,18 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='vmware-spl-detail',
+        read_only=True,
+    )
+
+    service_settings = serializers.HyperlinkedRelatedField(
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    project = serializers.HyperlinkedRelatedField(
+        view_name='project-detail',
+        lookup_field='uuid',
         read_only=True,
     )
 

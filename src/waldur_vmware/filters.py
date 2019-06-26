@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import django_filters
+
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
@@ -17,3 +19,11 @@ class VirtualMachineFilter(structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.VirtualMachine
         fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
+
+
+class DiskFilter(structure_filters.BaseResourceFilter):
+    class Meta(structure_filters.BaseResourceFilter.Meta):
+        model = models.Disk
+
+    vm = core_filters.URLFilter(view_name='vmware-virtual-machine-detail', name='vm__uuid')
+    vm_uuid = django_filters.UUIDFilter(name='vm__uuid')

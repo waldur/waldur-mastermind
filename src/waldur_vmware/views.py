@@ -111,5 +111,6 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 class DiskViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Disk.objects.all()
     serializer_class = serializers.DiskSerializer
+    filter_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
     delete_executor = executors.DiskDeleteExecutor
