@@ -66,6 +66,7 @@ class VirtualMachine(VirtualMachineMixin,
         SUSPENDED = 'SUSPENDED'
 
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
+    template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     tracker = FieldTracker()
 
     @classmethod

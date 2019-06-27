@@ -116,6 +116,56 @@ class VMwareBackend(ServiceBackend):
         :param vm: Virtual machine to be created
         :type vm: :class:`waldur_vmware.models.VirtualMachine`
         """
+        if vm.template:
+            backend_id = self.create_virtual_machine_from_template(vm)
+        else:
+            backend_id = self.create_virtual_machine_from_scratch(vm)
+
+        backend_vm = self.client.get_vm(backend_id)
+        vm.backend_id = backend_id
+        vm.runtime_state = backend_vm['power_state']
+        vm.save(update_fields=['backend_id', 'runtime_state'])
+
+        for disk in backend_vm['disks']:
+            disk_backend_id = disk['key']
+            disk_name = disk['value']['label']
+            # Convert disk size from bytes to MiB
+            disk_size = disk['value']['capacity'] / 1024 / 1024
+            models.Disk.objects.create(
+                vm=vm,
+                service_project_link=vm.service_project_link,
+                backend_id=disk_backend_id,
+                name=disk_name,
+                size=disk_size,
+            )
+
+        return vm
+
+    def create_virtual_machine_from_template(self, vm):
+        spec = {
+            'name': vm.name,
+            'description': vm.description,
+            'hardware_customization': {
+                'cpu_update': {
+                    'num_cpus': vm.cores,
+                    'num_cores_per_socket': vm.cores_per_socket,
+                },
+                'memory_update': {
+                    'memory': vm.ram,
+                },
+            },
+            'placement': {
+                'folder': settings.WALDUR_VMWARE['VM_FOLDER'],
+                'resource_pool': settings.WALDUR_VMWARE['VM_RESOURCE_POOL'],
+            }
+        }
+
+        try:
+            return self.client.deploy_vm_from_template(vm.template.backend_id, {'spec': spec})
+        except requests.RequestException as e:
+            reraise(e)
+
+    def create_virtual_machine_from_scratch(self, vm):
         spec = {
             'name': vm.name,
             'guest_OS': vm.guest_os,
@@ -137,15 +187,9 @@ class VMwareBackend(ServiceBackend):
         }
 
         try:
-            backend_id = self.client.create_vm({'spec': spec})
+            return self.client.create_vm({'spec': spec})
         except requests.RequestException as e:
             reraise(e)
-        else:
-            backend_vm = self.client.get_vm(backend_id)
-            vm.backend_id = backend_id
-            vm.runtime_state = backend_vm['power_state']
-            vm.save(update_fields=['backend_id', 'runtime_state'])
-            return vm
 
     def delete_virtual_machine(self, vm):
         """

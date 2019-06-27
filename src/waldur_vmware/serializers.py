@@ -46,11 +46,24 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
     )
 
-    guest_os = serializers.ChoiceField(choices=constants.GUEST_OS_CHOICES.items())
+    guest_os = serializers.ChoiceField(
+        choices=constants.GUEST_OS_CHOICES.items(),
+        required=False,
+        allow_null=True,
+    )
 
     guest_os_name = serializers.SerializerMethodField()
 
     disks = NestedDiskSerializer(many=True, read_only=True)
+
+    template = serializers.HyperlinkedRelatedField(
+        view_name='vmware-template-detail',
+        lookup_field='uuid',
+        queryset=models.Template.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
 
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
@@ -59,7 +72,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
-            'runtime_state',
+            'runtime_state', 'template'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os',
@@ -67,6 +80,30 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
         )
+        extra_kwargs = dict(
+            cores={'required': False},
+            cores_per_socket={'required': False},
+            ram={'required': False},
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+        )
+
+    def create(self, validated_data):
+        template_attrs = {'cores', 'cores_per_socket', 'ram', 'guest_os'}
+        template = validated_data.get('template')
+        missing_attributes = template_attrs - set(validated_data.keys())
+        if template:
+            if validated_data.get('guest_os'):
+                raise serializers.ValidationError(
+                    'It is not possible to customize guest OS when template is used.')
+            for attr in template_attrs:
+                old_value = validated_data.get(attr)
+                if not old_value:
+                    validated_data[attr] = getattr(template, attr)
+        elif missing_attributes:
+            attr_list = ', '.join(missing_attributes)
+            raise serializers.ValidationError(
+                'These fields are required when template is not used: %s.' % attr_list)
+        return super(VirtualMachineSerializer, self).create(validated_data)
 
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):

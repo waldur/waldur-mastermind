@@ -297,5 +297,14 @@ class VMwareClient(object):
         return items
 
     def deploy_vm_from_template(self, library_item_id, spec):
+        """
+        Deploys a virtual machine as a copy of the source virtual machine
+        template contained in the library item specified by library_item_id.
+
+        :param library_item_id: identifier of the content library item containing the source virtual machine template to be deployed.
+        :param spec: deployment specification
+        :return: Identifier of the deployed virtual machine.
+        :rtype: str
+        """
         url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(library_item_id)
         return self._post(url, json=spec)['value']
