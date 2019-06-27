@@ -45,7 +45,7 @@ class BackendModelAdmin(admin.ModelAdmin):
     def lookup_allowed(self, lookup, value):
         if lookup == 'settings__shared__exact':
             return True
-        return super(BackendModelAdmin).lookup_allowed(lookup, value)
+        return super(BackendModelAdmin, self).lookup_allowed(lookup, value)
 
     def has_add_permission(self, request):
         return False
