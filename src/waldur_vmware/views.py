@@ -114,3 +114,10 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
     filter_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
     delete_executor = executors.DiskDeleteExecutor
+
+
+class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Template.objects.all()
+    serializer_class = serializers.TemplateSerializer
+    filter_class = filters.TemplateFilter
+    lookup_field = 'uuid'

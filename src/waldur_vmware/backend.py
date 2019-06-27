@@ -10,7 +10,10 @@ import pyVim.connect
 from pyVmomi import vim
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
+
+from . import models
 
 
 class VMwareBackendError(ServiceBackendError):
@@ -63,6 +66,48 @@ class VMwareBackend(ServiceBackend):
             return False
         else:
             return True
+
+    def pull_service_properties(self):
+        self.pull_templates()
+
+    def pull_templates(self):
+        try:
+            backend_templates = self.client.list_all_templates()
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        backend_templates_map = {
+            item['library_item']['id']: item
+            for item in backend_templates
+        }
+
+        frontend_templates_map = {
+            p.backend_id: p
+            for p in models.Template.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(frontend_templates_map.keys()) - set(backend_templates_map.keys())
+        new_ids = set(backend_templates_map.keys()) - set(frontend_templates_map.keys())
+
+        for library_item_id in new_ids:
+            item = backend_templates_map[library_item_id]
+            library_item = item['library_item']
+            template = item['template']
+            models.Template.objects.create(
+                settings=self.settings,
+                backend_id=library_item_id,
+                name=library_item['name'],
+                description=library_item['description'],
+                created=parse_datetime(library_item['creation_time']),
+                modified=parse_datetime(library_item['last_modified_time']),
+                cores=template['cpu']['count'],
+                cores_per_socket=template['cpu']['cores_per_socket'],
+                ram=template['memory']['size_MiB'],
+                guest_os=template['guest_OS'],
+            )
+
+        models.Template.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
 
     def create_virtual_machine(self, vm):
         """

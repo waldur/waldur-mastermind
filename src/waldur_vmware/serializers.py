@@ -121,3 +121,20 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         attrs['vm'] = vm = self.context['view'].get_object()
         attrs['service_project_link'] = vm.service_project_link
         return super(DiskSerializer, self).validate(attrs)
+
+
+class TemplateSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Template
+        fields = (
+            'url', 'uuid', 'name', 'description', 'created', 'modified',
+            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+    guest_os_name = serializers.SerializerMethodField()
+
+    def get_guest_os_name(self, template):
+        return constants.GUEST_OS_CHOICES.get(template.guest_os)

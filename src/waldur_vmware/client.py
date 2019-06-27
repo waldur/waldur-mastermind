@@ -25,9 +25,9 @@ class VMwareClient(object):
         self._session = requests.Session()
         self._session.verify = verify_ssl
 
-    def _get(self, endpoint):
+    def _get(self, endpoint, **kwargs):
         url = '%s/%s' % (self._base_url, endpoint)
-        response = self._session.get(url)
+        response = self._session.get(url, **kwargs)
         response.raise_for_status()
         if response.content:
             return response.json()
@@ -269,3 +269,33 @@ class VMwareClient(object):
         :type nic_id: string
         """
         return self._post('vcenter/vm/{}/hardware/ethernet/{}/disconnect'.format(vm_id, nic_id))
+
+    def list_libraries(self):
+        return self._get('com/vmware/content/library')['value']
+
+    def list_library_items(self, library_id):
+        params = {'library_id': library_id}
+        return self._get('com/vmware/content/library/item', params=params)['value']
+
+    def get_library_item(self, library_item_id):
+        return self._get('com/vmware/content/library/item/id:{}'.format(library_item_id))['value']
+
+    def get_template_library_item(self, library_item_id):
+        return self._get('vcenter/vm-template/library-items/{}'.format(library_item_id))['value']
+
+    def list_all_templates(self):
+        items = []
+        for library_id in self.list_libraries():
+            for library_item_id in self.list_library_items(library_id):
+                library_item = self.get_library_item(library_item_id)
+                if library_item['type'] == 'vm-template':
+                    template = self.get_template_library_item(library_item_id)
+                    items.append({
+                        'library_item': library_item,
+                        'template': template,
+                    })
+        return items
+
+    def deploy_vm_from_template(self, library_item_id, spec):
+        url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(library_item_id)
+        return self._post(url, json=spec)['value']
