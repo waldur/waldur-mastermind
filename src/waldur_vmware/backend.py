@@ -10,7 +10,10 @@ import pyVim.connect
 from pyVmomi import vim
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
+
+from . import models
 
 
 class VMwareBackendError(ServiceBackendError):
@@ -64,6 +67,48 @@ class VMwareBackend(ServiceBackend):
         else:
             return True
 
+    def pull_service_properties(self):
+        self.pull_templates()
+
+    def pull_templates(self):
+        try:
+            backend_templates = self.client.list_all_templates()
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        backend_templates_map = {
+            item['library_item']['id']: item
+            for item in backend_templates
+        }
+
+        frontend_templates_map = {
+            p.backend_id: p
+            for p in models.Template.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(frontend_templates_map.keys()) - set(backend_templates_map.keys())
+        new_ids = set(backend_templates_map.keys()) - set(frontend_templates_map.keys())
+
+        for library_item_id in new_ids:
+            item = backend_templates_map[library_item_id]
+            library_item = item['library_item']
+            template = item['template']
+            models.Template.objects.create(
+                settings=self.settings,
+                backend_id=library_item_id,
+                name=library_item['name'],
+                description=library_item['description'],
+                created=parse_datetime(library_item['creation_time']),
+                modified=parse_datetime(library_item['last_modified_time']),
+                cores=template['cpu']['count'],
+                cores_per_socket=template['cpu']['cores_per_socket'],
+                ram=template['memory']['size_MiB'],
+                guest_os=template['guest_OS'],
+            )
+
+        models.Template.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
     def create_virtual_machine(self, vm):
         """
         Creates a virtual machine.
@@ -71,6 +116,56 @@ class VMwareBackend(ServiceBackend):
         :param vm: Virtual machine to be created
         :type vm: :class:`waldur_vmware.models.VirtualMachine`
         """
+        if vm.template:
+            backend_id = self.create_virtual_machine_from_template(vm)
+        else:
+            backend_id = self.create_virtual_machine_from_scratch(vm)
+
+        backend_vm = self.client.get_vm(backend_id)
+        vm.backend_id = backend_id
+        vm.runtime_state = backend_vm['power_state']
+        vm.save(update_fields=['backend_id', 'runtime_state'])
+
+        for disk in backend_vm['disks']:
+            disk_backend_id = disk['key']
+            disk_name = disk['value']['label']
+            # Convert disk size from bytes to MiB
+            disk_size = disk['value']['capacity'] / 1024 / 1024
+            models.Disk.objects.create(
+                vm=vm,
+                service_project_link=vm.service_project_link,
+                backend_id=disk_backend_id,
+                name=disk_name,
+                size=disk_size,
+            )
+
+        return vm
+
+    def create_virtual_machine_from_template(self, vm):
+        spec = {
+            'name': vm.name,
+            'description': vm.description,
+            'hardware_customization': {
+                'cpu_update': {
+                    'num_cpus': vm.cores,
+                    'num_cores_per_socket': vm.cores_per_socket,
+                },
+                'memory_update': {
+                    'memory': vm.ram,
+                },
+            },
+            'placement': {
+                'folder': settings.WALDUR_VMWARE['VM_FOLDER'],
+                'resource_pool': settings.WALDUR_VMWARE['VM_RESOURCE_POOL'],
+            }
+        }
+
+        try:
+            return self.client.deploy_vm_from_template(vm.template.backend_id, {'spec': spec})
+        except requests.RequestException as e:
+            reraise(e)
+
+    def create_virtual_machine_from_scratch(self, vm):
         spec = {
             'name': vm.name,
             'guest_OS': vm.guest_os,
@@ -92,15 +187,9 @@ class VMwareBackend(ServiceBackend):
         }
 
         try:
-            backend_id = self.client.create_vm({'spec': spec})
+            return self.client.create_vm({'spec': spec})
         except requests.RequestException as e:
             reraise(e)
-        else:
-            backend_vm = self.client.get_vm(backend_id)
-            vm.backend_id = backend_id
-            vm.runtime_state = backend_vm['power_state']
-            vm.save(update_fields=['backend_id', 'runtime_state'])
-            return vm
 
     def delete_virtual_machine(self, vm):
         """

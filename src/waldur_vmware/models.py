@@ -39,8 +39,21 @@ class VMwareServiceProjectLink(structure_models.ServiceProjectLink):
         return 'vmware-spl'
 
 
+class VirtualMachineMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
+                                                           'types used for configuring a virtual machine'))
+    cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
+    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
+    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
+
+
 @python_2_unicode_compatible
-class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource):
+class VirtualMachine(VirtualMachineMixin,
+                     core_models.RuntimeStateMixin,
+                     structure_models.NewResource):
     service_project_link = models.ForeignKey(
         VMwareServiceProjectLink,
         related_name='+',
@@ -52,12 +65,8 @@ class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
-    guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
-                                                           'types used for configuring a virtual machine'))
-    cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
-    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
-    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
+    template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     tracker = FieldTracker()
 
     @classmethod
@@ -82,6 +91,21 @@ class Disk(structure_models.NewResource):
     @classmethod
     def get_url_name(cls):
         return 'vmware-disk'
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
+class Template(VirtualMachineMixin,
+               core_models.DescribableMixin,
+               structure_models.ServiceProperty):
+    created = models.DateTimeField()
+    modified = models.DateTimeField()
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-template'
 
     def __str__(self):
         return self.name

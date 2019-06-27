@@ -9,3 +9,5 @@ def register_in(router):
                     base_name='vmware-virtual-machine')
     router.register(r'vmware-disks', views.DiskViewSet,
                     base_name='vmware-disk')
+    router.register(r'vmware-templates', views.TemplateViewSet,
+                    base_name='vmware-template')
