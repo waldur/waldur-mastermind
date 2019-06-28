@@ -29,6 +29,6 @@ class DiskFilter(structure_filters.BaseResourceFilter):
     vm_uuid = django_filters.UUIDFilter(name='vm__uuid')
 
 
-class TemplateFilter(structure_filters.BaseServicePropertyFilter):
-    class Meta(structure_filters.BaseServicePropertyFilter.Meta):
+class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Template
