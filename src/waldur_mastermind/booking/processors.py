@@ -1,6 +1,4 @@
-class BookingCreateProcessor(object):
-    pass
+import mock
 
-
-class BookingDeleteProcessor(object):
-    pass
+BookingCreateProcessor = mock.MagicMock()
+BookingDeleteProcessor = mock.MagicMock()
