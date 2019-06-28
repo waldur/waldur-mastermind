@@ -1,5 +1,7 @@
 from __future__ import unicode_literals
 
+import logging
+
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers as rf_serializers, status
@@ -10,6 +12,9 @@ from waldur_core.core import validators as core_validators
 from waldur_core.structure import views as structure_views
 
 from . import filters, executors, models, serializers
+
+
+logger = logging.getLogger(__name__)
 
 
 class ServiceViewSet(structure_views.BaseServiceViewSet):
@@ -106,6 +111,19 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
     ]
     create_disk_serializer_class = serializers.DiskSerializer
+
+    @detail_route(methods=['get'])
+    def console(self, request, uuid=None):
+        instance = self.get_object()
+        backend = instance.get_backend()
+        try:
+            url = backend.get_console_url(instance)
+        except Exception:
+            logger.exception('Unable to get console URL.')
+            raise rf_serializers.ValidationError('Unable to get console URL.')
+        return Response({'url': url}, status=status.HTTP_200_OK)
+
+    console_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK)]
 
 
 class DiskViewSet(structure_views.BaseResourceViewSet):
