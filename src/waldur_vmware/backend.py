@@ -35,19 +35,21 @@ class VMwareBackend(ServiceBackend):
         self.settings = settings
 
     @cached_property
+    def host(self):
+        return self.settings.backend_url.split('https://')[-1]
+
+    @cached_property
     def client(self):
-        hostname = self.settings.backend_url.split('https://')[-1]
-        client = VMwareClient(hostname, verify_ssl=False)
+        client = VMwareClient(self.host, verify_ssl=False)
         client.login(self.settings.username, self.settings.password)
         return client
 
     @cached_property
     def soap_client(self):
-        hostname = self.settings.backend_url.split('https://')[-1]
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         context.verify_mode = ssl.CERT_NONE
         return pyVim.connect.SmartConnect(
-            host=hostname,
+            host=self.host,
             user=self.settings.username,
             pwd=self.settings.password,
             port=443,
@@ -339,3 +341,14 @@ class VMwareBackend(ServiceBackend):
             datacenter = vim.Datacenter(settings.WALDUR_VMWARE['VM_DATACENTER'], self.soap_client)
             task = vdm.DeleteVirtualDisk(name=vmdk_file, datacenter=datacenter)
             pyVim.task.WaitForTask(task)
+
+    def get_console_url(self, vm):
+        """
+        Generates a virtual machine's remote console URL (VMRC)
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        ticket = self.soap_client.content.sessionManager.AcquireCloneTicket()
+        return 'vmrc://clone:{ticket}@{host}/?moid={vm}'.format(
+            ticket=ticket, host=self.host, vm=vm.backend_id)
