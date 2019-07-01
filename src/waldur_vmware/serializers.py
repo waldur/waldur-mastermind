@@ -160,6 +160,18 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         return super(DiskSerializer, self).validate(attrs)
 
 
+class DiskExtendSerializer(serializers.ModelSerializer):
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        model = models.Disk
+        fields = ('size',)
+
+    def validate_size(self, value):
+        if value <= self.instance.size:
+            raise serializers.ValidationError(
+                _('Disk size should be greater than %s') % self.instance.size)
+        return value
+
+
 class TemplateSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Template

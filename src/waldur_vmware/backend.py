@@ -139,6 +139,7 @@ class VMwareBackend(ServiceBackend):
                 backend_id=disk_backend_id,
                 name=disk_name,
                 size=disk_size,
+                state=models.Disk.States.OK,
             )
 
         return vm
@@ -328,19 +329,77 @@ class VMwareBackend(ServiceBackend):
         :type disk: :class:`waldur_vmware.models.Disk`
         :param delete_vmdk: Delete backing VMDK file.
         """
+        backend_disk = self.get_backend_disk(disk)
+
         try:
-            disk_info = self.client.get_disk(disk.vm.backend_id, disk.backend_id)
-            vmdk_file = disk_info['backing']['vmdk_file']
             self.client.delete_disk(disk.vm.backend_id, disk.backend_id)
         except requests.RequestException as e:
             reraise(e)
-            return
 
         if delete_vmdk:
             vdm = self.soap_client.content.virtualDiskManager
-            datacenter = vim.Datacenter(settings.WALDUR_VMWARE['VM_DATACENTER'], self.soap_client)
-            task = vdm.DeleteVirtualDisk(name=vmdk_file, datacenter=datacenter)
+            task = vdm.DeleteVirtualDisk(
+                name=backend_disk.backing.fileName,
+                datacenter=self.get_disk_datacenter(backend_disk),
+            )
             pyVim.task.WaitForTask(task)
+
+    def extend_disk(self, disk):
+        """
+        Increase disk capacity.
+
+        :param disk: Virtual disk to be extended.
+        :type disk: :class:`waldur_vmware.models.Disk`
+        """
+        backend_disk = self.get_backend_disk(disk)
+        vdm = self.soap_client.content.virtualDiskManager
+        task = vdm.ExtendVirtualDisk(
+            name=backend_disk.backing.fileName,
+            datacenter=self.get_disk_datacenter(backend_disk),
+            newCapacityKb=disk.size * 1024
+        )
+        pyVim.task.WaitForTask(task)
+
+    def get_object(self, vim_type, vim_id):
+        """
+        Get object by type and ID from SOAP client.
+        """
+        content = self.soap_client.content
+        items = [item for item in content.viewManager.CreateContainerView(
+            content.rootFolder, [vim_type], recursive=True
+        ).view]
+        for item in items:
+            if item._moId == vim_id:
+                return item
+
+    def get_backend_vm(self, vm):
+        """
+        Get virtual machine object from SOAP client.
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        :rtype: :class:`pyVmomi.VmomiSupport.vim.VirtualMachine`
+        """
+        return self.get_object(vim.VirtualMachine, vm.backend_id)
+
+    def get_backend_disk(self, disk):
+        """
+        Get virtual disk object from SOAP client.
+
+        :param disk: Virtual disk.
+        :type disk: :class:`waldur_vmware.models.Disk`
+        :rtype: :class:`pyVmomi.VmomiSupport.vim.vm.device.VirtualDisk`
+        """
+        backend_vm = self.get_backend_vm(disk.vm)
+        for device in backend_vm.config.hardware.device:
+            if isinstance(device, vim.VirtualDisk) and str(device.key) == disk.backend_id:
+                return device
+
+    def get_disk_datacenter(self, backend_disk):
+        parent = backend_disk.backing.datastore.parent
+        while parent and not isinstance(parent, vim.Datacenter):
+            parent = parent.parent
+        return parent
 
     def get_console_url(self, vm):
         """

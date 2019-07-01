@@ -133,6 +133,22 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
     disabled_actions = ['create', 'update', 'partial_update']
     delete_executor = executors.DiskDeleteExecutor
 
+    @detail_route(methods=['post'])
+    def extend(self, request, uuid=None):
+        """ Increase disk capacity """
+        disk = self.get_object()
+        serializer = self.get_serializer(disk, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        disk.refresh_from_db()
+        transaction.on_commit(lambda: executors.DiskExtendExecutor().execute(disk))
+
+        return Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
+
+    extend_validators = [core_validators.StateValidator(models.Disk.States.OK)]
+    extend_serializer_class = serializers.DiskExtendSerializer
+
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Template.objects.all()
