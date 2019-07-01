@@ -112,3 +112,13 @@ class DiskDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_instance,
                 state_transition='begin_deleting'
             )
+
+
+class DiskExtendExecutor(core_executors.ActionExecutor):
+    action = 'Extend'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance, 'extend_disk',
+            state_transition='begin_updating')

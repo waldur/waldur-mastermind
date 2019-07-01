@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -75,7 +76,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             'runtime_state', 'template'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os',
+            'guest_os', 'template',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -158,6 +159,18 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         attrs['vm'] = vm = self.context['view'].get_object()
         attrs['service_project_link'] = vm.service_project_link
         return super(DiskSerializer, self).validate(attrs)
+
+
+class DiskExtendSerializer(serializers.ModelSerializer):
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        model = models.Disk
+        fields = ('size',)
+
+    def validate_size(self, value):
+        if value <= self.instance.size:
+            raise serializers.ValidationError(
+                _('Disk size should be greater than %s') % self.instance.size)
+        return value
 
 
 class TemplateSerializer(structure_serializers.BasePropertySerializer):
