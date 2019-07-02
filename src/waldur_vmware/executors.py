@@ -2,6 +2,18 @@ from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 
 
+class VirtualMachinePullExecutor(core_executors.ActionExecutor):
+    action = 'Pull'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            'pull_virtual_machine',
+            state_transition='begin_updating'
+        )
+
+
 class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
@@ -84,6 +96,18 @@ class VirtualMachineUpdateExecutor(core_executors.UpdateExecutor):
                 serialized_instance,
                 state_transition='begin_updating'
             )
+
+
+class DiskPullExecutor(core_executors.ActionExecutor):
+    action = 'Pull'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            'pull_disk',
+            state_transition='begin_updating'
+        )
 
 
 class DiskCreateExecutor(core_executors.CreateExecutor):

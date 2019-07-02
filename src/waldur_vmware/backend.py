@@ -3,13 +3,14 @@ import ssl
 
 import requests
 from django.conf import settings
-from django.utils import six
+from django.utils import six, timezone
 from django.utils.functional import cached_property
 import pyVim.task
 import pyVim.connect
 from pyVmomi import vim
 
-from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
+from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
 
@@ -40,12 +41,18 @@ class VMwareBackend(ServiceBackend):
 
     @cached_property
     def client(self):
+        """
+        Construct VMware REST API client using credentials specified in the service settings.
+        """
         client = VMwareClient(self.host, verify_ssl=False)
         client.login(self.settings.username, self.settings.password)
         return client
 
     @cached_property
     def soap_client(self):
+        """
+        Construct VMware SOAP API client using credentials specified in the service settings.
+        """
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         context.verify_mode = ssl.CERT_NONE
         return pyVim.connect.SmartConnect(
@@ -73,6 +80,10 @@ class VMwareBackend(ServiceBackend):
         self.pull_templates()
 
     def pull_templates(self):
+        """
+        Pull VMware templates for virtual machine provisioning from content library
+        using VMware REST API to the local database.
+        """
         try:
             backend_templates = self.client.list_all_templates()
         except requests.RequestException as e:
@@ -111,6 +122,70 @@ class VMwareBackend(ServiceBackend):
 
         models.Template.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
 
+    @log_backend_action()
+    def pull_virtual_machine(self, vm, update_fields=None):
+        """
+        Pull virtual machine from REST API and update its information in local database.
+
+        :param vm: Virtual machine database object.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        :param update_fields: iterable of fields to be updated
+        """
+        import_time = timezone.now()
+        imported_vm = self.import_virtual_machine(vm.backend_id, save=False)
+
+        vm.refresh_from_db()
+        if vm.modified < import_time:
+            if not update_fields:
+                update_fields = models.VirtualMachine.get_backend_fields()
+
+            update_pulled_fields(vm, imported_vm, update_fields)
+
+    def import_virtual_machine(self, backend_id, save=True, service_project_link=None):
+        """
+        Import virtual machine by its ID.
+
+        :param backend_id: Virtual machine identifier
+        :type backend_id: str
+        :param save: Save object in the database
+        :type save: bool
+        :param service_project_link: Optional service project link model object
+        :rtype: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        try:
+            backend_vm = self.client.get_vm(backend_id)
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        vm = self._backend_vm_to_vm(backend_vm, backend_id)
+        if service_project_link is not None:
+            vm.service_project_link = service_project_link
+        if save:
+            vm.save()
+
+        return vm
+
+    def _backend_vm_to_vm(self, backend_vm, backend_id):
+        """
+        Build database model object for virtual machine from REST API spec.
+
+        :param backend_vm: virtual machine specification
+        :type backend_vm: dict
+        :param backend_id: Virtual machine identifier
+        :type backend_id: str
+        :rtype: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        return models.VirtualMachine(
+            backend_id=backend_id,
+            name=backend_vm['name'],
+            state=models.VirtualMachine.States.OK,
+            runtime_state=backend_vm['power_state'],
+            cores=backend_vm['cpu']['count'],
+            cores_per_socket=backend_vm['cpu']['cores_per_socket'],
+            ram=backend_vm['memory']['size_MiB'],
+        )
+
     def create_virtual_machine(self, vm):
         """
         Creates a virtual machine.
@@ -123,25 +198,21 @@ class VMwareBackend(ServiceBackend):
         else:
             backend_id = self.create_virtual_machine_from_scratch(vm)
 
-        backend_vm = self.client.get_vm(backend_id)
+        try:
+            backend_vm = self.client.get_vm(backend_id)
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
         vm.backend_id = backend_id
         vm.runtime_state = backend_vm['power_state']
         vm.save(update_fields=['backend_id', 'runtime_state'])
 
         for disk in backend_vm['disks']:
-            disk_backend_id = disk['key']
-            disk_name = disk['value']['label']
-            # Convert disk size from bytes to MiB
-            disk_size = disk['value']['capacity'] / 1024 / 1024
-            models.Disk.objects.create(
-                vm=vm,
-                service_project_link=vm.service_project_link,
-                backend_id=disk_backend_id,
-                name=disk_name,
-                size=disk_size,
-                state=models.Disk.States.OK,
-            )
-
+            disk = self._backend_disk_to_disk(disk['value'], disk['key'])
+            disk.vm = vm
+            disk.service_project_link = vm.service_project_link
+            disk.save()
         return vm
 
     def create_virtual_machine_from_template(self, vm):
@@ -396,10 +467,83 @@ class VMwareBackend(ServiceBackend):
                 return device
 
     def get_disk_datacenter(self, backend_disk):
+        """
+        Find the datacenter where virtual disk is located.
+
+        :param backend_disk: Virtual disk object returned by SOAP API.
+        :type backend_disk: :class:`pyVmomi.VmomiSupport.vim.vm.device.VirtualDisk`
+        :return: VMware datacenter where disk is located.
+        :rtype: :class:`pyVmomi.VmomiSupport.vim.Datacenter`
+        """
         parent = backend_disk.backing.datastore.parent
         while parent and not isinstance(parent, vim.Datacenter):
             parent = parent.parent
         return parent
+
+    @log_backend_action()
+    def pull_disk(self, disk, update_fields=None):
+        """
+        Pull virtual disk from REST API and update its information in local database.
+
+        :param disk: Virtual disk database object.
+        :type disk: :class:`waldur_vmware.models.Disk`
+        :param update_fields: iterable of fields to be updated
+        :return: None
+        """
+        import_time = timezone.now()
+        imported_disk = self.import_disk(disk.vm.backend_id, disk.backend_id, save=False)
+
+        disk.refresh_from_db()
+        if disk.modified < import_time:
+            if not update_fields:
+                update_fields = models.Disk.get_backend_fields()
+
+            update_pulled_fields(disk, imported_disk, update_fields)
+
+    def import_disk(self, backend_vm_id, backend_disk_id, save=True, service_project_link=None):
+        """
+        Import virtual disk by its ID.
+
+        :param backend_vm_id: Virtual machine identifier
+        :type backend_vm_id: str
+        :param backend_disk_id: Virtual disk identifier
+        :type backend_disk_id: str
+        :param save: Save object in the database
+        :type save: bool
+        :param service_project_link: Service project link model object
+        :rtype: :class:`waldur_vmware.models.Disk`
+        """
+        try:
+            backend_disk = self.client.get_disk(backend_vm_id, backend_disk_id)
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        disk = self._backend_disk_to_disk(backend_disk, backend_disk_id)
+        if service_project_link is not None:
+            disk.service_project_link = service_project_link
+        if save:
+            disk.save()
+
+        return disk
+
+    def _backend_disk_to_disk(self, backend_disk, backend_disk_id):
+        """
+        Build database model object for virtual disk from REST API spec.
+
+        :param backend_disk: virtual disk specification
+        :type backend_disk: dict
+        :param backend_disk_id: Virtual disk identifier
+        :type backend_disk_id: str
+        :rtype: :class:`waldur_vmware.models.Disk`
+        """
+        return models.Disk(
+            backend_id=backend_disk_id,
+            name=backend_disk['label'],
+            # Convert disk size from bytes to MiB
+            size=backend_disk['capacity'] / 1024 / 1024,
+            state=models.Disk.States.OK,
+        )
 
     def get_console_url(self, vm):
         """

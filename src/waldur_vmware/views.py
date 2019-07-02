@@ -32,6 +32,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
     serializer_class = serializers.VirtualMachineSerializer
     filter_class = filters.VirtualMachineFilter
+    pull_executor = executors.VirtualMachinePullExecutor
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
     update_executor = executors.VirtualMachineUpdateExecutor
@@ -131,6 +132,7 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
     serializer_class = serializers.DiskSerializer
     filter_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
+    pull_executor = executors.DiskPullExecutor
     delete_executor = executors.DiskDeleteExecutor
 
     @detail_route(methods=['post'])
