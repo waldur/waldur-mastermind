@@ -7,12 +7,14 @@ class MarketplaceVMwareConfig(AppConfig):
     verbose_name = 'Marketplace VMware'
 
     def ready(self):
-        from waldur_vmware import models as vmware_models
-        from waldur_vmware.apps import VMwareConfig
+        from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.invoices import registrators
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_vmware import models as vmware_models
+        from waldur_vmware.apps import VMwareConfig
+
         from . import handlers, registrators as vmware_registrators, processors, VIRTUAL_MACHINE_TYPE
 
         resource_models = (
@@ -22,9 +24,15 @@ class MarketplaceVMwareConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(*resource_models)
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
 
+        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         manager.register(offering_type=VIRTUAL_MACHINE_TYPE,
                          create_resource_processor=processors.VirtualMachineCreateProcessor,
-                         service_type=VMwareConfig.service_name)
+                         service_type=VMwareConfig.service_name,
+                         components=(
+                             Component(type='cpu_usage', name='CPU', measured_unit='hours', billing_type=USAGE),
+                             Component(type='gpu_usage', name='GPU', measured_unit='hours', billing_type=USAGE),
+                             Component(type='ram_usage', name='RAM', measured_unit='GB', billing_type=USAGE),
+                         ))
 
         registrators.RegistrationManager.add_registrator(
             vmware_models.VirtualMachine,

@@ -47,12 +47,31 @@ class VirtualMachineRegistrator(BaseRegistrator):
                            'Resource ID: %s', source.id)
             return
 
+        components_set = {
+            plan_component.component.type
+            for plan_component in plan.components.all()
+        }
+
+        missing_components = {'cpu_usage', 'ram_usage', 'disk_usage'} - components_set
+        if missing_components:
+            logger.warning('Skipping VMware item invoice creation because plan components are missing. '
+                           'Plan ID: %s. Missing components: %s', plan.id, ', '.join(missing_components))
+            return
+
         for plan_component in plan.components.all():
+            if plan_component.component.type == 'cpu_usage':
+                unit_price = source.cores * plan_component.price
+            elif plan_component.component.type == 'ram_usage':
+                unit_price = source.ram * plan_component.price
+            elif plan_component.component.type == 'disk_usage':
+                unit_price = source.total_disk * plan_component.price
+            else:
+                continue
             details = self.get_component_details(resource, plan_component)
             invoices_models.GenericInvoiceItem.objects.create(
                 scope=source,
                 project=_get_project(source),
-                unit_price=plan_component.price,
+                unit_price=unit_price,
                 unit=plan.unit,
                 product_code=plan.product_code,
                 article_code=plan.article_code,
