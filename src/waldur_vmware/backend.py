@@ -198,25 +198,21 @@ class VMwareBackend(ServiceBackend):
         else:
             backend_id = self.create_virtual_machine_from_scratch(vm)
 
-        backend_vm = self.client.get_vm(backend_id)
+        try:
+            backend_vm = self.client.get_vm(backend_id)
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
         vm.backend_id = backend_id
         vm.runtime_state = backend_vm['power_state']
         vm.save(update_fields=['backend_id', 'runtime_state'])
 
         for disk in backend_vm['disks']:
-            disk_backend_id = disk['key']
-            disk_name = disk['value']['label']
-            # Convert disk size from bytes to MiB
-            disk_size = disk['value']['capacity'] / 1024 / 1024
-            models.Disk.objects.create(
-                vm=vm,
-                service_project_link=vm.service_project_link,
-                backend_id=disk_backend_id,
-                name=disk_name,
-                size=disk_size,
-                state=models.Disk.States.OK,
-            )
-
+            disk = self._backend_disk_to_disk(disk['value'], disk['key'])
+            disk.vm = vm
+            disk.service_project_link = vm.service_project_link
+            disk.save()
         return vm
 
     def create_virtual_machine_from_template(self, vm):
