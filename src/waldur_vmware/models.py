@@ -95,6 +95,10 @@ class Disk(structure_models.NewResource):
     def __str__(self):
         return self.name
 
+    @classmethod
+    def get_backend_fields(cls):
+        return super(Disk, cls).get_backend_fields() + ('name', 'size')
+
 
 @python_2_unicode_compatible
 class Template(VirtualMachineMixin,

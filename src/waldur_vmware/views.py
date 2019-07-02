@@ -131,6 +131,7 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
     serializer_class = serializers.DiskSerializer
     filter_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
+    pull_executor = executors.DiskPullExecutor
     delete_executor = executors.DiskDeleteExecutor
 
     @detail_route(methods=['post'])

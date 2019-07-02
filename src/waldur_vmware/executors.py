@@ -86,6 +86,18 @@ class VirtualMachineUpdateExecutor(core_executors.UpdateExecutor):
             )
 
 
+class DiskPullExecutor(core_executors.ActionExecutor):
+    action = 'Pull'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_instance,
+            'pull_disk',
+            state_transition='begin_updating'
+        )
+
+
 class DiskCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod

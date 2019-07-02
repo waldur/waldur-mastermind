@@ -3,13 +3,14 @@ import ssl
 
 import requests
 from django.conf import settings
-from django.utils import six
+from django.utils import six, timezone
 from django.utils.functional import cached_property
 import pyVim.task
 import pyVim.connect
 from pyVmomi import vim
 
-from waldur_core.structure import ServiceBackend, ServiceBackendError
+from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
+from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
 
@@ -400,6 +401,42 @@ class VMwareBackend(ServiceBackend):
         while parent and not isinstance(parent, vim.Datacenter):
             parent = parent.parent
         return parent
+
+    @log_backend_action()
+    def pull_disk(self, disk, update_fields=None):
+        import_time = timezone.now()
+        imported_disk = self.import_disk(disk.vm.backend_id, disk.backend_id, save=False)
+
+        disk.refresh_from_db()
+        if disk.modified < import_time:
+            if not update_fields:
+                update_fields = models.Disk.get_backend_fields()
+
+            update_pulled_fields(disk, imported_disk, update_fields)
+
+    def import_disk(self, backend_vm_id, backend_disk_id, save=True, service_project_link=None):
+        try:
+            backend_disk = self.client.get_disk(backend_vm_id, backend_disk_id)
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        disk = self._backend_disk_to_disk(backend_disk)
+        if service_project_link is not None:
+            disk.service_project_link = service_project_link
+        if save:
+            disk.save()
+
+        return disk
+
+    def _backend_disk_to_disk(self, backend_disk):
+        return models.Disk(
+            disk_backend_id=backend_disk['key'],
+            name=backend_disk['value']['label'],
+            # Convert disk size from bytes to MiB
+            size=backend_disk['value']['capacity'] / 1024 / 1024,
+            state=models.Disk.States.OK,
+        )
 
     def get_console_url(self, vm):
         """
