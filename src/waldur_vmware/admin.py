@@ -23,6 +23,20 @@ class DiskAdmin(structure_admin.ResourceAdmin):
     pull = Pull()
 
 
+class VirtualMachineAdmin(structure_admin.ResourceAdmin):
+
+    class Pull(ExecutorAdminAction):
+        executor = executors.VirtualMachinePullExecutor
+        short_description = _('Pull')
+
+        def validate(self, instance):
+            if instance.state not in (models.VirtualMachine.States.OK, models.VirtualMachine.States.ERRED):
+                raise ValidationError(_('Virtual machine has to be in OK or ERRED state.'))
+
+    pull = Pull()
+
+
 admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
 admin.site.register(models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Disk, DiskAdmin)
+admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
