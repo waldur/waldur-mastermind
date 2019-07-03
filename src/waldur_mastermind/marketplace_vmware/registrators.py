@@ -65,19 +65,19 @@ class VirtualMachineRegistrator(BaseRegistrator):
         total_price = cores_price + ram_price + disk_price
 
         """
-        When resource configuration is switched, old invoice item 
+        When resource configuration is switched, old invoice item
         is terminated and new invoice item is created.
-        In order to avoid double counting we should ensure that 
+        In order to avoid double counting we should ensure that
         there're no overlapping invoice items for the same scope.
 
-        1) If old price is greater than new price, 
+        1) If old price is greater than new price,
            old invoice item end field should be adjusted to the end of current day
            and new invoice item start field should be adjusted to the start of next day.
 
-        2) If old price is lower than new price, 
+        2) If old price is lower than new price,
            old invoice item end field should be adjusted to the end of previous day
            and new invoice item field should be adjusted to the start of current day.
-           
+
         3) Finally, we need to cleanup planned invoice items when new item is created.
         """
         old_item = utils.get_vm_items().filter(
