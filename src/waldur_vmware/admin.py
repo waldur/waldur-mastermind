@@ -43,9 +43,16 @@ class CustomerClusterInline(options.TabularInline):
     verbose_name_plural = 'Customer VMware clusters'
 
 
+class CustomerNetworkInline(options.TabularInline):
+    model = models.CustomerNetwork
+    extra = 1
+    verbose_name_plural = 'Customer VMware networks'
+
+
 admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
 admin.site.register(models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Disk, DiskAdmin)
 admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
 
 structure_admin.CustomerAdmin.inlines += [CustomerClusterInline]
+structure_admin.CustomerAdmin.inlines += [CustomerNetworkInline]

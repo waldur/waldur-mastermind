@@ -75,6 +75,9 @@ class VMwareClient(object):
     def list_datastores(self):
         return self._get('vcenter/datastore')['value']
 
+    def list_networks(self):
+        return self._get('vcenter/network')['value']
+
     def list_folders(self):
         return self._get('vcenter/folder')['value']
 

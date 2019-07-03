@@ -164,3 +164,10 @@ class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.ClusterSerializer
     filter_class = filters.ClusterFilter
     lookup_field = 'uuid'
+
+
+class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Network.objects.all()
+    serializer_class = serializers.NetworkSerializer
+    filter_class = filters.NetworkFilter
+    lookup_field = 'uuid'

@@ -79,6 +79,7 @@ class VMwareBackend(ServiceBackend):
     def pull_service_properties(self):
         self.pull_templates()
         self.pull_clusters()
+        self.pull_networks()
 
     def pull_templates(self):
         """
@@ -216,6 +217,37 @@ class VMwareBackend(ServiceBackend):
             )
 
         models.Cluster.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
+    def pull_networks(self):
+        try:
+            backend_networks = self.client.list_networks()
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        backend_networks_map = {
+            item['network']: item
+            for item in backend_networks
+        }
+
+        frontend_networks_map = {
+            p.backend_id: p
+            for p in models.Network.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(frontend_networks_map.keys()) - set(backend_networks_map.keys())
+        new_ids = set(backend_networks_map.keys()) - set(frontend_networks_map.keys())
+
+        for item_id in new_ids:
+            item = backend_networks_map[item_id]
+            models.Network.objects.create(
+                settings=self.settings,
+                backend_id=item_id,
+                name=item['name'],
+                type=item['type'],
+            )
+
+        models.Network.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
 
     def create_virtual_machine(self, vm):
         """

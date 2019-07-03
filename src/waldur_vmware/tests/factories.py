@@ -153,3 +153,31 @@ class DiskFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('vmware-disk-list')
+
+
+class NetworkFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Network
+
+    settings = factory.SubFactory(VMwareServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'network-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'network-%s' % n)
+    type = 'STANDARD_PORTGROUP'
+
+    @classmethod
+    def get_url(cls, network=None, action=None):
+        network = network or NetworkFactory()
+        url = 'http://testserver' + reverse('vmware-network-detail', kwargs={'uuid': network.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('vmware-network-list')
+
+
+class CustomerNetworkFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CustomerNetwork
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    network = factory.SubFactory(NetworkFactory)

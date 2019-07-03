@@ -6,6 +6,11 @@ from . import factories
 
 
 class VMwareFixture(ProjectFixture):
+    def __init__(self):
+        super(VMwareFixture, self).__init__()
+        self.spl
+        self.customer_cluster
+        self.customer_network
 
     @cached_property
     def settings(self):
@@ -26,6 +31,14 @@ class VMwareFixture(ProjectFixture):
     @cached_property
     def customer_cluster(self):
         return factories.CustomerClusterFactory(cluster=self.cluster, customer=self.customer)
+
+    @cached_property
+    def network(self):
+        return factories.NetworkFactory(settings=self.settings)
+
+    @cached_property
+    def customer_network(self):
+        return factories.CustomerNetworkFactory(network=self.network, customer=self.customer)
 
     @cached_property
     def template(self):

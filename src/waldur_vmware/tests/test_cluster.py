@@ -74,7 +74,7 @@ class ClusterPullTest(test.APITransactionTestCase):
         self.backend.pull_clusters()
         self.assertEqual(models.Cluster.objects.count(), 1)
 
-    def _generate_clusters(self, backend=False, count=1):
+    def _generate_clusters(self, count=1):
         clusters = []
         for i in range(count):
             backend_cluster = {
