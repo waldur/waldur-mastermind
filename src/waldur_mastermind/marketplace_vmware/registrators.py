@@ -47,42 +47,43 @@ class VirtualMachineRegistrator(BaseRegistrator):
                            'Resource ID: %s', source.id)
             return
 
-        components_set = {
-            plan_component.component.type
+        components_map = {
+            plan_component.component.type: plan_component.price
             for plan_component in plan.components.all()
         }
 
-        missing_components = {'cpu_usage', 'ram_usage', 'disk_usage'} - components_set
+        missing_components = {'cpu_usage', 'ram_usage', 'disk_usage'} - set(components_map.keys())
         if missing_components:
             logger.warning('Skipping VMware item invoice creation because plan components are missing. '
                            'Plan ID: %s. Missing components: %s', plan.id, ', '.join(missing_components))
             return
 
-        for plan_component in plan.components.all():
-            if plan_component.component.type == 'cpu_usage':
-                unit_price = source.cores * plan_component.price
-            elif plan_component.component.type == 'ram_usage':
-                unit_price = source.ram * plan_component.price
-            elif plan_component.component.type == 'disk_usage':
-                unit_price = source.total_disk * plan_component.price
-            else:
-                continue
-            details = self.get_component_details(resource, plan_component)
-            invoices_models.GenericInvoiceItem.objects.create(
-                scope=source,
-                project=_get_project(source),
-                unit_price=unit_price,
-                unit=plan.unit,
-                product_code=plan.product_code,
-                article_code=plan.article_code,
-                invoice=invoice,
-                start=start,
-                end=end,
-                details=details,
-            )
+        cores_price = components_map['cpu_usage'] * source.cores
+        ram_price = components_map['ram_usage'] * source.ram
+        disk_price = components_map['disk_usage'] * source.total_disk
+        total_price = cores_price + ram_price + disk_price
+        details = self.get_details(resource)
+        invoices_models.GenericInvoiceItem.objects.create(
+            scope=source,
+            project=_get_project(source),
+            unit_price=total_price,
+            unit=plan.unit,
+            product_code=plan.product_code,
+            article_code=plan.article_code,
+            invoice=invoice,
+            start=start,
+            end=end,
+            details=details,
+        )
 
     def get_details(self, source):
-        details = {'name': source.name}
+        name = '{name} ({cores} CPU, {ram} MB RAM, {disk} MB disk)'.format(
+            name=source.name,
+            cores=source.cores,
+            ram=source.ram,
+            disk=source.total_disk,
+        )
+        details = {'name': name}
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)
         return details
@@ -90,13 +91,3 @@ class VirtualMachineRegistrator(BaseRegistrator):
     def terminate(self, source, now=None):
         super(VirtualMachineRegistrator, self).terminate(source, now)
         utils.get_vm_items().filter(object_id=source.id).update(object_id=None)
-
-    def get_component_details(self, resource, plan_component):
-        details = self.get_details(resource)
-        details.update({
-            'plan_component_id': plan_component.id,
-            'offering_component_type': plan_component.component.type,
-            'offering_component_name': plan_component.component.name,
-            'offering_component_measured_unit': plan_component.component.measured_unit,
-        })
-        return details
