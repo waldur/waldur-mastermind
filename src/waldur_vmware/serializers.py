@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
-from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
@@ -12,8 +12,15 @@ from . import constants, models
 class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
                         structure_serializers.BaseServiceSerializer):
 
+    SERVICE_ACCOUNT_FIELDS = {
+        'backend_url': _('VMware auth URL'),
+        'username': _('VMware user username'),
+        'password': _('VMware user password'),
+    }
+
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.VMwareService
+        required_fields = ('backend_url', 'username', 'password',)
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -66,6 +73,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         write_only=True,
     )
 
+    cluster = serializers.HyperlinkedRelatedField(
+        view_name='vmware-cluster-detail',
+        lookup_field='uuid',
+        queryset=models.Cluster.objects.all(),
+        allow_null=True,
+        required=True,
+    )
+
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
 
@@ -73,10 +88,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
-            'runtime_state', 'template'
+            'runtime_state', 'template', 'cluster',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os', 'template',
+            'guest_os', 'template', 'cluster',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -91,6 +106,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     def create(self, validated_data):
         template_attrs = {'cores', 'cores_per_socket', 'ram', 'guest_os'}
         template = validated_data.get('template')
+        cluster = validated_data.get('cluster')
+        spl = validated_data.get('service_project_link')
         missing_attributes = template_attrs - set(validated_data.keys())
         if template:
             if validated_data.get('guest_os'):
@@ -104,6 +121,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             attr_list = ', '.join(missing_attributes)
             raise serializers.ValidationError(
                 'These fields are required when template is not used: %s.' % attr_list)
+
+        if cluster:
+            if cluster.settings != spl.service.settings:
+                raise serializers.ValidationError('This cluster is not available for this service.')
+
+            if not cluster.customercluster_set.filter(customer=spl.project.customer).exists():
+                raise serializers.ValidationError('This cluster is not available for this customer.')
+
         return super(VirtualMachineSerializer, self).create(validated_data)
 
 
@@ -188,3 +213,28 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
 
     def get_guest_os_name(self, template):
         return constants.GUEST_OS_CHOICES.get(template.guest_os)
+
+
+class NestedCustomerClusterSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+    customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
+    customer_name = serializers.ReadOnlyField(source='customer.name')
+
+    class Meta(object):
+        model = models.CustomerCluster
+        fields = ('customer', 'customer_uuid', 'customer_name',)
+        extra_kwargs = {
+            'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
+        }
+
+
+class ClusterSerializer(structure_serializers.BasePropertySerializer):
+    customercluster_set = NestedCustomerClusterSerializer(many=True, required=False)
+
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Cluster
+        fields = (
+            'url', 'uuid', 'name', 'customercluster_set',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
