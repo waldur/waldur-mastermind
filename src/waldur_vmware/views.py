@@ -157,3 +157,10 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.TemplateSerializer
     filter_class = filters.TemplateFilter
     lookup_field = 'uuid'
+
+
+class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Cluster.objects.all()
+    serializer_class = serializers.ClusterSerializer
+    filter_class = filters.ClusterFilter
+    lookup_field = 'uuid'

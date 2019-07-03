@@ -67,6 +67,7 @@ class VirtualMachine(VirtualMachineMixin,
 
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
+    cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     tracker = FieldTracker()
 
     @classmethod
@@ -113,3 +114,28 @@ class Template(VirtualMachineMixin,
 
     def __str__(self):
         return self.name
+
+
+@python_2_unicode_compatible
+class Cluster(structure_models.ServiceProperty):
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-cluster'
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerCluster(models.Model):
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    cluster = models.ForeignKey('Cluster', on_delete=models.CASCADE)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-customer-cluster'
+
+    def __str__(self):
+        return '%s/%s' % (self.customer, self.cluster)
+
+    class Meta(object):
+        unique_together = ('customer', 'cluster')

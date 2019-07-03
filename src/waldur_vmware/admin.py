@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.contrib import admin
+from django.contrib.admin import options
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 
@@ -36,7 +37,15 @@ class VirtualMachineAdmin(structure_admin.ResourceAdmin):
     pull = Pull()
 
 
+class CustomerClusterInline(options.TabularInline):
+    model = models.CustomerCluster
+    extra = 1
+    verbose_name_plural = 'Customer VMware clusters'
+
+
 admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
 admin.site.register(models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Disk, DiskAdmin)
 admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
+
+structure_admin.CustomerAdmin.inlines += [CustomerClusterInline]

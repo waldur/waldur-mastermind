@@ -78,6 +78,7 @@ class VMwareBackend(ServiceBackend):
 
     def pull_service_properties(self):
         self.pull_templates()
+        self.pull_clusters()
 
     def pull_templates(self):
         """
@@ -186,6 +187,36 @@ class VMwareBackend(ServiceBackend):
             ram=backend_vm['memory']['size_MiB'],
         )
 
+    def pull_clusters(self):
+        try:
+            backend_clusters = self.client.list_clusters()
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        backend_clusters_map = {
+            item['cluster']: item
+            for item in backend_clusters
+        }
+
+        frontend_clusters_map = {
+            p.backend_id: p
+            for p in models.Cluster.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(frontend_clusters_map.keys()) - set(backend_clusters_map.keys())
+        new_ids = set(backend_clusters_map.keys()) - set(frontend_clusters_map.keys())
+
+        for item_id in new_ids:
+            item = backend_clusters_map[item_id]
+            models.Cluster.objects.create(
+                settings=self.settings,
+                backend_id=item_id,
+                name=item['name'],
+            )
+
+        models.Cluster.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
     def create_virtual_machine(self, vm):
         """
         Creates a virtual machine.
@@ -234,6 +265,9 @@ class VMwareBackend(ServiceBackend):
             }
         }
 
+        if vm.cluster:
+            spec['placement']['cluster'] = vm.cluster.backend_id
+
         try:
             return self.client.deploy_vm_from_template(vm.template.backend_id, {'spec': spec})
         except requests.RequestException as e:
@@ -259,6 +293,9 @@ class VMwareBackend(ServiceBackend):
                 'resource_pool': settings.WALDUR_VMWARE['VM_RESOURCE_POOL'],
             }
         }
+
+        if vm.cluster:
+            spec['placement']['cluster'] = vm.cluster.backend_id
 
         try:
             return self.client.create_vm({'spec': spec})
