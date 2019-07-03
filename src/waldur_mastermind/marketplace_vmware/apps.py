@@ -30,7 +30,7 @@ class MarketplaceVMwareConfig(AppConfig):
                          service_type=VMwareConfig.service_name,
                          components=(
                              Component(type='cpu_usage', name='CPU', measured_unit='hours', billing_type=USAGE),
-                             Component(type='gpu_usage', name='GPU', measured_unit='hours', billing_type=USAGE),
+                             Component(type='disk_usage', name='Disk', measured_unit='hours', billing_type=USAGE),
                              Component(type='ram_usage', name='RAM', measured_unit='GB', billing_type=USAGE),
                          ))
 
