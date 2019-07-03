@@ -65,11 +65,10 @@ class InvoiceTest(test.APITransactionTestCase):
 
             # Assert
             self.assertEqual(2, invoice.items.count())
-            invoice.refresh_from_db()
             new_total = invoice.total
             self.assertGreater(new_total, old_total)
 
-    def test_when_vm_is_updated_invoice_item_is_registered(self):
+    def test_when_vm_is_upgraded_invoice_item_is_registered(self):
         # Arrange
         signals.vm_created.send(self.__class__, vm=self.vm)
         invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
@@ -84,6 +83,23 @@ class InvoiceTest(test.APITransactionTestCase):
 
             # Assert
             self.assertEqual(2, invoice.items.count())
-            invoice.refresh_from_db()
             new_total = invoice.total
             self.assertGreater(new_total, old_total)
+
+            self.assertEqual(invoice.items.first().end.day, 9)
+            self.assertEqual(invoice.items.last().start.day, 10)
+
+    def test_when_vm_is_downgraded_invoice_item_is_adjusted(self):
+        # Arrange
+        signals.vm_created.send(self.__class__, vm=self.vm)
+        invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
+
+        # Act
+        with freeze_time('2019-07-10'):
+            self.vm.cores -= 1
+            self.vm.save()
+            signals.vm_updated.send(self.__class__, vm=self.vm)
+
+            # Assert
+            self.assertEqual(invoice.items.first().end.day, 10)
+            self.assertEqual(invoice.items.last().start.day, 11)
