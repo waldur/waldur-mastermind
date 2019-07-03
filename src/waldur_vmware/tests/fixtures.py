@@ -6,10 +6,6 @@ from . import factories
 
 
 class VMwareFixture(ProjectFixture):
-    def __init__(self):
-        super(VMwareFixture, self).__init__()
-        self.spl
-        self.customer_cluster
 
     @cached_property
     def settings(self):
@@ -46,5 +42,6 @@ class VMwareFixture(ProjectFixture):
     @cached_property
     def disk(self):
         return factories.DiskFactory(
+            vm=self.virtual_machine,
             service_project_link=self.spl,
         )

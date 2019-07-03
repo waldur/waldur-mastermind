@@ -6,6 +6,8 @@ from . import factories, fixtures
 class VirtualMachineCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
+        self.fixture.spl
+        self.fixture.customer_cluster
         self.url = factories.VirtualMachineFactory.get_list_url()
 
     def test_create_vm(self):

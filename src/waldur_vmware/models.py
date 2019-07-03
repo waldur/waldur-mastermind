@@ -76,7 +76,7 @@ class VirtualMachine(VirtualMachineMixin,
 
     @property
     def total_disk(self):
-        return self.disk.aggregate(models.Sum('size'))['size__sum']
+        return self.disks.aggregate(models.Sum('size'))['size__sum'] or 0
 
     def __str__(self):
         return self.name
