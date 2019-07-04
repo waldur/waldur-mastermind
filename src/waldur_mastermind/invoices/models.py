@@ -390,6 +390,13 @@ class InvoiceItemAdjuster(object):
 
     @property
     def invoice_items(self):
+        # TODO: Remove temporary workaround for OpenStack package
+        if isinstance(self.source, package_models.OpenStackPackage):
+            return GenericInvoiceItem.objects.filter(
+                invoice=self.invoice,
+                content_type=self.content_type,
+                details__tenant_name=self.source.tenant.name,
+            )
         return GenericInvoiceItem.objects.filter(
             invoice=self.invoice,
             content_type=self.content_type,
