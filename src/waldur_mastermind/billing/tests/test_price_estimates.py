@@ -179,7 +179,7 @@ class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         estimate = models.PriceEstimate.objects.get(scope=self.fixture.project)
-        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(self.new_template.price * 30))
+        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(self.new_template.price * 31))
 
     @data('project', 'customer')
     def test_if_extended_package_cost_exceeds_limit_provision_is_disabled(self, scope):

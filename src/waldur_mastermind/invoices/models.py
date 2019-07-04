@@ -490,7 +490,7 @@ class InvoiceItemAdjuster(object):
     def adjust(self):
         start = self.start
 
-        if self.old_item:
+        if self.old_item and self.old_item.price > 0:
             if self.old_price >= self.new_price:
                 start, end = self.shift_forward()
             else:
