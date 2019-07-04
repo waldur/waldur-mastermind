@@ -4,7 +4,6 @@ from freezegun import freeze_time
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
-from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -20,7 +19,6 @@ from .. import PACKAGE_TYPE
 
 
 class InvoiceTest(BaseOpenStackTest):
-    @freeze_time('2017-01-01')
     def setUp(self):
         super(InvoiceTest, self).setUp()
         self.fixture = package_fixtures.PackageFixture()
@@ -32,59 +30,56 @@ class InvoiceTest(BaseOpenStackTest):
             state=marketplace_models.Offering.States.ACTIVE,
         )
 
-    @freeze_time('2017-01-31')
     def test_plan_with_monthly_pricing(self):
         with freeze_time('2017-01-01'):
-            self._init()
+            self._init(price=10, unit=UnitPriceMixin.Units.PER_MONTH)
 
         with freeze_time('2017-01-10'):
             invoice = self._get_invoice()
-            self.assertEqual(invoice.price, 30)
+            self.assertEqual(invoice.price, 10)
 
-    @freeze_time('2017-01-10')
     def test_change_to_more_expensive_plan(self):
         with freeze_time('2017-01-01'):
-            self._init(Decimal(10) / 31, UnitPriceMixin.Units.PER_DAY)
+            self._init(price=30, unit=UnitPriceMixin.Units.PER_DAY)
 
         with freeze_time('2017-01-10'):
-            new_plan = self._create_plan(Decimal(20) / 31, UnitPriceMixin.Units.PER_DAY)
+            new_plan = self._create_plan(60, UnitPriceMixin.Units.PER_DAY)
             self._switch_plan(new_plan)
             invoice = self._get_invoice()
-            control_value = quantize_price(Decimal(60) / 31) * 22 + quantize_price(Decimal(30) / 31) * 9  # 51.41
+            control_value = 30 * 9 + 60 * 22
             self.assertEqual(invoice.price, control_value)
 
-    @freeze_time('2017-01-10')
     def test_change_to_more_cheap_plan(self):
         with freeze_time('2017-01-01'):
-            self._init(Decimal(10) / 31, UnitPriceMixin.Units.PER_DAY)
+            self._init(10, UnitPriceMixin.Units.PER_DAY)
 
         with freeze_time('2017-01-10'):
-            new_plan = self._create_plan(Decimal(1) / 31, UnitPriceMixin.Units.PER_DAY)
+            new_plan = self._create_plan(1, UnitPriceMixin.Units.PER_DAY)
             self._switch_plan(new_plan)
             invoice = self._get_invoice()
-            control_value = quantize_price(Decimal(3) / 31) * 21 + quantize_price(Decimal(30) / 31) * 10  # 11.80
+            control_value = 1 * 21 + 10 * 10
             self.assertEqual(invoice.price, control_value)
 
     def test_change_from_daily_to_monthly_plan(self):
         with freeze_time('2017-01-01'):
-            self._init(Decimal(10) / 31, UnitPriceMixin.Units.PER_DAY)
+            self._init(10, UnitPriceMixin.Units.PER_DAY)
 
         with freeze_time('2017-01-10'):
             new_plan = self._create_plan(10, UnitPriceMixin.Units.PER_MONTH)
             self._switch_plan(new_plan)
 
             invoice = self._get_invoice()
-            control_value = quantize_price(Decimal(21) / 31) * 30 + 9 * 30  # 290.4
+            control_value = 10 * 31
             self.assertEqual(invoice.price, control_value)
 
-    def _create_plan(self, component_price=10, unit=None):
-        unit = unit or UnitPriceMixin.Units.PER_MONTH
+    def _create_plan(self, price, unit):
         plan = marketplace_factories.PlanFactory(
             offering=self.offering,
             unit=unit
         )
 
-        for component_type in ('ram', 'cores', 'storage'):
+        components = package_models.PackageTemplate.get_required_component_types()
+        for component_type in components:
             offering_component, _ = marketplace_models.OfferingComponent.objects.get_or_create(
                 offering=self.offering,
                 type=component_type
@@ -92,7 +87,7 @@ class InvoiceTest(BaseOpenStackTest):
             marketplace_factories.PlanComponentFactory(
                 component=offering_component,
                 plan=plan,
-                price=Decimal(component_price)
+                price=Decimal(price) / len(components)
             )
         return plan
 
@@ -128,11 +123,10 @@ class InvoiceTest(BaseOpenStackTest):
 
         callbacks.resource_update_succeeded(self.resource)
 
-    def _init(self, component_price=10, unit=None):
-        unit = unit or UnitPriceMixin.Units.PER_MONTH
+    def _init(self, price, unit):
         self.offering_url = marketplace_factories.OfferingFactory.get_url(self.offering)
 
-        plan = self._create_plan(component_price=component_price, unit=unit)
+        plan = self._create_plan(price=price, unit=unit)
         plan_url = marketplace_factories.PlanFactory.get_url(plan)
 
         # Create SPL
