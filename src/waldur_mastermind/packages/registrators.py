@@ -5,8 +5,6 @@ from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.packages import models as packages_models
 
-from . import utils
-
 
 class OpenStackItemRegistrator(BaseRegistrator):
 
