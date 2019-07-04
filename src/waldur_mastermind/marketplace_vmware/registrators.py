@@ -53,15 +53,15 @@ class VirtualMachineRegistrator(BaseRegistrator):
             for plan_component in plan.components.all()
         }
 
-        missing_components = {'cpu_usage', 'ram_usage', 'disk_usage'} - set(components_map.keys())
+        missing_components = {'cpu', 'ram', 'disk'} - set(components_map.keys())
         if missing_components:
             logger.warning('Skipping VMware item invoice creation because plan components are missing. '
                            'Plan ID: %s. Missing components: %s', plan.id, ', '.join(missing_components))
             return
 
-        cores_price = components_map['cpu_usage'] * source.cores
-        ram_price = components_map['ram_usage'] * source.ram
-        disk_price = components_map['disk_usage'] * source.total_disk
+        cores_price = components_map['cpu'] * source.cores
+        ram_price = components_map['ram'] * source.ram
+        disk_price = components_map['disk'] * source.total_disk
         total_price = cores_price + ram_price + disk_price
 
         """
