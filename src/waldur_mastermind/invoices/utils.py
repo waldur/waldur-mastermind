@@ -9,6 +9,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_mastermind.common.mixins import UnitPriceMixin
 
 
 def get_current_month():
@@ -90,8 +91,6 @@ def create_invoice_pdf(invoice):
 
 
 def get_price_per_day(price, unit):
-    from .mixins import UnitPriceMixin
-
     if unit == UnitPriceMixin.Units.PER_DAY:
         return price
     elif unit == UnitPriceMixin.Units.PER_MONTH:
