@@ -314,7 +314,6 @@ class VMwareBackend(ServiceBackend):
                 })
             spec['hardware_customization']['nics'] = nics
 
-
         try:
             return self.client.deploy_vm_from_template(vm.template.backend_id, {'spec': spec})
         except requests.RequestException as e:
