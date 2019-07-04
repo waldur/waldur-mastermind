@@ -157,7 +157,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
             )
 
         old_components_price = old_package.template.price * (package_change_date - start_date).days
-        second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month) - 1
+        second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month)
         new_components_price = new_package.template.price * second_component_usage_days
         expected_price = old_components_price + new_components_price
 
@@ -174,7 +174,6 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
         with freeze_time(start_date):
             old_package = invoices_fixtures.create_package(component_price=old_component_price)
-        old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
@@ -185,7 +184,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
                 tenant=tenant
             )
 
-        old_components_price = old_package.template.price * ((package_change_date - start_date).days - 1)
+        old_components_price = old_package.template.price * (package_change_date - start_date).days
         second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month)
         new_components_price = new_package.template.price * second_component_usage_days
         expected_price = old_components_price + new_components_price
@@ -203,7 +202,6 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
         with freeze_time(start_date):
             old_package = invoices_fixtures.create_package(component_price=old_component_price)
-        old_package.tenant.service_project_link.project.customer
         tenant = old_package.tenant
 
         with freeze_time(package_change_date):
@@ -214,8 +212,8 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
                 tenant=tenant,
             )
 
-        old_components_price = old_package.template.price * ((package_change_date - start_date).days + 1)
-        second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month) - 1
+        old_components_price = old_package.template.price * (package_change_date - start_date).days
+        second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month)
         new_components_price = new_package.template.price * second_component_usage_days
         expected_price = old_components_price + new_components_price
 
@@ -242,7 +240,7 @@ class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
                 tenant=tenant,
             )
 
-        old_components_price = old_package.template.price * ((package_change_date - start_date).days - 1)
+        old_components_price = old_package.template.price * (package_change_date - start_date).days
         second_component_usage_days = invoices_utils.get_full_days(package_change_date, end_of_the_month)
         new_components_price = new_package.template.price * second_component_usage_days
         expected_price = old_components_price + new_components_price
