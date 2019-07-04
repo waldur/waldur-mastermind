@@ -79,20 +79,21 @@ class InvoiceTest(BaseOpenStackTest):
 
     def _create_plan(self, component_price=10, unit=None):
         unit = unit or UnitPriceMixin.Units.PER_MONTH
-        plan = marketplace_factories.PlanFactory(offering=self.offering,
-                                                 unit=unit)
+        plan = marketplace_factories.PlanFactory(
+            offering=self.offering,
+            unit=unit
+        )
 
-        self.cpu_component = (getattr(self, 'cpu_component', None) or
-                              marketplace_factories.OfferingComponentFactory(offering=self.offering, type='ram'))
-        marketplace_factories.PlanComponentFactory(component=self.cpu_component, plan=plan, price=Decimal(component_price))
-        self.cores_component = (getattr(self, 'cores_component', None) or
-                                marketplace_factories.OfferingComponentFactory(offering=self.offering, type='cores'))
-        marketplace_factories.PlanComponentFactory(component=self.cores_component, plan=plan,
-                                                   price=Decimal(component_price))
-        self.storage_component = (getattr(self, 'storage_component', None) or
-                                  marketplace_factories.OfferingComponentFactory(offering=self.offering, type='storage'))
-        marketplace_factories.PlanComponentFactory(component=self.storage_component, plan=plan,
-                                                   price=Decimal(component_price))
+        for component_type in ('ram', 'cores', 'storage'):
+            offering_component, _ = marketplace_models.OfferingComponent.objects.get_or_create(
+                offering=self.offering,
+                type=component_type
+            )
+            marketplace_factories.PlanComponentFactory(
+                component=offering_component,
+                plan=plan,
+                price=Decimal(component_price)
+            )
         return plan
 
     def _switch_plan(self, new_plan):
