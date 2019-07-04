@@ -301,6 +301,19 @@ class VMwareBackend(ServiceBackend):
 
         if vm.cluster:
             spec['placement']['cluster'] = vm.cluster.backend_id
+            spec['placement'].pop('resource_pool', None)
+
+        if vm.networks.count():
+            nics = []
+            for network in vm.networks.all():
+                nics.append({
+                    "key": network.backend_id,
+                    "value": {
+                        "network": network.backend_id
+                    }
+                })
+            spec['hardware_customization']['nics'] = nics
+
 
         try:
             return self.client.deploy_vm_from_template(vm.template.backend_id, {'spec': spec})
@@ -330,6 +343,7 @@ class VMwareBackend(ServiceBackend):
 
         if vm.cluster:
             spec['placement']['cluster'] = vm.cluster.backend_id
+            spec['placement'].pop('resource_pool', None)
 
         try:
             return self.client.create_vm({'spec': spec})
