@@ -1,6 +1,7 @@
 import base64
 import datetime
 from calendar import monthrange
+from decimal import Decimal
 
 import pdfkit
 from django.conf import settings
@@ -86,3 +87,16 @@ def create_invoice_pdf(invoice):
     pdf = pdfkit.from_string(html, False)
     invoice.file = base64.b64encode(pdf)
     invoice.save()
+
+
+def get_price_per_day(price, unit):
+    from .mixins import UnitPriceMixin
+
+    if unit == UnitPriceMixin.Units.PER_DAY:
+        return price
+    elif unit == UnitPriceMixin.Units.PER_MONTH:
+        return price / Decimal(30)
+    elif unit == UnitPriceMixin.Units.PER_HALF_MONTH:
+        return price / Decimal(15)
+    else:
+        return price

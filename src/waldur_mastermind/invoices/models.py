@@ -26,6 +26,7 @@ from django.contrib.postgres.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.packages import models as package_models
 
 from . import managers, utils, registrators
@@ -371,7 +372,7 @@ class ServiceDowntime(models.Model):
             )
 
 
-def adjust_invoice_items(invoice, source, start, total_price):
+def adjust_invoice_items(invoice, source, start, unit_price, unit):
     """
     When resource configuration is switched, old invoice item
     is terminated and new invoice item is created.
@@ -379,12 +380,12 @@ def adjust_invoice_items(invoice, source, start, total_price):
     there're no overlapping invoice items for the same scope.
 
     1) If old price is greater than new price,
-       old invoice item end field should be adjusted to the end of current day
-       and new invoice item start field should be adjusted to the start of next day.
+       old invoice item end field should be adjusted to the end of current unit
+       and new invoice item start field should be adjusted to the start of next unit.
 
     2) If old price is lower than new price,
-       old invoice item end field should be adjusted to the end of previous day
-       and new invoice item field should be adjusted to the start of current day.
+       old invoice item end field should be adjusted to the end of previous unit
+       and new invoice item field should be adjusted to the start of current unit.
 
     3) Finally, we need to cleanup planned invoice items when new item is created.
     """
@@ -399,11 +400,13 @@ def adjust_invoice_items(invoice, source, start, total_price):
     ).order_by('-unit_price').first()
 
     if old_item:
-        if old_item.unit_price >= total_price:
+        old_price = get_price_per_day(old_item.unit_price, old_item.unit)
+        new_price = get_price_per_day(unit_price, unit)
+
+        if old_price >= new_price:
             old_item.end = old_item.end.replace(hour=23, minute=59, second=59)
             old_item.save(update_fields=['end'])
             start = old_item.end + timedelta(seconds=1)
-
         else:
             start = old_item.end.replace(hour=0, minute=0, second=0)
             old_item.end = start - timedelta(seconds=1)
