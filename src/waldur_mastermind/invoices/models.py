@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 @python_2_unicode_compatible
 class Invoice(core_models.UuidMixin, models.Model):
-    """ Invoice describes billing information about purchased packages for customers on a monthly basis """
+    """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
     class Permissions(object):
         customer_path = 'customer'
