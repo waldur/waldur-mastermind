@@ -2,6 +2,8 @@ from __future__ import unicode_literals, division
 
 from datetime import datetime
 import decimal
+
+from django.core.exceptions import ObjectDoesNotExist
 from freezegun import freeze_time
 from rest_framework import test, status
 import pytz
@@ -132,10 +134,8 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         expensive_item = invoice.generic_items.get(scope=expensive_package)
         self.assertEqual(expensive_item.unit_price, expensive_package_template.price)
         self.assertEqual(expensive_item.usage_days, full_days)
-        # cheap item price should become 0, because it was replaced by expensive one
-        cheap_item.refresh_from_db()
-        self.assertEqual(cheap_item.price, 0)
-        self.assertEqual(cheap_item.usage_days, 0)
+        # cheap item price should not exits, because it was replaced by expensive one
+        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
 
         # at last he switched to the medium one
         with freeze_time(date + timezone.timedelta(hours=4)):
@@ -149,10 +149,8 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         # expensive item should be calculated for one day
         expensive_item.refresh_from_db()
 
-        # cheap item price should remain zero
-        cheap_item.refresh_from_db()
-        self.assertEqual(cheap_item.usage_days, 0)
-        self.assertEqual(cheap_item.price, 0)
+        # cheap item price should not exits
+        self.assertRaises(ObjectDoesNotExist, cheap_item.refresh_from_db)
 
     def test_invoice_item_with_daily_price(self):
         start_date = timezone.datetime(2017, 7, 14)
