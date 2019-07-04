@@ -1,4 +1,3 @@
-from datetime import timedelta
 import logging
 
 from waldur_core.structure.permissions import _get_project
@@ -64,44 +63,7 @@ class VirtualMachineRegistrator(BaseRegistrator):
         disk_price = components_map['disk'] * source.total_disk
         total_price = cores_price + ram_price + disk_price
 
-        """
-        When resource configuration is switched, old invoice item
-        is terminated and new invoice item is created.
-        In order to avoid double counting we should ensure that
-        there're no overlapping invoice items for the same scope.
-
-        1) If old price is greater than new price,
-           old invoice item end field should be adjusted to the end of current day
-           and new invoice item start field should be adjusted to the start of next day.
-
-        2) If old price is lower than new price,
-           old invoice item end field should be adjusted to the end of previous day
-           and new invoice item field should be adjusted to the start of current day.
-
-        3) Finally, we need to cleanup planned invoice items when new item is created.
-        """
-        old_item = utils.get_vm_items().filter(
-            invoice=invoice,
-            end__day=start.day,
-            object_id=source.pk,
-        ).order_by('-unit_price').first()
-
-        if old_item:
-            if old_item.unit_price >= total_price:
-                old_item.end = old_item.end.replace(hour=23, minute=59, second=59)
-                old_item.save(update_fields=['end'])
-                start = old_item.end + timedelta(seconds=1)
-
-            else:
-                start = old_item.end.replace(hour=0, minute=0, second=0)
-                old_item.end = start - timedelta(seconds=1)
-                old_item.save(update_fields=['end'])
-
-        utils.get_vm_items().filter(
-            invoice=invoice,
-            start__day=start.day,
-            object_id=source.pk,
-        ).delete()
+        start = invoices_models.adjust_invoice_items(invoice, source, start, total_price)
 
         details = self.get_details(source)
         service_provider_info = marketplace_utils.get_service_provider_info(resource)

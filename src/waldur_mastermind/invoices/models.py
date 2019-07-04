@@ -2,6 +2,7 @@ from __future__ import unicode_literals, division
 
 import StringIO
 import base64
+from datetime import timedelta
 import decimal
 import logging
 from calendar import monthrange
@@ -368,3 +369,51 @@ class ServiceDowntime(models.Model):
             raise ValidationError(
                 _('Downtime period intersects with another period with ID: %s.') % ids
             )
+
+
+def adjust_invoice_items(invoice, source, start, total_price):
+    """
+    When resource configuration is switched, old invoice item
+    is terminated and new invoice item is created.
+    In order to avoid double counting we should ensure that
+    there're no overlapping invoice items for the same scope.
+
+    1) If old price is greater than new price,
+       old invoice item end field should be adjusted to the end of current day
+       and new invoice item start field should be adjusted to the start of next day.
+
+    2) If old price is lower than new price,
+       old invoice item end field should be adjusted to the end of previous day
+       and new invoice item field should be adjusted to the start of current day.
+
+    3) Finally, we need to cleanup planned invoice items when new item is created.
+    """
+
+    model_type = ContentType.objects.get_for_model(source)
+
+    old_item = GenericInvoiceItem.objects.filter(
+        invoice=invoice,
+        content_type=model_type,
+        object_id=source.pk,
+        end__day=start.day,
+    ).order_by('-unit_price').first()
+
+    if old_item:
+        if old_item.unit_price >= total_price:
+            old_item.end = old_item.end.replace(hour=23, minute=59, second=59)
+            old_item.save(update_fields=['end'])
+            start = old_item.end + timedelta(seconds=1)
+
+        else:
+            start = old_item.end.replace(hour=0, minute=0, second=0)
+            old_item.end = start - timedelta(seconds=1)
+            old_item.save(update_fields=['end'])
+
+    GenericInvoiceItem.objects.filter(
+        invoice=invoice,
+        content_type=model_type,
+        object_id=source.pk,
+        start__day=start.day,
+    ).delete()
+
+    return start
