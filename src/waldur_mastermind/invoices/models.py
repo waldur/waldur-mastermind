@@ -425,7 +425,6 @@ class InvoiceItemAdjuster(object):
         Adjust old invoice item end field to the end of current unit.
         Adjust new invoice item start field to the start of next unit.
         """
-        start = self.start
         end = self.old_item.end
 
         if self.unit == Units.PER_DAY:
@@ -438,12 +437,8 @@ class InvoiceItemAdjuster(object):
             else:
                 end = end.replace(day=15)
 
-        if end != self.old_item.end:
-            start = end + timedelta(seconds=1)
-            self.old_item.end = end
-            self.old_item.save(update_fields=['end'])
-
-        return start
+        start = end + timedelta(seconds=1)
+        return start, end
 
     def shift_backward(self):
         """
@@ -463,12 +458,8 @@ class InvoiceItemAdjuster(object):
             else:
                 start = end.replace(day=15)
 
-        if start != self.start:
-            end = start - timedelta(seconds=1)
-            self.old_item.end = end
-            self.old_item.save(update_fields=['end'])
-
-        return start
+        end = start - timedelta(seconds=1)
+        return start, end
 
     def remove_new_items(self, start):
         """
@@ -494,9 +485,12 @@ class InvoiceItemAdjuster(object):
 
         if self.old_item:
             if self.old_price >= self.new_price:
-                start = self.shift_forward()
+                start, end = self.shift_forward()
             else:
-                start = self.shift_backward()
+                start, end = self.shift_backward()
+
+            self.old_item.end = end
+            self.old_item.save(update_fields=['end'])
 
         self.remove_new_items(start)
 
