@@ -18,16 +18,6 @@ class OpenStackItemRegistrator(BaseRegistrator):
             tenant__service_project_link__project__customer=customer
         ).exclude(tenant__backend_id='').exclude(tenant__backend_id=None).distinct()
 
-    def _find_item(self, source, now):
-        result = utils.get_openstack_items().filter(
-            object_id=source.id,
-            invoice__customer=self.get_customer(source),
-            invoice__state=invoices_models.Invoice.States.PENDING,
-            invoice__year=now.year,
-            invoice__month=now.month,
-        ).first()
-        return result
-
     def _create_item(self, source, invoice, start, end):
         package = source
 
@@ -57,7 +47,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
     def get_details(self, source):
         package = source
         details = {
-            'name': utils.get_invoice_item_name(package),
+            'name': self.get_name(package),
             'tenant_name': package.tenant.name,
             'tenant_uuid': package.tenant.uuid.hex,
             'template_name': package.template.name,
@@ -69,4 +59,12 @@ class OpenStackItemRegistrator(BaseRegistrator):
         return details
 
     def get_name(self, source):
-        return utils.get_invoice_item_name(source)
+        package = source
+        template_category = package.template.get_category_display()
+        tenant_name = package.tenant.name
+        template_name = package.template.name
+
+        if template_category:
+            return '%s (%s / %s)' % (tenant_name, template_category, template_name)
+        else:
+            return '%s (%s)' % (tenant_name, template_name)

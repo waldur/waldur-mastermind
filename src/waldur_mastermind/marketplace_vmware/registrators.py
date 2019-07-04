@@ -7,8 +7,6 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_vmware import models as vmware_models
 
-from . import utils
-
 logger = logging.getLogger(__name__)
 
 
@@ -21,16 +19,6 @@ class VirtualMachineRegistrator(BaseRegistrator):
         return vmware_models.VirtualMachine.objects.filter(
             service_project_link__project__customer=customer
         ).exclude(backend_id=None).exclude(backend_id='').distinct()
-
-    def _find_item(self, source, now):
-        result = utils.get_vm_items().filter(
-            object_id=source.id,
-            invoice__customer=self.get_customer(source),
-            invoice__state=invoices_models.Invoice.States.PENDING,
-            invoice__year=now.year,
-            invoice__month=now.month,
-        ).first()
-        return result
 
     def _create_item(self, source, invoice, start, end):
         try:
