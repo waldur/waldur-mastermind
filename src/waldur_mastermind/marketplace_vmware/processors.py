@@ -12,4 +12,5 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
         'cores_per_socket',
         'ram',
         'template',
+        'cluster',
     )
