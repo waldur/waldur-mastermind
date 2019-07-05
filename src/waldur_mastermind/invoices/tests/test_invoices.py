@@ -283,7 +283,7 @@ class InvoicePDFTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_mastermind.invoices.handlers.tasks')
     def test_create_invoice_pdf_is_not_called_if_invoice_cost_has_not_been_changed(self, mock_tasks):
-        with freeze_time('2019-01-02 00:00:00'):
+        with freeze_time('2019-01-02'):
             invoice = factories.InvoiceFactory()
             factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
@@ -292,7 +292,7 @@ class InvoicePDFTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_mastermind.invoices.handlers.tasks')
     def test_create_invoice_pdf_is_called_if_invoice_cost_has_been_changed(self, mock_tasks):
-        with freeze_time('2019-01-02 00:00:00'):
+        with freeze_time('2019-01-02'):
             invoice = factories.InvoiceFactory()
             factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)

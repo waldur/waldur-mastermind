@@ -20,11 +20,11 @@ from ... import models, tasks, utils
 class CreateMonthlyInvoicesForPackagesTest(TestCase):
 
     def test_invoice_is_created_monthly(self):
-        with freeze_time('2016-11-01 00:00:00'):
+        with freeze_time('2016-11-01'):
             fixture = package_fixtures.PackageFixture()
             package = fixture.openstack_package
 
-        with freeze_time('2016-12-01 00:00:00'):
+        with freeze_time('2016-12-01'):
             invoice = models.Invoice.objects.get(customer=fixture.customer)
 
             # Create monthly invoices
@@ -41,14 +41,14 @@ class CreateMonthlyInvoicesForPackagesTest(TestCase):
     def test_old_invoices_are_marked_as_created(self):
 
         # previous year
-        with freeze_time('2016-11-01 00:00:00'):
+        with freeze_time('2016-11-01'):
             invoice1 = factories.InvoiceFactory()
 
         # previous month
-        with freeze_time('2017-01-15 00:00:00'):
+        with freeze_time('2017-01-15'):
             invoice2 = factories.InvoiceFactory()
 
-        with freeze_time('2017-02-4 00:00:00'):
+        with freeze_time('2017-02-4'):
             tasks.create_monthly_invoices()
             invoice1.refresh_from_db()
             self.assertEqual(invoice1.state, models.Invoice.States.CREATED,

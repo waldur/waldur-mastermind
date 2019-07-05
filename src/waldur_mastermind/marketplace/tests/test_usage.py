@@ -14,7 +14,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories
 
 
-@freeze_time('2019-06-19 00:00:00')
+@freeze_time('2019-06-19')
 class PlanPeriodsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -52,7 +52,7 @@ class PlanPeriodsTest(test.APITransactionTestCase):
 
 
 @ddt
-@freeze_time('2017-01-10 00:00:00')
+@freeze_time('2017-01-10')
 class SubmitUsageTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -158,7 +158,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2019-06-19 00:00:00')
+    @freeze_time('2019-06-19')
     def test_component_usage_is_created_for_current_month_if_it_does_not_exist_yet(self):
         models.ComponentUsage.objects.create(
             resource=self.resource,
@@ -175,7 +175,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertEqual(2, models.ComponentUsage.objects.filter(
             resource=self.resource, component=self.offering_component).count())
 
-    @freeze_time('2019-06-19 00:00:00')
+    @freeze_time('2019-06-19')
     def test_component_usage_is_updated_for_current_month_if_it_already_exists(self):
         models.ComponentUsage.objects.create(
             resource=self.resource,
