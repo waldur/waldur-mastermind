@@ -240,43 +240,22 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
         return constants.GUEST_OS_CHOICES.get(template.guest_os)
 
 
-class NestedCustomerClusterSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
-    customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
-    customer_name = serializers.ReadOnlyField(source='customer.name')
-
-    class Meta(object):
-        model = models.CustomerCluster
-        fields = ('customer', 'customer_uuid', 'customer_name',)
-        extra_kwargs = {
-            'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
-        }
-
-
 class ClusterSerializer(structure_serializers.BasePropertySerializer):
-    customercluster_set = NestedCustomerClusterSerializer(many=True, required=False)
-
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Cluster
         fields = (
-            'url', 'uuid', 'name', 'customercluster_set',
+            'url', 'uuid', 'name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
 
 
-class NestedCustomerNetworkSerializer(NestedCustomerClusterSerializer):
-    class Meta(NestedCustomerClusterSerializer.Meta):
-        model = models.CustomerNetwork
-
-
 class NetworkSerializer(structure_serializers.BasePropertySerializer):
-    customernetwork_set = NestedCustomerNetworkSerializer(many=True, required=False)
-
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Network
         fields = (
-            'url', 'uuid', 'name', 'type', 'customernetwork_set',
+            'url', 'uuid', 'name', 'type',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

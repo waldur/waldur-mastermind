@@ -300,10 +300,13 @@ class VMwareBackend(ServiceBackend):
         }
 
         if vm.cluster:
+            """We need to remove 'resource_pool' because it and 'cluster' are mutually exclusive."""
             spec['placement'].pop('resource_pool', None)
             spec['placement']['cluster'] = vm.cluster.backend_id
 
         if vm.networks.count():
+            """We need to get the NIC keys from the template to overwrite the networks.
+            We can't rewrite the networks more than there is in the template."""
             backend_template = self.client.get_template_library_item(vm.template.backend_id)
             keys = [k['key'] for k in backend_template['nics']]
             nics = []
