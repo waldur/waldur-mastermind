@@ -40,6 +40,16 @@ class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class NestedNetworkSerializer(core_serializers.AugmentedSerializerMixin,
+                              core_serializers.HyperlinkedRelatedModelSerializer):
+    class Meta(object):
+        model = models.Network
+        fields = ('uuid', 'url', 'name', 'type')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
 class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -81,6 +91,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         required=True,
     )
 
+    networks = NestedNetworkSerializer(queryset=models.Network.objects.all(), many=True, required=False)
+
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
 
@@ -88,10 +100,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
-            'runtime_state', 'template', 'cluster',
+            'runtime_state', 'template', 'cluster', 'networks',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os', 'template', 'cluster',
+            'guest_os', 'template', 'cluster', 'networks',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -129,7 +141,20 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if not cluster.customercluster_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This cluster is not available for this customer.')
 
-        return super(VirtualMachineSerializer, self).create(validated_data)
+        networks = validated_data.pop('networks', [])
+        vm = super(VirtualMachineSerializer, self).create(validated_data)
+
+        if networks:
+            for network in networks:
+                if network.settings != spl.service.settings:
+                    raise serializers.ValidationError('This network is not available for this service.')
+
+                if not network.customernetwork_set.filter(customer=spl.project.customer).exists():
+                    raise serializers.ValidationError('This network is not available for this customer.')
+
+            vm.networks.add(*networks)
+
+        return vm
 
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
@@ -215,25 +240,22 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
         return constants.GUEST_OS_CHOICES.get(template.guest_os)
 
 
-class NestedCustomerClusterSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
-    customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
-    customer_name = serializers.ReadOnlyField(source='customer.name')
-
-    class Meta(object):
-        model = models.CustomerCluster
-        fields = ('customer', 'customer_uuid', 'customer_name',)
-        extra_kwargs = {
-            'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
-        }
-
-
 class ClusterSerializer(structure_serializers.BasePropertySerializer):
-    customercluster_set = NestedCustomerClusterSerializer(many=True, required=False)
-
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Cluster
         fields = (
-            'url', 'uuid', 'name', 'customercluster_set',
+            'url', 'uuid', 'name',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
+class NetworkSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Network
+        fields = (
+            'url', 'uuid', 'name', 'type',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

@@ -13,3 +13,5 @@ def register_in(router):
                     base_name='vmware-template')
     router.register(r'vmware-clusters', views.ClusterViewSet,
                     base_name='vmware-cluster')
+    router.register(r'vmware-networks', views.NetworkViewSet,
+                    base_name='vmware-network')

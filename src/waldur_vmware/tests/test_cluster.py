@@ -12,25 +12,25 @@ class ClusterGetTest(test.APITransactionTestCase):
         super(ClusterGetTest, self).setUp()
         self.fixture = ProjectFixture()
         self.fixture_2 = ProjectFixture()
-        self.cluster_1 = factories.ClusterFactory()
-        self.cluster_2 = factories.ClusterFactory()
-        self.cluster_3 = factories.ClusterFactory()
-        self.cluster_4 = factories.ClusterFactory()
+        cluster_1 = factories.ClusterFactory()
+        cluster_2 = factories.ClusterFactory()
+        cluster_3 = factories.ClusterFactory()
+        cluster_4 = factories.ClusterFactory()
 
         factories.CustomerClusterFactory(
-            cluster=self.cluster_1,
+            cluster=cluster_1,
             customer=self.fixture.customer,
         )
         factories.CustomerClusterFactory(
-            cluster=self.cluster_2,
+            cluster=cluster_2,
             customer=self.fixture.customer,
         )
         factories.CustomerClusterFactory(
-            cluster=self.cluster_3,
+            cluster=cluster_3,
             customer=self.fixture_2.customer,
         )
         factories.CustomerClusterFactory(
-            cluster=self.cluster_4,
+            cluster=cluster_4,
             customer=self.fixture_2.customer,
         )
         self.url = factories.ClusterFactory.get_list_url()
@@ -51,7 +51,7 @@ class ClusterGetTest(test.APITransactionTestCase):
 class ClusterPullTest(test.APITransactionTestCase):
     def setUp(self):
         super(ClusterPullTest, self).setUp()
-        self.settings = factories.VMwareServiceSettingsFactory(backend_url='https://example.com')
+        self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
         self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
         self.mock_client = self.patcher.start()
@@ -74,12 +74,12 @@ class ClusterPullTest(test.APITransactionTestCase):
         self.backend.pull_clusters()
         self.assertEqual(models.Cluster.objects.count(), 1)
 
-    def _generate_clusters(self, backend=False, count=1):
+    def _generate_clusters(self, count=1):
         clusters = []
         for i in range(count):
             backend_cluster = {
-                'name': 'cluster_%s' % 1,
-                'cluster': 'cluster_%s' % 1,
+                'name': 'cluster_%s' % i,
+                'cluster': 'cluster_%s' % i,
             }
             clusters.append(backend_cluster)
 

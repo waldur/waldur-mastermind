@@ -32,6 +32,33 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data[0], 'This cluster is not available for this customer.')
 
+    def test_create_vm_with_network(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        network = self.fixture.network
+        payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['networks'][0]['uuid'], network.uuid.hex)
+
+    def test_network_customer_validation(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        network = factories.NetworkFactory(settings=self.fixture.settings)
+        payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data[0], 'This network is not available for this customer.')
+
+    def test_network_settings_validation(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        network = factories.NetworkFactory()
+        payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data[0], 'This network is not available for this service.')
+
     def get_valid_payload(self):
         return {
             'name': 'VMware VM',

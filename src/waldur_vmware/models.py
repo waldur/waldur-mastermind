@@ -68,6 +68,7 @@ class VirtualMachine(VirtualMachineMixin,
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
+    networks = models.ManyToManyField('Network', blank=True)
     tracker = FieldTracker()
 
     @classmethod
@@ -134,12 +135,31 @@ class CustomerCluster(models.Model):
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     cluster = models.ForeignKey('Cluster', on_delete=models.CASCADE)
 
-    @classmethod
-    def get_url_name(cls):
-        return 'vmware-customer-cluster'
-
     def __str__(self):
-        return '%s/%s' % (self.customer, self.cluster)
+        return '%s / %s' % (self.customer, self.cluster)
 
     class Meta(object):
         unique_together = ('customer', 'cluster')
+
+
+@python_2_unicode_compatible
+class Network(structure_models.ServiceProperty):
+    type = models.CharField(max_length=255)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-network'
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerNetwork(models.Model):
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.network)
+
+    class Meta(object):
+        unique_together = ('customer', 'network')

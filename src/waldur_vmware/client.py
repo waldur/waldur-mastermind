@@ -69,11 +69,17 @@ class VMwareClient(object):
     def list_clusters(self):
         return self._get('vcenter/cluster')['value']
 
+    def get_cluster(self, cluster_id):
+        return self._get('vcenter/cluster/{0}'.format(cluster_id))['value']
+
     def list_datacenters(self):
         return self._get('vcenter/datacenter')['value']
 
     def list_datastores(self):
         return self._get('vcenter/datastore')['value']
+
+    def list_networks(self):
+        return self._get('vcenter/network')['value']
 
     def list_folders(self):
         return self._get('vcenter/folder')['value']

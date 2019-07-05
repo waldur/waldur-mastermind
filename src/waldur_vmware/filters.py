@@ -35,10 +35,20 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class ClusterFilter(structure_filters.ServicePropertySettingsFilter):
-    customer_uuid = django_filters.UUIDFilter(method='filter_customer', label='Customer uuid')
+    customer_uuid = django_filters.UUIDFilter(method='filter_customer', label='Customer UUID')
 
     def filter_customer(self, queryset, name, value):
         return queryset.filter(customercluster__customer__uuid=value)
 
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Cluster
+
+
+class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
+    customer_uuid = django_filters.UUIDFilter(method='filter_customer', label='Customer UUID')
+
+    def filter_customer(self, queryset, name, value):
+        return queryset.filter(customernetwork__customer__uuid=value)
+
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.Network
