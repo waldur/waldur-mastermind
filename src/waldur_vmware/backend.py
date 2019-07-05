@@ -300,8 +300,8 @@ class VMwareBackend(ServiceBackend):
         }
 
         if vm.cluster:
-            spec['placement']['cluster'] = vm.cluster.backend_id
             spec['placement'].pop('resource_pool', None)
+            spec['placement']['cluster'] = vm.cluster.backend_id
 
         if vm.networks.count():
             nics = []
@@ -341,8 +341,8 @@ class VMwareBackend(ServiceBackend):
         }
 
         if vm.cluster:
-            spec['placement']['cluster'] = vm.cluster.backend_id
             spec['placement'].pop('resource_pool', None)
+            spec['placement']['cluster'] = vm.cluster.backend_id
 
         try:
             return self.client.create_vm({'spec': spec})

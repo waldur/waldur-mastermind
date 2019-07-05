@@ -135,10 +135,6 @@ class CustomerCluster(models.Model):
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     cluster = models.ForeignKey('Cluster', on_delete=models.CASCADE)
 
-    @classmethod
-    def get_url_name(cls):
-        return 'vmware-customer-cluster'
-
     def __str__(self):
         return '%s / %s' % (self.customer, self.cluster)
 
@@ -148,7 +144,7 @@ class CustomerCluster(models.Model):
 
 @python_2_unicode_compatible
 class Network(structure_models.ServiceProperty):
-    type = models.CharField(max_length=255, blank=True)
+    type = models.CharField(max_length=255)
 
     @classmethod
     def get_url_name(cls):
@@ -161,10 +157,6 @@ class Network(structure_models.ServiceProperty):
 class CustomerNetwork(models.Model):
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     network = models.ForeignKey('Network', on_delete=models.CASCADE)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'vmware-customer-network'
 
     def __str__(self):
         return '%s / %s' % (self.customer, self.network)

@@ -12,25 +12,25 @@ class NetworkGetTest(test.APITransactionTestCase):
         super(NetworkGetTest, self).setUp()
         self.fixture = ProjectFixture()
         self.fixture_2 = ProjectFixture()
-        self.network_1 = factories.NetworkFactory()
-        self.network_2 = factories.NetworkFactory()
-        self.network_3 = factories.NetworkFactory()
-        self.network_4 = factories.NetworkFactory()
+        network_1 = factories.NetworkFactory()
+        network_2 = factories.NetworkFactory()
+        network_3 = factories.NetworkFactory()
+        network_4 = factories.NetworkFactory()
 
         factories.CustomerNetworkFactory(
-            network=self.network_1,
+            network=network_1,
             customer=self.fixture.customer,
         )
         factories.CustomerNetworkFactory(
-            network=self.network_2,
+            network=network_2,
             customer=self.fixture.customer,
         )
         factories.CustomerNetworkFactory(
-            network=self.network_3,
+            network=network_3,
             customer=self.fixture_2.customer,
         )
         factories.CustomerNetworkFactory(
-            network=self.network_4,
+            network=network_4,
             customer=self.fixture_2.customer,
         )
         self.url = factories.NetworkFactory.get_list_url()
@@ -51,7 +51,7 @@ class NetworkGetTest(test.APITransactionTestCase):
 class NetworkPullTest(test.APITransactionTestCase):
     def setUp(self):
         super(NetworkPullTest, self).setUp()
-        self.settings = factories.VMwareServiceSettingsFactory(backend_url='https://example.com')
+        self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
         self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
         self.mock_client = self.patcher.start()
@@ -78,9 +78,9 @@ class NetworkPullTest(test.APITransactionTestCase):
         networks = []
         for i in range(count):
             backend_network = {
-                'name': 'network_%s' % 1,
-                'network': 'network_%s' % 1,
-                'type': 'TYPE'
+                'name': 'network_%s' % i,
+                'network': 'network_%s' % i,
+                'type': 'STANDARD_PORTGROUP'
             }
             networks.append(backend_network)
 

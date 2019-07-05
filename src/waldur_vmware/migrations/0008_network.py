@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name')),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('backend_id', models.CharField(db_index=True, max_length=255)),
-                ('type', models.CharField(blank=True, max_length=255)),
+                ('type', models.CharField(max_length=255)),
                 ('settings', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.ServiceSettings')),
             ],
             options={

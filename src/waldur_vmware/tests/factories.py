@@ -15,6 +15,7 @@ class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
         model = structure_models.ServiceSettings
 
     type = 'VMware'
+    backend_url = 'https://example.com'
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
 
