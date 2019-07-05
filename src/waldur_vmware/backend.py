@@ -304,10 +304,17 @@ class VMwareBackend(ServiceBackend):
             spec['placement']['cluster'] = vm.cluster.backend_id
 
         if vm.networks.count():
+            backend_template = self.client.get_template_library_item(vm.template.backend_id)
+            keys = [k['key'] for k in backend_template['nics']]
             nics = []
+
             for network in vm.networks.all():
+                try:
+                    key = keys.pop()
+                except IndexError:
+                    break
                 nics.append({
-                    "key": network.backend_id,
+                    "key": key,
                     "value": {
                         "network": network.backend_id
                     }
