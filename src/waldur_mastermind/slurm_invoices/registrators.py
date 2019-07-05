@@ -20,17 +20,6 @@ class AllocationRegistrator(registrators.BaseRegistrator):
     def get_customer(self, source):
         return source.service_project_link.project.customer
 
-    def _find_item(self, source, now):
-        allocation = source
-        result = invoice_models.GenericInvoiceItem.objects.filter(
-            scope=allocation,
-            invoice__customer=allocation.service_project_link.project.customer,
-            invoice__state=invoice_models.Invoice.States.PENDING,
-            invoice__year=now.year,
-            invoice__month=now.month,
-        ).first()
-        return result
-
     def _create_item(self, source, invoice, start, end):
         allocation = source
         package = self.get_package(allocation)

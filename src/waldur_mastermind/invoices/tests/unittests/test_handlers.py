@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.contenttypes.models import ContentType
 import pytz
 from django.conf import settings
 from django.test import TransactionTestCase
@@ -9,11 +10,12 @@ from mock import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.packages import models as packages_models
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_mastermind.support_invoices import utils as support_utils
-from waldur_mastermind.packages import utils as openstack_utils
 
 from .. import factories, fixtures
 from ... import models, utils
@@ -128,7 +130,8 @@ class UpdateInvoiceOnOfferingDeletionTest(TransactionTestCase):
             self.assertEqual(self.get_offering_items(new_invoice).first().end, next_month)
 
     def get_openstack_items(self, invoice):
-        return openstack_utils.get_openstack_items().filter(invoice=invoice)
+        model_type = ContentType.objects.get_for_model(packages_models.OpenStackPackage)
+        return invoices_models.GenericInvoiceItem.objects.filter(content_type=model_type, invoice=invoice)
 
     def get_offering_items(self, invoice):
         return support_utils.get_offering_items().filter(invoice=invoice)

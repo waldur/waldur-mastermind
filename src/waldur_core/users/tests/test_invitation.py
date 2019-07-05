@@ -349,7 +349,7 @@ class InvitationSendTest(BaseInvitationTest):
                                                                                action='send'))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @freeze_time('2018-05-15 00:00:00')
+    @freeze_time('2018-05-15')
     def test_user_can_resend_expired_invitation(self):
         customer_expired_invitation = factories.CustomerInvitationFactory(
             state=models.Invitation.State.EXPIRED)

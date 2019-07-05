@@ -34,7 +34,7 @@ class BackendTest(TestCase):
         self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2 * 2)
         self.assertEqual(self.allocation.ram_usage, (1 + 2 * 2) * 51200 * 2**20)
 
-    @freeze_time('2017-10-16 00:00:00')
+    @freeze_time('2017-10-16')
     @mock.patch('subprocess.check_output')
     def test_usage_per_user(self, check_output):
         check_output.return_value = VALID_REPORT.replace('allocation1', self.account)

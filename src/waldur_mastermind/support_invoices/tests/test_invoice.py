@@ -47,7 +47,7 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         )
 
 
-@freeze_time('2018-01-01 00:00:00')
+@freeze_time('2018-01-01')
 @override_support_settings(
     ENABLED=True,
     ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
@@ -93,7 +93,7 @@ class InvoicesTest(InvoicesBaseTest):
             item.refresh_from_db()
             self.assertEqual(item.end, timezone.now())
 
-    @freeze_time('2018-01-15 00:00:00')
+    @freeze_time('2018-01-15')
     def test_switch_plan_resource(self):
         resource = self.order_item.resource
         resource.plan = self.fixture.new_plan
@@ -141,7 +141,7 @@ class InvoicesTest(InvoicesBaseTest):
 
 
 @ddt
-@freeze_time('2018-01-01 00:00:00')
+@freeze_time('2018-01-01')
 @override_support_settings(
     ENABLED=True,
     ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
@@ -157,7 +157,7 @@ class UsagesTest(InvoicesBaseTest):
         self.resource = self.order_item.resource
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-01-15 00:00:00')
+    @freeze_time('2018-01-15')
     def test_invoice_price_includes_fixed_and_usage_components(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._create_usage(usage=10)
@@ -167,7 +167,7 @@ class UsagesTest(InvoicesBaseTest):
                          self.fixture.plan_component_ram.price +
                          self.fixture.plan_component_cpu.price * 10)
 
-    @freeze_time('2018-01-15 00:00:00')
+    @freeze_time('2018-01-15')
     def test_new_usage_override_old_usage(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         usage = self._create_usage(usage=10)
@@ -183,7 +183,7 @@ class UsagesTest(InvoicesBaseTest):
                          self.fixture.plan_component_ram.price +
                          self.fixture.plan_component_cpu.price * 15)
 
-    @freeze_time('2018-01-15 00:00:00')
+    @freeze_time('2018-01-15')
     def test_case_when_usage_is_reported_for_new_plan(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._switch_plan()
@@ -195,7 +195,7 @@ class UsagesTest(InvoicesBaseTest):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.price, fixed_price + self.fixture.new_plan_component_cpu.price * 10)
 
-    @freeze_time('2018-01-15 00:00:00')
+    @freeze_time('2018-01-15')
     def test_case_when_usage_is_reported_for_switched_plan(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._switch_plan()
@@ -207,7 +207,7 @@ class UsagesTest(InvoicesBaseTest):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.price, fixed_price + self.fixture.plan_component_cpu.price * 10)
 
-    @freeze_time('2018-01-15 00:00:00')
+    @freeze_time('2018-01-15')
     @data(5, 10, 20)
     def test_update_usage_component_amount(self, new_amount):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
@@ -248,7 +248,7 @@ class UsagesTest(InvoicesBaseTest):
         return marketplace_models.ComponentUsage.objects.create(**option)
 
 
-@freeze_time('2018-01-01 00:00:00')
+@freeze_time('2018-01-01')
 @override_support_settings(
     ENABLED=True,
     ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
@@ -264,20 +264,20 @@ class OneTimeTest(InvoicesBaseTest):
         self.resource = self.order_item.resource
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-01-01 00:00:00')
+    @freeze_time('2018-01-01')
     def test_calculate_one_time_component_if_resource_started_in_current_period(self):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.price,
                          self.fixture.plan_component_cpu.price + self.fixture.plan_component_ram.price)
 
-    @freeze_time('2018-02-01 00:00:00')
+    @freeze_time('2018-02-01')
     def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(self):
         registrators.RegistrationManager.register(self.resource.scope)
         self.invoice = self.get_invoice()
         self.assertEqual(self.invoice.price, self.fixture.plan_component_ram.price)
 
 
-@freeze_time('2018-01-01 00:00:00')
+@freeze_time('2018-01-01')
 @override_support_settings(
     ENABLED=True,
     ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
@@ -294,19 +294,19 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         self.resource = self.order_item.resource
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-01-01 00:00:00')
+    @freeze_time('2018-01-01')
     def test_calculate_on_plan_switch_component_if_resource_started_in_current_period(self):
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.price,
                          self.fixture.plan_component_cpu.price + self.fixture.plan_component_ram.price)
 
-    @freeze_time('2018-02-01 00:00:00')
+    @freeze_time('2018-02-01')
     def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(self):
         registrators.RegistrationManager.register(self.resource.scope)
         self.invoice = self.get_invoice()
         self.assertEqual(self.invoice.price, self.fixture.plan_component_ram.price)
 
-    @freeze_time('2018-03-01 00:00:00')
+    @freeze_time('2018-03-01')
     def test_calculate_on_plan_switch_component_if_plan_has_been_switched_in_current_period(self):
         order_item = marketplace_factories.OrderItemFactory(type=marketplace_models.OrderItem.Types.UPDATE,
                                                             resource=self.resource,

@@ -485,7 +485,7 @@ class CustomUsersFilterTest(test.APITransactionTestCase):
         self.assertEquals(actual, expected)
 
 
-@freeze_time('2017-01-19 00:00:00')
+@freeze_time('2017-01-19')
 class UserUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         fixture = fixtures.UserFixture()

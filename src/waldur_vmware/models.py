@@ -74,6 +74,10 @@ class VirtualMachine(VirtualMachineMixin,
     def get_url_name(cls):
         return 'vmware-virtual-machine'
 
+    @property
+    def total_disk(self):
+        return self.disks.aggregate(models.Sum('size'))['size__sum'] or 0
+
     def __str__(self):
         return self.name
 

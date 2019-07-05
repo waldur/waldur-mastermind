@@ -14,7 +14,7 @@ from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
 
-from . import models
+from . import models, signals
 
 
 class VMwareBackendError(ServiceBackendError):
@@ -244,6 +244,8 @@ class VMwareBackend(ServiceBackend):
             disk.vm = vm
             disk.service_project_link = vm.service_project_link
             disk.save()
+
+        signals.vm_created.send(self.__class__, vm=vm)
         return vm
 
     def create_virtual_machine_from_template(self, vm):
@@ -368,6 +370,7 @@ class VMwareBackend(ServiceBackend):
         """
         self.update_cpu(vm)
         self.update_memory(vm)
+        signals.vm_updated.send(self.__class__, vm=vm)
 
     def update_cpu(self, vm):
         """
@@ -427,6 +430,7 @@ class VMwareBackend(ServiceBackend):
         else:
             disk.backend_id = backend_id
             disk.save(update_fields=['backend_id'])
+            signals.vm_updated.send(self.__class__, vm=disk.vm)
             return disk
 
     def delete_disk(self, disk, delete_vmdk=True):
@@ -451,6 +455,7 @@ class VMwareBackend(ServiceBackend):
                 datacenter=self.get_disk_datacenter(backend_disk),
             )
             pyVim.task.WaitForTask(task)
+            signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def extend_disk(self, disk):
         """
@@ -467,6 +472,7 @@ class VMwareBackend(ServiceBackend):
             newCapacityKb=disk.size * 1024
         )
         pyVim.task.WaitForTask(task)
+        signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def get_object(self, vim_type, vim_id):
         """
