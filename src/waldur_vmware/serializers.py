@@ -18,9 +18,13 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'password': _('VMware user password'),
     }
 
+    SERVICE_ACCOUNT_EXTRA_FIELDS = {
+        'default_cluster_id': _('ID of VMware cluster that will be used for virtual machines provisioning'),
+    }
+
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.VMwareService
-        required_fields = ('backend_url', 'username', 'password',)
+        required_fields = ('backend_url', 'username', 'password', 'default_cluster_id')
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -88,7 +92,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         lookup_field='uuid',
         queryset=models.Cluster.objects.all(),
         allow_null=True,
-        required=True,
+        required=False,
     )
 
     networks = NestedNetworkSerializer(queryset=models.Network.objects.all(), many=True, required=False)
@@ -140,6 +144,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
             if not cluster.customercluster_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This cluster is not available for this customer.')
+        else:
+            default_cluster_id = spl.service.settings.options.get('default_cluster_id')
+            try:
+                validated_data['cluster'] = models.Cluster.objects.filter(
+                    settings=spl.service.settings,
+                    backend_id=default_cluster_id).get()
+            except models.Cluster.DoesNotExist:
+                raise serializers.ValidationError('Default cluster is not defined for this service.')
 
         networks = validated_data.pop('networks', [])
         vm = super(VirtualMachineSerializer, self).create(validated_data)
