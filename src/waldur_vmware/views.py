@@ -171,3 +171,10 @@ class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.NetworkSerializer
     filter_class = filters.NetworkFilter
     lookup_field = 'uuid'
+
+
+class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Datastore.objects.all()
+    serializer_class = serializers.DatastoreSerializer
+    filter_class = filters.DatastoreFilter
+    lookup_field = 'uuid'

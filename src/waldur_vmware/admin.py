@@ -49,6 +49,12 @@ class CustomerNetworkInline(options.TabularInline):
     verbose_name_plural = 'Customer VMware networks'
 
 
+class CustomerDatastoreInline(options.TabularInline):
+    model = models.CustomerDatastore
+    extra = 1
+    verbose_name_plural = 'Customer VMware datastores'
+
+
 admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
 admin.site.register(models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Disk, DiskAdmin)
@@ -56,3 +62,4 @@ admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
 
 structure_admin.CustomerAdmin.inlines += [CustomerClusterInline]
 structure_admin.CustomerAdmin.inlines += [CustomerNetworkInline]
+structure_admin.CustomerAdmin.inlines += [CustomerDatastoreInline]

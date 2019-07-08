@@ -182,3 +182,31 @@ class CustomerNetworkFactory(factory.DjangoModelFactory):
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     network = factory.SubFactory(NetworkFactory)
+
+
+class DatastoreFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Datastore
+
+    settings = factory.SubFactory(VMwareServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'datastore-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'datastore-%s' % n)
+    type = 'VMFS'
+
+    @classmethod
+    def get_url(cls, datastore=None, action=None):
+        datastore = datastore or DatastoreFactory()
+        url = 'http://testserver' + reverse('vmware-datastore-detail', kwargs={'uuid': datastore.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('vmware-datastore-list')
+
+
+class CustomerDatastoreFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CustomerDatastore
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    datastore = factory.SubFactory(DatastoreFactory)
