@@ -95,6 +95,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
     )
 
+    datastore = serializers.HyperlinkedRelatedField(
+        view_name='vmware-datastore-detail',
+        lookup_field='uuid',
+        queryset=models.Datastore.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
     networks = NestedNetworkSerializer(queryset=models.Network.objects.all(), many=True, required=False)
 
     def get_guest_os_name(self, vm):
@@ -104,10 +112,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
-            'runtime_state', 'template', 'cluster', 'networks',
+            'runtime_state', 'template', 'cluster', 'networks', 'datastore',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os', 'template', 'cluster', 'networks',
+            'guest_os', 'template', 'cluster', 'networks', 'datastore',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -123,6 +131,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         template_attrs = {'cores', 'cores_per_socket', 'ram', 'guest_os'}
         template = validated_data.get('template')
         cluster = validated_data.get('cluster')
+        datastore = validated_data.get('datastore')
         spl = validated_data.get('service_project_link')
         missing_attributes = template_attrs - set(validated_data.keys())
         if template:
@@ -152,6 +161,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                     backend_id=default_cluster_id).get()
             except models.Cluster.DoesNotExist:
                 raise serializers.ValidationError('Default cluster is not defined for this service.')
+
+        if datastore:
+            if datastore.settings != spl.service.settings:
+                raise serializers.ValidationError('This datastore is not available for this service.')
+
+            if not datastore.customerdatastore_set.filter(customer=spl.project.customer).exists():
+                raise serializers.ValidationError('This datastore is not available for this customer.')
 
         networks = validated_data.pop('networks', [])
         vm = super(VirtualMachineSerializer, self).create(validated_data)
@@ -268,6 +284,17 @@ class NetworkSerializer(structure_serializers.BasePropertySerializer):
         model = models.Network
         fields = (
             'url', 'uuid', 'name', 'type',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
+class DatastoreSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Datastore
+        fields = (
+            'url', 'uuid', 'name', 'type', 'capacity', 'free_space'
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

@@ -80,6 +80,7 @@ class VMwareBackend(ServiceBackend):
         self.pull_templates()
         self.pull_clusters()
         self.pull_networks()
+        self.pull_datastores()
 
     def pull_templates(self):
         """
@@ -249,6 +250,50 @@ class VMwareBackend(ServiceBackend):
 
         models.Network.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
 
+    def pull_datastores(self):
+        try:
+            backend_datastores = self.client.list_datastores()
+        except requests.RequestException as e:
+            reraise(e)
+            return
+
+        backend_datastores_map = {
+            item['datastore']: item
+            for item in backend_datastores
+        }
+
+        frontend_datastores_map = {
+            p.backend_id: p
+            for p in models.Datastore.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(frontend_datastores_map.keys()) - set(backend_datastores_map.keys())
+        new_ids = set(backend_datastores_map.keys()) - set(frontend_datastores_map.keys())
+
+        for item_id in new_ids:
+            item = backend_datastores_map[item_id]
+
+            capacity = item.get('capacity')
+            # Convert from bytes to MB
+            if capacity:
+                capacity /= 1024 * 1024
+
+            free_space = item.get('free_space')
+            # Convert from bytes to MB
+            if free_space:
+                free_space /= 1024 * 1024
+
+            models.Datastore.objects.create(
+                settings=self.settings,
+                backend_id=item_id,
+                name=item['name'],
+                type=item['type'],
+                capacity=capacity,
+                free_space=free_space,
+            )
+
+        models.Datastore.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
     def create_virtual_machine(self, vm):
         """
         Creates a virtual machine.
@@ -304,6 +349,9 @@ class VMwareBackend(ServiceBackend):
             spec['placement'].pop('resource_pool', None)
             spec['placement']['cluster'] = vm.cluster.backend_id
 
+        if vm.datastore:
+            spec['disk_storage']['datastore'] = vm.datastore.backend_id
+
         if vm.networks.count():
             """We need to get the NIC keys from the template to overwrite the networks.
             We can't rewrite the networks more than there is in the template."""
@@ -353,6 +401,9 @@ class VMwareBackend(ServiceBackend):
         if vm.cluster:
             spec['placement'].pop('resource_pool', None)
             spec['placement']['cluster'] = vm.cluster.backend_id
+
+        if vm.datastore:
+            spec['placement']['datastore'] = vm.datastore.backend_id
 
         try:
             return self.client.create_vm({'spec': spec})

@@ -68,6 +68,7 @@ class VirtualMachine(VirtualMachineMixin,
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
+    datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
     networks = models.ManyToManyField('Network', blank=True)
     tracker = FieldTracker()
 
@@ -163,3 +164,28 @@ class CustomerNetwork(models.Model):
 
     class Meta(object):
         unique_together = ('customer', 'network')
+
+
+@python_2_unicode_compatible
+class Datastore(structure_models.ServiceProperty):
+    type = models.CharField(max_length=255)
+    capacity = models.PositiveIntegerField(help_text="Capacity, in MB.", null=True, blank=True)
+    free_space = models.PositiveIntegerField(help_text="Available space, in MB.", null=True, blank=True)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-datastore'
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerDatastore(models.Model):
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    datastore = models.ForeignKey('Datastore', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.datastore)
+
+    class Meta(object):
+        unique_together = ('customer', 'datastore')
