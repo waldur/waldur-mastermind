@@ -76,6 +76,31 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data[0], 'This network is not available for this service.')
 
+    def test_create_vm_with_datastore(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        payload['datastore'] = factories.DatastoreFactory.get_url(self.fixture.datastore)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_datastore_customer_validation(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        datastore = factories.DatastoreFactory(settings=self.fixture.settings)
+        payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data[0], 'This datastore is not available for this customer.')
+
+    def test_datastore_settings_validation(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        datastore = factories.DatastoreFactory()
+        payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data[0], 'This datastore is not available for this service.')
+
     def get_valid_payload(self):
         return {
             'name': 'VMware VM',
