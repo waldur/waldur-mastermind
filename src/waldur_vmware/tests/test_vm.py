@@ -32,6 +32,23 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data[0], 'This cluster is not available for this customer.')
 
+    def test_default_cluster_id_is_defined(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['default_cluster_id'] = self.fixture.cluster.backend_id
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        del payload['cluster']
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_default_cluster_id_is_not_defined(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self.get_valid_payload()
+        del payload['cluster']
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data[0], 'Default cluster is not defined for this service.')
+
     def test_create_vm_with_network(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
