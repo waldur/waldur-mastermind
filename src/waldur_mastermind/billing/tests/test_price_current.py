@@ -7,7 +7,7 @@ from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
 
-@freeze_time('2017-01-10 00:00:00')
+@freeze_time('2017-01-10')
 class PriceCurrentTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = invoice_fixtures.InvoiceFixture()

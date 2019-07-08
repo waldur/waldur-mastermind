@@ -39,8 +39,21 @@ class VMwareServiceProjectLink(structure_models.ServiceProjectLink):
         return 'vmware-spl'
 
 
+class VirtualMachineMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
+                                                           'types used for configuring a virtual machine'))
+    cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
+    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
+    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
+
+
 @python_2_unicode_compatible
-class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource):
+class VirtualMachine(VirtualMachineMixin,
+                     core_models.RuntimeStateMixin,
+                     structure_models.NewResource):
     service_project_link = models.ForeignKey(
         VMwareServiceProjectLink,
         related_name='+',
@@ -52,17 +65,101 @@ class VirtualMachine(core_models.RuntimeStateMixin, structure_models.NewResource
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
-    guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
-                                                           'types used for configuring a virtual machine'))
-    cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
-    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
-    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
+    template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
+    cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
+    networks = models.ManyToManyField('Network', blank=True)
     tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):
         return 'vmware-virtual-machine'
 
+    @property
+    def total_disk(self):
+        return self.disks.aggregate(models.Sum('size'))['size__sum'] or 0
+
     def __str__(self):
         return self.name
+
+
+@python_2_unicode_compatible
+class Disk(structure_models.NewResource):
+    service_project_link = models.ForeignKey(
+        VMwareServiceProjectLink,
+        related_name='+',
+        on_delete=models.PROTECT
+    )
+
+    size = models.PositiveIntegerField(help_text=_('Size in MiB'))
+    vm = models.ForeignKey(VirtualMachine, related_name='disks')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-disk'
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super(Disk, cls).get_backend_fields() + ('name', 'size')
+
+
+@python_2_unicode_compatible
+class Template(VirtualMachineMixin,
+               core_models.DescribableMixin,
+               structure_models.ServiceProperty):
+    created = models.DateTimeField()
+    modified = models.DateTimeField()
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-template'
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
+class Cluster(structure_models.ServiceProperty):
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-cluster'
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerCluster(models.Model):
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    cluster = models.ForeignKey('Cluster', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.cluster)
+
+    class Meta(object):
+        unique_together = ('customer', 'cluster')
+
+
+@python_2_unicode_compatible
+class Network(structure_models.ServiceProperty):
+    type = models.CharField(max_length=255)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-network'
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerNetwork(models.Model):
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.network)
+
+    class Meta(object):
+        unique_together = ('customer', 'network')

@@ -25,9 +25,9 @@ class VMwareClient(object):
         self._session = requests.Session()
         self._session.verify = verify_ssl
 
-    def _get(self, endpoint):
+    def _get(self, endpoint, **kwargs):
         url = '%s/%s' % (self._base_url, endpoint)
-        response = self._session.get(url)
+        response = self._session.get(url, **kwargs)
         response.raise_for_status()
         if response.content:
             return response.json()
@@ -69,11 +69,17 @@ class VMwareClient(object):
     def list_clusters(self):
         return self._get('vcenter/cluster')['value']
 
+    def get_cluster(self, cluster_id):
+        return self._get('vcenter/cluster/{0}'.format(cluster_id))['value']
+
     def list_datacenters(self):
         return self._get('vcenter/datacenter')['value']
 
     def list_datastores(self):
         return self._get('vcenter/datastore')['value']
+
+    def list_networks(self):
+        return self._get('vcenter/network')['value']
 
     def list_folders(self):
         return self._get('vcenter/folder')['value']
@@ -149,6 +155,15 @@ class VMwareClient(object):
         """
         return self._post('vcenter/vm/{}/power/suspend'.format(vm_id))
 
+    def get_cpu(self, vm_id):
+        """
+        Returns the CPU-related settings of a virtual machine.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/cpu'.format(vm_id))['value']
+
     def update_cpu(self, vm_id, spec):
         """
         Updates the CPU-related settings of a virtual machine.
@@ -159,6 +174,15 @@ class VMwareClient(object):
         :type spec: dict
         """
         return self._patch('vcenter/vm/{}/hardware/cpu'.format(vm_id), json=spec)
+
+    def get_memory(self, vm_id):
+        """
+        Returns the memory-related settings of a virtual machine.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/memory'.format(vm_id))['value']
 
     def update_memory(self, vm_id, spec):
         """
@@ -180,7 +204,18 @@ class VMwareClient(object):
         :param spec: new virtual disk specification
         :type spec: dict
         """
-        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)
+        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)['value']
+
+    def get_disk(self, vm_id, disk_id):
+        """
+        Returns information about a virtual disk.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        :param disk_id: Virtual disk identifier.
+        :type disk_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/disk/{}'.format(vm_id, disk_id))['value']
 
     def delete_disk(self, vm_id, disk_id):
         """
@@ -240,3 +275,42 @@ class VMwareClient(object):
         :type nic_id: string
         """
         return self._post('vcenter/vm/{}/hardware/ethernet/{}/disconnect'.format(vm_id, nic_id))
+
+    def list_libraries(self):
+        return self._get('com/vmware/content/library')['value']
+
+    def list_library_items(self, library_id):
+        params = {'library_id': library_id}
+        return self._get('com/vmware/content/library/item', params=params)['value']
+
+    def get_library_item(self, library_item_id):
+        return self._get('com/vmware/content/library/item/id:{}'.format(library_item_id))['value']
+
+    def get_template_library_item(self, library_item_id):
+        return self._get('vcenter/vm-template/library-items/{}'.format(library_item_id))['value']
+
+    def list_all_templates(self):
+        items = []
+        for library_id in self.list_libraries():
+            for library_item_id in self.list_library_items(library_id):
+                library_item = self.get_library_item(library_item_id)
+                if library_item['type'] == 'vm-template':
+                    template = self.get_template_library_item(library_item_id)
+                    items.append({
+                        'library_item': library_item,
+                        'template': template,
+                    })
+        return items
+
+    def deploy_vm_from_template(self, library_item_id, spec):
+        """
+        Deploys a virtual machine as a copy of the source virtual machine
+        template contained in the library item specified by library_item_id.
+
+        :param library_item_id: identifier of the content library item containing the source virtual machine template to be deployed.
+        :param spec: deployment specification
+        :return: Identifier of the deployed virtual machine.
+        :rtype: str
+        """
+        url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(library_item_id)
+        return self._post(url, json=spec)['value']

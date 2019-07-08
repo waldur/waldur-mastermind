@@ -26,7 +26,7 @@ class CustomerBaseTest(test.APITransactionTestCase):
         return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid})
 
 
-@freeze_time('2017-11-01 00:00:00')
+@freeze_time('2017-11-01')
 class CustomerUserTest(CustomerBaseTest):
     def setUp(self):
         self.customer = factories.CustomerFactory()

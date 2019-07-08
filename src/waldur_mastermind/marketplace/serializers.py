@@ -260,6 +260,7 @@ FIELD_TYPES = (
     'html_text',
     'select_string',
     'select_openstack_tenant',
+    'select_openstack_instance',
     'date',
     'time',
 )
@@ -1327,6 +1328,13 @@ def get_marketplace_resource_uuid(serializer, scope):
         return
 
 
+def get_marketplace_resource_state(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).get_state_display()
+    except ObjectDoesNotExist:
+        return
+
+
 def get_is_usage_based(serializer, scope):
     try:
         return models.Resource.objects.get(scope=scope).offering.is_usage_based
@@ -1349,6 +1357,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+
+    fields['marketplace_resource_state'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_resource_state', get_marketplace_resource_state)
 
     fields['is_usage_based'] = serializers.SerializerMethodField()
     setattr(sender, 'get_is_usage_based', get_is_usage_based)

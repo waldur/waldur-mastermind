@@ -293,6 +293,9 @@ class OfferingPlan(core_models.UuidMixin,
                    common_mixins.UnitPriceMixin):
     template = models.ForeignKey(OfferingTemplate, related_name='plans')
 
+    def __str__(self):
+        return '{} | {}'.format(self.template, self.name)
+
 
 @python_2_unicode_compatible
 class Attachment(core_models.UuidMixin,

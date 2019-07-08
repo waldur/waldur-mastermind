@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 3.7.9
+Version: 3.8.0
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -96,6 +96,7 @@ Requires: python-vat >= 1.3.1, python-vat < 2.0
 Requires: python-zabbix >= 0.7.2
 Requires: python2-defusedxml >= 0.4.1
 Requires: python2-pdfkit >= 0.6.1
+Requires: python2-pyvmomi >= 6.7.1
 Requires: PyYAML
 Requires: uwsgi-plugin-python2
 Requires: xmlsec1-openssl
@@ -301,6 +302,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Mon Jul 8 2019 Jenkins <jenkins@opennodecloud.com> - 3.8.0-1.el7
+- New upstream release
+
 * Mon Jun 24 2019 Jenkins <jenkins@opennodecloud.com> - 3.7.9-1.el7
 - New upstream release
 

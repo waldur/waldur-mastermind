@@ -2,6 +2,7 @@ from __future__ import unicode_literals, division
 
 import StringIO
 import base64
+from datetime import timedelta
 import decimal
 import logging
 from calendar import monthrange
@@ -10,31 +11,36 @@ import datetime
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
+from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
+from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
-from django.contrib.postgres.fields import JSONField
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.packages import models as package_models
 
 from . import managers, utils, registrators
 
 logger = logging.getLogger(__name__)
 
+Units = common_mixins.UnitPriceMixin.Units
+
 
 @python_2_unicode_compatible
 class Invoice(core_models.UuidMixin, models.Model):
-    """ Invoice describes billing information about purchased packages for customers on a monthly basis """
+    """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
     class Permissions(object):
         customer_path = 'customer'
@@ -368,3 +374,141 @@ class ServiceDowntime(models.Model):
             raise ValidationError(
                 _('Downtime period intersects with another period with ID: %s.') % ids
             )
+
+
+class InvoiceItemAdjuster(object):
+    def __init__(self, invoice, source, start, unit_price, unit):
+        self.invoice = invoice
+        self.source = source
+        self.start = start
+        self.unit_price = unit_price
+        self.unit = unit
+
+    @cached_property
+    def content_type(self):
+        return ContentType.objects.get_for_model(self.source)
+
+    @property
+    def invoice_items(self):
+        # TODO: Remove temporary workaround for OpenStack package
+        if isinstance(self.source, package_models.OpenStackPackage):
+            return GenericInvoiceItem.objects.filter(
+                invoice=self.invoice,
+                content_type=self.content_type,
+                details__tenant_name=self.source.tenant.name,
+            )
+        return GenericInvoiceItem.objects.filter(
+            invoice=self.invoice,
+            content_type=self.content_type,
+            object_id=self.source.pk,
+        )
+
+    @cached_property
+    def old_item(self):
+        qs = self.invoice_items
+        if self.unit == Units.PER_DAY:
+            qs = qs.filter(end__day=self.start.day)
+        elif self.unit == Units.PER_MONTH:
+            qs = qs.filter(end__month=self.start.month)
+        elif self.unit == Units.PER_HALF_MONTH:
+            if self.start.day <= 15:
+                qs = qs.filter(end__day__lte=15)
+            else:
+                qs = qs.filter(end__day__gt=15)
+        else:
+            qs = qs.none()
+        return qs.order_by('-unit_price').first()
+
+    @property
+    def old_price(self):
+        return get_price_per_day(self.old_item.unit_price, self.old_item.unit)
+
+    @property
+    def new_price(self):
+        return get_price_per_day(self.unit_price, self.unit)
+
+    def shift_forward(self):
+        """
+        Adjust old invoice item end field to the end of current unit.
+        Adjust new invoice item start field to the start of next unit.
+        """
+        end = self.old_item.end
+
+        if self.unit == Units.PER_DAY:
+            end = end.replace(hour=23, minute=59, second=59)
+        elif self.unit == Units.PER_MONTH:
+            end = core_utils.month_end(end)
+        elif self.unit == Units.PER_HALF_MONTH:
+            if end.day > 15:
+                end = core_utils.month_end(end)
+            else:
+                end = end.replace(day=15)
+
+        start = end + timedelta(seconds=1)
+        return start, end
+
+    def shift_backward(self):
+        """
+        Adjust old invoice item end field to the end of previous unit
+        Adjust new invoice item field to the start of current unit.
+        """
+        start = self.start
+        end = self.old_item.end
+
+        if self.unit == Units.PER_DAY:
+            start = end.replace(hour=0, minute=0, second=0)
+        elif self.unit == Units.PER_MONTH:
+            start = core_utils.month_start(end)
+        elif self.unit == Units.PER_HALF_MONTH:
+            if end.day < 15:
+                start = core_utils.month_start(end)
+            else:
+                start = end.replace(day=15)
+
+        end = start - timedelta(seconds=1)
+        return start, end
+
+    def remove_new_items(self, start):
+        """
+        Cleanup planned invoice items when new item is created.
+        """
+        qs = self.invoice_items
+        if self.unit == Units.PER_DAY:
+            qs = qs.filter(start__day=start.day)
+        elif self.unit == Units.PER_MONTH:
+            qs = qs.filter(start__month=start.month)
+        elif self.unit == Units.PER_HALF_MONTH:
+            if start.day <= 15:
+                qs = qs.filter(start__day__lte=15)
+            else:
+                qs = qs.filter(start__day__gt=15)
+        else:
+            qs = qs.none()
+
+        qs.delete()
+
+    def adjust(self):
+        start = self.start
+
+        if self.old_item and self.old_item.price > 0:
+            if self.old_price >= self.new_price:
+                start, end = self.shift_forward()
+            else:
+                start, end = self.shift_backward()
+
+            self.old_item.end = end
+            self.old_item.save(update_fields=['end'])
+
+        self.remove_new_items(start)
+
+        return start
+
+
+def adjust_invoice_items(invoice, source, start, unit_price, unit):
+    """
+    When resource configuration is switched, old invoice item
+    is terminated and new invoice item is created.
+    In order to avoid double counting we should ensure that
+    there're no overlapping invoice items for the same scope.
+    """
+    return InvoiceItemAdjuster(invoice, source, start, unit_price, unit).adjust()

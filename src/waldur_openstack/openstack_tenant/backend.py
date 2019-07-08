@@ -1422,7 +1422,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 security_group = models.SecurityGroup.objects.get(settings=self.settings, backend_id=group_id)
             except models.SecurityGroup.DoesNotExist:
                 logger.exception(
-                    'Security group with id %s does not exist at Waldur. Tenant : %s' % (group_id, instance.tenant))
+                    'Security group with id %s does not exist at Waldur. '
+                    'Settings ID: %s' % (group_id, self.settings.id))
             else:
                 instance.security_groups.add(security_group)
 

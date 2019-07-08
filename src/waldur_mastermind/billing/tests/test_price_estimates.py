@@ -59,7 +59,7 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 
-    @freeze_time('2017-11-01 00:00:00')
+    @freeze_time('2017-11-01')
     def test_get_archive_price_estimate_for_customer(self):
         self.client.force_authenticate(getattr(self.fixture, 'staff'))
         models.PriceEstimate.objects.filter(scope=self.fixture.customer).update(total=100)
@@ -105,7 +105,7 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
 
 
 @ddt
-@freeze_time('2017-01-01 00:00:00')
+@freeze_time('2017-01-01')
 class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
     @data('project', 'customer')
     def test_when_openstack_package_is_created_total_is_updated(self, scope):
@@ -137,7 +137,7 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
 
 
 @ddt
-@freeze_time('2017-01-01 00:00:00')
+@freeze_time('2017-01-01')
 class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
     """
     If total cost of project and resource exceeds cost limit provision is disabled.
@@ -165,7 +165,7 @@ class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
 
 
 @ddt
-@freeze_time('2017-01-01 00:00:00')
+@freeze_time('2017-01-01')
 class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()
@@ -179,7 +179,7 @@ class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         estimate = models.PriceEstimate.objects.get(scope=self.fixture.project)
-        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(self.new_template.price * 30))
+        self.assertAlmostEqual(decimal.Decimal(estimate.total), decimal.Decimal(self.new_template.price * 31))
 
     @data('project', 'customer')
     def test_if_extended_package_cost_exceeds_limit_provision_is_disabled(self, scope):
