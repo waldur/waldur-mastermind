@@ -97,7 +97,17 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
                         "type": "string",
                         "required": False,
                         "label": "CIDR"
-                    }
+                    },
+                    "gateway_ip": {
+                        "type": "string",
+                        "required": False,
+                        "label": "Gateway ip"
+                    },
+                    "disable_gateway": {
+                        "type": "boolean",
+                        "required": False,
+                        "label": "Disable gateway"
+                    },
                 },
                 "enabled": True,
                 "reason": None,
