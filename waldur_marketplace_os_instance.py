@@ -144,7 +144,7 @@ EXAMPLES = '''
         security_groups:
           - web
 
-- name: provision build instance
+- name: Provision instance with user data
   hosts: localhost
   tasks:
     - name: add instance
@@ -187,7 +187,7 @@ EXAMPLES = '''
             - ansible_application_id
         wait: false
 
-- name: flavor search by cpu and ram size
+- name: Find flavor by CPU and RAM parameters
   hosts: localhost
   tasks:
     - name: add instance
@@ -299,7 +299,10 @@ def send_request_to_waldur(client, module):
                     timeout=module.params['timeout'],
                 )
                 has_changed = True
-
+            networks = module.params.get('networks')
+            # if update is defined using network syntax, extract expected subnets
+            if networks:
+                subnet = [net['subnet'] for net in networks]
             if subnet:
                 instance_subnets = instance.get('internal_ips_set')
                 needed_update_subnets = False
