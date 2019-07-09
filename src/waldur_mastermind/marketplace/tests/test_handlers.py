@@ -15,4 +15,4 @@ class ResourceHandlerTest(APITransactionTestCase):
         instance.name = 'New name'
         instance.save()
         resource.refresh_from_db()
-        self.assertEqual(resource.attributes['name'], 'New name')
+        self.assertEqual(resource.name, 'New name')

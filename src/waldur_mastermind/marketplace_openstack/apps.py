@@ -125,7 +125,7 @@ class MarketplaceOpenStackConfig(AppConfig):
                          'create_resource_of_volume_if_instance_created',
         )
 
-        for model in [tenant_models.Instance, tenant_models.Volume]:
+        for model in [tenant_models.Instance, tenant_models.Volume, openstack_models.Tenant]:
             structure_signals.resource_imported.connect(
                 handlers.create_marketplace_resource_for_imported_resources,
                 sender=model,

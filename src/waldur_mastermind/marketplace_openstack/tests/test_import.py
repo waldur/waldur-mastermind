@@ -5,7 +5,8 @@ from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE
+from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE, \
+    PACKAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
@@ -271,23 +272,45 @@ class ImportAsMarketplaceResourceTest(test.APITransactionTestCase):
     def setUp(self):
         super(ImportAsMarketplaceResourceTest, self).setUp()
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
-        self.volume = self.fixture.volume
-        self.instance = self.fixture.instance
-        marketplace_factories.OfferingFactory(scope=self.fixture.openstack_tenant_service_settings, type=VOLUME_TYPE)
-        marketplace_factories.OfferingFactory(scope=self.fixture.openstack_tenant_service_settings, type=INSTANCE_TYPE)
 
     def test_import_volume_as_marketplace_resource(self):
-        structure_signals.resource_imported.send(
-            sender=self.volume.__class__,
-            instance=self.volume,
+        volume = self.fixture.volume
+        marketplace_factories.OfferingFactory(
+            scope=self.fixture.openstack_tenant_service_settings,
+            type=VOLUME_TYPE
         )
 
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=self.volume).exists())
+        structure_signals.resource_imported.send(
+            sender=volume.__class__,
+            instance=volume,
+        )
+
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=volume).exists())
 
     def test_import_instance_as_marketplace_resource(self):
-        structure_signals.resource_imported.send(
-            sender=self.instance.__class__,
-            instance=self.instance,
+        instance = self.fixture.instance
+        marketplace_factories.OfferingFactory(
+            scope=self.fixture.openstack_tenant_service_settings,
+            type=INSTANCE_TYPE
         )
 
-        self.assertTrue(marketplace_models.Resource.objects.filter(scope=self.instance).exists())
+        structure_signals.resource_imported.send(
+            sender=instance.__class__,
+            instance=instance,
+        )
+
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=instance).exists())
+
+    def test_import_tenant_as_marketplace_resource(self):
+        tenant = self.fixture.tenant
+        marketplace_factories.OfferingFactory(
+            scope=tenant.service_settings,
+            type=PACKAGE_TYPE
+        )
+
+        structure_signals.resource_imported.send(
+            sender=tenant.__class__,
+            instance=tenant,
+        )
+
+        self.assertTrue(marketplace_models.Resource.objects.filter(scope=tenant).exists())
