@@ -18,12 +18,14 @@ class UnitPriceMixin(models.Model):
         PER_MONTH = 'month'
         PER_HALF_MONTH = 'half_month'
         PER_DAY = 'day'
+        PER_HOUR = 'hour'
         QUANTITY = 'quantity'
 
         CHOICES = (
             (PER_MONTH, _('Per month')),
             (PER_HALF_MONTH, _('Per half month')),
             (PER_DAY, _('Per day')),
+            (PER_HOUR, _('Per hour')),
             (QUANTITY, _('Quantity')),
         )
 

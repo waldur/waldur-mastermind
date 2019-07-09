@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='packagetemplate',
             name='unit',
-            field=models.CharField(choices=[('month', 'Per month'), ('half_month', 'Per half month'), ('day', 'Per day'), ('quantity', 'Quantity')], default='day', max_length=30),
+            field=models.CharField(choices=[('month', 'Per month'), ('half_month', 'Per half month'), ('day', 'Per day'), ('hour', 'Per hour'), ('quantity', 'Quantity')], default='day', max_length=30),
         ),
         migrations.AlterField(
             model_name='packagecomponent',

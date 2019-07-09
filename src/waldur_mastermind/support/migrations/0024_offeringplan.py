@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name')),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('unit_price', models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))])),
-                ('unit', models.CharField(choices=[('month', 'Per month'), ('half_month', 'Per half month'), ('day', 'Per day'), ('quantity', 'Quantity')], default='day', max_length=30)),
+                ('unit', models.CharField(choices=[('month', 'Per month'), ('half_month', 'Per half month'), ('day', 'Per day'), ('hour', 'Per hour'), ('quantity', 'Quantity')], default='day', max_length=30)),
                 ('product_code', models.CharField(blank=True, max_length=30)),
                 ('article_code', models.CharField(blank=True, max_length=30)),
                 ('template', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='plans', to='support.OfferingTemplate')),
