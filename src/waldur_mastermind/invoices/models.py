@@ -197,6 +197,11 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
 
         if self.unit == self.Units.QUANTITY:
             return self.quantity
+        elif self.unit == self.Units.PER_HOUR:
+            if current:
+                return utils.get_full_hours(self.start, min(self.end, timezone.now()))
+            else:
+                return utils.get_full_hours(self.start, self.end)
         elif self.unit == self.Units.PER_DAY:
             if current:
                 return utils.get_full_days(self.start, min(self.end, timezone.now()))
@@ -408,6 +413,8 @@ class InvoiceItemAdjuster(object):
         qs = self.invoice_items
         if self.unit == Units.PER_DAY:
             qs = qs.filter(end__day=self.start.day)
+        elif self.unit == Units.PER_HOUR:
+            qs = qs.filter(end__day=self.start.day, end__hour=self.start.hour)
         elif self.unit == Units.PER_MONTH:
             qs = qs.filter(end__month=self.start.month)
         elif self.unit == Units.PER_HALF_MONTH:
@@ -436,6 +443,8 @@ class InvoiceItemAdjuster(object):
 
         if self.unit == Units.PER_DAY:
             end = end.replace(hour=23, minute=59, second=59)
+        elif self.unit == Units.PER_HOUR:
+            end = end.replace(minute=59, second=59)
         elif self.unit == Units.PER_MONTH:
             end = core_utils.month_end(end)
         elif self.unit == Units.PER_HALF_MONTH:
@@ -457,6 +466,8 @@ class InvoiceItemAdjuster(object):
 
         if self.unit == Units.PER_DAY:
             start = end.replace(hour=0, minute=0, second=0)
+        elif self.unit == Units.PER_DAY:
+            start = end.replace(minute=0, second=0)
         elif self.unit == Units.PER_MONTH:
             start = core_utils.month_start(end)
         elif self.unit == Units.PER_HALF_MONTH:
@@ -475,6 +486,8 @@ class InvoiceItemAdjuster(object):
         qs = self.invoice_items
         if self.unit == Units.PER_DAY:
             qs = qs.filter(start__day=start.day)
+        elif self.unit == Units.PER_HOUR:
+            qs = qs.filter(start__day=start.day, start__hour=start.hour)
         elif self.unit == Units.PER_MONTH:
             qs = qs.filter(start__month=start.month)
         elif self.unit == Units.PER_HALF_MONTH:

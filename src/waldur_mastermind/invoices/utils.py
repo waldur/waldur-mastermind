@@ -43,6 +43,15 @@ def get_current_month_days():
     return range[1]
 
 
+def get_full_hours(start, end):
+    seconds_in_hour = 60 * 60
+    full_hours, extra_seconds = divmod((end - start).total_seconds(), seconds_in_hour)
+    if extra_seconds > 0:
+        full_hours += 1
+
+    return int(full_hours)
+
+
 def check_past_date(year, month, day=None):
     day = day or 1
 
@@ -97,5 +106,7 @@ def get_price_per_day(price, unit):
         return price / Decimal(30)
     elif unit == UnitPriceMixin.Units.PER_HALF_MONTH:
         return price / Decimal(15)
+    elif unit == UnitPriceMixin.Units.PER_HOUR:
+        return price * 24
     else:
         return price
