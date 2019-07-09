@@ -13,4 +13,5 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
         'ram',
         'template',
         'cluster',
+        'datastore',
     )

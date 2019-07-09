@@ -27,3 +27,13 @@ class InvoiceItemTest(TestCase):
             unit=models.GenericInvoiceItem.Units.PER_MONTH,
         )
         self.assertEqual(item.get_factor(), quantize_price(decimal.Decimal(8.0 / 30)))
+
+    def test_hourly_invoicing(self):
+        item = factories.GenericInvoiceItemFactory(
+            start=parse_datetime('2019-08-09 10:00:00'),
+            end=parse_datetime('2019-08-09 14:00:00'),
+            unit_price=10,
+            unit=models.GenericInvoiceItem.Units.PER_HOUR,
+        )
+        self.assertEqual(item.get_factor(), 4)
+        self.assertEqual(item.price, 4 * 10)

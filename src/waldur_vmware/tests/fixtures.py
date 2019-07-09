@@ -11,6 +11,7 @@ class VMwareFixture(ProjectFixture):
         self.spl
         self.customer_cluster
         self.customer_network
+        self.customer_datastore
 
     @cached_property
     def settings(self):
@@ -39,6 +40,14 @@ class VMwareFixture(ProjectFixture):
     @cached_property
     def customer_network(self):
         return factories.CustomerNetworkFactory(network=self.network, customer=self.customer)
+
+    @cached_property
+    def datastore(self):
+        return factories.DatastoreFactory(settings=self.settings)
+
+    @cached_property
+    def customer_datastore(self):
+        return factories.CustomerDatastoreFactory(datastore=self.datastore, customer=self.customer)
 
     @cached_property
     def template(self):

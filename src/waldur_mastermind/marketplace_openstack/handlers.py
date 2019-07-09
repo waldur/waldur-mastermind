@@ -327,6 +327,7 @@ def create_resource_of_volume_if_instance_created(sender, instance, created=Fals
 def create_marketplace_resource_for_imported_resources(sender, instance, created=False, **kwargs):
     resource = marketplace_models.Resource(
         project=instance.service_project_link.project,
+        state=utils.get_resource_state(instance.state),
         name=instance.name,
         scope=instance,
         created=instance.created
@@ -356,6 +357,19 @@ def create_marketplace_resource_for_imported_resources(sender, instance, created
         resource.init_cost()
         resource.save()
         utils.import_volume_metadata(resource)
+        resource.init_quotas()
+
+    if isinstance(instance, openstack_models.Tenant):
+        offering = utils.get_offering(PACKAGE_TYPE, instance.service_settings)
+
+        if not offering:
+            return
+
+        resource.offering = offering
+
+        resource.init_cost()
+        resource.save()
+        utils.import_resource_metadata(resource)
         resource.init_quotas()
 
 
