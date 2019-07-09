@@ -682,16 +682,20 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
         model = models.SubNet
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'tenant', 'tenant_name', 'network', 'network_name', 'cidr',
-            'gateway_ip', 'allocation_pools', 'ip_version', 'enable_dhcp', 'dns_nameservers')
+            'gateway_ip', 'disable_gateway', 'allocation_pools', 'ip_version', 'enable_dhcp', 'dns_nameservers')
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + ('cidr',)
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'tenant', 'network', 'gateway_ip', 'ip_version', 'enable_dhcp', 'service_settings', 'project')
+            'tenant', 'network', 'ip_version', 'enable_dhcp', 'service_settings', 'project')
         extra_kwargs = dict(
             network={'lookup_field': 'uuid', 'view_name': 'openstack-network-detail'},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
     def validate(self, attrs):
+        if attrs.get('disable_gateway') and attrs.get('gateway_ip'):
+            raise serializers.ValidationError(
+                _('These parameters are mutually exclusive: disable_gateway and gateway_ip.'))
+
         if self.instance is None:
             attrs['network'] = network = self.context['view'].get_object()
             if network.subnets.count() >= 1:

@@ -1115,6 +1115,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         }
         if subnet.dns_nameservers:
             data['dns_nameservers'] = subnet.dns_nameservers
+        data.update(self._serialize_subnet_gateway(subnet))
         try:
             response = neutron.create_subnet({'subnets': [data]})
             # Automatically create router for subnet
@@ -1135,10 +1136,19 @@ class OpenStackBackend(BaseOpenStackBackend):
         neutron = self.neutron_admin_client
 
         data = {'name': subnet.name}
+        data.update(self._serialize_subnet_gateway(subnet))
         try:
             neutron.update_subnet(subnet.backend_id, {'subnet': data})
         except neutron_exceptions.NeutronException as e:
             reraise(e)
+
+    def _serialize_subnet_gateway(self, subnet):
+        data = {}
+        if subnet.disable_gateway:
+            data['gateway_ip'] = None
+        elif subnet.gateway_ip:
+            data['gateway_ip'] = subnet.gateway_ip
+        return data
 
     @log_backend_action()
     def delete_subnet(self, subnet):
