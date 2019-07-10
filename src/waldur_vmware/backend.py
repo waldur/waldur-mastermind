@@ -128,7 +128,7 @@ class VMwareBackend(ServiceBackend):
 
     def _get_total_disk(self, backend_disks):
         # Convert disk size from bytes to MiB
-        return [disk['value']['capacity'] / 1024 / 1024 for disk in backend_disks]
+        return sum([disk['value']['capacity'] / 1024 / 1024 for disk in backend_disks])
 
     @log_backend_action()
     def pull_virtual_machine(self, vm, update_fields=None):
