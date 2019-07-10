@@ -21,7 +21,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         payload['cluster'] = factories.ClusterFactory.get_url()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'This cluster is not available for this service.')
+        self.assertEqual(response.data['non_field_errors'][0], 'This cluster is not available for this service.')
 
     def test_cluster_customer_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -30,7 +30,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         payload['cluster'] = factories.ClusterFactory.get_url(cluster)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'This cluster is not available for this customer.')
+        self.assertEqual(response.data['non_field_errors'][0], 'This cluster is not available for this customer.')
 
     def test_default_cluster_id_is_defined(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -47,7 +47,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         del payload['cluster']
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'Default cluster is not defined for this service.')
+        self.assertEqual(response.data['non_field_errors'][0], 'Default cluster is not defined for this service.')
 
     def test_create_vm_with_network(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -65,7 +65,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'This network is not available for this customer.')
+        self.assertEqual(response.data['non_field_errors'][0], 'This network is not available for this customer.')
 
     def test_network_settings_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -74,7 +74,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'This network is not available for this service.')
+        self.assertEqual(response.data['non_field_errors'][0], 'This network is not available for this service.')
 
     def test_create_vm_with_datastore(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -90,7 +90,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'This datastore is not available for this customer.')
+        self.assertEqual(response.data['non_field_errors'][0], 'This datastore is not available for this customer.')
 
     def test_datastore_settings_validation(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -99,7 +99,63 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data[0], 'This datastore is not available for this service.')
+        self.assertEqual(response.data['non_field_errors'][0], 'This datastore is not available for this service.')
+
+    def test_max_cpu_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_cpu'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['cores'] = 10
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_cpu_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_cpu'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['cores'] = 200
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_max_ram_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_ram'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['ram'] = 10
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_ram_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_ram'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['ram'] = 200
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_max_disk_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        self.fixture.template.disk = 10
+        self.fixture.template.save()
+        payload = self.get_valid_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_disk_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        self.fixture.template.disk = 200
+        self.fixture.template.save()
+        payload = self.get_valid_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def get_valid_payload(self):
         return {
@@ -107,4 +163,33 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
             'service_project_link': factories.VMwareServiceProjectLinkFactory.get_url(self.fixture.spl),
             'template': factories.TemplateFactory.get_url(self.fixture.template),
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
+        }
+
+
+class VirtualDiskCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.vm = self.fixture.virtual_machine
+        self.url = factories.VirtualMachineFactory.get_url(self.vm, 'create_disk')
+
+    def test_max_disk_is_not_exceeded(self):
+        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload(10)
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_disk_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload(200)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def get_valid_payload(self, size):
+        return {
+            'name': 'Virtual disk',
+            'size': size,
         }
