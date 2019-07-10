@@ -1,7 +1,6 @@
 import sys
 import ssl
 
-import requests
 from django.conf import settings
 from django.utils import six, timezone
 from django.utils.functional import cached_property
@@ -12,7 +11,7 @@ from pyVmomi import vim
 from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
-from waldur_vmware.client import VMwareClient
+from waldur_vmware.client import VMwareClient, VMwareClientException
 
 from . import models, signals
 
@@ -69,7 +68,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.list_vms()
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             if raise_exception:
                 reraise(e)
             return False
@@ -89,7 +88,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_templates = self.client.list_all_templates()
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
@@ -163,7 +162,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_vm = self.client.get_vm(backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
@@ -199,7 +198,7 @@ class VMwareBackend(ServiceBackend):
     def pull_clusters(self):
         try:
             backend_clusters = self.client.list_clusters()
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
@@ -229,7 +228,7 @@ class VMwareBackend(ServiceBackend):
     def pull_networks(self):
         try:
             backend_networks = self.client.list_networks()
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
@@ -260,7 +259,7 @@ class VMwareBackend(ServiceBackend):
     def pull_datastores(self):
         try:
             backend_datastores = self.client.list_datastores()
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
@@ -315,7 +314,7 @@ class VMwareBackend(ServiceBackend):
 
         try:
             backend_vm = self.client.get_vm(backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
@@ -380,8 +379,8 @@ class VMwareBackend(ServiceBackend):
             spec['hardware_customization']['nics'] = nics
 
         try:
-            return self.client.deploy_vm_from_template(vm.template.backend_id, {'spec': spec})
-        except requests.RequestException as e:
+            return self.client.deploy_vm_from_template(vm.template.backend_id, spec)
+        except VMwareClientException as e:
             reraise(e)
 
     def create_virtual_machine_from_scratch(self, vm):
@@ -413,8 +412,8 @@ class VMwareBackend(ServiceBackend):
             spec['placement']['datastore'] = vm.datastore.backend_id
 
         try:
-            return self.client.create_vm({'spec': spec})
-        except requests.RequestException as e:
+            return self.client.create_vm(spec)
+        except VMwareClientException as e:
             reraise(e)
 
     def delete_virtual_machine(self, vm):
@@ -426,7 +425,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.delete_vm(vm.backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def start_virtual_machine(self, vm):
@@ -438,7 +437,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.start_vm(vm.backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def stop_virtual_machine(self, vm):
@@ -450,7 +449,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.stop_vm(vm.backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def reset_virtual_machine(self, vm):
@@ -462,7 +461,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.reset_vm(vm.backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def suspend_virtual_machine(self, vm):
@@ -474,7 +473,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.suspend_vm(vm.backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def update_virtual_machine(self, vm):
@@ -496,12 +495,10 @@ class VMwareBackend(ServiceBackend):
             cpu_spec = self.client.get_cpu(vm.backend_id)
             if cpu_spec['cores_per_socket'] != vm.cores_per_socket or cpu_spec['count'] != vm.cores:
                 self.client.update_cpu(vm.backend_id, {
-                    'spec': {
-                        'cores_per_socket': vm.cores_per_socket,
-                        'count': vm.cores,
-                    }
+                    'cores_per_socket': vm.cores_per_socket,
+                    'count': vm.cores,
                 })
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def update_memory(self, vm):
@@ -515,11 +512,9 @@ class VMwareBackend(ServiceBackend):
             memory_spec = self.client.get_memory(vm.backend_id)
             if memory_spec['size_MiB'] != vm.ram:
                 self.client.update_memory(vm.backend_id, {
-                    'spec': {
-                        'size_MiB': vm.ram
-                    }
+                    'size_MiB': vm.ram
                 })
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
     def create_disk(self, disk):
@@ -537,8 +532,8 @@ class VMwareBackend(ServiceBackend):
         }
 
         try:
-            backend_id = self.client.create_disk(disk.vm.backend_id, {'spec': spec})
-        except requests.RequestException as e:
+            backend_id = self.client.create_disk(disk.vm.backend_id, spec)
+        except VMwareClientException as e:
             reraise(e)
         else:
             disk.backend_id = backend_id
@@ -558,7 +553,7 @@ class VMwareBackend(ServiceBackend):
 
         try:
             self.client.delete_disk(disk.vm.backend_id, disk.backend_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
 
         if delete_vmdk:
@@ -671,7 +666,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_disk = self.client.get_disk(backend_vm_id, backend_disk_id)
-        except requests.RequestException as e:
+        except VMwareClientException as e:
             reraise(e)
             return
 
