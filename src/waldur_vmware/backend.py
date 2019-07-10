@@ -110,6 +110,7 @@ class VMwareBackend(ServiceBackend):
             item = backend_templates_map[library_item_id]
             library_item = item['library_item']
             template = item['template']
+            total_disk = self._get_total_disk(template['disks'])
             models.Template.objects.create(
                 settings=self.settings,
                 backend_id=library_item_id,
@@ -120,10 +121,15 @@ class VMwareBackend(ServiceBackend):
                 cores=template['cpu']['count'],
                 cores_per_socket=template['cpu']['cores_per_socket'],
                 ram=template['memory']['size_MiB'],
+                disk=total_disk,
                 guest_os=template['guest_OS'],
             )
 
         models.Template.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
+    def _get_total_disk(self, backend_disks):
+        # Convert disk size from bytes to MiB
+        return [disk['value']['capacity'] / 1024 / 1024 for disk in backend_disks]
 
     @log_backend_action()
     def pull_virtual_machine(self, vm, update_fields=None):
@@ -187,6 +193,7 @@ class VMwareBackend(ServiceBackend):
             cores=backend_vm['cpu']['count'],
             cores_per_socket=backend_vm['cpu']['cores_per_socket'],
             ram=backend_vm['memory']['size_MiB'],
+            disk=self._get_total_disk(backend_vm['disks']),
         )
 
     def pull_clusters(self):
