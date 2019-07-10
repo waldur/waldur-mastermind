@@ -43,7 +43,7 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.fixture.settings.save(update_fields=['options'])
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, {'size': 10})
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_max_disk_is_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
