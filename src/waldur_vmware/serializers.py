@@ -20,6 +20,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'default_cluster_id': _('ID of VMware cluster that will be used for virtual machines provisioning'),
+        'max_cpu': _('Maximum vCPU for each VM'),
+        'max_ram': _('Maximum RAM for each VM, MB'),
+        'max_disk': _('Maximum capacity for each disk, MB'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
@@ -127,25 +130,57 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
-    def create(self, validated_data):
-        template_attrs = {'cores', 'cores_per_socket', 'ram', 'guest_os'}
-        template = validated_data.get('template')
-        cluster = validated_data.get('cluster')
-        datastore = validated_data.get('datastore')
-        spl = validated_data.get('service_project_link')
-        missing_attributes = template_attrs - set(validated_data.keys())
+    def _validate_attributes(self, attrs):
+        template_attrs = {'cores', 'cores_per_socket', 'ram', 'disk', 'guest_os'}
+        template = attrs.get('template')
+        missing_attributes = template_attrs - set(attrs.keys())
         if template:
-            if validated_data.get('guest_os'):
+            if attrs.get('guest_os'):
                 raise serializers.ValidationError(
                     'It is not possible to customize guest OS when template is used.')
             for attr in template_attrs:
-                old_value = validated_data.get(attr)
+                old_value = attrs.get(attr)
                 if not old_value:
-                    validated_data[attr] = getattr(template, attr)
+                    attrs[attr] = getattr(template, attr)
         elif missing_attributes:
             attr_list = ', '.join(missing_attributes)
             raise serializers.ValidationError(
                 'These fields are required when template is not used: %s.' % attr_list)
+        return attrs
+
+    def _validate_cpu(self, attrs, options):
+        actual_cpu = attrs.get('cores')
+        max_cpu = options.get('max_cpu')
+        if actual_cpu and max_cpu and actual_cpu > max_cpu:
+            raise serializers.ValidationError('Requested amount of CPU exceeds offering limit.')
+
+    def _validate_ram(self, attrs, options):
+        actual_ram = attrs.get('ram')
+        max_ram = options.get('max_ram')
+        if actual_ram and max_ram and actual_ram > max_ram:
+            raise serializers.ValidationError('Requested amount of RAM exceeds offering limit.')
+
+    def _validate_disk(self, attrs, options):
+        template = attrs.get('template')
+        max_disk = options.get('max_disk')
+        actual_disk = template.disk if template else 0
+        if actual_disk and max_disk and actual_disk > max_disk:
+            raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
+
+    def _validate_limits(self, attrs):
+        if self.instance:
+            spl = self.instance.service_project_link
+        else:
+            spl = attrs['service_project_link']
+
+        options = spl.service.settings.options
+        self._validate_cpu(attrs, options)
+        self._validate_ram(attrs, options)
+        self._validate_disk(attrs, options)
+
+    def _validate_cluster(self, attrs):
+        cluster = attrs.get('cluster')
+        spl = attrs['service_project_link']
 
         if cluster:
             if cluster.settings != spl.service.settings:
@@ -156,11 +191,16 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         else:
             default_cluster_id = spl.service.settings.options.get('default_cluster_id')
             try:
-                validated_data['cluster'] = models.Cluster.objects.filter(
+                attrs['cluster'] = models.Cluster.objects.filter(
                     settings=spl.service.settings,
                     backend_id=default_cluster_id).get()
             except models.Cluster.DoesNotExist:
                 raise serializers.ValidationError('Default cluster is not defined for this service.')
+        return attrs
+
+    def _validate_datastore(self, attrs):
+        datastore = attrs.get('datastore')
+        spl = attrs['service_project_link']
 
         if datastore:
             if datastore.settings != spl.service.settings:
@@ -169,19 +209,36 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if not datastore.customerdatastore_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This datastore is not available for this customer.')
 
+    def _validate_networks(self, attrs):
+        networks = attrs.get('networks', [])
+        spl = attrs['service_project_link']
+
+        for network in networks:
+            if network.settings != spl.service.settings:
+                raise serializers.ValidationError('This network is not available for this service.')
+
+            if not network.customernetwork_set.filter(customer=spl.project.customer).exists():
+                raise serializers.ValidationError('This network is not available for this customer.')
+
+    def validate(self, attrs):
+        attrs = super(VirtualMachineSerializer, self).validate(attrs)
+
+        if self.instance:
+            self._validate_limits(attrs)
+        else:
+            attrs = self._validate_attributes(attrs)
+            attrs = self._validate_cluster(attrs)
+
+            self._validate_limits(attrs)
+            self._validate_datastore(attrs)
+            self._validate_networks(attrs)
+
+        return attrs
+
+    def create(self, validated_data):
         networks = validated_data.pop('networks', [])
         vm = super(VirtualMachineSerializer, self).create(validated_data)
-
-        if networks:
-            for network in networks:
-                if network.settings != spl.service.settings:
-                    raise serializers.ValidationError('This network is not available for this service.')
-
-                if not network.customernetwork_set.filter(customer=spl.project.customer).exists():
-                    raise serializers.ValidationError('This network is not available for this customer.')
-
-            vm.networks.add(*networks)
-
+        vm.networks.add(*networks)
         return vm
 
 
@@ -229,12 +286,22 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
+    def _validate_size(self, vm, attrs):
+        options = vm.service_project_link.service.settings.options
+
+        actual_disk = attrs.get('size')
+        max_disk = options.get('max_disk')
+        if actual_disk and max_disk and actual_disk > max_disk:
+            raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
+
     def validate(self, attrs):
         # Skip validation on update
         if self.instance:
             return attrs
 
-        attrs['vm'] = vm = self.context['view'].get_object()
+        vm = self.context['view'].get_object()
+        self._validate_size(vm, attrs)
+        attrs['vm'] = vm
         attrs['service_project_link'] = vm.service_project_link
         return super(DiskSerializer, self).validate(attrs)
 
@@ -248,6 +315,13 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         if value <= self.instance.size:
             raise serializers.ValidationError(
                 _('Disk size should be greater than %s') % self.instance.size)
+
+        options = self.instance.service_project_link.service.settings.options
+
+        max_disk = options.get('max_disk')
+        if max_disk and value > max_disk:
+            raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
+
         return value
 
 
