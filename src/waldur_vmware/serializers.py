@@ -295,12 +295,14 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 
     def validate(self, attrs):
+        # Skip validation on update
+        if self.instance:
+            return attrs
+
         vm = self.context['view'].get_object()
         self._validate_size(vm, attrs)
-
-        if not self.instance:
-            attrs['vm'] = vm
-            attrs['service_project_link'] = vm.service_project_link
+        attrs['vm'] = vm
+        attrs['service_project_link'] = vm.service_project_link
         return super(DiskSerializer, self).validate(attrs)
 
 
@@ -313,6 +315,13 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         if value <= self.instance.size:
             raise serializers.ValidationError(
                 _('Disk size should be greater than %s') % self.instance.size)
+
+        options = self.instance.service_project_link.service.settings.options
+
+        max_disk = options.get('max_disk')
+        if max_disk and value > max_disk:
+            raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
+
         return value
 
 
