@@ -59,6 +59,10 @@ admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
 admin.site.register(models.VMwareServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Disk, DiskAdmin)
 admin.site.register(models.VirtualMachine, VirtualMachineAdmin)
+admin.site.register(models.Template, structure_admin.ServicePropertyAdmin)
+admin.site.register(models.Cluster, structure_admin.ServicePropertyAdmin)
+admin.site.register(models.Datastore, structure_admin.ServicePropertyAdmin)
+admin.site.register(models.Network, structure_admin.ServicePropertyAdmin)
 
 structure_admin.CustomerAdmin.inlines += [CustomerClusterInline]
 structure_admin.CustomerAdmin.inlines += [CustomerNetworkInline]
