@@ -152,10 +152,12 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     if instance.state != instance.States.OK:
         return
 
+    create_offerings_for_volume_and_instance(instance)
+
+
+def create_offerings_for_volume_and_instance(tenant):
     if not settings.WALDUR_MARKETPLACE_OPENSTACK['AUTOMATICALLY_CREATE_PRIVATE_OFFERING']:
         return
-
-    tenant = instance
 
     try:
         resource = marketplace_models.Resource.objects.get(scope=tenant)
@@ -371,6 +373,7 @@ def create_marketplace_resource_for_imported_resources(sender, instance, created
         resource.save()
         utils.import_resource_metadata(resource)
         resource.init_quotas()
+        create_offerings_for_volume_and_instance(instance)
 
 
 def import_resource_metadata_when_resource_is_created(sender, instance, created=False, **kwargs):
