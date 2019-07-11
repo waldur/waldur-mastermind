@@ -210,3 +210,20 @@ class CustomerDatastoreFactory(factory.DjangoModelFactory):
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     datastore = factory.SubFactory(DatastoreFactory)
+
+
+class FolderFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Folder
+
+    settings = factory.SubFactory(VMwareServiceSettingsFactory)
+    name = factory.Sequence(lambda n: 'folder-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'folder-%s' % n)
+
+
+class CustomerFolderFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CustomerFolder
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    folder = factory.SubFactory(FolderFactory)

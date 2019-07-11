@@ -11,7 +11,8 @@ from pyVmomi import vim
 from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
-from waldur_vmware.client import VMwareClient, VMwareClientException
+from waldur_vmware.client import VMwareClient
+from waldur_vmware.exceptions import VMwareError
 
 from . import models, signals
 
@@ -68,7 +69,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.list_vms()
-        except VMwareClientException as e:
+        except VMwareError as e:
             if raise_exception:
                 reraise(e)
             return False
@@ -76,6 +77,7 @@ class VMwareBackend(ServiceBackend):
             return True
 
     def pull_service_properties(self):
+        self.pull_folders()
         self.pull_templates()
         self.pull_clusters()
         self.pull_networks()
@@ -88,7 +90,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_templates = self.client.list_all_templates()
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 
@@ -162,7 +164,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_vm = self.client.get_vm(backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 
@@ -198,7 +200,7 @@ class VMwareBackend(ServiceBackend):
     def pull_clusters(self):
         try:
             backend_clusters = self.client.list_clusters()
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 
@@ -228,7 +230,7 @@ class VMwareBackend(ServiceBackend):
     def pull_networks(self):
         try:
             backend_networks = self.client.list_networks()
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 
@@ -259,7 +261,7 @@ class VMwareBackend(ServiceBackend):
     def pull_datastores(self):
         try:
             backend_datastores = self.client.list_datastores()
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 
@@ -300,6 +302,36 @@ class VMwareBackend(ServiceBackend):
 
         models.Datastore.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
 
+    def pull_folders(self):
+        try:
+            backend_folders = self.client.list_folders(folder_type='VIRTUAL_MACHINE')
+        except VMwareError as e:
+            reraise(e)
+            return
+
+        backend_folders_map = {
+            item['folder']: item
+            for item in backend_folders
+        }
+
+        frontend_folders_map = {
+            p.backend_id: p
+            for p in models.Folder.objects.filter(settings=self.settings)
+        }
+
+        stale_ids = set(frontend_folders_map.keys()) - set(backend_folders_map.keys())
+        new_ids = set(backend_folders_map.keys()) - set(frontend_folders_map.keys())
+
+        for item_id in new_ids:
+            item = backend_folders_map[item_id]
+            models.Folder.objects.create(
+                settings=self.settings,
+                backend_id=item_id,
+                name=item['name'],
+            )
+
+        models.Folder.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
     def create_virtual_machine(self, vm):
         """
         Creates a virtual machine.
@@ -314,7 +346,7 @@ class VMwareBackend(ServiceBackend):
 
         try:
             backend_vm = self.client.get_vm(backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 
@@ -331,6 +363,23 @@ class VMwareBackend(ServiceBackend):
         signals.vm_created.send(self.__class__, vm=vm)
         return vm
 
+    def _get_vm_placement(self, vm):
+        placement = {}
+
+        try:
+            customer = vm.service_project_link.project.customer
+            folder = models.Folder.objects.filter(customerfolder__customer=customer).get()
+            placement['folder'] = folder.backend_id
+        except models.Folder.DoesNotExist:
+            placement['folder'] = settings.WALDUR_VMWARE['VM_FOLDER']
+
+        if vm.cluster:
+            placement['cluster'] = vm.cluster.backend_id
+        else:
+            placement['resource_pool'] = settings.WALDUR_VMWARE['VM_RESOURCE_POOL']
+
+        return placement
+
     def create_virtual_machine_from_template(self, vm):
         spec = {
             'name': vm.name,
@@ -344,16 +393,8 @@ class VMwareBackend(ServiceBackend):
                     'memory': vm.ram,
                 },
             },
-            'placement': {
-                'folder': settings.WALDUR_VMWARE['VM_FOLDER'],
-                'resource_pool': settings.WALDUR_VMWARE['VM_RESOURCE_POOL'],
-            }
+            'placement': self._get_vm_placement(vm),
         }
-
-        if vm.cluster:
-            """We need to remove 'resource_pool' because it and 'cluster' are mutually exclusive."""
-            spec['placement'].pop('resource_pool', None)
-            spec['placement']['cluster'] = vm.cluster.backend_id
 
         if vm.datastore:
             spec['disk_storage'] = {'datastore': vm.datastore.backend_id}
@@ -380,7 +421,7 @@ class VMwareBackend(ServiceBackend):
 
         try:
             return self.client.deploy_vm_from_template(vm.template.backend_id, spec)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def create_virtual_machine_from_scratch(self, vm):
@@ -397,23 +438,17 @@ class VMwareBackend(ServiceBackend):
                 'size_MiB': vm.ram,
                 'hot_add_enabled': True,
             },
-            'placement': {
-                'datastore': settings.WALDUR_VMWARE['VM_DATASTORE'],
-                'folder': settings.WALDUR_VMWARE['VM_FOLDER'],
-                'resource_pool': settings.WALDUR_VMWARE['VM_RESOURCE_POOL'],
-            }
+            'placement': self._get_vm_placement(vm),
         }
-
-        if vm.cluster:
-            spec['placement'].pop('resource_pool', None)
-            spec['placement']['cluster'] = vm.cluster.backend_id
 
         if vm.datastore:
             spec['placement']['datastore'] = vm.datastore.backend_id
+        else:
+            spec['placement']['datastore'] = settings.WALDUR_VMWARE['VM_DATASTORE']
 
         try:
             return self.client.create_vm(spec)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def delete_virtual_machine(self, vm):
@@ -425,7 +460,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.delete_vm(vm.backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def start_virtual_machine(self, vm):
@@ -437,7 +472,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.start_vm(vm.backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def stop_virtual_machine(self, vm):
@@ -449,7 +484,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.stop_vm(vm.backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def reset_virtual_machine(self, vm):
@@ -461,7 +496,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.reset_vm(vm.backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def suspend_virtual_machine(self, vm):
@@ -473,7 +508,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.suspend_vm(vm.backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def update_virtual_machine(self, vm):
@@ -498,7 +533,7 @@ class VMwareBackend(ServiceBackend):
                     'cores_per_socket': vm.cores_per_socket,
                     'count': vm.cores,
                 })
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def update_memory(self, vm):
@@ -514,7 +549,7 @@ class VMwareBackend(ServiceBackend):
                 self.client.update_memory(vm.backend_id, {
                     'size_MiB': vm.ram
                 })
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
     def create_disk(self, disk):
@@ -533,7 +568,7 @@ class VMwareBackend(ServiceBackend):
 
         try:
             backend_id = self.client.create_disk(disk.vm.backend_id, spec)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
         else:
             disk.backend_id = backend_id
@@ -553,7 +588,7 @@ class VMwareBackend(ServiceBackend):
 
         try:
             self.client.delete_disk(disk.vm.backend_id, disk.backend_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
 
         if delete_vmdk:
@@ -666,7 +701,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_disk = self.client.get_disk(backend_vm_id, backend_disk_id)
-        except VMwareClientException as e:
+        except VMwareError as e:
             reraise(e)
             return
 

@@ -1,5 +1,7 @@
+import mock
 from rest_framework import status, test
 
+from waldur_vmware.tests.utils import override_plugin_settings
 from . import factories, fixtures
 
 
@@ -164,3 +166,59 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
             'template': factories.TemplateFactory.get_url(self.fixture.template),
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
         }
+
+
+class VirtualMachineBackendTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.client = mock.MagicMock()
+
+    def create_vm(self, vm):
+        backend = self.fixture.virtual_machine.get_backend()
+
+        backend.client = self.client
+        backend.client.deploy_vm_from_template.return_value = 'vm-01'
+        backend.client.create_vm.return_value = 'vm-01'
+        backend.client.get_vm.return_value = {
+            'power_state': 'POWERED_OFF',
+            'disks': []
+        }
+
+        backend.create_virtual_machine(vm)
+
+    def test_customer_folder_is_used_for_vm_provisioning_from_template(self):
+        # Arrange
+        folder = self.fixture.customer_folder.folder
+        vm = self.fixture.virtual_machine
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['placement']['folder'], folder.backend_id)
+
+    def test_customer_folder_is_used_for_vm_provisioning_from_scratch(self):
+        # Arrange
+        folder = self.fixture.customer_folder.folder
+        vm = self.fixture.virtual_machine
+        vm.template = None
+        vm.save()
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.create_vm.mock_calls[0][1][0]
+        self.assertEqual(spec['placement']['folder'], folder.backend_id)
+
+    @override_plugin_settings(VM_FOLDER='folder-01')
+    def test_default_folder_is_used_otherwise(self):
+        vm = self.fixture.virtual_machine
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['placement']['folder'], 'folder-01')

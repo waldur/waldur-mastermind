@@ -2,16 +2,9 @@ import logging
 
 import requests
 
+from waldur_vmware.exceptions import VMwareError
+
 logger = logging.getLogger(__name__)
-
-
-class VMwareClientException(Exception):
-    def __init__(self, message):
-        self.message = message
-        super(VMwareClientException, self).__init__(self.message)
-
-    def __str__(self):
-        return self.message
 
 
 class VMwareClient(object):
@@ -41,7 +34,7 @@ class VMwareClient(object):
         try:
             response = self._session.request(method, url, json=json, **kwargs)
         except requests.RequestException as e:
-            raise VMwareClientException(e)
+            raise VMwareError(e)
 
         status_code = response.status_code
         if status_code in (requests.codes.ok,
@@ -54,7 +47,7 @@ class VMwareClient(object):
                     return data['value']
                 return data
         else:
-            raise VMwareClientException(response.content)
+            raise VMwareError(response.content)
 
     def _get(self, endpoint, **kwargs):
         return self._request('get', endpoint, **kwargs)
@@ -96,8 +89,16 @@ class VMwareClient(object):
     def list_networks(self):
         return self._get('vcenter/network')
 
-    def list_folders(self):
-        return self._get('vcenter/folder')
+    def list_folders(self, folder_type=None):
+        """
+        Returns information about folders in vCenter.
+        :param folder_type: Type (DATACENTER, DATASTORE, HOST, NETWORK, VIRTUAL_MACHINE) of the vCenter Server folder.
+        :rtype: List[Dict]
+        """
+        params = {}
+        if folder_type:
+            params['filter.type'] = folder_type
+        return self._get('vcenter/folder', params=params)
 
     def list_vms(self):
         """
