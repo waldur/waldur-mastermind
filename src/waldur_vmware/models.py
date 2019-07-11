@@ -189,3 +189,18 @@ class CustomerDatastore(models.Model):
 
     class Meta(object):
         unique_together = ('customer', 'datastore')
+
+
+@python_2_unicode_compatible
+class Folder(structure_models.ServiceProperty):
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerFolder(models.Model):
+    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+    folder = models.ForeignKey('Folder', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.folder)
