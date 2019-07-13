@@ -1,5 +1,6 @@
 {% load i18n %}
 {% load humanize %}
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -11,7 +12,21 @@
     </style>
   </head>
   <body>
+      {% if deployment_logo %}
+      <div id="logo">
+        <img src="data:image/png;base64,{{ deployment_logo }}">
+      </div>
+      {% endif %}
+      <h1>{% trans "Invoice No." %} {{ invoice.number|upper }}</h1>
+      <br>
       <div class="text-right">
+          <strong>{% trans "Invoice date" %}:</strong> {% if invoice.invoice_date %}
+        {{ invoice.invoice_date|date:"Y-m-d" }} {% else %} {% trans "Pending" %} {% endif %}<br/>
+          {% if invoice.due_date %}<strong>{% trans "Due date" %}:</strong> {{ invoice.due_date|date:"Y-m-d" }}<br/>{% endif %}
+          <strong>{% trans "Invoice period" %}:</strong> {{ invoice.year }}-{{ invoice.month }}<br/>
+      </div>
+
+      <div>
         <h3 class="name">From</h3>
         <div><strong>{{ issuer_details.company }}</strong></div>
         <div>{{ issuer_details.address }}</div>
@@ -20,9 +35,8 @@
         <div>{{ issuer_details.bank }}, {{ issuer_details.account }}</div>
         <div><abbr>{% trans "VAT" %}:</abbr>{{ issuer_details.vat_code }}</div>
         <div>{{ issuer_details.email }}</div>
-
-        <h4>{% trans "Invoice No." %} {{ invoice.number|upper }}</h4>
-
+      </div>
+      <div>
         <h3 class="name">To</h3>
         <div><strong>{{ invoice.customer.name }}</strong></div>
 
@@ -48,11 +62,6 @@
 
         <div>{{ invoice.customer.email }}</div>
 
-        <div>
-          <strong>{% trans "Invoice date" %}:</strong> {{ invoice.invoice_date|date:"Y-m-d" }}<br/>
-          <strong>{% trans "Due date" %}:</strong> {{ invoice.due_date|date:"Y-m-d" }}<br/>
-          <strong>{% trans "Invoice period" %}:</strong> {{ invoice.year }}-{{ invoice.month }}<br/>
-        </div>
       </div>
       <div class="m-t">
         <table class="invoice-table">
@@ -82,7 +91,7 @@
                       </small>
                     </div>
                   </td>
-                  <td>{{ item.quantity }}</td>
+                  <td>{{ item.get_factor }}</td>
                   <td>€{{ item.unit_price | floatformat:2 | intcomma }}</td>
                   <td>€{{ item.total | floatformat:2 | intcomma }}</td>
                 </tr>
