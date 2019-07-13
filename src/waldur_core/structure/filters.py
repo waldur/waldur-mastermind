@@ -118,6 +118,7 @@ class CustomerFilter(NameFilterSet):
             'contact_details',
             'native_name',
             'registration_code',
+            'agreement_number',
             'backend_id',
         ]
 
@@ -128,7 +129,9 @@ class CustomerFilter(NameFilterSet):
                 Q(native_name__icontains=value) |
                 Q(abbreviation__icontains=value) |
                 Q(domain__icontains=value) |
-                Q(uuid__icontains=value)
+                Q(uuid__icontains=value) |
+                Q(registration_code__icontains=value) |
+                Q(agreement_number__contains=value)
             )
         return queryset
 
