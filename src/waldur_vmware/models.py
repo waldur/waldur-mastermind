@@ -48,6 +48,7 @@ class VirtualMachineMixin(models.Model):
     cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
     cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
     ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
+    disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
 
 
 @python_2_unicode_compatible
@@ -65,7 +66,6 @@ class VirtualMachine(VirtualMachineMixin,
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
-    disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
@@ -189,3 +189,18 @@ class CustomerDatastore(models.Model):
 
     class Meta(object):
         unique_together = ('customer', 'datastore')
+
+
+@python_2_unicode_compatible
+class Folder(structure_models.ServiceProperty):
+
+    def __str__(self):
+        return '%s / %s' % (self.settings, self.name)
+
+
+class CustomerFolder(models.Model):
+    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+    folder = models.ForeignKey('Folder', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.folder)

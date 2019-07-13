@@ -2,13 +2,15 @@ import logging
 
 import requests
 
+from waldur_vmware.exceptions import VMwareError
+
 logger = logging.getLogger(__name__)
 
 
 class VMwareClient(object):
     """
     Lightweight VMware vCenter Automation API client.
-    See also: https://code.vmware.com/apis/191/vsphere-automation
+    See also: https://vmware.github.io/vsphere-automation-sdk-rest/vsphere/
     """
 
     def __init__(self, host, verify_ssl=True):
@@ -25,33 +27,39 @@ class VMwareClient(object):
         self._session = requests.Session()
         self._session.verify = verify_ssl
 
-    def _get(self, endpoint, **kwargs):
+    def _request(self, method, endpoint, json=None, **kwargs):
         url = '%s/%s' % (self._base_url, endpoint)
-        response = self._session.get(url, **kwargs)
-        response.raise_for_status()
-        if response.content:
-            return response.json()
+        if json:
+            json = {'spec': json}
+        try:
+            response = self._session.request(method, url, json=json, **kwargs)
+        except requests.RequestException as e:
+            raise VMwareError(e)
+
+        status_code = response.status_code
+        if status_code in (requests.codes.ok,
+                           requests.codes.created,
+                           requests.codes.accepted,
+                           requests.codes.no_content):
+            if response.content:
+                data = response.json()
+                if isinstance(data, dict) and 'value' in data:
+                    return data['value']
+                return data
+        else:
+            raise VMwareError(response.content)
+
+    def _get(self, endpoint, **kwargs):
+        return self._request('get', endpoint, **kwargs)
 
     def _post(self, endpoint, **kwargs):
-        url = '%s/%s' % (self._base_url, endpoint)
-        response = self._session.post(url, **kwargs)
-        response.raise_for_status()
-        if response.content:
-            return response.json()
+        return self._request('post', endpoint, **kwargs)
 
     def _patch(self, endpoint, **kwargs):
-        url = '%s/%s' % (self._base_url, endpoint)
-        response = self._session.patch(url, **kwargs)
-        response.raise_for_status()
-        if response.content:
-            return response.json()
+        return self._request('patch', endpoint, **kwargs)
 
-    def _delete(self, endpoint):
-        url = '%s/%s' % (self._base_url, endpoint)
-        response = self._session.delete(url)
-        response.raise_for_status()
-        if response.content:
-            return response.json()
+    def _delete(self, endpoint, **kwargs):
+        return self._request('delete', endpoint, **kwargs)
 
     def login(self, username, password):
         """
@@ -67,28 +75,36 @@ class VMwareClient(object):
         logger.info('Successfully logged in as {0}'.format(username))
 
     def list_clusters(self):
-        return self._get('vcenter/cluster')['value']
+        return self._get('vcenter/cluster')
 
     def get_cluster(self, cluster_id):
-        return self._get('vcenter/cluster/{0}'.format(cluster_id))['value']
+        return self._get('vcenter/cluster/{0}'.format(cluster_id))
 
     def list_datacenters(self):
-        return self._get('vcenter/datacenter')['value']
+        return self._get('vcenter/datacenter')
 
     def list_datastores(self):
-        return self._get('vcenter/datastore')['value']
+        return self._get('vcenter/datastore')
 
     def list_networks(self):
-        return self._get('vcenter/network')['value']
+        return self._get('vcenter/network')
 
-    def list_folders(self):
-        return self._get('vcenter/folder')['value']
+    def list_folders(self, folder_type=None):
+        """
+        Returns information about folders in vCenter.
+        :param folder_type: Type (DATACENTER, DATASTORE, HOST, NETWORK, VIRTUAL_MACHINE) of the vCenter Server folder.
+        :rtype: List[Dict]
+        """
+        params = {}
+        if folder_type:
+            params['filter.type'] = folder_type
+        return self._get('vcenter/folder', params=params)
 
     def list_vms(self):
         """
         Get all the VMs from vCenter inventory.
         """
-        return self._get('vcenter/vm')['value']
+        return self._get('vcenter/vm')
 
     def get_vm(self, vm_id):
         """
@@ -97,7 +113,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get('vcenter/vm/{}'.format(vm_id))['value']
+        return self._get('vcenter/vm/{}'.format(vm_id))
 
     def create_vm(self, spec):
         """
@@ -108,7 +124,7 @@ class VMwareClient(object):
         :return: Virtual machine identifier
         :rtype: string
         """
-        return self._post('vcenter/vm', json=spec)['value']
+        return self._post('vcenter/vm', json=spec)
 
     def delete_vm(self, vm_id):
         """
@@ -162,7 +178,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get('vcenter/vm/{}/hardware/cpu'.format(vm_id))['value']
+        return self._get('vcenter/vm/{}/hardware/cpu'.format(vm_id))
 
     def update_cpu(self, vm_id, spec):
         """
@@ -182,7 +198,7 @@ class VMwareClient(object):
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get('vcenter/vm/{}/hardware/memory'.format(vm_id))['value']
+        return self._get('vcenter/vm/{}/hardware/memory'.format(vm_id))
 
     def update_memory(self, vm_id, spec):
         """
@@ -204,7 +220,7 @@ class VMwareClient(object):
         :param spec: new virtual disk specification
         :type spec: dict
         """
-        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)['value']
+        return self._post('vcenter/vm/{}/hardware/disk'.format(vm_id), json=spec)
 
     def get_disk(self, vm_id, disk_id):
         """
@@ -215,7 +231,7 @@ class VMwareClient(object):
         :param disk_id: Virtual disk identifier.
         :type disk_id: string
         """
-        return self._get('vcenter/vm/{}/hardware/disk/{}'.format(vm_id, disk_id))['value']
+        return self._get('vcenter/vm/{}/hardware/disk/{}'.format(vm_id, disk_id))
 
     def delete_disk(self, vm_id, disk_id):
         """
@@ -277,17 +293,17 @@ class VMwareClient(object):
         return self._post('vcenter/vm/{}/hardware/ethernet/{}/disconnect'.format(vm_id, nic_id))
 
     def list_libraries(self):
-        return self._get('com/vmware/content/library')['value']
+        return self._get('com/vmware/content/library')
 
     def list_library_items(self, library_id):
         params = {'library_id': library_id}
-        return self._get('com/vmware/content/library/item', params=params)['value']
+        return self._get('com/vmware/content/library/item', params=params)
 
     def get_library_item(self, library_item_id):
-        return self._get('com/vmware/content/library/item/id:{}'.format(library_item_id))['value']
+        return self._get('com/vmware/content/library/item/id:{}'.format(library_item_id))
 
     def get_template_library_item(self, library_item_id):
-        return self._get('vcenter/vm-template/library-items/{}'.format(library_item_id))['value']
+        return self._get('vcenter/vm-template/library-items/{}'.format(library_item_id))
 
     def list_all_templates(self):
         items = []
@@ -313,4 +329,4 @@ class VMwareClient(object):
         :rtype: str
         """
         url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(library_item_id)
-        return self._post(url, json=spec)['value']
+        return self._post(url, json=spec)

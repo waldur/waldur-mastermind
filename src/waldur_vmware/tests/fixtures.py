@@ -50,6 +50,14 @@ class VMwareFixture(ProjectFixture):
         return factories.CustomerDatastoreFactory(datastore=self.datastore, customer=self.customer)
 
     @cached_property
+    def folder(self):
+        return factories.FolderFactory(settings=self.settings)
+
+    @cached_property
+    def customer_folder(self):
+        return factories.CustomerFolderFactory(folder=self.folder, customer=self.customer)
+
+    @cached_property
     def template(self):
         return factories.TemplateFactory(settings=self.settings)
 
