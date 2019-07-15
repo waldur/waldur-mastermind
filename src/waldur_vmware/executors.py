@@ -1,3 +1,5 @@
+from celery import chain
+
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 
@@ -45,40 +47,72 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
     action = 'Start'
 
     @classmethod
-    def get_task_signature(cls, volume, serialized_volume, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_volume, 'start_virtual_machine',
-            state_transition='begin_updating')
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'start_virtual_machine',
+                state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+        )
 
 
 class VirtualMachineStopExecutor(core_executors.ActionExecutor):
     action = 'Stop'
 
     @classmethod
-    def get_task_signature(cls, volume, serialized_volume, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_volume, 'stop_virtual_machine',
-            state_transition='begin_updating')
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'stop_virtual_machine',
+                state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+        )
 
 
 class VirtualMachineResetExecutor(core_executors.ActionExecutor):
     action = 'Reset'
 
     @classmethod
-    def get_task_signature(cls, volume, serialized_volume, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_volume, 'reset_virtual_machine',
-            state_transition='begin_updating')
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'reset_virtual_machine',
+                state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+        )
 
 
 class VirtualMachineSuspendExecutor(core_executors.ActionExecutor):
     action = 'Suspend'
 
     @classmethod
-    def get_task_signature(cls, volume, serialized_volume, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_volume, 'suspend_virtual_machine',
-            state_transition='begin_updating')
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'suspend_virtual_machine',
+                state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+        )
 
 
 class VirtualMachineUpdateExecutor(core_executors.UpdateExecutor):
