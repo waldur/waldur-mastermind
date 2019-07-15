@@ -73,6 +73,12 @@ class VirtualMachine(VirtualMachineMixin,
     tracker = FieldTracker()
 
     @classmethod
+    def get_backend_fields(cls):
+        return super(VirtualMachine, cls).get_backend_fields() + (
+            'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk'
+        )
+
+    @classmethod
     def get_url_name(cls):
         return 'vmware-virtual-machine'
 
