@@ -57,6 +57,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
     ordering_fields = (
         'abbreviation',
         'accounting_start_date',
+        'agreement_number',
         'contact_details',
         'created',
         'name',
