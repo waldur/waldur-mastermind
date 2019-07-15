@@ -1,7 +1,22 @@
 body {
-    font-size: 25px;
+    font-size: 16px;
     font-family: 'Source Sans Pro';
     margin: 120px;
+}
+
+h1 {
+    letter-spacing: 0.5em;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+#logo {
+  text-align: center;
+  margin-top: 8px;
+}
+
+#logo img {
+  height: 70px;
 }
 
 .text-right {
