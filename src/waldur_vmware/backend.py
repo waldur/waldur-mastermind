@@ -398,6 +398,7 @@ class VMwareBackend(ServiceBackend):
 
         if vm.datastore:
             spec['disk_storage'] = {'datastore': vm.datastore.backend_id}
+            spec['vm_home_storage'] = {'datastore': vm.datastore.backend_id}
 
         if vm.networks.count():
             """We need to get the NIC keys from the template to overwrite the networks.
