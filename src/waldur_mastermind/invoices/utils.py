@@ -86,11 +86,18 @@ def filter_invoice_items(items):
 
 def create_invoice_pdf(invoice):
     all_items = filter_invoice_items(invoice.items)
+    logo_path = settings.WALDUR_CORE['SITE_LOGO']
+    if logo_path:
+        with open(logo_path, 'r') as image_file:
+            deployment_logo = base64.b64encode(image_file.read())
+    else:
+        deployment_logo = None
 
     context = dict(
         invoice=invoice,
         issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'],
         currency=settings.WALDUR_CORE['CURRENCY_NAME'],
+        deployment_logo=deployment_logo,
         items=all_items,
     )
     html = render_to_string('invoices/invoice.html', context)
