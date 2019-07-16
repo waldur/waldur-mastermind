@@ -115,6 +115,8 @@ class GenericRelatedField(Field):
                 break
         if kwargs is None:
             raise AttributeError('Related object does not have any of lookup_fields')
+        if self.related_models and not isinstance(obj, tuple(self.related_models)):
+            return None
         request = self._get_request()
         return request.build_absolute_uri(reverse(self._get_url(obj), kwargs=kwargs))
 
