@@ -7,6 +7,7 @@ from django.utils.functional import cached_property
 import pyVim.task
 import pyVim.connect
 from pyVmomi import vim
+from six.moves.urllib import parse as urlparse
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
 from waldur_core.structure.utils import update_pulled_fields
@@ -742,3 +743,26 @@ class VMwareBackend(ServiceBackend):
         ticket = self.soap_client.content.sessionManager.AcquireCloneTicket()
         return 'vmrc://clone:{ticket}@{host}/?moid={vm}'.format(
             ticket=ticket, host=self.host, vm=vm.backend_id)
+
+    def get_web_console_url(self, vm):
+        """
+        Generates a virtual machine's web console URL (WMKS)
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        backend_vm = self.get_backend_vm(vm)
+        ticket = backend_vm.AcquireMksTicket()
+        params = {
+            'host': ticket.host,
+            'port': ticket.port,
+            'ticket': ticket.ticket,
+            'cfgFile': ticket.cfgFile,
+            'thumbprint': ticket.sslThumbprint,
+            'vmId': vm.backend_id,
+            'encoding': 'UTF-8'
+        }
+        return 'wss://{host}/ui/webconsole/authd?{params}'.format(
+            host=ticket.host,
+            params=urlparse.urlencode(params)
+        )
