@@ -115,7 +115,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         return fields
 
     def get_resource_type(self, obj):
-        if obj.resource:
+        if isinstance(obj.resource, structure_models.ResourceMixin):
             return SupportedServices.get_name_for_model(obj.resource_content_type.model_class())
 
     def validate(self, attrs):
