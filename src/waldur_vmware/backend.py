@@ -38,7 +38,7 @@ class VMwareBackend(ServiceBackend):
 
     @cached_property
     def host(self):
-        return self.settings.backend_url.split('https://')[-1]
+        return self.settings.backend_url.split('https://')[-1].split('http://')[-1].strip('/')
 
     @cached_property
     def client(self):
