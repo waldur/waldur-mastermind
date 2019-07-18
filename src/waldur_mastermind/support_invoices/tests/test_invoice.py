@@ -57,9 +57,9 @@ class InvoicesTest(InvoicesBaseTest):
         super(InvoicesTest, self).setUp()
         self.fixture = fixtures.SupportFixture()
         self.order_item = self.fixture.order_item
-        self.order_item_process(self.order_item)
 
     def test_create_invoice(self):
+        self.order_item_process(self.order_item)
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, self.fixture.plan.unit_price)
         self.assertEqual(invoice.items.count(), 2)
@@ -68,13 +68,29 @@ class InvoicesTest(InvoicesBaseTest):
         self.assertTrue(invoice.items.filter(
             details__plan_component_id=self.fixture.plan_component_ram.id).exists())
 
+    def test_amount_is_multiplied_by_price(self):
+        # Arrange
+        self.fixture.plan_component_cpu.amount = 0
+        self.fixture.plan_component_ram.amount = 0
+
+        self.fixture.plan_component_cpu.save()
+        self.fixture.plan_component_ram.save()
+
+        # Act
+        self.order_item_process(self.order_item)
+
+        invoice = self.get_invoice()
+        self.assertEqual(invoice.total, 0)
+
     def test_update_invoice_if_added_new_offering(self):
+        self.order_item_process(self.order_item)
         self.order_item_process(self.fixture.new_order_item)
 
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, self.fixture.plan.unit_price * 2)
 
     def test_terminate_offering(self):
+        self.order_item_process(self.order_item)
         offering = self.order_item.resource.scope
         offering.terminate()
 
@@ -85,6 +101,7 @@ class InvoicesTest(InvoicesBaseTest):
             self.assertEqual(item.end, timezone.now())
 
     def test_delete_offering(self):
+        self.order_item_process(self.order_item)
         offering = self.order_item.resource.scope
         invoice_items = invoices_models.GenericInvoiceItem.objects.filter(scope=offering)
         offering.delete()
@@ -95,6 +112,7 @@ class InvoicesTest(InvoicesBaseTest):
 
     @freeze_time('2018-01-15')
     def test_switch_plan_resource(self):
+        self.order_item_process(self.order_item)
         resource = self.order_item.resource
         resource.plan = self.fixture.new_plan
         resource.save()
@@ -132,6 +150,7 @@ class InvoicesTest(InvoicesBaseTest):
         self.assertEqual(unit_price, self.fixture.new_plan.unit_price)
 
     def test_invoice_item_should_include_service_provider_info(self):
+        self.order_item_process(self.order_item)
         invoice = self.get_invoice()
         details = invoice.items.first().details
         self.assertTrue('service_provider_name' in details.keys())

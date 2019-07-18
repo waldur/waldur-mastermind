@@ -69,7 +69,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                         start=start,
                         end=end,
                         details=details,
-                        unit_price=plan_component.price,
+                        unit_price=plan_component.price * plan_component.amount,
                         unit=plan.unit,
                         product_code=offering_component.product_code or plan.product_code,
                         article_code=offering_component.article_code or plan.article_code,
