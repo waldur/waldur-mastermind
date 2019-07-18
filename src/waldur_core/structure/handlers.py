@@ -246,11 +246,12 @@ def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
 
 
 def _log_resource_creation_scheduled(instance):
-    event_logger.resource.info(
-        'Resource {resource_name} creation has been scheduled.',
-        event_type='resource_creation_scheduled',
-        event_context={'resource': instance},
-    )
+    if instance.pk:
+        event_logger.resource.info(
+            'Resource {resource_name} creation has been scheduled.',
+            event_type='resource_creation_scheduled',
+            event_context={'resource': instance},
+        )
 
 
 def log_resource_action(sender, instance, name, source, target, **kwargs):
