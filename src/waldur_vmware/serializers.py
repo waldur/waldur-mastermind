@@ -277,8 +277,6 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
             if not folder.customerfolder_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This folder is not available for this customer.')
-        else:
-            raise serializers.ValidationError('Folder is required parameter.')
         return attrs
 
     def _validate_datastore(self, attrs):
