@@ -186,11 +186,14 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.data['non_field_errors'][0], 'This datastore is not available for this service.')
 
     def test_datastore_size_validation(self):
+        self.fixture.template.disk = 200
+        self.fixture.template.save()
+        self.fixture.datastore.free_space = 100
+        self.fixture.datastore.save()
+
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         payload['datastore'] = factories.DatastoreFactory.get_url(self.fixture.datastore)
-        self.fixture.datastore.free_space = 100
-        self.fixture.datastore.save()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['non_field_errors'][0],
@@ -258,19 +261,8 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @override_plugin_settings(BASIC_MODE=True)
-    def test_with_basic_mode_there_should_not_be_multiple_folders_for_the_same_customer_and_service(self):
-        self.client.force_authenticate(self.fixture.owner)
-        payload = self.get_valid_payload()
 
-        folder = factories.FolderFactory(settings=self.fixture.settings)
-        factories.CustomerFolderFactory(folder=folder, customer=self.fixture.customer)
-
-        response = self.client.post(self.url, payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-
-class VirtualMachinLimitsValidationTest(VirtualMachineCreateBaseTest):
+class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
 
     def test_max_cpu_is_not_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
