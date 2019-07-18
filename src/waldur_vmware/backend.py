@@ -102,7 +102,7 @@ class VMwareBackend(ServiceBackend):
             # If basic mode is enabled, we should filter out templates which have more than 1 NIC
             backend_templates = [
                 template for template in backend_templates
-                if len(template['nics']) == 1
+                if len(template['template']['nics']) == 1
             ]
 
         backend_templates_map = {
