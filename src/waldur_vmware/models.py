@@ -204,6 +204,10 @@ class Folder(structure_models.ServiceProperty):
     def __str__(self):
         return '%s / %s' % (self.settings, self.name)
 
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-folder'
+
 
 class CustomerFolder(models.Model):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
