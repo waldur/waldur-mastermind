@@ -1,5 +1,4 @@
 from django.utils.functional import cached_property
-from django.db.models import Sum
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
