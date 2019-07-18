@@ -150,6 +150,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         )
 
     def get_fields(self):
+        """
+        When basic mode is activated, user is not allowed
+        to select placement attributes for the new virtual machine.
+        """
         fields = super(VirtualMachineSerializer, self).get_fields()
         if not is_basic_mode():
             return fields
