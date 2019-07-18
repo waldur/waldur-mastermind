@@ -12,6 +12,7 @@ class VMwareFixture(ProjectFixture):
         self.customer_cluster
         self.customer_network
         self.customer_datastore
+        self.customer_folder
 
     @cached_property
     def settings(self):

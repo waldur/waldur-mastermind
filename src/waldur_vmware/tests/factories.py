@@ -192,6 +192,7 @@ class DatastoreFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'datastore-%s' % n)
     backend_id = factory.Sequence(lambda n: 'datastore-%s' % n)
     type = 'VMFS'
+    free_space = 200000
 
     @classmethod
     def get_url(cls, datastore=None, action=None):
