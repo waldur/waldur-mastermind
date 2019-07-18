@@ -242,7 +242,7 @@ def log_resource_creation_failed(instance):
 
 def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
     if created and isinstance(instance, StateMixin) and instance.state == StateMixin.States.CREATION_SCHEDULED:
-        transaction.on_commit(_log_resource_creation_scheduled, instance)
+        transaction.on_commit(lambda: _log_resource_creation_scheduled(instance))
 
 
 def _log_resource_creation_scheduled(instance):
