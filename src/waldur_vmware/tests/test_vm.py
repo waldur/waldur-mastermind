@@ -1,3 +1,5 @@
+import mock
+
 from rest_framework import status, test
 
 from waldur_vmware.tests.utils import override_plugin_settings
@@ -319,3 +321,134 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         payload = self.get_valid_payload()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class VirtualMachineBackendTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.client = mock.MagicMock()
+
+    def create_vm(self, vm):
+        backend = self.fixture.virtual_machine.get_backend()
+
+        backend.client = self.client
+        backend.client.deploy_vm_from_template.return_value = 'vm-01'
+        backend.client.create_vm.return_value = 'vm-01'
+        backend.client.get_vm.return_value = {
+            'power_state': 'POWERED_OFF',
+            'disks': []
+        }
+
+        backend.create_virtual_machine(vm)
+
+    def test_folder_is_used_for_vm_provisioning_from_template(self):
+        # Arrange
+        vm = self.fixture.virtual_machine
+        vm.folder = self.fixture.folder
+        vm.save()
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['placement']['folder'], self.fixture.folder.backend_id)
+
+    def test_if_folder_is_not_specified_default_folder_is_found(self):
+        # Arrange
+        vm = self.fixture.virtual_machine
+        vm.folder = None
+        vm.save()
+        self.client.list_folders.return_value = [
+            {
+                "name": "string",
+                "folder": "obj-103"
+            },
+            {
+                "name": "string",
+                "folder": "obj-104"
+            }
+        ]
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['placement']['folder'], 'obj-103')
+
+    def test_cluster_is_used_for_vm_provisioning_from_template(self):
+        # Arrange
+        vm = self.fixture.virtual_machine
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['placement']['cluster'], self.fixture.cluster.backend_id)
+
+    def test_if_cluster_is_not_specified_default_resource_pool_is_found(self):
+        # Arrange
+        vm = self.fixture.virtual_machine
+        vm.cluster = None
+        vm.save()
+        self.client.list_resource_pools.return_value = [
+            {
+                "name": "string",
+                "resource_pool": "obj-103"
+            },
+            {
+                "name": "string",
+                "resource_pool": "obj-104"
+            }
+        ]
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['placement']['resource_pool'], 'obj-103')
+
+    def test_nic_is_overridden_for_template(self):
+        # Arrange
+        vm = self.fixture.virtual_machine
+        self.client.get_template_library_item.return_value = {
+            "nics": [
+                {
+                    "key": "obj-103",
+                    "value": {
+                        "backing_type": "STANDARD_PORTGROUP",
+                        "mac_type": "MANUAL",
+                        "network": "obj-103"
+                    }
+                }
+            ]
+        }
+        vm.networks.add(self.fixture.network)
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        spec = self.client.deploy_vm_from_template.mock_calls[0][1][1]
+        self.assertEqual(spec['hardware_customization']['nics'], [{
+            'key': 'obj-103',
+            'value': {
+                'network': self.fixture.network.backend_id
+            }
+        }])
+
+    def test_nic_is_created_from_scratch(self):
+        # Arrange
+        vm = self.fixture.virtual_machine
+        vm.template = None
+        vm.networks.add(self.fixture.network)
+        vm.save()
+
+        # Act
+        self.create_vm(vm)
+
+        # Assert
+        self.client.create_nic.assert_called_once_with('vm-01', self.fixture.network.backend_id)
