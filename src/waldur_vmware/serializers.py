@@ -491,3 +491,14 @@ class DatastoreSerializer(structure_serializers.BasePropertySerializer):
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
+
+
+class FolderSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Folder
+        fields = (
+            'url', 'uuid', 'name',
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
