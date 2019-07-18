@@ -69,6 +69,7 @@ class VirtualMachine(VirtualMachineMixin,
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
+    folder = models.ForeignKey('Folder', null=True, on_delete=models.SET_NULL)
     networks = models.ManyToManyField('Network', blank=True)
     tracker = FieldTracker()
 
