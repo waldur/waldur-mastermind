@@ -61,6 +61,9 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                         (offering_component.billing_type == one_time_type and create) or
                         (offering_component.billing_type == switch_type and (switch or create))):
                     details = self.get_component_details(offering, plan_component)
+                    unit_price = plan_component.price
+                    if offering_component.billing_type == fixed:
+                        unit_price *= plan_component.amount
                     invoice_models.GenericInvoiceItem.objects.create(
                         content_type=ContentType.objects.get_for_model(offering),
                         object_id=offering.id,
@@ -69,7 +72,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                         start=start,
                         end=end,
                         details=details,
-                        unit_price=plan_component.price * plan_component.amount,
+                        unit_price=unit_price,
                         unit=plan.unit,
                         product_code=offering_component.product_code or plan.product_code,
                         article_code=offering_component.article_code or plan.article_code,

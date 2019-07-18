@@ -182,25 +182,31 @@ class UsagesTest(InvoicesBaseTest):
         self._create_usage(usage=10)
 
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
-                         self.fixture.plan_component_cpu.price * 10)
+        expected = (
+            self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
+            self.fixture.plan_component_cpu.price * 10
+        )
+        self.assertEqual(self.invoice.price, expected)
 
     @freeze_time('2018-01-15')
     def test_new_usage_override_old_usage(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         usage = self._create_usage(usage=10)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
-                         self.fixture.plan_component_cpu.price * 10)
+        expected = (
+            self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
+            self.fixture.plan_component_cpu.price * 10
+        )
+        self.assertEqual(self.invoice.price, expected)
         usage.usage = 15
         usage.save()
 
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
-                         self.fixture.plan_component_cpu.price * 15)
+        expected = (
+            self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
+            self.fixture.plan_component_cpu.price * 15
+        )
+        self.assertEqual(self.invoice.price, expected)
 
     @freeze_time('2018-01-15')
     def test_case_when_usage_is_reported_for_new_plan(self):
@@ -236,7 +242,7 @@ class UsagesTest(InvoicesBaseTest):
 
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
+                         self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
                          self.fixture.plan_component_cpu.price * new_amount)
 
     def _switch_plan(self):
