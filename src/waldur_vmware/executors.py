@@ -4,9 +4,23 @@ from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 
+from . import models
+
 
 def pull_datastores_for_resource(instance, task):
-    if not instance.datastore:
+    """
+    Schedule datastore synchronization after virtual machine or disk
+    has been either created, updated or deleted.
+    """
+
+    if isinstance(instance, models.VirtualMachine):
+        datastore = instance.datastore
+    elif isinstance(instance, models.Disk):
+        datastore = instance.vm.datastore
+    else:
+        datastore = None
+
+    if not datastore:
         return task
 
     serialized_settings = core_utils.serialize_instance(instance.service_settings)
