@@ -10,7 +10,6 @@ class VirtualMachineCreateBaseTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.fixture.spl
-        self.fixture.customer_cluster
         self.url = factories.VirtualMachineFactory.get_list_url()
 
     def get_valid_payload(self):
@@ -19,6 +18,7 @@ class VirtualMachineCreateBaseTest(test.APITransactionTestCase):
             'service_project_link': factories.VMwareServiceProjectLinkFactory.get_url(self.fixture.spl),
             'template': factories.TemplateFactory.get_url(self.fixture.template),
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
+            'datastore': factories.DatastoreFactory.get_url(self.fixture.datastore),
         }
 
 
@@ -188,10 +188,9 @@ class VirtualMachineDatastoreValidationTest(VirtualMachineCreateBaseTest):
     def test_datastore_size_validation(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
-        datastore = factories.DatastoreFactory()
-        payload['datastore'] = factories.DatastoreFactory.get_url(datastore)
-        datastore.free_space = 100
-        datastore.save()
+        payload['datastore'] = factories.DatastoreFactory.get_url(self.fixture.datastore)
+        self.fixture.datastore.free_space = 100
+        self.fixture.datastore.save()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['non_field_errors'][0],
@@ -243,7 +242,6 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
     def test_with_basic_mode_folder_is_matched_by_customer_and_settings(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
-        del payload['folder']
 
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -255,7 +253,6 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
     def test_with_basic_mode_there_should_be_at_least_one_folder_for_customer_and_service(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
-        del payload['folder']
         self.fixture.folder.delete()
 
         response = self.client.post(self.url, payload)
@@ -265,7 +262,6 @@ class VirtualMachineFolderValidationTest(VirtualMachineCreateBaseTest):
     def test_with_basic_mode_there_should_not_be_multiple_folders_for_the_same_customer_and_service(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
-        del payload['folder']
 
         folder = factories.FolderFactory(settings=self.fixture.settings)
         factories.CustomerFolderFactory(folder=folder, customer=self.fixture.customer)
