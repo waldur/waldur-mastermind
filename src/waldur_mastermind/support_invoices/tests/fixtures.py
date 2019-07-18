@@ -126,6 +126,6 @@ class SupportFixture(structure_fixtures.ProjectFixture):
 
     def _update_plan_price(self, plan_name):
         plan = getattr(self, plan_name)
-        plan.unit_price = \
-            plan.components.filter(component__billing_type='fixed').aggregate(price=Sum('price'))['price']
+        fixed_components = plan.components.filter(component__billing_type='fixed')
+        plan.unit_price = sum(comp.amount * comp.price for comp in fixed_components)
         plan.save()
