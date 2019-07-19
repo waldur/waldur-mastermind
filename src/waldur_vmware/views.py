@@ -115,6 +115,9 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 
     @detail_route(methods=['get'])
     def console(self, request, uuid=None):
+        """
+        This endpoint provides access to Virtual Machine Remote Console aka VMRC.
+        """
         instance = self.get_object()
         backend = instance.get_backend()
         try:
@@ -125,6 +128,25 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         return Response({'url': url}, status=status.HTTP_200_OK)
 
     console_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK)]
+
+    @detail_route(methods=['get'])
+    def web_console(self, request, uuid=None):
+        """
+        This endpoint provides access to HTML Console aka WMKS.
+        """
+        instance = self.get_object()
+        backend = instance.get_backend()
+        try:
+            url = backend.get_web_console_url(instance)
+        except Exception:
+            logger.exception('Unable to get web console URL.')
+            raise rf_serializers.ValidationError('Unable to get web console URL.')
+        return Response({'url': url}, status=status.HTTP_200_OK)
+
+    web_console_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+        core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_ON)
+    ]
 
 
 class DiskViewSet(structure_views.BaseResourceViewSet):
@@ -177,4 +199,11 @@ class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Datastore.objects.all()
     serializer_class = serializers.DatastoreSerializer
     filter_class = filters.DatastoreFilter
+    lookup_field = 'uuid'
+
+
+class FolderViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Folder.objects.all()
+    serializer_class = serializers.FolderSerializer
+    filter_class = filters.FolderFilter
     lookup_field = 'uuid'

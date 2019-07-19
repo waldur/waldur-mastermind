@@ -424,6 +424,31 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         order_item.refresh_from_db()
         self.assertEqual(order_item.resource.cost, plan.unit_price)
 
+    def test_initialization_cost_is_added_to_cost_estimate_for_creation_request(self):
+        # Arrange
+        offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        one_time_offering_component = factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=models.OfferingComponent.BillingTypes.ONE_TIME,
+            type='signup'
+        )
+        usage_offering_component = factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            type='cpu'
+        )
+
+        plan = factories.PlanFactory()
+        factories.PlanComponentFactory(plan=plan, component=one_time_offering_component, price=100)
+        factories.PlanComponentFactory(plan=plan, component=usage_offering_component, price=10)
+
+        order_item = factories.OrderItemFactory(
+            offering=offering,
+            plan=plan,
+        )
+        order_item.init_cost()
+        self.assertEqual(order_item.cost, 100)
+
     def test_when_plan_is_switched_cost_estimate_is_updated(self):
         # Arrange
         old_plan = factories.PlanFactory(unit_price=10)
@@ -443,6 +468,32 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(resource.cost, new_plan.unit_price)
+
+    def test_plan_switch_cost_is_added_to_cost_estimate_for_order_item(self):
+        # Arrange
+        offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        switch_offering_component = factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH,
+            type='plan_switch'
+        )
+        usage_offering_component = factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            type='cpu'
+        )
+
+        plan = factories.PlanFactory()
+        factories.PlanComponentFactory(plan=plan, component=switch_offering_component, price=50)
+        factories.PlanComponentFactory(plan=plan, component=usage_offering_component, price=10)
+
+        order_item = factories.OrderItemFactory(
+            offering=offering,
+            plan=plan,
+            type=models.OrderItem.Types.UPDATE,
+        )
+        order_item.init_cost()
+        self.assertEqual(order_item.cost, 50)
 
 
 @ddt

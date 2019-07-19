@@ -1,5 +1,4 @@
 from django.utils.functional import cached_property
-from django.db.models import Sum
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -126,6 +125,6 @@ class SupportFixture(structure_fixtures.ProjectFixture):
 
     def _update_plan_price(self, plan_name):
         plan = getattr(self, plan_name)
-        plan.unit_price = \
-            plan.components.filter(component__billing_type='fixed').aggregate(price=Sum('price'))['price']
+        fixed_components = plan.components.filter(component__billing_type='fixed')
+        plan.unit_price = sum(comp.amount * comp.price for comp in fixed_components)
         plan.save()

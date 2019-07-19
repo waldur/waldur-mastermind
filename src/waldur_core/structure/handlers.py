@@ -4,6 +4,7 @@ import logging
 import re
 
 from django.conf import settings
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -241,6 +242,11 @@ def log_resource_creation_failed(instance):
 
 def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
     if created and isinstance(instance, StateMixin) and instance.state == StateMixin.States.CREATION_SCHEDULED:
+        transaction.on_commit(lambda: _log_resource_creation_scheduled(instance))
+
+
+def _log_resource_creation_scheduled(instance):
+    if instance.pk:
         event_logger.resource.info(
             'Resource {resource_name} creation has been scheduled.',
             event_type='resource_creation_scheduled',

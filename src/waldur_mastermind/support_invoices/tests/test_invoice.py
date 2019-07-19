@@ -57,9 +57,9 @@ class InvoicesTest(InvoicesBaseTest):
         super(InvoicesTest, self).setUp()
         self.fixture = fixtures.SupportFixture()
         self.order_item = self.fixture.order_item
-        self.order_item_process(self.order_item)
 
     def test_create_invoice(self):
+        self.order_item_process(self.order_item)
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, self.fixture.plan.unit_price)
         self.assertEqual(invoice.items.count(), 2)
@@ -68,13 +68,29 @@ class InvoicesTest(InvoicesBaseTest):
         self.assertTrue(invoice.items.filter(
             details__plan_component_id=self.fixture.plan_component_ram.id).exists())
 
+    def test_amount_is_multiplied_by_price(self):
+        # Arrange
+        self.fixture.plan_component_cpu.amount = 0
+        self.fixture.plan_component_ram.amount = 0
+
+        self.fixture.plan_component_cpu.save()
+        self.fixture.plan_component_ram.save()
+
+        # Act
+        self.order_item_process(self.order_item)
+
+        invoice = self.get_invoice()
+        self.assertEqual(invoice.total, 0)
+
     def test_update_invoice_if_added_new_offering(self):
+        self.order_item_process(self.order_item)
         self.order_item_process(self.fixture.new_order_item)
 
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, self.fixture.plan.unit_price * 2)
 
     def test_terminate_offering(self):
+        self.order_item_process(self.order_item)
         offering = self.order_item.resource.scope
         offering.terminate()
 
@@ -85,6 +101,7 @@ class InvoicesTest(InvoicesBaseTest):
             self.assertEqual(item.end, timezone.now())
 
     def test_delete_offering(self):
+        self.order_item_process(self.order_item)
         offering = self.order_item.resource.scope
         invoice_items = invoices_models.GenericInvoiceItem.objects.filter(scope=offering)
         offering.delete()
@@ -95,6 +112,7 @@ class InvoicesTest(InvoicesBaseTest):
 
     @freeze_time('2018-01-15')
     def test_switch_plan_resource(self):
+        self.order_item_process(self.order_item)
         resource = self.order_item.resource
         resource.plan = self.fixture.new_plan
         resource.save()
@@ -132,6 +150,7 @@ class InvoicesTest(InvoicesBaseTest):
         self.assertEqual(unit_price, self.fixture.new_plan.unit_price)
 
     def test_invoice_item_should_include_service_provider_info(self):
+        self.order_item_process(self.order_item)
         invoice = self.get_invoice()
         details = invoice.items.first().details
         self.assertTrue('service_provider_name' in details.keys())
@@ -163,25 +182,31 @@ class UsagesTest(InvoicesBaseTest):
         self._create_usage(usage=10)
 
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
-                         self.fixture.plan_component_cpu.price * 10)
+        expected = (
+            self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
+            self.fixture.plan_component_cpu.price * 10
+        )
+        self.assertEqual(self.invoice.price, expected)
 
     @freeze_time('2018-01-15')
     def test_new_usage_override_old_usage(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         usage = self._create_usage(usage=10)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
-                         self.fixture.plan_component_cpu.price * 10)
+        expected = (
+            self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
+            self.fixture.plan_component_cpu.price * 10
+        )
+        self.assertEqual(self.invoice.price, expected)
         usage.usage = 15
         usage.save()
 
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
-                         self.fixture.plan_component_cpu.price * 15)
+        expected = (
+            self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
+            self.fixture.plan_component_cpu.price * 15
+        )
+        self.assertEqual(self.invoice.price, expected)
 
     @freeze_time('2018-01-15')
     def test_case_when_usage_is_reported_for_new_plan(self):
@@ -217,7 +242,7 @@ class UsagesTest(InvoicesBaseTest):
 
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_ram.price +
+                         self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
                          self.fixture.plan_component_cpu.price * new_amount)
 
     def _switch_plan(self):
@@ -267,14 +292,16 @@ class OneTimeTest(InvoicesBaseTest):
     @freeze_time('2018-01-01')
     def test_calculate_one_time_component_if_resource_started_in_current_period(self):
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_cpu.price + self.fixture.plan_component_ram.price)
+        expected = (self.fixture.plan_component_cpu.price * self.fixture.plan_component_cpu.amount +
+                    self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount)
+        self.assertEqual(self.invoice.price, expected)
 
     @freeze_time('2018-02-01')
     def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(self):
         registrators.RegistrationManager.register(self.resource.scope)
         self.invoice = self.get_invoice()
-        self.assertEqual(self.invoice.price, self.fixture.plan_component_ram.price)
+        expected = self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount
+        self.assertEqual(self.invoice.price, expected)
 
 
 @freeze_time('2018-01-01')
@@ -294,17 +321,12 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         self.resource = self.order_item.resource
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-01-01')
-    def test_calculate_on_plan_switch_component_if_resource_started_in_current_period(self):
-        self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.price,
-                         self.fixture.plan_component_cpu.price + self.fixture.plan_component_ram.price)
-
     @freeze_time('2018-02-01')
     def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(self):
         registrators.RegistrationManager.register(self.resource.scope)
         self.invoice = self.get_invoice()
-        self.assertEqual(self.invoice.price, self.fixture.plan_component_ram.price)
+        expected = self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount
+        self.assertEqual(self.invoice.price, expected)
 
     @freeze_time('2018-03-01')
     def test_calculate_on_plan_switch_component_if_plan_has_been_switched_in_current_period(self):
@@ -314,7 +336,9 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         order_item.set_state_executing()
         order_item.set_state_done()
         order_item.save()
-        registrators.RegistrationManager.register(self.resource.scope)
+        registrators.RegistrationManager.register(self.resource.scope, timezone.now(),
+                                                  order_type=marketplace_models.OrderItem.Types.UPDATE)
         self.invoice = self.get_invoice()
-        self.assertEqual(self.invoice.price, self.fixture.plan_component_cpu.price +
-                         self.fixture.plan_component_ram.price)
+        expected = (self.fixture.plan_component_cpu.price * self.fixture.plan_component_cpu.amount +
+                    self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount)
+        self.assertEqual(self.invoice.price, expected)

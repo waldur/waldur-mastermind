@@ -6,6 +6,8 @@ from waldur_mastermind.marketplace import models as marketplace_models
 
 from .utils import is_request_based, component_usage_register
 
+OrderTypes = marketplace_models.OrderItem.Types
+
 
 def add_new_offering_to_invoice(sender, instance, created=False, **kwargs):
     if created:
@@ -20,8 +22,8 @@ def add_new_offering_to_invoice(sender, instance, created=False, **kwargs):
             order_item.resource.scope and \
             isinstance(order_item.resource.scope, support_models.Offering) and \
             is_request_based(order_item.resource.scope):
-        request_based_offering = support_models.Offering.objects.get(pk=order_item.resource.scope.pk)
-        registrators.RegistrationManager.register(request_based_offering, timezone.now())
+        offering = support_models.Offering.objects.get(pk=order_item.resource.scope.pk)
+        registrators.RegistrationManager.register(offering, timezone.now(), order_type=OrderTypes.CREATE)
 
 
 def terminate_invoice_when_offering_deleted(sender, instance, **kwargs):
@@ -66,7 +68,8 @@ def switch_plan_resource(sender, instance, created=False, **kwargs):
     support_offering.unit_price = instance.plan.unit_price
     support_offering.unit = instance.plan.unit
     support_offering.save()
-    registrators.RegistrationManager.register(support_offering, timezone.now())
+
+    registrators.RegistrationManager.register(support_offering, timezone.now(), order_type=OrderTypes.UPDATE)
 
 
 def update_invoice_on_offering_deletion(sender, instance, **kwargs):
@@ -90,13 +93,13 @@ def add_new_offering_details_to_invoice(sender, instance, created=False, **kwarg
 
     if (state == support_models.Offering.States.OK and
             support_models.Offering.States.REQUESTED == instance.tracker.previous('state')):
-        registrators.RegistrationManager.register(instance, timezone.now())
+        registrators.RegistrationManager.register(instance, timezone.now(), order_type=OrderTypes.CREATE)
     if (state == support_models.Offering.States.TERMINATED and
             support_models.Offering.States.OK == instance.tracker.previous('state')):
         registrators.RegistrationManager.terminate(instance, timezone.now())
 
 
-def update_invoice_item(sender, instance, created=False, **kwargs):
+def add_component_usage(sender, instance, created=False, **kwargs):
     component_usage = instance
 
     if not created and not component_usage.tracker.has_changed('usage'):
