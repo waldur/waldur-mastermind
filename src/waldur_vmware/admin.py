@@ -46,7 +46,7 @@ class CustomerInlineFormset(BaseInlineFormSet):
     def clean(self):
         """
         When basic mode is activated we should require one service property
-        (network, cluster, folder and datastore) defined per customer
+        (network, cluster and folder) defined per customer
         per shared service setting.
         """
         super(CustomerInlineFormset, self).clean()
@@ -89,15 +89,10 @@ class CustomerInlineFormset(BaseInlineFormSet):
                                         'assigned to the each service settings.'))
 
 
-class CustomerClusterInlineFormset(CustomerInlineFormset):
-    service_property_field = 'cluster'
-
-
 class CustomerClusterInline(options.TabularInline):
     model = models.CustomerCluster
     extra = 1
     verbose_name_plural = 'Customer VMware clusters'
-    formset = CustomerClusterInlineFormset
 
 
 class CustomerNetworkInlineFormset(CustomerInlineFormset):
