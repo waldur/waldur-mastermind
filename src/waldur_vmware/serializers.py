@@ -1,10 +1,12 @@
 from __future__ import unicode_literals
 
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from rest_framework import serializers
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
+from waldur_vmware.utils import is_basic_mode
 
 from . import constants, models
 
@@ -90,6 +92,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         write_only=True,
     )
 
+    template_name = serializers.ReadOnlyField(source='template.name')
+
     cluster = serializers.HyperlinkedRelatedField(
         view_name='vmware-cluster-detail',
         lookup_field='uuid',
@@ -98,6 +102,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         required=False,
     )
 
+    cluster_name = serializers.ReadOnlyField(source='cluster.name')
+
     datastore = serializers.HyperlinkedRelatedField(
         view_name='vmware-datastore-detail',
         lookup_field='uuid',
@@ -105,6 +111,18 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         allow_null=True,
         required=False,
     )
+
+    datastore_name = serializers.ReadOnlyField(source='datastore.name')
+
+    folder = serializers.HyperlinkedRelatedField(
+        view_name='vmware-folder-detail',
+        lookup_field='uuid',
+        queryset=models.Folder.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
+    folder_name = serializers.ReadOnlyField(source='folder.name')
 
     networks = NestedNetworkSerializer(queryset=models.Network.objects.all(), many=True, required=False)
 
@@ -115,10 +133,11 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
-            'runtime_state', 'template', 'cluster', 'networks', 'datastore',
+            'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
+            'template_name', 'cluster_name', 'datastore_name', 'folder_name',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os', 'template', 'cluster', 'networks', 'datastore',
+            'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder'
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -129,6 +148,26 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             ram={'required': False},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
+
+    def get_fields(self):
+        """
+        When basic mode is activated, user is not allowed
+        to select placement attributes for the new virtual machine.
+        """
+        fields = super(VirtualMachineSerializer, self).get_fields()
+        if not is_basic_mode():
+            return fields
+
+        try:
+            method = self.context['view'].request.method
+        except (KeyError, AttributeError):
+            return fields
+
+        if method == 'POST':
+            read_only_fields = 'cluster', 'networks', 'datastore', 'folder'
+            for field in read_only_fields:
+                fields[field].read_only = True
+        return fields
 
     def _validate_attributes(self, attrs):
         template_attrs = {'cores', 'cores_per_socket', 'ram', 'disk', 'guest_os'}
@@ -149,18 +188,27 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         return attrs
 
     def _validate_cpu(self, attrs, options):
+        """
+        Validate vCPU specification against service limits.
+        """
         actual_cpu = attrs.get('cores')
         max_cpu = options.get('max_cpu')
         if actual_cpu and max_cpu and actual_cpu > max_cpu:
             raise serializers.ValidationError('Requested amount of CPU exceeds offering limit.')
 
     def _validate_ram(self, attrs, options):
+        """
+        Validate RAM specification against service limits.
+        """
         actual_ram = attrs.get('ram')
         max_ram = options.get('max_ram')
         if actual_ram and max_ram and actual_ram > max_ram:
             raise serializers.ValidationError('Requested amount of RAM exceeds offering limit.')
 
     def _validate_disk(self, attrs, options):
+        """
+        Validate storage specification against service limits.
+        """
         template = attrs.get('template')
         max_disk = options.get('max_disk')
         actual_disk = template.disk if template else 0
@@ -168,6 +216,9 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 
     def _validate_limits(self, attrs):
+        """
+        Validate hardware specification against service limits.
+        """
         if self.instance:
             spl = self.instance.service_project_link
         else:
@@ -177,10 +228,33 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         self._validate_cpu(attrs, options)
         self._validate_ram(attrs, options)
         self._validate_disk(attrs, options)
+        return attrs
 
     def _validate_cluster(self, attrs):
-        cluster = attrs.get('cluster')
+        """
+        If basic mode is activated, match cluster by customer and service.
+        Otherwise use cluster provided by user if it is allowed.
+        Finally, use default cluster from service settings.
+        """
         spl = attrs['service_project_link']
+
+        if is_basic_mode():
+            customer = spl.project.customer
+            try:
+                cluster = models.Cluster.objects.filter(
+                    settings=spl.service.settings,
+                    customercluster__customer=customer).get()
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError(
+                    'There is no cluster assigned to the current customer.')
+            except MultipleObjectsReturned:
+                raise serializers.ValidationError(
+                    'There are multiple clusters assigned to the current customer.')
+            else:
+                attrs['cluster'] = cluster
+            return attrs
+
+        cluster = attrs.get('cluster')
 
         if cluster:
             if cluster.settings != spl.service.settings:
@@ -190,6 +264,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 raise serializers.ValidationError('This cluster is not available for this customer.')
         else:
             default_cluster_id = spl.service.settings.options.get('default_cluster_id')
+            if not default_cluster_id:
+                raise serializers.ValidationError('Default cluster is not defined for this service.')
             try:
                 attrs['cluster'] = models.Cluster.objects.filter(
                     settings=spl.service.settings,
@@ -198,9 +274,64 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 raise serializers.ValidationError('Default cluster is not defined for this service.')
         return attrs
 
-    def _validate_datastore(self, attrs):
-        datastore = attrs.get('datastore')
+    def _validate_folder(self, attrs):
+        """
+        If basic mode is activated, match folder by customer and service.
+        Otherwise use folder provided by user if it is allowed.
+        """
         spl = attrs['service_project_link']
+
+        if is_basic_mode():
+            customer = spl.project.customer
+            try:
+                folder = models.Folder.objects.filter(
+                    settings=spl.service.settings,
+                    customerfolder__customer=customer).get()
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError(
+                    'There is no folder assigned to the current customer.')
+            except MultipleObjectsReturned:
+                raise serializers.ValidationError(
+                    'There are multiple folders assigned to the current customer.')
+            else:
+                attrs['folder'] = folder
+            return attrs
+
+        folder = attrs.get('folder')
+
+        if folder:
+            if folder.settings != spl.service.settings:
+                raise serializers.ValidationError('This folder is not available for this service.')
+
+            if not folder.customerfolder_set.filter(customer=spl.project.customer).exists():
+                raise serializers.ValidationError('This folder is not available for this customer.')
+        return attrs
+
+    def _validate_datastore(self, attrs):
+        """
+        If basic mode is activated, match datastore by customer and service.
+        Otherwise use datastore provided by user if it is valid with respect to its size.
+        """
+        spl = attrs['service_project_link']
+        template = attrs.get('template')
+
+        if is_basic_mode():
+            customer = spl.project.customer
+            datastore = models.Datastore.objects.filter(
+                settings=spl.service.settings,
+                customerdatastore__customer=customer
+            ).order_by('-free_space').first()
+            if not datastore:
+                raise serializers.ValidationError(
+                    'There is no datastore assigned to the current customer.')
+            elif template and template.disk > datastore.free_space:
+                raise serializers.ValidationError(
+                    'There is no datastore with enough free space available for current customer.')
+            else:
+                attrs['datastore'] = datastore
+            return attrs
+
+        datastore = attrs.get('datastore')
 
         if datastore:
             if datastore.settings != spl.service.settings:
@@ -209,9 +340,35 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if not datastore.customerdatastore_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This datastore is not available for this customer.')
 
+            if template and template.disk > datastore.free_space:
+                raise serializers.ValidationError(
+                    'There is no datastore with enough free space available for current customer.')
+        return attrs
+
     def _validate_networks(self, attrs):
-        networks = attrs.get('networks', [])
+        """
+        If basic mode is activated, match network by customer and service.
+        Otherwise use networks provided by user if it is valid with respect to its size.
+        """
         spl = attrs['service_project_link']
+
+        if is_basic_mode():
+            customer = spl.project.customer
+            try:
+                network = models.Network.objects.filter(
+                    settings=spl.service.settings,
+                    customernetwork__customer=customer).get()
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError(
+                    'There is no network assigned to the current customer.')
+            except MultipleObjectsReturned:
+                raise serializers.ValidationError(
+                    'There are multiple networks assigned to the current customer.')
+            else:
+                attrs['networks'] = [network]
+            return attrs
+
+        networks = attrs.get('networks', [])
 
         for network in networks:
             if network.settings != spl.service.settings:
@@ -220,18 +377,25 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if not network.customernetwork_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This network is not available for this customer.')
 
+        return attrs
+
+    validators_pipeline = [
+        _validate_attributes,
+        _validate_cluster,
+        _validate_limits,
+        _validate_datastore,
+        _validate_folder,
+        _validate_networks,
+    ]
+
     def validate(self, attrs):
         attrs = super(VirtualMachineSerializer, self).validate(attrs)
 
         if self.instance:
             self._validate_limits(attrs)
         else:
-            attrs = self._validate_attributes(attrs)
-            attrs = self._validate_cluster(attrs)
-
-            self._validate_limits(attrs)
-            self._validate_datastore(attrs)
-            self._validate_networks(attrs)
+            for validator in self.validators_pipeline:
+                attrs = validator(self, attrs)
 
         return attrs
 
@@ -369,6 +533,17 @@ class DatastoreSerializer(structure_serializers.BasePropertySerializer):
         model = models.Datastore
         fields = (
             'url', 'uuid', 'name', 'type', 'capacity', 'free_space'
+        )
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
+
+
+class FolderSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Folder
+        fields = (
+            'url', 'uuid', 'name',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

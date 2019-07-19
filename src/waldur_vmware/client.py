@@ -86,6 +86,9 @@ class VMwareClient(object):
     def list_datastores(self):
         return self._get('vcenter/datastore')
 
+    def list_resource_pools(self):
+        return self._get('vcenter/resource-pool')
+
     def list_networks(self):
         return self._get('vcenter/network')
 
@@ -269,6 +272,22 @@ class VMwareClient(object):
         :type cdrom_id: string
         """
         return self._post('vcenter/vm/{}/hardware/cdrom/{}/disconnect'.format(vm_id, cdrom_id))
+
+    def create_nic(self, vm_id, network_id):
+        """
+        Adds a virtual Ethernet adapter to the virtual machine.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        :param network_id: Identifier of the network that backs the virtual Ethernet adapter.
+        :type network_id: string
+        """
+        spec = {
+            'backing': {
+                'network': network_id
+            }
+        }
+        return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
 
     def connect_nic(self, vm_id, nic_id):
         """

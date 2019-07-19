@@ -200,3 +200,10 @@ class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
     serializer_class = serializers.DatastoreSerializer
     filter_class = filters.DatastoreFilter
     lookup_field = 'uuid'
+
+
+class FolderViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Folder.objects.all()
+    serializer_class = serializers.FolderSerializer
+    filter_class = filters.FolderFilter
+    lookup_field = 'uuid'

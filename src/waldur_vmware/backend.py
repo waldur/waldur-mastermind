@@ -1,7 +1,7 @@
+import logging
 import sys
 import ssl
 
-from django.conf import settings
 from django.utils import six, timezone
 from django.utils.functional import cached_property
 import pyVim.task
@@ -14,8 +14,11 @@ from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_vmware.client import VMwareClient
 from waldur_vmware.exceptions import VMwareError
+from waldur_vmware.utils import is_basic_mode
 
 from . import models, signals
+
+logger = logging.getLogger(__name__)
 
 
 class VMwareBackendError(ServiceBackendError):
@@ -94,6 +97,13 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             reraise(e)
             return
+
+        if is_basic_mode():
+            # If basic mode is enabled, we should filter out templates which have more than 1 NIC
+            backend_templates = [
+                template for template in backend_templates
+                if len(template['template']['nics']) == 1
+            ]
 
         backend_templates_map = {
             item['library_item']['id']: item
@@ -303,12 +313,50 @@ class VMwareBackend(ServiceBackend):
 
         models.Datastore.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
 
-    def pull_folders(self):
+    def get_vm_folders(self):
         try:
-            backend_folders = self.client.list_folders(folder_type='VIRTUAL_MACHINE')
+            return self.client.list_folders(folder_type='VIRTUAL_MACHINE')
         except VMwareError as e:
             reraise(e)
-            return
+
+    def get_default_vm_folder(self):
+        """
+        Currently VM folder is required for VM provisioning either from template or from scratch.
+        Therefore when folder is not specified for VM, we should use first available folder.
+        Please note that it is assumed that there's only one datacenter in this case.
+        :return: Virtual machine folder identifier.
+        :rtype: str
+        """
+        return self.get_vm_folders()[0]['folder']
+
+    def get_default_resource_pool(self):
+        """
+        Currently resource pool is required for VM provisioning from scratch if cluster is not specified.
+        Therefore we should use first available resource pool.
+        Please note that it is assumed that there's only one datacenter in this case.
+        :return: Resource pool identifier.
+        :rtype: str
+        """
+        try:
+            return self.client.list_resource_pools()[0]['resource_pool']
+        except VMwareError as e:
+            reraise(e)
+
+    def get_default_datastore(self):
+        """
+        Currently datastore is required for VM provisioning either from template or from scratch.
+        Therefore when datastore is not specified for VM, we should use first available datastore.
+        Please note that it is assumed that there's only one datacenter in this case.
+        :return: Datastore identifier.
+        :rtype: str
+        """
+        try:
+            return self.client.list_datastores()[0]['datastore']
+        except VMwareError as e:
+            reraise(e)
+
+    def pull_folders(self):
+        backend_folders = self.get_vm_folders()
 
         backend_folders_map = {
             item['folder']: item
@@ -361,25 +409,87 @@ class VMwareBackend(ServiceBackend):
             disk.service_project_link = vm.service_project_link
             disk.save()
 
+        # If virtual machine is not deployed from template, it does not have any networks.
+        # Therefore we should create network interfaces manually according to VM spec.
+        if not vm.template:
+            for network in vm.networks.all():
+                try:
+                    self.client.create_nic(vm.backend_id, network.backend_id)
+                except VMwareError as e:
+                    reraise(e)
+
         signals.vm_created.send(self.__class__, vm=vm)
         return vm
 
     def _get_vm_placement(self, vm):
         placement = {}
 
-        try:
-            customer = vm.service_project_link.project.customer
-            folder = models.Folder.objects.filter(customerfolder__customer=customer).get()
-            placement['folder'] = folder.backend_id
-        except models.Folder.DoesNotExist:
-            placement['folder'] = settings.WALDUR_VMWARE['VM_FOLDER']
+        if vm.folder:
+            placement['folder'] = vm.folder.backend_id
+        else:
+            logger.warning('Folder is not specified for VM with ID: %s. '
+                           'Trying to assign default folder.', vm.id)
+            placement['folder'] = self.get_default_vm_folder()
 
         if vm.cluster:
             placement['cluster'] = vm.cluster.backend_id
         else:
-            placement['resource_pool'] = settings.WALDUR_VMWARE['VM_RESOURCE_POOL']
+            logger.warning('Cluster is not specified for VM with ID: %s. '
+                           'Trying to assign default resource pool.', vm.id)
+            placement['resource_pool'] = self.get_default_resource_pool()
 
         return placement
+
+    def _get_template_nics(self, template):
+        """
+        Fetch list of NIC IDs assigned to virtual machine template.
+
+        :param template: Virtual machine template.
+        :type template: :class:`waldur_vmware.models.Template`
+        :rtype: list[str]
+        """
+
+        try:
+            backend_template = self.client.get_template_library_item(template.backend_id)
+        except VMwareError as e:
+            reraise(e)
+        else:
+            return [nic['key'] for nic in backend_template['nics']]
+
+    def _get_vm_nics(self, vm):
+        """
+        Serialize map of Ethernet network adapters for virtual machine template deployment.
+
+        :param vm: Virtual machine to be created.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        :return: list[dict]
+        """
+
+        nics = self._get_template_nics(vm.template)
+        networks = list(vm.networks.all())
+
+        if is_basic_mode():
+            if len(networks) != 1:
+                logger.warning('Skipping network assignment because VM does not have '
+                               'exactly one network in basic mode. VM ID: %s', vm.id)
+                return
+            elif len(nics) != 1:
+                logger.warning('Skipping network assignment because related template does '
+                               'not have exactly one NIC in basic mode. VM ID: %s', vm.id)
+
+        if len(networks) != len(nics):
+            logger.warning('It is not safe to update network assignment when '
+                           'number of interfaces and networks do not match. VM ID: %s', vm.id)
+
+        return [
+            {
+                'key': nic,
+                'value': {
+                    'network': network.backend_id
+                }
+            }
+            for (nic, network) in zip(nics, networks)
+        ]
 
     def create_virtual_machine_from_template(self, vm):
         spec = {
@@ -401,24 +511,8 @@ class VMwareBackend(ServiceBackend):
             spec['disk_storage'] = {'datastore': vm.datastore.backend_id}
             spec['vm_home_storage'] = {'datastore': vm.datastore.backend_id}
 
-        if vm.networks.count():
-            """We need to get the NIC keys from the template to overwrite the networks.
-            We can't rewrite the networks more than there is in the template."""
-            backend_template = self.client.get_template_library_item(vm.template.backend_id)
-            keys = [k['key'] for k in backend_template['nics']]
-            nics = []
-
-            for network in vm.networks.all():
-                try:
-                    key = keys.pop()
-                except IndexError:
-                    break
-                nics.append({
-                    "key": key,
-                    "value": {
-                        "network": network.backend_id
-                    }
-                })
+        nics = self._get_vm_nics(vm)
+        if nics:
             spec['hardware_customization']['nics'] = nics
 
         try:
@@ -446,7 +540,7 @@ class VMwareBackend(ServiceBackend):
         if vm.datastore:
             spec['placement']['datastore'] = vm.datastore.backend_id
         else:
-            spec['placement']['datastore'] = settings.WALDUR_VMWARE['VM_DATASTORE']
+            spec['placement']['datastore'] = self.get_default_datastore()
 
         try:
             return self.client.create_vm(spec)

@@ -2,6 +2,32 @@ from celery import chain
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
+from waldur_core.core import utils as core_utils
+
+from . import models
+
+
+def pull_datastores_for_resource(instance, task):
+    """
+    Schedule datastore synchronization after virtual machine or disk
+    has been either created, updated or deleted.
+    """
+
+    if isinstance(instance, models.VirtualMachine):
+        datastore = instance.datastore
+    elif isinstance(instance, models.Disk):
+        datastore = instance.vm.datastore
+    else:
+        datastore = None
+
+    if not datastore:
+        return task
+
+    serialized_settings = core_utils.serialize_instance(instance.service_settings)
+    return chain(task, core_tasks.IndependentBackendMethodTask().si(
+        serialized_settings,
+        'pull_datastores',
+    ))
 
 
 class VirtualMachinePullExecutor(core_executors.ActionExecutor):
@@ -20,11 +46,12 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
+        task = core_tasks.BackendMethodTask().si(
             serialized_instance,
             'create_virtual_machine',
             state_transition='begin_creating'
         )
+        return pull_datastores_for_resource(instance, task)
 
 
 class VirtualMachineDeleteExecutor(core_executors.DeleteExecutor):
@@ -32,10 +59,11 @@ class VirtualMachineDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         if instance.backend_id:
-            return core_tasks.BackendMethodTask().si(
+            task = core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'delete_virtual_machine',
                 state_transition='begin_deleting')
+            return pull_datastores_for_resource(instance, task)
         else:
             return core_tasks.StateTransitionTask().si(
                 serialized_instance,
@@ -148,11 +176,12 @@ class DiskCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
+        task = core_tasks.BackendMethodTask().si(
             serialized_instance,
             'create_disk',
             state_transition='begin_creating'
         )
+        return pull_datastores_for_resource(instance, task)
 
 
 class DiskDeleteExecutor(core_executors.DeleteExecutor):
@@ -160,11 +189,12 @@ class DiskDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         if instance.backend_id:
-            return core_tasks.BackendMethodTask().si(
+            task = core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'delete_disk',
                 state_transition='begin_deleting'
             )
+            return pull_datastores_for_resource(instance, task)
         else:
             return core_tasks.StateTransitionTask().si(
                 serialized_instance,
@@ -177,6 +207,7 @@ class DiskExtendExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
+        task = core_tasks.BackendMethodTask().si(
             serialized_instance, 'extend_disk',
             state_transition='begin_updating')
+        return pull_datastores_for_resource(instance, task)

@@ -192,6 +192,7 @@ class DatastoreFactory(factory.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'datastore-%s' % n)
     backend_id = factory.Sequence(lambda n: 'datastore-%s' % n)
     type = 'VMFS'
+    free_space = 200000
 
     @classmethod
     def get_url(cls, datastore=None, action=None):
@@ -219,6 +220,16 @@ class FolderFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'folder-%s' % n)
     backend_id = factory.Sequence(lambda n: 'folder-%s' % n)
+
+    @classmethod
+    def get_url(cls, folder=None, action=None):
+        folder = folder or FolderFactory()
+        url = 'http://testserver' + reverse('vmware-folder-detail', kwargs={'uuid': folder.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('vmware-folder-list')
 
 
 class CustomerFolderFactory(factory.DjangoModelFactory):
