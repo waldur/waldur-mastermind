@@ -157,8 +157,9 @@ class BasePlanSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.Plan
-        fields = ('url', 'uuid', 'name', 'description', 'unit_price', 'unit',
-                  'prices', 'quotas', 'max_amount', 'archived', 'is_active')
+        fields = ('url', 'uuid', 'name', 'description',
+                  'prices', 'quotas', 'max_amount', 'archived', 'is_active',
+                  'unit_price', 'unit', 'init_price', 'switch_price')
         read_ony_fields = ('unit_price', 'archived')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-plan-detail'},

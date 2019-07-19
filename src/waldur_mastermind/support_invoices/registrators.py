@@ -13,6 +13,9 @@ from . import utils
 
 logger = logging.getLogger(__name__)
 
+BillingTypes = marketplace_models.OfferingComponent.BillingTypes
+OrderTypes = marketplace_models.OrderItem.Types
+
 
 class OfferingRegistrator(registrators.BaseRegistrator):
     def get_sources(self, customer):
@@ -35,7 +38,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         )
         return list(result)
 
-    def _create_item(self, source, invoice, start, end):
+    def _create_item(self, source, invoice, start, end, **kwargs):
         offering = source
 
         try:
@@ -48,35 +51,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                                'Offering ID: %s', offering.id)
                 return
 
-            create, switch = utils.resource_created_or_switched_plan(resource, start)
-
-            fixed = marketplace_models.OfferingComponent.BillingTypes.FIXED
-            one_time_type = marketplace_models.OfferingComponent.BillingTypes.ONE_TIME
-            switch_type = marketplace_models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH
-
-            for plan_component in plan.components.all():
-                offering_component = plan_component.component
-
-                if (offering_component.billing_type == fixed or
-                        (offering_component.billing_type == one_time_type and create) or
-                        (offering_component.billing_type == switch_type and (switch or create))):
-                    details = self.get_component_details(offering, plan_component)
-                    unit_price = plan_component.price
-                    if offering_component.billing_type == fixed:
-                        unit_price *= plan_component.amount
-                    invoice_models.GenericInvoiceItem.objects.create(
-                        content_type=ContentType.objects.get_for_model(offering),
-                        object_id=offering.id,
-                        project=offering.project,
-                        invoice=invoice,
-                        start=start,
-                        end=end,
-                        details=details,
-                        unit_price=unit_price,
-                        unit=plan.unit,
-                        product_code=offering_component.product_code or plan.product_code,
-                        article_code=offering_component.article_code or plan.article_code,
-                    )
+            self.create_items_for_plan(invoice, plan, offering, start, end, **kwargs)
 
         except marketplace_models.Resource.DoesNotExist:
             # If an offering isn't request based support offering
@@ -93,6 +68,44 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 product_code=offering.product_code,
                 article_code=offering.article_code
             )
+
+    def create_items_for_plan(self, invoice, plan, offering, start, end, **kwargs):
+        order_type = kwargs.get('order_type')
+
+        for plan_component in plan.components.all():
+            offering_component = plan_component.component
+
+            is_fixed = offering_component.billing_type == BillingTypes.FIXED
+            is_one = offering_component.billing_type == BillingTypes.ONE_TIME
+            is_switch = offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH
+
+            if is_fixed or \
+                    (is_one and order_type == OrderTypes.CREATE) or \
+                    (is_switch and order_type == OrderTypes.UPDATE):
+                details = self.get_component_details(offering, plan_component)
+
+                unit_price = plan_component.price
+                unit = plan.unit
+
+                if is_fixed:
+                    unit_price *= plan_component.amount
+                elif is_one or is_switch:
+                    unit = invoice_models.Units.QUANTITY
+
+                invoice_models.GenericInvoiceItem.objects.create(
+                    content_type=ContentType.objects.get_for_model(offering),
+                    object_id=offering.id,
+                    project=offering.project,
+                    invoice=invoice,
+                    start=start,
+                    end=end,
+                    details=details,
+                    unit_price=unit_price,
+                    unit=unit,
+                    quantity=1 if is_one or is_switch else 0,
+                    product_code=offering_component.product_code or plan.product_code,
+                    article_code=offering_component.article_code or plan.article_code,
+                )
 
     def get_details(self, source):
         offering = source

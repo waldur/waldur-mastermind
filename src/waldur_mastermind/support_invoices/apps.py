@@ -42,9 +42,9 @@ class SupportInvoicesConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_invoice_item,
+            handlers.add_component_usage,
             sender=marketplace_models.ComponentUsage,
-            dispatch_uid='support_invoices.handlers.update_invoice_item',
+            dispatch_uid='support_invoices.handlers.add_component_usage',
         )
 
         signals.post_save.connect(
