@@ -451,6 +451,18 @@ class Plan(core_models.UuidMixin,
         return six.text_type(self.name)
 
     @property
+    def init_price(self):
+        return self.sum_components(OfferingComponent.BillingTypes.ONE_TIME)
+
+    @property
+    def switch_price(self):
+        return self.sum_components(OfferingComponent.BillingTypes.ON_PLAN_SWITCH)
+
+    def sum_components(self, billing_type):
+        components = self.components.filter(component__billing_type=billing_type)
+        return components.aggregate(sum=models.Sum('price'))['sum'] or 0
+
+    @property
     def has_connected_resources(self):
         return Resource.objects.filter(plan=self).exists()
 
@@ -515,7 +527,21 @@ class Screenshot(core_models.UuidMixin,
         return 'marketplace-screenshot'
 
 
-class RequestTypeMixin(models.Model):
+class CostEstimateMixin(models.Model):
+    class Meta(object):
+        abstract = True
+
+    # Cost estimate is computed with respect to fixed plan components and usage-based limits
+    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
+    plan = models.ForeignKey(Plan, null=True, blank=True)
+    limits = BetterJSONField(blank=True, default=dict)
+
+    def init_cost(self):
+        if self.plan:
+            self.cost = self.plan.get_estimate(self.limits)
+
+
+class RequestTypeMixin(CostEstimateMixin):
     class Types(object):
         CREATE = 1
         UPDATE = 2
@@ -532,23 +558,17 @@ class RequestTypeMixin(models.Model):
     class Meta(object):
         abstract = True
 
-
-class CostEstimateMixin(models.Model):
-    class Meta(object):
-        abstract = True
-
-    # Cost estimate is computed with respect to fixed plan components and usage-based limits
-    cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
-    limits = BetterJSONField(blank=True, default=dict)
-
     def init_cost(self):
+        super(RequestTypeMixin, self).init_cost()
         if self.plan:
-            self.cost = self.plan.get_estimate(self.limits)
+            if self.type == RequestTypeMixin.Types.CREATE:
+                self.cost += self.plan.init_price
+            elif self.type == RequestTypeMixin.Types.UPDATE:
+                self.cost += self.plan.switch_price
 
 
 @python_2_unicode_compatible
-class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin, CostEstimateMixin):
+class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
@@ -814,8 +834,7 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
 
 
 @python_2_unicode_compatible
-class OrderItem(CostEstimateMixin,
-                core_models.UuidMixin,
+class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
                 structure_models.StructureLoggableMixin,

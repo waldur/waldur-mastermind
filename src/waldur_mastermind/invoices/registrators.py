@@ -25,17 +25,17 @@ class BaseRegistrator(object):
         """ Return customer based on provided item. """
         raise NotImplementedError()
 
-    def register(self, sources, invoice, start):
+    def register(self, sources, invoice, start, **kwargs):
         """ For each source create invoice item and register it in invoice. """
         end = core_utils.month_end(start)
         for source in sources:
-            self._create_item(source, invoice, start=start, end=end)
+            self._create_item(source, invoice, start=start, end=end, **kwargs)
 
     def get_sources(self, customer):
         """ Return a list of invoice item sources to charge customer for. """
         raise NotImplementedError()
 
-    def _create_item(self, source, invoice, start, end):
+    def _create_item(self, source, invoice, start, end, **kwargs):
         """ Register single chargeable item in the invoice. """
         raise NotImplementedError()
 
@@ -100,7 +100,7 @@ class RegistrationManager(object):
         return cls._registrators[source.__class__]
 
     @classmethod
-    def get_or_create_invoice(cls, customer, date):
+    def get_or_create_invoice(cls, customer, date, **kwargs):
         from . import models
         invoice, created = models.Invoice.objects.get_or_create(
             customer=customer,
@@ -111,12 +111,12 @@ class RegistrationManager(object):
         if created:
             for registrator in cls.get_registrators():
                 sources = registrator.get_sources(customer)
-                registrator.register(sources, invoice, date)
+                registrator.register(sources, invoice, date, **kwargs)
 
         return invoice, created
 
     @classmethod
-    def register(cls, source, now=None):
+    def register(cls, source, now=None, **kwargs):
         """
         Create new invoice item from source and register it into invoice.
 
@@ -129,9 +129,9 @@ class RegistrationManager(object):
         customer = registrator.get_customer(source)
 
         with transaction.atomic():
-            invoice, created = cls.get_or_create_invoice(customer, now)
+            invoice, created = cls.get_or_create_invoice(customer, now, **kwargs)
             if not created:
-                registrator.register([source], invoice, now)
+                registrator.register([source], invoice, now, **kwargs)
 
     @classmethod
     def terminate(cls, source, now=None):
