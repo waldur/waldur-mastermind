@@ -117,27 +117,46 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_templates_map.keys()) - set(backend_templates_map.keys())
         new_ids = set(backend_templates_map.keys()) - set(frontend_templates_map.keys())
+        common_ids = set(backend_templates_map.keys()) & set(frontend_templates_map.keys())
 
         for library_item_id in new_ids:
-            item = backend_templates_map[library_item_id]
-            library_item = item['library_item']
-            template = item['template']
-            total_disk = self._get_total_disk(template['disks'])
-            models.Template.objects.create(
-                settings=self.settings,
-                backend_id=library_item_id,
-                name=library_item['name'],
-                description=library_item['description'],
-                created=parse_datetime(library_item['creation_time']),
-                modified=parse_datetime(library_item['last_modified_time']),
-                cores=template['cpu']['count'],
-                cores_per_socket=template['cpu']['cores_per_socket'],
-                ram=template['memory']['size_MiB'],
-                disk=total_disk,
-                guest_os=template['guest_OS'],
+            template = self._backend_template_to_template(backend_templates_map[library_item_id])
+            template.save()
+
+        for library_item_id in common_ids:
+            backend_template = self._backend_template_to_template(
+                backend_templates_map[library_item_id])
+            frontend_template = frontend_templates_map[library_item_id]
+            fields = (
+                'cores',
+                'cores_per_socket',
+                'ram',
+                'disk',
+                'guest_os',
+                'modified',
+                'description'
             )
+            update_pulled_fields(frontend_template, backend_template, fields)
 
         models.Template.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
+    def _backend_template_to_template(self, backend_template):
+        library_item = backend_template['library_item']
+        template = backend_template['template']
+        total_disk = self._get_total_disk(template['disks'])
+        return models.Template(
+            settings=self.settings,
+            backend_id=library_item['id'],
+            name=library_item['name'],
+            description=library_item['description'],
+            created=parse_datetime(library_item['creation_time']),
+            modified=parse_datetime(library_item['last_modified_time']),
+            cores=template['cpu']['count'],
+            cores_per_socket=template['cpu']['cores_per_socket'],
+            ram=template['memory']['size_MiB'],
+            disk=total_disk,
+            guest_os=template['guest_OS'],
+        )
 
     def _get_total_disk(self, backend_disks):
         # Convert disk size from bytes to MiB
@@ -288,30 +307,39 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_datastores_map.keys()) - set(backend_datastores_map.keys())
         new_ids = set(backend_datastores_map.keys()) - set(frontend_datastores_map.keys())
+        common_ids = set(backend_datastores_map.keys()) & set(frontend_datastores_map.keys())
 
         for item_id in new_ids:
-            item = backend_datastores_map[item_id]
+            datastore = self._backend_datastore_to_datastore(backend_datastores_map[item_id])
+            datastore.save()
 
-            capacity = item.get('capacity')
-            # Convert from bytes to MB
-            if capacity:
-                capacity /= 1024 * 1024
-
-            free_space = item.get('free_space')
-            # Convert from bytes to MB
-            if free_space:
-                free_space /= 1024 * 1024
-
-            models.Datastore.objects.create(
-                settings=self.settings,
-                backend_id=item_id,
-                name=item['name'],
-                type=item['type'],
-                capacity=capacity,
-                free_space=free_space,
-            )
+        for item_id in common_ids:
+            backend_datastore = self._backend_datastore_to_datastore(backend_datastores_map[item_id])
+            frontend_datastore = frontend_datastores_map[item_id]
+            fields = ('capacity', 'free_space')
+            update_pulled_fields(frontend_datastore, backend_datastore, fields)
 
         models.Datastore.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
+    def _backend_datastore_to_datastore(self, backend_datastore):
+        capacity = backend_datastore.get('capacity')
+        # Convert from bytes to MB
+        if capacity:
+            capacity /= 1024 * 1024
+
+        free_space = backend_datastore.get('free_space')
+        # Convert from bytes to MB
+        if free_space:
+            free_space /= 1024 * 1024
+
+        return models.Datastore(
+            settings=self.settings,
+            backend_id=backend_datastore['datastore'],
+            name=backend_datastore['name'],
+            type=backend_datastore['type'],
+            capacity=capacity,
+            free_space=free_space,
+        )
 
     def get_vm_folders(self):
         try:

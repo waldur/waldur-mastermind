@@ -494,7 +494,7 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
         model = models.Template
         fields = (
             'url', 'uuid', 'name', 'description', 'created', 'modified',
-            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram',
+            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
