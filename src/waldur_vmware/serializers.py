@@ -40,6 +40,15 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
+class LimitSerializer(serializers.Serializer):
+    def to_representation(self, service_settings):
+        return {
+            'max_cpu': service_settings.options.get('max_cpu'),
+            'max_ram': service_settings.options.get('max_ram'),
+            'max_disk': service_settings.options.get('max_disk'),
+        }
+
+
 class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Disk
