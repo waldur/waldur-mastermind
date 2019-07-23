@@ -6,10 +6,14 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers as rf_serializers, status
 from rest_framework.decorators import detail_route
+from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core import validators as core_validators
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
+from waldur_vmware.apps import VMwareConfig
 
 from . import filters, executors, models, serializers
 
@@ -26,6 +30,20 @@ class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     queryset = models.VMwareServiceProjectLink.objects.all()
     serializer_class = serializers.ServiceProjectLinkSerializer
     filter_class = filters.ServiceProjectLinkFilter
+
+
+class LimitViewSet(RetrieveModelMixin, GenericViewSet):
+    """
+    Service consumer is not allowed to get details of service settings of service provider.
+    However, currently VMware virtual machine limits are stored as options in service settings.
+    Therefore in order to implement frontent-side validation of VM configuration in deployment form,
+    we need to get limits of VMware service settings for service consumer.
+    That's why GenericRoleFilter is not applied here.
+    It is expected that eventually service provider limits would be moved to marketplace offering.
+    """
+    queryset = structure_models.ServiceSettings.objects.filter(type=VMwareConfig.service_name)
+    lookup_field = 'uuid'
+    serializer_class = serializers.LimitSerializer
 
 
 class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
