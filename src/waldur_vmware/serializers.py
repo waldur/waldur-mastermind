@@ -181,7 +181,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     def _validate_attributes(self, attrs):
         template_attrs = {'cores', 'cores_per_socket', 'ram', 'disk', 'guest_os'}
         template = attrs.get('template')
-        missing_attributes = template_attrs - set(attrs.keys())
+        missing_attributes = template_attrs - set(attrs.keys()) - {'disk'}
         if template:
             if attrs.get('guest_os'):
                 raise serializers.ValidationError(
