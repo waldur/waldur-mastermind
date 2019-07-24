@@ -7,7 +7,6 @@ from django.forms.models import BaseInlineFormSet
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction
-from waldur_core.core.models import StateMixin
 from waldur_core.structure import admin as structure_admin
 from waldur_vmware.utils import is_basic_mode
 
@@ -71,28 +70,16 @@ class CustomerInlineFormset(BaseInlineFormSet):
                 else:
                     enabled_settings[service_settings] = True
 
-            # Ensure that the each service settings are used at least once
-            available_settings = set(models.VMwareService.objects.filter(
-                customer=self.instance
-            ).exclude(
-                settings__state__in=(
-                    StateMixin.States.CREATION_SCHEDULED,
-                    StateMixin.States.CREATING,
-                )
-            ).values_list('settings_id', flat=True))
-            current_settings = {
-                service_settings.id for service_settings in enabled_settings.keys()
-            }
-            missing_settings = available_settings - current_settings
-            if missing_settings:
-                raise ValidationError(_('There should be exactly one property '
-                                        'assigned to the each service settings.'))
+
+class CustomerClusterInlineFormset(CustomerInlineFormset):
+    service_property_field = 'cluster'
 
 
 class CustomerClusterInline(options.TabularInline):
     model = models.CustomerCluster
     extra = 1
     verbose_name_plural = 'Customer VMware clusters'
+    formset = CustomerClusterInlineFormset
 
 
 class CustomerNetworkInlineFormset(CustomerInlineFormset):
@@ -106,15 +93,10 @@ class CustomerNetworkInline(options.TabularInline):
     formset = CustomerNetworkInlineFormset
 
 
-class CustomerDatastoreInlineFormset(CustomerInlineFormset):
-    service_property_field = 'datastore'
-
-
 class CustomerDatastoreInline(options.TabularInline):
     model = models.CustomerDatastore
     extra = 1
     verbose_name_plural = 'Customer VMware datastores'
-    formset = CustomerDatastoreInlineFormset
 
 
 class CustomerFolderInlineInlineFormset(CustomerInlineFormset):

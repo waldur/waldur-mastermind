@@ -254,8 +254,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                     settings=spl.service.settings,
                     customercluster__customer=customer).get()
             except ObjectDoesNotExist:
-                raise serializers.ValidationError(
-                    'There is no cluster assigned to the current customer.')
+                return self._fallback_to_default_cluster(attrs)
             except MultipleObjectsReturned:
                 raise serializers.ValidationError(
                     'There are multiple clusters assigned to the current customer.')
@@ -272,16 +271,22 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if not cluster.customercluster_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This cluster is not available for this customer.')
         else:
-            default_cluster_id = spl.service.settings.options.get('default_cluster_id')
-            if not default_cluster_id:
-                raise serializers.ValidationError('Default cluster is not defined for this service.')
-            try:
-                attrs['cluster'] = models.Cluster.objects.filter(
-                    settings=spl.service.settings,
-                    backend_id=default_cluster_id).get()
-            except models.Cluster.DoesNotExist:
-                raise serializers.ValidationError('Default cluster is not defined for this service.')
+            return self._fallback_to_default_cluster(attrs)
         return attrs
+
+    def _fallback_to_default_cluster(self, attrs):
+        spl = attrs['service_project_link']
+        default_cluster_id = spl.service.settings.options.get('default_cluster_id')
+
+        if not default_cluster_id:
+            raise serializers.ValidationError('Default cluster is not defined for this service.')
+        try:
+            attrs['cluster'] = models.Cluster.objects.filter(
+                settings=spl.service.settings,
+                backend_id=default_cluster_id).get()
+            return attrs
+        except models.Cluster.DoesNotExist:
+            raise serializers.ValidationError('Default cluster is not defined for this service.')
 
     def _validate_folder(self, attrs):
         """
