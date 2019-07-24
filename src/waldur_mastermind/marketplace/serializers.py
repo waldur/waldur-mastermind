@@ -599,6 +599,21 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         added_components = set(new_components.keys()) - set(old_components.keys())
         updated_components = set(new_components.keys()) & set(old_components.keys())
 
+        builtin_components = plugins.manager.get_components(self.instance.type)
+        valid_types = {component.type for component in builtin_components}
+
+        if removed_components & valid_types:
+            raise serializers.ValidationError({
+                'components': _('These components cannot be removed because they are builtin: %s') %
+                ', '.join(removed_components & valid_types)
+            })
+
+        if updated_components & valid_types:
+            raise serializers.ValidationError({
+                'components': _('These components cannot be updated because they are builtin: %s') %
+                ', '.join(updated_components & valid_types)
+            })
+
         if removed_components:
             if resources_exist:
                 raise serializers.ValidationError({
@@ -694,12 +709,24 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        """
+        Components and plans are specified using nested list serializers with many=True.
+        These serializers return empty list even if value is not provided explicitly.
+        See also: https://github.com/encode/django-rest-framework/issues/3434
+        Consider the case when offering's thumbnail is uploaded, but plans and components are not specified.
+        It leads to tricky bug when all components are removed and plans are marked as archived.
+        In order to distinguish between case when user asks to remove all plans and
+        case when user wants to update only one attribute these we need to check not only
+        validated data, but also initial data.
+        """
         if 'components' in validated_data:
             components = validated_data.pop('components', [])
-            self._update_components(instance, components)
+            if 'components' in self.initial_data:
+                self._update_components(instance, components)
         if 'plans' in validated_data:
             new_plans = validated_data.pop('plans', [])
-            self._update_plans(instance, new_plans)
+            if 'plans' in self.initial_data:
+                self._update_plans(instance, new_plans)
         offering = super(OfferingUpdateSerializer, self).update(instance, validated_data)
         return offering
 

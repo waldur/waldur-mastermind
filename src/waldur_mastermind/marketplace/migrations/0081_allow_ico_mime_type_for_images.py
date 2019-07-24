@@ -18,12 +18,12 @@ class Migration(migrations.Migration):
             model_name='category',
             name='icon',
             field=models.FileField(blank=True, null=True, upload_to='marketplace_category_icons', validators=[
-                waldur_core.media.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg', 'image/svg+xml', 'image/x-icon'])]),
+                waldur_core.media.validators.FileTypeValidator(allowed_types=['image/png', 'image/gif', 'image/jpeg', 'image/svg', 'image/svg+xml', 'image/x-icon'])]),
         ),
         migrations.AlterField(
             model_name='offering',
             name='thumbnail',
             field=models.FileField(blank=True, null=True, upload_to='marketplace_service_offering_thumbnails', validators=[
-                waldur_core.media.validators.FileTypeValidator(allowed_types=['image/png', 'image/jpeg', 'image/svg', 'image/svg+xml', 'image/x-icon'])]),
+                waldur_core.media.validators.FileTypeValidator(allowed_types=['image/png', 'image/gif', 'image/jpeg', 'image/svg', 'image/svg+xml', 'image/x-icon'])]),
         ),
     ]
