@@ -8,12 +8,14 @@ import mock
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 
+from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.fixtures import ServiceFixture
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
+from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 
 from . import factories
 from .. import serializers
@@ -785,6 +787,35 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         plan_component = models.PlanComponent.objects.get(plan=plan, component=offering_component)
         self.assertEqual(plan_component.amount, 20)
         self.assertEqual(plan_component.price, 2)
+
+    def test_when_thumbnail_is_uploaded_plans_are_not_archived(self):
+        # Arrange
+        plan = factories.PlanFactory(offering=self.offering)
+
+        # Act
+        payload = {'thumbnail': dummy_image()}
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, payload, format='multipart')
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        plan.refresh_from_db()
+        self.assertFalse(plan.archived)
+
+    def test_it_should_not_be_possible_to_remove_builtin_components(self):
+        # Arrange
+        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.save()
+
+        cpu_component = factories.OfferingComponentFactory(offering=self.offering, type='cpu')
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.patch(self.url, {'components': []})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        cpu_component.refresh_from_db()
 
     def test_it_should_be_possible_to_update_plan_components(self):
         # Arrange
