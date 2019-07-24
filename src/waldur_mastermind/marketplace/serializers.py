@@ -605,13 +605,13 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         if removed_components & valid_types:
             raise serializers.ValidationError({
                 'components': _('These components cannot be removed because they are builtin: %s') %
-                              ', '.join(removed_components & valid_types)
+                ', '.join(removed_components & valid_types)
             })
 
         if updated_components & valid_types:
             raise serializers.ValidationError({
                 'components': _('These components cannot be updated because they are builtin: %s') %
-                              ', '.join(updated_components & valid_types)
+                ', '.join(updated_components & valid_types)
             })
 
         if removed_components:
