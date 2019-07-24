@@ -7,7 +7,6 @@ from django.forms.models import BaseInlineFormSet
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction
-from waldur_core.core.models import StateMixin
 from waldur_core.structure import admin as structure_admin
 from waldur_vmware.utils import is_basic_mode
 
