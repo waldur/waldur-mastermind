@@ -3,13 +3,10 @@ from __future__ import unicode_literals
 from django.contrib import admin
 from django.contrib.admin import options
 from django.core.exceptions import ValidationError
-from django.forms.models import BaseInlineFormSet
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction
-from waldur_core.core.models import StateMixin
 from waldur_core.structure import admin as structure_admin
-from waldur_vmware.utils import is_basic_mode
 
 from . import executors, models
 
@@ -40,92 +37,28 @@ class VirtualMachineAdmin(structure_admin.ResourceAdmin):
     pull = Pull()
 
 
-class CustomerInlineFormset(BaseInlineFormSet):
-    service_property_field = None
-
-    def clean(self):
-        """
-        When basic mode is activated we should require one service property
-        (network, cluster and folder) defined per customer
-        per shared service setting.
-        """
-        super(CustomerInlineFormset, self).clean()
-        if is_basic_mode():
-            enabled_settings = {}
-            for form in self.forms:
-                cleaned_data = getattr(form, 'cleaned_data', None)
-
-                # Skip empty form
-                if not cleaned_data:
-                    continue
-
-                # Skip deleted form
-                if cleaned_data.get('DELETE'):
-                    continue
-
-                # Ensure that the same service settings are not used multiple times
-                service_settings = cleaned_data[self.service_property_field].settings
-                if service_settings in enabled_settings:
-                    raise ValidationError(_('There should be exactly one property '
-                                            'assigned to the each service settings.'))
-                else:
-                    enabled_settings[service_settings] = True
-
-            # Ensure that the each service settings are used at least once
-            available_settings = set(models.VMwareService.objects.filter(
-                customer=self.instance
-            ).exclude(
-                settings__state__in=(
-                    StateMixin.States.CREATION_SCHEDULED,
-                    StateMixin.States.CREATING,
-                )
-            ).values_list('settings_id', flat=True))
-            current_settings = {
-                service_settings.id for service_settings in enabled_settings.keys()
-            }
-            missing_settings = available_settings - current_settings
-            if missing_settings:
-                raise ValidationError(_('There should be exactly one property '
-                                        'assigned to the each service settings.'))
-
-
 class CustomerClusterInline(options.TabularInline):
     model = models.CustomerCluster
     extra = 1
     verbose_name_plural = 'Customer VMware clusters'
 
 
-class CustomerNetworkInlineFormset(CustomerInlineFormset):
-    service_property_field = 'network'
-
-
 class CustomerNetworkInline(options.TabularInline):
     model = models.CustomerNetwork
     extra = 1
     verbose_name_plural = 'Customer VMware networks'
-    formset = CustomerNetworkInlineFormset
-
-
-class CustomerDatastoreInlineFormset(CustomerInlineFormset):
-    service_property_field = 'datastore'
 
 
 class CustomerDatastoreInline(options.TabularInline):
     model = models.CustomerDatastore
     extra = 1
     verbose_name_plural = 'Customer VMware datastores'
-    formset = CustomerDatastoreInlineFormset
-
-
-class CustomerFolderInlineInlineFormset(CustomerInlineFormset):
-    service_property_field = 'folder'
 
 
 class CustomerFolderInline(options.TabularInline):
     model = models.CustomerFolder
     extra = 1
     verbose_name_plural = 'Customer VMware folders'
-    formset = CustomerFolderInlineInlineFormset
 
 
 admin.site.register(models.VMwareService, structure_admin.ServiceAdmin)
