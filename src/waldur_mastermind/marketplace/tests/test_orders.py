@@ -249,6 +249,79 @@ class OrderCreateTest(test.APITransactionTestCase):
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_user_can_create_order_if_terms_of_service_have_been_accepted(self):
+        user = self.fixture.admin
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering.terms_of_service = 'Terms of service'
+        offering.save()
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'attributes': {},
+                    'accepting_terms_of_service': True
+                },
+            ]
+        }
+        response = self.create_order(user, offering=offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Order.objects.filter(created_by=user).exists())
+        self.assertEqual(1, len(response.data['items']))
+
+    def test_user_can_create_order_if_terms_of_service_are_not_filled(self):
+        user = self.fixture.admin
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(user, offering=offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Order.objects.filter(created_by=user).exists())
+        self.assertEqual(1, len(response.data['items']))
+
+    def test_user_can_create_order_if_offering_is_not_shared(self):
+        user = self.fixture.admin
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering.shared = False
+        offering.customer = self.project.customer
+        offering.save()
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'attributes': {},
+                },
+            ]
+        }
+        response = self.create_order(user, offering=offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Order.objects.filter(created_by=user).exists())
+        self.assertEqual(1, len(response.data['items']))
+
+    def test_user_cannot_create_order_if_terms_of_service_have_been_not_accepted(self):
+        user = self.fixture.admin
+        offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        offering.terms_of_service = 'Terms of service'
+        offering.save()
+        add_payload = {
+            'items': [
+                {
+                    'offering': factories.OfferingFactory.get_url(offering),
+                    'attributes': {}
+                },
+            ]
+        }
+        response = self.create_order(user, offering=offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.content,
+                         '{"items":["Terms of service for offering \'%s\' have not been accepted."]}' % offering)
+        self.assertFalse(models.Order.objects.filter(created_by=user).exists())
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
