@@ -796,6 +796,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
         fields = BaseRequestSerializer.Meta.fields + (
             'resource_uuid', 'resource_type', 'resource_name',
             'cost', 'state', 'marketplace_resource_uuid', 'error_message',
+            'accepting_terms_of_service',
         )
 
         read_only_fields = ('cost', 'state', 'error_message')
@@ -807,6 +808,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    accepting_terms_of_service = serializers.BooleanField(required=False, write_only=True)
 
     def get_fields(self):
         fields = super(BaseItemSerializer, self).get_fields()
@@ -1051,6 +1053,17 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     def get_filtered_field_names(self):
         return 'project',
+
+    def validate_items(self, items):
+        for item in items:
+            offering = item['offering']
+
+            if offering.shared and offering.terms_of_service and not item.get('accepting_terms_of_service'):
+                raise ValidationError(
+                    {'items': _('Terms of service for offering \'%s\' have not been accepted.') % offering}
+                )
+
+        return items
 
 
 class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
