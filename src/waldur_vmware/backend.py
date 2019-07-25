@@ -117,27 +117,46 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_templates_map.keys()) - set(backend_templates_map.keys())
         new_ids = set(backend_templates_map.keys()) - set(frontend_templates_map.keys())
+        common_ids = set(backend_templates_map.keys()) & set(frontend_templates_map.keys())
 
         for library_item_id in new_ids:
-            item = backend_templates_map[library_item_id]
-            library_item = item['library_item']
-            template = item['template']
-            total_disk = self._get_total_disk(template['disks'])
-            models.Template.objects.create(
-                settings=self.settings,
-                backend_id=library_item_id,
-                name=library_item['name'],
-                description=library_item['description'],
-                created=parse_datetime(library_item['creation_time']),
-                modified=parse_datetime(library_item['last_modified_time']),
-                cores=template['cpu']['count'],
-                cores_per_socket=template['cpu']['cores_per_socket'],
-                ram=template['memory']['size_MiB'],
-                disk=total_disk,
-                guest_os=template['guest_OS'],
+            template = self._backend_template_to_template(backend_templates_map[library_item_id])
+            template.save()
+
+        for library_item_id in common_ids:
+            backend_template = self._backend_template_to_template(
+                backend_templates_map[library_item_id])
+            frontend_template = frontend_templates_map[library_item_id]
+            fields = (
+                'cores',
+                'cores_per_socket',
+                'ram',
+                'disk',
+                'guest_os',
+                'modified',
+                'description'
             )
+            update_pulled_fields(frontend_template, backend_template, fields)
 
         models.Template.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
+    def _backend_template_to_template(self, backend_template):
+        library_item = backend_template['library_item']
+        template = backend_template['template']
+        total_disk = self._get_total_disk(template['disks'])
+        return models.Template(
+            settings=self.settings,
+            backend_id=library_item['id'],
+            name=library_item['name'],
+            description=library_item['description'],
+            created=parse_datetime(library_item['creation_time']),
+            modified=parse_datetime(library_item['last_modified_time']),
+            cores=template['cpu']['count'],
+            cores_per_socket=template['cpu']['cores_per_socket'],
+            ram=template['memory']['size_MiB'],
+            disk=total_disk,
+            guest_os=template['guest_OS'],
+        )
 
     def _get_total_disk(self, backend_disks):
         # Convert disk size from bytes to MiB
@@ -288,30 +307,39 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_datastores_map.keys()) - set(backend_datastores_map.keys())
         new_ids = set(backend_datastores_map.keys()) - set(frontend_datastores_map.keys())
+        common_ids = set(backend_datastores_map.keys()) & set(frontend_datastores_map.keys())
 
         for item_id in new_ids:
-            item = backend_datastores_map[item_id]
+            datastore = self._backend_datastore_to_datastore(backend_datastores_map[item_id])
+            datastore.save()
 
-            capacity = item.get('capacity')
-            # Convert from bytes to MB
-            if capacity:
-                capacity /= 1024 * 1024
-
-            free_space = item.get('free_space')
-            # Convert from bytes to MB
-            if free_space:
-                free_space /= 1024 * 1024
-
-            models.Datastore.objects.create(
-                settings=self.settings,
-                backend_id=item_id,
-                name=item['name'],
-                type=item['type'],
-                capacity=capacity,
-                free_space=free_space,
-            )
+        for item_id in common_ids:
+            backend_datastore = self._backend_datastore_to_datastore(backend_datastores_map[item_id])
+            frontend_datastore = frontend_datastores_map[item_id]
+            fields = ('capacity', 'free_space')
+            update_pulled_fields(frontend_datastore, backend_datastore, fields)
 
         models.Datastore.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
+
+    def _backend_datastore_to_datastore(self, backend_datastore):
+        capacity = backend_datastore.get('capacity')
+        # Convert from bytes to MB
+        if capacity:
+            capacity /= 1024 * 1024
+
+        free_space = backend_datastore.get('free_space')
+        # Convert from bytes to MB
+        if free_space:
+            free_space /= 1024 * 1024
+
+        return models.Datastore(
+            settings=self.settings,
+            backend_id=backend_datastore['datastore'],
+            name=backend_datastore['name'],
+            type=backend_datastore['type'],
+            capacity=capacity,
+            free_space=free_space,
+        )
 
     def get_vm_folders(self):
         try:
@@ -648,6 +676,141 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             reraise(e)
 
+    def create_port(self, port):
+        """
+        Creates an Ethernet port for given VM and network.
+
+        :param port: Port to be created
+        :type port: :class:`waldur_vmware.models.Port`
+        """
+        try:
+            backend_id = self.client.create_nic(port.vm.backend_id, port.network.backend_id)
+        except VMwareError as e:
+            reraise(e)
+        else:
+            port.backend_id = backend_id
+            port.save(update_fields=['backend_id'])
+            return port
+
+    def delete_port(self, port):
+        """
+        Deletes an Ethernet port.
+
+        :param port: Port to be deleted.
+        :type port: :class:`waldur_vmware.models.Port`
+        """
+        try:
+            self.client.delete_nic(port.vm.backend_id, port.network.backend_id)
+        except VMwareError as e:
+            reraise(e)
+
+    @log_backend_action()
+    def pull_port(self, port, update_fields=None):
+        """
+        Pull Ethernet port from REST API and update its information in local database.
+
+        :param port: Port to be updated.
+        :type port: :class:`waldur_vmware.models.Port`
+        :param update_fields: iterable of fields to be updated
+        :return: None
+        """
+        import_time = timezone.now()
+        imported_port = self.import_port(port.vm.backend_id, port.backend_id, save=False)
+
+        port.refresh_from_db()
+        if port.modified < import_time:
+            if not update_fields:
+                update_fields = models.Port.get_backend_fields()
+
+            update_pulled_fields(port, imported_port, update_fields)
+
+    def import_port(self, backend_vm_id, backend_port_id, save=True, service_project_link=None):
+        """
+        Import Ethernet port by its ID.
+
+        :param backend_vm_id: Virtual machine identifier
+        :type backend_vm_id: str
+        :param backend_port_id: Ethernet port identifier
+        :type backend_port_id: str
+        :param save: Save object in the database
+        :type save: bool
+        :param service_project_link: Service project link model object
+        :rtype: :class:`waldur_vmware.models.Disk`
+        """
+        try:
+            backend_port = self.client.get_nic(backend_vm_id, backend_port_id)
+        except VMwareError as e:
+            reraise(e)
+            return
+
+        port = self._backend_port_to_port(backend_port)
+        if service_project_link is not None:
+            port.service_project_link = service_project_link
+        if save:
+            port.save()
+
+        return port
+
+    def _backend_port_to_port(self, backend_port):
+        """
+        Build database model object for Ethernet port from REST API spec.
+
+        :param backend_port: Ethernet port specification
+        :type backend_port: dict
+        :rtype: :class:`waldur_vmware.models.Port`
+        """
+        return models.Port(
+            backend_id=backend_port['nic'],
+            name=backend_port['label'],
+            # MAC address is optional
+            mac_address=backend_port.get('mac_address'),
+            state=models.Port.States.OK,
+            runtime_state=backend_port['state'],
+        )
+
+    def pull_vm_ports(self, vm):
+        try:
+            backend_ports = self.client.list_nics(vm.backend_id)
+        except VMwareError as e:
+            reraise(e)
+            return
+
+        backend_ports_map = {
+            item['nic']: item
+            for item in backend_ports
+        }
+
+        frontend_ports_map = {
+            p.backend_id: p
+            for p in models.Port.objects.filter(vm=vm)
+        }
+
+        networks_map = {
+            p.backend_id: p
+            for p in models.Network.objects.filter(settings=vm.service_settings)
+        }
+
+        stale_ids = set(frontend_ports_map.keys()) - set(backend_ports_map.keys())
+        new_ids = set(backend_ports_map.keys()) - set(frontend_ports_map.keys())
+        common_ids = set(backend_ports_map.keys()) & set(frontend_ports_map.keys())
+
+        for item_id in new_ids:
+            backend_port = backend_ports_map[item_id]
+            port = self._backend_port_to_port(backend_port)
+            port.service_project_link = vm.service_project_link
+            network_id = backend_port['backing']['network']
+            port.network = networks_map.get(network_id)
+            port.vm = vm
+            port.save()
+
+        for item_id in common_ids:
+            backend_port = self._backend_port_to_port(backend_ports_map[item_id])
+            frontend_port = frontend_ports_map[item_id]
+            fields = ('mac_address', 'runtime_state')
+            update_pulled_fields(frontend_port, backend_port, fields)
+
+        models.Port.objects.filter(vm=vm, backend_id__in=stale_ids).delete()
+
     def create_disk(self, disk):
         """
         Creates a virtual disk.
@@ -693,7 +856,11 @@ class VMwareBackend(ServiceBackend):
                 name=backend_disk.backing.fileName,
                 datacenter=self.get_disk_datacenter(backend_disk),
             )
-            pyVim.task.WaitForTask(task)
+            try:
+                pyVim.task.WaitForTask(task)
+            except Exception:
+                logger.exception('Unable to delete VMware disk. Disk ID: %s.', disk.id)
+                raise VMwareBackendError('Unknown error.')
             signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def extend_disk(self, disk):
@@ -710,7 +877,13 @@ class VMwareBackend(ServiceBackend):
             datacenter=self.get_disk_datacenter(backend_disk),
             newCapacityKb=disk.size * 1024
         )
-        pyVim.task.WaitForTask(task)
+        try:
+            pyVim.task.WaitForTask(task)
+        except vim.fault.FileLocked:
+            raise VMwareBackendError('File is locked.')
+        except Exception:
+            logger.exception('Unable to extend VMware disk. Disk ID: %s.', disk.id)
+            raise VMwareBackendError('Unknown error.')
         signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def get_object(self, vim_type, vim_id):

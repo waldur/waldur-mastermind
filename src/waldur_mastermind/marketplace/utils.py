@@ -10,7 +10,10 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
 from django.utils import six
+from django.utils import timezone
 from rest_framework import exceptions
+
+from waldur_core.core import utils as core_utils
 
 from . import models, plugins
 
@@ -165,3 +168,32 @@ def fill_activated_field(apps, schema_editor):
         if not order_item.activated and order_item.resource:
             order_item.activated = order_item.resource.created
             order_item.save()
+
+
+def get_info_about_missing_usage_reports():
+    now = timezone.now()
+    billing_period = core_utils.month_start(now)
+
+    offering_ids = models.OfferingComponent.objects.filter(billing_type=models.OfferingComponent.BillingTypes.USAGE).\
+        values_list('offering_id', flat=True)
+    resource_with_usages = models.ComponentUsage.objects.filter(billing_period=billing_period).\
+        values_list('resource', flat=True)
+    resources_without_usages = models.Resource.objects.\
+        filter(state=models.Resource.States.OK, offering_id__in=offering_ids).exclude(id__in=resource_with_usages)
+    result = []
+
+    for resource in resources_without_usages:
+        if filter(lambda x: x['customer'] == resource.offering.customer, result):
+            filter(lambda x: x['customer'] == resource.offering.customer, result)[0]['resources'].append(resource)
+        else:
+            result.append({
+                'customer': resource.offering.customer,
+                'resources': [resource],
+            })
+
+    return result
+
+
+def get_public_resources_url(customer):
+    link_template = settings.WALDUR_MARKETPLACE['PUBLIC_RESOURCES_LINK_TEMPLATE']
+    return link_template.format(organization_uuid=customer.uuid)

@@ -99,6 +99,7 @@ class FileTypeValidator(object):
 ImageValidator = FileTypeValidator(
     allowed_types=[
         'image/png',
+        'image/gif',
         'image/jpeg',
         'image/svg',
         'image/svg+xml',

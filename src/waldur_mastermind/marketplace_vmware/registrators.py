@@ -1,6 +1,8 @@
+from decimal import Decimal
 import logging
 
 from waldur_core.structure.permissions import _get_project
+from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -8,6 +10,11 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_vmware import models as vmware_models
 
 logger = logging.getLogger(__name__)
+
+
+def mb_to_gb(value):
+    # In marketplace RAM and storage is stored in GB, but in plugin it is stored in MB.
+    return quantize_price(Decimal(value / 1024.0))
 
 
 class VirtualMachineRegistrator(BaseRegistrator):
@@ -47,8 +54,8 @@ class VirtualMachineRegistrator(BaseRegistrator):
             return
 
         cores_price = components_map['cpu'] * source.cores
-        ram_price = components_map['ram'] * source.ram
-        disk_price = components_map['disk'] * source.total_disk
+        ram_price = components_map['ram'] * mb_to_gb(source.ram)
+        disk_price = components_map['disk'] * mb_to_gb(source.total_disk)
         total_price = cores_price + ram_price + disk_price
 
         start = invoices_models.adjust_invoice_items(
@@ -71,9 +78,9 @@ class VirtualMachineRegistrator(BaseRegistrator):
         )
 
     def get_name(self, source):
-        return '{name} ({cores} CPU, {ram} MB RAM, {disk} MB disk)'.format(
+        return '{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(
             name=source.name,
             cores=source.cores,
-            ram=source.ram,
-            disk=source.total_disk,
+            ram=mb_to_gb(source.ram),
+            disk=mb_to_gb(source.total_disk),
         )

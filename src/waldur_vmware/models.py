@@ -92,6 +92,29 @@ class VirtualMachine(VirtualMachineMixin,
 
 
 @python_2_unicode_compatible
+class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
+    service_project_link = models.ForeignKey(
+        VMwareServiceProjectLink,
+        related_name='+',
+        on_delete=models.PROTECT
+    )
+    vm = models.ForeignKey(VirtualMachine)
+    network = models.ForeignKey('Network')
+    mac_address = models.CharField(max_length=32, blank=True)
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super(Port, cls).get_backend_fields() + ('name', 'mac_address')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'vmware-port'
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
 class Disk(structure_models.NewResource):
     service_project_link = models.ForeignKey(
         VMwareServiceProjectLink,
@@ -163,6 +186,19 @@ class Network(structure_models.ServiceProperty):
 
 
 class CustomerNetwork(models.Model):
+    # This model allows to specify allowed networks for VM provision
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+
+    def __str__(self):
+        return '%s / %s' % (self.customer, self.network)
+
+    class Meta(object):
+        unique_together = ('customer', 'network')
+
+
+class CustomerNetworkPair(models.Model):
+    # This model allows to specify allowed networks for existing VM NIC provision
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     network = models.ForeignKey('Network', on_delete=models.CASCADE)
 
@@ -210,8 +246,11 @@ class Folder(structure_models.ServiceProperty):
 
 
 class CustomerFolder(models.Model):
-    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
     folder = models.ForeignKey('Folder', on_delete=models.CASCADE)
 
     def __str__(self):
         return '%s / %s' % (self.customer, self.folder)
+
+    class Meta(object):
+        unique_together = ('customer', 'folder')

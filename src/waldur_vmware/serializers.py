@@ -40,6 +40,26 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
+class LimitSerializer(serializers.Serializer):
+    def to_representation(self, service_settings):
+        return {
+            'max_cpu': service_settings.options.get('max_cpu'),
+            'max_ram': service_settings.options.get('max_ram'),
+            'max_disk': service_settings.options.get('max_disk'),
+        }
+
+
+class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Port
+        fields = ('url', 'uuid', 'name', 'mac_address', 'network')
+        read_only_fields = ('mac_address',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'vmware-port-detail'},
+            'network': {'lookup_field': 'uuid', 'view_name': 'vmware-network-detail'},
+        }
+
+
 class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Disk
@@ -83,6 +103,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     disks = NestedDiskSerializer(many=True, read_only=True)
 
+    ports = NestedPortSerializer(many=True, read_only=True, source='port_set')
+
     template = serializers.HyperlinkedRelatedField(
         view_name='vmware-template-detail',
         lookup_field='uuid',
@@ -124,7 +146,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     folder_name = serializers.ReadOnlyField(source='folder.name')
 
-    networks = NestedNetworkSerializer(queryset=models.Network.objects.all(), many=True, required=False)
+    networks = NestedNetworkSerializer(queryset=models.Network.objects.all(),
+                                       many=True, required=False, write_only=True)
 
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
@@ -134,10 +157,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
             'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
-            'template_name', 'cluster_name', 'datastore_name', 'folder_name',
+            'template_name', 'cluster_name', 'datastore_name', 'folder_name', 'ports',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder'
+            'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -172,7 +195,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     def _validate_attributes(self, attrs):
         template_attrs = {'cores', 'cores_per_socket', 'ram', 'disk', 'guest_os'}
         template = attrs.get('template')
-        missing_attributes = template_attrs - set(attrs.keys())
+        missing_attributes = template_attrs - set(attrs.keys()) - {'disk'}
         if template:
             if attrs.get('guest_os'):
                 raise serializers.ValidationError(
@@ -245,8 +268,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                     settings=spl.service.settings,
                     customercluster__customer=customer).get()
             except ObjectDoesNotExist:
-                raise serializers.ValidationError(
-                    'There is no cluster assigned to the current customer.')
+                return self._fallback_to_default_cluster(attrs)
             except MultipleObjectsReturned:
                 raise serializers.ValidationError(
                     'There are multiple clusters assigned to the current customer.')
@@ -263,16 +285,22 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if not cluster.customercluster_set.filter(customer=spl.project.customer).exists():
                 raise serializers.ValidationError('This cluster is not available for this customer.')
         else:
-            default_cluster_id = spl.service.settings.options.get('default_cluster_id')
-            if not default_cluster_id:
-                raise serializers.ValidationError('Default cluster is not defined for this service.')
-            try:
-                attrs['cluster'] = models.Cluster.objects.filter(
-                    settings=spl.service.settings,
-                    backend_id=default_cluster_id).get()
-            except models.Cluster.DoesNotExist:
-                raise serializers.ValidationError('Default cluster is not defined for this service.')
+            return self._fallback_to_default_cluster(attrs)
         return attrs
+
+    def _fallback_to_default_cluster(self, attrs):
+        spl = attrs['service_project_link']
+        default_cluster_id = spl.service.settings.options.get('default_cluster_id')
+
+        if not default_cluster_id:
+            raise serializers.ValidationError('Default cluster is not defined for this service.')
+        try:
+            attrs['cluster'] = models.Cluster.objects.filter(
+                settings=spl.service.settings,
+                backend_id=default_cluster_id).get()
+            return attrs
+        except models.Cluster.DoesNotExist:
+            raise serializers.ValidationError('Default cluster is not defined for this service.')
 
     def _validate_folder(self, attrs):
         """
@@ -406,6 +434,67 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         return vm
 
 
+class PortSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='vmware-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='vmware-spl-detail',
+        read_only=True,
+    )
+
+    service_settings = serializers.HyperlinkedRelatedField(
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    project = serializers.HyperlinkedRelatedField(
+        view_name='project-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        model = models.Port
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'mac_address', 'vm', 'network'
+        )
+        extra_kwargs = dict(
+            vm={
+                'view_name': 'vmware-virtual-machine-detail',
+                'lookup_field': 'uuid',
+            },
+            network={
+                'view_name': 'vmware-network-detail',
+                'lookup_field': 'uuid',
+            },
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+        )
+
+    def validate(self, attrs):
+        # Skip validation on update
+        if self.instance:
+            return attrs
+
+        vm = self.context['view'].get_object()
+        attrs['vm'] = vm
+        attrs['service_project_link'] = vm.service_project_link
+
+        if not models.CustomerNetworkPair.objects.filter(
+            settings=vm.service_project_link.service.settings,
+            customernetwork__customer=vm.service_project_link.project.customer,
+            network=attrs['network'],
+        ).exists():
+            raise serializers.ValidationError('This network is not available for this customer.')
+
+        return super(PortSerializer, self).validate(attrs)
+
+
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -494,7 +583,7 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
         model = models.Template
         fields = (
             'url', 'uuid', 'name', 'description', 'created', 'modified',
-            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram',
+            'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk',
         )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},

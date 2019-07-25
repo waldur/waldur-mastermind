@@ -8,10 +8,19 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
         'name',
         'description',
         'guest_os',
-        'cores',
         'cores_per_socket',
-        'ram',
         'template',
         'cluster',
         'datastore',
     )
+
+    def get_post_data(self):
+        payload = super(VirtualMachineCreateProcessor, self).get_post_data()
+
+        limits = self.order_item.limits
+        if limits:
+            if 'cpu' in limits:
+                payload['cores'] = limits['cpu']
+            if 'ram' in limits:
+                payload['ram'] = limits['ram']
+        return payload

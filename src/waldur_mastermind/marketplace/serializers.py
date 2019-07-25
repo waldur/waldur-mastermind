@@ -599,6 +599,21 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         added_components = set(new_components.keys()) - set(old_components.keys())
         updated_components = set(new_components.keys()) & set(old_components.keys())
 
+        builtin_components = plugins.manager.get_components(self.instance.type)
+        valid_types = {component.type for component in builtin_components}
+
+        if removed_components & valid_types:
+            raise serializers.ValidationError({
+                'components': _('These components cannot be removed because they are builtin: %s') %
+                ', '.join(removed_components & valid_types)
+            })
+
+        if updated_components & valid_types:
+            raise serializers.ValidationError({
+                'components': _('These components cannot be updated because they are builtin: %s') %
+                ', '.join(updated_components & valid_types)
+            })
+
         if removed_components:
             if resources_exist:
                 raise serializers.ValidationError({
@@ -694,12 +709,24 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
+        """
+        Components and plans are specified using nested list serializers with many=True.
+        These serializers return empty list even if value is not provided explicitly.
+        See also: https://github.com/encode/django-rest-framework/issues/3434
+        Consider the case when offering's thumbnail is uploaded, but plans and components are not specified.
+        It leads to tricky bug when all components are removed and plans are marked as archived.
+        In order to distinguish between case when user asks to remove all plans and
+        case when user wants to update only one attribute these we need to check not only
+        validated data, but also initial data.
+        """
         if 'components' in validated_data:
             components = validated_data.pop('components', [])
-            self._update_components(instance, components)
+            if 'components' in self.initial_data:
+                self._update_components(instance, components)
         if 'plans' in validated_data:
             new_plans = validated_data.pop('plans', [])
-            self._update_plans(instance, new_plans)
+            if 'plans' in self.initial_data:
+                self._update_plans(instance, new_plans)
         offering = super(OfferingUpdateSerializer, self).update(instance, validated_data)
         return offering
 
@@ -796,6 +823,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
         fields = BaseRequestSerializer.Meta.fields + (
             'resource_uuid', 'resource_type', 'resource_name',
             'cost', 'state', 'marketplace_resource_uuid', 'error_message',
+            'accepting_terms_of_service',
         )
 
         read_only_fields = ('cost', 'state', 'error_message')
@@ -807,6 +835,7 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
     resource_type = serializers.ReadOnlyField(source='resource.backend_type')
     state = serializers.ReadOnlyField(source='get_state_display')
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
+    accepting_terms_of_service = serializers.BooleanField(required=False, write_only=True)
 
     def get_fields(self):
         fields = super(BaseItemSerializer, self).get_fields()
@@ -1051,6 +1080,17 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
     def get_filtered_field_names(self):
         return 'project',
+
+    def validate_items(self, items):
+        for item in items:
+            offering = item['offering']
+
+            if offering.shared and offering.terms_of_service and not item.get('accepting_terms_of_service'):
+                raise ValidationError(
+                    {'items': _('Terms of service for offering \'%s\' have not been accepted.') % offering}
+                )
+
+        return items
 
 
 class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):

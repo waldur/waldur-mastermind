@@ -1,0 +1,8 @@
+Hello!
+
+Please do not forget to add usage for the resources you provide:
+{% for resource in resources %}
+    {{ resource.name }}{% if not forloop.last %}, {% endif %}
+{% endfor %}.
+
+You can submit resource usage via API or do it manually at {{ public_resources_url }}.
