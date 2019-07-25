@@ -164,3 +164,14 @@ def calculate_usage_for_current_month():
 
     for scope in scopes:
         calculate_usage_for_scope(start, end, scope)
+
+
+@shared_task(name='waldur_mastermind.marketplace.send_notifications_about_usages')
+def send_notifications_about_usages():
+    for warning in utils.get_info_about_missing_usage_reports():
+        customer = warning['customer']
+        emails = [owner.email for owner in customer.get_owners()]
+        warning['public_resources_url'] = utils.get_public_resources_url(customer)
+
+        if customer.serviceprovider.enable_notifications and emails:
+            core_utils.broadcast_mail('marketplace', 'notification_usages', warning, emails)

@@ -2,8 +2,10 @@ from ddt import data, ddt
 from rest_framework import test, status
 
 from waldur_core.structure.tests import fixtures, factories as structure_factories
+from django.core import mail
+from django.conf import settings
 
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, utils, tasks
 
 from . import factories
 from .. import base
@@ -215,3 +217,35 @@ class CustomerSerializerTest(test.APITransactionTestCase):
         self.client.force_login(user)
         response = self.client.get(url)
         return response.data['is_service_provider']
+
+
+class ServiceProviderNotificationTest(test.APITransactionTestCase):
+
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+        self.fixture.owner
+        self.service_provider = factories.ServiceProviderFactory(customer=self.fixture.customer)
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.component = factories.OfferingComponentFactory(billing_type=models.OfferingComponent.BillingTypes.USAGE,
+                                                            offering=offering)
+
+        self.resource = factories.ResourceFactory(offering=offering, state=models.Resource.States.OK,
+                                                  name='My resource')
+
+    def test_get_customer_if_usages_are_not_exist(self):
+        self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 1)
+        self.assertEqual(utils.get_info_about_missing_usage_reports()[0]['customer'], self.fixture.customer)
+
+    def test_do_not_get_customer_if_usages_are_exist(self):
+        factories.ComponentUsageFactory(resource=self.resource, component=self.component)
+        self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 0)
+
+    def test_usages_notification_message(self):
+        tasks.send_notifications_about_usages()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.fixture.owner.email])
+        self.assertEqual(mail.outbox[0].subject, u'Reminder about missing usage reports.')
+        self.assertTrue('My resource' in mail.outbox[0].body)
+        link_template = settings.WALDUR_MARKETPLACE['PUBLIC_RESOURCES_LINK_TEMPLATE']
+        public_resources_url = link_template.format(organization_uuid=self.fixture.customer.uuid)
+        self.assertTrue(public_resources_url in mail.outbox[0].body)
