@@ -89,8 +89,14 @@ class CustomerNetworkInlineFormset(CustomerInlineFormset):
 class CustomerNetworkInline(options.TabularInline):
     model = models.CustomerNetwork
     extra = 1
-    verbose_name_plural = 'Customer VMware networks'
+    verbose_name_plural = 'Customer VMware networks for new VMs'
     formset = CustomerNetworkInlineFormset
+
+
+class CustomerNetworkPairInline(options.TabularInline):
+    model = models.CustomerNetworkPair
+    extra = 1
+    verbose_name_plural = 'Customer VMware networks for existing VMs'
 
 
 class CustomerDatastoreInline(options.TabularInline):
@@ -122,5 +128,6 @@ admin.site.register(models.Folder, structure_admin.ServicePropertyAdmin)
 
 structure_admin.CustomerAdmin.inlines += [CustomerClusterInline]
 structure_admin.CustomerAdmin.inlines += [CustomerNetworkInline]
+structure_admin.CustomerAdmin.inlines += [CustomerNetworkPairInline]
 structure_admin.CustomerAdmin.inlines += [CustomerDatastoreInline]
 structure_admin.CustomerAdmin.inlines += [CustomerFolderInline]
