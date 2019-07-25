@@ -49,6 +49,17 @@ class LimitSerializer(serializers.Serializer):
         }
 
 
+class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta(object):
+        model = models.Port
+        fields = ('url', 'uuid', 'name', 'mac_address', 'network')
+        read_only_fields = ('mac_address',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'vmware-port-detail'},
+            'network': {'lookup_field': 'uuid', 'view_name': 'vmware-network-detail'},
+        }
+
+
 class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
     class Meta(object):
         model = models.Disk
@@ -92,6 +103,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     disks = NestedDiskSerializer(many=True, read_only=True)
 
+    ports = NestedPortSerializer(many=True, read_only=True, source='port_set')
+
     template = serializers.HyperlinkedRelatedField(
         view_name='vmware-template-detail',
         lookup_field='uuid',
@@ -133,7 +146,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     folder_name = serializers.ReadOnlyField(source='folder.name')
 
-    networks = NestedNetworkSerializer(queryset=models.Network.objects.all(), many=True, required=False)
+    networks = NestedNetworkSerializer(queryset=models.Network.objects.all(),
+                                       many=True, required=False, write_only=True)
 
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
@@ -143,10 +157,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
             'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
-            'template_name', 'cluster_name', 'datastore_name', 'folder_name',
+            'template_name', 'cluster_name', 'datastore_name', 'folder_name', 'ports',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder'
+            'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state',
@@ -418,6 +432,67 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         vm = super(VirtualMachineSerializer, self).create(validated_data)
         vm.networks.add(*networks)
         return vm
+
+
+class PortSerializer(structure_serializers.BaseResourceSerializer):
+    service = serializers.HyperlinkedRelatedField(
+        source='service_project_link.service',
+        view_name='vmware-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='vmware-spl-detail',
+        read_only=True,
+    )
+
+    service_settings = serializers.HyperlinkedRelatedField(
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    project = serializers.HyperlinkedRelatedField(
+        view_name='project-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
+
+    class Meta(structure_serializers.BaseResourceSerializer.Meta):
+        model = models.Port
+        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
+            'mac_address', 'vm', 'network'
+        )
+        extra_kwargs = dict(
+            vm={
+                'view_name': 'vmware-virtual-machine-detail',
+                'lookup_field': 'uuid',
+            },
+            network={
+                'view_name': 'vmware-network-detail',
+                'lookup_field': 'uuid',
+            },
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+        )
+
+    def validate(self, attrs):
+        # Skip validation on update
+        if self.instance:
+            return attrs
+
+        vm = self.context['view'].get_object()
+        attrs['vm'] = vm
+        attrs['service_project_link'] = vm.service_project_link
+
+        if not models.CustomerNetworkPair.objects.filter(
+            settings=vm.service_project_link.service.settings,
+            customernetwork__customer=vm.service_project_link.project.customer,
+            network=attrs['network'],
+        ).exists():
+            raise serializers.ValidationError('This network is not available for this customer.')
+
+        return super(PortSerializer, self).validate(attrs)
 
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):

@@ -118,6 +118,20 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     suspend_serializer_class = rf_serializers.Serializer
 
     @detail_route(methods=['post'])
+    def create_port(self, request, uuid=None):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        port = serializer.save()
+
+        transaction.on_commit(lambda: executors.PortCreateExecutor().execute(port))
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    create_port_validators = [
+        core_validators.StateValidator(models.VirtualMachine.States.OK),
+    ]
+    create_port_serializer_class = serializers.PortSerializer
+
+    @detail_route(methods=['post'])
     def create_disk(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -165,6 +179,15 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_ON)
     ]
+
+
+class PortViewSet(structure_views.BaseResourceViewSet):
+    queryset = models.Port.objects.all()
+    serializer_class = serializers.PortSerializer
+    filter_class = filters.PortFilter
+    disabled_actions = ['create', 'update', 'partial_update']
+    pull_executor = executors.PortPullExecutor
+    delete_executor = executors.PortDeleteExecutor
 
 
 class DiskViewSet(structure_views.BaseResourceViewSet):

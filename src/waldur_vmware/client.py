@@ -289,6 +289,52 @@ class VMwareClient(object):
         }
         return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
 
+    def delete_nic(self, vm_id, network_id):
+        """
+        Removes a virtual Ethernet adapter from the virtual machine.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        :param network_id: Identifier of the network that backs the virtual Ethernet adapter.
+        :type network_id: string
+        """
+        return self._delete('vcenter/vm/{}/hardware/ethernet/{}'.format(vm_id, network_id))
+
+    def list_nics(self, vm_id):
+        """
+        Returns list of Ethernet adapters by virtual machine ID.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        :rtype: List[Dict]
+        """
+        result = []
+        for nic in self.list_nic_ids(vm_id):
+            nic_payload = self.get_nic(vm_id, nic['nic'])
+            nic_payload['nic'] = nic['nic']
+            result.append(nic_payload)
+        return result
+
+    def list_nic_ids(self, vm_id):
+        """
+        Returns list of Ethernet adapter IDs by virtual machine ID.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/ethernet'.format(vm_id))
+
+    def get_nic(self, vm_id, nic_id):
+        """
+        Returns information about a virtual Ethernet adapter.
+
+        :param vm_id: Virtual machine identifier.
+        :type vm_id: string
+        :param nic_id: Virtual Ethernet adapter identifier.
+        :type nic_id: string
+        """
+        return self._get('vcenter/vm/{}/hardware/ethernet/{}'.format(vm_id, nic_id))
+
     def connect_nic(self, vm_id, nic_id):
         """
         Connects a virtual Ethernet adapter of a powered-on virtual machine to its backing.
