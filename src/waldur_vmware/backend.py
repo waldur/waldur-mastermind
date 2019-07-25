@@ -720,7 +720,7 @@ class VMwareBackend(ServiceBackend):
         port.refresh_from_db()
         if port.modified < import_time:
             if not update_fields:
-                update_fields = models.Disk.get_backend_fields()
+                update_fields = models.Port.get_backend_fields()
 
             update_pulled_fields(port, imported_port, update_fields)
 
