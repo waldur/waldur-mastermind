@@ -2,8 +2,10 @@ from decimal import Decimal
 
 import factory
 from django.db.models import signals
+from django.utils import timezone
 from rest_framework.reverse import reverse
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 
@@ -289,3 +291,14 @@ class OfferingFileFactory(factory.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('marketplace-offering-file-list')
         return url if action is None else url + action + '/'
+
+
+class ComponentUsageFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.ComponentUsage
+
+    resource = factory.SubFactory(ResourceFactory)
+    component = factory.SubFactory(OfferingComponentFactory)
+    usage = 1
+    date = timezone.now()
+    billing_period = core_utils.month_start(timezone.now())

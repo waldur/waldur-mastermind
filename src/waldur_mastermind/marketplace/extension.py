@@ -20,7 +20,9 @@ class MarketplaceExtension(WaldurExtension):
             'ORDER_LINK_TEMPLATE': 'https://www.example.com/#/projects/'
                                    '{project_uuid}/marketplace-order-list/',
             'ORDER_ITEM_LINK_TEMPLATE': 'https://www.example.com/#/projects/{project_uuid}/'
-                                        'marketplace-order-item-details/{order_item_uuid}/'
+                                        'marketplace-order-item-details/{order_item_uuid}/',
+            'PUBLIC_RESOURCES_LINK_TEMPLATE': 'https://www.example.com/#/organizations/{organization_uuid}/'
+                                        'marketplace-public-resources/'
         }
 
     @staticmethod
@@ -52,10 +54,16 @@ class MarketplaceExtension(WaldurExtension):
 
     @staticmethod
     def celery_tasks():
+        from celery.schedules import crontab
         return {
             'waldur-marketplace-calculate-usage': {
                 'task': 'waldur_mastermind.marketplace.calculate_usage_for_current_month',
                 'schedule': timedelta(hours=1),
+                'args': (),
+            },
+            'waldur-mastermind-send-notifications-about-usages': {
+                'task': 'waldur_mastermind.marketplace.send_notifications_about_usages',
+                'schedule': crontab(minute=0, hour=15, day_of_month='23'),
                 'args': (),
             }
         }
