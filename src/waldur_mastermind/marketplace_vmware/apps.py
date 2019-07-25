@@ -31,8 +31,8 @@ class MarketplaceVMwareConfig(AppConfig):
                          service_type=VMwareConfig.service_name,
                          components=(
                              Component(type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE),
-                             Component(type='ram', name='RAM', measured_unit='MB', billing_type=USAGE),
-                             Component(type='disk', name='Disk', measured_unit='MB', billing_type=USAGE),
+                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE),
+                             Component(type='disk', name='Disk', measured_unit='GB', billing_type=USAGE),
                          ))
 
         registrators.RegistrationManager.add_registrator(
