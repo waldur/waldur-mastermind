@@ -108,7 +108,6 @@ class VirtualMachineNetworkValidationTest(VirtualMachineCreateBaseTest):
         payload['networks'] = [{'url': factories.NetworkFactory.get_url(network)}]
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['networks'][0]['uuid'], network.uuid.hex)
 
     def test_network_customer_validation(self):
         self.client.force_authenticate(self.fixture.owner)
