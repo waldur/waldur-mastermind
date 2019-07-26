@@ -5,7 +5,7 @@ from rest_framework.serializers import ValidationError
 from waldur_mastermind.marketplace import processors
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from .utils import TimePeriod, interval_in_schedules
+from .utils import TimePeriod, is_interval_in_schedules
 
 
 class BookingCreateProcessor(processors.BaseOrderItemProcessor):
@@ -30,15 +30,15 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
 
         # We check that the schedule is set.
         if not schedules:
-            raise ValidationError(_('Schedules is required.'))
+            raise ValidationError(_('Schedules are required.'))
 
         # Check that the schedule is available for the offering.
         offering = self.order_item.offering
         offering_schedules = offering.options.get('schedules', [])
 
         for period in schedules:
-            if not interval_in_schedules(TimePeriod(period['start'], period['end']),
-                                         [TimePeriod(i['start'], i['end']) for i in offering_schedules]):
+            if not is_interval_in_schedules(TimePeriod(period['start'], period['end']),
+                                            [TimePeriod(i['start'], i['end']) for i in offering_schedules]):
                 raise ValidationError(_('Time period is not available for selected offering.'))
 
         # Check that there are no other bookings.
@@ -50,8 +50,9 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 bookings.append(TimePeriod(period['start'], period['end']))
 
         for period in schedules:
-            if interval_in_schedules(TimePeriod(period['start'], period['end']), bookings):
-                raise ValidationError(_('Time period is not available.'))
+            if is_interval_in_schedules(TimePeriod(period['start'], period['end']), bookings):
+                raise ValidationError(_('Time period from %s to %s is not available.') %
+                                      (period['start'], period['end']))
 
 
 class BookingDeleteProcessor(processors.DeleteResourceProcessor):

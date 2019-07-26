@@ -13,10 +13,10 @@ class TimePeriod(object):
         self.end = end
 
 
-def interval_in_schedules(interval, schedules):
+def is_interval_in_schedules(interval, schedules):
     for s in schedules:
         if interval.start >= s.start:
             if interval.end <= s.end:
                 return True
 
-    return
+    return False

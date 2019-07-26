@@ -80,7 +80,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.content, '["Time period is not available for selected offering."]')
 
-    def test_do_not_create_order_if_schedule_is_not_valid(self):
+    def test_do_not_create_order_if_schedules_are_not_valid(self):
         marketplace_factories.ResourceFactory(offering=self.offering,
                                               state=marketplace_models.Resource.States.OK,
                                               attributes={'schedules': [
@@ -101,7 +101,8 @@ class OrderCreateTest(test.APITransactionTestCase):
         }
         response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.content, '["Time period is not available."]')
+        self.assertEqual(response.content, '["Time period from %s to %s is not available."]' %
+                         ('2019-01-02T00:00:00', '2019-01-02T23:59:59'))
 
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
