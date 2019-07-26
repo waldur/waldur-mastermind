@@ -18,8 +18,8 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
             offering=offering,
             attributes={'name': 'item_name', 'description': 'Description',
                         'schedules': [
-                                {'start': None, 'end': None}
-                            ]
+                            {'start': None, 'end': None}
+                        ]
                         }
         )
 
