@@ -856,7 +856,11 @@ class VMwareBackend(ServiceBackend):
                 name=backend_disk.backing.fileName,
                 datacenter=self.get_disk_datacenter(backend_disk),
             )
-            pyVim.task.WaitForTask(task)
+            try:
+                pyVim.task.WaitForTask(task)
+            except Exception:
+                logger.exception('Unable to delete VMware disk. Disk ID: %s.', disk.id)
+                raise VMwareBackendError('Unknown error.')
             signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def extend_disk(self, disk):
@@ -873,7 +877,13 @@ class VMwareBackend(ServiceBackend):
             datacenter=self.get_disk_datacenter(backend_disk),
             newCapacityKb=disk.size * 1024
         )
-        pyVim.task.WaitForTask(task)
+        try:
+            pyVim.task.WaitForTask(task)
+        except vim.fault.FileLocked:
+            raise VMwareBackendError('File is locked.')
+        except Exception:
+            logger.exception('Unable to extend VMware disk. Disk ID: %s.', disk.id)
+            raise VMwareBackendError('Unknown error.')
         signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def get_object(self, vim_type, vim_id):
