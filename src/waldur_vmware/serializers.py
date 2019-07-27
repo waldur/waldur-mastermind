@@ -459,10 +459,19 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         read_only=True,
     )
 
+    vm_name = serializers.ReadOnlyField(source='vm.name')
+    network_name = serializers.ReadOnlyField(source='network.name')
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'mac_address', 'vm', 'network'
+            'mac_address', 'vm', 'vm_name', 'network', 'network_name',
+        )
+        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
+            'vm', 'mac_address',
+        )
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'network',
         )
         extra_kwargs = dict(
             vm={
@@ -476,6 +485,18 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
+    def get_fields(self):
+        # Skip metadata tweak on update because network is protected from update
+        fields = super(PortSerializer, self).get_fields()
+        if 'network' in fields and self.instance:
+            network_field = fields['network']
+            network_field.display_name_field = 'name'
+            network_field.query_params = {
+                'customer_pair_uuid': self.instance.customer.uuid.hex,
+                'settings_uuid': self.instance.service_settings.uuid.hex,
+            }
+        return fields
+
     def validate(self, attrs):
         # Skip validation on update
         if self.instance:
@@ -486,8 +507,7 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         attrs['service_project_link'] = vm.service_project_link
 
         if not models.CustomerNetworkPair.objects.filter(
-            settings=vm.service_project_link.service.settings,
-            customernetwork__customer=vm.service_project_link.project.customer,
+            customer=vm.customer,
             network=attrs['network'],
         ).exists():
             raise serializers.ValidationError('This network is not available for this customer.')

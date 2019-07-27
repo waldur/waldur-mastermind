@@ -451,3 +451,26 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
 
         # Assert
         self.client.create_nic.assert_called_once_with('vm-01', self.fixture.network.backend_id)
+
+
+class NetworkPortCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.url = factories.VirtualMachineFactory.get_url(self.fixture.virtual_machine, 'create_port')
+
+    def test_if_customer_network_pair_does_not_exist_port_can_not_be_created(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {
+            'name': 'Test',
+            'network': factories.NetworkFactory.get_url(self.fixture.network)
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_if_customer_network_pair_exists_port_can_be_created(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.customer_network_pair
+        response = self.client.post(self.url, {
+            'name': 'Test',
+            'network': factories.NetworkFactory.get_url(self.fixture.network)
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
