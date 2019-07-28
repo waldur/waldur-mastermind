@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('error_message', models.TextField(blank=True)),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('mac_address', models.CharField(blank=True, max_length=32, verbose_name=_('MAC address'))),
+                ('mac_address', models.CharField(blank=True, max_length=32, verbose_name='MAC address')),
                 ('network', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_vmware.Network')),
                 ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('vm', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_vmware.VirtualMachine')),
