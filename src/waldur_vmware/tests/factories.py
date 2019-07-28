@@ -184,6 +184,14 @@ class CustomerNetworkFactory(factory.DjangoModelFactory):
     network = factory.SubFactory(NetworkFactory)
 
 
+class CustomerNetworkPairFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.CustomerNetworkPair
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    network = factory.SubFactory(NetworkFactory)
+
+
 class DatastoreFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.Datastore

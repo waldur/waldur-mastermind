@@ -100,7 +100,7 @@ class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
     )
     vm = models.ForeignKey(VirtualMachine)
     network = models.ForeignKey('Network')
-    mac_address = models.CharField(max_length=32, blank=True)
+    mac_address = models.CharField(max_length=32, blank=True, verbose_name=_('MAC address'))
 
     @classmethod
     def get_backend_fields(cls):
