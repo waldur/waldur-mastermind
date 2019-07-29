@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 from django.apps import apps
 from django.conf import settings
-from django.urls import reverse
+from django.urls import reverse, NoReverseMatch
 from django.utils.translation import ugettext_lazy as _
 from fluent_dashboard.dashboard import modules, FluentIndexDashboard, FluentAppIndexDashboard
 import six
@@ -114,25 +114,34 @@ class CustomIndexDashboard(FluentIndexDashboard):
             'num': erred_amount,
             'resources': result['title']
         }
-        result['url'] = '%s?shared__exact=1&state__exact=%s' % (result['url'], erred_state)
+        if 'url' in result:
+            result['url'] = '%s?shared__exact=1&state__exact=%s' % (result['url'], erred_state)
         return result
 
     def _get_link_to_model(self, model):
-        return {
+        result = {
             'title': six.text_type(model._meta.verbose_name_plural).capitalize(),
-            'url': reverse('admin:%s_%s_changelist' % (model._meta.app_label, model._meta.model_name)),
             'external': True,
             'attrs': {'target': '_blank'},
         }
+        try:
+            result['url'] = reverse('admin:%s_%s_changelist' % (model._meta.app_label, model._meta.model_name))
+        except NoReverseMatch:
+            pass
+        return result
 
     def _get_link_to_instance(self, instance):
-        return {
+        result = {
             'title': six.text_type(instance),
-            'url': reverse('admin:%s_%s_change' % (instance._meta.app_label, instance._meta.model_name),
-                           args=(instance.pk,)),
             'external': True,
             'attrs': {'target': '_blank'},
         }
+        try:
+            result['url'] = reverse('admin:%s_%s_change' % (instance._meta.app_label, instance._meta.model_name),
+                                    args=(instance.pk,))
+        except NoReverseMatch:
+            pass
+        return result
 
     def _get_erred_shared_settings_module(self):
         """
