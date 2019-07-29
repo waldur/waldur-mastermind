@@ -23,8 +23,8 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'default_cluster_id': _('ID of VMware cluster that will be used for virtual machines provisioning'),
         'max_cpu': _('Maximum vCPU for each VM'),
-        'max_ram': _('Maximum RAM for each VM, GB'),
-        'max_disk': _('Maximum capacity for each disk, GB'),
+        'max_ram': _('Maximum RAM for each VM, MiB'),
+        'max_disk': _('Maximum capacity for each disk, MiB'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
@@ -195,12 +195,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 fields['cores'].max_value = options.get('max_cpu')
 
             if 'ram' in fields and 'max_ram' in options:
-                # Limit is stored as GB but usage in MB
-                fields['ram'].max_value = options.get('max_ram') * 1024
+                fields['ram'].max_value = options.get('max_ram')
 
             if 'disk' in fields and 'max_disk' in options:
-                # Limit is stored as GB but usage in MB
-                fields['disk'].max_value = options.get('max_disk') * 1024
+                fields['disk'].max_value = options.get('max_disk')
 
         if not is_basic_mode():
             return fields
@@ -250,8 +248,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         """
         actual_ram = attrs.get('ram')
         max_ram = options.get('max_ram')
-        # Limit is stored as GB but usage in MB
-        if actual_ram and max_ram and actual_ram > max_ram * 1024:
+        if actual_ram and max_ram and actual_ram > max_ram:
             raise serializers.ValidationError('Requested amount of RAM exceeds offering limit.')
 
     def _validate_disk(self, attrs, options):
@@ -261,8 +258,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         template = attrs.get('template')
         max_disk = options.get('max_disk')
         actual_disk = template.disk if template else 0
-        # Limit is stored as GB but usage in MB
-        if actual_disk and max_disk and actual_disk > max_disk * 1024:
+        if actual_disk and max_disk and actual_disk > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 
     def _validate_limits(self, attrs):
@@ -594,7 +590,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         if isinstance(self.instance, models.VirtualMachine):
             max_disk = self.instance.service_settings.options.get('max_disk')
             if max_disk:
-                fields['size'].max_value = max_disk * 1024
+                fields['size'].max_value = max_disk
         return fields
 
     def _validate_size(self, vm, attrs):
@@ -602,7 +598,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
 
         actual_disk = attrs.get('size')
         max_disk = options.get('max_disk')
-        if actual_disk and max_disk and actual_disk > max_disk * 1024:
+        if actual_disk and max_disk and actual_disk > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 
     def validate(self, attrs):
@@ -629,7 +625,7 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         fields['size'].min_value = self.instance.size + 1024
         max_disk = self.instance.service_settings.options.get('max_disk')
         if max_disk:
-            fields['size'].max_value = max_disk * 1024
+            fields['size'].max_value = max_disk
         return fields
 
     def validate_size(self, value):
@@ -638,7 +634,7 @@ class DiskExtendSerializer(serializers.ModelSerializer):
                 _('Disk size should be greater than %s') % self.instance.size)
 
         max_disk = self.instance.service_settings.options.get('max_disk')
-        if max_disk and value > max_disk * 1024:
+        if max_disk and value > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 
         return value
