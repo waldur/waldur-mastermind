@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import detail_route
@@ -8,8 +9,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import utils as structure_utils
+from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import serializers, models
 
 from . import PLUGIN_NAME, filters
@@ -19,8 +19,9 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Resource.objects.exclude(offering__type=PLUGIN_NAME)
     filter_backends = (
         DjangoFilterBackend,
-        filters.OfferingCustomersFilterBackend
+        filters.OfferingCustomersFilterBackend,
     )
+    filter_class = marketplace_filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
 
@@ -29,10 +30,19 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         resource = self.get_object()
 
         with transaction.atomic():
-            order_item = models.OrderItem(
-                resource=resource,
-                offering=resource.offering,
-            )
+            try:
+                order_item = models.OrderItem.objects.get(
+                    resource=resource,
+                    offering=resource.offering,
+                    type=models.OrderItem.Types.CREATE,
+                    state=models.OrderItem.States.EXECUTING,
+                )
+            except models.OrderItem.DoesNotExist:
+                raise serializers.ValidationError(_('Resource rejecting is not available because '
+                                                    'the reference order item is not found.'))
+            except models.OrderItem.MultipleObjectsReturned:
+                raise serializers.ValidationError(_('Resource rejecting is not available because '
+                                                    'several reference order items are found.'))
             order_item.set_state_terminated()
             order_item.save()
             resource.set_state_terminated()
@@ -45,19 +55,26 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         resource = self.get_object()
 
         with transaction.atomic():
-            order_item = models.OrderItem(
-                resource=resource,
-                offering=resource.offering,
-            )
+            try:
+                order_item = models.OrderItem.objects.get(
+                    resource=resource,
+                    offering=resource.offering,
+                    type=models.OrderItem.Types.CREATE,
+                    state=models.OrderItem.States.EXECUTING,
+                )
+            except models.OrderItem.DoesNotExist:
+                raise serializers.ValidationError(_('Resource accepting is not available because '
+                                                    'the reference order item is not found.'))
+            except models.OrderItem.MultipleObjectsReturned:
+                raise serializers.ValidationError(_('Resource accepting is not available because '
+                                                    'several reference order items are found.'))
             order_item.set_state_done()
             order_item.save()
-            resource.set_state_done()
+            resource.set_state_ok()
             resource.save()
 
         return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
 
-    accept_permissions = reject_permissions = [structure_permissions.is_administrator]
     reject_validators = accept_validators = [
-        core_validators.StateValidator(models.Resource.States.CREATING),
-        structure_utils.check_customer_blocked
+        core_validators.StateValidator(models.Resource.States.CREATING)
     ]

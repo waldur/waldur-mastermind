@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-from waldur_mastermind.marketplace import views
+from waldur_mastermind.booking import views
 
 
 def register_in(router):
