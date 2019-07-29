@@ -23,8 +23,8 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'default_cluster_id': _('ID of VMware cluster that will be used for virtual machines provisioning'),
         'max_cpu': _('Maximum vCPU for each VM'),
-        'max_ram': _('Maximum RAM for each VM, MB'),
-        'max_disk': _('Maximum capacity for each disk, MB'),
+        'max_ram': _('Maximum RAM for each VM, MiB'),
+        'max_disk': _('Maximum capacity for each disk, MiB'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
@@ -178,6 +178,28 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         to select placement attributes for the new virtual machine.
         """
         fields = super(VirtualMachineSerializer, self).get_fields()
+
+        if 'ram' in fields:
+            fields['ram'].factor = 1024
+            fields['ram'].units = 'GB'
+
+        if 'disk' in fields:
+            fields['disk'].factor = 1024
+            fields['disk'].units = 'GB'
+
+        if self.instance:
+            spl = self.instance.service_project_link
+            options = spl.service.settings.options
+
+            if 'cores' in fields:
+                fields['cores'].max_value = options.get('max_cpu')
+
+            if 'ram' in fields and 'max_ram' in options:
+                fields['ram'].max_value = options.get('max_ram')
+
+            if 'disk' in fields and 'max_disk' in options:
+                fields['disk'].max_value = options.get('max_disk')
+
         if not is_basic_mode():
             return fields
 
@@ -190,6 +212,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             read_only_fields = 'cluster', 'networks', 'datastore', 'folder'
             for field in read_only_fields:
                 fields[field].read_only = True
+
         return fields
 
     def _validate_attributes(self, attrs):
@@ -559,6 +582,17 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
+    def get_fields(self):
+        fields = super(DiskSerializer, self).get_fields()
+        fields['size'].factor = 1024
+        fields['size'].units = 'GB'
+
+        if isinstance(self.instance, models.VirtualMachine):
+            max_disk = self.instance.service_settings.options.get('max_disk')
+            if max_disk:
+                fields['size'].max_value = max_disk
+        return fields
+
     def _validate_size(self, vm, attrs):
         options = vm.service_project_link.service.settings.options
 
@@ -584,14 +618,23 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         model = models.Disk
         fields = ('size',)
 
+    def get_fields(self):
+        fields = super(DiskExtendSerializer, self).get_fields()
+        fields['size'].factor = 1024
+        fields['size'].units = 'GB'
+        if isinstance(self.instance, models.Disk):
+            fields['size'].min_value = self.instance.size + 1024
+            max_disk = self.instance.service_settings.options.get('max_disk')
+            if max_disk:
+                fields['size'].max_value = max_disk
+        return fields
+
     def validate_size(self, value):
         if value <= self.instance.size:
             raise serializers.ValidationError(
                 _('Disk size should be greater than %s') % self.instance.size)
 
-        options = self.instance.service_project_link.service.settings.options
-
-        max_disk = options.get('max_disk')
+        max_disk = self.instance.service_settings.options.get('max_disk')
         if max_disk and value > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 

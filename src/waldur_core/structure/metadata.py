@@ -193,7 +193,7 @@ class ActionsMetadata(SimpleMetadata):
 
         attrs = [
             'label', 'help_text', 'default_value', 'placeholder', 'required',
-            'min_length', 'max_length', 'min_value', 'max_value', 'many'
+            'min_length', 'max_length', 'min_value', 'max_value', 'many', 'factor', 'units'
         ]
 
         if getattr(field, 'read_only', False):
