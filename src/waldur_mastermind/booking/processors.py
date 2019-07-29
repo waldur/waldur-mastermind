@@ -39,7 +39,8 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
         for period in schedules:
             if not is_interval_in_schedules(TimePeriod(period['start'], period['end']),
                                             [TimePeriod(i['start'], i['end']) for i in offering_schedules]):
-                raise ValidationError(_('Time period is not available for selected offering.'))
+                raise ValidationError(_('Time period from %s to %s is not available for selected offering.') %
+                                      (period['start'], period['end']))
 
         # Check that there are no other bookings.
         bookings = []
