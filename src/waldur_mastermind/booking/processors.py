@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
+from django.utils.dateparse import datetime_re
 from rest_framework.serializers import ValidationError
 
 from waldur_mastermind.marketplace import processors
@@ -31,6 +32,22 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
         # We check that the schedule is set.
         if not schedules:
             raise ValidationError(_('Schedules are required.'))
+
+        if not len(schedules):
+            raise ValidationError(_('Schedules are required.'))
+
+        for period in schedules:
+            try:
+                start = period['start']
+                end = period['end']
+            except KeyError:
+                raise ValidationError(_('Key \'start\' or \'end\' does not exist in schedules item.'))
+
+            for value in [start, end]:
+                match = datetime_re.match(value)
+                kw = match.groupdict()
+                if filter(lambda x: not kw[x], ['hour', 'month', 'second', 'year', 'tzinfo', 'day', 'minute']):
+                    raise ValidationError(_('The value %s does not match the format.') % value)
 
         # Check that the schedule is available for the offering.
         offering = self.order_item.offering

@@ -81,6 +81,50 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.content, '["Time period from %s to %s is not available for selected offering."]' %
                          ('2019-01-05T00:00:00.000000Z', '2019-01-05T23:59:59.000000Z'))
 
+    def test_do_not_create_order_if_schedule_is_empty(self):
+        add_payload = {
+            'items': [
+                {
+                    'offering': marketplace_factories.OfferingFactory.get_url(self.offering),
+                    'attributes': {'schedules': []},
+                },
+            ]
+        }
+        response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.content, '["Schedules are required."]')
+
+    def test_do_not_create_order_if_schedule_item_has_not_got_key_start(self):
+        add_payload = {
+            'items': [
+                {
+                    'offering': marketplace_factories.OfferingFactory.get_url(self.offering),
+                    'attributes': {'schedules': [
+                        {'end': '2019-01-05T23:59:59.000000Z'},
+                    ]},
+                },
+            ]
+        }
+        response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.content, '["Key \'start\' or \'end\' does not exist in schedules item."]')
+
+    def test_do_not_create_order_if_schedule_item_does_not_match_format(self):
+        add_payload = {
+            'items': [
+                {
+                    'offering': marketplace_factories.OfferingFactory.get_url(self.offering),
+                    'attributes': {'schedules': [
+                        {'start': '2019-01-05T00:00:00',
+                         'end': '2019-01-05T23:59:59.000000Z'},
+                    ]},
+                },
+            ]
+        }
+        response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.content, '["The value 2019-01-05T00:00:00 does not match the format."]')
+
     def test_do_not_create_order_if_schedules_are_not_valid(self):
         marketplace_factories.ResourceFactory(offering=self.offering,
                                               state=marketplace_models.Resource.States.OK,
