@@ -160,8 +160,9 @@ class CustomIndexDashboard(FluentIndexDashboard):
             result_module.title = '%s (%s)' % (result_module.title, settings_in_erred_state)
             for service_settings in queryset.filter(state=erred_state).iterator():
                 module_child = self._get_link_to_instance(service_settings)
-                module_child['error'] = service_settings.error_message
-                result_module.children.append(module_child)
+                if 'url' in module_child:
+                    module_child['error'] = service_settings.error_message
+                    result_module.children.append(module_child)
         else:
             result_module.pre_content = _('Nothing found.')
 
