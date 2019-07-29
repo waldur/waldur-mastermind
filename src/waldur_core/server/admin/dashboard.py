@@ -104,7 +104,9 @@ class CustomIndexDashboard(FluentIndexDashboard):
                       core_models.User,
                       structure_models.SharedServiceSettings,
                       logging_models.Report,):
-            quick_access_links.append(self._get_link_to_model(model))
+            link = self._get_link_to_model(model)
+            if 'url' in link:
+                quick_access_links.append(link)
 
         return quick_access_links
 
@@ -181,7 +183,8 @@ class CustomIndexDashboard(FluentIndexDashboard):
             if erred_amount:
                 resources_in_erred_state_overall = resources_in_erred_state_overall + erred_amount
                 link = self._get_erred_resource_link(resource_model, erred_amount, erred_state)
-                children.append(link)
+                if 'url' in link:
+                    children.append(link)
 
         if resources_in_erred_state_overall:
             result_module.title = '%s (%s)' % (result_module.title, resources_in_erred_state_overall)
