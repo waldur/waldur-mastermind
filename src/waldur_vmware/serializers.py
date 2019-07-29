@@ -621,11 +621,12 @@ class DiskExtendSerializer(serializers.ModelSerializer):
     def get_fields(self):
         fields = super(DiskExtendSerializer, self).get_fields()
         fields['size'].factor = 1024
-        fields['size'].units = 'GB'
-        fields['size'].min_value = self.instance.size + 1024
-        max_disk = self.instance.service_settings.options.get('max_disk')
-        if max_disk:
-            fields['size'].max_value = max_disk
+        fields['size'].units = 'GB
+        if isinstance(self.instance, models.Disk):
+            fields['size'].min_value = self.instance.size + 1024
+            max_disk = self.instance.service_settings.options.get('max_disk')
+            if max_disk:
+                fields['size'].max_value = max_disk
         return fields
 
     def validate_size(self, value):
