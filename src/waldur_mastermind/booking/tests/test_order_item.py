@@ -37,12 +37,12 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.user = self.fixture.admin
         self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME,
                                                               options={'schedules': [
-                                                                  {'start': '2019-01-01T00:00:00',
-                                                                   'end': '2019-01-01T23:59:59'},
-                                                                  {'start': '2019-01-02T00:00:00',
-                                                                   'end': '2019-01-02T23:59:59'},
-                                                                  {'start': '2019-01-03T00:00:00',
-                                                                   'end': '2019-01-03T23:59:59'}
+                                                                  {'start': '2019-01-01T00:00:00.000000Z',
+                                                                   'end': '2019-01-01T23:59:59.000000Z'},
+                                                                  {'start': '2019-01-02T00:00:00.000000Z',
+                                                                   'end': '2019-01-02T23:59:59.000000Z'},
+                                                                  {'start': '2019-01-03T00:00:00.000000Z',
+                                                                   'end': '2019-01-03T23:59:59.000000Z'}
                                                               ],
                                                                   'options': {}},
                                                               state=marketplace_models.Offering.States.ACTIVE)
@@ -53,8 +53,8 @@ class OrderCreateTest(test.APITransactionTestCase):
                 {
                     'offering': marketplace_factories.OfferingFactory.get_url(self.offering),
                     'attributes': {'schedules': [
-                        {'start': '2019-01-02T00:00:00',
-                         'end': '2019-01-02T23:59:59'},
+                        {'start': '2019-01-02T00:00:00.000000Z',
+                         'end': '2019-01-02T23:59:59.000000Z'},
                     ]},
                 },
             ]
@@ -70,22 +70,23 @@ class OrderCreateTest(test.APITransactionTestCase):
                 {
                     'offering': marketplace_factories.OfferingFactory.get_url(self.offering),
                     'attributes': {'schedules': [
-                        {'start': '2019-01-05T00:00:00',
-                         'end': '2019-01-05T23:59:59'},
+                        {'start': '2019-01-05T00:00:00.000000Z',
+                         'end': '2019-01-05T23:59:59.000000Z'},
                     ]},
                 },
             ]
         }
         response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.content, '["Time period is not available for selected offering."]')
+        self.assertEqual(response.content, '["Time period from %s to %s is not available for selected offering."]' %
+                         ('2019-01-05T00:00:00.000000Z', '2019-01-05T23:59:59.000000Z'))
 
     def test_do_not_create_order_if_schedules_are_not_valid(self):
         marketplace_factories.ResourceFactory(offering=self.offering,
                                               state=marketplace_models.Resource.States.OK,
                                               attributes={'schedules': [
-                                                  {'start': '2019-01-02T00:00:00',
-                                                   'end': '2019-01-02T23:59:59'},
+                                                  {'start': '2019-01-02T00:00:00.000000Z',
+                                                   'end': '2019-01-02T23:59:59.000000Z'},
                                               ]}
                                               )
         add_payload = {
@@ -93,8 +94,8 @@ class OrderCreateTest(test.APITransactionTestCase):
                 {
                     'offering': marketplace_factories.OfferingFactory.get_url(self.offering),
                     'attributes': {'schedules': [
-                        {'start': '2019-01-02T00:00:00',
-                         'end': '2019-01-02T23:59:59'},
+                        {'start': '2019-01-02T00:00:00.000000Z',
+                         'end': '2019-01-02T23:59:59.000000Z'},
                     ]},
                 },
             ]
@@ -102,7 +103,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.content, '["Time period from %s to %s is not available."]' %
-                         ('2019-01-02T00:00:00', '2019-01-02T23:59:59'))
+                         ('2019-01-02T00:00:00.000000Z', '2019-01-02T23:59:59.000000Z'))
 
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:

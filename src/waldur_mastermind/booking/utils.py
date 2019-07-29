@@ -1,13 +1,15 @@
-from django.utils import timezone
+import datetime
+
+from django.utils.dateparse import parse_datetime
 
 
 class TimePeriod(object):
     def __init__(self, start, end):
-        if not isinstance(start, timezone.datetime):
-            start = timezone.datetime.strptime(start, '%Y-%d-%mT%H:%M:%S')
+        if not isinstance(start, datetime.datetime):
+            start = parse_datetime(start)
 
-        if not isinstance(end, timezone.datetime):
-            end = timezone.datetime.strptime(end, '%Y-%d-%mT%H:%M:%S')
+        if not isinstance(end, datetime.datetime):
+            end = parse_datetime(end)
 
         self.start = start
         self.end = end
