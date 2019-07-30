@@ -195,7 +195,8 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
         return
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(resource=resource)
+        order_item = marketplace_models.OrderItem.objects.get(resource=resource,
+                                                              type=marketplace_models.OrderItem.Types.CREATE)
     except marketplace_models.OrderItem.DoesNotExist:
         return
 
