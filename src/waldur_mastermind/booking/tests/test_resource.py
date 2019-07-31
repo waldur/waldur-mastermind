@@ -1,9 +1,15 @@
+from django.core import mail
 from rest_framework import test, status
 from rest_framework.reverse import reverse
 
+from waldur_core.logging import models as logging_models
+from waldur_core.logging.tasks import process_event
+from waldur_core.logging.tests.factories import EventFactory
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class OrderItemProcessedTest(test.APITransactionTestCase):
@@ -38,6 +44,22 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
         self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+
+    def test_notification(self):
+        self.event_type = 'device_booking_is_accepted'
+        self.event = EventFactory(event_type=self.event_type)
+        logging_models.Feed.objects.create(scope=self.resource.project.customer, event=self.event)
+        consumer_owner = structure_factories.UserFactory()
+        self.resource.project.customer.add_user(consumer_owner, structure_models.CustomerRole.OWNER)
+        email_hook = logging_models.EmailHook.objects.create(user=consumer_owner,
+                                                             email=consumer_owner.email,
+                                                             event_types=[self.event_type])
+
+        url = '%s%s/accept/' % (reverse('booking-resource-list'), self.resource.uuid.hex)
+        self.client.post(url)
+        process_event(self.event.id)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [email_hook.email])
 
     def test_owner_cannot_accept_other_owners_resources(self):
         url = '%s%s/accept/' % (reverse('booking-resource-list'), self.resource_2.uuid.hex)

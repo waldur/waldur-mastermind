@@ -13,6 +13,7 @@ from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import serializers, models
 
 from . import PLUGIN_NAME, filters
+from .log import event_logger
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
@@ -72,6 +73,13 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             order_item.save()
             resource.set_state_ok()
             resource.save()
+
+            event_logger.waldur_booking.info(
+                'Device booking {resource_name} has been accepted.',
+                event_type='device_booking_is_accepted',
+                event_context={
+                    'resource': resource,
+                })
 
         return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
 
