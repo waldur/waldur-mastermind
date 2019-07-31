@@ -51,7 +51,13 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             'create_virtual_machine',
             state_transition='begin_creating'
         )
-        return pull_datastores_for_resource(instance, task)
+        return chain(
+            pull_datastores_for_resource(instance, task),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_vm_ports',
+            )
+        )
 
 
 class VirtualMachineDeleteExecutor(core_executors.DeleteExecutor):
