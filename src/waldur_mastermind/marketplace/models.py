@@ -442,8 +442,13 @@ class Plan(core_models.UuidMixin,
         if limits:
             components_map = self.offering.get_usage_components()
             component_prices = {c.component.type: c.price for c in self.components.all()}
+            builtin_components = plugins.manager.get_components(self.offering.type)
+            component_factors = {c.type: c.factor for c in builtin_components}
             for key in components_map.keys():
-                cost += component_prices.get(key, 0) * limits.get(key, 0)
+                price = component_prices.get(key, 0)
+                limit = limits.get(key, 0)
+                factor = component_factors.get(key, 1)
+                cost += price * limit / factor
 
         return cost
 
