@@ -483,12 +483,13 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     vm_name = serializers.ReadOnlyField(source='vm.name')
+    vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
     network_name = serializers.ReadOnlyField(source='network.name')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'mac_address', 'vm', 'vm_name', 'network', 'network_name',
+            'mac_address', 'vm', 'vm_uuid', 'vm_name', 'network', 'network_name',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'vm', 'mac_address',
@@ -563,10 +564,13 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         read_only=True,
     )
 
+    vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
+    vm_name = serializers.ReadOnlyField(source='vm.name')
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Disk
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'size', 'vm'
+            'size', 'vm', 'vm_uuid', 'vm_name'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'size',
