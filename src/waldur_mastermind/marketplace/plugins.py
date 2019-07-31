@@ -9,6 +9,16 @@ class Component(object):
         self.billing_type = billing_type
         self.factor = factor
 
+    def _asdict(self):
+        # Note that factor is not serialized to dict because it is not stored in the database.
+        # Currently it is used only for cost estimation when order item is created.
+        return {
+            'type': self.type,
+            'name': self.name,
+            'measured_unit': self.measured_unit,
+            'billing_type': self.billing_type,
+        }
+
 
 logger = logging.getLogger(__name__)
 
