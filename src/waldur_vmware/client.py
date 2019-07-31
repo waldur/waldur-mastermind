@@ -286,7 +286,8 @@ class VMwareClient(object):
             'backing': {
                 'network': network_id,
                 'type': 'DISTRIBUTED_PORTGROUP',
-            }
+            },
+            'start_connected': True,
         }
         return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
 
