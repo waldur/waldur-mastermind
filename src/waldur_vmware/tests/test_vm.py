@@ -47,16 +47,16 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data['non_field_errors'][0], 'This cluster is not available for this customer.')
 
-    def test_default_cluster_id_is_defined(self):
+    def test_default_cluster_label_is_defined(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['default_cluster_id'] = self.fixture.cluster.backend_id
+        self.fixture.settings.options['default_cluster_label'] = self.fixture.cluster.name
         self.fixture.settings.save(update_fields=['options'])
         payload = self.get_valid_payload()
         del payload['cluster']
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_default_cluster_id_is_not_defined(self):
+    def test_default_cluster_label_is_not_defined(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self.get_valid_payload()
         del payload['cluster']
