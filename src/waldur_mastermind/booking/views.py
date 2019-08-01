@@ -4,27 +4,28 @@ from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework import serializers as rf_serializers
 from rest_framework.decorators import detail_route
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_mastermind.marketplace import filters as marketplace_filters
-from waldur_mastermind.marketplace import serializers, models
+from waldur_mastermind.marketplace import models
 
-from . import PLUGIN_NAME, filters
+from . import PLUGIN_NAME, filters, serializers
 from .log import event_logger
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Resource.objects.exclude(offering__type=PLUGIN_NAME)
+    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
     filter_backends = (
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
     )
     filter_class = marketplace_filters.ResourceFilter
     lookup_field = 'uuid'
-    serializer_class = serializers.ResourceSerializer
+    serializer_class = serializers.BookingResourceSerializer
 
     @detail_route(methods=['post'])
     def reject(self, request, uuid=None):
@@ -39,11 +40,11 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                     state=models.OrderItem.States.EXECUTING,
                 )
             except models.OrderItem.DoesNotExist:
-                raise serializers.ValidationError(_('Resource rejecting is not available because '
-                                                    'the reference order item is not found.'))
+                raise rf_serializers.ValidationError(_('Resource rejecting is not available because '
+                                                       'the reference order item is not found.'))
             except models.OrderItem.MultipleObjectsReturned:
-                raise serializers.ValidationError(_('Resource rejecting is not available because '
-                                                    'several reference order items are found.'))
+                raise rf_serializers.ValidationError(_('Resource rejecting is not available because '
+                                                       'several reference order items are found.'))
             order_item.set_state_terminated()
             order_item.save()
             resource.set_state_terminated()
@@ -64,11 +65,11 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                     state=models.OrderItem.States.EXECUTING,
                 )
             except models.OrderItem.DoesNotExist:
-                raise serializers.ValidationError(_('Resource accepting is not available because '
-                                                    'the reference order item is not found.'))
+                raise rf_serializers.ValidationError(_('Resource accepting is not available because '
+                                                       'the reference order item is not found.'))
             except models.OrderItem.MultipleObjectsReturned:
-                raise serializers.ValidationError(_('Resource accepting is not available because '
-                                                    'several reference order items are found.'))
+                raise rf_serializers.ValidationError(_('Resource accepting is not available because '
+                                                       'several reference order items are found.'))
             order_item.set_state_done()
             order_item.save()
             resource.set_state_ok()

@@ -11,6 +11,8 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
+from .. import PLUGIN_NAME
+
 
 class OrderItemProcessedTest(test.APITransactionTestCase):
     def setUp(self):
@@ -18,8 +20,8 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         fixture_1.owner
         fixture_2 = structure_fixtures.CustomerFixture()
         fixture_2.owner
-        offering_1 = marketplace_factories.OfferingFactory(customer=fixture_1.customer)
-        offering_2 = marketplace_factories.OfferingFactory(customer=fixture_2.customer)
+        offering_1 = marketplace_factories.OfferingFactory(customer=fixture_1.customer, type=PLUGIN_NAME)
+        offering_2 = marketplace_factories.OfferingFactory(customer=fixture_2.customer, type=PLUGIN_NAME)
         self.resource = marketplace_factories.ResourceFactory(offering=offering_1,
                                                               state=marketplace_models.Resource.States.CREATING)
         self.order_item = marketplace_factories.OrderItemFactory(resource=self.resource, offering=offering_1,
