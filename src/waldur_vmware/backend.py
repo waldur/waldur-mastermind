@@ -774,6 +774,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_port = self.client.get_nic(backend_vm_id, backend_port_id)
+            backend_port['nic'] = backend_port_id
         except VMwareError as e:
             reraise(e)
             return
