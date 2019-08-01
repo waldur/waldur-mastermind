@@ -66,17 +66,45 @@ class VirtualMachine(VirtualMachineMixin,
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
+    class GuestPowerStates(object):
+        RUNNING = 'RUNNING'
+        SHUTTING_DOWN = 'SHUTTING_DOWN'
+        RESETTING = 'RESETTING'
+        STANDBY = 'STANDBY'
+        NOT_RUNNING = 'NOT_RUNNING'
+        UNAVAILABLE = 'UNAVAILABLE'
+
+        CHOICES = (
+            (RUNNING, 'Running'),
+            (SHUTTING_DOWN, 'Shutting down'),
+            (RESETTING, 'Resetting'),
+            (STANDBY, 'Standby'),
+            (NOT_RUNNING, 'Not running'),
+            (UNAVAILABLE, 'Unavailable'),
+        )
+
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
     folder = models.ForeignKey('Folder', null=True, on_delete=models.SET_NULL)
     networks = models.ManyToManyField('Network', blank=True)
+    guest_power_enabled = models.BooleanField(
+        default=False,
+        help_text='Flag indicating if the virtual machine is ready to process soft power operations.'
+    )
+    guest_power_state = models.CharField(
+        'The power state of the guest operating system.',
+        max_length=150,
+        blank=True,
+        choices=GuestPowerStates.CHOICES,
+    )
     tracker = FieldTracker()
 
     @classmethod
     def get_backend_fields(cls):
         return super(VirtualMachine, cls).get_backend_fields() + (
-            'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk'
+            'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk',
+            'guest_power_state', 'guest_power_enabled'
         )
 
     @classmethod
