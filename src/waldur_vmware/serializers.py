@@ -149,6 +149,11 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     networks = NestedNetworkSerializer(queryset=models.Network.objects.all(),
                                        many=True, required=False, write_only=True)
 
+    runtime_state = serializers.SerializerMethodField()
+
+    def get_runtime_state(self, vm):
+        return dict(models.VirtualMachine.RuntimeStates.CHOICES).get(vm.runtime_state)
+
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
 
@@ -188,7 +193,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             fields['disk'].factor = 1024
             fields['disk'].units = 'GB'
 
-        if self.instance:
+        if isinstance(self.instance, models.VirtualMachine):
             spl = self.instance.service_project_link
             options = spl.service.settings.options
 

@@ -66,6 +66,12 @@ class VirtualMachine(VirtualMachineMixin,
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
+        CHOICES = (
+            (POWERED_OFF, 'Powered off'),
+            (POWERED_ON, 'Powered on'),
+            (SUSPENDED, 'Suspended'),
+        )
+
     class GuestPowerStates(object):
         RUNNING = 'RUNNING'
         SHUTTING_DOWN = 'SHUTTING_DOWN'
