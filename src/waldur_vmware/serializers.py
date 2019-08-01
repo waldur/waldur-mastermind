@@ -21,7 +21,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     }
 
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'default_cluster_id': _('ID of VMware cluster that will be used for virtual machines provisioning'),
+        'default_cluster_label': _('Label of VMware cluster that will be used for virtual machines provisioning'),
         'max_cpu': _('Maximum vCPU for each VM'),
         'max_ram': _('Maximum RAM for each VM, MiB'),
         'max_disk': _('Maximum capacity for each disk, MiB'),
@@ -29,7 +29,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.VMwareService
-        required_fields = ('backend_url', 'username', 'password', 'default_cluster_id')
+        required_fields = ('backend_url', 'username', 'password', 'default_cluster_label')
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -163,12 +163,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
             'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
             'template_name', 'cluster_name', 'datastore_name', 'folder_name', 'ports',
+            'guest_power_state',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'disk', 'runtime_state',
+            'disk', 'runtime_state', 'guest_power_state',
         )
         extra_kwargs = dict(
             cores={'required': False},
@@ -318,14 +319,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     def _fallback_to_default_cluster(self, attrs):
         spl = attrs['service_project_link']
-        default_cluster_id = spl.service.settings.options.get('default_cluster_id')
+        default_cluster_label = spl.service.settings.options.get('default_cluster_label')
 
-        if not default_cluster_id:
+        if not default_cluster_label:
             raise serializers.ValidationError('Default cluster is not defined for this service.')
         try:
             attrs['cluster'] = models.Cluster.objects.filter(
                 settings=spl.service.settings,
-                backend_id=default_cluster_id).get()
+                name=default_cluster_label).get()
             return attrs
         except models.Cluster.DoesNotExist:
             raise serializers.ValidationError('Default cluster is not defined for this service.')

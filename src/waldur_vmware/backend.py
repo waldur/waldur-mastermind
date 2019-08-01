@@ -198,7 +198,13 @@ class VMwareBackend(ServiceBackend):
             reraise(e)
             return
 
-        vm = self._backend_vm_to_vm(backend_vm, backend_id)
+        try:
+            guest_power = self.client.get_guest_power(backend_id)
+        except VMwareError as e:
+            reraise(e)
+            return
+
+        vm = self._backend_vm_to_vm(backend_vm, guest_power, backend_id)
         if service_project_link is not None:
             vm.service_project_link = service_project_link
         if save:
@@ -206,12 +212,14 @@ class VMwareBackend(ServiceBackend):
 
         return vm
 
-    def _backend_vm_to_vm(self, backend_vm, backend_id):
+    def _backend_vm_to_vm(self, backend_vm, guest_power, backend_id):
         """
         Build database model object for virtual machine from REST API spec.
 
         :param backend_vm: virtual machine specification
         :type backend_vm: dict
+        :param guest_power: information about the guest operating system power state
+        :type guest_power: dict
         :param backend_id: Virtual machine identifier
         :type backend_id: str
         :rtype: :class:`waldur_vmware.models.VirtualMachine`
@@ -225,6 +233,8 @@ class VMwareBackend(ServiceBackend):
             cores_per_socket=backend_vm['cpu']['cores_per_socket'],
             ram=backend_vm['memory']['size_MiB'],
             disk=self._get_total_disk(backend_vm['disks']),
+            guest_power_enabled=guest_power['operations_ready'],
+            guest_power_state=guest_power['state'],
         )
 
     def pull_clusters(self):
@@ -632,6 +642,31 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             self.client.suspend_vm(vm.backend_id)
+        except VMwareError as e:
+            reraise(e)
+
+    def shutdown_guest(self, vm):
+        """
+        Issues a request to the guest operating system asking
+        it to perform a clean shutdown of all services.
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        try:
+            self.client.shutdown_guest(vm.backend_id)
+        except VMwareError as e:
+            reraise(e)
+
+    def reboot_guest(self, vm):
+        """
+        Issues a request to the guest operating system asking it to perform a reboot.
+
+        :param vm: Virtual machine.
+        :type vm: :class:`waldur_vmware.models.VirtualMachine`
+        """
+        try:
+            self.client.reboot_guest(vm.backend_id)
         except VMwareError as e:
             reraise(e)
 
