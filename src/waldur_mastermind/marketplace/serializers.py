@@ -30,6 +30,7 @@ from waldur_mastermind.common import exceptions
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.utils import validate_order_item
 from waldur_mastermind.support import serializers as support_serializers
+from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 
 from . import models, attribute_types, plugins, permissions, tasks
 
@@ -925,12 +926,14 @@ class CartItemSerializer(BaseRequestSerializer):
                 order = models.Order(**order_params)
                 item_params = get_item_params(item)
                 order_item = models.OrderItem(order=order, **item_params)
-                processor = processor_class(order_item)
-                post_data = processor.get_post_data()
-                serializer = processor.get_serializer_class()(data=post_data, context=self.context)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
-                raise exceptions.TransactionRollback()
+
+                if issubclass(processor_class, CreateResourceProcessor):
+                    processor = processor_class(order_item)
+                    post_data = processor.get_post_data()
+                    serializer = processor.get_serializer_class()(data=post_data, context=self.context)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save()
+                    raise exceptions.TransactionRollback()
         except exceptions.TransactionRollback:
             pass
 
