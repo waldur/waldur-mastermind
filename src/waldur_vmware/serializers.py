@@ -320,7 +320,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         try:
             attrs['cluster'] = models.Cluster.objects.filter(
                 settings=spl.service.settings,
-                backend_id=default_cluster_label).get()
+                name=default_cluster_label).get()
             return attrs
         except models.Cluster.DoesNotExist:
             raise serializers.ValidationError('Default cluster is not defined for this service.')
