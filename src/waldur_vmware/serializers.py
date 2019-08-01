@@ -158,12 +158,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
             'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
             'template_name', 'cluster_name', 'datastore_name', 'folder_name', 'ports',
+            'guest_power_state',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'disk', 'runtime_state',
+            'disk', 'runtime_state', 'guest_power_state',
         )
         extra_kwargs = dict(
             cores={'required': False},
