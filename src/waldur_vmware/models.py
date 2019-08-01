@@ -66,6 +66,12 @@ class VirtualMachine(VirtualMachineMixin,
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
+        CHOICES = (
+            (POWERED_OFF, 'Powered off'),
+            (POWERED_ON, 'Powered on'),
+            (SUSPENDED, 'Suspended'),
+        )
+
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
