@@ -47,7 +47,7 @@ class VirtualMachineMixin(models.Model):
                                                            'types used for configuring a virtual machine'))
     cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
     cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
-    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
+    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'), verbose_name=_('RAM'))
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
 
 
@@ -66,17 +66,51 @@ class VirtualMachine(VirtualMachineMixin,
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
 
+        CHOICES = (
+            (POWERED_OFF, 'Powered off'),
+            (POWERED_ON, 'Powered on'),
+            (SUSPENDED, 'Suspended'),
+        )
+
+    class GuestPowerStates(object):
+        RUNNING = 'RUNNING'
+        SHUTTING_DOWN = 'SHUTTING_DOWN'
+        RESETTING = 'RESETTING'
+        STANDBY = 'STANDBY'
+        NOT_RUNNING = 'NOT_RUNNING'
+        UNAVAILABLE = 'UNAVAILABLE'
+
+        CHOICES = (
+            (RUNNING, 'Running'),
+            (SHUTTING_DOWN, 'Shutting down'),
+            (RESETTING, 'Resetting'),
+            (STANDBY, 'Standby'),
+            (NOT_RUNNING, 'Not running'),
+            (UNAVAILABLE, 'Unavailable'),
+        )
+
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
     folder = models.ForeignKey('Folder', null=True, on_delete=models.SET_NULL)
     networks = models.ManyToManyField('Network', blank=True)
+    guest_power_enabled = models.BooleanField(
+        default=False,
+        help_text='Flag indicating if the virtual machine is ready to process soft power operations.'
+    )
+    guest_power_state = models.CharField(
+        'The power state of the guest operating system.',
+        max_length=150,
+        blank=True,
+        choices=GuestPowerStates.CHOICES,
+    )
     tracker = FieldTracker()
 
     @classmethod
     def get_backend_fields(cls):
         return super(VirtualMachine, cls).get_backend_fields() + (
-            'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk'
+            'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk',
+            'guest_power_state', 'guest_power_enabled'
         )
 
     @classmethod
@@ -100,7 +134,7 @@ class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
     )
     vm = models.ForeignKey(VirtualMachine)
     network = models.ForeignKey('Network')
-    mac_address = models.CharField(max_length=32, blank=True)
+    mac_address = models.CharField(max_length=32, blank=True, verbose_name=_('MAC address'))
 
     @classmethod
     def get_backend_fields(cls):

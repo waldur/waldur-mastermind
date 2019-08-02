@@ -21,15 +21,15 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     }
 
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
-        'default_cluster_id': _('ID of VMware cluster that will be used for virtual machines provisioning'),
+        'default_cluster_label': _('Label of VMware cluster that will be used for virtual machines provisioning'),
         'max_cpu': _('Maximum vCPU for each VM'),
-        'max_ram': _('Maximum RAM for each VM, MB'),
-        'max_disk': _('Maximum capacity for each disk, MB'),
+        'max_ram': _('Maximum RAM for each VM, MiB'),
+        'max_disk': _('Maximum capacity for each disk, MiB'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.VMwareService
-        required_fields = ('backend_url', 'username', 'password', 'default_cluster_id')
+        required_fields = ('backend_url', 'username', 'password', 'default_cluster_label')
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -149,6 +149,11 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     networks = NestedNetworkSerializer(queryset=models.Network.objects.all(),
                                        many=True, required=False, write_only=True)
 
+    runtime_state = serializers.SerializerMethodField()
+
+    def get_runtime_state(self, vm):
+        return dict(models.VirtualMachine.RuntimeStates.CHOICES).get(vm.runtime_state)
+
     def get_guest_os_name(self, vm):
         return constants.GUEST_OS_CHOICES.get(vm.guest_os)
 
@@ -158,12 +163,13 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
             'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
             'template_name', 'cluster_name', 'datastore_name', 'folder_name', 'ports',
+            'guest_power_state',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'disk', 'runtime_state',
+            'disk', 'runtime_state', 'guest_power_state',
         )
         extra_kwargs = dict(
             cores={'required': False},
@@ -178,6 +184,28 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         to select placement attributes for the new virtual machine.
         """
         fields = super(VirtualMachineSerializer, self).get_fields()
+
+        if 'ram' in fields:
+            fields['ram'].factor = 1024
+            fields['ram'].units = 'GB'
+
+        if 'disk' in fields:
+            fields['disk'].factor = 1024
+            fields['disk'].units = 'GB'
+
+        if isinstance(self.instance, models.VirtualMachine):
+            spl = self.instance.service_project_link
+            options = spl.service.settings.options
+
+            if 'cores' in fields:
+                fields['cores'].max_value = options.get('max_cpu')
+
+            if 'ram' in fields and 'max_ram' in options:
+                fields['ram'].max_value = options.get('max_ram')
+
+            if 'disk' in fields and 'max_disk' in options:
+                fields['disk'].max_value = options.get('max_disk')
+
         if not is_basic_mode():
             return fields
 
@@ -190,6 +218,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             read_only_fields = 'cluster', 'networks', 'datastore', 'folder'
             for field in read_only_fields:
                 fields[field].read_only = True
+
         return fields
 
     def _validate_attributes(self, attrs):
@@ -218,6 +247,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         max_cpu = options.get('max_cpu')
         if actual_cpu and max_cpu and actual_cpu > max_cpu:
             raise serializers.ValidationError('Requested amount of CPU exceeds offering limit.')
+
+        cores_per_socket = attrs.get('cores_per_socket')
+        if cores_per_socket and actual_cpu % cores_per_socket != 0:
+            raise serializers.ValidationError('Number of CPU cores should be multiple of cores per socket.')
 
     def _validate_ram(self, attrs, options):
         """
@@ -290,14 +323,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     def _fallback_to_default_cluster(self, attrs):
         spl = attrs['service_project_link']
-        default_cluster_id = spl.service.settings.options.get('default_cluster_id')
+        default_cluster_label = spl.service.settings.options.get('default_cluster_label')
 
-        if not default_cluster_id:
+        if not default_cluster_label:
             raise serializers.ValidationError('Default cluster is not defined for this service.')
         try:
             attrs['cluster'] = models.Cluster.objects.filter(
                 settings=spl.service.settings,
-                backend_id=default_cluster_id).get()
+                name=default_cluster_label).get()
             return attrs
         except models.Cluster.DoesNotExist:
             raise serializers.ValidationError('Default cluster is not defined for this service.')
@@ -459,10 +492,20 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         read_only=True,
     )
 
+    vm_name = serializers.ReadOnlyField(source='vm.name')
+    vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
+    network_name = serializers.ReadOnlyField(source='network.name')
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'mac_address', 'vm', 'network'
+            'mac_address', 'vm', 'vm_uuid', 'vm_name', 'network', 'network_name',
+        )
+        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
+            'vm', 'mac_address',
+        )
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'network',
         )
         extra_kwargs = dict(
             vm={
@@ -476,6 +519,18 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
+    def get_fields(self):
+        # Skip metadata tweak on update because network is protected from update
+        fields = super(PortSerializer, self).get_fields()
+        if 'network' in fields and self.instance:
+            network_field = fields['network']
+            network_field.display_name_field = 'name'
+            network_field.query_params = {
+                'customer_pair_uuid': self.instance.customer.uuid.hex,
+                'settings_uuid': self.instance.service_settings.uuid.hex,
+            }
+        return fields
+
     def validate(self, attrs):
         # Skip validation on update
         if self.instance:
@@ -486,8 +541,7 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         attrs['service_project_link'] = vm.service_project_link
 
         if not models.CustomerNetworkPair.objects.filter(
-            settings=vm.service_project_link.service.settings,
-            customernetwork__customer=vm.service_project_link.project.customer,
+            customer=vm.customer,
             network=attrs['network'],
         ).exists():
             raise serializers.ValidationError('This network is not available for this customer.')
@@ -520,10 +574,13 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         read_only=True,
     )
 
+    vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
+    vm_name = serializers.ReadOnlyField(source='vm.name')
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Disk
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'size', 'vm'
+            'size', 'vm', 'vm_uuid', 'vm_name'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'size',
@@ -538,6 +595,17 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
             },
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
+
+    def get_fields(self):
+        fields = super(DiskSerializer, self).get_fields()
+        fields['size'].factor = 1024
+        fields['size'].units = 'GB'
+
+        if isinstance(self.instance, models.VirtualMachine):
+            max_disk = self.instance.service_settings.options.get('max_disk')
+            if max_disk:
+                fields['size'].max_value = max_disk
+        return fields
 
     def _validate_size(self, vm, attrs):
         options = vm.service_project_link.service.settings.options
@@ -564,14 +632,23 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         model = models.Disk
         fields = ('size',)
 
+    def get_fields(self):
+        fields = super(DiskExtendSerializer, self).get_fields()
+        fields['size'].factor = 1024
+        fields['size'].units = 'GB'
+        if isinstance(self.instance, models.Disk):
+            fields['size'].min_value = self.instance.size + 1024
+            max_disk = self.instance.service_settings.options.get('max_disk')
+            if max_disk:
+                fields['size'].max_value = max_disk
+        return fields
+
     def validate_size(self, value):
         if value <= self.instance.size:
             raise serializers.ValidationError(
                 _('Disk size should be greater than %s') % self.instance.size)
 
-        options = self.instance.service_project_link.service.settings.options
-
-        max_disk = options.get('max_disk')
+        max_disk = self.instance.service_settings.options.get('max_disk')
         if max_disk and value > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 

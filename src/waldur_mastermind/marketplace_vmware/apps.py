@@ -31,8 +31,10 @@ class MarketplaceVMwareConfig(AppConfig):
                          service_type=VMwareConfig.service_name,
                          components=(
                              Component(type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE),
-                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE),
-                             Component(type='disk', name='Disk', measured_unit='GB', billing_type=USAGE),
+                             # Price is stored per GiB but size is stored per MiB
+                             # therefore we need to divide size by factor when price estimate is calculated.
+                             Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE, factor=1024),
+                             Component(type='disk', name='Disk', measured_unit='GB', billing_type=USAGE, factor=1024),
                          ))
 
         registrators.RegistrationManager.add_registrator(

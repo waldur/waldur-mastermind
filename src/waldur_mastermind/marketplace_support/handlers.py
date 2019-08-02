@@ -176,10 +176,29 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
 
 
 def notify_about_request_based_item_creation(sender, instance, created=False, **kwargs):
-    if not created:
+    if created:
         return
 
-    order_item = instance
+    issue = instance
+
+    if not issue.tracker.has_changed('backend_id'):
+        return
+
+    try:
+        support_offering = support_models.Offering.objects.get(issue=issue)
+    except support_models.Offering.DoesNotExist:
+        return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=support_offering)
+    except marketplace_models.Resource.DoesNotExist:
+        return
+
+    try:
+        order_item = marketplace_models.OrderItem.objects.get(resource=resource,
+                                                              type=marketplace_models.OrderItem.Types.CREATE)
+    except marketplace_models.OrderItem.DoesNotExist:
+        return
 
     if order_item.offering.type != PLUGIN_NAME:
         return
@@ -193,7 +212,7 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
     if not service_provider.lead_email:
         return
 
-    context = Context({'order_item': order_item}, autoescape=False)
+    context = Context({'order_item': order_item, 'issue': issue}, autoescape=False)
     template = Template(service_provider.lead_body)
     message = template.render(context).strip()
     template = Template(service_provider.lead_subject)

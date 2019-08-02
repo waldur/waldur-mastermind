@@ -43,6 +43,10 @@ class VMwareFixture(ProjectFixture):
         return factories.CustomerNetworkFactory(network=self.network, customer=self.customer)
 
     @cached_property
+    def customer_network_pair(self):
+        return factories.CustomerNetworkPairFactory(network=self.network, customer=self.customer)
+
+    @cached_property
     def datastore(self):
         return factories.DatastoreFactory(settings=self.settings)
 

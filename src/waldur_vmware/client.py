@@ -174,6 +174,34 @@ class VMwareClient(object):
         """
         return self._post('vcenter/vm/{}/power/suspend'.format(vm_id))
 
+    def get_guest_power(self, vm_id):
+        """
+        Returns information about the guest operating system power state.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._get('vcenter/vm/{}/guest/power'.format(vm_id))
+
+    def shutdown_guest(self, vm_id):
+        """
+        Issues a request to the guest operating system asking
+        it to perform a clean shutdown of all services.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._post('vcenter/vm/{}/guest/power?action=shutdown'.format(vm_id))
+
+    def reboot_guest(self, vm_id):
+        """
+        Issues a request to the guest operating system asking it to perform a reboot.
+
+        :param vm_id: Virtual machine identifier
+        :type vm_id: string
+        """
+        return self._post('vcenter/vm/{}/guest/power?action=reboot'.format(vm_id))
+
     def get_cpu(self, vm_id):
         """
         Returns the CPU-related settings of a virtual machine.
@@ -284,8 +312,10 @@ class VMwareClient(object):
         """
         spec = {
             'backing': {
-                'network': network_id
-            }
+                'network': network_id,
+                'type': 'DISTRIBUTED_PORTGROUP',
+            },
+            'start_connected': True,
         }
         return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
 

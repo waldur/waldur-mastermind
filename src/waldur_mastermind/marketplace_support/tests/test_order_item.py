@@ -394,21 +394,14 @@ class NotificationTest(BaseTest):
         self.service_provider = marketplace_factories.ServiceProviderFactory(customer=self.offering.customer,
                                                                              lead_email='to@example.com')
 
-    def test_send_notification_if_request_base_item_has_been_created(self):
-        marketplace_factories.OrderItemFactory(
-            offering=self.offering,
-            attributes={'name': 'item_name', 'description': 'Description'}
-        )
-
+    def test_send_notification_if_request_base_item_and_backend_issue_have_been_created(self):
+        self.create_issue()
         self.assertEqual(len(mail.outbox), 1)
 
     def test_do_not_send_notification_if_lead_email_is_not_set(self):
         self.service_provider.lead_email = ''
         self.service_provider.save()
-        marketplace_factories.OrderItemFactory(
-            offering=self.offering,
-            attributes={'name': 'item_name', 'description': 'Description'}
-        )
+        self.create_issue()
 
         self.assertEqual(len(mail.outbox), 0)
 
@@ -417,18 +410,24 @@ class NotificationTest(BaseTest):
         self.offering.save()
         self.service_provider.lead_body = '{{order_item.order}}; attributes: {{order_item.attributes}}; '\
                                           'plan: {{order_item.plan}}; '\
-                                          'contacts: {{order_item.order.project.customer.contact_details}}'
+                                          'contacts: {{order_item.order.project.customer.contact_details}}' \
+                                          'issue: {{issue.backend_id}}'
         self.service_provider.lead_subject = '{{order_item.offering.name}}'
         self.service_provider.save()
 
-        order_item = marketplace_factories.OrderItemFactory(
-            offering=self.offering,
-            attributes={'name': 'item_name', 'description': 'Description'}
-        )
+        self.create_issue()
         self.assertEqual(mail.outbox[0].subject, self.offering.name)
         body = Template(self.service_provider.lead_body).\
-            render(Context({'order_item': order_item}, autoescape=False))
+            render(Context({'order_item': self.order_item, 'issue': self.issue}, autoescape=False))
         self.assertEqual(mail.outbox[0].body, body)
+
+    def create_issue(self):
+        self.issue = support_factories.IssueFactory(backend_id='', key='')
+        support_offering = support_factories.OfferingFactory(issue=self.issue)
+        resource = marketplace_factories.ResourceFactory(scope=support_offering)
+        self.order_item = marketplace_factories.OrderItemFactory(resource=resource, offering=self.offering)
+        self.issue.backend_id = 'TST-1'
+        self.issue.save()
 
 
 class IssueLogTest(test.APITransactionTestCase):

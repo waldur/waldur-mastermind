@@ -51,7 +51,13 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             'create_virtual_machine',
             state_transition='begin_creating'
         )
-        return pull_datastores_for_resource(instance, task)
+        return chain(
+            pull_datastores_for_resource(instance, task),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_vm_ports',
+            )
+        )
 
 
 class VirtualMachineDeleteExecutor(core_executors.DeleteExecutor):
@@ -134,6 +140,42 @@ class VirtualMachineSuspendExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'suspend_virtual_machine',
+                state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+        )
+
+
+class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
+    action = 'Shutdown Guest'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'shutdown_guest',
+                state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+        )
+
+
+class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
+    action = 'Reboot Guest'
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'reboot_guest',
                 state_transition='begin_updating'
             ),
             core_tasks.BackendMethodTask().si(

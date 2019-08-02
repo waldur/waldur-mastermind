@@ -59,7 +59,7 @@ class MarketplaceSupportConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.notify_about_request_based_item_creation,
-            sender=marketplace_models.OrderItem,
+            sender=support_models.Issue,
             dispatch_uid='waldur_mastermind.marketpace_support.notify_about_request_based_item_creation',
         )
 
