@@ -248,6 +248,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         if actual_cpu and max_cpu and actual_cpu > max_cpu:
             raise serializers.ValidationError('Requested amount of CPU exceeds offering limit.')
 
+        cores_per_socket = attrs.get('cores_per_socket')
+        if cores_per_socket and actual_cpu % cores_per_socket != 0:
+            raise serializers.ValidationError('Number of CPU cores should be multiple of cores per socket.')
+
     def _validate_ram(self, attrs, options):
         """
         Validate RAM specification against service limits.
