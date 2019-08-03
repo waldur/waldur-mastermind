@@ -206,10 +206,17 @@ class PortCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
+        task = core_tasks.BackendMethodTask().si(
             serialized_instance,
             'create_port',
             state_transition='begin_creating'
+        )
+        return chain(
+            task,
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_port',
+            )
         )
 
 
@@ -263,7 +270,14 @@ class DiskCreateExecutor(core_executors.CreateExecutor):
             'create_disk',
             state_transition='begin_creating'
         )
-        return pull_datastores_for_resource(instance, task)
+        task = pull_datastores_for_resource(instance, task)
+        return chain(
+            task,
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_disk',
+            )
+        )
 
 
 class DiskDeleteExecutor(core_executors.DeleteExecutor):
