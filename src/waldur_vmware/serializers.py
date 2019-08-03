@@ -501,8 +501,10 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             'mac_address', 'vm', 'vm_uuid', 'vm_name', 'network', 'network_name',
         )
+        # Virtual Ethernet adapter name is generated automatically by VMware itself,
+        # therefore it's not editable by user
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'vm', 'mac_address',
+            'name', 'vm', 'mac_address',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'network',
@@ -548,6 +550,11 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
 
         return super(PortSerializer, self).validate(attrs)
 
+    def create(self, validated_data):
+        # Virtual Adapter is updated with actual name when pulling is performed
+        validated_data['name'] = 'New virtual Adapter'
+        return super(PortSerializer, self).create(validated_data)
+
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
     service = serializers.HyperlinkedRelatedField(
@@ -585,8 +592,10 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'size',
         )
+        # Virtual disk name is generated automatically by VMware itself,
+        # therefore it's not editable by user
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'vm',
+            'name', 'vm',
         )
         extra_kwargs = dict(
             vm={
@@ -614,6 +623,11 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         max_disk = options.get('max_disk')
         if actual_disk and max_disk and actual_disk > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
+
+    def create(self, validated_data):
+        # Virtual disk is updated with actual name when pulling is performed
+        validated_data['name'] = 'New disk'
+        return super(DiskSerializer, self).create(validated_data)
 
     def validate(self, attrs):
         # Skip validation on update
