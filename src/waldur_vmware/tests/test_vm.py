@@ -283,6 +283,24 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_max_cores_per_socket_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_cores_per_socket'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['cores_per_socket'] = 10
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_cores_per_socket_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_cores_per_socket'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['cores_per_socket'] = 200
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_max_ram_is_not_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
         self.fixture.settings.options['max_ram'] = 100

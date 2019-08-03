@@ -23,6 +23,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'default_cluster_label': _('Label of VMware cluster that will be used for virtual machines provisioning'),
         'max_cpu': _('Maximum vCPU for each VM'),
+        'max_cores_per_socket': _('Maximum number of cores per socket for each VM'),
         'max_ram': _('Maximum RAM for each VM, MiB'),
         'max_disk': _('Maximum capacity for each disk, MiB'),
     }
@@ -203,6 +204,9 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             if 'ram' in fields and 'max_ram' in options:
                 fields['ram'].max_value = options.get('max_ram')
 
+            if 'cores_per_socket' in fields and 'max_cores_per_socket' in options:
+                fields['cores_per_socket'].max_value = options.get('max_cores_per_socket')
+
             if 'disk' in fields and 'max_disk' in options:
                 fields['disk'].max_value = options.get('max_disk')
 
@@ -251,6 +255,10 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         cores_per_socket = attrs.get('cores_per_socket')
         if cores_per_socket and actual_cpu % cores_per_socket != 0:
             raise serializers.ValidationError('Number of CPU cores should be multiple of cores per socket.')
+
+        max_cores_per_socket = options.get('max_cpu')
+        if cores_per_socket and max_cores_per_socket and cores_per_socket > max_cores_per_socket:
+            raise serializers.ValidationError('Requested amount of cores per socket exceeds offering limit.')
 
     def _validate_ram(self, attrs, options):
         """
