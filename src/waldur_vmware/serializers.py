@@ -256,7 +256,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         if cores_per_socket and actual_cpu % cores_per_socket != 0:
             raise serializers.ValidationError('Number of CPU cores should be multiple of cores per socket.')
 
-        max_cores_per_socket = options.get('max_cpu')
+        max_cores_per_socket = options.get('max_cores_per_socket')
         if cores_per_socket and max_cores_per_socket and cores_per_socket > max_cores_per_socket:
             raise serializers.ValidationError('Requested amount of cores per socket exceeds offering limit.')
 
