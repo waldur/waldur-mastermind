@@ -56,7 +56,11 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_vm_ports',
-            )
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
         )
 
 
@@ -160,6 +164,10 @@ class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
                 'shutdown_guest',
                 state_transition='begin_updating'
             ),
+            core_tasks.PollBackendCheckTask().si(
+                serialized_instance,
+                'is_virtual_machine_shutted_down'
+            ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_virtual_machine',
@@ -177,6 +185,10 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 'reboot_guest',
                 state_transition='begin_updating'
+            ),
+            core_tasks.PollBackendCheckTask().si(
+                serialized_instance,
+                'is_virtual_machine_running'
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
