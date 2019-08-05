@@ -21,6 +21,12 @@ class TestHookService(test.APITransactionTestCase):
         self.other_event = 'customer_deletion_succeeded'
         self.message = 'Customer {customer_name} has been updated.'
         self.event = EventFactory(event_type=self.event_type)
+        self.payload = dict(
+            created=self.event.created,
+            message=self.event.message,
+            context=self.event.context,
+            event_type=self.event.event_type,
+        )
         logging_models.Feed.objects.create(scope=self.customer, event=self.event)
 
         # Create email hook for another user
@@ -56,7 +62,7 @@ class TestHookService(test.APITransactionTestCase):
 
         # Event is captured and POST request is triggered because event_type and user_uuid match
         requests_post.assert_called_once_with(
-            self.web_hook.destination_url, json=mock.ANY, verify=settings.VERIFY_WEBHOOK_REQUESTS)
+            self.web_hook.destination_url, json=self.payload, verify=settings.VERIFY_WEBHOOK_REQUESTS)
 
     def test_email_hook_processor_can_be_called_twice(self):
         # Create email hook for customer owner

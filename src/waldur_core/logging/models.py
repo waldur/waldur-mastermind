@@ -134,14 +134,20 @@ class WebHook(BaseHook):
 
     def process(self, event):
         logger.debug('Submitting web hook to URL %s, payload: %s', self.destination_url, event)
+        payload = dict(
+            created=event.created,
+            message=event.message,
+            context=event.context,
+            event_type=event.event_type,
+        )
 
         # encode event as JSON
         if self.content_type == WebHook.ContentTypeChoices.JSON:
-            requests.post(self.destination_url, json=event, verify=settings.VERIFY_WEBHOOK_REQUESTS)
+            requests.post(self.destination_url, json=payload, verify=settings.VERIFY_WEBHOOK_REQUESTS)
 
         # encode event as form
         elif self.content_type == WebHook.ContentTypeChoices.FORM:
-            requests.post(self.destination_url, data=event, verify=settings.VERIFY_WEBHOOK_REQUESTS)
+            requests.post(self.destination_url, data=payload, verify=settings.VERIFY_WEBHOOK_REQUESTS)
 
 
 class PushHook(BaseHook):
@@ -194,7 +200,7 @@ class PushHook(BaseHook):
                 'image': 'icon',
             },
             'data': {
-                'event': event
+                'event': event.context
             },
         }
         if self.type == self.Type.IOS:
