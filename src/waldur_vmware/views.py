@@ -161,8 +161,14 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         transaction.on_commit(lambda: executors.PortCreateExecutor().execute(port))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def check_number_of_ports(vm):
+        # Limit of the network adapter per VM is 10 in vSphere 6.7, 6.5 and 6.0
+        if vm.port_set.count() >= 10:
+            raise rf_serializers.ValidationError('Virtual machine can have at most 10 network adapters.')
+
     create_port_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
+        check_number_of_ports,
     ]
     create_port_serializer_class = serializers.PortSerializer
 

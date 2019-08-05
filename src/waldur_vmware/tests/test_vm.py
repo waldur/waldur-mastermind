@@ -491,4 +491,17 @@ class NetworkPortCreateTest(test.APITransactionTestCase):
             'name': 'Test',
             'network': factories.NetworkFactory.get_url(self.fixture.network)
         })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+
+    def test_vm_can_have_at_most_10_network_adapters(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.customer_network_pair
+        factories.PortFactory.create_batch(10,
+                                           vm=self.fixture.virtual_machine,
+                                           network=self.fixture.network,
+                                           service_project_link=self.fixture.virtual_machine.service_project_link)
+        response = self.client.post(self.url, {
+            'name': 'Test',
+            'network': factories.NetworkFactory.get_url(self.fixture.network)
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.content)

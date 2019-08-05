@@ -176,6 +176,27 @@ class NetworkFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('vmware-network-list')
 
 
+class PortFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Port
+
+    name = factory.Sequence(lambda n: 'port-%s' % n)
+    backend_id = factory.Sequence(lambda n: 'port-%s' % n)
+    service_project_link = factory.SubFactory(VMwareServiceProjectLinkFactory)
+    vm = factory.SubFactory(VirtualMachineFactory)
+    network = factory.SubFactory(NetworkFactory)
+
+    @classmethod
+    def get_url(cls, port=None, action=None):
+        port = port or PortFactory()
+        url = 'http://testserver' + reverse('vmware-port-detail', kwargs={'uuid': port.uuid})
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('vmware-port-list')
+
+
 class CustomerNetworkFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.CustomerNetwork
