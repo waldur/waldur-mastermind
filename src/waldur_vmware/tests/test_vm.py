@@ -339,6 +339,26 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_max_disk_total_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        self.fixture.template.disk = 10
+        self.fixture.template.save()
+        payload = self.get_valid_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_disk_total_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        self.fixture.template.disk = 200
+        self.fixture.template.save()
+        payload = self.get_valid_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class VirtualMachineBackendTest(test.APITransactionTestCase):
     def setUp(self):
