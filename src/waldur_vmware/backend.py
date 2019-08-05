@@ -735,7 +735,7 @@ class VMwareBackend(ServiceBackend):
         :type port: :class:`waldur_vmware.models.Port`
         """
         try:
-            self.client.delete_nic(port.vm.backend_id, port.network.backend_id)
+            self.client.delete_nic(port.vm.backend_id, port.backend_id)
         except VMwareError as e:
             reraise(e)
 
