@@ -360,6 +360,27 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class VirtualMachineDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.vm = self.fixture.virtual_machine
+        self.url = factories.VirtualMachineFactory.get_url(self.vm)
+
+    def test_when_vm_is_powered_off_deletion_is_allowed(self):
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_OFF
+        self.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_when_vm_is_powered_on_deletion_is_not_allowed(self):
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
+        self.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
 class VirtualMachineBackendTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()

@@ -59,6 +59,10 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_OFF),
     ]
 
+    destroy_validators = structure_views.BaseResourceViewSet.destroy_validators + [
+        core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_OFF)
+    ]
+
     @detail_route(methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
