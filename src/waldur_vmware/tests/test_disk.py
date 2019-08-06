@@ -98,3 +98,33 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.fixture.settings.save(update_fields=['options'])
         response = self.client.post(self.url, {'size': 50})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_current_disk_size_is_added_to_remaining_quota(self):
+        # Arrange
+        self.fixture.settings.options['max_disk_total'] = 25 * 1024
+        self.fixture.settings.save(update_fields=['options'])
+
+        self.disk.size = 24 * 1024
+        self.disk.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {'size': 25 * 1024})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_current_disk_size_is_added_to_remaining_quota_metadata(self):
+        # Arrange
+        self.fixture.settings.options['max_disk_total'] = 25 * 1024
+        self.fixture.settings.save(update_fields=['options'])
+
+        self.disk.size = 24 * 1024
+        self.disk.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.options(factories.DiskFactory.get_url(self.disk))
+
+        # Assert
+        self.assertEqual(response.data['actions']['extend']['fields']['size']['max_value'], 25 * 1024)

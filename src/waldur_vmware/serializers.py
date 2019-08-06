@@ -708,6 +708,7 @@ class DiskExtendSerializer(serializers.ModelSerializer):
         fields = super(DiskExtendSerializer, self).get_fields()
         fields['size'].factor = 1024
         fields['size'].units = 'GB'
+
         if isinstance(self.instance, models.Disk):
             fields['size'].min_value = self.instance.size + 1024
             options = self.instance.service_settings.options
@@ -717,8 +718,8 @@ class DiskExtendSerializer(serializers.ModelSerializer):
 
             max_disk_total = get_int_or_none(options, 'max_disk_total')
             if max_disk_total:
-                remaining_quota = max_disk_total - self.instance.vm.total_disk
-                if fields['size'].max_value:
+                remaining_quota = max_disk_total - self.instance.vm.total_disk + self.instance.size
+                if max_disk:
                     fields['size'].max_value = min(max_disk, remaining_quota)
                 else:
                     fields['size'].max_value = remaining_quota
@@ -737,7 +738,7 @@ class DiskExtendSerializer(serializers.ModelSerializer):
 
         max_disk_total = get_int_or_none(options, 'max_disk_total')
         if max_disk_total:
-            remaining_quota = max_disk_total - self.instance.vm.total_disk
+            remaining_quota = max_disk_total - self.instance.vm.total_disk + self.instance.size
             if value > remaining_quota:
                 raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
 
