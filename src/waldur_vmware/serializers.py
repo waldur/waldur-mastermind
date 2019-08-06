@@ -633,7 +633,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
             'size', 'vm', 'vm_uuid', 'vm_name'
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'size',
+            'size', 'name'
         )
         # Virtual disk name is generated automatically by VMware itself,
         # therefore it's not editable by user
