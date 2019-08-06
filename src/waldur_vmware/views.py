@@ -256,7 +256,16 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
 
         return Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
-    extend_validators = [core_validators.StateValidator(models.Disk.States.OK)]
+    def vm_is_powered_off(disk):
+        if disk.vm.runtime_state != models.VirtualMachine.RuntimeStates.POWERED_OFF:
+            raise rf_serializers.ValidationError(
+                'Disk extension should be done only when the VM is powered off.'
+            )
+
+    extend_validators = [
+        core_validators.StateValidator(models.Disk.States.OK),
+        vm_is_powered_off,
+    ]
     extend_serializer_class = serializers.DiskExtendSerializer
 
 

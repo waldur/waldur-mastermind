@@ -1,5 +1,6 @@
 from rest_framework import status, test
 
+from .. import models
 from . import factories, fixtures
 
 
@@ -10,43 +11,43 @@ class VirtualDiskCreateTest(test.APITransactionTestCase):
         self.url = factories.VirtualMachineFactory.get_url(self.vm, 'create_disk')
 
     def test_max_disk_is_not_exceeded(self):
-        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.options['max_disk'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        payload = self.get_valid_payload(10)
+        payload = self.get_valid_payload(10 * 1024)
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_max_disk_is_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.options['max_disk'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        payload = self.get_valid_payload(200)
+        payload = self.get_valid_payload(200 * 1024)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_max_disk_total_is_not_exceeded(self):
-        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.options['max_disk_total'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        payload = self.get_valid_payload(10)
+        payload = self.get_valid_payload(10 * 1024)
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_max_disk_total_is_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.options['max_disk_total'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        payload = self.get_valid_payload(200)
+        payload = self.get_valid_payload(200 * 1024)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_max_disk_total_is_exceeded_because_there_is_another_disk(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['max_disk_total'] = 100
-        factories.DiskFactory(vm=self.vm, size=80)
+        self.fixture.settings.options['max_disk_total'] = 100 * 1024
+        factories.DiskFactory(vm=self.vm, size=80 * 1024)
         self.fixture.settings.save(update_fields=['options'])
-        payload = self.get_valid_payload(50)
+        payload = self.get_valid_payload(50 * 1024)
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -62,41 +63,43 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.fixture = fixtures.VMwareFixture()
         self.disk = self.fixture.disk
         self.url = factories.DiskFactory.get_url(self.disk, 'extend')
+        self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_OFF
+        self.disk.vm.save()
 
     def test_max_disk_is_not_exceeded(self):
-        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.options['max_disk'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post(self.url, {'size': 10})
+        response = self.client.post(self.url, {'size': 10 * 1024})
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_max_disk_is_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['max_disk'] = 100
+        self.fixture.settings.options['max_disk'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        response = self.client.post(self.url, {'size': 200})
+        response = self.client.post(self.url, {'size': 200 * 1024})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_max_disk_total_is_not_exceeded(self):
-        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.options['max_disk_total'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post(self.url, {'size': 10})
+        response = self.client.post(self.url, {'size': 10 * 1024})
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_max_disk_total_is_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.options['max_disk_total'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        response = self.client.post(self.url, {'size': 200})
+        response = self.client.post(self.url, {'size': 200 * 1024})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_max_disk_total_is_exceeded_because_there_is_another_disk(self):
         self.client.force_authenticate(self.fixture.owner)
-        factories.DiskFactory(vm=self.disk.vm, size=80)
-        self.fixture.settings.options['max_disk_total'] = 100
+        factories.DiskFactory(vm=self.disk.vm, size=80 * 1024)
+        self.fixture.settings.options['max_disk_total'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
-        response = self.client.post(self.url, {'size': 50})
+        response = self.client.post(self.url, {'size': 50 * 1024})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_current_disk_size_is_added_to_remaining_quota(self):
@@ -128,3 +131,10 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.data['actions']['extend']['fields']['size']['max_value'], 25 * 1024)
+
+    def test_extension_is_not_allowed_when_vm_is_running(self):
+        self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
+        self.disk.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.url, {'size': 10 * 1024})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
