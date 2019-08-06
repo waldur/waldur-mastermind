@@ -651,6 +651,7 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         fields = super(DiskSerializer, self).get_fields()
         fields['size'].factor = 1024
         fields['size'].units = 'GB'
+        fields['size'].min_value = 1024
 
         if isinstance(self.instance, models.VirtualMachine):
             options = self.instance.service_settings.options
@@ -672,6 +673,9 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         options = vm.service_project_link.service.settings.options
 
         actual_disk = attrs.get('size')
+        if actual_disk < 1024:
+            raise serializers.ValidationError('Requested amount of disk is too small.')
+
         max_disk = get_int_or_none(options, 'max_disk')
         if actual_disk and max_disk and actual_disk > max_disk:
             raise serializers.ValidationError('Requested amount of disk exceeds offering limit.')
