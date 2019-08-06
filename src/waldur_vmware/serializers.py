@@ -189,6 +189,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
+            'name',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'disk', 'runtime_state', 'guest_power_state',
