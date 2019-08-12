@@ -51,11 +51,18 @@ class VirtualDiskCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_when_disk_is_created_vm_summary_is_updated(self):
+        # Act
+        payload = self.get_valid_payload(10 * 1024)
+        self.client.force_authenticate(self.fixture.owner)
+        self.client.post(self.url, payload)
+
+        # Assert
+        self.vm.refresh_from_db()
+        self.assertEqual(self.vm.disk, 10 * 1024)
+
     def get_valid_payload(self, size):
-        return {
-            'name': 'Virtual disk',
-            'size': size,
-        }
+        return {'size': size}
 
 
 class VirtualDiskExtendTest(test.APITransactionTestCase):
@@ -138,3 +145,24 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, {'size': 10 * 1024})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_when_disk_is_created_vm_summary_is_updated(self):
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        self.client.post(self.url, {'size': 20 * 1024})
+
+        # Assert
+        self.disk.vm.refresh_from_db()
+        self.assertEqual(self.disk.vm.disk, 20 * 1024)
+
+
+class VirtualDiskDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.disk = self.fixture.disk
+        self.vm = self.disk.vm
+
+    def test_when_disk_is_deleted_vm_summary_is_updated(self):
+        self.disk.delete()
+        self.vm.refresh_from_db()
+        self.assertEqual(self.vm.disk, 0)
