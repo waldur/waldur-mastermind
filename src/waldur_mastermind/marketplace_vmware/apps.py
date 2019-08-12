@@ -57,3 +57,9 @@ class MarketplaceVMwareConfig(AppConfig):
             handlers.create_invoice_item_when_vm_is_updated,
             dispatch_uid='marketplace_vmware.handlers.create_invoice_item_when_vm_is_updated',
         )
+
+        vmware_signals.vm_updated.connect(
+            handlers.update_marketplace_resource_limits_when_vm_is_updated,
+            dispatch_uid='marketplace_vmware.handlers.'
+                         'update_marketplace_resource_limits_when_vm_is_updated',
+        )
