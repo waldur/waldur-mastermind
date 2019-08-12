@@ -116,6 +116,24 @@ class Issue(core_models.UuidMixin,
 
 
 @python_2_unicode_compatible
+class Priority(core_models.NameMixin,
+               core_models.UuidMixin,
+               core_models.UiDescribableMixin):
+    backend_id = models.CharField(max_length=255, blank=True)
+
+    class Meta(object):
+        verbose_name = _('Priority')
+        verbose_name_plural = _('Priorities')
+
+    @classmethod
+    def get_url_name(cls):
+        return 'support-priority'
+
+    def __str__(self):
+        return self.name
+
+
+@python_2_unicode_compatible
 class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         ordering = ['name']

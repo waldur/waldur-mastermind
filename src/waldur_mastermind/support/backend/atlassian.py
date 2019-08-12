@@ -48,6 +48,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def pull_service_properties(self):
         super(ServiceDeskBackend, self).pull_service_properties()
         self.pull_request_types()
+        self.pull_priorities()
 
     @reraise_exceptions
     def create_comment(self, comment):
@@ -193,6 +194,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             }
         }
 
+        if issue.priority:
+            args['requestFieldValues']['priority'] = {
+                'name': issue.priority
+            }
+
         support_customer = issue.caller.supportcustomer
         args['requestParticipants'] = [support_customer.backend_id]
         return args
@@ -290,4 +296,29 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                     defaults={
                         'name': backend_request_type.name,
                         'issue_type_name': issue_type.name
+                    })
+
+    @reraise_exceptions
+    def pull_priorities(self):
+        backend_priorities = self.manager.priorities()
+        with transaction.atomic():
+            backend_priorities_map = {
+                priority.id: priority for priority in backend_priorities
+            }
+
+            waldur_priorities = {
+                priority.backend_id: priority
+                for priority in models.Priority.objects.all()
+            }
+
+            stale_priorities = set(waldur_priorities.keys()) - set(backend_priorities_map.keys())
+            models.Priority.objects.filter(backend_id__in=stale_priorities).delete()
+
+            for priority in backend_priorities:
+                models.Priority.objects.update_or_create(
+                    backend_id=priority.id,
+                    defaults={
+                        'name': priority.name,
+                        'description': priority.description,
+                        'icon_url': priority.iconUrl,
                     })

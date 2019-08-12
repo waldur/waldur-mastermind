@@ -149,6 +149,27 @@ class IssueCreateTest(IssueCreateBaseTest):
         factories.SupportCustomerFactory(user=self.caller)
 
     @data('staff', 'global_support')
+    def test_staff_or_support_can_specify_priority(self, user):
+        factories.SupportUserFactory(user=getattr(self.fixture, user))
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        priority = factories.PriorityFactory()
+        response = self.client.post(self.url, data=self._get_valid_payload(priority=priority.name))
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['priority'], priority.name)
+
+    @data('admin', 'manager', 'user')
+    def test_other_user_can_not_specify_priority(self, user):
+        factories.SupportUserFactory(user=getattr(self.fixture, user))
+        self.client.force_authenticate(getattr(self.fixture, user))
+
+        priority = factories.PriorityFactory()
+        response = self.client.post(self.url, data=self._get_valid_payload(priority=priority.name))
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('staff', 'global_support')
     def test_staff_or_support_can_create_issue_if_he_has_support_user(self, user):
         factories.SupportUserFactory(user=getattr(self.fixture, user))
         self.client.force_authenticate(getattr(self.fixture, user))

@@ -49,6 +49,12 @@ class IssueFilter(django_filters.FilterSet):
         ]
 
 
+class PriorityFilter(structure_filters.NameFilterSet):
+    class Meta(object):
+        model = models.Priority
+        fields = ('name', 'name_exact')
+
+
 class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
 
     content_type_field = 'resource_content_type'

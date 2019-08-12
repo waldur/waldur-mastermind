@@ -103,6 +103,13 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     comment_permissions = [_comment_permission]
 
 
+class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = models.Priority.objects.all()
+    serializer_class = serializers.PrioritySerializer
+    filter_class = filters.PriorityFilter
+    lookup_field = 'uuid'
+
+
 class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.CommentSerializer

@@ -133,6 +133,11 @@ class RequestTypeAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+class PriorityAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'backend_id')
+    search_fields = ('name', 'description')
+
+
 class IssueStatusAdmin(admin.ModelAdmin):
     list_display = ('name', 'type')
 
@@ -159,4 +164,5 @@ admin.site.register(models.OfferingPlan)
 admin.site.register(models.TemplateStatusNotification)
 admin.site.register(models.IgnoredIssueStatus)
 admin.site.register(models.RequestType, RequestTypeAdmin)
+admin.site.register(models.Priority, PriorityAdmin)
 admin.site.register(models.IssueStatus, IssueStatusAdmin)
