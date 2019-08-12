@@ -216,6 +216,12 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             fields['disk'].factor = 1024
             fields['disk'].units = 'GB'
 
+        if 'cores' in fields:
+            fields['cores'].min_value = 1
+
+        if 'cores_per_socket' in fields:
+            fields['cores_per_socket'].min_value = 1
+
         if isinstance(self.instance, models.VirtualMachine):
             spl = self.instance.service_project_link
             options = spl.service.settings.options
