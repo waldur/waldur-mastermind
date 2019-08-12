@@ -86,17 +86,27 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return chain(
+        _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'start_virtual_machine',
                 state_transition='begin_updating'
-            ),
+            )
+        ]
+        if instance.guest_power_enabled:
+            _tasks.append(
+                core_tasks.PollBackendCheckTask().si(
+                    serialized_instance,
+                    'is_virtual_machine_running'
+                )
+            )
+        _tasks.append(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_virtual_machine',
-            ),
+            )
         )
+        return chain(_tasks)
 
 
 class VirtualMachineStopExecutor(core_executors.ActionExecutor):
@@ -122,17 +132,27 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return chain(
+        _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'reset_virtual_machine',
                 state_transition='begin_updating'
-            ),
+            )
+        ]
+        if instance.guest_power_enabled:
+            _tasks.append(
+                core_tasks.PollBackendCheckTask().si(
+                    serialized_instance,
+                    'is_virtual_machine_running'
+                )
+            )
+        _tasks.append(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_virtual_machine',
-            ),
+            )
         )
+        return chain(_tasks)
 
 
 class VirtualMachineSuspendExecutor(core_executors.ActionExecutor):
