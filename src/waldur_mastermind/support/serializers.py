@@ -87,8 +87,8 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             'created', 'modified', 'is_reported_manually',
             'first_response_sla', 'template'
         )
-        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'priority', 'first_response_sla')
-        protected_fields = ('customer', 'project', 'resource', 'type', 'caller', 'template')
+        read_only_fields = ('key', 'status', 'resolution', 'backend_id', 'link', 'first_response_sla')
+        protected_fields = ('customer', 'project', 'resource', 'type', 'caller', 'template', 'priority')
         extra_kwargs = dict(
             url={'lookup_field': 'uuid'},
             customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},
@@ -168,6 +168,16 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
             self.validate_project(resource.service_project_link.project)
         return resource
 
+    def validate_priority(self, priority):
+        user = self.context['request'].user
+        if not user.is_staff and not user.is_support:
+            raise serializers.ValidationError(_('Only staff or support can specify issue priority.'))
+        try:
+            models.Priority.objects.get(name=priority)
+        except (models.Priority.DoesNotExist, models.Priority.MultipleObjectsReturned):
+            raise serializers.ValidationError(_('Priority with requested name does not exist.'))
+        return priority
+
     @transaction.atomic()
     def create(self, validated_data):
         resource = validated_data.get('resource')
@@ -185,6 +195,17 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         raw = self.issue_settings[config_name]
         template = Template(raw)
         return template.render(Context({'issue': issue}))
+
+
+class PrioritySerializer(core_serializers.AugmentedSerializerMixin,
+                         serializers.HyperlinkedModelSerializer):
+
+    class Meta(object):
+        model = models.Priority
+        fields = ('url', 'uuid', 'name', 'description', 'icon_url')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+        }
 
 
 class CommentSerializer(core_serializers.AugmentedSerializerMixin,
