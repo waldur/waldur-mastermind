@@ -670,6 +670,22 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             reraise(e)
 
+    def is_virtual_machine_shutted_down(self, vm):
+        try:
+            guest_power = self.client.get_guest_power(vm.backend_id)
+        except VMwareError as e:
+            reraise(e)
+        else:
+            return guest_power['state'] == models.VirtualMachine.GuestPowerStates.NOT_RUNNING
+
+    def is_virtual_machine_running(self, vm):
+        try:
+            guest_power = self.client.get_guest_power(vm.backend_id)
+        except VMwareError as e:
+            reraise(e)
+        else:
+            return guest_power['state'] == models.VirtualMachine.GuestPowerStates.RUNNING
+
     def update_virtual_machine(self, vm):
         """
         Updates CPU and RAM of virtual machine.
@@ -735,7 +751,7 @@ class VMwareBackend(ServiceBackend):
         :type port: :class:`waldur_vmware.models.Port`
         """
         try:
-            self.client.delete_nic(port.vm.backend_id, port.network.backend_id)
+            self.client.delete_nic(port.vm.backend_id, port.backend_id)
         except VMwareError as e:
             reraise(e)
 

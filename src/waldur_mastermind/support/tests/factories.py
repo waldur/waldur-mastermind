@@ -211,6 +211,24 @@ class TemplateStatusNotificationFactory(factory.DjangoModelFactory):
     subject = 'Test template {{issue.summary}}'
 
 
+class PriorityFactory(factory.DjangoModelFactory):
+    class Meta(object):
+        model = models.Priority
+
+    backend_id = factory.Sequence(lambda n: n)
+    name = factory.Sequence(lambda n: 'priority-%s' % n)
+
+    @classmethod
+    def get_url(cls, priority=None):
+        if priority is None:
+            priority = PriorityFactory()
+        return 'http://testserver' + reverse('support-priority-detail', kwargs={'uuid': priority.uuid.hex})
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('support-priority-list')
+
+
 class RequestTypeFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.RequestType

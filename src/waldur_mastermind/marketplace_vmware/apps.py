@@ -30,7 +30,7 @@ class MarketplaceVMwareConfig(AppConfig):
                          create_resource_processor=processors.VirtualMachineCreateProcessor,
                          service_type=VMwareConfig.service_name,
                          components=(
-                             Component(type='cpu', name='CPU', measured_unit='hours', billing_type=USAGE),
+                             Component(type='cpu', name='CPU', measured_unit='vCPU', billing_type=USAGE),
                              # Price is stored per GiB but size is stored per MiB
                              # therefore we need to divide size by factor when price estimate is calculated.
                              Component(type='ram', name='RAM', measured_unit='GB', billing_type=USAGE, factor=1024),
@@ -56,4 +56,10 @@ class MarketplaceVMwareConfig(AppConfig):
         vmware_signals.vm_updated.connect(
             handlers.create_invoice_item_when_vm_is_updated,
             dispatch_uid='marketplace_vmware.handlers.create_invoice_item_when_vm_is_updated',
+        )
+
+        vmware_signals.vm_updated.connect(
+            handlers.update_marketplace_resource_limits_when_vm_is_updated,
+            dispatch_uid='marketplace_vmware.handlers.'
+                         'update_marketplace_resource_limits_when_vm_is_updated',
         )

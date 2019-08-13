@@ -319,16 +319,16 @@ class VMwareClient(object):
         }
         return self._post('vcenter/vm/{}/hardware/ethernet'.format(vm_id), json=spec)
 
-    def delete_nic(self, vm_id, network_id):
+    def delete_nic(self, vm_id, nic_id):
         """
         Removes a virtual Ethernet adapter from the virtual machine.
 
         :param vm_id: Virtual machine identifier.
         :type vm_id: string
-        :param network_id: Identifier of the network that backs the virtual Ethernet adapter.
-        :type network_id: string
+        :param nic_id: Virtual Ethernet adapter identifier.
+        :type nic_id: string
         """
-        return self._delete('vcenter/vm/{}/hardware/ethernet/{}'.format(vm_id, network_id))
+        return self._delete('vcenter/vm/{}/hardware/ethernet/{}'.format(vm_id, nic_id))
 
     def list_nics(self, vm_id):
         """

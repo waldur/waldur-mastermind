@@ -56,7 +56,11 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_vm_ports',
-            )
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
         )
 
 
@@ -82,17 +86,33 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return chain(
+        _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'start_virtual_machine',
                 state_transition='begin_updating'
-            ),
+            )
+        ]
+        if instance.guest_power_enabled:
+            _tasks.append(
+                core_tasks.BackendMethodTask().si(
+                    serialized_instance,
+                    'pull_virtual_machine',
+                )
+            )
+            _tasks.append(
+                core_tasks.PollBackendCheckTask().si(
+                    serialized_instance,
+                    'is_virtual_machine_running'
+                )
+            )
+        _tasks.append(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_virtual_machine',
-            ),
+            )
         )
+        return chain(_tasks)
 
 
 class VirtualMachineStopExecutor(core_executors.ActionExecutor):
@@ -118,17 +138,33 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return chain(
+        _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'reset_virtual_machine',
                 state_transition='begin_updating'
-            ),
+            )
+        ]
+        if instance.guest_power_enabled:
+            _tasks.append(
+                core_tasks.BackendMethodTask().si(
+                    serialized_instance,
+                    'pull_virtual_machine',
+                )
+            )
+            _tasks.append(
+                core_tasks.PollBackendCheckTask().si(
+                    serialized_instance,
+                    'is_virtual_machine_running'
+                )
+            )
+        _tasks.append(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
                 'pull_virtual_machine',
-            ),
+            )
         )
+        return chain(_tasks)
 
 
 class VirtualMachineSuspendExecutor(core_executors.ActionExecutor):
@@ -164,6 +200,14 @@ class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 'pull_virtual_machine',
             ),
+            core_tasks.PollBackendCheckTask().si(
+                serialized_instance,
+                'is_virtual_machine_shutted_down'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
         )
 
 
@@ -177,6 +221,14 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 'reboot_guest',
                 state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
+            core_tasks.PollBackendCheckTask().si(
+                serialized_instance,
+                'is_virtual_machine_running'
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
@@ -206,10 +258,17 @@ class PortCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
+        task = core_tasks.BackendMethodTask().si(
             serialized_instance,
             'create_port',
             state_transition='begin_creating'
+        )
+        return chain(
+            task,
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_port',
+            )
         )
 
 
@@ -263,7 +322,14 @@ class DiskCreateExecutor(core_executors.CreateExecutor):
             'create_disk',
             state_transition='begin_creating'
         )
-        return pull_datastores_for_resource(instance, task)
+        task = pull_datastores_for_resource(instance, task)
+        return chain(
+            task,
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_disk',
+            )
+        )
 
 
 class DiskDeleteExecutor(core_executors.DeleteExecutor):

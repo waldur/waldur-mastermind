@@ -283,6 +283,24 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_max_cores_per_socket_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_cores_per_socket'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['cores_per_socket'] = 10
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_cores_per_socket_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_cores_per_socket'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        payload = self.get_valid_payload()
+        payload['cores_per_socket'] = 200
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_max_ram_is_not_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
         self.fixture.settings.options['max_ram'] = 100
@@ -320,6 +338,47 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         payload = self.get_valid_payload()
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_max_disk_total_is_not_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        self.fixture.template.disk = 10
+        self.fixture.template.save()
+        payload = self.get_valid_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_max_disk_total_is_exceeded(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.settings.options['max_disk_total'] = 100
+        self.fixture.settings.save(update_fields=['options'])
+        self.fixture.template.disk = 200
+        self.fixture.template.save()
+        payload = self.get_valid_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class VirtualMachineDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.vm = self.fixture.virtual_machine
+        self.url = factories.VirtualMachineFactory.get_url(self.vm)
+
+    def test_when_vm_is_powered_off_deletion_is_allowed(self):
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_OFF
+        self.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_when_vm_is_powered_on_deletion_is_not_allowed(self):
+        self.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
+        self.vm.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
 class VirtualMachineBackendTest(test.APITransactionTestCase):
@@ -473,4 +532,17 @@ class NetworkPortCreateTest(test.APITransactionTestCase):
             'name': 'Test',
             'network': factories.NetworkFactory.get_url(self.fixture.network)
         })
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+
+    def test_vm_can_have_at_most_10_network_adapters(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.fixture.customer_network_pair
+        factories.PortFactory.create_batch(10,
+                                           vm=self.fixture.virtual_machine,
+                                           network=self.fixture.network,
+                                           service_project_link=self.fixture.virtual_machine.service_project_link)
+        response = self.client.post(self.url, {
+            'name': 'Test',
+            'network': factories.NetworkFactory.get_url(self.fixture.network)
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.content)

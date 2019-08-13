@@ -59,6 +59,10 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_OFF),
     ]
 
+    destroy_validators = structure_views.BaseResourceViewSet.destroy_validators + [
+        core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_OFF)
+    ]
+
     @detail_route(methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
@@ -161,8 +165,14 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         transaction.on_commit(lambda: executors.PortCreateExecutor().execute(port))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def check_number_of_ports(vm):
+        # Limit of the network adapter per VM is 10 in vSphere 6.7, 6.5 and 6.0
+        if vm.port_set.count() >= 10:
+            raise rf_serializers.ValidationError('Virtual machine can have at most 10 network adapters.')
+
     create_port_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
+        check_number_of_ports,
     ]
     create_port_serializer_class = serializers.PortSerializer
 
@@ -246,7 +256,16 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
 
         return Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
-    extend_validators = [core_validators.StateValidator(models.Disk.States.OK)]
+    def vm_is_powered_off(disk):
+        if disk.vm.runtime_state != models.VirtualMachine.RuntimeStates.POWERED_OFF:
+            raise rf_serializers.ValidationError(
+                'Disk extension should be done only when the VM is powered off.'
+            )
+
+    extend_validators = [
+        core_validators.StateValidator(models.Disk.States.OK),
+        vm_is_powered_off,
+    ]
     extend_serializer_class = serializers.DiskExtendSerializer
 
 
