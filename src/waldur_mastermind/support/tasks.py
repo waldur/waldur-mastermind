@@ -45,6 +45,14 @@ class SupportUserPullTask(CeleryTask):
             .update(is_active=False)
 
 
+@shared_task(name='waldur_mastermind.support.pull_priorities')
+def pull_priorities():
+    if not settings.WALDUR_SUPPORT['ENABLED']:
+        return
+
+    backend.get_active_backend().pull_priorities()
+
+
 @shared_task(name='waldur_mastermind.support.create_issue')
 def create_issue(serialized_issue):
     issue = core_utils.deserialize_instance(serialized_issue)

@@ -30,3 +30,6 @@ class BasicBackend(SupportBackend):
 
     def get_users(self):
         return
+
+    def pull_priorities(self):
+        return

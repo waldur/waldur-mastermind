@@ -121,6 +121,11 @@ class SupportExtension(WaldurExtension):
                 'schedule': timedelta(hours=6),
                 'args': (),
             },
+            'pull-priorities': {
+                'task': 'waldur_mastermind.support.pull_priorities',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
             'remove-terminated-offerings': {
                 'task': 'waldur_mastermind.support.remove_terminated_offerings',
                 'schedule': timedelta(hours=24),
