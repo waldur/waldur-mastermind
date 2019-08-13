@@ -49,3 +49,9 @@ class SupportBackend(object):
         Each user should be represented as not saved SupportUser instance.
         """
         raise NotImplementedError
+
+    def pull_priorities(self):
+        """
+        This method should pull priorities from backend and to the local database.
+        """
+        raise NotImplementedError
