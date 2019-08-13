@@ -95,6 +95,12 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
         ]
         if instance.guest_power_enabled:
             _tasks.append(
+                core_tasks.BackendMethodTask().si(
+                    serialized_instance,
+                    'pull_virtual_machine',
+                )
+            )
+            _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
                     'is_virtual_machine_running'
@@ -141,6 +147,12 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
         ]
         if instance.guest_power_enabled:
             _tasks.append(
+                core_tasks.BackendMethodTask().si(
+                    serialized_instance,
+                    'pull_virtual_machine',
+                )
+            )
+            _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
                     'is_virtual_machine_running'
@@ -184,6 +196,10 @@ class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
                 'shutdown_guest',
                 state_transition='begin_updating'
             ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
+            ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
                 'is_virtual_machine_shutted_down'
@@ -205,6 +221,10 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
                 serialized_instance,
                 'reboot_guest',
                 state_transition='begin_updating'
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'pull_virtual_machine',
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
