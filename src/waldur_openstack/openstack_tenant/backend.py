@@ -1330,6 +1330,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     'fixed_ips': [{
                         'subnet_id': new_internal_ip.subnet.backend_id,
                     }],
+                    'security_groups': list(instance.security_groups.exclude(backend_id='').
+                                            values_list('backend_id', flat=True)),
                 }
                 logger.debug('About to create network port for instance %s in subnet %s.',
                              instance.backend_id, new_internal_ip.subnet.backend_id)
