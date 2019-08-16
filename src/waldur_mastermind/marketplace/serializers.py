@@ -159,6 +159,7 @@ class BasePlanSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description',
+                  'article_code', 'product_code',
                   'prices', 'quotas', 'max_amount', 'archived', 'is_active',
                   'unit_price', 'unit', 'init_price', 'switch_price')
         read_ony_fields = ('unit_price', 'archived')
