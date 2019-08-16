@@ -139,10 +139,11 @@ class OfferingViewSet(BaseMarketplaceView):
             'state': offering.state
         }, status=status.HTTP_200_OK)
 
-    activate_permissions = \
-        pause_permissions = \
+    pause_permissions = \
         archive_permissions = \
         [structure_permissions.is_owner]
+
+    activate_permissions = [structure_permissions.is_staff]
 
     activate_validators = \
         pause_validators = \
