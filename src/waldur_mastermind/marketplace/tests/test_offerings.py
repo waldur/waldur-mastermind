@@ -1076,13 +1076,13 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff', 'owner')
+    @data('staff',)
     def test_authorized_user_can_update_state(self, user):
         response, offering = self.update_offering_state(user, 'activate')
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.state, offering.States.ACTIVE)
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data('owner', 'user', 'customer_support', 'admin', 'manager')
     def test_unauthorized_user_can_not_update_state(self, user):
         response, offering = self.update_offering_state(user, 'activate')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
@@ -1097,7 +1097,7 @@ class OfferingStateTest(test.APITransactionTestCase):
     def test_offering_state_changing_is_not_available_for_blocked_organization(self, state):
         self.customer.blocked = True
         self.customer.save()
-        response, offering = self.update_offering_state('owner', state)
+        response, offering = self.update_offering_state('staff', state)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def update_offering_state(self, user, state):
