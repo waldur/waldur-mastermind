@@ -674,12 +674,13 @@ class Project(core_models.DescribableMixin,
         but it sends needed signals and delete ServiceProjectLink objects
         """
         signals.pre_delete.send(sender=self.__class__, instance=self, using=using)
-        self.is_removed = True
-        self.save(using=using)
 
         for model in ServiceProjectLink.get_all_models():
             for spl in model.objects.filter(project=self):
                 spl.delete()
+
+        self.is_removed = True
+        self.save(using=using)
 
         signals.post_delete.send(sender=self.__class__, instance=self, using=using)
 
@@ -726,6 +727,9 @@ class Project(core_models.DescribableMixin,
         """
         return itertools.chain.from_iterable(
             m.objects.filter(project=self) for m in ServiceProjectLink.get_all_models())
+
+    class Meta:
+        base_manager_name = 'objects'
 
 
 @python_2_unicode_compatible
