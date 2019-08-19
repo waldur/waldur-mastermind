@@ -122,7 +122,10 @@ class OrderItemFilter(django_filters.FilterSet):
         choices=[(representation, representation) for db_value, representation in models.OrderItem.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.OrderItem.States.CHOICES},
     )
-
+    type = core_filters.MappedMultipleChoiceFilter(
+        choices=[(representation, representation) for db_value, representation in models.OrderItem.Types.CHOICES],
+        choice_mappings={representation: db_value for db_value, representation in models.OrderItem.Types.CHOICES},
+    )
     order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
     order_uuid = django_filters.UUIDFilter(name='order__uuid')
 
