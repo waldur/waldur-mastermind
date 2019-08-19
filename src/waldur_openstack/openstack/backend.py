@@ -685,7 +685,9 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         for port in ports.get('ports', []):
             if 'device_id' in port and \
-                    port['device_owner'] in ['network:router_interface', 'network:router_interface_distributed']:
+                    port['device_owner'] in ['network:router_interface',
+                                             'network:router_interface_distributed',
+                                             'network:ha_router_replicated_interface']:
                 logger.info("Deleting port %s interface_router from tenant %s", port['id'], tenant.backend_id)
                 try:
                     neutron.remove_interface_router(port['device_id'], {'port_id': port['id']})
