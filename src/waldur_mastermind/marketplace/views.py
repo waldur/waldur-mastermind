@@ -143,7 +143,7 @@ class OfferingViewSet(BaseMarketplaceView):
         offering.save(update_fields=['state'])
         return Response({
             'detail': _('Offering state updated.'),
-            'state': offering.state
+            'state': offering.get_state_display()
         }, status=status.HTTP_200_OK)
 
     pause_permissions = \
