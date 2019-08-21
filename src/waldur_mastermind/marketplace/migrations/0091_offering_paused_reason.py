@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0089_make_billing_period_non_nullable'),
+        ('marketplace', '0090_resource_current_usages'),
     ]
 
     operations = [
