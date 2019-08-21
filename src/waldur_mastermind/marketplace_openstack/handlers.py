@@ -14,7 +14,7 @@ from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils
+from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, CORES_TYPE, RAM_TYPE, STORAGE_TYPE, utils
 
 logger = logging.getLogger(__name__)
 
@@ -385,3 +385,33 @@ def import_resource_metadata_when_resource_is_created(sender, instance, created=
 
     if isinstance(instance.scope, openstack_tenant_models.Instance):
         utils.import_instance_metadata(instance)
+
+
+def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if not isinstance(instance.scope, openstack_models.Tenant):
+        return
+
+    tenant = instance.scope
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=tenant)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping usages synchronization for tenant because '
+                     'resource does not exist. OpenStack tenant ID: %s', tenant.id)
+        return
+
+    TenantQuotas = openstack_models.Tenant.Quotas
+    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+
+    rows = tenant.quotas.filter(name__in=QuotaNames).values('name', 'usage')
+    usages = {row['name']: row['usage'] for row in rows}
+
+    resource.current_usages = {
+        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0) / 1024,
+        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0) / 1024,
+    }
+    resource.save(update_fields=['current_usages'])

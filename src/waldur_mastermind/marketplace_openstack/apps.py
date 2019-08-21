@@ -13,6 +13,7 @@ class MarketplaceOpenStackConfig(AppConfig):
     verbose_name = 'Marketplace OpenStack'
 
     def ready(self):
+        from waldur_core.quotas import models as quota_models
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_openstack.openstack import models as openstack_models
@@ -138,4 +139,11 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
                          'import_resource_metadata_when_resource_is_created',
+        )
+
+        signals.post_save.connect(
+            handlers.update_openstack_tenant_usages,
+            sender=quota_models.Quota,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'update_openstack_tenant_usages',
         )
