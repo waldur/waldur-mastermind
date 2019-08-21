@@ -119,19 +119,26 @@ class OfferingViewSet(BaseMarketplaceView):
 
     @detail_route(methods=['post'])
     def pause(self, request, uuid=None):
-        return self._update_state('pause')
+        return self._update_state('pause', request)
+
+    pause_serializer_class = serializers.OfferingPauseSerializer
 
     @detail_route(methods=['post'])
     def archive(self, request, uuid=None):
         return self._update_state('archive')
 
-    def _update_state(self, action):
+    def _update_state(self, action, request=None):
         offering = self.get_object()
 
         try:
             getattr(offering, action)()
         except TransitionNotAllowed:
             raise rf_exceptions.ValidationError(_('Offering state is invalid.'))
+
+        if request:
+            serializer = self.get_serializer(offering, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            offering = serializer.save()
 
         offering.save(update_fields=['state'])
         return Response({

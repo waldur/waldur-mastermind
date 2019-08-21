@@ -1075,6 +1075,8 @@ class OfferingStateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
+        factories.ServiceProviderFactory(customer=self.customer)
+        self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
 
     @data('staff',)
     def test_authorized_user_can_update_state(self, user):
@@ -1100,16 +1102,27 @@ class OfferingStateTest(test.APITransactionTestCase):
         response, offering = self.update_offering_state('staff', state)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def update_offering_state(self, user, state):
+    def test_user_can_provide_paused_reason(self):
+        # Arrange
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+
+        # Act
+        response, offering = self.update_offering_state('staff', 'pause', {
+            'paused_reason': 'Not available anymore.'})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.paused_reason, 'Not available anymore.')
+
+    def update_offering_state(self, user, state, payload=None):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        factories.ServiceProviderFactory(customer=self.customer)
-        offering = factories.OfferingFactory(customer=self.customer, shared=True)
-        url = factories.OfferingFactory.get_url(offering, state)
-        response = self.client.post(url)
-        offering.refresh_from_db()
+        url = factories.OfferingFactory.get_url(self.offering, state)
+        response = self.client.post(url, payload)
+        self.offering.refresh_from_db()
 
-        return response, offering
+        return response, self.offering
 
 
 class AllowedCustomersTest(test.APITransactionTestCase):

@@ -572,6 +572,12 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         return validated_data
 
 
+class OfferingPauseSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.Offering
+        fields = ['paused_reason']
+
+
 class PlanUpdateSerializer(BasePlanSerializer):
 
     class Meta(BasePlanSerializer.Meta):
