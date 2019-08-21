@@ -266,6 +266,7 @@ class Offering(core_models.UuidMixin,
 
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    paused_reason = models.TextField(blank=True)
 
     # If offering is not shared, it is available only to following user categories:
     # 1) staff user;
@@ -761,6 +762,7 @@ class Resource(CostEstimateMixin,
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
     attributes = BetterJSONField(blank=True, default=dict)
     backend_metadata = BetterJSONField(blank=True, default=dict)
+    current_usages = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
 
