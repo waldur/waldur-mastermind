@@ -1178,7 +1178,7 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
         model = models.Resource
         fields = ('limits',)
 
-    limits = serializers.JSONField(required=True)
+    limits = serializers.DictField(child=serializers.IntegerField(min_value=0), required=True)
 
 
 class BaseComponentSerializer(serializers.Serializer):
