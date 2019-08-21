@@ -79,6 +79,14 @@ class PackageUpdateProcessor(processors.UpdateResourceProcessor):
             'template': reverse('package-template-detail', kwargs={'uuid': template.uuid})
         }
 
+    def process_order_item(self, user):
+        """We need to overwrite process order item because two cases exist:
+        a switch of a plan and a change of limits."""
+        if 'old_limits' not in self.order_item.attributes.keys():
+            return super(PackageUpdateProcessor, self).process_order_item(user)
+        else:
+            pass
+
 
 class PackageDeleteProcessor(processors.DeleteResourceProcessor):
     viewset = openstack_views.TenantViewSet
