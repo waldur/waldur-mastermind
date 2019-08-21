@@ -761,6 +761,7 @@ class Resource(CostEstimateMixin,
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.PROTECT)
     attributes = BetterJSONField(blank=True, default=dict)
     backend_metadata = BetterJSONField(blank=True, default=dict)
+    current_usages = BetterJSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.MixinManager('scope')
 

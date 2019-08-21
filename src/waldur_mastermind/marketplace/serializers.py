@@ -1119,8 +1119,9 @@ class ResourceSerializer(BaseItemSerializer):
             'customer_uuid', 'customer_name',
             'offering_uuid', 'offering_name',
             'backend_metadata', 'is_usage_based', 'name',
+            'current_usages',
         )
-        read_only_fields = ('backend_metadata', 'scope',)
+        read_only_fields = ('backend_metadata', 'scope', 'current_usages')
 
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = core_serializers.GenericRelatedField()
