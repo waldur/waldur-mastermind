@@ -23,7 +23,7 @@ class ResponseStatusError(ClientError):
 
 
 class RequestError(ClientError):
-    def __init__(self, message, response):
+    def __init__(self, message, response=None):
         super(RequestError, self).__init__(message)
         self.response = response
 
