@@ -1166,6 +1166,14 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         return attrs
 
 
+class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.Resource
+        fields = ('limits',)
+
+    limits = serializers.JSONField(required=True)
+
+
 class BaseComponentSerializer(serializers.Serializer):
     type = serializers.ReadOnlyField(source='component.type')
     name = serializers.ReadOnlyField(source='component.name')

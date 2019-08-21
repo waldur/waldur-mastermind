@@ -513,3 +513,112 @@ class ResourceNotificationTest(test.APITransactionTestCase):
             mock_tasks.notify_about_resource_change.delay.assert_called_once()
         else:
             mock_tasks.notify_about_resource_change.delay.assert_not_called()
+
+
+class ResourceUpdateLimitsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.resource = factories.ResourceFactory()
+        self.resource.state = models.Resource.States.OK
+        self.resource.project.customer = self.fixture.customer
+        self.resource.project.save()
+        self.resource.limits = {'cpu': 10}
+        self.resource.save()
+
+    def update_limits(self, user, resource, limits=None):
+        limits = limits or {'cpu': 10}
+        self.client.force_authenticate(user)
+        url = factories.ResourceFactory.get_url(resource, 'update_limits')
+        payload = {'limits': limits}
+        return self.client.post(url, payload)
+
+    def test_create_update_limits_order(self):
+        response = self.update_limits(self.fixture.owner, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_update_limits_is_not_available_if_resource_is_not_OK(self):
+        # Arrange
+        self.resource.state = models.Resource.States.UPDATING
+        self.resource.save()
+
+        # Act
+        response = self.update_limits(self.fixture.owner, self.resource)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_update_limits_is_not_available_if_user_is_not_authorized(self):
+        # Act
+        response = self.update_limits(self.fixture.global_support, self.resource)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_order_item_is_created(self):
+        # Act
+        response = self.update_limits(self.fixture.owner, self.resource)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(models.OrderItem.objects.filter(
+            type=models.OrderItem.Types.UPDATE,
+            resource=self.resource,
+        ).exists())
+
+    def test_order_is_created(self):
+        # Act
+        response = self.update_limits(self.fixture.owner, self.resource)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(models.Order.objects.filter(
+            project=self.resource.project, created_by=self.fixture.owner
+        ).exists())
+
+    def test_order_is_approved_implicitly_for_authorized_user(self):
+        # Act
+        response = self.update_limits(self.fixture.staff, self.resource)
+
+        # Assert
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(order.state, models.Order.States.EXECUTING)
+        self.assertEqual(order.approved_by, self.fixture.staff)
+
+    def test_update_limits_is_not_allowed_if_pending_order_item_for_resource_already_exists(self):
+        # Arrange
+        factories.OrderItemFactory(resource=self.resource, state=models.OrderItem.States.PENDING)
+
+        # Act
+        response = self.update_limits(self.fixture.owner, self.resource)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_limits_is_not_available_for_blocked_organization(self):
+        customer = self.resource.project.customer
+        customer.blocked = True
+        customer.save()
+        response = self.update_limits(self.fixture.owner, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch('waldur_mastermind.marketplace.tasks.process_order')
+    def test_order_has_been_approved_if_user_has_got_permissions(self, mock_task):
+        # Act
+        response = self.update_limits(self.fixture.staff, self.resource)
+
+        # Assert
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_task.delay.assert_called_once_with(
+            'marketplace.order:%s' % order.id,
+            'core.user:%s' % self.fixture.staff.id
+        )
+
+    @mock.patch('waldur_mastermind.marketplace.views.tasks')
+    def test_order_has_not_been_approved_if_user_has_not_got_permissions(self, mock_tasks):
+        # Act
+        response = self.update_limits(self.fixture.owner, self.resource)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_tasks.process_order.delay.assert_not_called()

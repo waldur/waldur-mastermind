@@ -492,11 +492,42 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
-    terminate_permissions = switch_plan_permissions = [structure_permissions.is_administrator]
-    switch_plan_validators = [
-        core_validators.StateValidator(models.Resource.States.OK),
-        structure_utils.check_customer_blocked
-    ]
+    @detail_route(methods=['post'])
+    def update_limits(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        limits = serializer.validated_data['limits']
+
+        with transaction.atomic():
+            order_item = models.OrderItem(
+                resource=resource,
+                offering=resource.offering,
+                plan=resource.plan,
+                type=models.OrderItem.Types.UPDATE,
+                limits=limits,
+                attributes={'old_limits': resource.limits},
+            )
+            order = serializers.create_order(
+                project=resource.project,
+                user=self.request.user,
+                items=[order_item],
+                request=request,
+            )
+
+        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+
+    update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
+
+    terminate_permissions = \
+        switch_plan_permissions = \
+        update_limits_permissions = \
+        [structure_permissions.is_administrator]
+    switch_plan_validators = \
+        update_limits_validators = [
+            core_validators.StateValidator(models.Resource.States.OK),
+            structure_utils.check_customer_blocked
+        ]
     terminate_validators = [
         core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
         structure_utils.check_customer_blocked
