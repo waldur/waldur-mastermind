@@ -327,13 +327,13 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files', 'quotas')
+                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
         }
         protected_fields = ('customer', 'type')
-        read_only_fields = ('state',)
+        read_only_fields = ('state', 'paused_reason')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'marketplace-offering-detail'},
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
@@ -570,6 +570,12 @@ class OfferingCreateSerializer(OfferingModifySerializer):
             connect_shared_settings(service.settings)
         validated_data['scope'] = service.settings
         return validated_data
+
+
+class OfferingPauseSerializer(serializers.ModelSerializer):
+    class Meta(object):
+        model = models.Offering
+        fields = ['paused_reason']
 
 
 class PlanUpdateSerializer(BasePlanSerializer):

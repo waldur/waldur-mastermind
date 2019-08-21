@@ -266,6 +266,7 @@ class Offering(core_models.UuidMixin,
 
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    paused_reason = models.TextField(blank=True)
 
     # If offering is not shared, it is available only to following user categories:
     # 1) staff user;
