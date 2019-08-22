@@ -6,6 +6,7 @@ from rest_framework import decorators, response, status, exceptions, serializers
 from waldur_core.core import exceptions as core_exceptions, validators as core_validators
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import signals as structure_signals
 from waldur_core.structure import views as structure_views, filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_openstack.openstack import models as openstack_models
@@ -706,6 +707,17 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         backup_restoration = serializer.save()
+
+        structure_signals.resource_imported.send(
+            sender=models.Instance,
+            instance=backup_restoration.instance,
+        )
+
+        for volume in backup_restoration.instance.volumes.all():
+            structure_signals.resource_imported.send(
+                sender=models.Volume,
+                instance=volume,
+            )
 
         # It is assumed that SSH public key is already stored in OpenStack system volume.
         # Therefore we don't need to specify it explicitly for cloud init service.
