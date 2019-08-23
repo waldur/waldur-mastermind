@@ -186,7 +186,8 @@ class OfferingAdmin(admin.ModelAdmin):
     fields = ('state', 'customer', 'category', 'name', 'native_name',
               'description', 'native_description', 'full_description',
               'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
-              'shared', 'billable', 'allowed_customers', 'type', 'scope_link', 'vendor_details')
+              'shared', 'billable', 'allowed_customers', 'type', 'scope_link', 'vendor_details',
+              'paused_reason')
     readonly_fields = ('rating', 'scope_link')
 
     def scope_link(self, obj):
