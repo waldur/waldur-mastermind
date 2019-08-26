@@ -546,3 +546,50 @@ class NetworkPortCreateTest(test.APITransactionTestCase):
             'network': factories.NetworkFactory.get_url(self.fixture.network)
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.content)
+
+
+class GuestPowerTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.VMwareFixture()
+        self.vm = self.fixture.virtual_machine
+
+    def test_if_guest_os_is_running_reboot_is_allowed(self):
+        # Arrange
+        self.vm.guest_power_enabled = True
+        self.vm.guest_power_state = models.VirtualMachine.GuestPowerStates.RUNNING
+        self.vm.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.VirtualMachineFactory.get_url(self.vm, 'reboot_guest')
+        response = self.client.post(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    def test_if_guest_power_management_is_not_enabled_reboot_is_allowed(self):
+        # Arrange
+        self.vm.guest_power_enabled = False
+        self.vm.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.VirtualMachineFactory.get_url(self.vm, 'reboot_guest')
+        response = self.client.post(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_if_guest_os_is_not_running_reboot_is_not_allowed(self):
+        # Arrange
+        self.vm.guest_power_enabled = True
+        self.vm.guest_power_state = models.VirtualMachine.GuestPowerStates.NOT_RUNNING
+        self.vm.save()
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.VirtualMachineFactory.get_url(self.vm, 'reboot_guest')
+        response = self.client.post(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
