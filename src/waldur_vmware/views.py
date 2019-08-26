@@ -126,6 +126,9 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
             raise rf_serializers.ValidationError('Guest power state management '
                                                  'is not enabled for this virtual machine.')
 
+        if vm.guest_power_state != models.VirtualMachine.GuestPowerStates.RUNNING:
+            raise rf_serializers.ValidationError('VMware Tools are not running.')
+
     @detail_route(methods=['post'])
     def shutdown_guest(self, request, uuid=None):
         instance = self.get_object()
