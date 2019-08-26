@@ -708,16 +708,11 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
         backup_restoration = serializer.save()
 
+        # Note that connected volumes will be linked with new marketplace.Resources by handler in openstack_marketplace
         structure_signals.resource_imported.send(
             sender=models.Instance,
             instance=backup_restoration.instance,
         )
-
-        for volume in backup_restoration.instance.volumes.all():
-            structure_signals.resource_imported.send(
-                sender=models.Volume,
-                instance=volume,
-            )
 
         # It is assumed that SSH public key is already stored in OpenStack system volume.
         # Therefore we don't need to specify it explicitly for cloud init service.
