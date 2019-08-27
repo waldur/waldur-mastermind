@@ -607,4 +607,6 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
 
     def test_validation_if_requested_unavailable_limits(self):
         response = self.update_limits(self.fixture.staff, self.resource, {'foo': 1})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, 
+                         
+                         status.HTTP_400_BAD_REQUEST)
