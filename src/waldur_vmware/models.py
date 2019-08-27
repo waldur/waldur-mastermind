@@ -127,7 +127,7 @@ class VirtualMachine(VirtualMachineMixin,
     def get_backend_fields(cls):
         return super(VirtualMachine, cls).get_backend_fields() + (
             'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk',
-            'guest_power_state', 'guest_power_enabled'
+            'guest_power_state', 'guest_power_enabled', 'tools_state',
         )
 
     @classmethod
