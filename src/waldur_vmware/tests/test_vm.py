@@ -556,10 +556,9 @@ class GuestPowerTest(test.APITransactionTestCase):
         self.vm = self.fixture.virtual_machine
 
     @ddt.data('reboot_guest', 'shutdown_guest')
-    def test_if_guest_os_is_running_guest_power_management_is_allowed(self, action):
+    def test_if_vm_tools_are_running_guest_power_management_is_allowed(self, action):
         # Arrange
-        self.vm.guest_power_enabled = True
-        self.vm.guest_power_state = models.VirtualMachine.GuestPowerStates.RUNNING
+        self.vm.tools_state = models.VirtualMachine.ToolsStates.RUNNING
         self.vm.save()
 
         # Act
@@ -568,12 +567,12 @@ class GuestPowerTest(test.APITransactionTestCase):
         response = self.client.post(url)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
     @ddt.data('reboot_guest', 'shutdown_guest')
-    def test_if_guest_power_management_is_not_enabled_management_is_not_allowed(self, action):
+    def test_if_vm_tools_are_not_running_guest_power_management_is_not_allowed(self, action):
         # Arrange
-        self.vm.guest_power_enabled = False
+        self.vm.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
         self.vm.save()
 
         # Act
@@ -582,19 +581,4 @@ class GuestPowerTest(test.APITransactionTestCase):
         response = self.client.post(url)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @ddt.data('reboot_guest', 'shutdown_guest')
-    def test_if_guest_os_is_not_running_management_is_not_allowed(self, action):
-        # Arrange
-        self.vm.guest_power_enabled = True
-        self.vm.guest_power_state = models.VirtualMachine.GuestPowerStates.NOT_RUNNING
-        self.vm.save()
-
-        # Act
-        self.client.force_authenticate(self.fixture.owner)
-        url = factories.VirtualMachineFactory.get_url(self.vm, action)
-        response = self.client.post(url)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)

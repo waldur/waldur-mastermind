@@ -204,7 +204,9 @@ class VMwareBackend(ServiceBackend):
             reraise(e)
             return
 
-        vm = self._backend_vm_to_vm(backend_vm, guest_power, backend_id)
+        tools_state = self.get_vm_tools_state(backend_id)
+
+        vm = self._backend_vm_to_vm(backend_vm, guest_power, tools_state, backend_id)
         if service_project_link is not None:
             vm.service_project_link = service_project_link
         if save:
@@ -212,7 +214,7 @@ class VMwareBackend(ServiceBackend):
 
         return vm
 
-    def _backend_vm_to_vm(self, backend_vm, guest_power, backend_id):
+    def _backend_vm_to_vm(self, backend_vm, guest_power, tools_state, backend_id):
         """
         Build database model object for virtual machine from REST API spec.
 
@@ -220,6 +222,8 @@ class VMwareBackend(ServiceBackend):
         :type backend_vm: dict
         :param guest_power: information about the guest operating system power state
         :type guest_power: dict
+        :param tools_state: Status of VMware Tools.
+        :type tools_state: str
         :param backend_id: Virtual machine identifier
         :type backend_id: str
         :rtype: :class:`waldur_vmware.models.VirtualMachine`
@@ -235,6 +239,7 @@ class VMwareBackend(ServiceBackend):
             disk=self._get_total_disk(backend_vm['disks']),
             guest_power_enabled=guest_power['operations_ready'],
             guest_power_state=guest_power['state'],
+            tools_state=tools_state,
         )
 
     def pull_clusters(self):
@@ -678,13 +683,9 @@ class VMwareBackend(ServiceBackend):
         else:
             return guest_power['state'] == models.VirtualMachine.GuestPowerStates.NOT_RUNNING
 
-    def is_virtual_machine_running(self, vm):
-        try:
-            guest_power = self.client.get_guest_power(vm.backend_id)
-        except VMwareError as e:
-            reraise(e)
-        else:
-            return guest_power['state'] == models.VirtualMachine.GuestPowerStates.RUNNING
+    def is_virtual_machine_tools_running(self, vm):
+        tools_state = self.get_vm_tools_state(vm.backend_id)
+        return tools_state == models.VirtualMachine.ToolsStates.RUNNING
 
     def update_virtual_machine(self, vm):
         """
@@ -943,9 +944,13 @@ class VMwareBackend(ServiceBackend):
         Get object by type and ID from SOAP client.
         """
         content = self.soap_client.content
-        items = [item for item in content.viewManager.CreateContainerView(
-            content.rootFolder, [vim_type], recursive=True
-        ).view]
+        try:
+            items = [item for item in content.viewManager.CreateContainerView(
+                content.rootFolder, [vim_type], recursive=True
+            ).view]
+        except Exception:
+            logger.exception('Unable to get VMware object. Type: %s, ID: %s.', vim_type, vim_id)
+            raise VMwareBackendError('Unknown error.')
         for item in items:
             if item._moId == vim_id:
                 return item
@@ -958,7 +963,27 @@ class VMwareBackend(ServiceBackend):
         :type vm: :class:`waldur_vmware.models.VirtualMachine`
         :rtype: :class:`pyVmomi.VmomiSupport.vim.VirtualMachine`
         """
-        return self.get_object(vim.VirtualMachine, vm.backend_id)
+        return self._get_backend_vm(vm.backend_id)
+
+    def get_vm_tools_state(self, backend_id):
+        """
+        Get running status of VMware Tools.
+
+        :param backend_id: Virtual machine identifier.
+        :type backend_id: str
+        :rtype: str
+        """
+        backend_vm = self._get_backend_vm(backend_id)
+        backend_tools_state = backend_vm.guest.toolsRunningStatus
+        if backend_tools_state == 'guestToolsExecutingScripts':
+            return models.VirtualMachine.ToolsStates.STARTING
+        elif backend_tools_state == 'guestToolsNotRunning':
+            return models.VirtualMachine.ToolsStates.NOT_RUNNING
+        elif backend_tools_state == 'guestToolsRunning':
+            return models.VirtualMachine.ToolsStates.RUNNING
+
+    def _get_backend_vm(self, backend_id):
+        return self.get_object(vim.VirtualMachine, backend_id)
 
     def get_backend_disk(self, disk):
         """

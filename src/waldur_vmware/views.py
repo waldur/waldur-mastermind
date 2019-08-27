@@ -121,12 +121,8 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     suspend_serializer_class = rf_serializers.Serializer
 
-    def guest_power_enabled(vm):
-        if not vm.guest_power_enabled:
-            raise rf_serializers.ValidationError('Guest power state management '
-                                                 'is not enabled for this virtual machine.')
-
-        if vm.guest_power_state != models.VirtualMachine.GuestPowerStates.RUNNING:
+    def vm_tools_are_running(vm):
+        if vm.tools_state != models.VirtualMachine.ToolsStates.RUNNING:
             raise rf_serializers.ValidationError('VMware Tools are not running.')
 
     @detail_route(methods=['post'])
@@ -135,12 +131,12 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         executors.VirtualMachineShutdownGuestExecutor().execute(instance)
         return Response({'status': _('shutdown was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
-    shutdown_guest_validators = [
+    shutdown_guest_validators = reboot_guest_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         core_validators.RuntimeStateValidator(
             models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
-        guest_power_enabled,
+        vm_tools_are_running,
     ]
     shutdown_guest_serializer_class = rf_serializers.Serializer
 
@@ -150,13 +146,6 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         executors.VirtualMachineRebootGuestExecutor().execute(instance)
         return Response({'status': _('reboot was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
-    reboot_guest_validators = [
-        core_validators.StateValidator(models.VirtualMachine.States.OK),
-        core_validators.RuntimeStateValidator(
-            models.VirtualMachine.RuntimeStates.POWERED_ON,
-        ),
-        guest_power_enabled,
-    ]
     reboot_guest_serializer_class = rf_serializers.Serializer
 
     @detail_route(methods=['post'])

@@ -103,7 +103,7 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'is_virtual_machine_running'
+                    'is_virtual_machine_tools_running'
                 )
             )
         _tasks.append(
@@ -155,7 +155,7 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'is_virtual_machine_running'
+                    'is_virtual_machine_tools_running'
                 )
             )
         _tasks.append(
@@ -228,7 +228,7 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
-                'is_virtual_machine_running'
+                'is_virtual_machine_tools_running'
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
