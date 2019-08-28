@@ -115,6 +115,7 @@ class VirtualMachine(VirtualMachineMixin,
         blank=True,
         choices=GuestPowerStates.CHOICES,
     )
+    tools_installed = models.BooleanField(default=False)
     tools_state = models.CharField(
         'Current running status of VMware Tools running in the guest operating system.',
         max_length=50,
@@ -127,7 +128,7 @@ class VirtualMachine(VirtualMachineMixin,
     def get_backend_fields(cls):
         return super(VirtualMachine, cls).get_backend_fields() + (
             'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk',
-            'guest_power_state', 'guest_power_enabled', 'tools_state',
+            'tools_installed', 'tools_state',
         )
 
     @classmethod

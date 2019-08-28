@@ -93,7 +93,7 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
                 state_transition='begin_updating'
             )
         ]
-        if instance.guest_power_enabled:
+        if instance.tools_installed:
             _tasks.append(
                 core_tasks.BackendMethodTask().si(
                     serialized_instance,
@@ -145,7 +145,7 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
                 state_transition='begin_updating'
             )
         ]
-        if instance.guest_power_enabled:
+        if instance.tools_installed:
             _tasks.append(
                 core_tasks.BackendMethodTask().si(
                     serialized_instance,
