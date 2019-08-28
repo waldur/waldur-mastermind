@@ -11,7 +11,7 @@ class MarketplaceConfig(AppConfig):
     def ready(self):
         from waldur_core.quotas import signals as quota_signals
 
-        from . import handlers, models
+        from . import handlers, models, signals as marketplace_signals
 
         signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
@@ -83,4 +83,16 @@ class MarketplaceConfig(AppConfig):
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
                          'close_resource_plan_period_when_resource_is_terminated',
+        )
+
+        marketplace_signals.limit_update_succeeded.connect(
+            handlers.limit_update_succeeded,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.limit_update_succeeded',
+        )
+
+        marketplace_signals.limit_update_failed.connect(
+            handlers.limit_update_failed,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.limit_update_failed',
         )

@@ -1,13 +1,16 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
-from waldur_mastermind.marketplace import processors
+from waldur_mastermind.marketplace import processors, signals
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack_tenant import views as tenant_views
+
+from . import utils, AVAILABLE_LIMITS
 
 
 class PackageCreateProcessor(processors.CreateResourceProcessor):
@@ -79,13 +82,26 @@ class PackageUpdateProcessor(processors.UpdateResourceProcessor):
             'template': reverse('package-template-detail', kwargs={'uuid': template.uuid})
         }
 
-    def process_order_item(self, user):
-        """We need to overwrite process order item because two cases exist:
-        a switch of a plan and a change of limits."""
-        if 'old_limits' not in self.order_item.attributes.keys():
-            return super(PackageUpdateProcessor, self).process_order_item(user)
-        else:
-            pass
+    def update_limits_process(self, user):
+        scope = self.order_item.resource.scope
+        if not scope or not isinstance(scope, openstack_models.Tenant):
+            signals.limit_update_failed.send(
+                sender=self.order_item.resource.__class__,
+                order_item=self.order_item,
+                message='Limit updating is available only for tenants.'
+            )
+            return
+
+        utils.update_limits(self.order_item)
+
+    def validate_update_limit_order_item(self, request):
+        requested_limits = self.order_item.limits
+
+        for l in AVAILABLE_LIMITS:
+            requested_limits.pop(l, None)
+
+        if requested_limits:
+            raise serializers.ValidationError(_('Requested limits %s are not available.') % requested_limits.keys())
 
 
 class PackageDeleteProcessor(processors.DeleteResourceProcessor):
