@@ -137,6 +137,12 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
     action = 'Reset'
 
     @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        super(VirtualMachineResetExecutor, cls).pre_apply(instance, **kwargs)
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
+        instance.save(update_fields=['tools_state'])
+
+    @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         _tasks = [
             core_tasks.BackendMethodTask().si(
@@ -213,6 +219,12 @@ class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
 
 class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
     action = 'Reboot Guest'
+
+    @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        super(VirtualMachineRebootGuestExecutor, cls).pre_apply(instance, **kwargs)
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
+        instance.save(update_fields=['tools_state'])
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
