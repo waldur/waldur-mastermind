@@ -10,6 +10,8 @@ class MarketplaceConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas import signals as quota_signals
+        from waldur_mastermind.invoices import registrators
+        from waldur_mastermind.marketplace.registrators import MarketplaceItemRegistrator
 
         from . import handlers, models, signals as marketplace_signals
 
@@ -95,4 +97,29 @@ class MarketplaceConfig(AppConfig):
             handlers.limit_update_failed,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.limit_update_failed',
+
+        registrators.RegistrationManager.add_registrator(
+            models.Resource,
+            MarketplaceItemRegistrator,
+        )
+
+        marketplace_signals.resource_creation_succeeded.connect(
+            handlers.update_invoice_when_resource_is_created,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_invoice_when_resource_is_created',
+        )
+
+        marketplace_signals.resource_update_succeeded.connect(
+            handlers.update_invoice_when_resource_is_updated,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_invoice_when_resource_is_updated',
+        )
+
+        marketplace_signals.resource_update_succeeded.connect(
+            handlers.update_invoice_when_resource_is_deleted,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_invoice_when_resource_is_deleted',
         )

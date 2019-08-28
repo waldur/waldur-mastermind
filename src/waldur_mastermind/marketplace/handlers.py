@@ -10,6 +10,7 @@ from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Project, Customer
+from waldur_mastermind.invoices import registrators
 
 from . import callbacks, tasks, log, models, utils
 
@@ -298,3 +299,16 @@ def limit_update_failed(sender, order_item, error_message, **kwargs):
                 order_item.order.created_by,
                 error_message)
     log.log_resource_limit_update_failed(resource)
+
+
+def update_invoice_when_resource_is_created(sender, instance):
+    registrators.RegistrationManager.register(instance)
+
+
+def update_invoice_when_resource_is_updated(sender, instance):
+    registrators.RegistrationManager.terminate(instance)
+    registrators.RegistrationManager.register(instance)
+
+
+def update_invoice_when_resource_is_deleted(sender, instance):
+    registrators.RegistrationManager.terminate(instance)
