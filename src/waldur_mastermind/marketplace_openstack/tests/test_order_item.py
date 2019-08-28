@@ -594,6 +594,15 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
 
 
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
+    def setUp(self):
+        super(TenantUpdateLimitValidationTest, self).setUp()
+        marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            max_value=20,
+            min_value=2,
+            name='vcpu'
+        )
+
     def update_limits(self, user, resource, limits=None):
         limits = limits or {'vcpu': 10}
         self.client.force_authenticate(user)
@@ -607,6 +616,16 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
 
     def test_validation_if_requested_unavailable_limits(self):
         response = self.update_limits(self.fixture.staff, self.resource, {'foo': 1})
-        self.assertEqual(response.status_code, 
-                         
-                         status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validation_if_value_limit_in_confines(self):
+        response = self.update_limits(self.fixture.staff, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_validation_if_value_limit_more_max(self):
+        response = self.update_limits(self.fixture.staff, self.resource, {'vcpu': 30})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validation_if_value_limit_less_min(self):
+        response = self.update_limits(self.fixture.staff, self.resource, {'vcpu': 1})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
