@@ -198,15 +198,10 @@ class VMwareBackend(ServiceBackend):
             reraise(e)
             return
 
-        try:
-            guest_power = self.client.get_guest_power(backend_id)
-        except VMwareError as e:
-            reraise(e)
-            return
-
+        tools_installed = self.get_vm_tools_installed(backend_id)
         tools_state = self.get_vm_tools_state(backend_id)
 
-        vm = self._backend_vm_to_vm(backend_vm, guest_power, tools_state, backend_id)
+        vm = self._backend_vm_to_vm(backend_vm, tools_installed, tools_state, backend_id)
         if service_project_link is not None:
             vm.service_project_link = service_project_link
         if save:
@@ -214,14 +209,14 @@ class VMwareBackend(ServiceBackend):
 
         return vm
 
-    def _backend_vm_to_vm(self, backend_vm, guest_power, tools_state, backend_id):
+    def _backend_vm_to_vm(self, backend_vm, tools_installed, tools_state, backend_id):
         """
         Build database model object for virtual machine from REST API spec.
 
         :param backend_vm: virtual machine specification
         :type backend_vm: dict
-        :param guest_power: information about the guest operating system power state
-        :type guest_power: dict
+        :param tools_installed: whether VMware tools installed or not
+        :type tools_installed: bool
         :param tools_state: Status of VMware Tools.
         :type tools_state: str
         :param backend_id: Virtual machine identifier
@@ -237,8 +232,7 @@ class VMwareBackend(ServiceBackend):
             cores_per_socket=backend_vm['cpu']['cores_per_socket'],
             ram=backend_vm['memory']['size_MiB'],
             disk=self._get_total_disk(backend_vm['disks']),
-            guest_power_enabled=guest_power['operations_ready'],
-            guest_power_state=guest_power['state'],
+            tools_installed=tools_installed,
             tools_state=tools_state,
         )
 
@@ -685,6 +679,9 @@ class VMwareBackend(ServiceBackend):
 
     def is_virtual_machine_tools_running(self, vm):
         tools_state = self.get_vm_tools_state(vm.backend_id)
+        if tools_state != vm.tools_state:
+            vm.tools_state = tools_state
+            vm.save(update_fields=['tools_state'])
         return tools_state == models.VirtualMachine.ToolsStates.RUNNING
 
     def update_virtual_machine(self, vm):
@@ -981,6 +978,17 @@ class VMwareBackend(ServiceBackend):
             return models.VirtualMachine.ToolsStates.NOT_RUNNING
         elif backend_tools_state == 'guestToolsRunning':
             return models.VirtualMachine.ToolsStates.RUNNING
+
+    def get_vm_tools_installed(self, backend_id):
+        """
+        Check if VMware Tools are installed.
+
+        :param backend_id: Virtual machine identifier.
+        :type backend_id: str
+        :rtype: bool
+        """
+        backend_vm = self._get_backend_vm(backend_id)
+        return backend_vm.config.tools.toolsInstallType != 'guestToolsTypeUnknown'
 
     def _get_backend_vm(self, backend_id):
         return self.get_object(vim.VirtualMachine, backend_id)
