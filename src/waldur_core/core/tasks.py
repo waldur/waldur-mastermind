@@ -464,7 +464,7 @@ Request.__str__ = log_celery_task
 
 
 class PollRuntimeStateTask(Task):
-    max_retries = 300
+    max_retries = 1200
     default_retry_delay = 5
 
     @classmethod
