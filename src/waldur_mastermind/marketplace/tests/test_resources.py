@@ -8,8 +8,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.support.tests.base import override_support_settings
 
-from . import factories
-from .. import callbacks, models, tasks, log
+from . import factories, utils as test_utils
+from .. import callbacks, models, tasks, log, utils, plugins
 
 
 class ResourceGetTest(test.APITransactionTestCase):
@@ -517,16 +517,22 @@ class ResourceNotificationTest(test.APITransactionTestCase):
 
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):
     def setUp(self):
+        plugins.manager.register(offering_type='TEST_TYPE',
+                                 create_resource_processor=test_utils.TestCreateProcessor,
+                                 update_resource_processor=test_utils.TestUpdateProcessor)
+
         self.fixture = fixtures.ServiceFixture()
         self.resource = factories.ResourceFactory()
         self.resource.state = models.Resource.States.OK
         self.resource.project.customer = self.fixture.customer
         self.resource.project.save()
-        self.resource.limits = {'cpu': 10}
+        self.resource.limits = {'vcpu': 1}
         self.resource.save()
+        self.resource.offering.type = 'TEST_TYPE'
+        self.resource.offering.save()
 
     def update_limits(self, user, resource, limits=None):
-        limits = limits or {'cpu': 10}
+        limits = limits or {'vcpu': 10}
         self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(resource, 'update_limits')
         payload = {'limits': limits}
@@ -622,3 +628,14 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_tasks.process_order.delay.assert_not_called()
+
+    def test_update_limit_process(self):
+        response = self.update_limits(self.fixture.staff, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order_item = models.OrderItem.objects.get(
+            type=models.OrderItem.Types.UPDATE,
+            resource=self.resource,
+        )
+        utils.process_order_item(order_item, self.fixture.staff)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits['vcpu'], 10)

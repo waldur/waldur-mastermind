@@ -268,3 +268,33 @@ def connect_resource_metadata_handlers(*resources):
             dispatch_uid='waldur_mastermind.marketpace.'
                          'synchronize_resource_metadata_%s_%s' % (index, model.__class__),
         )
+
+
+@transaction.atomic()
+def limit_update_succeeded(sender, order_item, **kwargs):
+    resource = order_item.resource
+    old_limits = resource.limits
+    resource.limits = order_item.limits
+    resource.save()
+    order_item.set_state_done()
+    order_item.save(update_fields=['state'])
+    logger.info('Resource limits have been updated. Resource: %s, old limits: %s, new limits: %s, created by: %s',
+                core_utils.serialize_instance(resource),
+                old_limits,
+                resource.limits,
+                order_item.order.created_by)
+    log.log_resource_limit_update_succeeded(resource)
+
+
+def limit_update_failed(sender, order_item, error_message, **kwargs):
+    order_item.set_state_erred()
+    order_item.error_message = error_message
+    order_item.save()
+    resource = order_item.resource
+    logger.info('Resource limit update failed. Resource: %s, requested limits: %s, created by: %s, '
+                'error message: %s',
+                core_utils.serialize_instance(resource),
+                resource.limits,
+                order_item.order.created_by,
+                error_message)
+    log.log_resource_limit_update_failed(resource)

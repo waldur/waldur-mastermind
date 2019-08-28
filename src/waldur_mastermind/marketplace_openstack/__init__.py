@@ -7,3 +7,5 @@ VOLUME_TYPE = 'OpenStackTenant.Volume'
 RAM_TYPE = 'ram'
 CORES_TYPE = 'cores'
 STORAGE_TYPE = 'storage'
+
+AVAILABLE_LIMITS = ['vcpu', 'ram', 'storage']

@@ -441,3 +441,9 @@ def get_offering(offering_type, service_settings):
     except MultipleObjectsReturned:
         logger.warning('Few marketplace offerings are found. '
                        'ServiceSettings ID: %s', service_settings.id)
+
+
+def update_limits(order_item):
+    tenant = order_item.resource.scope
+    backend = tenant.get_backend()
+    backend.push_tenant_quotas(tenant, order_item.limits)
