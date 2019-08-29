@@ -343,6 +343,28 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(plan.unit_price, 100)
         self.assertEqual(component.amount, 10)
 
+    def test_component_name_should_not_contain_spaces(self):
+        plans_request = {
+            'components': [
+                {
+                    'type': 'vCPU cores',
+                    'name': 'Cores',
+                    'measured_unit': 'hours',
+                    'billing_type': 'fixed',
+                }
+            ],
+            'plans': [
+                {
+                    'name': 'small',
+                    'unit': UnitPriceMixin.Units.PER_MONTH,
+                    'prices': {'cores': 10},
+                    'quotas': {'cores': 10},
+                }
+            ]
+        }
+        response = self.create_offering('owner', add_payload=plans_request)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_usage_based_components_are_ignored_for_unit_price_computing(self):
         plans_request = {
             'components': [
