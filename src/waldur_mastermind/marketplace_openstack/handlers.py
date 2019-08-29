@@ -7,7 +7,9 @@ from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
@@ -415,3 +417,19 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
         STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0) / 1024,
     }
     resource.save(update_fields=['current_usages'])
+
+
+def update_invoice_when_resource_is_created(sender, instance, **kwargs):
+    if instance.offering.type == PACKAGE_TYPE:
+        registrators.RegistrationManager.register(instance)
+
+
+def update_invoice_when_resource_is_updated(sender, instance, **kwargs):
+    if instance.offering.type == PACKAGE_TYPE:
+        registrators.RegistrationManager.terminate(instance)
+        registrators.RegistrationManager.register(instance)
+
+
+def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
+    if instance.offering.type == PACKAGE_TYPE:
+        registrators.RegistrationManager.terminate(instance)
