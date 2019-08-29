@@ -679,10 +679,19 @@ class VMwareBackend(ServiceBackend):
 
     def is_virtual_machine_tools_running(self, vm):
         tools_state = self.get_vm_tools_state(vm.backend_id)
-        if tools_state != vm.tools_state:
+        result = tools_state == models.VirtualMachine.ToolsStates.RUNNING
+        if result:
             vm.tools_state = tools_state
             vm.save(update_fields=['tools_state'])
-        return tools_state == models.VirtualMachine.ToolsStates.RUNNING
+        return result
+
+    def is_virtual_machine_tools_not_running(self, vm):
+        tools_state = self.get_vm_tools_state(vm.backend_id)
+        result = tools_state == models.VirtualMachine.ToolsStates.NOT_RUNNING
+        if result:
+            vm.tools_state = tools_state
+            vm.save(update_fields=['tools_state'])
+        return result
 
     def update_virtual_machine(self, vm):
         """

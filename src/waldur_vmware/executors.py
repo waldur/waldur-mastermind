@@ -153,9 +153,9 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
         ]
         if instance.tools_installed:
             _tasks.append(
-                core_tasks.BackendMethodTask().si(
+                core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'pull_virtual_machine',
+                    'is_virtual_machine_tools_not_running'
                 )
             )
             _tasks.append(
@@ -234,9 +234,9 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
                 'reboot_guest',
                 state_transition='begin_updating'
             ),
-            core_tasks.BackendMethodTask().si(
+            core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                'is_virtual_machine_tools_not_running'
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
