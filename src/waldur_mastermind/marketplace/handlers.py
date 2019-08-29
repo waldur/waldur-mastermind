@@ -301,14 +301,14 @@ def limit_update_failed(sender, order_item, error_message, **kwargs):
     log.log_resource_limit_update_failed(resource)
 
 
-def update_invoice_when_resource_is_created(sender, instance):
+def update_invoice_when_resource_is_created(sender, instance, **kwargs):
     registrators.RegistrationManager.register(instance)
 
 
-def update_invoice_when_resource_is_updated(sender, instance):
+def update_invoice_when_resource_is_updated(sender, instance, **kwargs):
     registrators.RegistrationManager.terminate(instance)
     registrators.RegistrationManager.register(instance)
 
 
-def update_invoice_when_resource_is_deleted(sender, instance):
+def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
     registrators.RegistrationManager.terminate(instance)
