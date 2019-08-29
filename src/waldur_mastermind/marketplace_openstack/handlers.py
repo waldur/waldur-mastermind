@@ -9,7 +9,6 @@ from django.db import transaction
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig

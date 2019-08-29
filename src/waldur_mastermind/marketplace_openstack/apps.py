@@ -23,12 +23,11 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import filters as marketplace_filters
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace import signals as marketplace_signals
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
         from waldur_mastermind.marketplace_openstack.registrators import MarketplaceItemRegistrator
         from waldur_mastermind.packages import models as package_models
-
-        from . import signals as marketplace_signals
 
         from . import (
             filters, handlers, processors,
