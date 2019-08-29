@@ -97,6 +97,7 @@ class MarketplaceConfig(AppConfig):
             handlers.limit_update_failed,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.limit_update_failed',
+        )
 
         registrators.RegistrationManager.add_registrator(
             models.Resource,
