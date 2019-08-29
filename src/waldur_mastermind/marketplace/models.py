@@ -10,7 +10,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
@@ -150,9 +150,12 @@ class Section(TimeStampedModel):
         return six.text_type(self.title)
 
 
+InternalNameValidator = RegexValidator('^[a-zA-Z][a-zA-Z0-9_]+$')
+
+
 @python_2_unicode_compatible
 class Attribute(TimeStampedModel):
-    key = models.CharField(primary_key=True, max_length=255)
+    key = models.CharField(primary_key=True, max_length=255, validators=[InternalNameValidator])
     title = models.CharField(blank=False, max_length=255)
     section = models.ForeignKey(Section, related_name='attributes')
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
@@ -166,7 +169,7 @@ class Attribute(TimeStampedModel):
 @python_2_unicode_compatible
 class AttributeOption(models.Model):
     attribute = models.ForeignKey(Attribute, related_name='options', on_delete=models.CASCADE)
-    key = models.CharField(max_length=255)
+    key = models.CharField(max_length=255, validators=[InternalNameValidator])
     title = models.CharField(max_length=255)
 
     class Meta(object):
@@ -192,7 +195,8 @@ class BaseComponent(core_models.DescribableMixin):
     name = models.CharField(max_length=150,
                             help_text=_('Display name for the measured unit, for example, Floating IP.'))
     type = models.CharField(max_length=50,
-                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
+                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'),
+                            validators=[InternalNameValidator])
     measured_unit = models.CharField(max_length=30,
                                      help_text=_('Unit of measurement, for example, GB.'),
                                      blank=True)
@@ -366,13 +370,6 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
                                     null=True,
                                     max_length=5)
     limit_amount = models.IntegerField(blank=True, null=True)
-    type = models.CharField(max_length=50,
-                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
-    name = models.CharField(max_length=150,
-                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
-    measured_unit = models.CharField(max_length=30,
-                                     help_text=_('Unit of measurement, for example, GB.'),
-                                     blank=True)
     disable_quotas = models.BooleanField(
         default=False,
         help_text=_('Do not allow user to specify quotas when offering is provisioned.')
