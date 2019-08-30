@@ -678,11 +678,28 @@ class VMwareBackend(ServiceBackend):
             return guest_power['state'] == models.VirtualMachine.GuestPowerStates.NOT_RUNNING
 
     def is_virtual_machine_tools_running(self, vm):
+        """
+        Check VMware tools status and update cache only if its running.
+        If VMware tools are not running, state is not updated.
+        It is needed in order to skip extra database updates.
+        Otherwise VMware tools state in database would be updated
+        from RUNNING to NOT RUNNING twice when optimistic update is used.
+        """
         tools_state = self.get_vm_tools_state(vm.backend_id)
         result = tools_state == models.VirtualMachine.ToolsStates.RUNNING
         if result:
             vm.tools_state = tools_state
             vm.save(update_fields=['tools_state'])
+        return result
+
+    def is_virtual_machine_tools_running2(self, vm):
+        """
+        Check if VMware tools are running and update cache.
+        """
+        tools_state = self.get_vm_tools_state(vm.backend_id)
+        vm.tools_state = tools_state
+        vm.save(update_fields=['tools_state'])
+        result = tools_state == models.VirtualMachine.ToolsStates.RUNNING
         return result
 
     def is_virtual_machine_tools_not_running(self, vm):
