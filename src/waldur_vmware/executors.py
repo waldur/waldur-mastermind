@@ -103,7 +103,7 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'is_virtual_machine_tools_running2'
+                    'is_virtual_machine_tools_running'
                 )
             )
         _tasks.append(

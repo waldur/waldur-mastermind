@@ -690,17 +690,19 @@ class VMwareBackend(ServiceBackend):
         if result:
             vm.tools_state = tools_state
             vm.save(update_fields=['tools_state'])
+        self.pull_virtual_machine_runtime_state(vm)
         return result
 
-    def is_virtual_machine_tools_running2(self, vm):
-        """
-        Check if VMware tools are running and update cache.
-        """
-        tools_state = self.get_vm_tools_state(vm.backend_id)
-        vm.tools_state = tools_state
-        vm.save(update_fields=['tools_state'])
-        result = tools_state == models.VirtualMachine.ToolsStates.RUNNING
-        return result
+    def pull_virtual_machine_runtime_state(self, vm):
+        try:
+            backend_vm = self.client.get_vm(vm.backend_id)
+        except VMwareError as e:
+            reraise(e)
+        else:
+            backend_power_state = backend_vm['power_state']
+            if backend_power_state != vm.runtime_state:
+                vm.runtime_state = backend_power_state
+                vm.save(update_fields=['runtime_state'])
 
     def is_virtual_machine_tools_not_running(self, vm):
         tools_state = self.get_vm_tools_state(vm.backend_id)
