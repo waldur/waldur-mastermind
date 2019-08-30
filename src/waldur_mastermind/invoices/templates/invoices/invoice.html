@@ -92,8 +92,8 @@
                     </div>
                   </td>
                   <td>{{ item.get_factor }}</td>
-                  <td>€{{ item.unit_price | floatformat:2 | intcomma }}</td>
-                  <td>€{{ item.total | floatformat:2 | intcomma }}</td>
+                  <td>{{ currency }} {{ item.unit_price | floatformat:2 | intcomma }}</td>
+                  <td>{{ currency }} {{ item.total | floatformat:2 | intcomma }}</td>
                 </tr>
               {% endfor %}
             {% endfor %}
