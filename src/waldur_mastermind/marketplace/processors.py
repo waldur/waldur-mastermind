@@ -1,3 +1,5 @@
+import logging
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import status, serializers
@@ -5,7 +7,10 @@ from rest_framework.reverse import reverse
 
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_mastermind.common import utils as common_utils
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, signals
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_spl_url(spl_model_class, order_item):
@@ -141,7 +146,18 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
 
 
 class UpdateResourceProcessor(BaseOrderItemProcessor):
+    def is_update_limit_order_item(self):
+        if 'old_limits' in self.order_item.attributes.keys():
+            return True
+
     def validate_order_item(self, request):
+        if self.is_update_limit_order_item():
+            try:
+                self.validate_update_limit_order_item(request)
+            except NotImplementedError:
+                pass
+            return
+
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
         context = {'request': request, 'skip_permission_check': True}
@@ -149,6 +165,33 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         serializer.is_valid(raise_exception=True)
 
     def process_order_item(self, user):
+        """We need to overwrite process order item because two cases exist:
+        a switch of a plan and a change of limits."""
+        if self.is_update_limit_order_item():
+            try:
+                # self.update_limits_process method can execute not async
+                # because in this case an order has got only one order item.
+                self.update_limits_process(user)
+            except NotImplementedError:
+                self.order_item.set_state_erred()
+                self.order_item.save(update_fields=['state'])
+                logger.warning('An update of limits has been called. '
+                               'But update limits process for the plugin has not been implemented. '
+                               'Order item ID: %s, Plugin: %s.',
+                               self.order_item.id, self.order_item.offering.type)
+            except Exception as e:
+                signals.limit_update_failed.send(
+                    sender=self.order_item.resource.__class__,
+                    order_item=self.order_item,
+                    error_message=e.message
+                )
+            else:
+                signals.limit_update_succeeded.send(
+                    sender=self.order_item.resource.__class__,
+                    order_item=self.order_item,
+                )
+            return
+
         resource = self.get_resource()
         if not resource:
             raise serializers.ValidationError('Resource is not found.')
@@ -186,6 +229,18 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
     def get_post_data(self):
         """
         This method converts order item to request data expected by DRF serializer.
+        """
+        raise NotImplementedError
+
+    def update_limits_process(self, user):
+        """
+        This method implements limits update processing.
+        """
+        raise NotImplementedError
+
+    def validate_update_limit_order_item(self, request):
+        """
+        This method validates update limits order item.
         """
         raise NotImplementedError
 

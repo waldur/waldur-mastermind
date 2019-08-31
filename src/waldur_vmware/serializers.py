@@ -173,6 +173,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     runtime_state = serializers.SerializerMethodField()
 
+    tools_state = serializers.ReadOnlyField(source='get_tools_state_display')
+
     def get_runtime_state(self, vm):
         return dict(models.VirtualMachine.RuntimeStates.CHOICES).get(vm.runtime_state)
 
@@ -185,14 +187,14 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
             'guest_os', 'guest_os_name', 'cores', 'cores_per_socket', 'ram', 'disk', 'disks',
             'runtime_state', 'template', 'cluster', 'networks', 'datastore', 'folder',
             'template_name', 'cluster_name', 'datastore_name', 'folder_name', 'ports',
-            'guest_power_state',
+            'guest_power_state', 'tools_state', 'tools_installed',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'guest_os', 'template', 'cluster', 'networks', 'datastore', 'folder', 'ports',
             'name',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'disk', 'runtime_state', 'guest_power_state',
+            'disk', 'runtime_state', 'guest_power_state', 'tools_installed',
         )
         extra_kwargs = dict(
             cores={'required': False},

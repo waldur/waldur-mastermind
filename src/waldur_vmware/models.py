@@ -89,6 +89,17 @@ class VirtualMachine(VirtualMachineMixin,
             (UNAVAILABLE, 'Unavailable'),
         )
 
+    class ToolsStates(object):
+        STARTING = 'STARTING'
+        RUNNING = 'RUNNING'
+        NOT_RUNNING = 'NOT_RUNNING'
+
+        CHOICES = (
+            (STARTING, 'Starting'),
+            (RUNNING, 'Running'),
+            (NOT_RUNNING, 'Not running'),
+        )
+
     template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
     cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
     datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
@@ -104,13 +115,20 @@ class VirtualMachine(VirtualMachineMixin,
         blank=True,
         choices=GuestPowerStates.CHOICES,
     )
+    tools_installed = models.BooleanField(default=False)
+    tools_state = models.CharField(
+        'Current running status of VMware Tools running in the guest operating system.',
+        max_length=50,
+        blank=True,
+        choices=ToolsStates.CHOICES,
+    )
     tracker = FieldTracker()
 
     @classmethod
     def get_backend_fields(cls):
         return super(VirtualMachine, cls).get_backend_fields() + (
             'runtime_state', 'cores', 'cores_per_socket', 'ram', 'disk',
-            'guest_power_state', 'guest_power_enabled'
+            'tools_installed', 'tools_state',
         )
 
     @classmethod

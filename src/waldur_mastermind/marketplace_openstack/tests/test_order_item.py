@@ -1,11 +1,13 @@
 from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
+import mock
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_mastermind.packages import models as package_models
@@ -543,3 +545,66 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.order_item.refresh_from_db()
         self.resource.refresh_from_db()
         self.volume.refresh_from_db()
+
+
+class TenantUpdateLimitTestBase(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.resource = marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            state=marketplace_models.Resource.States.OK)
+        tenant = self.fixture.tenant
+        self.mock_get_backend = mock.MagicMock()
+        tenant.get_backend = self.mock_get_backend
+        self.resource.scope = tenant
+        self.resource.save()
+        self.quotas = {'network_count': 100, 'vcpu': 4, 'ram': 1024, 'storage': 1024, 'snapshots': 50, 'instances': 30,
+                       'floating_ip_count': 50, 'subnet_count': 100, 'volumes': 50, 'security_group_rule_count': 100,
+                       'security_group_count': 100}
+
+
+class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
+    def setUp(self):
+        super(TenantUpdateLimitTest, self).setUp()
+        self.order_item = marketplace_factories.OrderItemFactory(
+            type=marketplace_models.OrderItem.Types.UPDATE,
+            resource=self.resource,
+            offering=self.offering,
+            limits=self.quotas,
+            attributes={'old_limits': self.resource.limits},
+        )
+
+    def test_resource_limits_have_been_updated_if_backend_does_not_raise_exception(self):
+        marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, self.quotas)
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.DONE)
+
+    def test_resource_limits_have_been_not_updated_if_backend_raises_exception(self):
+        self.mock_get_backend().push_tenant_quotas = mock.Mock(side_effect=Exception('foo'))
+        marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits, {})
+        self.order_item.refresh_from_db()
+        self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.ERRED)
+        self.assertEqual(self.order_item.error_message, 'foo')
+
+
+class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
+    def update_limits(self, user, resource, limits=None):
+        limits = limits or {'vcpu': 10}
+        self.client.force_authenticate(user)
+        url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
+        payload = {'limits': limits}
+        return self.client.post(url, payload)
+
+    def test_validation_if_requested_available_limits(self):
+        response = self.update_limits(self.fixture.staff, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_validation_if_requested_unavailable_limits(self):
+        response = self.update_limits(self.fixture.staff, self.resource, {'foo': 1})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -8,3 +8,11 @@ class TestCreateProcessor(processors.BaseCreateResourceProcessor):
 
     def validate_order_item(self, request):
         pass
+
+
+class TestUpdateProcessor(processors.UpdateResourceProcessor):
+    def validate_order_item(self, request):
+        pass
+
+    def update_limits_process(self, user):
+        pass

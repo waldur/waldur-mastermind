@@ -40,7 +40,10 @@ class MarketplaceResourceLogger(EventLogger):
                 'marketplace_resource_update_succeeded',
                 'marketplace_resource_update_failed',
                 'marketplace_resource_terminate_succeeded',
-                'marketplace_resource_terminate_failed',):
+                'marketplace_resource_terminate_failed',
+                'marketplace_resource_update_limits_succeeded',
+                'marketplace_resource_update_limits_failed',
+        ):
             return
 
         if (settings.WALDUR_MARKETPLACE['DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE'] and
@@ -62,6 +65,8 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_terminate_requested',
             'marketplace_resource_terminate_succeeded',
             'marketplace_resource_terminate_failed',
+            'marketplace_resource_update_limits_succeeded',
+            'marketplace_resource_update_limits_failed',
         )
 
     @staticmethod
@@ -191,4 +196,20 @@ def log_resource_terminate_failed(instance):
         'Resource {resource_name} deletion has failed.',
         event_type='marketplace_resource_terminate_failed',
         event_context={'resource': instance},
+    )
+
+
+def log_resource_limit_update_succeeded(resource):
+    event_logger.marketplace_resource.info(
+        'Limits of resource {resource_name} have been updated.',
+        event_type='marketplace_resource_update_limits_succeeded',
+        event_context={'resource': resource},
+    )
+
+
+def log_resource_limit_update_failed(resource):
+    event_logger.marketplace_resource.info(
+        'Update limits of resource {resource_name} is failed.',
+        event_type='marketplace_resource_update_limits_failed',
+        event_context={'resource': resource},
     )

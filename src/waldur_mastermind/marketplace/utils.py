@@ -43,15 +43,13 @@ def process_order_item(order_item, user):
         return
 
     try:
+        order_item.set_state_executing()
+        order_item.save(update_fields=['state'])
         processor(order_item).process_order_item(user)
     except exceptions.APIException as e:
         order_item.error_message = six.text_type(e)
         order_item.set_state_erred()
         order_item.save(update_fields=['state', 'error_message'])
-    else:
-        if order_item.state != models.OrderItem.States.DONE:
-            order_item.set_state_executing()
-            order_item.save(update_fields=['state'])
 
 
 def validate_order_item(order_item, request):

@@ -93,7 +93,7 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
                 state_transition='begin_updating'
             )
         ]
-        if instance.guest_power_enabled:
+        if instance.tools_installed:
             _tasks.append(
                 core_tasks.BackendMethodTask().si(
                     serialized_instance,
@@ -103,7 +103,7 @@ class VirtualMachineStartExecutor(core_executors.ActionExecutor):
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'is_virtual_machine_running'
+                    'is_virtual_machine_tools_running'
                 )
             )
         _tasks.append(
@@ -137,6 +137,12 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
     action = 'Reset'
 
     @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        super(VirtualMachineResetExecutor, cls).pre_apply(instance, **kwargs)
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
+        instance.save(update_fields=['tools_state'])
+
+    @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         _tasks = [
             core_tasks.BackendMethodTask().si(
@@ -145,17 +151,17 @@ class VirtualMachineResetExecutor(core_executors.ActionExecutor):
                 state_transition='begin_updating'
             )
         ]
-        if instance.guest_power_enabled:
+        if instance.tools_installed:
             _tasks.append(
-                core_tasks.BackendMethodTask().si(
+                core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'pull_virtual_machine',
+                    'is_virtual_machine_tools_not_running'
                 )
             )
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
                     serialized_instance,
-                    'is_virtual_machine_running'
+                    'is_virtual_machine_tools_running'
                 )
             )
         _tasks.append(
@@ -215,6 +221,12 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
     action = 'Reboot Guest'
 
     @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        super(VirtualMachineRebootGuestExecutor, cls).pre_apply(instance, **kwargs)
+        instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
+        instance.save(update_fields=['tools_state'])
+
+    @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
@@ -222,13 +234,13 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
                 'reboot_guest',
                 state_transition='begin_updating'
             ),
-            core_tasks.BackendMethodTask().si(
+            core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                'is_virtual_machine_tools_not_running'
             ),
             core_tasks.PollBackendCheckTask().si(
                 serialized_instance,
-                'is_virtual_machine_running'
+                'is_virtual_machine_tools_running'
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
