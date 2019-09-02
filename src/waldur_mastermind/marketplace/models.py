@@ -370,6 +370,8 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
                                     null=True,
                                     max_length=5)
     limit_amount = models.IntegerField(blank=True, null=True)
+    max_value = models.IntegerField(blank=True, null=True)
+    min_value = models.IntegerField(blank=True, null=True)
     disable_quotas = models.BooleanField(
         default=False,
         help_text=_('Do not allow user to specify quotas when offering is provisioned.')
