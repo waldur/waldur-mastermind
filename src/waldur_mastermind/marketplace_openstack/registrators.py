@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
@@ -10,6 +12,8 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         return source.project.customer
 
     def get_sources(self, customer):
+        if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
+            return models.Resource.objects.none()
         return models.Resource.objects.filter(
             project__customer=customer,
             offering__type=PACKAGE_TYPE

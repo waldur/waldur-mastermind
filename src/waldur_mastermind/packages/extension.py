@@ -5,6 +5,11 @@ from waldur_core.core import WaldurExtension
 
 class PackagesExtension(WaldurExtension):
 
+    class Settings:
+        WALDUR_PACKAGES = {
+            'BILLING_ENABLED': True,
+        }
+
     @staticmethod
     def django_app():
         return 'waldur_mastermind.packages'
