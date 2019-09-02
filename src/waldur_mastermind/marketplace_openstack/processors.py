@@ -2,7 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
-from waldur_mastermind.marketplace import processors, signals, models as marketplace_models
+from waldur_mastermind.marketplace import processors, signals
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
