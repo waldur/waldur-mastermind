@@ -372,13 +372,6 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
     limit_amount = models.IntegerField(blank=True, null=True)
     max_value = models.IntegerField(blank=True, null=True)
     min_value = models.IntegerField(blank=True, null=True)
-    type = models.CharField(max_length=50,
-                            help_text=_('Unique internal name of the measured unit, for example floating_ip.'))
-    name = models.CharField(max_length=150,
-                            help_text=_('Display name for the measured unit, for example, Floating IP.'))
-    measured_unit = models.CharField(max_length=30,
-                                     help_text=_('Unit of measurement, for example, GB.'),
-                                     blank=True)
     disable_quotas = models.BooleanField(
         default=False,
         help_text=_('Do not allow user to specify quotas when offering is provisioned.')
