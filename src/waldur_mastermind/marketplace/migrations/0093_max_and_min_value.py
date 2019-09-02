@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0091_offering_paused_reason'),
+        ('marketplace', '0092_improve_internal_name_validation'),
     ]
 
     operations = [
