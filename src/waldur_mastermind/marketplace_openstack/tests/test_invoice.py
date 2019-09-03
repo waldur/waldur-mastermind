@@ -1,20 +1,23 @@
 from decimal import Decimal
 
 from freezegun import freeze_time
+from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import signals as marketplace_signals
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import serializers as packages_serializers
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
 
-from .utils import BaseOpenStackTest
+from .utils import BaseOpenStackTest, override_plugin_settings
 from .. import PACKAGE_TYPE
 
 
@@ -153,3 +156,81 @@ class InvoiceTest(BaseOpenStackTest):
 
         self.package = package_models.OpenStackPackage.objects.get(tenant=self.tenant)
         self.invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
+
+
+@override_plugin_settings(BILLING_ENABLED=True)
+class MarketplaceInvoiceTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
+        self.limits = {
+            RAM_TYPE: 1,
+            CORES_TYPE: 2,
+            STORAGE_TYPE: 3,
+        }
+        self.prices = {
+            RAM_TYPE: 10,
+            CORES_TYPE: 100,
+            STORAGE_TYPE: 1,
+        }
+        for ct in self.prices.keys():
+            marketplace_factories.PlanComponentFactory(
+                plan=self.plan,
+                component=marketplace_factories.OfferingComponentFactory(
+                    offering=self.offering,
+                    type=ct,
+                ),
+                price=self.prices[ct],
+            )
+        self.resource = marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            limits=self.limits,
+            state=marketplace_models.Resource.States.OK,
+        )
+
+    def test_when_resource_is_created_invoice_is_updated(self):
+        marketplace_signals.resource_creation_succeeded.send(
+            sender=self.resource.__class__,
+            instance=self.resource,
+        )
+        invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=self.resource)
+        self.assertEqual(invoice_item.unit_price,
+                         self.limits[RAM_TYPE] * self.prices[RAM_TYPE] +
+                         self.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
+                         self.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE])
+
+    def test_when_resource_is_updated_invoice_is_updated(self):
+        marketplace_signals.resource_creation_succeeded.send(
+            sender=self.resource.__class__,
+            instance=self.resource,
+        )
+        self.resource.limits = {
+            RAM_TYPE: 10,
+            CORES_TYPE: 20,
+            STORAGE_TYPE: 30,
+        }
+        marketplace_signals.resource_update_succeeded.send(
+            sender=self.resource.__class__,
+            instance=self.resource,
+        )
+        invoice_items = invoices_models.GenericInvoiceItem.objects.filter(scope=self.resource)
+
+        self.assertEqual(invoice_items.count(), 2)
+        self.assertNotEqual(invoice_items.last().unit_price, invoice_items.first().unit_price)
+        self.assertEqual(invoice_items.last().unit_price,
+                         self.resource.limits[RAM_TYPE] * self.prices[RAM_TYPE] +
+                         self.resource.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
+                         self.resource.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE])
+
+    def test_when_resource_is_deleted_invoice_is_updated(self):
+        marketplace_signals.resource_creation_succeeded.send(
+            sender=self.resource.__class__,
+            instance=self.resource,
+        )
+        marketplace_signals.resource_deletion_succeeded.send(
+            sender=self.resource.__class__,
+            instance=self.resource,
+        )
+        invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=self.resource)
+        self.assertIsNotNone(invoice_item.end)

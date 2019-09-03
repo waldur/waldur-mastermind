@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from waldur_core.structure.permissions import _get_project
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoices_models
@@ -12,6 +14,9 @@ class OpenStackItemRegistrator(BaseRegistrator):
         return source.tenant.service_project_link.project.customer
 
     def get_sources(self, customer):
+        if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
+            return packages_models.OpenStackPackage.objects.none()
+
         return packages_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer
         ).exclude(tenant__backend_id='').exclude(tenant__backend_id=None).distinct()
