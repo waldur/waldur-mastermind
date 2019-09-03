@@ -186,6 +186,7 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             offering=self.offering,
             plan=self.plan,
             limits=self.limits,
+            state=marketplace_models.Resource.States.OK,
         )
 
     def test_when_resource_is_created_invoice_is_updated(self):

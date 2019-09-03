@@ -130,7 +130,8 @@ class RegistrationManager(object):
 
         with transaction.atomic():
             invoice, created = cls.get_or_create_invoice(customer, now, **kwargs)
-            registrator.register([source], invoice, now, **kwargs)
+            if not created:
+                registrator.register([source], invoice, now, **kwargs)
 
     @classmethod
     def terminate(cls, source, now=None):
