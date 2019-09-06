@@ -28,7 +28,7 @@ from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace.utils import validate_order_item
+from waldur_mastermind.marketplace.utils import validate_order_item, validate_limits, create_offering_components
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 
@@ -483,23 +483,6 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 price=prices.get(name) or 0,
             )
 
-    def _create_components(self, offering, custom_components):
-        fixed_components = plugins.manager.get_components(offering.type)
-        category_components = {
-            component.type: component
-            for component in models.CategoryComponent.objects.filter(category=offering.category)
-        }
-
-        for component_data in fixed_components:
-            models.OfferingComponent.objects.create(
-                offering=offering,
-                parent=category_components.get(component_data.type, None),
-                **component_data._asdict()
-            )
-
-        for component_data in custom_components:
-            models.OfferingComponent.objects.create(offering=offering, **component_data)
-
     def _create_plans(self, offering, plans):
         components = {component.type: component for component in offering.components.all()}
         for plan_data in plans:
@@ -530,7 +513,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
             validated_data = self._create_service(service_type, validated_data)
 
         offering = super(OfferingCreateSerializer, self).create(validated_data)
-        self._create_components(offering, custom_components)
+        create_offering_components(offering, custom_components)
         self._create_plans(offering, plans)
 
         return offering
@@ -805,13 +788,7 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
 
         limits = attrs.get('limits')
         if limits:
-            valid_component_types = offering.components \
-                .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE) \
-                .exclude(disable_quotas=True) \
-                .values_list('type', flat=True)
-            invalid_types = set(limits.keys()) - set(valid_component_types)
-            if invalid_types:
-                raise ValidationError({'limits': _('Invalid types: %s') % ', '.join(invalid_types)})
+            validate_limits(limits, offering)
         return attrs
 
 

@@ -34,7 +34,8 @@ class PluginManager(object):
                  components=None,
                  service_type=None,
                  can_terminate_order_item=False,
-                 secret_attributes=None):
+                 secret_attributes=None,
+                 available_limits=None):
         """
 
         :param offering_type: string which consists of application name and model name,
@@ -48,6 +49,8 @@ class PluginManager(object):
         :param can_terminate_order_item: optional boolean indicates whether order item can be terminated
         :param secret_attributes: optional list of strings each of which corresponds to secret attribute key,
         for example, VPC username and password.
+        :param available_limits: optional list of strings each of which corresponds to offering component type,
+        which supports user-defined limits, such as VPC RAM and vCPU.
         """
         self.backends[offering_type] = {
             'create_resource_processor': create_resource_processor,
@@ -57,6 +60,7 @@ class PluginManager(object):
             'service_type': service_type,
             'can_terminate_order_item': can_terminate_order_item,
             'secret_attributes': secret_attributes,
+            'available_limits': available_limits,
         }
 
     def get_offering_types(self):
@@ -103,6 +107,12 @@ class PluginManager(object):
         if callable(secret_attributes):
             secret_attributes = secret_attributes()
         return secret_attributes or []
+
+    def get_available_limits(self, offering_type):
+        """
+        Returns list of offering component types which supports user-defined limits.
+        """
+        return self.backends.get(offering_type, {}).get('available_limits') or []
 
     def get_processor(self, offering_type, processor_type):
         """

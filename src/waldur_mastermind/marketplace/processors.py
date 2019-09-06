@@ -1,16 +1,14 @@
-import copy
 import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.utils.translation import ugettext_lazy as _
 from rest_framework import status, serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
-
+from waldur_mastermind.marketplace.utils import validate_limits
 
 logger = logging.getLogger(__name__)
 
@@ -154,10 +152,7 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
 
     def validate_order_item(self, request):
         if self.is_update_limit_order_item():
-            try:
-                self.validate_update_limit_order_item(request)
-            except NotImplementedError:
-                pass
+            validate_limits(self.order_item.limits, self.order_item.offering)
             return
 
         post_data = self.get_post_data()
@@ -239,48 +234,6 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         This method implements limits update processing.
         """
         raise NotImplementedError
-
-    def available_limits(self):
-        """
-        This method returns available limits.
-        """
-        return []
-
-    def validate_update_limit_order_item(self, request):
-        """
-        This method validates update limits order item.
-        """
-        if not self.available_limits():
-            return
-        requested_limits = copy.deepcopy(self.order_item.limits)
-
-        for limit in self.available_limits():
-            requested_limits.pop(limit, None)
-
-        if requested_limits:
-            raise serializers.ValidationError(_('Requested limits %s are not available.') % requested_limits.keys())
-
-        # Validate max and min limit value.
-        confines = {
-            component.name: {'max': component.max_value, 'min': component.min_value}
-            for component in models.OfferingComponent.objects.filter(
-                offering=self.order_item.offering,
-                name__in=self.available_limits()
-            )
-        }
-        for limit in self.order_item.limits:
-            if limit in confines.keys():
-                confine = confines[limit]
-                try:
-                    value = float(self.order_item.limits[limit])
-                except ValueError:
-                    raise serializers.ValidationError(_('The limit %s must be a number.') % limit)
-
-                if confine['max'] and value > confine['max']:
-                    raise serializers.ValidationError(_('The limit %s value cannot be more than %s.') %
-                                                      (limit, value))
-                if confine['min'] and value < confine['min']:
-                    raise serializers.ValidationError(_('The limit %s value cannot be less than %s.'))
 
 
 class DeleteResourceProcessor(BaseOrderItemProcessor):

@@ -9,7 +9,7 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack_tenant import views as tenant_views
 
-from . import utils, AVAILABLE_LIMITS
+from . import utils
 
 
 class PackageCreateProcessor(processors.CreateResourceProcessor):
@@ -92,9 +92,6 @@ class PackageUpdateProcessor(processors.UpdateResourceProcessor):
             return
 
         utils.update_limits(self.order_item)
-
-    def available_limits(self):
-        return AVAILABLE_LIMITS
 
 
 class PackageDeleteProcessor(processors.DeleteResourceProcessor):
