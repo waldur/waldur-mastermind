@@ -357,6 +357,7 @@ class PluginViewSet(views.APIView):
             payload.append(dict(
                 offering_type=offering_type,
                 components=components,
+                available_limits=plugins.manager.get_available_limits(offering_type),
             ))
         return Response(payload, status=status.HTTP_200_OK)
 

@@ -8,4 +8,4 @@ RAM_TYPE = 'ram'
 CORES_TYPE = 'cores'
 STORAGE_TYPE = 'storage'
 
-AVAILABLE_LIMITS = ['vcpu', 'ram', 'storage']
+AVAILABLE_LIMITS = [RAM_TYPE, CORES_TYPE, STORAGE_TYPE]

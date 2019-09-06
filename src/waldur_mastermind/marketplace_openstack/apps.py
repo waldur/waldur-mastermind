@@ -32,7 +32,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from . import (
             filters, handlers, processors,
             INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
-            RAM_TYPE, CORES_TYPE, STORAGE_TYPE,
+            RAM_TYPE, CORES_TYPE, STORAGE_TYPE, AVAILABLE_LIMITS
         )
 
         marketplace_filters.ExternalOfferingFilterBackend.register(filters.VpcExternalFilter())
@@ -88,7 +88,8 @@ class MarketplaceOpenStackConfig(AppConfig):
                              Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
                          service_type=OpenStackConfig.service_name,
-                         secret_attributes=get_secret_attributes)
+                         secret_attributes=get_secret_attributes,
+                         available_limits=AVAILABLE_LIMITS)
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
