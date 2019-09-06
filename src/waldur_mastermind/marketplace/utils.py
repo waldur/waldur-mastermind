@@ -8,7 +8,6 @@ from PIL import Image
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
-from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 from django.utils import six, timezone
 from django.utils.translation import ugettext_lazy as _
