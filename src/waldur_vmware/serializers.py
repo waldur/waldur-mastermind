@@ -213,6 +213,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         if 'ram' in fields:
             fields['ram'].factor = 1024
             fields['ram'].units = 'GB'
+            fields['ram'].min_value = 1024
 
         if 'disk' in fields:
             fields['disk'].factor = 1024
@@ -223,6 +224,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
         if 'cores_per_socket' in fields:
             fields['cores_per_socket'].min_value = 1
+            fields['cores_per_socket'].label = 'Number of cores per socket in a VM'
 
         if isinstance(self.instance, models.VirtualMachine):
             spl = self.instance.service_project_link
@@ -305,6 +307,9 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         """
         actual_ram = attrs.get('ram')
         max_ram = options.get('max_ram')
+        if actual_ram and actual_ram < 1024:
+            raise serializers.ValidationError('Requested amount of RAM is too small.')
+
         if actual_ram and max_ram and actual_ram > max_ram:
             raise serializers.ValidationError('Requested amount of RAM exceeds offering limit.')
 
