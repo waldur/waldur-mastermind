@@ -903,7 +903,7 @@ class CartItemSerializer(BaseRequestSerializer):
                 fields['project'].queryset, self.context['request'].user)
         return fields
 
-    def quotas_validate(self, item, project, user, request):
+    def quotas_validate(self, item, project):
         try:
             with transaction.atomic():
                 processor_class = manager.get_processor(item.offering.type, 'create_resource_processor')
@@ -928,8 +928,15 @@ class CartItemSerializer(BaseRequestSerializer):
         item = super(CartItemSerializer, self).create(validated_data)
         item.init_cost()
         item.save(update_fields=['cost'])
-        self.quotas_validate(item, validated_data['project'], validated_data['user'], self.context['request'])
+        self.quotas_validate(item, validated_data['project'])
         return item
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        instance = super(CartItemSerializer, self).update(instance, validated_data)
+        instance.init_cost()
+        instance.save(update_fields=['cost'])
+        return instance
 
 
 class CartSubmitSerializer(serializers.Serializer):
