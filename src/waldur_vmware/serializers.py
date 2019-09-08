@@ -224,7 +224,6 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
         if 'cores_per_socket' in fields:
             fields['cores_per_socket'].min_value = 1
-            fields['cores_per_socket'].label = 'Number of cores per socket in a VM'
 
         if isinstance(self.instance, models.VirtualMachine):
             spl = self.instance.service_project_link

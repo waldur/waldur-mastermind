@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                 ('backend_id', models.CharField(db_index=True, max_length=255)),
                 ('guest_os', models.CharField(help_text='Defines the valid guest operating system types used for configuring a virtual machine', max_length=50)),
                 ('cores', models.PositiveSmallIntegerField(default=0, help_text='Number of cores in a VM')),
-                ('cores_per_socket', models.PositiveSmallIntegerField(default=1, help_text='Number of cores in a VM')),
+                ('cores_per_socket', models.PositiveSmallIntegerField(default=1, help_text='Number of cores per socket in a VM')),
                 ('ram', models.PositiveIntegerField(default=0, help_text='Memory size in MiB', verbose_name='RAM')),
                 ('created', models.DateTimeField()),
                 ('modified', models.DateTimeField()),

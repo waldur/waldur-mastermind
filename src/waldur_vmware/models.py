@@ -46,7 +46,7 @@ class VirtualMachineMixin(models.Model):
     guest_os = models.CharField(max_length=50, help_text=_('Defines the valid guest operating system '
                                                            'types used for configuring a virtual machine'))
     cores = models.PositiveSmallIntegerField(default=0, help_text=_('Number of cores in a VM'))
-    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores in a VM'))
+    cores_per_socket = models.PositiveSmallIntegerField(default=1, help_text=_('Number of cores per socket in a VM'))
     ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'), verbose_name=_('RAM'))
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
 
