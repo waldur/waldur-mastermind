@@ -228,7 +228,7 @@ class PortViewSet(structure_views.BaseResourceViewSet):
 
 
 class DiskViewSet(structure_views.BaseResourceViewSet):
-    queryset = models.Disk.objects.all()
+    queryset = models.Disk.objects.all().order_by('-created')
     serializer_class = serializers.DiskSerializer
     filter_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
