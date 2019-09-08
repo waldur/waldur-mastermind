@@ -98,6 +98,28 @@ class TenantCreateTest(BaseOpenStackTest):
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def create_plan_component(self, type, price):
+        return marketplace_factories.PlanComponentFactory(
+            component=self.offering.components.get(type=type),
+            plan=self.plan,
+            price=price
+        )
+
+    def test_cost_estimate_is_calculated_using_limits(self):
+        create_offering_components(self.offering)
+
+        self.create_plan_component(CORES_TYPE, 1)
+        self.create_plan_component(RAM_TYPE, 0.5)
+        self.create_plan_component(STORAGE_TYPE, 0.1)
+
+        response = self.create_order(limits={
+            'cores': 20,
+            'ram': 1024 * 100,
+            'storage': 1024 * 1024 * 100
+        })
+        expected = 20 * 1 + 1024 * 100 * 0.5 + 1024 * 1024 * 100 * 0.1
+        self.assertEqual(float(response.data['total_cost']), expected)
+
     def create_order(self, add_attributes=None, user='staff', limits=None):
         project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
         offering_url = marketplace_factories.OfferingFactory.get_url(self.offering)

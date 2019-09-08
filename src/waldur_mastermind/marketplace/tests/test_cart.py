@@ -253,6 +253,32 @@ class CartUpdateTest(test.APITransactionTestCase):
         response = self.update(factories.PlanFactory())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_when_limits_are_updated_estimate_is_recalculated(self):
+        # Arrange
+        oc = factories.OfferingComponentFactory(
+            offering=self.cart_item.offering,
+            billing_type=models.OfferingComponent.BillingTypes.USAGE,
+            type='cpu',
+        )
+        plan = factories.PlanFactory(offering=self.cart_item.offering)
+        factories.PlanComponentFactory(
+            plan=plan,
+            component=oc,
+            price=10,
+        )
+        self.cart_item.limits = {'cpu': 2}
+        self.cart_item.plan = plan
+        self.cart_item.save()
+
+        # Act
+        self.client.force_authenticate(self.cart_item.user)
+        url = factories.CartItemFactory.get_url(item=self.cart_item)
+        self.client.patch(url, {'limits': {'cpu': 4}})
+        self.cart_item.refresh_from_db()
+
+        # Assert
+        self.assertEqual(self.cart_item.cost, 4 * 10)
+
 
 class QuotasValidateTest(test.APITransactionTestCase):
     def setUp(self):
