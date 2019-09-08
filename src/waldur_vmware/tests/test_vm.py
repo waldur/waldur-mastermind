@@ -304,10 +304,10 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
 
     def test_max_ram_is_not_exceeded(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options['max_ram'] = 100
+        self.fixture.settings.options['max_ram'] = 100 * 1024
         self.fixture.settings.save(update_fields=['options'])
         payload = self.get_valid_payload()
-        payload['ram'] = 10
+        payload['ram'] = 10 * 1024
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
