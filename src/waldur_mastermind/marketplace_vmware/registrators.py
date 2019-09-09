@@ -64,7 +64,7 @@ class VirtualMachineRegistrator(BaseRegistrator):
         details = self.get_details(source)
         service_provider_info = marketplace_utils.get_service_provider_info(resource)
         details.update(service_provider_info)
-        invoices_models.GenericInvoiceItem.objects.create(
+        item = invoices_models.GenericInvoiceItem.objects.create(
             scope=source,
             project=_get_project(source),
             unit_price=total_price,
@@ -76,6 +76,7 @@ class VirtualMachineRegistrator(BaseRegistrator):
             end=end,
             details=details,
         )
+        item.init_details()
 
     def get_name(self, source):
         return '{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(

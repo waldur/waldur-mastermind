@@ -244,14 +244,10 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         return full_days
 
     def terminate(self, end=None):
-        self.freeze()
         self.end = end or timezone.now()
         self.save(update_fields=['end'])
 
     def name(self):
-        raise NotImplementedError()
-
-    def freeze(self):
         raise NotImplementedError()
 
     def __str__(self):
@@ -311,7 +307,7 @@ class GenericInvoiceItem(InvoiceItem):
             return '%s.%s' % (self.content_type.app_label, self.content_type.model)
         return ''
 
-    def freeze(self):
+    def init_details(self):
         if self.scope:
             self.details = registrators.RegistrationManager.get_details(self.scope)
             self.details['name'] = registrators.RegistrationManager.get_name(self.scope)

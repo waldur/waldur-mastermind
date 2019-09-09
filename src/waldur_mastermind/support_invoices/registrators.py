@@ -55,7 +55,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
         except marketplace_models.Resource.DoesNotExist:
             # If an offering isn't request based support offering
-            return invoice_models.GenericInvoiceItem.objects.create(
+            item = invoice_models.GenericInvoiceItem.objects.create(
                 content_type=ContentType.objects.get_for_model(offering),
                 object_id=offering.id,
                 project=offering.project,
@@ -68,6 +68,8 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 product_code=offering.product_code,
                 article_code=offering.article_code
             )
+            item.init_details()
+            return item
 
     def create_items_for_plan(self, invoice, plan, offering, start, end, **kwargs):
         order_type = kwargs.get('order_type')
@@ -92,7 +94,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 elif is_one or is_switch:
                     unit = invoice_models.Units.QUANTITY
 
-                invoice_models.GenericInvoiceItem.objects.create(
+                item = invoice_models.GenericInvoiceItem.objects.create(
                     content_type=ContentType.objects.get_for_model(offering),
                     object_id=offering.id,
                     project=offering.project,
@@ -106,6 +108,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     product_code=offering_component.product_code or plan.product_code,
                     article_code=offering_component.article_code or plan.article_code,
                 )
+                item.init_details()
 
     def get_details(self, source):
         offering = source

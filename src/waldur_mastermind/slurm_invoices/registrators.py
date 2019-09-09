@@ -24,7 +24,7 @@ class AllocationRegistrator(registrators.BaseRegistrator):
         allocation = source
         package = self.get_package(allocation)
         if package:
-            return invoice_models.GenericInvoiceItem.objects.create(
+            item = invoice_models.GenericInvoiceItem.objects.create(
                 scope=allocation,
                 project=source.service_project_link.project,
                 unit_price=utils.get_deposit_usage(allocation, package),
@@ -36,6 +36,8 @@ class AllocationRegistrator(registrators.BaseRegistrator):
                 start=start,
                 end=end,
             )
+            item.init_details()
+            return item
 
     def get_package(self, allocation):
         service_settings = allocation.service_project_link.service.settings
