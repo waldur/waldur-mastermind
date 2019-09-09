@@ -73,6 +73,7 @@ class BaseRegistrator(object):
             invoice__state=invoices_models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
+            end=core_utils.month_end(now),
         ).first()
         return result
 
