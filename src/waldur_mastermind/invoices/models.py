@@ -31,7 +31,7 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.packages import models as package_models
 
-from . import managers, utils, registrators
+from . import managers, utils
 
 logger = logging.getLogger(__name__)
 
