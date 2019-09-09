@@ -46,7 +46,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
             start=start,
             end=end,
             details=self.get_details(package))
-        item.init_details()
+        self.init_details(item)
 
     def get_details(self, source):
         package = source

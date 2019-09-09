@@ -76,7 +76,7 @@ class VirtualMachineRegistrator(BaseRegistrator):
             end=end,
             details=details,
         )
-        item.init_details()
+        self.init_details(item)
 
     def get_name(self, source):
         return '{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(

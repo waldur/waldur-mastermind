@@ -36,7 +36,7 @@ class AllocationRegistrator(registrators.BaseRegistrator):
                 start=start,
                 end=end,
             )
-            item.init_details()
+            self.init_details(item)
             return item
 
     def get_package(self, allocation):

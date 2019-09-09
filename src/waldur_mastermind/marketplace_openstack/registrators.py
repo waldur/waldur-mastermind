@@ -41,4 +41,4 @@ class MarketplaceItemRegistrator(BaseRegistrator):
             end=end,
             details=details,
         )
-        item.init_details()
+        self.init_details(item)

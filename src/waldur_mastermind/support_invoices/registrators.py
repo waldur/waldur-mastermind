@@ -68,7 +68,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 product_code=offering.product_code,
                 article_code=offering.article_code
             )
-            item.init_details()
+            self.init_details(item)
             return item
 
     def create_items_for_plan(self, invoice, plan, offering, start, end, **kwargs):
@@ -108,7 +108,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     product_code=offering_component.product_code or plan.product_code,
                     article_code=offering_component.article_code or plan.article_code,
                 )
-                item.init_details()
+                self.init_details(item)
 
     def get_details(self, source):
         offering = source

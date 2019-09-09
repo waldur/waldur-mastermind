@@ -289,30 +289,11 @@ class GenericInvoiceItem(InvoiceItem):
     quantity = models.PositiveIntegerField(default=0)
 
     scope = GenericForeignKey('content_type', 'object_id')
+    name = models.TextField(default='')
     details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
 
     objects = managers.GenericInvoiceItemManager()
     tracker = FieldTracker()
-
-    @property
-    def name(self):
-        if self.details.get('name'):
-            return self.details.get('name')
-        if self.scope:
-            return registrators.RegistrationManager.get_name(self.scope)
-        # Ilja: temporary workaround to unlock creation of new invoices due to issues caused by 0027 migration
-        if self.details:
-            return ', '.join(['%s: %s' % (k, v) for k, v in self.details.items()])
-        if self.content_type:
-            return '%s.%s' % (self.content_type.app_label, self.content_type.model)
-        return ''
-
-    def init_details(self):
-        if self.scope:
-            self.details = registrators.RegistrationManager.get_details(self.scope)
-            self.details['name'] = registrators.RegistrationManager.get_name(self.scope)
-            self.details['scope_uuid'] = self.scope.uuid.hex
-            self.save(update_fields=['details'])
 
 
 def get_default_downtime_start():
