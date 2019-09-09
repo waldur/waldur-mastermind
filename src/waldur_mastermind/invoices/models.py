@@ -431,7 +431,7 @@ class InvoiceItemAdjuster(object):
 
         if self.unit == Units.PER_DAY:
             start = end.replace(hour=0, minute=0, second=0)
-        elif self.unit == Units.PER_DAY:
+        elif self.unit == Units.PER_HOUR:
             start = end.replace(minute=0, second=0)
         elif self.unit == Units.PER_MONTH:
             start = core_utils.month_start(end)
