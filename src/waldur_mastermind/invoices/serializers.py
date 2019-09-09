@@ -21,7 +21,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     scope_uuid = serializers.SerializerMethodField()
 
     class Meta(object):
-        model = models.InvoiceItem
+        model = models.GenericInvoiceItem
         fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit', 'factor',
                   'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid',
                   'scope_type', 'scope_uuid',)

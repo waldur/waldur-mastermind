@@ -159,13 +159,19 @@ class Invoice(core_models.UuidMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
+class GenericInvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
-    Mixin which identifies invoice item to be used for price calculation.
+    It is expected that get_scope_type method is defined as class method in scope class
+    as it is used in generic invoice item serializer.
     """
+    invoice = models.ForeignKey(Invoice, related_name='generic_items')
+    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+    quantity = models.PositiveIntegerField(default=0)
 
-    class Meta(object):
-        abstract = True
+    scope = GenericForeignKey('content_type', 'object_id')
+    name = models.TextField(default='')
+    details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
 
     start = models.DateTimeField(default=utils.get_current_month_start,
                                  help_text=_('Date and time when item usage has started.'))
@@ -176,6 +182,9 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     project = models.ForeignKey(structure_models.Project, on_delete=models.SET_NULL, null=True)
     project_name = models.CharField(max_length=150, blank=True)
     project_uuid = models.CharField(max_length=32, blank=True)
+
+    objects = managers.GenericInvoiceItemManager()
+    tracker = FieldTracker()
 
     @property
     def tax(self):
@@ -276,24 +285,6 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         }
 
         return GenericInvoiceItem.objects.create(**params)
-
-
-class GenericInvoiceItem(InvoiceItem):
-    """
-    It is expected that get_scope_type method is defined as class method in scope class
-    as it is used in generic invoice item serializer.
-    """
-    invoice = models.ForeignKey(Invoice, related_name='generic_items')
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
-    object_id = models.PositiveIntegerField(null=True)
-    quantity = models.PositiveIntegerField(default=0)
-
-    scope = GenericForeignKey('content_type', 'object_id')
-    name = models.TextField(default='')
-    details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
-
-    objects = managers.GenericInvoiceItemManager()
-    tracker = FieldTracker()
 
 
 def get_default_downtime_start():

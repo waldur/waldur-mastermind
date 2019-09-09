@@ -89,7 +89,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 
     def test_usage_based_item_is_skipped_if_quantity_is_zero(self):
         item = self.invoice.items.first()
-        item.unit = models.InvoiceItem.Units.QUANTITY
+        item.unit = models.GenericInvoiceItem.Units.QUANTITY
         item.quantity = 0
         item.save()
 
@@ -99,7 +99,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
 
     def test_usage_based_item_is_skipped_if_unit_price_is_zero(self):
         item = self.invoice.items.first()
-        item.unit = models.InvoiceItem.Units.QUANTITY
+        item.unit = models.GenericInvoiceItem.Units.QUANTITY
         item.quantity = 10
         item.unit_price = 0
         item.save()

@@ -13,14 +13,14 @@ class TotalCostTest(test.APITransactionTestCase):
         invoice_factories.GenericInvoiceItemFactory(
             invoice=self.fixture1.invoice,
             project=self.fixture1.project,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=invoice_models.GenericInvoiceItem.Units.QUANTITY,
             unit_price=10,
             quantity=10,
         )
         invoice_factories.GenericInvoiceItemFactory(
             invoice=self.fixture2.invoice,
             project=self.fixture2.project,
-            unit=invoice_models.InvoiceItem.Units.QUANTITY,
+            unit=invoice_models.GenericInvoiceItem.Units.QUANTITY,
             unit_price=20,
             quantity=5,
         )

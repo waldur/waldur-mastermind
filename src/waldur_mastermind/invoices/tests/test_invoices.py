@@ -176,7 +176,7 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.scope = self.fixture.allocation
         self.item = models.GenericInvoiceItem.objects.filter(scope=self.scope).get()
-        self.item.unit = models.InvoiceItem.Units.QUANTITY
+        self.item.unit = models.GenericInvoiceItem.Units.QUANTITY
         self.item.quantity = 10
         self.item.unit_price = 10
         self.item.save()
@@ -204,7 +204,7 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
         models.GenericInvoiceItem.objects.create(
             scope=fixture.offering,
             invoice=invoice,
-            unit=models.InvoiceItem.Units.QUANTITY,
+            unit=models.GenericInvoiceItem.Units.QUANTITY,
             quantity=10,
             unit_price=10
         )

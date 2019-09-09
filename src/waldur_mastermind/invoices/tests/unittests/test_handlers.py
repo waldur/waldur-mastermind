@@ -198,7 +198,7 @@ class UpdateInvoiceCurrentCostTest(TransactionTestCase):
             project=self.project,
             unit_price=100,
             quantity=1,
-            unit=models.InvoiceItem.Units.QUANTITY
+            unit=models.GenericInvoiceItem.Units.QUANTITY
         )
 
     def test_when_invoice_item_is_created_current_cost_is_updated(self):

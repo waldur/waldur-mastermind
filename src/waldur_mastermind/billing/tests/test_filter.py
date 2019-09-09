@@ -51,7 +51,7 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
                 project=project,
                 unit_price=price,
                 quantity=1,
-                unit=invoice_models.InvoiceItem.Units.QUANTITY
+                unit=invoice_models.GenericInvoiceItem.Units.QUANTITY
             )
         structure_factories.CustomerFactory()
 
