@@ -4,7 +4,7 @@ from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 
-from . import models
+from . import models, signals
 
 
 def pull_datastores_for_resource(instance, task):
@@ -362,6 +362,37 @@ class DiskDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_instance,
                 state_transition='begin_deleting'
             )
+
+    @classmethod
+    def get_deletion_task(cls, instance, serialized_instance):
+        serialized_vm = core_utils.serialize_instance(instance.vm)
+        return chain(
+            core_tasks.DeletionTask().si(serialized_instance),
+            VirtualMachineUpdatedNotificationTask().si(serialized_vm),
+        )
+
+    @classmethod
+    def get_success_signature(cls, instance, serialized_instance, **kwargs):
+        return cls.get_deletion_task(instance, serialized_instance)
+
+    @classmethod
+    def get_failure_signature(cls, instance, serialized_instance, force=False, **kwargs):
+        if force:
+            return cls.get_deletion_task(instance, serialized_instance)
+        else:
+            return core_tasks.ErrorStateTransitionTask().s(serialized_instance)
+
+
+class VirtualMachineUpdatedNotificationTask(core_tasks.Task):
+    """
+    Send notification that virtual machine configuration has been changed on backend
+    so that it would be possible for a signal listener to invalidate their internal cache.
+    It is needed, for example, after virtual disk is deleted from both VMware and Waldur
+    because resource configuration in the marketplace is obtained from local database cache.
+    """
+
+    def execute(self, instance):
+        signals.vm_updated.send(self.__class__, vm=instance)
 
 
 class DiskExtendExecutor(core_executors.ActionExecutor):
