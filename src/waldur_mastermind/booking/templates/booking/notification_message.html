@@ -1,0 +1,20 @@
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Reminder about upcoming booking.</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    Please do not forget about upcoming booking: <br />
+    {% for resource in resources %}
+        {{ resource.name }}
+        {% if not forloop.last %}
+            <br />
+        {% endif %}
+    {% endfor %}
+</p>
+</body>
+</html>

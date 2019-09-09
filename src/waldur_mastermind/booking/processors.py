@@ -19,6 +19,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 limits=self.order_item.limits,
                 attributes=self.order_item.attributes,
                 name=self.order_item.attributes.get('name') or '',
+                state=marketplace_models.Resource.States.OK,
             )
             resource.init_cost()
             resource.save()
