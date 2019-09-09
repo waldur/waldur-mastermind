@@ -62,8 +62,6 @@ class VirtualMachineRegistrator(BaseRegistrator):
             invoice, source, start, total_price, plan.unit)
 
         details = self.get_details(source)
-        service_provider_info = marketplace_utils.get_service_provider_info(resource)
-        details.update(service_provider_info)
         item = invoices_models.InvoiceItem.objects.create(
             scope=source,
             project=_get_project(source),
