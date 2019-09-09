@@ -69,7 +69,7 @@ class BaseRegistrator(object):
         from waldur_mastermind.invoices import models as invoices_models
 
         model_type = ContentType.objects.get_for_model(source)
-        result = invoices_models.GenericInvoiceItem.objects.filter(
+        result = invoices_models.InvoiceItem.objects.filter(
             content_type=model_type,
             object_id=source.id,
             invoice__customer=self.get_customer(source),

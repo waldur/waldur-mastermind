@@ -35,7 +35,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         start = invoices_models.adjust_invoice_items(
             invoice, source, start, price, package.template.unit)
 
-        item = invoices_models.GenericInvoiceItem.objects.create(
+        item = invoices_models.InvoiceItem.objects.create(
             scope=package,
             project=_get_project(package),
             unit_price=price,

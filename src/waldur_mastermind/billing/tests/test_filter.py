@@ -46,12 +46,12 @@ class CustomerCurrentCostFilterTest(test.APITransactionTestCase):
         for price in [200, 100, 300]:
             project = structure_factories.ProjectFactory()
             invoice = invoice_factories.InvoiceFactory(customer=project.customer)
-            invoice_factories.GenericInvoiceItemFactory(
+            invoice_factories.InvoiceItemFactory(
                 invoice=invoice,
                 project=project,
                 unit_price=price,
                 quantity=1,
-                unit=invoice_models.GenericInvoiceItem.Units.QUANTITY
+                unit=invoice_models.InvoiceItem.Units.QUANTITY
             )
         structure_factories.CustomerFactory()
 

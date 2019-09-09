@@ -39,7 +39,7 @@ class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, m
         return structure_models.Project, structure_models.Customer
 
     def _get_sum(self, year, month, field):
-        items = invoices_models.GenericInvoiceItem.objects.filter(
+        items = invoices_models.InvoiceItem.objects.filter(
             invoice__year=year,
             invoice__month=month
         )

@@ -24,11 +24,11 @@ class AllocationRegistrator(registrators.BaseRegistrator):
         allocation = source
         package = self.get_package(allocation)
         if package:
-            item = invoice_models.GenericInvoiceItem.objects.create(
+            item = invoice_models.InvoiceItem.objects.create(
                 scope=allocation,
                 project=source.service_project_link.project,
                 unit_price=utils.get_deposit_usage(allocation, package),
-                unit=invoice_models.GenericInvoiceItem.Units.QUANTITY,
+                unit=invoice_models.InvoiceItem.Units.QUANTITY,
                 quantity=1,
                 product_code=package.product_code,
                 article_code=package.article_code,

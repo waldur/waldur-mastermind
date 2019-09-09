@@ -67,7 +67,7 @@ def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
         return
 
     query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
-    for item in models.GenericInvoiceItem.objects.filter(query).only('pk'):
+    for item in models.InvoiceItem.objects.filter(query).only('pk'):
         item.project_name = project.name
         item.save(update_fields=['project_name'])
 
@@ -113,7 +113,7 @@ def update_current_cost_when_invoice_item_is_deleted(sender, instance, **kwargs)
 
 @transaction.atomic()
 def adjust_openstack_items_for_downtime(downtime):
-    items = models.GenericInvoiceItem.objects.filter(
+    items = models.InvoiceItem.objects.filter(
         downtime.get_intersection_subquery(),
         scope=downtime.package,
     )

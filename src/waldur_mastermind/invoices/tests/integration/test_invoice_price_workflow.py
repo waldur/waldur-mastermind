@@ -161,7 +161,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             offering.save(update_fields=['state'])
 
         expected_price = utils.get_full_days(start_date, end_date) * offering.unit_price
-        offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
+        offering_item = models.InvoiceItem.objects.get(scope=offering)
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_monthly_price(self):
@@ -174,7 +174,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             offering.save(update_fields=['state'])
 
         expected_price = offering.unit_price * quantize_price(decimal.Decimal((usage_days / month_days)))
-        offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
+        offering_item = models.InvoiceItem.objects.get(scope=offering)
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_start_in_first_half(self):
@@ -187,7 +187,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
 
         month_days = monthrange(2017, 7)[1]
         expected_price = offering.unit_price * quantize_price(1 + (usage_days / decimal.Decimal(month_days / 2)))
-        offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
+        offering_item = models.InvoiceItem.objects.get(scope=offering)
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_start_in_second_half(self):
@@ -198,7 +198,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             offering.save(update_fields=['state'])
 
         expected_price = offering.unit_price
-        offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
+        offering_item = models.InvoiceItem.objects.get(scope=offering)
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_end_in_first_half(self):
@@ -242,7 +242,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         with freeze_time(start_date):
             offering.state = support_models.Offering.States.OK
             offering.save(update_fields=['state'])
-            offering_item = models.GenericInvoiceItem.objects.get(scope=offering)
+            offering_item = models.InvoiceItem.objects.get(scope=offering)
 
         with freeze_time(end_date):
             offering.state = support_models.Offering.States.TERMINATED

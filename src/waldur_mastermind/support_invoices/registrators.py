@@ -55,7 +55,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
         except marketplace_models.Resource.DoesNotExist:
             # If an offering isn't request based support offering
-            item = invoice_models.GenericInvoiceItem.objects.create(
+            item = invoice_models.InvoiceItem.objects.create(
                 content_type=ContentType.objects.get_for_model(offering),
                 object_id=offering.id,
                 project=offering.project,
@@ -94,7 +94,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 elif is_one or is_switch:
                     unit = invoice_models.Units.QUANTITY
 
-                item = invoice_models.GenericInvoiceItem.objects.create(
+                item = invoice_models.InvoiceItem.objects.create(
                     content_type=ContentType.objects.get_for_model(offering),
                     object_id=offering.id,
                     project=offering.project,

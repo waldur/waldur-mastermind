@@ -94,7 +94,7 @@ class InvoicesTest(InvoicesBaseTest):
         offering = self.order_item.resource.scope
         offering.terminate()
 
-        invoice_items = invoices_models.GenericInvoiceItem.objects.filter(scope=offering)
+        invoice_items = invoices_models.InvoiceItem.objects.filter(scope=offering)
 
         for item in invoice_items:
             item.refresh_from_db()
@@ -103,7 +103,7 @@ class InvoicesTest(InvoicesBaseTest):
     def test_delete_offering(self):
         self.order_item_process(self.order_item)
         offering = self.order_item.resource.scope
-        invoice_items = invoices_models.GenericInvoiceItem.objects.filter(scope=offering)
+        invoice_items = invoices_models.InvoiceItem.objects.filter(scope=offering)
         offering.delete()
 
         for item in invoice_items:
@@ -120,7 +120,7 @@ class InvoicesTest(InvoicesBaseTest):
         new_start = datetime.datetime.now()
         end = month_end(new_start)
 
-        old_items = invoices_models.GenericInvoiceItem.objects.filter(
+        old_items = invoices_models.InvoiceItem.objects.filter(
             project=resource.project,
             end=new_start,
         )
@@ -134,7 +134,7 @@ class InvoicesTest(InvoicesBaseTest):
 
         self.assertEqual(unit_price, self.fixture.plan.unit_price)
 
-        new_items = invoices_models.GenericInvoiceItem.objects.filter(
+        new_items = invoices_models.InvoiceItem.objects.filter(
             project=resource.project,
             start=new_start,
             end=end,

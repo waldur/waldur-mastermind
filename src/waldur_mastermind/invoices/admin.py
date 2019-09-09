@@ -17,7 +17,7 @@ from . import executors, models, tasks
 
 
 class GenericItemInline(core_admin.UpdateOnlyModelAdmin, admin.TabularInline):
-    model = models.GenericInvoiceItem
+    model = models.InvoiceItem
     readonly_fields = (
         'name', 'price', 'unit_price', 'unit', 'start', 'end',
         'project_name', 'project_uuid', 'product_code', 'article_code',

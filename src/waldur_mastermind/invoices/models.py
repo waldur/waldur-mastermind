@@ -159,7 +159,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
 
 @python_2_unicode_compatible
-class GenericInvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
+class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
     It is expected that get_scope_type method is defined as class method in scope class
     as it is used in generic invoice item serializer.
@@ -183,7 +183,7 @@ class GenericInvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPrice
     project_name = models.CharField(max_length=150, blank=True)
     project_uuid = models.CharField(max_length=32, blank=True)
 
-    objects = managers.GenericInvoiceItemManager()
+    objects = managers.InvoiceItemManager()
     tracker = FieldTracker()
 
     @property
@@ -256,11 +256,8 @@ class GenericInvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPrice
         self.end = end or timezone.now()
         self.save(update_fields=['end'])
 
-    def name(self):
-        raise NotImplementedError()
-
     def __str__(self):
-        return self.name or '<GenericInvoiceItem %s>' % self.pk
+        return self.name or '<InvoiceItem %s>' % self.pk
 
     def create_compensation(self, name, **kwargs):
         FIELDS = (
@@ -284,7 +281,7 @@ class GenericInvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPrice
             'name': _('Compensation for downtime. Resource name: %s') % name
         }
 
-        return GenericInvoiceItem.objects.create(**params)
+        return InvoiceItem.objects.create(**params)
 
 
 def get_default_downtime_start():
@@ -365,12 +362,12 @@ class InvoiceItemAdjuster(object):
     def invoice_items(self):
         # TODO: Remove temporary workaround for OpenStack package
         if isinstance(self.source, package_models.OpenStackPackage):
-            return GenericInvoiceItem.objects.filter(
+            return InvoiceItem.objects.filter(
                 invoice=self.invoice,
                 content_type=self.content_type,
                 details__tenant_name=self.source.tenant.name,
             )
-        return GenericInvoiceItem.objects.filter(
+        return InvoiceItem.objects.filter(
             invoice=self.invoice,
             content_type=self.content_type,
             object_id=self.source.pk,

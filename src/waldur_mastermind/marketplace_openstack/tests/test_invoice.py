@@ -194,7 +194,7 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             sender=self.resource.__class__,
             instance=self.resource,
         )
-        invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=self.resource)
+        invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
         self.assertEqual(invoice_item.unit_price,
                          self.limits[RAM_TYPE] * self.prices[RAM_TYPE] +
                          self.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
@@ -214,7 +214,7 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             sender=self.resource.__class__,
             instance=self.resource,
         )
-        invoice_items = invoices_models.GenericInvoiceItem.objects.filter(scope=self.resource)
+        invoice_items = invoices_models.InvoiceItem.objects.filter(scope=self.resource)
 
         self.assertEqual(invoice_items.count(), 2)
         self.assertNotEqual(invoice_items.last().unit_price, invoice_items.first().unit_price)
@@ -232,5 +232,5 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             sender=self.resource.__class__,
             instance=self.resource,
         )
-        invoice_item = invoices_models.GenericInvoiceItem.objects.get(scope=self.resource)
+        invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
         self.assertIsNotNone(invoice_item.end)

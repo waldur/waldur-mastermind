@@ -10,17 +10,17 @@ class TotalCostTest(test.APITransactionTestCase):
         self.fixture1 = invoice_fixtures.InvoiceFixture()
         self.fixture2 = invoice_fixtures.InvoiceFixture()
 
-        invoice_factories.GenericInvoiceItemFactory(
+        invoice_factories.InvoiceItemFactory(
             invoice=self.fixture1.invoice,
             project=self.fixture1.project,
-            unit=invoice_models.GenericInvoiceItem.Units.QUANTITY,
+            unit=invoice_models.InvoiceItem.Units.QUANTITY,
             unit_price=10,
             quantity=10,
         )
-        invoice_factories.GenericInvoiceItemFactory(
+        invoice_factories.InvoiceItemFactory(
             invoice=self.fixture2.invoice,
             project=self.fixture2.project,
-            unit=invoice_models.GenericInvoiceItem.Units.QUANTITY,
+            unit=invoice_models.InvoiceItem.Units.QUANTITY,
             unit_price=20,
             quantity=5,
         )

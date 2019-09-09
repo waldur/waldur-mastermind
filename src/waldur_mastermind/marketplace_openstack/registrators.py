@@ -29,7 +29,7 @@ class MarketplaceItemRegistrator(BaseRegistrator):
             source.limits[component.component.type] * component.price
             for component in source.plan.components.all()
         )
-        item = invoices_models.GenericInvoiceItem.objects.create(
+        item = invoices_models.InvoiceItem.objects.create(
             scope=source,
             project=source.project,
             unit_price=unit_price,
