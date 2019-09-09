@@ -113,7 +113,6 @@ class OfferingRegistrator(registrators.BaseRegistrator):
     def get_details(self, source):
         offering = source
         details = {
-            'name': self.get_name(offering),
             'offering_type': offering.type,
             'offering_name': offering.name,
             'offering_uuid': offering.uuid.hex,

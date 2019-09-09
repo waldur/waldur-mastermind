@@ -85,3 +85,13 @@ class VirtualMachineRegistrator(BaseRegistrator):
             ram=mb_to_gb(source.ram),
             disk=mb_to_gb(source.total_disk),
         )
+
+    def get_details(self, source):
+        details = {
+            'cpu': source.cores,
+            'ram': source.ram,
+            'disk': source.total_disk,
+        }
+        service_provider_info = marketplace_utils.get_service_provider_info(source)
+        details.update(service_provider_info)
+        return details

@@ -51,7 +51,6 @@ class OpenStackItemRegistrator(BaseRegistrator):
     def get_details(self, source):
         package = source
         details = {
-            'name': self.get_name(package),
             'tenant_name': package.tenant.name,
             'tenant_uuid': package.tenant.uuid.hex,
             'template_name': package.template.name,
