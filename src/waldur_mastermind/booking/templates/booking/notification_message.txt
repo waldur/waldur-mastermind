@@ -1,0 +1,6 @@
+Hello!
+
+Please do not forget about upcoming booking:
+{% for resource in resources %}
+    {{ resource.name }}{% if not forloop.last %}, {% endif %}
+{% endfor %}.
