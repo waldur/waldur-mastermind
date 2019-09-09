@@ -219,7 +219,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 
 
 class PortViewSet(structure_views.BaseResourceViewSet):
-    queryset = models.Port.objects.all()
+    queryset = models.Port.objects.all().order_by('-created')
     serializer_class = serializers.PortSerializer
     filter_class = filters.PortFilter
     disabled_actions = ['create', 'update', 'partial_update']
