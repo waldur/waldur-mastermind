@@ -59,6 +59,9 @@ class BaseRegistrator(object):
     def _find_item(self, source, now):
         """
         Find an item or some items by source and date.
+        It is assumed that there could be only one active
+        (ie without end date) invoice item for the same
+        resource during the same billing period (ie month).
         :param source: object that was bought by customer.
         :param now: date of invoice with invoice items.
         :return: invoice item, item's list (or another iterable object, f.e. tuple or queryset) or None
@@ -73,7 +76,7 @@ class BaseRegistrator(object):
             invoice__state=invoices_models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,
-        ).first()
+        ).exclude(end=None).first()
         return result
 
     def get_name(self, source):
