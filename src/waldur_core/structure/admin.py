@@ -359,6 +359,14 @@ class ServiceSettingsAdminForm(ModelForm):
                 if unfilled:
                     self.add_error('options', _('This field must include keys: %s') %
                                    ', '.join(unfilled))
+                service_serializer = SupportedServices.get_service_serializer_for_key(service_type)
+                options_serializer_class = getattr(service_serializer.Meta, 'options_serializer', None)
+                if options_serializer_class:
+                    options_serializer = options_serializer_class(data=options)
+                    if not options_serializer.is_valid():
+                        self.add_error('options', json.dumps(options_serializer.errors))
+                    else:
+                        cleaned_data['options'] = options_serializer.validated_data
         except ValueError:
             self.add_error('options', _('JSON is not valid'))
 

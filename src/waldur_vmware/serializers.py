@@ -25,6 +25,14 @@ def get_int_or_none(options, key):
     return value
 
 
+class OptionsSerializer(serializers.Serializer):
+    max_cpu = serializers.IntegerField(min_value=1, required=False)
+    max_cores_per_socket = serializers.IntegerField(min_value=1, required=False)
+    max_ram = serializers.IntegerField(min_value=1, required=False)
+    max_disk = serializers.IntegerField(min_value=1, required=False)
+    max_disk_total = serializers.IntegerField(min_value=1, required=False)
+
+
 class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
                         structure_serializers.BaseServiceSerializer):
 
@@ -46,6 +54,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.VMwareService
         required_fields = ('backend_url', 'username', 'password', 'default_cluster_label')
+        options_serializer = OptionsSerializer
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
