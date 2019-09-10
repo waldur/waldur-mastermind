@@ -40,13 +40,13 @@ class InvoicesTest(TestCase):
         allocation.save()
 
         invoice_item = self.get_invoice_item()
+        self.assertEqual(invoice_item.name, allocation.name)
         self.assertEqual(invoice_item.details, {
-            'name': allocation.name,
             'cpu_usage': allocation.cpu_usage,
             'gpu_usage': allocation.gpu_usage,
             'ram_usage': allocation.ram_usage,
             'scope_uuid': allocation.uuid.hex,
-            'deposit_usage': '0.00',
+            'deposit_usage': '0',
         })
 
     def create_package(self):

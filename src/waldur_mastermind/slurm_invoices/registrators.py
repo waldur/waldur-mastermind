@@ -53,6 +53,7 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             'gpu_usage': source.gpu_usage,
             'ram_usage': source.ram_usage,
             'deposit_usage': six.text_type(source.deposit_usage),
+            'scope_uuid': source.uuid.hex,
         }
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)

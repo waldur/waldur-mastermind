@@ -36,7 +36,6 @@ def create_monthly_invoices():
     )
     for invoice in old_invoices:
         invoice.set_created()
-        invoice.freeze()
 
     customers = structure_models.Customer.objects.all()
     if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:

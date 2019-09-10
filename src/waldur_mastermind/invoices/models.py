@@ -121,9 +121,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     def set_created(self):
         """
-        Performs following actions:
-            - Freeze all invoice items
-            - Change state from pending to billed
+        Change state from pending to billed
         """
         if self.state != self.States.PENDING:
             raise IncorrectStateException(_('Invoice must be in pending state.'))
@@ -131,10 +129,6 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.state = self.States.CREATED
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
-
-    def freeze(self):
-        for item in self.items:
-            item.freeze()
 
     @property
     def file(self):

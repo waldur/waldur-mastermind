@@ -129,7 +129,7 @@ class InvoicesTest(InvoicesBaseTest):
         self.assertEqual(old_items.count(), 2)
 
         for i in old_items:
-            self.assertTrue(self.fixture.plan.name in i.details['name'])
+            self.assertTrue(self.fixture.plan.name in i.name)
             unit_price += i.unit_price
 
         self.assertEqual(unit_price, self.fixture.plan.unit_price)
@@ -144,7 +144,7 @@ class InvoicesTest(InvoicesBaseTest):
         self.assertEqual(new_items.count(), 2)
 
         for i in new_items:
-            self.assertTrue(self.fixture.new_plan.name in i.details['name'])
+            self.assertTrue(self.fixture.new_plan.name in i.name)
             unit_price += i.unit_price
 
         self.assertEqual(unit_price, self.fixture.new_plan.unit_price)

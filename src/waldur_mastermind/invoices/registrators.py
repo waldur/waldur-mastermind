@@ -79,7 +79,7 @@ class BaseRegistrator(object):
 
     def init_details(self, item):
         item.name = self.get_name(item.scope)
-        item.details = self.get_details(item.scope)
+        item.details.update(self.get_details(item.scope))
         item.details['scope_uuid'] = item.scope.uuid.hex
         item.save(update_fields=['name', 'details'])
 
