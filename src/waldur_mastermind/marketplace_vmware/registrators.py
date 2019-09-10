@@ -62,9 +62,7 @@ class VirtualMachineRegistrator(BaseRegistrator):
             invoice, source, start, total_price, plan.unit)
 
         details = self.get_details(source)
-        service_provider_info = marketplace_utils.get_service_provider_info(resource)
-        details.update(service_provider_info)
-        invoices_models.GenericInvoiceItem.objects.create(
+        item = invoices_models.InvoiceItem.objects.create(
             scope=source,
             project=_get_project(source),
             unit_price=total_price,
@@ -76,6 +74,7 @@ class VirtualMachineRegistrator(BaseRegistrator):
             end=end,
             details=details,
         )
+        self.init_details(item)
 
     def get_name(self, source):
         return '{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(
@@ -84,3 +83,13 @@ class VirtualMachineRegistrator(BaseRegistrator):
             ram=mb_to_gb(source.ram),
             disk=mb_to_gb(source.total_disk),
         )
+
+    def get_details(self, source):
+        details = {
+            'cpu': source.cores,
+            'ram': source.ram,
+            'disk': source.total_disk,
+        }
+        service_provider_info = marketplace_utils.get_service_provider_info(source)
+        details.update(service_provider_info)
+        return details

@@ -20,7 +20,7 @@ def is_request_based(offering):
 
 def get_offering_items():
     model_type = ContentType.objects.get_for_model(support_models.Offering)
-    return invoice_models.GenericInvoiceItem.objects.filter(content_type=model_type)
+    return invoice_models.InvoiceItem.objects.filter(content_type=model_type)
 
 
 def component_usage_register(component_usage):
@@ -35,13 +35,13 @@ def component_usage_register(component_usage):
 
     try:
         plan_component = plan.components.get(component=component_usage.component)
-        item = invoice_models.GenericInvoiceItem.objects.get(scope=component_usage.resource.scope,
-                                                             details__plan_period_id=plan_period.id,
-                                                             details__plan_component_id=plan_component.id)
+        item = invoice_models.InvoiceItem.objects.get(scope=component_usage.resource.scope,
+                                                      details__plan_period_id=plan_period.id,
+                                                      details__plan_component_id=plan_component.id)
         item.quantity = component_usage.usage
         item.unit_price = plan_component.price
         item.save()
-    except invoice_models.GenericInvoiceItem.DoesNotExist:
+    except invoice_models.InvoiceItem.DoesNotExist:
         offering = component_usage.resource.scope
         customer = offering.project.customer
         invoice, created = registrators.RegistrationManager.get_or_create_invoice(customer, component_usage.date)
@@ -58,7 +58,7 @@ def component_usage_register(component_usage):
         end = month_end if not component_usage.plan_period.end else \
             min(component_usage.plan_period.end, month_end)
 
-        invoice_models.GenericInvoiceItem.objects.create(
+        invoice_models.InvoiceItem.objects.create(
             content_type=ContentType.objects.get_for_model(offering),
             object_id=offering.id,
             project=offering.project,
@@ -75,7 +75,7 @@ def component_usage_register(component_usage):
 
     except marketplace_models.PlanComponent.DoesNotExist:
         logger.warning('Plan component for usage component %s is not found.', component_usage.id)
-    except invoice_models.GenericInvoiceItem.MultipleObjectsReturned:
+    except invoice_models.InvoiceItem.MultipleObjectsReturned:
         logger.warning('Skipping the invoice item unit price update '
                        'because multiple GenericInvoiceItem objects found. Scope: %s %s, date: %s.',
                        component_usage.resource.content_type,

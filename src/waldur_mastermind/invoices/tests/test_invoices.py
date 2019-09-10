@@ -148,7 +148,7 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()
         self.package = self.fixture.openstack_package
-        self.item = models.GenericInvoiceItem.objects.get(scope=self.package)
+        self.item = models.InvoiceItem.objects.get(scope=self.package)
 
     def check_output(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -169,13 +169,13 @@ class OpenStackInvoiceItemTest(test.APITransactionTestCase):
         self.check_output()
 
 
-class GenericInvoiceItemTest(test.APITransactionTestCase):
+class InvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = slurm_fixtures.SlurmFixture()
         self.package = slurm_factories.SlurmPackageFactory(service_settings=self.fixture.service.settings)
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.scope = self.fixture.allocation
-        self.item = models.GenericInvoiceItem.objects.filter(scope=self.scope).get()
+        self.item = models.InvoiceItem.objects.filter(scope=self.scope).get()
         self.item.unit = models.InvoiceItem.Units.QUANTITY
         self.item.quantity = 10
         self.item.unit_price = 10
@@ -201,7 +201,7 @@ class GenericInvoiceItemTest(test.APITransactionTestCase):
     def test_scope_type_is_rendered_for_support_request(self):
         fixture = support_fixtures.SupportFixture()
         invoice = factories.InvoiceFactory(customer=fixture.customer)
-        models.GenericInvoiceItem.objects.create(
+        models.InvoiceItem.objects.create(
             scope=fixture.offering,
             invoice=invoice,
             unit=models.InvoiceItem.Units.QUANTITY,
@@ -230,7 +230,7 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
 
     @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_not_delete_customer_with_non_empty_invoice(self):
-        factories.GenericInvoiceItemFactory(invoice=self.invoice, unit_price=100)
+        factories.InvoiceItemFactory(invoice=self.invoice, unit_price=100)
 
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
@@ -253,7 +253,7 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_staff_can_delete_customer_with_non_empty_invoice(self):
-        factories.GenericInvoiceItemFactory(invoice=self.invoice, unit_price=100)
+        factories.InvoiceItemFactory(invoice=self.invoice, unit_price=100)
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.delete(self.url)
@@ -285,7 +285,7 @@ class InvoicePDFTest(test.APITransactionTestCase):
     def test_create_invoice_pdf_is_not_called_if_invoice_cost_has_not_been_changed(self, mock_tasks):
         with freeze_time('2019-01-02'):
             invoice = factories.InvoiceFactory()
-            factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
+            factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
             invoice.update_current_cost()
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
@@ -294,8 +294,8 @@ class InvoicePDFTest(test.APITransactionTestCase):
     def test_create_invoice_pdf_is_called_if_invoice_cost_has_been_changed(self, mock_tasks):
         with freeze_time('2019-01-02'):
             invoice = factories.InvoiceFactory()
-            factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
+            factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 1)
-            factories.GenericInvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
+            factories.InvoiceItemFactory(invoice=invoice, unit_price=Decimal(10))
             invoice.update_current_cost()
             self.assertEqual(mock_tasks.create_invoice_pdf.delay.call_count, 2)

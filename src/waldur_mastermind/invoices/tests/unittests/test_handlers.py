@@ -131,7 +131,7 @@ class UpdateInvoiceOnOfferingDeletionTest(TransactionTestCase):
 
     def get_openstack_items(self, invoice):
         model_type = ContentType.objects.get_for_model(packages_models.OpenStackPackage)
-        return invoices_models.GenericInvoiceItem.objects.filter(content_type=model_type, invoice=invoice)
+        return invoices_models.InvoiceItem.objects.filter(content_type=model_type, invoice=invoice)
 
     def get_offering_items(self, invoice):
         return support_utils.get_offering_items().filter(invoice=invoice)
@@ -193,7 +193,7 @@ class UpdateInvoiceCurrentCostTest(TransactionTestCase):
         self.invoice = factories.InvoiceFactory(customer=self.project.customer)
 
     def create_invoice_item(self):
-        return factories.GenericInvoiceItemFactory(
+        return factories.InvoiceItemFactory(
             invoice=self.invoice,
             project=self.project,
             unit_price=100,

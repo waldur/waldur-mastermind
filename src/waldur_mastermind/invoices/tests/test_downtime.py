@@ -82,7 +82,7 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()
         self.package = self.fixture.openstack_package
-        self.item = models.GenericInvoiceItem.objects.get(object_id=self.package.id)
+        self.item = models.InvoiceItem.objects.get(object_id=self.package.id)
         self.item.start = parse_datetime('2018-10-11')
         self.item.end = parse_datetime('2018-10-15')
         self.item.save()
@@ -93,7 +93,7 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-01'),
             end=parse_datetime('2018-10-20'),
         )
-        compensation = models.GenericInvoiceItem.objects.filter(
+        compensation = models.InvoiceItem.objects.filter(
             start=self.item.start, end=self.item.end, details__icontains='compensation').get()
         self.assertEqual(compensation.price, -1 * self.item.price)
         self.assertEqual(compensation.details['name'],
@@ -105,7 +105,7 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-12'),
             end=parse_datetime('2018-10-14'),
         )
-        self.assertTrue(models.GenericInvoiceItem.objects.filter(
+        self.assertTrue(models.InvoiceItem.objects.filter(
             start=downtime.start, end=downtime.end, details__icontains='compensation').exists())
 
     def test_downtime_at_the_start_of_invoice_item_billing_period(self):
@@ -114,7 +114,7 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-01'),
             end=parse_datetime('2018-10-12'),
         )
-        self.assertTrue(models.GenericInvoiceItem.objects.filter(
+        self.assertTrue(models.InvoiceItem.objects.filter(
             start=self.item.start, end=downtime.end, details__icontains='compensation').exists())
 
     def test_downtime_at_the_end_of_invoice_item_billing_period(self):
@@ -123,7 +123,7 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-12'),
             end=parse_datetime('2018-10-20'),
         )
-        self.assertTrue(models.GenericInvoiceItem.objects.filter(
+        self.assertTrue(models.InvoiceItem.objects.filter(
             start=downtime.start, end=self.item.end, details__icontains='compensation').exists())
 
     def test_compensation_is_not_created_if_downtime_and_item_do_not_intersect(self):
@@ -132,7 +132,7 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-01'),
             end=parse_datetime('2018-10-07'),
         )
-        self.assertFalse(models.GenericInvoiceItem.objects.filter(scope__isnull=True, details__icontains='compensation')
+        self.assertFalse(models.InvoiceItem.objects.filter(scope__isnull=True, details__icontains='compensation')
                          .exists())
 
     def test_compensation_is_not_created_if_item_does_not_have_package(self):
@@ -143,5 +143,5 @@ class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
             start=parse_datetime('2018-10-01'),
             end=parse_datetime('2018-10-20'),
         )
-        self.assertFalse(models.GenericInvoiceItem.objects.filter(scope__isnull=True, details__icontains='compensation')
+        self.assertFalse(models.InvoiceItem.objects.filter(scope__isnull=True, details__icontains='compensation')
                          .exists())

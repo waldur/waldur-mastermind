@@ -7,8 +7,9 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('invoices', '0026_invoice__file'),
-        ('contenttypes', '0002_remove_content_type_name'),
+        ('invoices', '0030_json_details_on_genericinvoiceitem'),
     ]
 
-    operations = []
+    operations = [
+        migrations.RenameModel('GenericInvoiceItem', 'InvoiceItem')
+    ]

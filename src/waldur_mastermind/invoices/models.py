@@ -31,7 +31,7 @@ from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.utils import get_price_per_day
 from waldur_mastermind.packages import models as package_models
 
-from . import managers, utils, registrators
+from . import managers, utils
 
 logger = logging.getLogger(__name__)
 
@@ -121,9 +121,7 @@ class Invoice(core_models.UuidMixin, models.Model):
 
     def set_created(self):
         """
-        Performs following actions:
-            - Freeze all invoice items
-            - Change state from pending to billed
+        Change state from pending to billed
         """
         if self.state != self.States.PENDING:
             raise IncorrectStateException(_('Invoice must be in pending state.'))
@@ -131,10 +129,6 @@ class Invoice(core_models.UuidMixin, models.Model):
         self.state = self.States.CREATED
         self.invoice_date = timezone.now().date()
         self.save(update_fields=['state', 'invoice_date'])
-
-    def freeze(self):
-        for item in self.items:
-            item.freeze()
 
     @property
     def file(self):
@@ -161,11 +155,17 @@ class Invoice(core_models.UuidMixin, models.Model):
 @python_2_unicode_compatible
 class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
-    Mixin which identifies invoice item to be used for price calculation.
+    It is expected that get_scope_type method is defined as class method in scope class
+    as it is used in generic invoice item serializer.
     """
+    invoice = models.ForeignKey(Invoice, related_name='generic_items')
+    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+    quantity = models.PositiveIntegerField(default=0)
 
-    class Meta(object):
-        abstract = True
+    scope = GenericForeignKey('content_type', 'object_id')
+    name = models.TextField(default='')
+    details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
 
     start = models.DateTimeField(default=utils.get_current_month_start,
                                  help_text=_('Date and time when item usage has started.'))
@@ -176,6 +176,9 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     project = models.ForeignKey(structure_models.Project, on_delete=models.SET_NULL, null=True)
     project_name = models.CharField(max_length=150, blank=True)
     project_uuid = models.CharField(max_length=32, blank=True)
+
+    objects = managers.InvoiceItemManager()
+    tracker = FieldTracker()
 
     @property
     def tax(self):
@@ -244,18 +247,11 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
         return full_days
 
     def terminate(self, end=None):
-        self.freeze()
         self.end = end or timezone.now()
         self.save(update_fields=['end'])
 
-    def name(self):
-        raise NotImplementedError()
-
-    def freeze(self):
-        raise NotImplementedError()
-
     def __str__(self):
-        return self.name or '<GenericInvoiceItem %s>' % self.pk
+        return self.name or '<InvoiceItem %s>' % self.pk
 
     def create_compensation(self, name, **kwargs):
         FIELDS = (
@@ -279,44 +275,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             'name': _('Compensation for downtime. Resource name: %s') % name
         }
 
-        return GenericInvoiceItem.objects.create(**params)
-
-
-class GenericInvoiceItem(InvoiceItem):
-    """
-    It is expected that get_scope_type method is defined as class method in scope class
-    as it is used in generic invoice item serializer.
-    """
-    invoice = models.ForeignKey(Invoice, related_name='generic_items')
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
-    object_id = models.PositiveIntegerField(null=True)
-    quantity = models.PositiveIntegerField(default=0)
-
-    scope = GenericForeignKey('content_type', 'object_id')
-    details = JSONField(default=dict, blank=True, help_text=_('Stores data about scope'))
-
-    objects = managers.GenericInvoiceItemManager()
-    tracker = FieldTracker()
-
-    @property
-    def name(self):
-        if self.details.get('name'):
-            return self.details.get('name')
-        if self.scope:
-            return registrators.RegistrationManager.get_name(self.scope)
-        # Ilja: temporary workaround to unlock creation of new invoices due to issues caused by 0027 migration
-        if self.details:
-            return ', '.join(['%s: %s' % (k, v) for k, v in self.details.items()])
-        if self.content_type:
-            return '%s.%s' % (self.content_type.app_label, self.content_type.model)
-        return ''
-
-    def freeze(self):
-        if self.scope:
-            self.details = registrators.RegistrationManager.get_details(self.scope)
-            self.details['name'] = registrators.RegistrationManager.get_name(self.scope)
-            self.details['scope_uuid'] = self.scope.uuid.hex
-            self.save(update_fields=['details'])
+        return InvoiceItem.objects.create(**params)
 
 
 def get_default_downtime_start():
@@ -397,12 +356,12 @@ class InvoiceItemAdjuster(object):
     def invoice_items(self):
         # TODO: Remove temporary workaround for OpenStack package
         if isinstance(self.source, package_models.OpenStackPackage):
-            return GenericInvoiceItem.objects.filter(
+            return InvoiceItem.objects.filter(
                 invoice=self.invoice,
                 content_type=self.content_type,
                 details__tenant_name=self.source.tenant.name,
             )
-        return GenericInvoiceItem.objects.filter(
+        return InvoiceItem.objects.filter(
             invoice=self.invoice,
             content_type=self.content_type,
             object_id=self.source.pk,
@@ -466,7 +425,7 @@ class InvoiceItemAdjuster(object):
 
         if self.unit == Units.PER_DAY:
             start = end.replace(hour=0, minute=0, second=0)
-        elif self.unit == Units.PER_DAY:
+        elif self.unit == Units.PER_HOUR:
             start = end.replace(minute=0, second=0)
         elif self.unit == Units.PER_MONTH:
             start = core_utils.month_start(end)

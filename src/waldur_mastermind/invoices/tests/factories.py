@@ -26,9 +26,9 @@ class InvoiceFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('invoice-list')
 
 
-class GenericInvoiceItemFactory(factory.DjangoModelFactory):
+class InvoiceItemFactory(factory.DjangoModelFactory):
     class Meta(object):
-        model = models.GenericInvoiceItem
+        model = models.InvoiceItem
 
     invoice = factory.SubFactory(InvoiceFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)

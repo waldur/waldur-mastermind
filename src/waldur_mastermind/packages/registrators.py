@@ -35,7 +35,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         start = invoices_models.adjust_invoice_items(
             invoice, source, start, price, package.template.unit)
 
-        invoices_models.GenericInvoiceItem.objects.create(
+        item = invoices_models.InvoiceItem.objects.create(
             scope=package,
             project=_get_project(package),
             unit_price=price,
@@ -46,11 +46,11 @@ class OpenStackItemRegistrator(BaseRegistrator):
             start=start,
             end=end,
             details=self.get_details(package))
+        self.init_details(item)
 
     def get_details(self, source):
         package = source
         details = {
-            'name': self.get_name(package),
             'tenant_name': package.tenant.name,
             'tenant_uuid': package.tenant.uuid.hex,
             'template_name': package.template.name,
