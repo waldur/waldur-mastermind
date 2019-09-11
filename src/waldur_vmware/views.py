@@ -257,7 +257,15 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
 
         return Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
-    extend_validators = [core_validators.StateValidator(models.Disk.States.OK)]
+    def validate_total_size(disk):
+        max_disk_total = serializers.get_int_or_none(disk.vm.service_settings.options, 'max_disk_total')
+
+        if max_disk_total:
+            remaining_quota = max_disk_total - disk.vm.total_disk
+            if remaining_quota < 1024:
+                raise rf_serializers.ValidationError('Storage quota has been exceeded.')
+
+    extend_validators = [core_validators.StateValidator(models.Disk.States.OK), validate_total_size]
     extend_serializer_class = serializers.DiskExtendSerializer
 
 

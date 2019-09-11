@@ -262,7 +262,7 @@ class VMwareBackend(ServiceBackend):
             frontend_item = frontend_clusters_map[item_id]
             if frontend_item.name != backend_item['name']:
                 frontend_item.name = backend_item['name']
-                frontend_item.save(updated_fields=['name'])
+                frontend_item.save(update_fields=['name'])
 
         for item_id in new_ids:
             item = backend_clusters_map[item_id]
@@ -300,7 +300,7 @@ class VMwareBackend(ServiceBackend):
             frontend_item = frontend_networks_map[item_id]
             if frontend_item.name != backend_item['name']:
                 frontend_item.name = backend_item['name']
-                frontend_item.save(updated_fields=['name'])
+                frontend_item.save(update_fields=['name'])
 
         for item_id in new_ids:
             item = backend_networks_map[item_id]
@@ -430,7 +430,7 @@ class VMwareBackend(ServiceBackend):
             frontend_item = frontend_folders_map[item_id]
             if frontend_item.name != backend_item['name']:
                 frontend_item.name = backend_item['name']
-                frontend_item.save(updated_fields=['name'])
+                frontend_item.save(update_fields=['name'])
 
         for item_id in new_ids:
             item = backend_folders_map[item_id]
