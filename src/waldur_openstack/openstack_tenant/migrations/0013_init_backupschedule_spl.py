@@ -19,5 +19,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(initialize_backupschedule_project_links),
+        migrations.RunPython(initialize_backupschedule_project_links, elidable=True),
     ]

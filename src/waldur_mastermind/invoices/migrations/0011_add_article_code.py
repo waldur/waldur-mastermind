@@ -13,9 +13,9 @@ class Migration(migrations.Migration):
         ('packages', '0013_packagetemplate_article_code'),
     ]
 
-    replaces = [
-        ('invoices', '0011_auto_20170618_1659'),
-    ]
+    # replaces = [
+    #     ('invoices', '0011_auto_20170618_1659'),
+    # ]
 
     operations = [
         migrations.AddField(

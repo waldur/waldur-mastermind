@@ -29,5 +29,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(set_invoice_item_project),
+        migrations.RunPython(set_invoice_item_project, elidable=True),
     ]

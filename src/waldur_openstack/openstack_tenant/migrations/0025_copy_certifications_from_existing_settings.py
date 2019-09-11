@@ -35,5 +35,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(copy_certifications_from_openstack_settings_to_openstack_tenant_settings),
+        migrations.RunPython(copy_certifications_from_openstack_settings_to_openstack_tenant_settings, elidable=True),
     ]

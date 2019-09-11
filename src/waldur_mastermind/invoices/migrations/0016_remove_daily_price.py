@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(migrate_invoice_item_price),
+        migrations.RunPython(migrate_invoice_item_price, elidable=True),
         migrations.RemoveField(
             model_name='offeringitem',
             name='daily_price',

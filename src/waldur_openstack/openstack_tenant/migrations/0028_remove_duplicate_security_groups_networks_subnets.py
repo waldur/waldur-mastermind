@@ -60,7 +60,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(drop_duplicate_security_groups),
-        migrations.RunPython(drop_duplicate_networks),
-        migrations.RunPython(drop_duplicate_subnets),
+        migrations.RunPython(drop_duplicate_security_groups, elidable=True),
+        migrations.RunPython(drop_duplicate_networks, elidable=True),
+        migrations.RunPython(drop_duplicate_subnets, elidable=True),
     ]

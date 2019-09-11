@@ -24,5 +24,5 @@ class Migration(migrations.Migration):
             name='billing_type',
             field=models.CharField(choices=[('fixed', 'Fixed-price'), ('usage', 'Usage-based'), ('one', 'One-time'), ('few', 'One-time on plan switch')], default='fixed', max_length=5),
         ),
-        migrations.RunPython(fill_activated_field),
+        migrations.RunPython(fill_activated_field, elidable=True),
     ]

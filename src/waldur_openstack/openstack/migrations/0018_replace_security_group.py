@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
             name='security_groups',
             field=models.ManyToManyField(related_name='instances', to='openstack.SecurityGroup'),
         ),
-        migrations.RunPython(populate_security_group_instances),
+        migrations.RunPython(populate_security_group_instances, elidable=True),
         migrations.RemoveField(
             model_name='instancesecuritygroup',
             name='instance',

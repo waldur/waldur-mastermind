@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
             item.save(update_fields=['daily_price'])
 
     operations = [
-        migrations.RunPython(migrate_daily_price),
+        migrations.RunPython(migrate_daily_price, elidable=True),
         migrations.RemoveField(
             model_name='openstackitem',
             name='price',

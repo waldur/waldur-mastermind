@@ -35,5 +35,5 @@ class Migration(migrations.Migration):
             name='internalip',
             unique_together=set([('backend_id', 'settings')]),
         ),
-        migrations.RunPython(populate_internal_ip_settings),
+        migrations.RunPython(populate_internal_ip_settings, elidable=True),
     ]

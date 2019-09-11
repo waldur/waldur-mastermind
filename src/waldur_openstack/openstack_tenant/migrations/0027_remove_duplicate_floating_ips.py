@@ -23,5 +23,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(remove_duplicate_floating_ips),
+        migrations.RunPython(remove_duplicate_floating_ips, elidable=True),
     ]
