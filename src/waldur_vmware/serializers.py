@@ -26,6 +26,7 @@ def get_int_or_none(options, key):
 
 
 class OptionsSerializer(serializers.Serializer):
+    default_cluster_label = serializers.CharField(required=False)
     max_cpu = serializers.IntegerField(min_value=1, required=False)
     max_cores_per_socket = serializers.IntegerField(min_value=1, required=False)
     max_ram = serializers.IntegerField(min_value=1, required=False)
