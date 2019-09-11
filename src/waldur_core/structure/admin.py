@@ -370,6 +370,8 @@ class ServiceSettingsAdminForm(ModelForm):
         except ValueError:
             self.add_error('options', _('JSON is not valid'))
 
+        return cleaned_data
+
     class Meta:
         widgets = {
             'options': JsonWidget(),
