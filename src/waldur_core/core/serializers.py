@@ -518,3 +518,11 @@ class GeoLocationField(serializers.JSONField):
 
         validators.append(geo_location_validator)
         super(GeoLocationField, self).__init__(validators=validators, *args, **kwargs)
+
+
+class UnicodeIntegerField(serializers.IntegerField):
+
+    def to_internal_value(self, data):
+        if isinstance(data, unicode):
+            data = core_utils.normalize_unicode(data)
+        return super(UnicodeIntegerField, self).to_internal_value(data)
