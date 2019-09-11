@@ -258,7 +258,13 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
         return Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
     def validate_total_size(disk):
-        max_disk_total = serializers.get_int_or_none(disk.vm.service_settings.options, 'max_disk_total')
+        options = disk.vm.service_settings.options
+
+        max_disk = serializers.get_int_or_none(options, 'max_disk')
+        if max_disk and abs(max_disk - disk.size) < 1024:
+            raise rf_serializers.ValidationError('Storage limit has been reached.')
+
+        max_disk_total = serializers.get_int_or_none(options, 'max_disk_total')
 
         if max_disk_total:
             remaining_quota = max_disk_total - disk.vm.total_disk
