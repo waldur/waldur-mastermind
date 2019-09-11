@@ -63,5 +63,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(migrate_resource)
+        migrations.RunPython(migrate_resource, elidable=True)
     ]

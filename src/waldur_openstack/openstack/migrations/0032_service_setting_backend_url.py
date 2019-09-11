@@ -21,5 +21,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(update_service_settings_backend_url),
+        migrations.RunPython(update_service_settings_backend_url, elidable=True),
     ]

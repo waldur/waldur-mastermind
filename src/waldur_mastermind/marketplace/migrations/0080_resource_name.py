@@ -30,5 +30,5 @@ class Migration(migrations.Migration):
             field=models.CharField(default='', max_length=150, validators=[waldur_core.core.validators.validate_name], verbose_name='name'),
             preserve_default=False,
         ),
-        migrations.RunPython(fill_resource_name),
+        migrations.RunPython(fill_resource_name, elidable=True),
     ]

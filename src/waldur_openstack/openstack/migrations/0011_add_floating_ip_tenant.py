@@ -23,5 +23,5 @@ class Migration(migrations.Migration):
             name='tenant',
             field=models.ForeignKey(related_name='floating_ips', to='openstack.Tenant', null=True),
         ),
-        migrations.RunPython(pull_floating_ip_tenant)
+        migrations.RunPython(pull_floating_ip_tenant, elidable=True)
     ]

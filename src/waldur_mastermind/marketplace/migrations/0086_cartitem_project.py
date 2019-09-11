@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(remove_all_cart_items),
+        migrations.RunPython(remove_all_cart_items, elidable=True),
         migrations.AddField(
             model_name='cartitem',
             name='project',

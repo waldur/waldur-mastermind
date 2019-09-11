@@ -23,5 +23,5 @@ class Migration(migrations.Migration):
             name='tenant',
             field=models.ForeignKey(related_name='security_groups', to='openstack.Tenant', null=True),
         ),
-        migrations.RunPython(pull_security_group_tenant)
+        migrations.RunPython(pull_security_group_tenant, elidable=True)
     ]

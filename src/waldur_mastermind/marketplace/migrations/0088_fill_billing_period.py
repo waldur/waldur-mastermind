@@ -20,5 +20,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(fill_billing_period)
+        migrations.RunPython(fill_billing_period, elidable=True)
     ]

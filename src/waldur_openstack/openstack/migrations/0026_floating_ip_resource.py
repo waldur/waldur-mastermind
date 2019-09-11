@@ -89,6 +89,6 @@ class Migration(migrations.Migration):
             name='backend_id',
             field=models.CharField(max_length=255, blank=True),
         ),
-        migrations.RunPython(migrate_floatingip_status),
-        migrations.RunPython(migrate_floatingip_name),
+        migrations.RunPython(migrate_floatingip_status, elidable=True),
+        migrations.RunPython(migrate_floatingip_name, elidable=True),
     ]
