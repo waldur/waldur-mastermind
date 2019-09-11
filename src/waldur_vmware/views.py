@@ -177,8 +177,17 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         transaction.on_commit(lambda: executors.DiskCreateExecutor().execute(disk))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def validate_total_size(vm):
+        max_disk_total = serializers.get_int_or_none(vm.service_settings.options, 'max_disk_total')
+
+        if max_disk_total:
+            remaining_quota = max_disk_total - vm.total_disk
+            if remaining_quota < 1024:
+                raise rf_serializers.ValidationError('Storage quota has been exceeded.')
+
     create_disk_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
+        validate_total_size,
     ]
     create_disk_serializer_class = serializers.DiskSerializer
 
