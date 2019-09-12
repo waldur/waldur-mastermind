@@ -220,7 +220,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             elif (self.start.day < 16 and self.end.day == month_days):
                 return quantize_price(1 + (16 - self.start.day) / decimal.Decimal(month_days / 2))
             else:
-                return (self.end.day - self.start.day + 1) / (month_days / 2.0)
+                return quantize_price((self.end.day - self.start.day + 1) / decimal.Decimal(month_days / 2.0))
         # By default PER_MONTH
         else:
             if self.start.day == 1 and self.end.day == month_days:
