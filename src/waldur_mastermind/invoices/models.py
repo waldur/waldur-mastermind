@@ -23,6 +23,7 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
+from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
@@ -399,7 +400,14 @@ class InvoiceItemAdjuster(object):
         """
         end = self.old_item.end
 
-        if self.unit == Units.PER_HOUR:
+        if self.old_item.unit != self.unit and self.unit == Units.PER_MONTH:
+            end = core_utils.month_end(end)
+        elif self.old_item.unit != self.unit and self.unit == Units.PER_HALF_MONTH:
+            if end.day > 15:
+                end = core_utils.month_end(end)
+            else:
+                end = end.replace(day=15)
+        elif self.unit == Units.PER_HOUR:
             end = end.replace(minute=59, second=59)
         else:
             end = end.replace(hour=23, minute=59, second=59)
@@ -414,7 +422,14 @@ class InvoiceItemAdjuster(object):
         """
         end = self.old_item.end
 
-        if self.unit == Units.PER_HOUR:
+        if self.old_item.unit != self.unit and self.unit == Units.PER_MONTH:
+            start = core_utils.month_start(end)
+        elif self.old_item.unit != self.unit and self.unit == Units.PER_HALF_MONTH:
+            if end.day < 15:
+                start = core_utils.month_start(end)
+            else:
+                start = end.replace(day=15)
+        elif self.unit == Units.PER_HOUR:
             start = end.replace(minute=0, second=0)
         else:
             start = end.replace(hour=0, minute=0, second=0)
@@ -459,5 +474,10 @@ def adjust_invoice_items(invoice, source, start, unit_price, unit):
     is terminated and new invoice item is created.
     In order to avoid double counting we should ensure that
     there're no overlapping invoice items for the same scope.
+
+    By default daily prorate is used even if plan is monthly or half-monthly.
+    Two notable exceptions are:
+    1) Switching from daily plan to monthly.
+    2) Switching between hourly plans.
     """
     return InvoiceItemAdjuster(invoice, source, start, unit_price, unit).adjust()
