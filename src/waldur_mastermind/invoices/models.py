@@ -23,7 +23,6 @@ from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
-from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
