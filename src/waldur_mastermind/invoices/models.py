@@ -400,17 +400,10 @@ class InvoiceItemAdjuster(object):
         """
         end = self.old_item.end
 
-        if self.unit == Units.PER_DAY:
-            end = end.replace(hour=23, minute=59, second=59)
-        elif self.unit == Units.PER_HOUR:
+        if self.unit == Units.PER_HOUR:
             end = end.replace(minute=59, second=59)
-        elif self.unit == Units.PER_MONTH:
-            end = core_utils.month_end(end)
-        elif self.unit == Units.PER_HALF_MONTH:
-            if end.day > 15:
-                end = core_utils.month_end(end)
-            else:
-                end = end.replace(day=15)
+        else:
+            end = end.replace(hour=23, minute=59, second=59)
 
         start = end + timedelta(seconds=1)
         return start, end
@@ -420,20 +413,12 @@ class InvoiceItemAdjuster(object):
         Adjust old invoice item end field to the end of previous unit
         Adjust new invoice item field to the start of current unit.
         """
-        start = self.start
         end = self.old_item.end
 
-        if self.unit == Units.PER_DAY:
-            start = end.replace(hour=0, minute=0, second=0)
-        elif self.unit == Units.PER_HOUR:
+        if self.unit == Units.PER_HOUR:
             start = end.replace(minute=0, second=0)
-        elif self.unit == Units.PER_MONTH:
-            start = core_utils.month_start(end)
-        elif self.unit == Units.PER_HALF_MONTH:
-            if end.day < 15:
-                start = core_utils.month_start(end)
-            else:
-                start = end.replace(day=15)
+        else:
+            start = end.replace(hour=0, minute=0, second=0)
 
         end = start - timedelta(seconds=1)
         return start, end
@@ -447,13 +432,6 @@ class InvoiceItemAdjuster(object):
             qs = qs.filter(start__day=start.day)
         elif self.unit == Units.PER_HOUR:
             qs = qs.filter(start__day=start.day, start__hour=start.hour)
-        elif self.unit == Units.PER_MONTH:
-            qs = qs.filter(start__month=start.month)
-        elif self.unit == Units.PER_HALF_MONTH:
-            if start.day <= 15:
-                qs = qs.filter(start__day__lte=15)
-            else:
-                qs = qs.filter(start__day__gt=15)
         else:
             qs = qs.none()
 
