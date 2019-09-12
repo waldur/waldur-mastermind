@@ -19,5 +19,5 @@ class Migration(migrations.Migration):
             item.save(update_fields=['daily_price'])
 
     operations = [
-        migrations.RunPython(quantize_prices),
+        migrations.RunPython(quantize_prices, elidable=True),
     ]

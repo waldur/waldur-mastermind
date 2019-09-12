@@ -177,8 +177,17 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         transaction.on_commit(lambda: executors.DiskCreateExecutor().execute(disk))
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    def validate_total_size(vm):
+        max_disk_total = serializers.get_int_or_none(vm.service_settings.options, 'max_disk_total')
+
+        if max_disk_total:
+            remaining_quota = max_disk_total - vm.total_disk
+            if remaining_quota < 1024:
+                raise rf_serializers.ValidationError('Storage quota has been exceeded.')
+
     create_disk_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
+        validate_total_size,
     ]
     create_disk_serializer_class = serializers.DiskSerializer
 
@@ -219,7 +228,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 
 
 class PortViewSet(structure_views.BaseResourceViewSet):
-    queryset = models.Port.objects.all()
+    queryset = models.Port.objects.all().order_by('-created')
     serializer_class = serializers.PortSerializer
     filter_class = filters.PortFilter
     disabled_actions = ['create', 'update', 'partial_update']
@@ -228,7 +237,7 @@ class PortViewSet(structure_views.BaseResourceViewSet):
 
 
 class DiskViewSet(structure_views.BaseResourceViewSet):
-    queryset = models.Disk.objects.all()
+    queryset = models.Disk.objects.all().order_by('-created')
     serializer_class = serializers.DiskSerializer
     filter_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
@@ -248,16 +257,21 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
 
         return Response({'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED)
 
-    def vm_is_powered_off(disk):
-        if disk.vm.runtime_state != models.VirtualMachine.RuntimeStates.POWERED_OFF:
-            raise rf_serializers.ValidationError(
-                'Disk extension should be done only when the VM is powered off.'
-            )
+    def validate_total_size(disk):
+        options = disk.vm.service_settings.options
 
-    extend_validators = [
-        core_validators.StateValidator(models.Disk.States.OK),
-        vm_is_powered_off,
-    ]
+        max_disk = serializers.get_int_or_none(options, 'max_disk')
+        if max_disk and abs(max_disk - disk.size) < 1024:
+            raise rf_serializers.ValidationError('Storage limit has been reached.')
+
+        max_disk_total = serializers.get_int_or_none(options, 'max_disk_total')
+
+        if max_disk_total:
+            remaining_quota = max_disk_total - disk.vm.total_disk
+            if remaining_quota < 1024:
+                raise rf_serializers.ValidationError('Storage quota has been exceeded.')
+
+    extend_validators = [core_validators.StateValidator(models.Disk.States.OK), validate_total_size]
     extend_serializer_class = serializers.DiskExtendSerializer
 
 

@@ -38,6 +38,9 @@ class DiskFilter(structure_filters.BaseResourceFilter):
 
     vm = core_filters.URLFilter(view_name='vmware-virtual-machine-detail', name='vm__uuid')
     vm_uuid = django_filters.UUIDFilter(name='vm__uuid')
+    ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
+        ('size', 'size'),
+    )
 
 
 class TemplateFilter(structure_filters.ServicePropertySettingsFilter):

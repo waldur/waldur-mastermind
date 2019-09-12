@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
             name='tenant',
             field=models.ForeignKey(related_name='backups', to='openstack.Tenant'),
         ),
-        migrations.RunPython(init_backup_snapshots),
+        migrations.RunPython(init_backup_snapshots, elidable=True),
         migrations.CreateModel(
             name='BackupRestoration',
             fields=[

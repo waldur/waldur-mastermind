@@ -23,5 +23,5 @@ class Migration(migrations.Migration):
             name='terminated_at',
             field=models.DateTimeField(blank=True, editable=False, null=True),
         ),
-        migrations.RunPython(updated_offerings)
+        migrations.RunPython(updated_offerings, elidable=True)
     ]

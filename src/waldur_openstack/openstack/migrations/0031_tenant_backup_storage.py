@@ -32,6 +32,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(cleanup_tenant_quotas),
-        migrations.RunPython(cleanup_openstackservice_quotas),
+        migrations.RunPython(cleanup_tenant_quotas, elidable=True),
+        migrations.RunPython(cleanup_openstackservice_quotas, elidable=True),
     ]

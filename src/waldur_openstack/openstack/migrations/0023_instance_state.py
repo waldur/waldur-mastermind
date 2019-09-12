@@ -63,7 +63,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(migrate_instance_state),
+        migrations.RunPython(migrate_instance_state, elidable=True),
         migrations.AlterField(
             model_name='instance',
             name='state',

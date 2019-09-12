@@ -6,7 +6,7 @@ from django.utils.timezone import now
 
 from waldur_core.core.models import StateMixin
 
-from . import log, models
+from . import log, models, signals
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ def resource_creation_succeeded(resource):
     if resource.plan:
         create_resource_plan_period(resource)
 
+    signals.resource_creation_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_creation_succeeded(resource)
 
 
@@ -85,6 +86,7 @@ def resource_update_succeeded(resource):
 
         create_resource_plan_period(resource)
 
+    signals.resource_update_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_update_succeeded(resource)
 
 
@@ -112,6 +114,7 @@ def resource_deletion_succeeded(resource):
     if resource.plan:
         close_resource_plan_period(resource)
 
+    signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
     log.log_resource_terminate_succeeded(resource)
 
 

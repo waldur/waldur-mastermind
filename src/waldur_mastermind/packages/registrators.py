@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from waldur_core.structure.permissions import _get_project
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoices_models
@@ -12,6 +14,9 @@ class OpenStackItemRegistrator(BaseRegistrator):
         return source.tenant.service_project_link.project.customer
 
     def get_sources(self, customer):
+        if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
+            return packages_models.OpenStackPackage.objects.none()
+
         return packages_models.OpenStackPackage.objects.filter(
             tenant__service_project_link__project__customer=customer
         ).exclude(tenant__backend_id='').exclude(tenant__backend_id=None).distinct()
@@ -30,7 +35,7 @@ class OpenStackItemRegistrator(BaseRegistrator):
         start = invoices_models.adjust_invoice_items(
             invoice, source, start, price, package.template.unit)
 
-        invoices_models.GenericInvoiceItem.objects.create(
+        item = invoices_models.InvoiceItem.objects.create(
             scope=package,
             project=_get_project(package),
             unit_price=price,
@@ -41,11 +46,11 @@ class OpenStackItemRegistrator(BaseRegistrator):
             start=start,
             end=end,
             details=self.get_details(package))
+        self.init_details(item)
 
     def get_details(self, source):
         package = source
         details = {
-            'name': self.get_name(package),
             'tenant_name': package.tenant.name,
             'tenant_uuid': package.tenant.uuid.hex,
             'template_name': package.template.name,

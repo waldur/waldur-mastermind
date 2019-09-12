@@ -43,5 +43,5 @@ class Migration(migrations.Migration):
             name='state',
             field=django_fsm.FSMIntegerField(default=5, choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')]),
         ),
-        migrations.RunPython(migrate_backups_states),
+        migrations.RunPython(migrate_backups_states, elidable=True),
     ]

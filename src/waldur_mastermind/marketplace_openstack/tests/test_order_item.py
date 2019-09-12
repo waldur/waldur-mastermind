@@ -9,6 +9,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.utils import create_offering_components
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as package_factories
@@ -20,7 +21,7 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
 
-from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
+from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, CORES_TYPE, STORAGE_TYPE
 
 
 class TenantGetTest(test.APITransactionTestCase):
@@ -53,6 +54,19 @@ class TenantGetTest(test.APITransactionTestCase):
 @ddt
 class TenantCreateTest(BaseOpenStackTest):
 
+    def setUp(self):
+        super(TenantCreateTest, self).setUp()
+        self.fixture = package_fixtures.PackageFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            scope=self.fixture.openstack_service_settings,
+            type=PACKAGE_TYPE,
+            state=marketplace_models.Offering.States.ACTIVE,
+        )
+        self.plan = marketplace_factories.PlanFactory(
+            scope=self.fixture.openstack_template,
+            offering=self.offering
+        )
+
     @data('staff', 'owner', 'manager', 'admin')
     def test_when_order_is_created_items_are_validated(self, user):
         response = self.create_order(user=user)
@@ -63,22 +77,53 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('user_username' in response.data)
 
-    def create_order(self, add_attributes=None, user='staff'):
-        fixture = package_fixtures.PackageFixture()
-        project_url = structure_factories.ProjectFactory.get_url(fixture.project)
+    def test_limits_are_not_checked_if_offering_components_limits_are_not_defined(self):
+        response = self.create_order(limits={
+            'cores': 2,
+            'ram': 1024 * 10,
+            'storage': 1024 * 1024 * 10
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        offering = marketplace_factories.OfferingFactory(
-            scope=fixture.openstack_service_settings,
-            type=PACKAGE_TYPE,
-            state=marketplace_models.Offering.States.ACTIVE,
+    def test_limits_are_checked_against_offering_components(self):
+        create_offering_components(self.offering)
+        self.offering.components.filter(type=CORES_TYPE).update(max_value=10)
+        self.offering.components.filter(type=RAM_TYPE).update(max_value=1024 * 10)
+        self.offering.components.filter(type=STORAGE_TYPE).update(max_value=1024 * 1024 * 10)
+
+        response = self.create_order(limits={
+            'cores': 20,
+            'ram': 1024 * 100,
+            'storage': 1024 * 1024 * 100
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def create_plan_component(self, type, price):
+        return marketplace_factories.PlanComponentFactory(
+            component=self.offering.components.get(type=type),
+            plan=self.plan,
+            price=price
         )
-        offering_url = marketplace_factories.OfferingFactory.get_url(offering)
 
-        plan = marketplace_factories.PlanFactory(scope=fixture.openstack_template, offering=offering)
-        plan_url = marketplace_factories.PlanFactory.get_url(plan)
+    def test_cost_estimate_is_calculated_using_limits(self):
+        create_offering_components(self.offering)
 
-        # Create SPL
-        fixture.openstack_spl
+        self.create_plan_component(CORES_TYPE, 1)
+        self.create_plan_component(RAM_TYPE, 0.5)
+        self.create_plan_component(STORAGE_TYPE, 0.1)
+
+        response = self.create_order(limits={
+            'cores': 20,
+            'ram': 1024 * 100,
+            'storage': 1024 * 1024 * 100
+        })
+        expected = 20 * 1 + 1024 * 100 * 0.5 + 1024 * 1024 * 100 * 0.1
+        self.assertEqual(float(response.data['total_cost']), expected)
+
+    def create_order(self, add_attributes=None, user='staff', limits=None):
+        project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
+        offering_url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        plan_url = marketplace_factories.PlanFactory.get_url(self.plan)
 
         attributes = dict(
             name='My first VPC',
@@ -98,23 +143,19 @@ class TenantCreateTest(BaseOpenStackTest):
                 },
             ]
         }
+        if limits:
+            payload['items'][0]['limits'] = limits
 
-        self.client.force_login(getattr(fixture, user))
+        self.client.force_login(getattr(self.fixture, user))
         url = marketplace_factories.OrderFactory.get_list_url()
         return self.client.post(url, payload)
 
     def test_when_order_item_is_approved_openstack_tenant_is_created(self):
         # Arrange
-        fixture = package_fixtures.PackageFixture()
-        offering = marketplace_factories.OfferingFactory(
-            scope=fixture.openstack_service_settings,
-            type=PACKAGE_TYPE
-        )
         order = marketplace_factories.OrderFactory(
             state=marketplace_models.Order.States.REQUESTED_FOR_APPROVAL,
-            project=fixture.project,
+            project=self.fixture.project,
         )
-        plan = marketplace_factories.PlanFactory(scope=fixture.openstack_template)
         attributes = dict(
             name='My first VPC',
             description='Database cluster',
@@ -122,13 +163,13 @@ class TenantCreateTest(BaseOpenStackTest):
         )
         order_item = marketplace_factories.OrderItemFactory(
             order=order,
-            offering=offering,
+            offering=self.offering,
             attributes=attributes,
-            plan=plan
+            plan=self.plan
         )
 
         serialized_order = core_utils.serialize_instance(order)
-        serialized_user = core_utils.serialize_instance(fixture.staff)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         # Assert
@@ -560,7 +601,7 @@ class TenantUpdateLimitTestBase(test.APITransactionTestCase):
         tenant.get_backend = self.mock_get_backend
         self.resource.scope = tenant
         self.resource.save()
-        self.quotas = {'network_count': 100, 'vcpu': 4, 'ram': 1024, 'storage': 1024, 'snapshots': 50, 'instances': 30,
+        self.quotas = {'network_count': 100, 'cores': 4, 'ram': 1024, 'storage': 1024, 'snapshots': 50, 'instances': 30,
                        'floating_ip_count': 50, 'subnet_count': 100, 'volumes': 50, 'security_group_rule_count': 100,
                        'security_group_count': 100}
 
@@ -594,8 +635,17 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
 
 
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
+    def setUp(self):
+        super(TenantUpdateLimitValidationTest, self).setUp()
+        marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            max_value=20,
+            min_value=2,
+            type='cores'
+        )
+
     def update_limits(self, user, resource, limits=None):
-        limits = limits or {'vcpu': 10}
+        limits = limits or {'cores': 10}
         self.client.force_authenticate(user)
         url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
         payload = {'limits': limits}
@@ -607,4 +657,16 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
 
     def test_validation_if_requested_unavailable_limits(self):
         response = self.update_limits(self.fixture.staff, self.resource, {'foo': 1})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validation_if_value_limit_in_confines(self):
+        response = self.update_limits(self.fixture.staff, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_validation_if_value_limit_more_max(self):
+        response = self.update_limits(self.fixture.staff, self.resource, {'cores': 30})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_validation_if_value_limit_less_min(self):
+        response = self.update_limits(self.fixture.staff, self.resource, {'cores': 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -53,5 +53,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(create_category_components),
+        migrations.RunPython(create_category_components, elidable=True),
     ]

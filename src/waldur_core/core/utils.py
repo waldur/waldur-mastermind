@@ -8,6 +8,7 @@ from operator import itemgetter
 import os
 import re
 import time
+import unicodedata
 import uuid
 
 from django.apps import apps
@@ -381,3 +382,7 @@ def decode_jwt_token(encoded_data, api_secret_code=None):
     if api_secret_code is None:
         api_secret_code = settings.SECRET_KEY
     return jwt.decode(encoded_data, api_secret_code, algorithms=['HS256'])
+
+
+def normalize_unicode(data):
+    return unicodedata.normalize(u'NFKD', data).encode('ascii', 'ignore').decode('utf8')

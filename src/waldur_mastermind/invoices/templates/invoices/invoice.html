@@ -103,17 +103,17 @@
       <table class="m-t invoice-total">
         <tr>
           <td><strong>{% trans "Subtotal" %}</strong></td>
-          <td>€{{ invoice.price | floatformat:2 | intcomma}}</td>
+          <td>{{ currency }} {{ invoice.price | floatformat:2 | intcomma}}</td>
         </tr>
         {% if invoice.tax %}
           <tr>
             <td><strong>{% trans "VAT" %}</strong></td>
-            <td>€ {{ invoice.tax | floatformat:2 | intcomma}}</td>
+            <td>{{ currency }} {{ invoice.tax | floatformat:2 | intcomma}}</td>
           </tr>
         {% endif %}
         <tr>
           <td><strong>{% trans "TOTAL" %}</strong></td>
-          <td>€{{ invoice.total | floatformat:2 | intcomma}}</td>
+          <td>{{ currency }} {{ invoice.total | floatformat:2 | intcomma}}</td>
       </tr>
       </table>
   </body>

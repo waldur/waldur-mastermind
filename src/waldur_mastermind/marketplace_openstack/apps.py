@@ -19,17 +19,20 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_openstack.openstack import models as openstack_models
         from waldur_openstack.openstack.apps import OpenStackConfig
         from waldur_openstack.openstack_tenant import models as tenant_models
+        from waldur_mastermind.invoices import registrators
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import filters as marketplace_filters
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace import signals as marketplace_signals
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace.plugins import Component
+        from waldur_mastermind.marketplace_openstack.registrators import MarketplaceItemRegistrator
         from waldur_mastermind.packages import models as package_models
 
         from . import (
             filters, handlers, processors,
             INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
-            RAM_TYPE, CORES_TYPE, STORAGE_TYPE,
+            RAM_TYPE, CORES_TYPE, STORAGE_TYPE, AVAILABLE_LIMITS
         )
 
         marketplace_filters.ExternalOfferingFilterBackend.register(filters.VpcExternalFilter())
@@ -85,7 +88,8 @@ class MarketplaceOpenStackConfig(AppConfig):
                              Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
                          ),
                          service_type=OpenStackConfig.service_name,
-                         secret_attributes=get_secret_attributes)
+                         secret_attributes=get_secret_attributes,
+                         available_limits=AVAILABLE_LIMITS)
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
@@ -146,4 +150,30 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=quota_models.Quota,
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
                          'update_openstack_tenant_usages',
+        )
+
+        registrators.RegistrationManager.add_registrator(
+            marketplace_models.Resource,
+            MarketplaceItemRegistrator,
+        )
+
+        marketplace_signals.resource_creation_succeeded.connect(
+            handlers.update_invoice_when_resource_is_created,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_invoice_when_resource_is_created',
+        )
+
+        marketplace_signals.resource_update_succeeded.connect(
+            handlers.update_invoice_when_resource_is_updated,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_invoice_when_resource_is_updated',
+        )
+
+        marketplace_signals.resource_update_succeeded.connect(
+            handlers.update_invoice_when_resource_is_deleted,
+            sender=marketplace_models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.'
+                         'update_invoice_when_resource_is_deleted',
         )

@@ -19,5 +19,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(add_backup_size_to_metadata),
+        migrations.RunPython(add_backup_size_to_metadata, elidable=True),
     ]

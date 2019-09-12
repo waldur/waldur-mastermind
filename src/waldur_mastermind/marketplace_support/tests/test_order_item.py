@@ -306,14 +306,14 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         self.get_order_item(self.success_issue_status)
         new_start = datetime.datetime.now()
         end = month_end(new_start)
-        self.assertTrue(invoices_models.GenericInvoiceItem.objects.filter(
+        self.assertTrue(invoices_models.InvoiceItem.objects.filter(
             scope=self.request,
             project=self.project,
             unit_price=Decimal(10),
             start=self.start,
             end=new_start,
         ).exists())
-        self.assertTrue(invoices_models.GenericInvoiceItem.objects.filter(
+        self.assertTrue(invoices_models.InvoiceItem.objects.filter(
             scope=self.request,
             project=self.project,
             unit_price=Decimal(50),

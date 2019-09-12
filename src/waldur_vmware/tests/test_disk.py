@@ -139,12 +139,12 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.data['actions']['extend']['fields']['size']['max_value'], 25 * 1024)
 
-    def test_extension_is_not_allowed_when_vm_is_running(self):
+    def test_extension_is_allowed_when_vm_is_running(self):
         self.disk.vm.runtime_state = models.VirtualMachine.RuntimeStates.POWERED_ON
         self.disk.vm.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, {'size': 10 * 1024})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
     def test_when_disk_is_created_vm_summary_is_updated(self):
         # Act

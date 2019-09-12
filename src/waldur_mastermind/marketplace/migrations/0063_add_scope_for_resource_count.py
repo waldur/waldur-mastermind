@@ -26,5 +26,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(add_scope)
+        migrations.RunPython(add_scope, elidable=True)
     ]

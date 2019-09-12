@@ -23,5 +23,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(set_tenant_extra_configuration),
+        migrations.RunPython(set_tenant_extra_configuration, elidable=True),
     ]

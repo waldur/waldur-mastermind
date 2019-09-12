@@ -138,11 +138,7 @@ table td.total {
   width: 20px;
 }
 
-table tbody tr:last-child td {
-  border: none;
-}
-
-table tfoot td {
+table tr.foot td {
   padding: 10px 20px;
   background: #FFFFFF;
   border-bottom: none;
@@ -151,17 +147,16 @@ table tfoot td {
   border-top: 1px solid #AAAAAA;
 }
 
-table tfoot tr:first-child td {
+table tr.foot:first-child td {
   border-top: none;
 }
 
-table tfoot tr:last-child td {
+table tr.foot:last-child td {
   color: #57B223;
   font-size: 1.4em;
   border-top: 1px solid #57B223;
-
 }
 
-table tfoot tr td:first-child {
+table tr.foot td:first-child {
   border: none;
 }

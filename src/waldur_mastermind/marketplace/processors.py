@@ -8,7 +8,7 @@ from rest_framework.reverse import reverse
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
-
+from waldur_mastermind.marketplace.utils import validate_limits
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +152,7 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
 
     def validate_order_item(self, request):
         if self.is_update_limit_order_item():
-            try:
-                self.validate_update_limit_order_item(request)
-            except NotImplementedError:
-                pass
+            validate_limits(self.order_item.limits, self.order_item.offering)
             return
 
         post_data = self.get_post_data()
@@ -235,12 +232,6 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
     def update_limits_process(self, user):
         """
         This method implements limits update processing.
-        """
-        raise NotImplementedError
-
-    def validate_update_limit_order_item(self, request):
-        """
-        This method validates update limits order item.
         """
         raise NotImplementedError
 

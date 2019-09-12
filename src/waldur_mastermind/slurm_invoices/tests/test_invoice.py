@@ -15,7 +15,7 @@ class InvoicesTest(TestCase):
 
     def test_invoice_item_is_not_created_if_package_does_not_exist(self):
         with self.assertRaises(ObjectDoesNotExist):
-            invoice_models.GenericInvoiceItem.objects.get(scope=self.fixture.allocation)
+            invoice_models.InvoiceItem.objects.get(scope=self.fixture.allocation)
 
     def test_invoice_item_is_created_if_package_exists(self):
         models.SlurmPackage.objects.create(service_settings=self.fixture.service.settings)
@@ -40,13 +40,13 @@ class InvoicesTest(TestCase):
         allocation.save()
 
         invoice_item = self.get_invoice_item()
+        self.assertEqual(invoice_item.name, allocation.name)
         self.assertEqual(invoice_item.details, {
-            'name': allocation.name,
             'cpu_usage': allocation.cpu_usage,
             'gpu_usage': allocation.gpu_usage,
             'ram_usage': allocation.ram_usage,
             'scope_uuid': allocation.uuid.hex,
-            'deposit_usage': '0.00',
+            'deposit_usage': '0',
         })
 
     def create_package(self):
@@ -67,4 +67,4 @@ class InvoicesTest(TestCase):
         return allocation
 
     def get_invoice_item(self):
-        return invoice_models.GenericInvoiceItem.objects.get(scope=self.fixture.allocation)
+        return invoice_models.InvoiceItem.objects.get(scope=self.fixture.allocation)

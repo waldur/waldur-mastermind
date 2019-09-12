@@ -32,5 +32,5 @@ class Migration(migrations.Migration):
             )
 
     operations = [
-        migrations.RunPython(bootstrap_default_statuses),
+        migrations.RunPython(bootstrap_default_statuses, elidable=True),
     ]

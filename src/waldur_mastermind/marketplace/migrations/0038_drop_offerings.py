@@ -18,5 +18,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(cleanup_all_offerings),
+        migrations.RunPython(cleanup_all_offerings, elidable=True),
     ]

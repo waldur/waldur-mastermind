@@ -12,6 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
@@ -370,6 +371,8 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
                                     null=True,
                                     max_length=5)
     limit_amount = models.IntegerField(blank=True, null=True)
+    max_value = models.IntegerField(blank=True, null=True)
+    min_value = models.IntegerField(blank=True, null=True)
     disable_quotas = models.BooleanField(
         default=False,
         help_text=_('Do not allow user to specify quotas when offering is provisioned.')
@@ -438,7 +441,12 @@ class Plan(core_models.UuidMixin,
         cost = self.unit_price
 
         if limits:
-            components_map = self.offering.get_usage_components()
+            available_limits = plugins.manager.get_available_limits(self.offering.type)
+            components = self.offering.components.filter(
+                Q(billing_type=OfferingComponent.BillingTypes.USAGE) |
+                Q(type__in=available_limits)
+            )
+            components_map = {component.type: component for component in components}
             component_prices = {c.component.type: c.price for c in self.components.all()}
             builtin_components = plugins.manager.get_components(self.offering.type)
             component_factors = {c.type: c.factor for c in builtin_components}

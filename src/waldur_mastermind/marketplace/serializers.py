@@ -28,7 +28,7 @@ from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace.utils import validate_order_item
+from waldur_mastermind.marketplace.utils import validate_order_item, validate_limits, create_offering_components
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 
@@ -295,7 +295,8 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
-                  'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code')
+                  'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code',
+                  'max_value', 'min_value')
         extra_kwargs = {
             'billing_type': {'required': True},
         }
@@ -482,23 +483,6 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 price=prices.get(name) or 0,
             )
 
-    def _create_components(self, offering, custom_components):
-        fixed_components = plugins.manager.get_components(offering.type)
-        category_components = {
-            component.type: component
-            for component in models.CategoryComponent.objects.filter(category=offering.category)
-        }
-
-        for component_data in fixed_components:
-            models.OfferingComponent.objects.create(
-                offering=offering,
-                parent=category_components.get(component_data.type, None),
-                **component_data._asdict()
-            )
-
-        for component_data in custom_components:
-            models.OfferingComponent.objects.create(offering=offering, **component_data)
-
     def _create_plans(self, offering, plans):
         components = {component.type: component for component in offering.components.all()}
         for plan_data in plans:
@@ -529,7 +513,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
             validated_data = self._create_service(service_type, validated_data)
 
         offering = super(OfferingCreateSerializer, self).create(validated_data)
-        self._create_components(offering, custom_components)
+        create_offering_components(offering, custom_components)
         self._create_plans(offering, plans)
 
         return offering
@@ -804,13 +788,7 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
 
         limits = attrs.get('limits')
         if limits:
-            valid_component_types = offering.components \
-                .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE) \
-                .exclude(disable_quotas=True) \
-                .values_list('type', flat=True)
-            invalid_types = set(limits.keys()) - set(valid_component_types)
-            if invalid_types:
-                raise ValidationError({'limits': _('Invalid types: %s') % ', '.join(invalid_types)})
+            validate_limits(limits, offering)
         return attrs
 
 
@@ -925,7 +903,7 @@ class CartItemSerializer(BaseRequestSerializer):
                 fields['project'].queryset, self.context['request'].user)
         return fields
 
-    def quotas_validate(self, item, project, user, request):
+    def quotas_validate(self, item, project):
         try:
             with transaction.atomic():
                 processor_class = manager.get_processor(item.offering.type, 'create_resource_processor')
@@ -950,8 +928,15 @@ class CartItemSerializer(BaseRequestSerializer):
         item = super(CartItemSerializer, self).create(validated_data)
         item.init_cost()
         item.save(update_fields=['cost'])
-        self.quotas_validate(item, validated_data['project'], validated_data['user'], self.context['request'])
+        self.quotas_validate(item, validated_data['project'])
         return item
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        instance = super(CartItemSerializer, self).update(instance, validated_data)
+        instance.init_cost()
+        instance.save(update_fields=['cost'])
+        return instance
 
 
 class CartSubmitSerializer(serializers.Serializer):

@@ -26,5 +26,5 @@ class Migration(migrations.Migration):
             name='price',
             field=models.DecimalField(default=0, verbose_name='Price per unit per day', max_digits=14, decimal_places=10, validators=[django.core.validators.MinValueValidator(Decimal('0'))]),
         ),
-        migrations.RunPython(migrate_package_component_price),
+        migrations.RunPython(migrate_package_component_price, elidable=True),
     ]

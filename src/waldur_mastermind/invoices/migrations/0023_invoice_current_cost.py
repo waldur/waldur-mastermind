@@ -24,5 +24,5 @@ class Migration(migrations.Migration):
             name='current_cost',
             field=models.DecimalField(decimal_places=2, default=0, editable=False, help_text='Cached value for current cost.', max_digits=10),
         ),
-        migrations.RunPython(migrate_data, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(migrate_data, reverse_code=migrations.RunPython.noop, elidable=True),
     ]

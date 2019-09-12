@@ -21,5 +21,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(add_openstack_component_details_to_tenant),
+        migrations.RunPython(add_openstack_component_details_to_tenant, elidable=True),
     ]

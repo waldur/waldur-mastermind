@@ -10,7 +10,8 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
 from waldur_mastermind.marketplace.utils import import_resource_metadata, format_list
 from waldur_mastermind.marketplace_openstack import (
-    INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE, RAM_TYPE, STORAGE_TYPE
+    INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
+    RAM_TYPE, STORAGE_TYPE, CORES_TYPE
 )
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import apps as openstack_apps
@@ -439,11 +440,21 @@ def get_offering(offering_type, service_settings):
         logger.warning('Marketplace offering is not found. '
                        'ServiceSettings ID: %s', service_settings.id)
     except MultipleObjectsReturned:
-        logger.warning('Few marketplace offerings are found. '
+        logger.warning('Multiple marketplace offerings are found. '
                        'ServiceSettings ID: %s', service_settings.id)
 
 
 def update_limits(order_item):
     tenant = order_item.resource.scope
     backend = tenant.get_backend()
-    backend.push_tenant_quotas(tenant, order_item.limits)
+    quotas_map = {
+        CORES_TYPE: 'vcpu',
+        RAM_TYPE: 'ram',
+        STORAGE_TYPE: 'storage',
+    }
+    quotas = {}
+    for component_type, quota_name in quotas_map.items():
+        value = order_item.limits.get(component_type)
+        if value:
+            quotas[quota_name] = value
+    backend.push_tenant_quotas(tenant, quotas)

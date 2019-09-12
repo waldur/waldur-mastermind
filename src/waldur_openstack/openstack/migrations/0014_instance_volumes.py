@@ -48,7 +48,7 @@ class Migration(migrations.Migration):
             name='volumes',
             field=models.ManyToManyField(related_name='instances', to='openstack.Volume'),
         ),
-        migrations.RunPython(populate_instance_volumes),
+        migrations.RunPython(populate_instance_volumes, elidable=True),
         migrations.RemoveField(
             model_name='drbackup',
             name='instance_volumes',

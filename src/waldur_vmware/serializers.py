@@ -25,6 +25,15 @@ def get_int_or_none(options, key):
     return value
 
 
+class OptionsSerializer(serializers.Serializer):
+    default_cluster_label = serializers.CharField(required=False)
+    max_cpu = core_serializers.UnicodeIntegerField(min_value=1, required=False)
+    max_cores_per_socket = core_serializers.UnicodeIntegerField(min_value=1, required=False)
+    max_ram = core_serializers.UnicodeIntegerField(min_value=1, required=False)
+    max_disk = core_serializers.UnicodeIntegerField(min_value=1, required=False)
+    max_disk_total = core_serializers.UnicodeIntegerField(min_value=1, required=False)
+
+
 class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
                         structure_serializers.BaseServiceSerializer):
 
@@ -46,6 +55,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.VMwareService
         required_fields = ('backend_url', 'username', 'password', 'default_cluster_label')
+        options_serializer = OptionsSerializer
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -213,6 +223,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         if 'ram' in fields:
             fields['ram'].factor = 1024
             fields['ram'].units = 'GB'
+            fields['ram'].min_value = 1024
 
         if 'disk' in fields:
             fields['disk'].factor = 1024
@@ -305,6 +316,9 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         """
         actual_ram = attrs.get('ram')
         max_ram = options.get('max_ram')
+        if actual_ram and actual_ram < 1024:
+            raise serializers.ValidationError('Requested amount of RAM is too small.')
+
         if actual_ram and max_ram and actual_ram > max_ram:
             raise serializers.ValidationError('Requested amount of RAM exceeds offering limit.')
 

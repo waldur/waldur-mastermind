@@ -255,6 +255,14 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_clusters_map.keys()) - set(backend_clusters_map.keys())
         new_ids = set(backend_clusters_map.keys()) - set(frontend_clusters_map.keys())
+        common_ids = set(backend_clusters_map.keys()) & set(frontend_clusters_map.keys())
+
+        for item_id in common_ids:
+            backend_item = backend_clusters_map[item_id]
+            frontend_item = frontend_clusters_map[item_id]
+            if frontend_item.name != backend_item['name']:
+                frontend_item.name = backend_item['name']
+                frontend_item.save(update_fields=['name'])
 
         for item_id in new_ids:
             item = backend_clusters_map[item_id]
@@ -285,6 +293,14 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_networks_map.keys()) - set(backend_networks_map.keys())
         new_ids = set(backend_networks_map.keys()) - set(frontend_networks_map.keys())
+        common_ids = set(frontend_networks_map.keys()) & set(backend_networks_map.keys())
+
+        for item_id in common_ids:
+            backend_item = backend_networks_map[item_id]
+            frontend_item = frontend_networks_map[item_id]
+            if frontend_item.name != backend_item['name']:
+                frontend_item.name = backend_item['name']
+                frontend_item.save(update_fields=['name'])
 
         for item_id in new_ids:
             item = backend_networks_map[item_id]
@@ -325,7 +341,7 @@ class VMwareBackend(ServiceBackend):
         for item_id in common_ids:
             backend_datastore = self._backend_datastore_to_datastore(backend_datastores_map[item_id])
             frontend_datastore = frontend_datastores_map[item_id]
-            fields = ('capacity', 'free_space')
+            fields = ('name', 'capacity', 'free_space')
             update_pulled_fields(frontend_datastore, backend_datastore, fields)
 
         models.Datastore.objects.filter(settings=self.settings, backend_id__in=stale_ids).delete()
@@ -407,6 +423,14 @@ class VMwareBackend(ServiceBackend):
 
         stale_ids = set(frontend_folders_map.keys()) - set(backend_folders_map.keys())
         new_ids = set(backend_folders_map.keys()) - set(frontend_folders_map.keys())
+        common_ids = set(backend_folders_map.keys()) & set(frontend_folders_map.keys())
+
+        for item_id in common_ids:
+            backend_item = backend_folders_map[item_id]
+            frontend_item = frontend_folders_map[item_id]
+            if frontend_item.name != backend_item['name']:
+                frontend_item.name = backend_item['name']
+                frontend_item.save(update_fields=['name'])
 
         for item_id in new_ids:
             item = backend_folders_map[item_id]
@@ -948,17 +972,21 @@ class VMwareBackend(ServiceBackend):
         :param disk: Virtual disk to be extended.
         :type disk: :class:`waldur_vmware.models.Disk`
         """
+        backend_vm = self.get_backend_vm(disk.vm)
         backend_disk = self.get_backend_disk(disk)
-        vdm = self.soap_client.content.virtualDiskManager
-        task = vdm.ExtendVirtualDisk(
-            name=backend_disk.backing.fileName,
-            datacenter=self.get_disk_datacenter(backend_disk),
-            newCapacityKb=disk.size * 1024
-        )
+
+        virtual_disk_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_disk_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.edit
+        virtual_disk_spec.device = backend_disk
+        virtual_disk_spec.device.capacityInKB = disk.size * 1024
+        virtual_disk_spec.device.capacityInBytes = disk.size * 1024 * 1024
+
+        spec = vim.vm.ConfigSpec()
+        spec.deviceChange = [virtual_disk_spec]
+        task = backend_vm.ReconfigVM_Task(spec=spec)
+
         try:
             pyVim.task.WaitForTask(task)
-        except vim.fault.FileLocked:
-            raise VMwareBackendError('File is locked.')
         except Exception:
             logger.exception('Unable to extend VMware disk. Disk ID: %s.', disk.id)
             raise VMwareBackendError('Unknown error.')

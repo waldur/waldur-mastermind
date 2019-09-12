@@ -9,9 +9,9 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
-from django.utils import six
-from django.utils import timezone
-from rest_framework import exceptions
+from django.utils import six, timezone
+from django.utils.translation import ugettext_lazy as _
+from rest_framework import exceptions, serializers
 
 from waldur_core.core import utils as core_utils
 
@@ -195,3 +195,54 @@ def get_info_about_missing_usage_reports():
 def get_public_resources_url(customer):
     link_template = settings.WALDUR_MARKETPLACE['PUBLIC_RESOURCES_LINK_TEMPLATE']
     return link_template.format(organization_uuid=customer.uuid)
+
+
+def validate_limits(limits, offering):
+    usage_components = offering.components \
+        .filter(billing_type=models.OfferingComponent.BillingTypes.USAGE) \
+        .exclude(disable_quotas=True) \
+        .values_list('type', flat=True)
+    valid_component_types = set(usage_components)
+    valid_component_types.update(plugins.manager.get_available_limits(offering.type))
+    invalid_types = set(limits.keys()) - valid_component_types
+    if invalid_types:
+        raise serializers.ValidationError({'limits': _('Invalid types: %s') % ', '.join(invalid_types)})
+
+    # Validate max and min limit value.
+    components_map = {
+        component.type: component
+        for component in offering.components.filter(type__in=valid_component_types)
+    }
+
+    for key, value in limits.items():
+        component = components_map.get(key)
+        if not component:
+            continue
+
+        if component.max_value and value > component.max_value:
+            raise serializers.ValidationError(_('The limit %s value cannot be more than %s.') % (
+                value, component.max_value
+            ))
+        if component.min_value and value < component.min_value:
+            raise serializers.ValidationError(_('The limit %s value cannot be less than %s.') % (
+                value, component.min_value
+            ))
+
+
+def create_offering_components(offering, custom_components=None):
+    fixed_components = plugins.manager.get_components(offering.type)
+    category_components = {
+        component.type: component
+        for component in models.CategoryComponent.objects.filter(category=offering.category)
+    }
+
+    for component_data in fixed_components:
+        models.OfferingComponent.objects.create(
+            offering=offering,
+            parent=category_components.get(component_data.type, None),
+            **component_data._asdict()
+        )
+
+    if custom_components:
+        for component_data in custom_components:
+            models.OfferingComponent.objects.create(offering=offering, **component_data)

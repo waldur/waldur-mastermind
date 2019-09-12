@@ -50,6 +50,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(initialize_network_count_quota),
-        migrations.RunPython(initialize_subnet_count_quota),
+        migrations.RunPython(initialize_network_count_quota, elidable=True),
+        migrations.RunPython(initialize_subnet_count_quota, elidable=True),
     ]

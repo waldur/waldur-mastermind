@@ -35,7 +35,7 @@ class Migration(migrations.Migration):
                                                    defaults={'config': config[template]})
 
     operations = [
-        migrations.RunPython(migrate_config),
+        migrations.RunPython(migrate_config, elidable=True),
         migrations.AlterField(
             model_name='offering',
             name='template',

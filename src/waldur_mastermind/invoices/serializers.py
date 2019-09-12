@@ -39,7 +39,7 @@ class GenericItemSerializer(InvoiceItemSerializer):
     details = serializers.JSONField()
 
     class Meta(InvoiceItemSerializer.Meta):
-        model = models.GenericInvoiceItem
+        model = models.InvoiceItem
         fields = InvoiceItemSerializer.Meta.fields + ('quantity', 'details', 'usage_days',)
 
     def get_scope_type(self, item):
@@ -118,7 +118,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
     customer_name = serializers.ReadOnlyField(source='invoice.customer.name')
 
     class Meta(object):
-        model = models.GenericInvoiceItem
+        model = models.InvoiceItem
         fields = (
             'customer_uuid', 'customer_name',
             'project_uuid', 'project_name',
@@ -169,7 +169,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
 
 class GenericItemReportSerializer(InvoiceItemReportSerializer):
     class Meta(InvoiceItemReportSerializer.Meta):
-        model = models.GenericInvoiceItem
+        model = models.InvoiceItem
         fields = InvoiceItemReportSerializer.Meta.fields + ('quantity',)
 
 

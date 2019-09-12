@@ -12,14 +12,14 @@ class PriceCurrentTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = invoice_fixtures.InvoiceFixture()
 
-        invoice_factories.GenericInvoiceItemFactory(
+        invoice_factories.InvoiceItemFactory(
             invoice=self.fixture.invoice,
             project=self.fixture.project,
             unit=invoice_models.InvoiceItem.Units.PER_MONTH,
             unit_price=100,
             quantity=1,
         )
-        invoice_factories.GenericInvoiceItemFactory(
+        invoice_factories.InvoiceItemFactory(
             invoice=self.fixture.invoice,
             project=self.fixture.project,
             unit=invoice_models.InvoiceItem.Units.PER_DAY,

@@ -99,3 +99,21 @@ class InvoiceTest(test.APITransactionTestCase):
             # Assert
             self.assertEqual(invoice.items.first().end.day, 10)
             self.assertEqual(invoice.items.last().start.day, 11)
+
+    def test_when_vm_is_deleted_all_invoice_items_are_terminated(self):
+        # Arrange
+        signals.vm_created.send(self.__class__, vm=self.vm)
+        invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
+
+        # Act
+        with freeze_time('2019-07-10'):
+            self.vm.cores -= 1
+            self.vm.save()
+            signals.vm_updated.send(self.__class__, vm=self.vm)
+
+        with freeze_time('2019-07-12'):
+            self.vm.delete()
+
+        # Assert
+        self.assertEqual(invoice.items.first().end.day, 10)
+        self.assertEqual(invoice.items.last().end.day, 12)

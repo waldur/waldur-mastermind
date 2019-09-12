@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
             name='instance',
             field=models.ForeignKey(related_name='+', blank=True, to='openstack.Instance', null=True, on_delete=django.db.models.deletion.SET_NULL),
         ),
-        migrations.RunPython(migrate_volume_instances),
+        migrations.RunPython(migrate_volume_instances, elidable=True),
         migrations.RemoveField(
             model_name='instance',
             name='volumes',
