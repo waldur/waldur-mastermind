@@ -207,7 +207,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         usage_days = 5
         offering, offering_item = self._start_end_offering(start_date, end_date)
         month_days = monthrange(2017, 7)[1]
-        expected_price = offering.unit_price * decimal.Decimal((usage_days / (month_days / 2)))
+        expected_price = offering.unit_price * quantize_price(usage_days / decimal.Decimal(month_days / 2))
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_half_monthly_price_with_end_in_second_half(self):
@@ -216,7 +216,7 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
         usage_days = 11
         offering, offering_item = self._start_end_offering(start_date, end_date)
         month_days = monthrange(2017, 7)[1]
-        expected_price = offering.unit_price * decimal.Decimal((usage_days / (month_days / 2)))
+        expected_price = offering.unit_price * quantize_price(usage_days / decimal.Decimal(month_days / 2))
         self.assertEqual(offering_item.price, expected_price)
 
     def test_invoice_item_with_both_halves(self):

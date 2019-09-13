@@ -47,6 +47,8 @@ class ActionSerializer(object):
         try:
             self.view.initial(self.request)
         except exceptions.APIException as e:
+            if isinstance(e, serializers.ValidationError):
+                return ', '.join(force_text(i) for i in e.detail)
             return force_text(e)
 
     def get_method(self):

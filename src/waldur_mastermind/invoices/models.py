@@ -220,7 +220,7 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
             elif (self.start.day < 16 and self.end.day == month_days):
                 return quantize_price(1 + (16 - self.start.day) / decimal.Decimal(month_days / 2))
             else:
-                return (self.end.day - self.start.day + 1) / (month_days / 2.0)
+                return quantize_price((self.end.day - self.start.day + 1) / decimal.Decimal(month_days / 2.0))
         # By default PER_MONTH
         else:
             if self.start.day == 1 and self.end.day == month_days:
@@ -400,17 +400,17 @@ class InvoiceItemAdjuster(object):
         """
         end = self.old_item.end
 
-        if self.unit == Units.PER_DAY:
-            end = end.replace(hour=23, minute=59, second=59)
-        elif self.unit == Units.PER_HOUR:
-            end = end.replace(minute=59, second=59)
-        elif self.unit == Units.PER_MONTH:
+        if self.old_item.unit != self.unit and self.unit == Units.PER_MONTH:
             end = core_utils.month_end(end)
-        elif self.unit == Units.PER_HALF_MONTH:
+        elif self.old_item.unit != self.unit and self.unit == Units.PER_HALF_MONTH:
             if end.day > 15:
                 end = core_utils.month_end(end)
             else:
                 end = end.replace(day=15)
+        elif self.unit == Units.PER_HOUR:
+            end = end.replace(minute=59, second=59)
+        else:
+            end = end.replace(hour=23, minute=59, second=59)
 
         start = end + timedelta(seconds=1)
         return start, end
@@ -420,20 +420,19 @@ class InvoiceItemAdjuster(object):
         Adjust old invoice item end field to the end of previous unit
         Adjust new invoice item field to the start of current unit.
         """
-        start = self.start
         end = self.old_item.end
 
-        if self.unit == Units.PER_DAY:
-            start = end.replace(hour=0, minute=0, second=0)
-        elif self.unit == Units.PER_HOUR:
-            start = end.replace(minute=0, second=0)
-        elif self.unit == Units.PER_MONTH:
+        if self.old_item.unit != self.unit and self.unit == Units.PER_MONTH:
             start = core_utils.month_start(end)
-        elif self.unit == Units.PER_HALF_MONTH:
+        elif self.old_item.unit != self.unit and self.unit == Units.PER_HALF_MONTH:
             if end.day < 15:
                 start = core_utils.month_start(end)
             else:
                 start = end.replace(day=15)
+        elif self.unit == Units.PER_HOUR:
+            start = end.replace(minute=0, second=0)
+        else:
+            start = end.replace(hour=0, minute=0, second=0)
 
         end = start - timedelta(seconds=1)
         return start, end
@@ -447,13 +446,6 @@ class InvoiceItemAdjuster(object):
             qs = qs.filter(start__day=start.day)
         elif self.unit == Units.PER_HOUR:
             qs = qs.filter(start__day=start.day, start__hour=start.hour)
-        elif self.unit == Units.PER_MONTH:
-            qs = qs.filter(start__month=start.month)
-        elif self.unit == Units.PER_HALF_MONTH:
-            if start.day <= 15:
-                qs = qs.filter(start__day__lte=15)
-            else:
-                qs = qs.filter(start__day__gt=15)
         else:
             qs = qs.none()
 
@@ -482,5 +474,10 @@ def adjust_invoice_items(invoice, source, start, unit_price, unit):
     is terminated and new invoice item is created.
     In order to avoid double counting we should ensure that
     there're no overlapping invoice items for the same scope.
+
+    By default daily prorate is used even if plan is monthly or half-monthly.
+    Two notable exceptions are:
+    1) Switching from daily plan to monthly.
+    2) Switching between hourly plans.
     """
     return InvoiceItemAdjuster(invoice, source, start, unit_price, unit).adjust()

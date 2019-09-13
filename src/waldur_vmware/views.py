@@ -183,7 +183,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         if max_disk_total:
             remaining_quota = max_disk_total - vm.total_disk
             if remaining_quota < 1024:
-                raise rf_serializers.ValidationError('Storage quota has been exceeded.')
+                raise rf_serializers.ValidationError('Storage quota has been reached.')
 
     create_disk_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
@@ -269,7 +269,7 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
         if max_disk_total:
             remaining_quota = max_disk_total - disk.vm.total_disk
             if remaining_quota < 1024:
-                raise rf_serializers.ValidationError('Storage quota has been exceeded.')
+                raise rf_serializers.ValidationError('Storage quota has been reached.')
 
     extend_validators = [core_validators.StateValidator(models.Disk.States.OK), validate_total_size]
     extend_serializer_class = serializers.DiskExtendSerializer

@@ -72,18 +72,15 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertGreater(old_total, 0)
 
         # Act
-        with freeze_time('2019-07-10'):
-            self.vm.cores += 1
-            self.vm.save()
-            signals.vm_updated.send(self.__class__, vm=self.vm)
+        self.upgrade_vm()
 
-            # Assert
-            self.assertEqual(2, invoice.items.count())
-            new_total = invoice.total
-            self.assertGreater(new_total, old_total)
+        # Assert
+        self.assertEqual(2, invoice.items.count())
+        new_total = invoice.total
+        self.assertGreater(new_total, old_total)
 
-            self.assertEqual(invoice.items.first().end.day, 9)
-            self.assertEqual(invoice.items.last().start.day, 10)
+        self.assertEqual(invoice.items.first().end.day, 9)
+        self.assertEqual(invoice.items.last().start.day, 10)
 
     def test_when_vm_is_downgraded_invoice_item_is_adjusted(self):
         # Arrange
@@ -91,14 +88,47 @@ class InvoiceTest(test.APITransactionTestCase):
         invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
 
         # Act
-        with freeze_time('2019-07-10'):
-            self.vm.cores -= 1
-            self.vm.save()
-            signals.vm_updated.send(self.__class__, vm=self.vm)
+        self.downgrade_vm()
 
-            # Assert
-            self.assertEqual(invoice.items.first().end.day, 10)
-            self.assertEqual(invoice.items.last().start.day, 11)
+        # Assert
+        self.assertEqual(invoice.items.first().end.day, 10)
+        self.assertEqual(invoice.items.last().start.day, 11)
+
+    def test_when_monthly_plan_is_used_and_vm_is_downgraded_daily_prorata_is_applied(self):
+        # Arrange
+        self.plan.unit = UnitPriceMixin.Units.PER_MONTH
+        self.plan.save()
+        signals.vm_created.send(self.__class__, vm=self.vm)
+
+        # Act
+        self.downgrade_vm()
+
+        # Assert
+        invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
+        old = invoice.items.first()
+        new = invoice.items.last()
+
+        self.assertEqual(old.end.day, 10)
+        self.assertEqual(new.start.day, 11)
+        self.assertGreater(old.unit_price, new.unit_price)
+
+    def test_when_monthly_plan_is_used_and_vm_is_upgraded_daily_prorata_is_applied(self):
+        # Arrange
+        self.plan.unit = UnitPriceMixin.Units.PER_MONTH
+        self.plan.save()
+        signals.vm_created.send(self.__class__, vm=self.vm)
+
+        # Act
+        self.upgrade_vm()
+
+        # Assert
+        invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
+        old = invoice.items.first()
+        new = invoice.items.last()
+
+        self.assertEqual(old.end.day, 9)
+        self.assertEqual(new.start.day, 10)
+        self.assertGreater(new.unit_price, old.unit_price)
 
     def test_when_vm_is_deleted_all_invoice_items_are_terminated(self):
         # Arrange
@@ -106,10 +136,7 @@ class InvoiceTest(test.APITransactionTestCase):
         invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer)
 
         # Act
-        with freeze_time('2019-07-10'):
-            self.vm.cores -= 1
-            self.vm.save()
-            signals.vm_updated.send(self.__class__, vm=self.vm)
+        self.downgrade_vm()
 
         with freeze_time('2019-07-12'):
             self.vm.delete()
@@ -117,3 +144,15 @@ class InvoiceTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(invoice.items.first().end.day, 10)
         self.assertEqual(invoice.items.last().end.day, 12)
+
+    @freeze_time('2019-07-10')
+    def upgrade_vm(self):
+        self.vm.cores += 1
+        self.vm.save()
+        signals.vm_updated.send(self.__class__, vm=self.vm)
+
+    @freeze_time('2019-07-10')
+    def downgrade_vm(self):
+        self.vm.cores -= 1
+        self.vm.save()
+        signals.vm_updated.send(self.__class__, vm=self.vm)
