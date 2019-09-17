@@ -15,7 +15,7 @@ from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, CORES_TYPE, RAM_TYPE, STORAGE_TYPE, utils
+from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils
 
 logger = logging.getLogger(__name__)
 
@@ -405,6 +405,7 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
         return
 
     utils.import_usage(resource)
+
 
 def update_invoice_when_resource_is_created(sender, instance, **kwargs):
     if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
