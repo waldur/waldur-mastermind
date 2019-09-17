@@ -404,19 +404,7 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
                      'resource does not exist. OpenStack tenant ID: %s', tenant.id)
         return
 
-    TenantQuotas = openstack_models.Tenant.Quotas
-    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
-
-    rows = tenant.quotas.filter(name__in=QuotaNames).values('name', 'usage')
-    usages = {row['name']: row['usage'] for row in rows}
-
-    resource.current_usages = {
-        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
-        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0) / 1024,
-        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0) / 1024,
-    }
-    resource.save(update_fields=['current_usages'])
-
+    utils.import_usage(resource)
 
 def update_invoice_when_resource_is_created(sender, instance, **kwargs):
     if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:

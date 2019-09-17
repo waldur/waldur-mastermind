@@ -444,6 +444,21 @@ def get_offering(offering_type, service_settings):
                        'ServiceSettings ID: %s', service_settings.id)
 
 
+def import_usage(resource):
+    TenantQuotas = openstack_models.Tenant.Quotas
+    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+
+    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'usage')
+    usages = {row['name']: row['usage'] for row in rows}
+
+    resource.current_usages = {
+        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0) / 1024,
+        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0) / 1024,
+    }
+    resource.save(update_fields=['current_usages'])
+
+
 def update_limits(order_item):
     tenant = order_item.resource.scope
     backend = tenant.get_backend()
