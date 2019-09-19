@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import processors, signals
+from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
@@ -36,7 +37,6 @@ class PackageCreateProcessor(processors.CreateResourceProcessor):
 
         project_url = reverse('project-detail', kwargs={'uuid': project.uuid})
         spl_url = processors.get_spl_url(openstack_models.OpenStackServiceProjectLink, order_item)
-        template_url = reverse('package-template-detail', kwargs={'uuid': template.uuid})
 
         fields = (
             'name',
@@ -48,10 +48,20 @@ class PackageCreateProcessor(processors.CreateResourceProcessor):
             'availability_zone',
         )
 
+        TenantQuotas = openstack_models.Tenant.Quotas
+
+        limits = {
+            TenantQuotas.vcpu.name: order_item.limits.get(CORES_TYPE),
+            TenantQuotas.ram.name: order_item.limits.get(RAM_TYPE),
+            TenantQuotas.storage.name: order_item.limits.get(STORAGE_TYPE),
+        }
+        limits = {k: v for (k, v) in limits.items() if v}
+
         return dict(
             project=project_url,
             service_project_link=spl_url,
-            template=template_url,
+            template=template.uuid.hex,
+            limits=limits,
             **processors.copy_attributes(fields, order_item)
         )
 
@@ -77,8 +87,8 @@ class PackageUpdateProcessor(processors.UpdateResourceProcessor):
         template = self.order_item.plan.scope
 
         return {
-            'package': reverse('openstack-package-detail', kwargs={'uuid': package.uuid}),
-            'template': reverse('package-template-detail', kwargs={'uuid': template.uuid})
+            'package': package.uuid.hex,
+            'template': template.uuid.hex,
         }
 
     def update_limits_process(self, user):

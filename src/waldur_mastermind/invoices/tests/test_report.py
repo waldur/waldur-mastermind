@@ -7,12 +7,14 @@ from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.invoices.tasks import format_invoice_csv
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support.tests import factories as support_factories
 
 from .. import models, tasks
 from . import fixtures, utils
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class BaseReportFormatterTest(TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()

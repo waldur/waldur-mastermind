@@ -14,30 +14,34 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import mixins as common_mixins
+from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.packages.tests import fixtures as package_fixtures, factories as packages_factories
 from waldur_mastermind.packages import models as package_models
+from waldur_mastermind.packages import views as packages_views
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support import models as support_models
 from waldur_openstack.openstack.models import Tenant
+from waldur_openstack.openstack.tests import factories as openstack_factories
 
 from ... import models, tasks, utils
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class InvoicePriceWorkflowTest(test.APITransactionTestCase):
-    url = packages_factories.OpenStackPackageFactory.get_list_url()
 
     def setUp(self):
         self.fixture = package_fixtures.PackageFixture()
 
     def get_package_create_payload(self):
         spl = self.fixture.openstack_spl
-        spl_url = packages_factories.OpenStackServiceProjectLinkFactory.get_url(spl)
+        spl_url = openstack_factories.OpenStackServiceProjectLinkFactory.get_url(spl)
         template = packages_factories.PackageTemplateFactory(service_settings=spl.service.settings)
         return {
             'service_project_link': spl_url,
             'name': 'test_package',
-            'template': packages_factories.PackageTemplateFactory.get_url(template),
+            'template': template.uuid.hex,
         }
 
     def create_package_template(self, component_price=10, component_amount=1):
@@ -57,12 +61,12 @@ class InvoicePriceWorkflowTest(test.APITransactionTestCase):
             - Ensure that a new invoice has been generated in the new month;
             - Assert that end date of newly created openstack item set to the date of package deletion.
         """
-        self.client.force_authenticate(user=self.fixture.staff)
 
         middle_of_the_month = datetime(2017, 1, 15, tzinfo=pytz.UTC)
         with freeze_time(middle_of_the_month):
             payload = self.get_package_create_payload()
-            response = self.client.post(self.url, data=payload)
+            view = packages_views.OpenStackPackageViewSet.as_view({'post': 'create'})
+            response = common_utils.create_request(view, self.fixture.staff, payload)
             tenant = Tenant.objects.get()
             tenant.backend_id = 'VALID_ID'
             tenant.save()

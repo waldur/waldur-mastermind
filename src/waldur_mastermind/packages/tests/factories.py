@@ -1,8 +1,6 @@
 import factory
 import random
 
-from rest_framework.reverse import reverse
-
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests.factories import TenantFactory
@@ -17,17 +15,6 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
     service_settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
     name = factory.Sequence(lambda n: 'PackageTemplate%s' % n)
     archived = False
-
-    @classmethod
-    def get_url(cls, package_template=None, action=None):
-        if package_template is None:
-            package_template = PackageTemplateFactory()
-        url = 'http://testserver' + reverse('package-template-detail', kwargs={'uuid': package_template.uuid})
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('package-template-list')
 
     @factory.post_generation
     def components(self, create, extracted, **kwargs):
@@ -63,21 +50,6 @@ class OpenStackServiceFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
 
 
-class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
-        model = openstack_models.OpenStackServiceProjectLink
-
-    service = factory.SubFactory(OpenStackServiceFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, service_project_link=None, action=None):
-        if service_project_link is None:
-            service_project_link = OpenStackServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': service_project_link.pk})
-        return url if action is None else url + action + '/'
-
-
 class OpenStackPackageFactory(factory.DjangoModelFactory):
     class Meta(object):
         model = models.OpenStackPackage
@@ -85,15 +57,3 @@ class OpenStackPackageFactory(factory.DjangoModelFactory):
     tenant = factory.SubFactory(TenantFactory)
     template = factory.SubFactory(PackageTemplateFactory)
     service_settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
-
-    @classmethod
-    def get_url(cls, openstack_package=None, action=None):
-        if openstack_package is None:
-            openstack_package = OpenStackPackageFactory()
-        url = 'http://testserver' + reverse('openstack-package-detail', kwargs={'uuid': openstack_package.uuid})
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('openstack-package-list')
-        return url if action is None else url + action + '/'

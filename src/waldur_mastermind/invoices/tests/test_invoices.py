@@ -10,6 +10,7 @@ from rest_framework import test, status
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.slurm_invoices.tests import factories as slurm_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_slurm.tests import fixtures as slurm_fixtures
@@ -102,6 +103,7 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
         self.assertEqual(response.data, ["Notification only for the created invoice can be sent."])
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
 
     def setUp(self):
@@ -144,6 +146,7 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class OpenStackInvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()

@@ -25,8 +25,8 @@ class UsagesSynchronizationTest(test.APITransactionTestCase):
 
     def test_ram_usage_is_synchronized(self):
         self.tenant.set_quota_usage(TenantQuotas.ram, 20 * 1024)
-        self.assert_usage_equal('ram', 20)
+        self.assert_usage_equal('ram', 20 * 1024)
 
     def test_storage_usage_is_synchronized(self):
         self.tenant.set_quota_usage(TenantQuotas.storage, 100 * 1024)
-        self.assert_usage_equal('storage', 100)
+        self.assert_usage_equal('storage', 100 * 1024)

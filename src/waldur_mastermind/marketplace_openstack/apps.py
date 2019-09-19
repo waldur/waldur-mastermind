@@ -83,9 +83,11 @@ class MarketplaceOpenStackConfig(AppConfig):
                          update_resource_processor=processors.PackageUpdateProcessor,
                          delete_resource_processor=processors.PackageDeleteProcessor,
                          components=(
-                             Component(type=RAM_TYPE, name='RAM', measured_unit='GB', billing_type=FIXED),
                              Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
-                             Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED),
+                             # Price is stored per GiB but size is stored per MiB
+                             # therefore we need to divide size by factor when price estimate is calculated.
+                             Component(type=RAM_TYPE, name='RAM', measured_unit='GB', billing_type=FIXED, factor=1024),
+                             Component(type=STORAGE_TYPE, name='Storage', measured_unit='GB', billing_type=FIXED, factor=1024),
                          ),
                          service_type=OpenStackConfig.service_name,
                          secret_attributes=get_secret_attributes,
@@ -164,14 +166,14 @@ class MarketplaceOpenStackConfig(AppConfig):
                          'update_invoice_when_resource_is_created',
         )
 
-        marketplace_signals.resource_update_succeeded.connect(
+        marketplace_signals.limit_update_succeeded.connect(
             handlers.update_invoice_when_resource_is_updated,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
                          'update_invoice_when_resource_is_updated',
         )
 
-        marketplace_signals.resource_update_succeeded.connect(
+        marketplace_signals.resource_deletion_succeeded.connect(
             handlers.update_invoice_when_resource_is_deleted,
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'

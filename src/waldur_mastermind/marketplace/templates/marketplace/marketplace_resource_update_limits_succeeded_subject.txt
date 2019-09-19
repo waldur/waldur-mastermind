@@ -1,0 +1,1 @@
+Resource {{ resource_name }} limits have been updated.
