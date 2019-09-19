@@ -96,10 +96,6 @@ class PackageTemplate(core_models.UuidMixin,
                 {'service_settings': _('external_network_id has to be defined for service settings.')})
         return self
 
-    @classmethod
-    def get_url_name(cls):
-        return 'package-template'
-
     def is_read_only(self):
         return self.openstack_packages.exists()
 
@@ -156,10 +152,6 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
     tenant = models.OneToOneField(openstack_models.Tenant, related_name='+')
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+', null=True,
                                          on_delete=models.SET_NULL)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'openstack-package'
 
     def __str__(self):
         return 'Package "%s" for tenant %s' % (self.template, self.tenant)

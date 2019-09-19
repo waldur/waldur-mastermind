@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace_openstack import (
     RAM_TYPE, STORAGE_TYPE, CORES_TYPE
 )
 from waldur_mastermind.packages import models as package_models
+from waldur_mastermind.packages.serializers import _apply_quotas
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
@@ -453,8 +454,8 @@ def import_usage(resource):
 
     resource.current_usages = {
         CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
-        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0) / 1024,
-        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0) / 1024,
+        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0),
+        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0),
     }
     resource.save(update_fields=['current_usages'])
 
@@ -473,3 +474,7 @@ def update_limits(order_item):
         if value:
             quotas[quota_name] = value
     backend.push_tenant_quotas(tenant, quotas)
+    with transaction.atomic():
+        _apply_quotas(tenant, quotas)
+        for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
+            _apply_quotas(target, quotas)

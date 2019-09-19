@@ -115,9 +115,9 @@ class TenantCreateTest(BaseOpenStackTest):
         response = self.create_order(limits={
             'cores': 20,
             'ram': 1024 * 100,
-            'storage': 1024 * 1024 * 100
+            'storage': 1024 * 10000
         })
-        expected = 20 * 1 + 1024 * 100 * 0.5 + 1024 * 1024 * 100 * 0.1
+        expected = 20 * 1 + 100 * 0.5 + 10000 * 0.1
         self.assertEqual(float(response.data['total_cost']), expected)
 
     def create_order(self, add_attributes=None, user='staff', limits=None):
@@ -261,6 +261,7 @@ class TenantDeleteTest(TenantMutateTest):
 
 
 @ddt
+@package_utils.override_plugin_settings(BILLING_ENABLED=True)
 class TenantUpdateTest(TenantMutateTest):
     def setUp(self):
         super(TenantUpdateTest, self).setUp()
@@ -592,9 +593,11 @@ class TenantUpdateLimitTestBase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         self.resource = marketplace_factories.ResourceFactory(
             offering=self.offering,
             project=self.fixture.project,
+            plan=self.plan,
             state=marketplace_models.Resource.States.OK)
         tenant = self.fixture.tenant
         self.mock_get_backend = mock.MagicMock()
@@ -612,6 +615,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
         self.order_item = marketplace_factories.OrderItemFactory(
             type=marketplace_models.OrderItem.Types.UPDATE,
             resource=self.resource,
+            plan=self.resource.plan,
             offering=self.offering,
             limits=self.quotas,
             attributes={'old_limits': self.resource.limits},

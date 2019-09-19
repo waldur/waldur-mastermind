@@ -415,13 +415,13 @@ def update_invoice_when_resource_is_created(sender, instance, **kwargs):
         registrators.RegistrationManager.register(instance)
 
 
-def update_invoice_when_resource_is_updated(sender, instance, **kwargs):
+def update_invoice_when_resource_is_updated(sender, order_item, **kwargs):
     if not settings.WALDUR_MARKETPLACE_OPENSTACK['BILLING_ENABLED']:
         return
 
-    if instance.offering.type == PACKAGE_TYPE:
-        registrators.RegistrationManager.terminate(instance)
-        registrators.RegistrationManager.register(instance)
+    if order_item.offering.type == PACKAGE_TYPE:
+        registrators.RegistrationManager.terminate(order_item.resource)
+        registrators.RegistrationManager.register(order_item.resource)
 
 
 def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):

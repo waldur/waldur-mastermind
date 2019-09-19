@@ -13,6 +13,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.packages import models as packages_models
 from waldur_mastermind.packages.tests import factories as packages_factories
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 from waldur_mastermind.support_invoices import utils as support_utils
@@ -21,6 +22,7 @@ from .. import factories, fixtures
 from ... import models, utils
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class AddNewOfferingDetailsToInvoiceTest(TransactionTestCase):
 
     def setUp(self):
@@ -84,6 +86,7 @@ class AddNewOfferingDetailsToInvoiceTest(TransactionTestCase):
         self.assertEqual(invoice.price, Decimal(expected_price))
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class UpdateInvoiceOnOfferingDeletionTest(TransactionTestCase):
 
     def setUp(self):
@@ -137,6 +140,7 @@ class UpdateInvoiceOnOfferingDeletionTest(TransactionTestCase):
         return support_utils.get_offering_items().filter(invoice=invoice)
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class UpdateInvoiceOnOfferingStateChange(TransactionTestCase):
 
     def setUp(self):

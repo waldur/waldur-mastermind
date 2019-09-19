@@ -1,0 +1,3 @@
+Hello!
+
+Resource {{ resource_name }} limits update has failed.

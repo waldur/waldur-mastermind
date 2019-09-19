@@ -12,11 +12,13 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 
 from .. import factories, utils as test_utils
 from ... import models, tasks, utils
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class CreateMonthlyInvoicesForPackagesTest(TestCase):
 
     def test_invoice_is_created_monthly(self):
