@@ -206,7 +206,7 @@ class CustomerAdmin(FormRequestAdminMixin,
     form = CustomerAdminForm
     fields = ('name', 'uuid', 'image', 'native_name', 'abbreviation', 'division', 'contact_details',
               'registration_code', 'backend_id',
-              'agreement_number', 'email', 'phone_number', 'access_subnets',
+              'agreement_number', 'email', 'phone_number', 'access_subnets', 'homepage',
               'country', 'vat_code', 'is_company', 'owners', 'support_users',
               'type', 'address', 'postal', 'bank_name', 'bank_account',
               'accounting_start_date', 'default_tax_percent', 'blocked')
