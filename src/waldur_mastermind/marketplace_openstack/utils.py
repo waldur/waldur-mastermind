@@ -449,6 +449,9 @@ def import_usage(resource):
     TenantQuotas = openstack_models.Tenant.Quotas
     QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
 
+    if not resource.scope:
+        return
+
     rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'usage')
     usages = {row['name']: row['usage'] for row in rows}
 
@@ -458,6 +461,24 @@ def import_usage(resource):
         STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0),
     }
     resource.save(update_fields=['current_usages'])
+
+
+def import_limits(resource):
+    TenantQuotas = openstack_models.Tenant.Quotas
+    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+
+    if not resource.scope:
+        return
+
+    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'limit')
+    limits = {row['name']: row['limit'] for row in rows}
+
+    resource.limits = {
+        CORES_TYPE: limits.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: limits.get(TenantQuotas.ram.name, 0),
+        STORAGE_TYPE: limits.get(TenantQuotas.storage.name, 0),
+    }
+    resource.save(update_fields=['limits'])
 
 
 def update_limits(order_item):

@@ -13,3 +13,4 @@ class Command(DryRunCommand):
         ct = ContentType.objects.get_for_model(Tenant)
         for resource in Resource.objects.filter(content_type=ct):
             utils.import_usage(resource)
+            utils.import_limits(resource)
