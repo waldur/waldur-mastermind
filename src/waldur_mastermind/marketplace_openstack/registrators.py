@@ -5,7 +5,7 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE, CORES_TYPE, RAM_TYPE, STORAGE_TYPE
 
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace_vmware.registrators import mb_to_gb
+from waldur_mastermind.common.utils import mb_to_gb
 
 
 class MarketplaceItemRegistrator(BaseRegistrator):
@@ -50,7 +50,7 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         self.init_details(item)
 
     def get_name(self, source):
-        return '{resource} / {offering} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(
+        return '{resource} ({offering} / VPC {cores} CPU - {ram} GB RAM - {disk} GB storage)'.format(
             resource=source.name,
             offering=source.offering.name,
             cores=source.limits.get(CORES_TYPE),

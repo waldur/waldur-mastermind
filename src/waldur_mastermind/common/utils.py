@@ -54,3 +54,8 @@ def parse_datetime(timestr):
 
 def parse_date(timestr):
     return parse_datetime(timestr).date()
+
+
+def mb_to_gb(value):
+    # In marketplace RAM and storage is stored in GB, but in plugin it is stored in MB.
+    return quantize_price(Decimal(value / 1024.0))

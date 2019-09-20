@@ -1,8 +1,7 @@
-from decimal import Decimal
 import logging
 
 from waldur_core.structure.permissions import _get_project
-from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.common.utils import mb_to_gb
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -10,11 +9,6 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_vmware import models as vmware_models
 
 logger = logging.getLogger(__name__)
-
-
-def mb_to_gb(value):
-    # In marketplace RAM and storage is stored in GB, but in plugin it is stored in MB.
-    return quantize_price(Decimal(value / 1024.0))
 
 
 class VirtualMachineRegistrator(BaseRegistrator):
