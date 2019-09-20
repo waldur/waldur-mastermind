@@ -13,6 +13,8 @@ class Command(DryRunCommand):
         ct = ContentType.objects.get_for_model(OpenStackPackage)
         for invoice_item in InvoiceItem.objects.filter(content_type=ct).exclude(object_id=None):
             package = invoice_item.scope
+            if not package:
+                continue
             tenant = package.tenant
             try:
                 resource = Resource.objects.get(scope=tenant)
@@ -25,4 +27,4 @@ class Command(DryRunCommand):
                                       invoice_item.scope.pk)
                 else:
                     invoice_item.scope = resource
-                    invoice_item.save(update_fields=['scope'])
+                    invoice_item.save()
