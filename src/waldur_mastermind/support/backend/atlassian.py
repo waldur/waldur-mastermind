@@ -148,8 +148,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             if value and self.issue_settings.get(field_name):
                 args[self.get_field_id_by_name(self.issue_settings[field_name])] = value
 
-        if issue.reporter and issue.reporter.user and issue.reporter.user.organization:
-            set_custom_field('organisation_field', issue.reporter.user.organization)
+        if issue.customer:
+            set_custom_field('organisation_field', issue.customer.name)
 
         if issue.project:
             set_custom_field('project_field', issue.project.name)
