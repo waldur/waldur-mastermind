@@ -389,7 +389,7 @@ class MergePlansTest(test.APITransactionTestCase):
         self.offering = offering
 
     def test_plans_are_merged(self):
-        merge_plans()
+        merge_plans(self.offering, self.offering.plans.first())
         self.assertEqual(self.offering.plans.count(), 1)
         self.assertEqual(self.offering.plans.get().name, 'Default')
         self.assertEqual(marketplace_models.Resource.objects.filter(offering=self.offering).count(), 2)

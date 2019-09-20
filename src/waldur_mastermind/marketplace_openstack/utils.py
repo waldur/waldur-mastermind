@@ -480,27 +480,23 @@ def update_limits(order_item):
             _apply_quotas(target, quotas)
 
 
-def merge_plans():
-    for offering in marketplace_models.Offering.objects.filter(type=PACKAGE_TYPE):
-        active_plans = offering.plans.exclude(archived=True)
-        if active_plans.count() > 1:
-            example_plan = active_plans.first()
-            new_plan = marketplace_models.Plan.objects.create(
-                offering=offering,
-                name='Default',
-                unit=example_plan.unit,
-                unit_price=example_plan.unit_price,
-                product_code=example_plan.product_code,
-                article_code=example_plan.article_code,
-            )
-            for component in example_plan.components.all():
-                marketplace_models.PlanComponent.objects.create(
-                    plan=new_plan,
-                    component=component.component,
-                    price=component.price,
-                )
-            marketplace_models.Resource.objects.filter(offering=offering).update(plan=new_plan)
-            marketplace_models.ResourcePlanPeriod.objects.filter(plan__offering=offering).update(plan=new_plan)
-            marketplace_models.OrderItem.objects.filter(plan__offering=offering).update(plan=new_plan)
-            marketplace_models.OrderItem.objects.filter(old_plan__offering=offering).update(old_plan=new_plan)
-            offering.plans.exclude(pk=new_plan.pk).delete()
+def merge_plans(offering, example_plan):
+    new_plan = marketplace_models.Plan.objects.create(
+        offering=offering,
+        name='Default',
+        unit=example_plan.unit,
+        unit_price=example_plan.unit_price,
+        product_code=example_plan.product_code,
+        article_code=example_plan.article_code,
+    )
+    for component in example_plan.components.all():
+        marketplace_models.PlanComponent.objects.create(
+            plan=new_plan,
+            component=component.component,
+            price=component.price,
+        )
+    marketplace_models.Resource.objects.filter(offering=offering).update(plan=new_plan)
+    marketplace_models.ResourcePlanPeriod.objects.filter(plan__offering=offering).update(plan=new_plan)
+    marketplace_models.OrderItem.objects.filter(plan__offering=offering).update(plan=new_plan)
+    marketplace_models.OrderItem.objects.filter(old_plan__offering=offering).update(old_plan=new_plan)
+    offering.plans.exclude(pk=new_plan.pk).delete()
