@@ -8,7 +8,7 @@ from ... import utils
 
 
 class Command(BaseCommand):
-    help = """Import OpenStack tenant quotas to marketplace."""
+    help = """Merge marketplace plans related to OpenStack tenant offering."""
 
     def add_arguments(self, parser):
         parser.add_argument('--offering', dest='offering_uuid', required=True,
