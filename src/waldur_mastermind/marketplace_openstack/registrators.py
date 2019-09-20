@@ -54,6 +54,6 @@ class MarketplaceItemRegistrator(BaseRegistrator):
             resource=source.name,
             offering=source.offering.name,
             cores=source.limits.get(CORES_TYPE),
-            ram=mb_to_gb(source.limits.get(RAM_TYPE, 0)),
-            disk=mb_to_gb(source.limits.get(STORAGE_TYPE, 0)),
+            ram=int(mb_to_gb(source.limits.get(RAM_TYPE, 0))),
+            disk=int(mb_to_gb(source.limits.get(STORAGE_TYPE, 0))),
         )
