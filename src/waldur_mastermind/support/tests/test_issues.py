@@ -313,7 +313,7 @@ class IssueCreateTest(IssueCreateBaseTest):
             template=factories.TemplateFactory.get_url()))
         issue = response.data
         kwargs = self.mock_jira().create_customer_request.return_value.update.call_args[1]
-        self.assertEqual(user.organization, kwargs['field105'])
+        self.assertEqual(issue['customer_name'], kwargs['field105'])
         self.assertEqual(issue['project_name'], kwargs['field106'])
         self.assertEqual(issue['resource_name'], kwargs['field107'].name)
         self.assertEqual(issue['template'].name, kwargs['field108'])
