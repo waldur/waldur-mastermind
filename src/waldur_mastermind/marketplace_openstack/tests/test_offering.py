@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.management.commands.load_categories import load_category
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE
+from waldur_mastermind.marketplace_openstack.utils import merge_plans, create_offering_components
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
@@ -349,3 +350,47 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         tenant.set_ok()
         tenant.save()
         return tenant
+
+
+class MergePlansTest(test.APITransactionTestCase):
+    def setUp(self):
+        fixture = package_fixtures.OpenStackFixture()
+        offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=fixture.openstack_service_settings
+        )
+        create_offering_components(offering)
+        for name in 'Basic', 'Advanced':
+            plan = marketplace_factories.PlanFactory(offering=offering, name=name)
+            prices = {
+                CORES_TYPE: 1,
+                RAM_TYPE: 0.1,
+                STORAGE_TYPE: 0.01,
+            }
+            for key, value in prices.items():
+                component = marketplace_models.OfferingComponent.objects.get(
+                    offering=offering,
+                    type=key,
+                )
+                marketplace_models.PlanComponent.objects.create(
+                    plan=plan,
+                    component=component,
+                    price=value,
+                )
+            resource = marketplace_factories.ResourceFactory(
+                offering=offering,
+                plan=plan,
+            )
+            marketplace_factories.OrderItemFactory(
+                offering=offering,
+                plan=plan,
+                resource=resource,
+            )
+        self.offering = offering
+
+    def test_plans_are_merged(self):
+        merge_plans()
+        self.assertEqual(self.offering.plans.count(), 1)
+        self.assertEqual(self.offering.plans.get().name, 'Default')
+        self.assertEqual(marketplace_models.Resource.objects.filter(offering=self.offering).count(), 2)
+        self.assertEqual(marketplace_models.OrderItem.objects.filter(offering=self.offering).count(), 2)
