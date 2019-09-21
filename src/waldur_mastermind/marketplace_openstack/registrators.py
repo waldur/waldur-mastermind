@@ -35,6 +35,10 @@ class MarketplaceItemRegistrator(BaseRegistrator):
             component_factors.get(component.component.type, 1)
             for component in source.plan.components.all()
         )
+
+        start = invoices_models.adjust_invoice_items(
+            invoice, source, start, unit_price, source.plan.unit)
+
         item = invoices_models.InvoiceItem.objects.create(
             scope=source,
             project=source.project,
