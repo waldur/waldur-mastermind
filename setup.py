@@ -20,7 +20,7 @@ install_requires = [
     'Babel!=2.4.0,>=2.3.4',
     'Celery>=4.2.0,<4.3.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
-    'croniter>=0.3.4,<0.3.6',
+    'croniter>=0.3.4',
     'defusedxml>=0.4.1',
     'django-admin-tools==0.8.0',
     'django-auth-ldap>=1.3.0',
