@@ -352,7 +352,19 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
             return BasicQuotaSerializer(offering.scope.quotas, many=True, context=self.context).data
 
 
+class OfferingComponentLimitSerializer(serializers.Serializer):
+    min = serializers.IntegerField(min_value=0)
+    max = serializers.IntegerField(min_value=0)
+
+
 class OfferingModifySerializer(OfferingDetailsSerializer):
+
+    class Meta(OfferingDetailsSerializer.Meta):
+        model = models.Offering
+        fields = OfferingDetailsSerializer.Meta.fields + ('limits',)
+
+    limits = serializers.DictField(child=OfferingComponentLimitSerializer(),
+                                   write_only=True, required=False)
 
     def validate(self, attrs):
         if not self.instance:
@@ -488,6 +500,16 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         for plan_data in plans:
             self._create_plan(offering, plan_data, components)
 
+    def _update_limits(self, offering, limits):
+        for key, values in limits.items():
+            models.OfferingComponent.objects.filter(
+                offering=offering,
+                type=key
+            ).update(
+                min_value=values['min'],
+                max_value=values['max']
+            )
+
 
 class OfferingCreateSerializer(OfferingModifySerializer):
     class Meta(OfferingModifySerializer.Meta):
@@ -504,6 +526,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        limits = validated_data.pop('limits', {})
         plans = validated_data.pop('plans', [])
         custom_components = validated_data.pop('components', [])
 
@@ -514,6 +537,8 @@ class OfferingCreateSerializer(OfferingModifySerializer):
 
         offering = super(OfferingCreateSerializer, self).create(validated_data)
         create_offering_components(offering, custom_components)
+        if limits:
+            self._update_limits(offering, limits)
         self._create_plans(offering, plans)
 
         return offering
@@ -719,6 +744,9 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
             new_plans = validated_data.pop('plans', [])
             if 'plans' in self.initial_data:
                 self._update_plans(instance, new_plans)
+        limits = validated_data.pop('limits', {})
+        if limits:
+            self._update_limits(instance, limits)
         offering = super(OfferingUpdateSerializer, self).update(instance, validated_data)
         return offering
 
