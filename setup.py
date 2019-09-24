@@ -83,7 +83,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='3.9.8',
+    version='3.9.9',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -140,6 +140,8 @@ setup(
             'waldur_marketplace_vmware = waldur_mastermind.marketplace_vmware.extension:MarketplaceVMwareExtension',
             'waldur_support_invoices = waldur_mastermind.support_invoices.extension:SupportInvoicesExtension',
             'waldur_vmware = waldur_vmware.extension:VMwareExtension',
+            'waldur_rancher = waldur_rancher.extension:RancherExtension',
+            'waldur_marketplace_rancher = waldur_mastermind.marketplace_rancher.extension:MarketplaceRancherExtension',
         ),
     },
     include_package_data=True,

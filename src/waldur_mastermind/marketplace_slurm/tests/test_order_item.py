@@ -21,7 +21,8 @@ class AllocationCreateTest(test.APITransactionTestCase):
         order_item = marketplace_factories.OrderItemFactory(
             order=order,
             offering=offering,
-            limits={component.type: 10 for component in manager.get_components(PLUGIN_NAME)}
+            limits={component.type: 10 for component in manager.get_components(PLUGIN_NAME)},
+            attributes={'name': 'My first allocation'}
         )
         for component in manager.get_components(PLUGIN_NAME):
             component = marketplace_models.OfferingComponent.objects.create(
@@ -43,7 +44,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
     def test_create_allocation_if_order_item_is_approved(self):
         self.trigger_creation()
-        self.assertTrue(slurm_models.Allocation.objects.filter(name=self.offering.name).exists())
+        self.assertTrue(slurm_models.Allocation.objects.filter(name=self.order_item.attributes['name']).exists())
 
         self.order_item.refresh_from_db()
         self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.EXECUTING)
@@ -53,7 +54,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
         self.offering.save()
         self.trigger_creation()
 
-        self.assertFalse(slurm_models.Allocation.objects.filter(name=self.offering.name).exists())
+        self.assertFalse(slurm_models.Allocation.objects.filter(name=self.order_item.attributes['name']).exists())
 
         self.order_item.refresh_from_db()
         self.assertEqual(self.order_item.state, marketplace_models.OrderItem.States.ERRED)

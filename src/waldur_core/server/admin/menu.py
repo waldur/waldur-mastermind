@@ -50,6 +50,7 @@ class CustomMenu(Menu):
         'waldur_mastermind.slurm_invoices.*',
         'waldur_rijkscloud.*',
         'waldur_vmware.*',
+        'waldur_rancher.*',
     )
 
     USERS = (
