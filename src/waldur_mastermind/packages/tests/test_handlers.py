@@ -14,8 +14,10 @@ from waldur_mastermind.invoices import models as invoices_models, utils as invoi
 from waldur_mastermind.invoices.tests import factories as invoices_factories, fixtures as invoices_fixtures
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import factories as packages_factories
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class UpdateInvoiceOnOpenstackPackageDeletionTest(TransactionTestCase):
 
     def setUp(self):
@@ -59,6 +61,7 @@ class UpdateInvoiceOnOpenstackPackageDeletionTest(TransactionTestCase):
         self.assertEqual(mocked_handler.call_count, 1)
 
 
+@override_plugin_settings(BILLING_ENABLED=True)
 class AddNewOpenstackPackageDetailsToInvoiceTest(TransactionTestCase):
 
     def setUp(self):

@@ -14,6 +14,7 @@ from waldur_mastermind.marketplace_openstack import (
     RAM_TYPE, STORAGE_TYPE, CORES_TYPE
 )
 from waldur_mastermind.packages import models as package_models
+from waldur_mastermind.packages.serializers import _apply_quotas
 from waldur_openstack.openstack import apps as openstack_apps
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
@@ -444,6 +445,42 @@ def get_offering(offering_type, service_settings):
                        'ServiceSettings ID: %s', service_settings.id)
 
 
+def import_usage(resource):
+    TenantQuotas = openstack_models.Tenant.Quotas
+    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+
+    if not resource.scope:
+        return
+
+    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'usage')
+    usages = {row['name']: row['usage'] for row in rows}
+
+    resource.current_usages = {
+        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0),
+        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0),
+    }
+    resource.save(update_fields=['current_usages'])
+
+
+def import_limits(resource):
+    TenantQuotas = openstack_models.Tenant.Quotas
+    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+
+    if not resource.scope:
+        return
+
+    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'limit')
+    limits = {row['name']: row['limit'] for row in rows}
+
+    resource.limits = {
+        CORES_TYPE: limits.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: limits.get(TenantQuotas.ram.name, 0),
+        STORAGE_TYPE: limits.get(TenantQuotas.storage.name, 0),
+    }
+    resource.save(update_fields=['limits'])
+
+
 def update_limits(order_item):
     tenant = order_item.resource.scope
     backend = tenant.get_backend()
@@ -458,3 +495,29 @@ def update_limits(order_item):
         if value:
             quotas[quota_name] = value
     backend.push_tenant_quotas(tenant, quotas)
+    with transaction.atomic():
+        _apply_quotas(tenant, quotas)
+        for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
+            _apply_quotas(target, quotas)
+
+
+def merge_plans(offering, example_plan):
+    new_plan = marketplace_models.Plan.objects.create(
+        offering=offering,
+        name='Default',
+        unit=example_plan.unit,
+        unit_price=example_plan.unit_price,
+        product_code=example_plan.product_code,
+        article_code=example_plan.article_code,
+    )
+    for component in example_plan.components.all():
+        marketplace_models.PlanComponent.objects.create(
+            plan=new_plan,
+            component=component.component,
+            price=component.price,
+        )
+    marketplace_models.Resource.objects.filter(offering=offering).update(plan=new_plan)
+    marketplace_models.ResourcePlanPeriod.objects.filter(plan__offering=offering).update(plan=new_plan)
+    marketplace_models.OrderItem.objects.filter(plan__offering=offering).update(plan=new_plan)
+    marketplace_models.OrderItem.objects.filter(old_plan__offering=offering).update(old_plan=new_plan)
+    offering.plans.exclude(pk=new_plan.pk).delete()

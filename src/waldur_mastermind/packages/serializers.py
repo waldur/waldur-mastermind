@@ -31,12 +31,11 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
     class Meta(object):
         model = models.PackageTemplate
         fields = (
-            'url', 'uuid', 'name', 'description', 'service_settings',
+            'uuid', 'name', 'description', 'service_settings',
             'price', 'monthly_price', 'icon_url', 'components', 'category', 'archived',
             'product_code', 'article_code',
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
             'service_settings': {'lookup_field': 'uuid'},
         }
 
@@ -99,15 +98,15 @@ def _has_access_to_package(user, spl):
 
 
 class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
-    template = serializers.HyperlinkedRelatedField(
-        lookup_field='uuid',
-        view_name='package-template-detail',
+    limits = serializers.JSONField(required=False, default=dict)
+    template = serializers.SlugRelatedField(
+        slug_field='uuid',
         write_only=True,
         queryset=models.PackageTemplate.objects.all())
     skip_connection_extnet = serializers.BooleanField(default=False)
 
     class Meta(openstack_serializers.TenantSerializer.Meta):
-        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', )
+        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', 'limits')
 
     def _validate_service_project_link(self, spl):
         # TODO: Drop permission check after migration to marketplace is completed [WAL-1901]
@@ -146,8 +145,11 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     def create(self, validated_data):
         """ Create tenant and service settings from it """
         template = validated_data.pop('template')
+        limits = validated_data.pop('limits')
         tenant = super(OpenStackPackageCreateSerializer, self).create(validated_data)
         _set_tenant_quotas(tenant, template)
+        if limits:
+            _apply_quotas(tenant, limits)
         _set_tenant_extra_configuration(tenant, template)
 
         # service settings are created on tenant creation
@@ -171,25 +173,21 @@ class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
 
     class Meta(object):
         model = models.OpenStackPackage
-        fields = ('url', 'uuid', 'name', 'description', 'template', 'template_uuid', 'tenant', 'service_settings',)
+        fields = ('uuid', 'name', 'description', 'template_uuid', 'tenant', 'service_settings',)
 
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'template': {'lookup_field': 'uuid', 'view_name': 'package-template-detail', 'read_only': True},
             'tenant': {'lookup_field': 'uuid', 'view_name': 'openstack-tenant-detail', 'read_only': True},
             'service_settings': {'lookup_field': 'uuid', 'read_only': True},
         }
 
 
 class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilteringMixin, serializers.Serializer):
-    package = serializers.HyperlinkedRelatedField(
-        view_name='openstack-package-detail',
-        lookup_field='uuid',
+    package = serializers.SlugRelatedField(
+        slug_field='uuid',
         queryset=models.OpenStackPackage.objects.all()
     )
-    template = serializers.HyperlinkedRelatedField(
-        view_name='package-template-detail',
-        lookup_field='uuid',
+    template = serializers.SlugRelatedField(
+        slug_field='uuid',
         queryset=models.PackageTemplate.objects.all()
     )
 
@@ -256,59 +254,3 @@ class OpenStackPackageChangeSerializer(structure_serializers.PermissionFieldFilt
             package.pk = package_id
 
         return attrs
-
-
-class OpenStackPackageAssignSerializer(serializers.Serializer):
-    template = serializers.HyperlinkedRelatedField(
-        view_name='package-template-detail',
-        lookup_field='uuid',
-        write_only=True,
-        queryset=models.PackageTemplate.objects.all()
-    )
-    tenant = serializers.HyperlinkedRelatedField(
-        view_name='openstack-tenant-detail',
-        lookup_field='uuid',
-        write_only=True,
-        queryset=openstack_models.Tenant.objects.all(),
-    )
-
-    def validate_template(self, template):
-        template = _check_template_service_settings(self, template)
-
-        if template.archived:
-            raise serializers.ValidationError(_('Package cannot be assigned for archived template.'))
-
-        return template
-
-    def validate_tenant(self, tenant):
-        if models.OpenStackPackage.objects.filter(tenant=tenant).exists():
-            raise serializers.ValidationError(
-                _('Package for tenant already exists. '
-                  'Please use change package operation instead.'))
-        return tenant
-
-    def validate(self, attrs):
-        attrs = super(OpenStackPackageAssignSerializer, self).validate(attrs)
-        spl = attrs['tenant'].service_project_link
-        template = attrs['template']
-        if spl.service.settings != template.service_settings:
-            raise serializers.ValidationError(
-                _('Template and service project link should be connected to the same service settings.'))
-
-        return attrs
-
-    @transaction.atomic
-    def create(self, validated_data):
-        tenant = validated_data['tenant']
-        template = validated_data['template']
-        _set_tenant_quotas(tenant, template)
-        _set_tenant_extra_configuration(tenant, template)
-        service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
-        )
-        return models.OpenStackPackage.objects.create(
-            tenant=tenant,
-            template=template,
-            service_settings=service_settings,
-        )

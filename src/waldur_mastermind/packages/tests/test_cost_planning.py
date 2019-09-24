@@ -3,7 +3,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_cost_planning.tests import factories as cost_planning_factories
 
-from . import fixtures, factories
+from . import fixtures
 from .. import models
 
 
@@ -33,7 +33,7 @@ class PackageDeploymentPlanTest(test.APITransactionTestCase):
         self.assertEqual(plan['service_settings'], settings_url)
 
         template = plan['package_template']
-        self.assertEqual(template['url'], factories.PackageTemplateFactory.get_url(self.template))
+        self.assertEqual(template['uuid'], self.template.uuid.hex)
 
         components = {component['type']: component['amount'] for component in template['components']}
         self.assertEqual(components['ram'], self.preset_param['ram'])
@@ -48,7 +48,7 @@ class PackageDeploymentPlanTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             plan = response.data[0]
             template = plan['package_template']
-            self.assertEqual(template['url'], factories.PackageTemplateFactory.get_url(self.template))
+            self.assertEqual(template['uuid'], self.template.uuid.hex)
 
             components = {component['type']: component['amount'] for component in template['components']}
             self.assertEqual(components['ram'], self.preset_param['ram'] * quantity)

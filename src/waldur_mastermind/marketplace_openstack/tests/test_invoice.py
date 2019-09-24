@@ -15,12 +15,14 @@ from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAG
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import serializers as packages_serializers
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
+from waldur_mastermind.packages.tests import utils as openstack_test_utils
 from waldur_openstack.openstack import models as openstack_models
 
 from .utils import BaseOpenStackTest, override_plugin_settings
 from .. import PACKAGE_TYPE
 
 
+@openstack_test_utils.override_plugin_settings(BILLING_ENABLED=True)
 class InvoiceTest(BaseOpenStackTest):
     def test_plan_with_monthly_pricing(self):
         with freeze_time('2017-01-01'):
@@ -159,14 +161,15 @@ class InvoiceTest(BaseOpenStackTest):
 
 
 @override_plugin_settings(BILLING_ENABLED=True)
+@freeze_time('2019-09-10')
 class MarketplaceInvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         self.limits = {
-            RAM_TYPE: 1,
+            RAM_TYPE: 1 * 1024,
             CORES_TYPE: 2,
-            STORAGE_TYPE: 3,
+            STORAGE_TYPE: 3 * 1024,
         }
         self.prices = {
             RAM_TYPE: 10,
@@ -196,9 +199,9 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
         )
         invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
         self.assertEqual(invoice_item.unit_price,
-                         self.limits[RAM_TYPE] * self.prices[RAM_TYPE] +
+                         self.limits[RAM_TYPE] * self.prices[RAM_TYPE] / 1024 +
                          self.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
-                         self.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE])
+                         self.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE] / 1024)
 
     def test_when_resource_is_updated_invoice_is_updated(self):
         marketplace_signals.resource_creation_succeeded.send(
@@ -206,31 +209,44 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             instance=self.resource,
         )
         self.resource.limits = {
-            RAM_TYPE: 10,
+            RAM_TYPE: 10 * 1024,
             CORES_TYPE: 20,
-            STORAGE_TYPE: 30,
+            STORAGE_TYPE: 30 * 1024,
         }
-        marketplace_signals.resource_update_succeeded.send(
+        self.resource.save()
+        order = marketplace_factories.OrderFactory(
+            project=self.resource.project,
+            state=marketplace_models.Order.States.EXECUTING,
+        )
+        order_item = marketplace_factories.OrderItemFactory(
+            order=order,
+            offering=self.offering,
+            resource=self.resource,
+            state=marketplace_models.OrderItem.States.EXECUTING,
+            limits=self.resource.limits,
+        )
+        marketplace_signals.limit_update_succeeded.send(
             sender=self.resource.__class__,
-            instance=self.resource,
+            order_item=order_item,
         )
         invoice_items = invoices_models.InvoiceItem.objects.filter(scope=self.resource)
 
         self.assertEqual(invoice_items.count(), 2)
         self.assertNotEqual(invoice_items.last().unit_price, invoice_items.first().unit_price)
         self.assertEqual(invoice_items.last().unit_price,
-                         self.resource.limits[RAM_TYPE] * self.prices[RAM_TYPE] +
+                         self.resource.limits[RAM_TYPE] * self.prices[RAM_TYPE] / 1024 +
                          self.resource.limits[CORES_TYPE] * self.prices[CORES_TYPE] +
-                         self.resource.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE])
+                         self.resource.limits[STORAGE_TYPE] * self.prices[STORAGE_TYPE] / 1024)
 
     def test_when_resource_is_deleted_invoice_is_updated(self):
         marketplace_signals.resource_creation_succeeded.send(
             sender=self.resource.__class__,
             instance=self.resource,
         )
-        marketplace_signals.resource_deletion_succeeded.send(
-            sender=self.resource.__class__,
-            instance=self.resource,
-        )
+        with freeze_time('2019-09-18'):
+            marketplace_signals.resource_deletion_succeeded.send(
+                sender=self.resource.__class__,
+                instance=self.resource,
+            )
         invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
-        self.assertIsNotNone(invoice_item.end)
+        self.assertEqual(invoice_item.end.day, 18)

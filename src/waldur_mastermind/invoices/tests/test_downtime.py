@@ -4,6 +4,7 @@ from rest_framework import test
 
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 
 from .. import models
 
@@ -78,6 +79,7 @@ class DowntimeValidationTest(test.APITransactionTestCase):
 
 
 @freeze_time('2018-11-01')
+@override_plugin_settings(BILLING_ENABLED=True)
 class OpenStackDowntimeAdjustmentTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()

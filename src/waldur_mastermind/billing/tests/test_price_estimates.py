@@ -6,10 +6,13 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.invoices.tests import factories as invoice_factories
+from waldur_mastermind.packages import views as packages_views
 from waldur_mastermind.packages.tests import factories as packages_factories
 from waldur_mastermind.packages.tests import fixtures as packages_fixtures
 from waldur_mastermind.packages.tests import utils as packages_utils
+from waldur_mastermind.packages.tests.utils import override_plugin_settings
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import fixtures as support_fixtures
 
@@ -106,6 +109,7 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time('2017-01-01')
+@override_plugin_settings(BILLING_ENABLED=True)
 class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
     @data('project', 'customer')
     def test_when_openstack_package_is_created_total_is_updated(self, scope):
@@ -119,10 +123,10 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
         package = fixture.openstack_package
         new_template = packages_factories.PackageTemplateFactory(service_settings=fixture.openstack_service_settings)
 
-        self.client.force_authenticate(user=fixture.owner)
-        response = self.client.post(packages_factories.OpenStackPackageFactory.get_list_url(action='change'), data={
-            'template': packages_factories.PackageTemplateFactory.get_url(new_template),
-            'package': packages_factories.OpenStackPackageFactory.get_url(package),
+        view = packages_views.OpenStackPackageViewSet.as_view({'post': 'change'})
+        response = common_utils.create_request(view, fixture.owner, {
+            'template': new_template.uuid.hex,
+            'package': package.uuid.hex,
         })
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
@@ -166,6 +170,7 @@ class OfferingPriceEstimateLimitValidationTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time('2017-01-01')
+@override_plugin_settings(BILLING_ENABLED=True)
 class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = packages_fixtures.PackageFixture()
@@ -199,10 +204,10 @@ class PackagePriceEstimateLimitValidationTest(test.APITransactionTestCase):
         for component_type in self.new_template.get_required_component_types():
             self.new_template.components.filter(type=component_type).update(price=component_price, amount=1)
 
-        self.client.force_authenticate(user=self.fixture.owner)
-        response = self.client.post(packages_factories.OpenStackPackageFactory.get_list_url(action='change'), data={
-            'template': packages_factories.PackageTemplateFactory.get_url(self.new_template),
-            'package': packages_factories.OpenStackPackageFactory.get_url(self.package),
+        view = packages_views.OpenStackPackageViewSet.as_view({'post': 'change'})
+        response = common_utils.create_request(view, self.fixture.owner, {
+            'template': self.new_template.uuid.hex,
+            'package': self.package.uuid.hex,
         })
 
         if response.status_code == status.HTTP_202_ACCEPTED:

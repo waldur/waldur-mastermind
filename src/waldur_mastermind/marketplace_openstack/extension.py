@@ -11,7 +11,7 @@ class MarketplaceOpenStackExtension(WaldurExtension):
             'INSTANCE_CATEGORY_UUID': None,
             'VOLUME_CATEGORY_UUID': None,
             'AUTOMATICALLY_CREATE_PRIVATE_OFFERING': True,
-            'BILLING_ENABLED': False,
+            'BILLING_ENABLED': True,
         }
 
     @staticmethod

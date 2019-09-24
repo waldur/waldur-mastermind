@@ -1197,7 +1197,7 @@ class BaseServiceSerializer(six.with_metaclass(ServiceSerializerMetaclass,
                 self._validate_settings(settings)
 
                 settings.save()
-                executors.ServiceSettingsCreateExecutor.execute(settings)
+                transaction.on_commit(lambda: executors.ServiceSettingsCreateExecutor.execute(settings))
                 attrs['settings'] = settings
 
             for f in settings_fields + extra_fields:

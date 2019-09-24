@@ -2,9 +2,10 @@ from django.conf import settings
 
 from waldur_mastermind.invoices.registrators import BaseRegistrator
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE
+from waldur_mastermind.marketplace_openstack import PACKAGE_TYPE, CORES_TYPE, RAM_TYPE, STORAGE_TYPE
 
 from waldur_mastermind.marketplace import models
+from waldur_mastermind.common.utils import mb_to_gb
 
 
 class MarketplaceItemRegistrator(BaseRegistrator):
@@ -24,11 +25,20 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         ])
 
     def _create_item(self, source, invoice, start, end):
+        from waldur_mastermind.marketplace import plugins
+
         details = self.get_details(source)
+        builtin_components = plugins.manager.get_components(source.offering.type)
+        component_factors = {c.type: c.factor for c in builtin_components}
         unit_price = sum(
-            source.limits[component.component.type] * component.price
+            source.limits.get(component.component.type, 0) * component.price /
+            component_factors.get(component.component.type, 1)
             for component in source.plan.components.all()
         )
+
+        start = invoices_models.adjust_invoice_items(
+            invoice, source, start, unit_price, source.plan.unit)
+
         item = invoices_models.InvoiceItem.objects.create(
             scope=source,
             project=source.project,
@@ -42,3 +52,12 @@ class MarketplaceItemRegistrator(BaseRegistrator):
             details=details,
         )
         self.init_details(item)
+
+    def get_name(self, source):
+        return '{resource} ({offering} / VPC {cores} CPU - {ram} GB RAM - {disk} GB storage)'.format(
+            resource=source.name,
+            offering=source.offering.name,
+            cores=source.limits.get(CORES_TYPE),
+            ram=int(mb_to_gb(source.limits.get(RAM_TYPE, 0))),
+            disk=int(mb_to_gb(source.limits.get(STORAGE_TYPE, 0))),
+        )

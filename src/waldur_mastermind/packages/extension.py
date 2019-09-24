@@ -7,17 +7,12 @@ class PackagesExtension(WaldurExtension):
 
     class Settings:
         WALDUR_PACKAGES = {
-            'BILLING_ENABLED': True,
+            'BILLING_ENABLED': False,
         }
 
     @staticmethod
     def django_app():
         return 'waldur_mastermind.packages'
-
-    @staticmethod
-    def rest_urls():
-        from .urls import register_in
-        return register_in
 
     @staticmethod
     def is_assembly():
