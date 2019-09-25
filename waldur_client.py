@@ -67,6 +67,11 @@ class WaldurClient(object):
         MarketplaceOrder = 'marketplace-orders'
         MarketplaceResources = 'marketplace-resources'
 
+    marketplaceScopeEndpoints = {
+        'OpenStackTenant.Instance': Endpoints.Instance,
+        'OpenStackTenant.Volume': Endpoints.Volume,
+    }
+
     def __init__(self, api_url, access_token):
         """
         Initializes a Waldur client
@@ -563,7 +568,7 @@ class WaldurClient(object):
         }
 
         if is_uuid(name):
-            params['resource_uuid'] = name
+            params['scope'] = self._build_url(self.marketplaceScopeEndpoints[offering_type] + '/' + name)
         else:
             params['name_exact'] = name
 
