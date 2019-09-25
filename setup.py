@@ -12,7 +12,7 @@ from setuptools import setup, find_packages
 install_requires = [
     'ansible-waldur-module>=0.8.2',
     'apache-libcloud>=1.1.0,<2.3.0',
-    'azure-mgmt-compute==4.0.1',
+    'azure-mgmt-compute==5.0.0',
     'azure-mgmt-network==2.0.0',
     'azure-mgmt-rdbms==1.2.0',
     'azure-mgmt-resource==2.0.0',
