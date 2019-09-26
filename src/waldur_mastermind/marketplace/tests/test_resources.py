@@ -218,10 +218,11 @@ class ResourceTerminateTest(test.APITransactionTestCase):
             state=models.Resource.States.OK,
         )
 
-    def terminate(self, user):
+    def terminate(self, user, attributes=None):
+        attributes = attributes or {}
         self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(self.resource, 'terminate')
-        return self.client.post(url)
+        return self.client.post(url, {'attributes': attributes})
 
     def test_order_item_is_created_when_user_submits_termination_request(self):
         # Act
@@ -287,6 +288,17 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         self.fixture.customer.save()
         response = self.terminate(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_delete_options_can_be_passed_if_resource_is_terminated(self):
+        # Act
+        response = self.terminate(self.fixture.staff, {'param': True})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        self.assertEqual(order.project, self.project)
+        item = order.items.first()
+        self.assertTrue(item.attributes.get('param'))
 
 
 class PlanUsageTest(test.APITransactionTestCase):

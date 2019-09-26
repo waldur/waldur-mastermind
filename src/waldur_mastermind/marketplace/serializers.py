@@ -1444,6 +1444,10 @@ def add_marketplace_offering(sender, fields, **kwargs):
     setattr(sender, 'get_is_usage_based', get_is_usage_based)
 
 
+class ResourceTerminateSerializer(serializers.Serializer):
+    attributes = serializers.JSONField(label=_('Termination attributes'), required=False)
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_service_provider,
