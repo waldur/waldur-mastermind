@@ -295,7 +295,7 @@ class OrderViewSet(BaseMarketplaceView):
 
     approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
                           structure_utils.check_customer_blocked]
-    approve_permissions = [permissions.check_permissions_for_state_change]
+    approve_permissions = [permissions.user_can_approve_order_permission]
 
     @detail_route(methods=['post'])
     def reject(self, request, uuid=None):
@@ -304,23 +304,9 @@ class OrderViewSet(BaseMarketplaceView):
         order.save(update_fields=['state'])
         return Response({'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK)
 
-    def check_permissions_for_reject(request, view, order=None):
-        if not order:
-            return
-
-        user = request.user
-
-        if user.is_staff:
-            return
-
-        if user == order.created_by:
-            return
-
-        raise rf_exceptions.PermissionDenied()
-
     reject_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
                          structure_utils.check_customer_blocked]
-    reject_permissions = [check_permissions_for_reject]
+    reject_permissions = [permissions.user_can_reject_order]
 
     @detail_route()
     def pdf(self, request, uuid=None):
@@ -457,12 +443,16 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     @detail_route(methods=['post'])
     def terminate(self, request, uuid=None):
         resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        attributes = serializer.validated_data.get('attributes', {})
 
         with transaction.atomic():
             order_item = models.OrderItem(
                 resource=resource,
                 offering=resource.offering,
                 type=models.OrderItem.Types.TERMINATE,
+                attributes=attributes,
             )
             order = serializers.create_order(
                 project=resource.project,
@@ -472,6 +462,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
         return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+
+    terminate_serializer_class = serializers.ResourceTerminateSerializer
 
     @detail_route(methods=['post'])
     def switch_plan(self, request, uuid=None):

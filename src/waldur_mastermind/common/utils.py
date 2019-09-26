@@ -1,6 +1,7 @@
 import json
 
 from decimal import Decimal, ROUND_UP
+from six.moves.urllib.parse import urlencode
 
 from dateutil import parser
 from django.utils.timezone import get_current_timezone
@@ -42,9 +43,12 @@ def create_request(view, user, post_data):
     return view(request)
 
 
-def delete_request(view, user, **extra):
+def delete_request(view, user, query_params='', **extra):
     factory = APIRequestFactory()
-    request = factory.delete('', **get_headers(user))
+    path = ''
+    if query_params:
+        path = '?' + urlencode(query_params)
+    request = factory.delete(path, **get_headers(user))
     return view(request, **extra)
 
 

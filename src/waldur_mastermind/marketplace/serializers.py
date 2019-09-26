@@ -27,6 +27,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common import exceptions
+from waldur_mastermind.marketplace.permissions import check_availability_of_auto_approving
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.utils import validate_order_item, validate_limits, create_offering_components
 from waldur_mastermind.support import serializers as support_serializers
@@ -996,17 +997,6 @@ class CartSubmitSerializer(serializers.Serializer):
         return order
 
 
-def check_availability_of_auto_approving(items, user, project):
-    if user.is_staff:
-        return True
-
-    # Skip approval of private offering for project users
-    if all(item.offering.is_private for item in items):
-        return structure_permissions._has_admin_access(user, project)
-
-    return permissions.user_can_approve_order(user, project)
-
-
 def get_item_params(item):
     return dict(
         offering=item.offering,
@@ -1442,6 +1432,10 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['is_usage_based'] = serializers.SerializerMethodField()
     setattr(sender, 'get_is_usage_based', get_is_usage_based)
+
+
+class ResourceTerminateSerializer(serializers.Serializer):
+    attributes = serializers.JSONField(label=_('Termination attributes'), required=False)
 
 
 core_signals.pre_serializer_fields.connect(
