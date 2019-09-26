@@ -12,7 +12,18 @@ def can_register_service_provider(request, customer):
     structure_permissions.is_owner(request, None, customer)
 
 
-def check_permissions_for_state_change(request, view, order=None):
+def check_availability_of_auto_approving(items, user, project):
+    if user.is_staff:
+        return True
+
+    # Skip approval of private offering for project users
+    if all(item.offering.is_private for item in items):
+        return structure_permissions._has_admin_access(user, project)
+
+    return user_can_approve_order(user, project)
+
+
+def user_can_approve_order_permission(request, view, order=None):
     if not order:
         return
 
@@ -40,3 +51,21 @@ def user_can_approve_order(user, project):
         return True
 
     return False
+
+
+def user_can_reject_order(request, view, order=None):
+    if not order:
+        return
+
+    user = request.user
+
+    if user.is_staff:
+        return
+
+    if user == order.created_by:
+        return
+
+    if structure_permissions._has_admin_access(user, order.project):
+        return
+
+    raise exceptions.PermissionDenied()
