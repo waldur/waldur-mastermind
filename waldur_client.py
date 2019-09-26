@@ -1050,19 +1050,21 @@ class WaldurClient(object):
 
         return instance
 
-    def _delete_scope_via_marketplace(self, scope_uuid, offering_type):
+    def _delete_scope_via_marketplace(self, scope_uuid, offering_type, options=None):
+        if options:
+            options = {'attributes': options}
         resource, scope = self.get_marketplace_resource_scope(scope_uuid, offering_type)
         url = self._build_resource_url(self.Endpoints.MarketplaceResources, resource['uuid'], action='terminate')
-        order_uuid = self._post(url, valid_states=[200])['order_uuid']
+        order_uuid = self._post(url, valid_states=[200], json=options)['order_uuid']
         return order_uuid
 
-    def delete_instance_via_marketplace(self, instance_uuid):
+    def delete_instance_via_marketplace(self, instance_uuid, **kwargs):
         """
         Delete OpenStack instance via marketplace.
 
         :param instance_uuid: instance UUID.
         """
-        return self._delete_scope_via_marketplace(instance_uuid, 'OpenStackTenant.Instance')
+        return self._delete_scope_via_marketplace(instance_uuid, 'OpenStackTenant.Instance', options=kwargs)
 
     def create_volume_via_marketplace(self,
                       name,

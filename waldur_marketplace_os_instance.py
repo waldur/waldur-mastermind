@@ -270,6 +270,8 @@ def send_request_to_waldur(client, module):
     project = module.params['project']
     subnet = module.params.get('subnet')
     present = module.params['state'] == 'present'
+    delete_volumes = module.params.get('delete_volumes')
+    release_floating_ips = module.params.get('release_floating_ips')
 
     instance = None
     has_changed = False
@@ -284,7 +286,7 @@ def send_request_to_waldur(client, module):
                     interval=module.params['interval'],
                     timeout=module.params['timeout'],
                 )
-            client.delete_instance_via_marketplace(instance['uuid'])
+            client.delete_instance_via_marketplace(instance['uuid'], delete_volumes, release_floating_ips)
             has_changed = True
         else:
             actual_groups = [group['name'] for group in instance.get('security_groups') or []]
