@@ -352,6 +352,12 @@ class InstanceDeleteViaMarketplaceTest(BaseWaldurClientTest):
                          'http://example.com:8000/api/marketplace-resources/resource_uuid/terminate/')
 
     @responses.activate
+    def test_pass_delete_options_to_api(self):
+        self.client.delete_instance_via_marketplace('6b6e60870ad64085aadcdcbc1fd84a7e', release_floating_ips=False)
+        self.assertEqual([json.loads(c.request.body) for c in responses.calls if c.request.method == 'POST'][0],
+                         {"attributes": {"release_floating_ips": False}})
+
+    @responses.activate
     def test_error_is_raised_if_invalid_status_code_is_returned(self):
         self.assertRaises(WaldurClientException, self.client.delete_instance, '6b6e60870ad64085aadcdcbc1fd84a7e')
 
