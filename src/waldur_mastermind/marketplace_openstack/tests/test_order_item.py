@@ -449,6 +449,20 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATING)
         self.assertEqual(self.instance.state, openstack_tenant_models.Instance.States.DELETION_SCHEDULED)
 
+    @mock.patch('waldur_openstack.openstack_tenant.views.executors')
+    def test_cancel_of_volume_deleting(self, mock_executors):
+        self.order_item.attributes = {'delete_volumes': False}
+        self.order_item.save()
+        self.trigger_deletion()
+        self.assertFalse(mock_executors.InstanceDeleteExecutor.execute.call_args[1]['delete_volumes'])
+
+    @mock.patch('waldur_openstack.openstack_tenant.views.executors')
+    def test_cancel_of_floating_ips_deleting(self, mock_executors):
+        self.order_item.attributes = {'release_floating_ips': False}
+        self.order_item.save()
+        self.trigger_deletion()
+        self.assertFalse(mock_executors.InstanceDeleteExecutor.execute.call_args[1]['release_floating_ips'])
+
     def test_deletion_is_completed(self):
         self.trigger_deletion()
         self.instance.delete()

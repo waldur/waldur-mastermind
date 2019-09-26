@@ -457,12 +457,16 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     @detail_route(methods=['post'])
     def terminate(self, request, uuid=None):
         resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        attributes = serializer.validated_data.get('attributes', {})
 
         with transaction.atomic():
             order_item = models.OrderItem(
                 resource=resource,
                 offering=resource.offering,
                 type=models.OrderItem.Types.TERMINATE,
+                attributes=attributes,
             )
             order = serializers.create_order(
                 project=resource.project,
@@ -472,6 +476,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
         return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+
+    terminate_serializer_class = serializers.ResourceTerminateSerializer
 
     @detail_route(methods=['post'])
     def switch_plan(self, request, uuid=None):

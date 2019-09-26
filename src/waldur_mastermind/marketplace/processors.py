@@ -248,7 +248,8 @@ class DeleteResourceProcessor(BaseOrderItemProcessor):
             raise serializers.ValidationError('Resource is not found.')
 
         view = self.get_viewset().as_view({'delete': 'destroy'})
-        response = common_utils.delete_request(view, user, uuid=resource.uuid)
+        delete_attributes = self.order_item.attributes
+        response = common_utils.delete_request(view, user, uuid=resource.uuid, query_params=delete_attributes)
 
         if response.status_code == status.HTTP_204_NO_CONTENT:
             with transaction.atomic():
