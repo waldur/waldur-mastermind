@@ -150,7 +150,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
                                                               component=self.offering_component,
                                                               date=datetime.date.today()).exists())
 
-    def test_it_should_not_be_possible_to_submit_usage_for_terminating_resource(self):
+    def test_it_should_be_possible_to_submit_usage_for_terminating_resource(self):
         self.resource.state = models.Resource.States.TERMINATING
         self.resource.save()
         self.client.force_authenticate(self.fixture.owner)
