@@ -150,6 +150,13 @@ class SubmitUsageTest(test.APITransactionTestCase):
                                                               component=self.offering_component,
                                                               date=datetime.date.today()).exists())
 
+    def test_it_should_not_be_possible_to_submit_usage_for_terminating_resource(self):
+        self.resource.state = models.Resource.States.TERMINATING
+        self.resource.save()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', self.get_usage_data())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     @data(models.Resource.States.CREATING, models.Resource.States.TERMINATED)
     def test_it_should_not_be_possible_to_submit_usage_for_pending_resource(self, state):
         self.resource.state = state

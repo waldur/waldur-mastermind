@@ -1287,7 +1287,8 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         resource = plan_period.resource
         offering = resource.plan.offering
 
-        if resource.state not in [models.Resource.States.OK, models.Resource.States.UPDATING]:
+        States = models.Resource.States
+        if resource.state not in (States.OK, States.UPDATING, States.TERMINATING):
             raise rf_exceptions.ValidationError({
                 'resource': _('Resource is not in valid state.')
             })
