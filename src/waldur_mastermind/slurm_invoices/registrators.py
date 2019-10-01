@@ -58,3 +58,13 @@ class AllocationRegistrator(registrators.BaseRegistrator):
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)
         return details
+
+    def get_component_details(self, offering, plan_component):
+        details = self.get_details(offering)
+        details.update({
+            'plan_component_id': plan_component.id,
+            'offering_component_type': plan_component.component.type,
+            'offering_component_name': plan_component.component.name,
+            'offering_component_measured_unit': plan_component.component.measured_unit,
+        })
+        return details

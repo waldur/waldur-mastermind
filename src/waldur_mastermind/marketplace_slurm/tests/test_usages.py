@@ -1,5 +1,4 @@
 import datetime
-import unittest
 
 from rest_framework import test
 
@@ -11,6 +10,8 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_slurm.tests import factories as slurm_factories
+
+from django.utils import timezone
 
 
 class BaseTest(test.APITransactionTestCase):
@@ -25,6 +26,11 @@ class BaseTest(test.APITransactionTestCase):
             offering=offering,
             plan=plan,
             project=fixture.project,
+        )
+        self.plan_period = marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=self.resource,
+            plan=plan,
+            start=timezone.make_aware(datetime.datetime.now())
         )
         for component in manager.get_components(PLUGIN_NAME):
             offering_component = marketplace_models.OfferingComponent.objects.create(
@@ -65,7 +71,6 @@ class ComponentUsageTest(BaseTest):
         self.assertFalse(marketplace_models.ComponentUsage.objects
                          .filter(resource=self.resource, component__type='ram').exists())
 
-    @unittest.skip('Pending implementation of usages\' support for SLURM in task WAL-2250.')
     def test_invoice_price_includes_usage_components(self):
         invoice = invoices_models.Invoice.objects.get(customer=self.allocation.service_project_link.project.customer)
         self.assertEqual(invoice.price, 0)
@@ -75,6 +80,7 @@ class ComponentUsageTest(BaseTest):
             usage=1,
             date=datetime.date.today(),
             billing_period=month_start(datetime.date.today()),
+            plan_period=self.plan_period
         )
         invoice.refresh_from_db()
         self.assertEqual(invoice.price, 3)
