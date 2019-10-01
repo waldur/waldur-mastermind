@@ -11,7 +11,10 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 from waldur_mastermind.slurm_invoices import models as slurm_invoices_models
+from waldur_slurm import models as slurm_models
 from waldur_slurm.apps import SlurmConfig
+
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -144,3 +147,15 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                 limit=limit,
                 usage=usage
             )
+
+
+def add_component_usage(sender, instance, created=False, **kwargs):
+    component_usage = instance
+
+    if not created and not component_usage.tracker.has_changed('usage'):
+        return
+
+    if not isinstance(component_usage.resource.scope, slurm_models.Allocation):
+        return
+
+    utils.component_usage_register(component_usage)
