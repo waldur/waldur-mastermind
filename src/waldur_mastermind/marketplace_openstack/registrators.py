@@ -1,3 +1,5 @@
+import decimal
+
 from django.conf import settings
 
 from waldur_mastermind.invoices.registrators import BaseRegistrator
@@ -31,8 +33,8 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         builtin_components = plugins.manager.get_components(source.offering.type)
         component_factors = {c.type: c.factor for c in builtin_components}
         unit_price = sum(
-            source.limits.get(component.component.type, 0) * component.price /
-            component_factors.get(component.component.type, 1)
+            decimal.Decimal(source.limits.get(component.component.type, 0)) * component.price /
+            decimal.Decimal(component_factors.get(component.component.type, 1))
             for component in source.plan.components.all()
         )
 
