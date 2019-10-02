@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 4.0.1
+Version: 4.0.2
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -86,7 +86,7 @@ Requires: python-passlib >= 1.7.0
 Requires: python-paypal-rest-sdk >= 1.10.0, python-paypal-rest-sdk < 2.0
 Requires: python-pillow >= 2.0.0
 Requires: python-prettytable >= 0.7.1, python-prettytable < 0.8
-Requires: python-psycopg2 >= 2.5.4
+Requires: python2-psycopg2 >= 2.5.4, python2-psycopg2 < 2.8.3
 Requires: python-redis = 2.10.6
 Requires: python-requests >= 2.14.2
 Requires: python-sqlparse >= 0.1.11
@@ -302,6 +302,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Wed Oct 2 2019 Jenkins <jenkins@opennodecloud.com> - 4.0.2-1.el7
+- New upstream release
+
 * Thu Sep 26 2019 Jenkins <jenkins@opennodecloud.com> - 4.0.1-1.el7
 - New upstream release
 
