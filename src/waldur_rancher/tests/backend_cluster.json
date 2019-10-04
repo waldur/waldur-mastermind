@@ -1,0 +1,478 @@
+{
+  "appliedSpec": {
+    "enableNetworkPolicy": true,
+    "displayName": "customer-app",
+    "description": "",
+    "rancherKubernetesEngineConfig": {
+      "bastionHost": {
+        "type": "/v3/schemas/bastionHost",
+        "sshAgentAuth": false
+      },
+      "ingress": {
+        "type": "/v3/schemas/ingressConfig",
+        "provider": "nginx"
+      },
+      "monitoring": {
+        "type": "/v3/schemas/monitoringConfig",
+        "provider": "metrics-server"
+      },
+      "cloudProvider": {
+        "type": "/v3/schemas/cloudProvider"
+      },
+      "restore": {
+        "restore": false,
+        "type": "/v3/schemas/restoreConfig"
+      },
+      "kubernetesVersion": "v1.14.6-rancher1-1",
+      "addonJobTimeout": 30,
+      "authentication": {
+        "type": "/v3/schemas/authnConfig",
+        "strategy": "x509|webhook"
+      },
+      "sshAgentAuth": false,
+      "services": {
+        "kubeApi": {
+          "alwaysPullImages": false,
+          "type": "/v3/schemas/kubeAPIService",
+          "podSecurityPolicy": false,
+          "serviceNodePortRange": "30000-32767"
+        },
+        "etcd": {
+          "backupConfig": {
+            "s3BackupConfig": null,
+            "type": "/v3/schemas/backupConfig",
+            "enabled": true,
+            "intervalHours": 12,
+            "retention": 6
+          },
+          "creation": "12h",
+          "extraArgs": {
+            "heartbeat-interval": "500",
+            "election-timeout": "5000"
+          },
+          "snapshot": false,
+          "type": "/v3/schemas/etcdService",
+          "retention": "72h"
+        },
+        "kubeproxy": {
+          "type": "/v3/schemas/kubeproxyService"
+        },
+        "kubeController": {
+          "type": "/v3/schemas/kubeControllerService"
+        },
+        "kubelet": {
+          "type": "/v3/schemas/kubeletService",
+          "failSwapOn": false
+        },
+        "scheduler": {
+          "type": "/v3/schemas/schedulerService"
+        },
+        "type": "/v3/schemas/rkeConfigServices"
+      },
+      "nodes": [
+        {
+          "hostnameOverride": "k8s-cluster",
+          "address": "10.0.2.15",
+          "nodeId": "new_cluster_id:m-dcd22bd33bfc",
+          "role": [
+            "etcd",
+            "controlplane",
+            "worker"
+          ],
+          "user": "root",
+          "sshAgentAuth": false,
+          "type": "/v3/schemas/rkeConfigNode",
+          "port": "22"
+        }
+      ],
+      "type": "/v3/schemas/rancherKubernetesEngineConfig",
+      "ignoreDockerVersion": true,
+      "authorization": {
+        "type": "/v3/schemas/authzConfig"
+      },
+      "network": {
+        "type": "/v3/schemas/networkConfig",
+        "options": {
+          "flannel_backend_type": "vxlan"
+        },
+        "plugin": "canal"
+      }
+    },
+    "enableClusterAlerting": false,
+    "defaultPodSecurityPolicyTemplateId": null,
+    "dockerRootDir": "/var/lib/docker",
+    "desiredAgentImage": "",
+    "desiredAuthImage": "",
+    "enableClusterMonitoring": false,
+    "type": "/v3/schemas/clusterSpec",
+    "internal": false,
+    "localClusterAuthEndpoint": {
+      "type": "/v3/schemas/localClusterAuthEndpoint",
+      "enabled": true
+    },
+    "defaultClusterRoleForProjectMembers": null
+  },
+  "certificatesExpiration": {
+    "kube-scheduler": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:42Z"
+    },
+    "kube-apiserver": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:43Z"
+    },
+    "kube-proxy": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:40Z"
+    },
+    "kube-controller-manager": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:41Z"
+    },
+    "kube-node": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:40Z"
+    },
+    "kube-etcd-10-0-2-15": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:40Z"
+    },
+    "kube-ca": {
+      "type": "/v3/schemas/certExpiration",
+      "expirationDate": "2029-09-08T12:38:39Z"
+    }
+  },
+  "createdTS": 1568205477000,
+  "allocatable": {
+    "pods": "110",
+    "cpu": "1",
+    "memory": "913756Ki"
+  },
+  "actions": {
+    "enableMonitoring": "https://192.168.33.13/v3/clusters/new_cluster_id?action=enableMonitoring",
+    "restoreFromEtcdBackup": "https://192.168.33.13/v3/clusters/new_cluster_id?action=restoreFromEtcdBackup",
+    "importYaml": "https://192.168.33.13/v3/clusters/new_cluster_id?action=importYaml",
+    "backupEtcd": "https://192.168.33.13/v3/clusters/new_cluster_id?action=backupEtcd",
+    "exportYaml": "https://192.168.33.13/v3/clusters/new_cluster_id?action=exportYaml",
+    "generateKubeconfig": "https://192.168.33.13/v3/clusters/new_cluster_id?action=generateKubeconfig",
+    "rotateCertificates": "https://192.168.33.13/v3/clusters/new_cluster_id?action=rotateCertificates"
+  },
+  "apiEndpoint": "https://10.0.2.15:6443",
+  "enableClusterAlerting": false,
+  "defaultPodSecurityPolicyTemplateId": null,
+  "localClusterAuthEndpoint": {
+    "type": "/v3/schemas/localClusterAuthEndpoint",
+    "enabled": true
+  },
+  "desiredAuthImage": "",
+  "agentImage": "rancher/rancher-agent:v2.2.8",
+  "appliedPodSecurityPolicyTemplateId": "",
+  "id": "new_cluster_id",
+  "capacity": {
+    "pods": "110",
+    "cpu": "1",
+    "memory": "1016156Ki"
+  },
+  "links": {
+    "clusterAlertRules": "https://192.168.33.13/v3/clusters/new_cluster_id/clusteralertrules",
+    "subscribe": "https://192.168.33.13/v3/clusters/new_cluster_id/subscribe",
+    "storageClasses": "https://192.168.33.13/v3/clusters/new_cluster_id/storageclasses",
+    "notifiers": "https://192.168.33.13/v3/clusters/new_cluster_id/notifiers",
+    "clusterRegistrationTokens": "https://192.168.33.13/v3/clusters/new_cluster_id/clusterregistrationtokens",
+    "self": "https://192.168.33.13/v3/clusters/new_cluster_id",
+    "clusterAlerts": "https://192.168.33.13/v3/clusters/new_cluster_id/clusteralerts",
+    "clusterLoggings": "https://192.168.33.13/v3/clusters/new_cluster_id/clusterloggings",
+    "clusterAlertGroups": "https://192.168.33.13/v3/clusters/new_cluster_id/clusteralertgroups",
+    "etcdBackups": "https://192.168.33.13/v3/clusters/new_cluster_id/etcdbackups",
+    "nodes": "https://192.168.33.13/v3/clusters/new_cluster_id/nodes",
+    "templates": "https://192.168.33.13/v3/clusters/new_cluster_id/templates",
+    "shell": "wss://192.168.33.13/v3/clusters/new_cluster_id?shell=true",
+    "update": "https://192.168.33.13/v3/clusters/new_cluster_id",
+    "persistentVolumes": "https://192.168.33.13/v3/clusters/new_cluster_id/persistentvolumes",
+    "clusterMonitorGraphs": "https://192.168.33.13/v3/clusters/new_cluster_id/clustermonitorgraphs",
+    "tokens": "https://192.168.33.13/v3/clusters/new_cluster_id/tokens",
+    "namespaces": "https://192.168.33.13/v3/clusters/new_cluster_id/namespaces",
+    "nodePools": "https://192.168.33.13/v3/clusters/new_cluster_id/nodepools",
+    "projects": "https://192.168.33.13/v3/clusters/new_cluster_id/projects",
+    "clusterRoleTemplateBindings": "https://192.168.33.13/v3/clusters/new_cluster_id/clusterroletemplatebindings",
+    "clusterCatalogs": "https://192.168.33.13/v3/clusters/new_cluster_id/clustercatalogs",
+    "remove": "https://192.168.33.13/v3/clusters/new_cluster_id"
+  },
+  "baseType": "cluster",
+  "capabilities": {
+    "loadBalancerCapabilities": {
+      "healthCheckSupported": false,
+      "type": "/v3/schemas/loadBalancerCapabilities"
+    },
+    "nodePortRange": "30000-32767",
+    "ingressCapabilities": [
+      {
+        "customDefaultBackend": false,
+        "type": "/v3/schemas/ingressCapabilities",
+        "ingressProvider": "Nginx"
+      }
+    ],
+    "nodePoolScalingSupported": false,
+    "type": "/v3/schemas/capabilities"
+  },
+  "transitioningMessage": "Failed to communicate with API server: Get https://10.0.2.15:6443/api/v1/namespaces/kube-system?timeout=30s: waiting for cluster agent to connect",
+  "state": "unavailable",
+  "internal": false,
+  "dockerRootDir": "/var/lib/docker",
+  "version": {
+    "major": "1",
+    "gitTreeState": "clean",
+    "buildDate": "2019-08-19T11:05:16Z",
+    "platform": "linux/amd64",
+    "minor": "14",
+    "gitCommit": "96fac5cd13a5dc064f7d9f4f23030a6aeface6cc",
+    "compiler": "gc",
+    "type": "/v3/schemas/info",
+    "gitVersion": "v1.14.6",
+    "goVersion": "go1.12.9"
+  },
+  "caCert": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUN3akNDQWFxZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFTTVJBd0RnWURWUVFERXdkcmRXSmwKTFdOaE1CNFhEVEU1TURreE1URXlNemd6T1ZvWERUSTVNRGt3T0RFeU16Z3pPVm93RWpFUU1BNEdBMVVFQXhNSAphM1ZpWlMxallUQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQUt3UjYwSjAyTmVhCjFyYkNXeWdCU2s3bXh0L21wckRLYmFzS0JEcFVJSGg3SHFOcUhoZ2V4bVhFeGowcTE4YkNrZ0RrR3cxTVJ1bTEKTm8xV3RSWmlLS3Y0T3BxaFFBYzlUQ2Y2bEZnOU5lQ2NwYlNucHpyeVBVWUhRWm13Y3F6cnhPZURGdFFIbERvZQpsTEJOazViM3lPMDR4akhISmJpKzhwenNtakpqMUNwUnJsM2gwZkp2T2NUNGFZT3ZyL1I3ZlgwYXRtclZNemcyCmhnRGdzL0RnTTRmRHF0UExZaElLQ1lpT3ZiNDlaSWxheDMvUVFjenpjVUlhTEZocUx2SjR2SURYc3ZnVjZZNzYKT29zVUNNYmptcHRzUTQvbEViRWJuME9ZWllhc3VVN3Q0Q3VRNUdudkFIRkFMQWFNNTBhckZjYXJ1c2JYTkNaZQpnY2FtZXcvOFZvRUNBd0VBQWFNak1DRXdEZ1lEVlIwUEFRSC9CQVFEQWdLa01BOEdBMVVkRXdFQi93UUZNQU1CCkFmOHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBQnltTUd6K1pyYThVdmY3Y3BJWWJLUkFkSzZGcVNnZVhLUXoKQ0poc05aTGprcWlrOHppQlhUVDN0QkF2Q0tQeFFRUFF4eC9sdHdhWGdNUmUzOHJSOU0zQzNBeUR4U0Q4Tk0yVgpIZWx2Z1ZUYkZPbUkyM1NoV3FaM3Brc2c5WE5Hb256UWtVWWF5ME9pZTNRYkFJR1lwT1h3UlFFQjBsQVBtUXJGCklwUWptc2tnTk9QRmVWSjFQSXdOdnV3VG4rM1EzNU5GeURFUzdCWjlWcUxoNnI4ZlB4RiswU0FXQnV6MXVyU20KdVRZSVp3Y0RRcHBFcnFaMXJ5RU8yR0ltTjVmbDdyZDZEVXJXdDNNR1RhYmo5R2FUZnl2Z1dJNzludzVmTzJobApQaTlMdUtHTCthd0JXRTV4a2hPRkJ2eVFMeWdmYzBUY2MrUC9TV1A3OElZVkNhOUtNdHM9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K",
+  "transitioning": "yes",
+  "conditions": [
+    {
+      "status": "True",
+      "type": "Pending"
+    },
+    {
+      "status": "True",
+      "type": "Provisioned",
+      "lastUpdateTime": "2019-09-11T12:47:46Z"
+    },
+    {
+      "status": "True",
+      "type": "Waiting",
+      "lastUpdateTime": "2019-09-11T12:48:01Z"
+    },
+    {
+      "status": "True",
+      "type": "BackingNamespaceCreated",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "DefaultProjectCreated",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "SystemProjectCreated",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "InitialRolesPopulated",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "CreatorMadeOwner",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "NoDiskPressure",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "NoMemoryPressure",
+      "lastUpdateTime": "2019-09-11T12:37:57Z"
+    },
+    {
+      "status": "True",
+      "type": "GlobalAdminsSynced",
+      "lastUpdateTime": "2019-09-11T12:47:48Z"
+    },
+    {
+      "status": "False",
+      "type": "AlertingEnabled",
+      "lastUpdateTime": "2019-09-11T12:47:49Z"
+    },
+    {
+      "status": "True",
+      "type": "SystemAccountCreated",
+      "lastUpdateTime": "2019-09-11T12:47:52Z"
+    },
+    {
+      "status": "True",
+      "type": "AgentDeployed",
+      "lastUpdateTime": "2019-09-11T12:47:52Z"
+    },
+    {
+      "status": "False",
+      "type": "PrometheusOperatorDeployed",
+      "lastUpdateTime": "2019-09-11T12:47:52Z"
+    },
+    {
+      "status": "False",
+      "message": "Failed to communicate with API server: Get https://10.0.2.15:6443/api/v1/namespaces/kube-system?timeout=30s: waiting for cluster agent to connect",
+      "type": "Ready",
+      "reason": "ComponentStatsFetchingFailure",
+      "lastUpdateTime": "2019-09-13T12:39:27Z"
+    },
+    {
+      "status": "True",
+      "type": "Updated",
+      "lastUpdateTime": "2019-09-11T12:48:15Z"
+    },
+    {
+      "status": "True",
+      "type": "ServiceAccountMigrated",
+      "lastUpdateTime": "2019-09-11T12:48:09Z"
+    }
+  ],
+  "annotations": {
+    "lifecycle.cattle.io/create.cluster-scoped-gc": "true",
+    "provisioner.cattle.io/ke-driver-update": "updated",
+    "lifecycle.cattle.io/create.mgmt-cluster-rbac-remove": "true",
+    "networking.management.cattle.io/enable-network-policy": "true",
+    "lifecycle.cattle.io/create.cluster-agent-controller-cleanup": "true",
+    "authz.management.cattle.io/creator-role-bindings": "{}",
+    "lifecycle.cattle.io/create.cluster-provisioner-controller": "true"
+  },
+  "defaultClusterRoleForProjectMembers": null,
+  "enableNetworkPolicy": true,
+  "requested": {
+    "pods": "9",
+    "cpu": "380m",
+    "memory": "100Mi"
+  },
+  "labels": {
+    "cattle.io/creator": "norman"
+  },
+  "description": "",
+  "appliedEnableNetworkPolicy": true,
+  "driver": "rancherKubernetesEngine",
+  "enableClusterMonitoring": false,
+  "rancherKubernetesEngineConfig": {
+    "bastionHost": {
+      "type": "/v3/schemas/bastionHost",
+      "sshAgentAuth": false
+    },
+    "ingress": {
+      "type": "/v3/schemas/ingressConfig",
+      "provider": "nginx"
+    },
+    "monitoring": {
+      "type": "/v3/schemas/monitoringConfig",
+      "provider": "metrics-server"
+    },
+    "cloudProvider": {
+      "type": "/v3/schemas/cloudProvider"
+    },
+    "restore": {
+      "restore": false,
+      "type": "/v3/schemas/restoreConfig"
+    },
+    "kubernetesVersion": "v1.14.6-rancher1-1",
+    "addonJobTimeout": 30,
+    "authentication": {
+      "type": "/v3/schemas/authnConfig",
+      "strategy": "x509|webhook"
+    },
+    "sshAgentAuth": false,
+    "services": {
+      "kubeApi": {
+        "alwaysPullImages": false,
+        "type": "/v3/schemas/kubeAPIService",
+        "podSecurityPolicy": false,
+        "serviceNodePortRange": "30000-32767"
+      },
+      "etcd": {
+        "backupConfig": {
+          "s3BackupConfig": null,
+          "type": "/v3/schemas/backupConfig",
+          "enabled": true,
+          "intervalHours": 12,
+          "retention": 6
+        },
+        "creation": "12h",
+        "extraArgs": {
+          "heartbeat-interval": "500",
+          "election-timeout": "5000"
+        },
+        "snapshot": false,
+        "type": "/v3/schemas/etcdService",
+        "retention": "72h"
+      },
+      "kubeproxy": {
+        "type": "/v3/schemas/kubeproxyService"
+      },
+      "kubeController": {
+        "type": "/v3/schemas/kubeControllerService"
+      },
+      "kubelet": {
+        "type": "/v3/schemas/kubeletService",
+        "failSwapOn": false
+      },
+      "scheduler": {
+        "type": "/v3/schemas/schedulerService"
+      },
+      "type": "/v3/schemas/rkeConfigServices"
+    },
+    "type": "/v3/schemas/rancherKubernetesEngineConfig",
+    "ignoreDockerVersion": true,
+    "authorization": {
+      "type": "/v3/schemas/authzConfig"
+    },
+    "network": {
+      "type": "/v3/schemas/networkConfig",
+      "options": {
+        "flannel_backend_type": "vxlan"
+      },
+      "plugin": "canal"
+    }
+  },
+  "name": "customer-app",
+  "limits": {
+    "pods": "0",
+    "cpu": "10m",
+    "memory": "190Mi"
+  },
+  "componentStatuses": [
+    {
+      "type": "/v3/schemas/clusterComponentStatus",
+      "conditions": [
+        {
+          "status": "True",
+          "message": "ok",
+          "type": "Healthy"
+        }
+      ],
+      "name": "controller-manager"
+    },
+    {
+      "type": "/v3/schemas/clusterComponentStatus",
+      "conditions": [
+        {
+          "status": "True",
+          "message": "{}",
+          "type": "Healthy"
+        }
+      ],
+      "name": "etcd-0"
+    },
+    {
+      "type": "/v3/schemas/clusterComponentStatus",
+      "conditions": [
+        {
+          "status": "True",
+          "message": "ok",
+          "type": "Healthy"
+        }
+      ],
+      "name": "scheduler"
+    }
+  ],
+  "created": "2019-09-11T12:37:57Z",
+  "authImage": "rancher/kube-api-auth:v0.1.3",
+  "type": "cluster",
+  "uuid": "fba76b76-d490-11e9-9ad7-0242ac110002",
+  "desiredAgentImage": "",
+  "creatorId": "user-zmtvg"
+}

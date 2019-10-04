@@ -3,6 +3,7 @@ from django.utils.functional import cached_property
 from waldur_core.structure import ServiceBackend
 
 from .client import RancherClient
+from . import models
 
 
 class RancherBackend(ServiceBackend):
@@ -41,6 +42,28 @@ class RancherBackend(ServiceBackend):
 
     def _backend_cluster_to_cluster(self, backend_cluster, cluster):
         cluster.backend_id = backend_cluster['id']
+        cluster.name = backend_cluster['name']
 
     def _cluster_to_backend_cluster(self, cluster):
         return {'name': cluster.name}
+
+    def get_clusters_for_import(self):
+        cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
+                           .values_list('backend_id', flat=True))
+        backend_clusters = self.client.list_clusters()
+        return filter(lambda c: c['id'] not in cur_clusters, backend_clusters)
+
+    def import_cluster(self, backend_id, service_project_link):
+        backend_cluster = self.client.get_cluster(backend_id)
+        cluster = models.Cluster(
+            backend_id=backend_id,
+            service_project_link=service_project_link,
+            state=models.Cluster.States.OK)
+        self._backend_cluster_to_cluster(backend_cluster, cluster)
+        cluster.save()
+        backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        for node in backend_nodes:
+            models.Node.objects.create(
+                cluster=cluster
+            )
+        return cluster

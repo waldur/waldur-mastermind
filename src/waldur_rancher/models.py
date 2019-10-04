@@ -45,7 +45,6 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
 
 @python_2_unicode_compatible
 class Cluster(NewResource):
-    backend_id = models.CharField(max_length=255, blank=True, null=True)
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)
 

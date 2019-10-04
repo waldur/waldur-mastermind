@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -9,7 +10,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
 
 
-from . import models, validators
+from . import models, validators, exceptions
 
 
 class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
@@ -125,3 +126,46 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
             raise serializers.ValidationError({'instance': 'The selected instance is already in use.'})
 
         return super(NodeSerializer, self).validate(attrs)
+
+
+class ClusterImportableSerializer(serializers.Serializer):
+    service_project_link = serializers.HyperlinkedRelatedField(
+        view_name='rancher-spl-detail',
+        queryset=models.RancherServiceProjectLink.objects.all(),
+        write_only=True)
+
+    name = serializers.CharField(read_only=True)
+    backend_id = serializers.CharField(source="id", read_only=True)
+    kubernetes_version = serializers.CharField(
+        source="rancherKubernetesEngineConfig.kubernetesVersion",
+        read_only=True)
+    created_ts = serializers.IntegerField(read_only=True)
+    nodes = serializers.ListField(
+        source="appliedSpec.rancherKubernetesEngineConfig.nodes",
+        required=False,
+        read_only=True)
+
+
+class ClusterImportSerializer(ClusterImportableSerializer):
+    backend_id = serializers.CharField(write_only=True)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        service_project_link = validated_data['service_project_link']
+        backend_id = validated_data['backend_id']
+
+        if models.Cluster.objects.filter(
+            service_project_link__service__settings=service_project_link.service.settings,
+            backend_id=backend_id
+        ).exists():
+            raise serializers.ValidationError({'backend_id': _('Cluster has been imported already.')})
+
+        try:
+            backend = service_project_link.get_backend()
+            cluster = backend.import_cluster(backend_id, service_project_link=service_project_link)
+        except exceptions.RancherException:
+            raise serializers.ValidationError({
+                'backend_id': _("Can't import cluster with ID %s") % validated_data['backend_id']
+            })
+
+        return cluster
