@@ -26,7 +26,7 @@
 Name: waldur-mastermind
 Summary: Waldur MasterMind
 Group: Development/Libraries
-Version: 4.0.3
+Version: 4.0.4
 Release: 1.el7
 License: MIT
 Url: https://waldur.com
@@ -302,6 +302,9 @@ fi
 %systemd_postun_with_restart %{__uwsgi_service_name}.service
 
 %changelog
+* Fri Oct 4 2019 Jenkins <jenkins@opennodecloud.com> - 4.0.4-1.el7
+- New upstream release
+
 * Fri Oct 4 2019 Jenkins <jenkins@opennodecloud.com> - 4.0.3-1.el7
 - New upstream release
 
