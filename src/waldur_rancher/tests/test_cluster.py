@@ -1,5 +1,6 @@
 import mock
-
+import pkg_resources
+import json
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -148,3 +149,76 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.fixture.cluster.save()
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
+class BaseProjectImportTest(test.APITransactionTestCase):
+    def _generate_backend_clusters(self):
+        backend_cluster = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
+        return [backend_cluster]
+
+
+class ClusterImportableResourcesTest(BaseProjectImportTest):
+
+    def setUp(self):
+        super(ClusterImportableResourcesTest, self).setUp()
+        self.url = factories.ClusterFactory.get_list_url('importable_resources')
+        self.fixture = fixtures.RancherFixture()
+        self.client.force_authenticate(self.fixture.owner)
+
+    @mock.patch('waldur_rancher.backend.RancherBackend.get_clusters_for_import')
+    def test_importable_clusters_are_returned(self, get_projects_mock):
+        backend_clusters = self._generate_backend_clusters()
+        get_projects_mock.return_value = backend_clusters
+        data = {
+            'service_project_link':
+                factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl)
+        }
+
+        response = self.client.get(self.url, data=data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEquals(len(response.data), len(backend_clusters))
+        returned_backend_ids = [item['backend_id'] for item in response.data]
+        expected_backend_ids = [item['id'] for item in backend_clusters]
+        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        get_projects_mock.assert_called()
+
+
+class ClusterImportResourceTest(BaseProjectImportTest):
+
+    def setUp(self):
+        super(ClusterImportResourceTest, self).setUp()
+        self.url = factories.ClusterFactory.get_list_url('import_resource')
+        self.fixture = fixtures.RancherFixture()
+        self.client.force_authenticate(self.fixture.owner)
+
+        self.patcher_import = mock.patch('waldur_rancher.backend.RancherBackend.import_cluster')
+        self.mock_import = self.patcher_import.start()
+        self.mock_import.return_value = self._generate_backend_clusters()[0]
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_backend_cluster_is_imported(self):
+        backend_id = 'backend_id'
+
+        payload = {
+            'backend_id': backend_id,
+            'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
+        }
+
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_backend_cluster_cannot_be_imported_if_it_is_registered_in_waldur(self):
+        cluster = factories.ClusterFactory(service_project_link=self.fixture.spl)
+
+        payload = {
+            'backend_id': cluster.backend_id,
+            'service_project_link': factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
+        }
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
