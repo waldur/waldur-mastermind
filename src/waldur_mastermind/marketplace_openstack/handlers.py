@@ -327,17 +327,19 @@ def create_resource_of_volume_if_instance_created(sender, instance, created=Fals
         volume_resource.init_quotas()
 
 
-def create_marketplace_resource_for_imported_resources(sender, instance, created=False, **kwargs):
+def create_marketplace_resource_for_imported_resources(sender, instance, offering=None, plan=None, **kwargs):
     resource = marketplace_models.Resource(
         project=instance.service_project_link.project,
         state=utils.get_resource_state(instance.state),
         name=instance.name,
         scope=instance,
-        created=instance.created
+        created=instance.created,
+        plan=plan,
+        offering=offering,
     )
 
     if isinstance(instance, openstack_tenant_models.Instance):
-        offering = utils.get_offering(INSTANCE_TYPE, instance.service_settings)
+        offering = offering or utils.get_offering(INSTANCE_TYPE, instance.service_settings)
 
         if not offering:
             return
@@ -350,7 +352,7 @@ def create_marketplace_resource_for_imported_resources(sender, instance, created
         resource.init_quotas()
 
     if isinstance(instance, openstack_tenant_models.Volume):
-        offering = utils.get_offering(VOLUME_TYPE, instance.service_settings)
+        offering = offering or utils.get_offering(VOLUME_TYPE, instance.service_settings)
 
         if not offering:
             return
@@ -363,7 +365,7 @@ def create_marketplace_resource_for_imported_resources(sender, instance, created
         resource.init_quotas()
 
     if isinstance(instance, openstack_models.Tenant):
-        offering = utils.get_offering(PACKAGE_TYPE, instance.service_settings)
+        offering = offering or utils.get_offering(PACKAGE_TYPE, instance.service_settings)
 
         if not offering:
             return

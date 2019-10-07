@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, OuterRef, Subquery, F, Q, ExpressionWrapper, PositiveSmallIntegerField
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -14,6 +14,7 @@ from rest_framework import views
 from rest_framework.decorators import detail_route, list_route
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
+from rest_framework.reverse import reverse
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -25,6 +26,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.signals import resource_imported
 
 from . import serializers, models, filters, tasks, plugins, permissions
 
@@ -110,6 +112,7 @@ class OfferingViewSet(BaseMarketplaceView):
     filter_backends = (
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
+        filters.OfferingImportableFilterBackend,
         filters.ExternalOfferingFilterBackend,
     )
 
@@ -171,6 +174,70 @@ class OfferingViewSet(BaseMarketplaceView):
         structure_utils.check_customer_blocked(customer)
 
         super(OfferingViewSet, self).perform_create(serializer)
+
+    @detail_route(methods=['get'])
+    def importable_resources(self, request, uuid=None):
+        offering = self.get_object()
+        resources = plugins.manager.get_importable_resources(offering)
+
+        page = self.paginate_queryset(resources)
+        return self.get_paginated_response(page)
+
+    importable_resources_permissions = [permissions.user_can_list_importable_resources]
+
+    import_resource_permissions = [permissions.user_can_list_importable_resources]
+
+    import_resource_serializer_class = serializers.ImportResourceSerializer
+
+    @detail_route(methods=['post'])
+    def import_resource(self, request, uuid=None):
+        offering = self.get_object()
+
+        marketplace_serializer = self.get_serializer(data=request.data)
+        marketplace_serializer.is_valid(raise_exception=True)
+
+        plan = marketplace_serializer.validated_data['plan']
+        project = marketplace_serializer.validated_data['project']
+        backend_id = marketplace_serializer.validated_data['backend_id']
+
+        service_model = plugins.manager.get_service_model(offering.type)
+        service = service_model.objects.get(settings=offering.scope, customer=project.customer)
+
+        spl_model = plugins.manager.get_spl_model(offering.type)
+        spl = spl_model.objects.get(project=project, service=service)
+        spl_url = reverse('{}-detail'.format(spl.get_url_name()), kwargs={'pk': spl.pk})
+
+        resource_data = {
+            'backend_id': backend_id,
+            'service_project_link': spl_url,
+        }
+
+        resource_viewset = plugins.manager.get_resource_viewset(offering.type)
+        serializer_class = resource_viewset.import_resource_serializer_class
+
+        serializer = serializer_class(data=resource_data, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            resource = serializer.save()
+        except IntegrityError:
+            raise rf_exceptions.ValidationError(_('Resource is already registered.'))
+        else:
+            resource_imported.send(
+                sender=resource.__class__,
+                instance=resource,
+                plan=plan,
+            )
+
+        if resource_viewset.import_resource_executor:
+            transaction.on_commit(lambda: resource_viewset.import_resource_executor.execute(resource))
+
+        marketplace_resource = models.Resource.objects.get(scope=resource)
+        resource_serializer = serializers.ResourceSerializer(
+            marketplace_resource, context=self.get_serializer_context())
+
+        return Response(data=resource_serializer.data,
+                        status=status.HTTP_201_CREATED)
 
 
 class PlanUsageReporter(object):

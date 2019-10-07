@@ -91,7 +91,8 @@ class MarketplaceOpenStackConfig(AppConfig):
                          ),
                          service_type=OpenStackConfig.service_name,
                          secret_attributes=get_secret_attributes,
-                         available_limits=AVAILABLE_LIMITS)
+                         available_limits=AVAILABLE_LIMITS,
+                         resource_model=openstack_models.Tenant)
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,

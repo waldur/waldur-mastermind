@@ -44,6 +44,23 @@ class OfferingQuerySet(django_models.QuerySet):
             ~Q(content_type=settings_ct)
         )
 
+    def filter_importable(self, user):
+        # Import is limited to staff for shared offerings and to staff/owners for private offerings
+
+        if user.is_staff:
+            return self
+
+        owned_customers = set(structure_models.Customer.objects.all().filter(
+            permissions__user=user,
+            permissions__is_active=True,
+            permissions__role=structure_models.CustomerRole.OWNER
+        ).distinct())
+
+        return self.filter(
+            Q(shared=False, allowed_customers__in=owned_customers) |
+            Q(shared=False, customer__in=owned_customers)
+        )
+
 
 class OfferingManager(MixinManager):
     def get_queryset(self):

@@ -6,4 +6,4 @@ structure_role_granted = Signal(providing_args=['structure', 'user', 'role', 'cr
 structure_role_revoked = Signal(providing_args=['structure', 'user', 'role', 'removed_by'])
 structure_role_updated = Signal(providing_args=['instance', 'user'])
 
-resource_imported = Signal(providing_args=['instance'])
+resource_imported = Signal(providing_args=['instance', 'plan', 'offering'])
