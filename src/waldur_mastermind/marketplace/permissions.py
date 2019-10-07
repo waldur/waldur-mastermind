@@ -1,6 +1,7 @@
 from django.conf import settings as django_settings
 from rest_framework import exceptions
 
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 
 
@@ -69,3 +70,24 @@ def user_can_reject_order(request, view, order=None):
         return
 
     raise exceptions.PermissionDenied()
+
+
+def user_can_list_importable_resources(request, view, offering=None):
+    if not offering:
+        return
+
+    user = request.user
+    if user.is_staff:
+        return
+
+    if offering.shared:
+        raise exceptions.PermissionDenied('Import is limited to staff for shared offerings.')
+
+    owned_customers = set(structure_models.Customer.objects.all().filter(
+        permissions__user=user,
+        permissions__is_active=True,
+        permissions__role=structure_models.CustomerRole.OWNER
+    ).distinct())
+
+    if offering.customer not in owned_customers and not (offering.allowed_customers & owned_customers):
+        raise exceptions.PermissionDenied('Import is limited to owners for private offerings.')

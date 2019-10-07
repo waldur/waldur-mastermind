@@ -1796,6 +1796,10 @@ class ImportableResourceViewSet(BaseResourceViewSet):
     import_resource_permissions = [structure_permissions.is_staff]
     import_resource_executor = executors.TenantImportExecutor
 
+    It is expected that importable_resources_backend_method returns list of dicts, each of which
+    contains two mandatory fields: name and backend_id, and one optional field called extra.
+    This optional field should be list of dicts, each of which contains two mandatory fields: name and value.
+
     Note that there are only 3 mandatory parameters:
     * importable_resources_backend_method
     * importable_resources_serializer_class
