@@ -1244,6 +1244,20 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
     components = BaseComponentUsageSerializer(source='current_components', many=True)
 
 
+class ImportResourceSerializer(serializers.Serializer):
+    backend_id = serializers.CharField()
+    project = serializers.SlugRelatedField(queryset=structure_models.Project.objects.all(), slug_field='uuid')
+    plan = serializers.SlugRelatedField(queryset=models.Plan.objects.all(), slug_field='uuid')
+
+    def get_fields(self):
+        fields = super(ImportResourceSerializer, self).get_fields()
+
+        request = self.context['request']
+        user = request.user
+        fields['project'].queryset = filter_queryset_for_user(fields['project'].queryset, user)
+        return fields
+
+
 class ServiceProviderSignatureSerializer(serializers.Serializer):
     customer = serializers.SlugRelatedField(queryset=structure_models.Customer.objects.all(), slug_field='uuid')
     data = serializers.CharField()

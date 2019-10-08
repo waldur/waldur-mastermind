@@ -73,6 +73,13 @@ class OfferingCustomersFilterBackend(DjangoFilterBackend):
         return queryset.filter_for_user(request.user)
 
 
+class OfferingImportableFilterBackend(DjangoFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        if 'importable' in request.query_params:
+            return queryset.filter_importable(request.user)
+        return queryset
+
+
 class ScreenshotFilter(django_filters.FilterSet):
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(name='offering__uuid')

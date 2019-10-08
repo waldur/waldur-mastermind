@@ -70,8 +70,9 @@ class ClusterFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('rancher-cluster-list')
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('rancher-cluster-list')
+        return url if action is None else url + action + '/'
 
 
 class NodeFactory(factory.DjangoModelFactory):

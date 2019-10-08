@@ -1,5 +1,7 @@
 import logging
 
+from waldur_core.structure import SupportedServices
+
 
 class Component(object):
     def __init__(self, type, name, measured_unit, billing_type, factor=1):
@@ -35,7 +37,8 @@ class PluginManager(object):
                  service_type=None,
                  can_terminate_order_item=False,
                  secret_attributes=None,
-                 available_limits=None):
+                 available_limits=None,
+                 resource_model=None):
         """
 
         :param offering_type: string which consists of application name and model name,
@@ -51,6 +54,7 @@ class PluginManager(object):
         for example, VPC username and password.
         :param available_limits: optional list of strings each of which corresponds to offering component type,
         which supports user-defined limits, such as VPC RAM and vCPU.
+        :param resource_model: optional Django model class which corresponds to resource.
         """
         self.backends[offering_type] = {
             'create_resource_processor': create_resource_processor,
@@ -61,6 +65,7 @@ class PluginManager(object):
             'can_terminate_order_item': can_terminate_order_item,
             'secret_attributes': secret_attributes,
             'available_limits': available_limits,
+            'resource_model': resource_model,
         }
 
     def get_offering_types(self):
@@ -113,6 +118,32 @@ class PluginManager(object):
         Returns list of offering component types which supports user-defined limits.
         """
         return self.backends.get(offering_type, {}).get('available_limits') or []
+
+    def get_resource_model(self, offering_type):
+        """
+        Returns Django model class which corresponds to resource.
+        """
+        return self.backends.get(offering_type, {}).get('resource_model')
+
+    def get_resource_viewset(self, offering_type):
+        resource_model = self.get_resource_model(offering_type)
+        return SupportedServices.get_resource_view(resource_model)
+
+    def get_spl_model(self, offering_type):
+        resource_model = self.get_resource_model(offering_type)
+        return SupportedServices.get_related_models(resource_model)['service_project_link']
+
+    def get_service_model(self, offering_type):
+        resource_model = self.get_resource_model(offering_type)
+        return SupportedServices.get_related_models(resource_model)['service']
+
+    def get_importable_resources(self, offering):
+        try:
+            resource_viewset = self.get_resource_viewset(offering.type)
+        except AttributeError:
+            return []
+        backend = offering.scope.get_backend()
+        return getattr(backend, resource_viewset.importable_resources_backend_method)()
 
     def get_processor(self, offering_type, processor_type):
         """

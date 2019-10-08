@@ -506,7 +506,7 @@ def merge_plans(offering, example_plan):
         offering=offering,
         name='Default',
         unit=example_plan.unit,
-        unit_price=example_plan.unit_price,
+        unit_price=0,  # there are no fixed components thus price is zero
         product_code=example_plan.product_code,
         article_code=example_plan.article_code,
     )
