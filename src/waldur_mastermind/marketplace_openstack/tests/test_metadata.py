@@ -91,6 +91,17 @@ class NetworkMetadataTest(BaseOpenStackTest):
         resource.refresh_from_db()
         self.assertEqual(resource.backend_metadata['internal_ips'], ['10.0.0.1'])
 
+    def test_internal_ip_address_is_updated_on_delete(self):
+        internal_ip = self.fixture.internal_ip
+        resource = self.import_resource()
+        internal_ip.ip4_address = '10.0.0.1'
+        internal_ip.save()
+        resource.refresh_from_db()
+
+        internal_ip.delete()
+        resource.refresh_from_db()
+        self.assertEqual(resource.backend_metadata['internal_ips'], [])
+
     def test_floating_ip_address_is_synchronized(self):
         internal_ip = self.fixture.internal_ip
         floating_ip = self.fixture.floating_ip
@@ -100,3 +111,16 @@ class NetworkMetadataTest(BaseOpenStackTest):
 
         resource = self.import_resource()
         self.assertEqual(resource.backend_metadata['external_ips'], [floating_ip.address])
+
+    def test_floating_ip_address_is_synchronized_on_delete(self):
+        internal_ip = self.fixture.internal_ip
+        floating_ip = self.fixture.floating_ip
+
+        floating_ip.internal_ip = internal_ip
+        floating_ip.save()
+
+        resource = self.import_resource()
+
+        floating_ip.delete()
+        resource.refresh_from_db()
+        self.assertEqual(resource.backend_metadata['external_ips'], [])
