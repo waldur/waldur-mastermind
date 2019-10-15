@@ -294,6 +294,27 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
         utils.import_instance_metadata(resource)
 
 
+def import_instance_metadata(vm):
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=vm)
+    except ObjectDoesNotExist:
+        logger.debug('Skipping resource synchronization for OpenStack instance '
+                     'because marketplace resource does not exist. '
+                     'Virtual machine ID: %s', vm.id)
+    else:
+        utils.import_instance_metadata(resource)
+
+
+def synchronize_internal_ips_on_delete(sender, instance, **kwargs):
+    if hasattr(instance, 'instance'):
+        import_instance_metadata(instance.instance)
+
+
+def synchronize_floating_ips_on_delete(sender, instance, **kwargs):
+    if instance.internal_ip:
+        import_instance_metadata(instance.internal_ip.instance)
+
+
 def create_resource_of_volume_if_instance_created(sender, instance, created=False, **kwargs):
     resource = instance
 
