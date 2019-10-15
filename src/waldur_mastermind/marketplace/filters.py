@@ -5,9 +5,11 @@ from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
+from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 
 from . import models
@@ -239,3 +241,14 @@ class OfferingFileFilter(django_filters.FilterSet):
 
 class ExternalOfferingFilterBackend(core_filters.ExternalFilterBackend):
     pass
+
+
+class CustomerResourceFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        if 'has_resources' in request.query_params:
+            customers = models.Resource.objects.all().values_list('project__customer_id', flat=True)
+            queryset = queryset.filter(pk__in=customers)
+        return queryset
+
+
+structure_filters.ExternalCustomerFilterBackend.register(CustomerResourceFilter())
