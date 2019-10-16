@@ -126,6 +126,18 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_floating_ips',
         )
 
+        signals.post_delete.connect(
+            handlers.synchronize_internal_ips_on_delete,
+            sender=tenant_models.InternalIP,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_internal_ips_on_delete',
+        )
+
+        signals.post_delete.connect(
+            handlers.synchronize_floating_ips_on_delete,
+            sender=tenant_models.FloatingIP,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_floating_ips_on_delete',
+        )
+
         signals.post_save.connect(
             handlers.create_resource_of_volume_if_instance_created,
             sender=marketplace_models.Resource,
