@@ -65,39 +65,35 @@
       </div>
       <div class="m-t">
         <table class="invoice-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Quantity</th>
-              <th>Unit price</th>
-              <th>Total price</th>
-            </tr>
-          </thead>
+          <tr>
+            <th>Item</th>
+            <th>Quantity</th>
+            <th>Unit price</th>
+            <th>Total price</th>
+          </tr>
 
-          <tbody>
-            {% regroup items|dictsort:"project_name" by project_name as project_list %}
-            {% for project in project_list %}
-            <tr>
-                <td colspan="4"><h3>{{ project.grouper }}</h3></td>
-            </tr>
-              {% for item in project.list %}
-                <tr>
-                  <td>
-                    <strong>{{ item.name }}</strong>
-                    <div>
-                      <small>
-                        {% trans "Start time" %}: {{ item.start | date:"Y-m-d H:i" }}.
-                        {% trans "End time" %}: {{ item.end | date:"Y-m-d H:i" }}.
-                      </small>
-                    </div>
-                  </td>
-                  <td>{{ item.get_factor }}</td>
-                  <td>{{ currency }} {{ item.unit_price | floatformat:2 | intcomma }}</td>
-                  <td>{{ currency }} {{ item.total | floatformat:2 | intcomma }}</td>
-                </tr>
-              {% endfor %}
+          {% regroup items|dictsort:"project_name" by project_name as project_list %}
+          {% for project in project_list %}
+          <tr>
+              <td colspan="4"><h3>{{ project.grouper }}</h3></td>
+          </tr>
+            {% for item in project.list %}
+              <tr>
+                <td>
+                  <strong>{{ item.name }}</strong>
+                  <div>
+                    <small>
+                      {% trans "Start time" %}: {{ item.start | date:"Y-m-d H:i" }}.
+                      {% trans "End time" %}: {{ item.end | date:"Y-m-d H:i" }}.
+                    </small>
+                  </div>
+                </td>
+                <td>{{ item.get_factor }}</td>
+                <td>{{ currency }} {{ item.unit_price | floatformat:2 | intcomma }}</td>
+                <td>{{ currency }} {{ item.total | floatformat:2 | intcomma }}</td>
+              </tr>
             {% endfor %}
-          </tbody>
+          {% endfor %}
         </table>
       </div>
       <table class="m-t invoice-total">
