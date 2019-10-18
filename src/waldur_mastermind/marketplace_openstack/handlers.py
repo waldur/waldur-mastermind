@@ -297,7 +297,8 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
 def import_instance_metadata(vm):
     try:
         resource = marketplace_models.Resource.objects.get(scope=vm)
-    except ObjectDoesNotExist:
+    # AttributeError can be raised by generic foreign key, WAL-2662
+    except (ObjectDoesNotExist, AttributeError):
         logger.debug('Skipping resource synchronization for OpenStack instance '
                      'because marketplace resource does not exist. '
                      'Virtual machine ID: %s', vm.id)
