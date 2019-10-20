@@ -1,12 +1,8 @@
 from __future__ import unicode_literals
 
-from datetime import timedelta
 from decimal import Decimal
 
 from ddt import ddt, data
-from django.conf import settings
-from django.utils import timezone
-from freezegun import freeze_time
 import mock
 from rest_framework import status, test
 
@@ -15,7 +11,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.support.tests.base import override_support_settings, BaseTest
 
 from . import factories, fixtures
-from .. import models, tasks
+from .. import models
 
 
 class BaseOfferingTest(BaseTest):

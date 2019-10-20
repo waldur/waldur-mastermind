@@ -9,7 +9,6 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import get_template
 from django.template import Template, Context
-from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 
