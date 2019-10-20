@@ -114,21 +114,3 @@ def _send_issue_notification(issue, template, receiver=None):
     except SMTPException as e:
         message = 'Failed to notify a user about an issue update. Issue uuid: %s. Error: %s' % (issue.uuid, e.message)
         logger.warning(message)
-
-
-@shared_task(name='waldur_mastermind.support.remove_terminated_offerings')
-def remove_terminated_offerings():
-    """
-    Request based offering lifetime must be specified in Waldur support settings with parameter
-    "TERMINATED_OFFERING_LIFETIME". If terminated offering lifetime is expired, offering is removed.
-    """
-    if not settings.WALDUR_SUPPORT['ENABLED']:
-        return
-
-    expiration_date = timezone.now() - settings.WALDUR_SUPPORT['TERMINATED_OFFERING_LIFETIME']
-    offerings = models.Offering.objects.filter(
-        state=models.Offering.States.TERMINATED,
-        terminated_at__lte=expiration_date,
-    )
-    # Bulk delete all expired offerings
-    offerings.delete()
