@@ -53,7 +53,7 @@ django-redis-cache==1.7.1
 django-rest-swagger==2.1.2
 django-reversion==2.0.8
 django-taggit==0.22.2
-djangorestframework==3.6.4
+djangorestframework==3.9.1
 djangosaml2==0.17.1
 dogpile.cache==0.6.5
 enum34==1.1.6
