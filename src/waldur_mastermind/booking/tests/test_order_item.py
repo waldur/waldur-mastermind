@@ -38,15 +38,14 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.user = self.fixture.admin
         self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME,
-                                                              options={'schedules': [
+                                                              attributes={'schedules': [
                                                                   {'start': '2019-01-01T00:00:00.000000Z',
                                                                    'end': '2019-01-01T23:59:59.000000Z'},
                                                                   {'start': '2019-01-02T00:00:00.000000Z',
                                                                    'end': '2019-01-02T23:59:59.000000Z'},
                                                                   {'start': '2019-01-03T00:00:00.000000Z',
                                                                    'end': '2019-01-03T23:59:59.000000Z'}
-                                                              ],
-                                                                  'options': {}},
+                                                              ]},
                                                               state=marketplace_models.Offering.States.ACTIVE)
 
     def test_create_order_if_schedule_is_valid(self):
