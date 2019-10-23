@@ -46,7 +46,7 @@ django-fluent-dashboard==0.6.1
 django-fsm==2.6.1
 django-jsoneditor==0.0.12
 django-model-utils==3.0.0
-django-openid-auth==0.14
+django-openid-auth==0.15
 django-redis-cache==1.7.1
 django-rest-swagger==2.1.2
 django-reversion==2.0.8

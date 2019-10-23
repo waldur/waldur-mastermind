@@ -30,7 +30,7 @@ install_requires = [
     'django-fsm==2.6.1',
     'django-jsoneditor>=0.0.7',
     'django-model-utils==3.0.0',
-    'django-openid-auth>=0.14',
+    'django-openid-auth>=0.15',
     'django-redis-cache>=1.6.5',
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
