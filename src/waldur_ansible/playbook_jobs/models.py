@@ -6,7 +6,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -24,7 +23,6 @@ def get_upload_path(instance, filename):
     return '%s/%s.png' % (instance._meta.model_name, instance.uuid.hex)
 
 
-@python_2_unicode_compatible
 class Playbook(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
@@ -60,7 +58,6 @@ class Playbook(core_models.UuidMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class PlaybookParameter(core_models.DescribableMixin, models.Model):
     class Meta(object):
         unique_together = ('playbook', 'name')
@@ -80,7 +77,6 @@ class PlaybookParameter(core_models.DescribableMixin, models.Model):
         return self.name
 
 
-@python_2_unicode_compatible
 class Job(core_models.UuidMixin,
           core_models.StateMixin,
           core_models.NameMixin,

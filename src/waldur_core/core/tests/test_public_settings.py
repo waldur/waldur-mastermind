@@ -1,5 +1,5 @@
 from django.test import TestCase
-from six.moves import mock
+import mock
 
 from waldur_core.core import views
 

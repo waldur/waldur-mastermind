@@ -1,12 +1,10 @@
-import six
-
 from waldur_core.core.models import User, SshPublicKey
 from waldur_core.logging.loggers import EventLogger, event_logger
 
 
 class AuthEventLogger(EventLogger):
     user = User
-    username = six.text_type
+    username = str
 
     class Meta:
         event_types = ('auth_logged_in_with_username',

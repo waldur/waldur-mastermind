@@ -1,13 +1,11 @@
 from django.core.validators import MaxValueValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
 
-@python_2_unicode_compatible
 class BaseSecurityGroupRule(models.Model):
     TCP = 'tcp'
     UDP = 'udp'
@@ -35,7 +33,6 @@ class BaseSecurityGroupRule(models.Model):
                (self.security_group, self.protocol, self.cidr, self.from_port, self.to_port)
 
 
-@python_2_unicode_compatible
 class Port(core_models.BackendModelMixin, models.Model):
     # TODO: Use dedicated field: https://github.com/django-macaddress/django-macaddress
     mac_address = models.CharField(max_length=32, blank=True)

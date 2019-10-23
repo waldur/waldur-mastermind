@@ -12,14 +12,12 @@ from django.core.validators import MinValueValidator, MaxValueValidator, RegexVa
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel, TimeFramedModel
 from rest_framework import exceptions as rf_exceptions
-import six
 
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
@@ -35,7 +33,6 @@ from .attribute_types import ATTRIBUTE_TYPES
 from ..common import mixins as common_mixins
 
 
-@python_2_unicode_compatible
 class ServiceProvider(core_models.UuidMixin,
                       core_models.DescribableMixin,
                       structure_models.StructureModel,
@@ -60,7 +57,7 @@ class ServiceProvider(core_models.UuidMixin,
         verbose_name = _('Service provider')
 
     def __str__(self):
-        return six.text_type(self.customer)
+        return str(self.customer)
 
     @classmethod
     def get_url_name(cls):
@@ -79,7 +76,6 @@ class ServiceProvider(core_models.UuidMixin,
         super(ServiceProvider, self).save(*args, **kwargs)
 
 
-@python_2_unicode_compatible
 class Category(core_models.UuidMixin,
                quotas_models.QuotaModelMixin,
                TimeStampedModel):
@@ -100,14 +96,13 @@ class Category(core_models.UuidMixin,
         ordering = ('title',)
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
     @classmethod
     def get_url_name(cls):
         return 'marketplace-category'
 
 
-@python_2_unicode_compatible
 class CategoryColumn(models.Model):
     """
     This model is needed in order to render resources table with extra columns.
@@ -130,14 +125,13 @@ class CategoryColumn(models.Model):
                               help_text=_('Widget field allows to customise table cell rendering.'))
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
     def clean(self):
         if not self.attribute and not self.widget:
             raise ValidationError(_('Either attribute or widget field should be specified.'))
 
 
-@python_2_unicode_compatible
 class Section(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
@@ -146,13 +140,12 @@ class Section(TimeStampedModel):
         default=False, help_text=_('Whether section is rendered as a separate tab.'))
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
 
 InternalNameValidator = RegexValidator('^[a-zA-Z][a-zA-Z0-9_]+$')
 
 
-@python_2_unicode_compatible
 class Attribute(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255, validators=[InternalNameValidator])
     title = models.CharField(blank=False, max_length=255)
@@ -162,10 +155,9 @@ class Attribute(TimeStampedModel):
     default = BetterJSONField(null=True, blank=True)
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
 
-@python_2_unicode_compatible
 class AttributeOption(models.Model):
     attribute = models.ForeignKey(Attribute, related_name='options', on_delete=models.CASCADE)
     key = models.CharField(max_length=255, validators=[InternalNameValidator])
@@ -175,7 +167,7 @@ class AttributeOption(models.Model):
         unique_together = ('attribute', 'key')
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
 
 class ScopeMixin(models.Model):
@@ -201,7 +193,6 @@ class BaseComponent(core_models.DescribableMixin):
                                      blank=True)
 
 
-@python_2_unicode_compatible
 class CategoryComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'category')
@@ -220,10 +211,9 @@ class CategoryComponentUsage(ScopeMixin):
     objects = managers.MixinManager('scope')
 
     def __str__(self):
-        return 'component: %s, date: %s' % (six.text_type(self.component.name), self.date)
+        return 'component: %s, date: %s' % (str(self.component.name), self.date)
 
 
-@python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
@@ -310,7 +300,7 @@ class Offering(core_models.UuidMixin,
         pass
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
     @classmethod
     def get_url_name(cls):
@@ -329,7 +319,6 @@ class Offering(core_models.UuidMixin,
         return not self.billable and not self.shared
 
 
-@python_2_unicode_compatible
 class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
     class Meta(object):
         unique_together = ('type', 'offering')
@@ -394,10 +383,9 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
             )
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
 
-@python_2_unicode_compatible
 class Plan(core_models.UuidMixin,
            TimeStampedModel,
            core_models.NameMixin,
@@ -457,7 +445,7 @@ class Plan(core_models.UuidMixin,
         return cost
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
     @property
     def init_price(self):
@@ -483,7 +471,6 @@ class Plan(core_models.UuidMixin,
         return self.max_amount > usage
 
 
-@python_2_unicode_compatible
 class PlanComponent(models.Model):
     class Meta(object):
         unique_together = ('plan', 'component')
@@ -512,7 +499,6 @@ class PlanComponent(models.Model):
         return 'for plan: %s' % self.plan.name
 
 
-@python_2_unicode_compatible
 class Screenshot(core_models.UuidMixin,
                  structure_models.StructureModel,
                  core_models.DescribableMixin,
@@ -529,7 +515,7 @@ class Screenshot(core_models.UuidMixin,
         verbose_name = _('Screenshot')
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
     @classmethod
     def get_url_name(cls):
@@ -576,7 +562,6 @@ class RequestTypeMixin(CostEstimateMixin):
                 self.cost += self.plan.switch_price
 
 
-@python_2_unicode_compatible
 class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
@@ -594,7 +579,6 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
         return 'user: %s, offering: %s' % (self.user.username, self.offering.name)
 
 
-@python_2_unicode_compatible
 class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
     class States(object):
         REQUESTED_FOR_APPROVAL = 1
@@ -719,7 +703,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         return 'project: %s, created by: %s' % (self.project.name, self.created_by.username)
 
 
-@python_2_unicode_compatible
 class Resource(CostEstimateMixin,
                core_models.UuidMixin,
                TimeStampedModel,
@@ -823,10 +806,9 @@ class Resource(CostEstimateMixin,
         )
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
 
-@python_2_unicode_compatible
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
     This model allows to track billing plan for timeframes during resource lifecycle.
@@ -835,7 +817,7 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan)
 
     def __str__(self):
-        return six.text_type(self.resource.name)
+        return str(self.resource.name)
 
     @property
     def current_components(self):
@@ -843,7 +825,6 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
         return self.components.filter(billing_period=core_utils.month_start(now))
 
 
-@python_2_unicode_compatible
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
@@ -952,7 +933,6 @@ class OrderItem(core_models.UuidMixin,
         return 'type: %s, created_by: %s' % (self.get_type_display(), self.order.created_by)
 
 
-@python_2_unicode_compatible
 class ComponentQuota(models.Model):
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='quotas')
     component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
@@ -967,7 +947,6 @@ class ComponentQuota(models.Model):
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
 
-@python_2_unicode_compatible
 class ComponentUsage(TimeStampedModel,
                      core_models.DescribableMixin,
                      core_models.UuidMixin):
@@ -988,7 +967,6 @@ class ComponentUsage(TimeStampedModel,
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
 
-@python_2_unicode_compatible
 class AggregateResourceCount(ScopeMixin):
     """
     This model allows to count current number of project or customer resources by category.
@@ -1001,10 +979,9 @@ class AggregateResourceCount(ScopeMixin):
         unique_together = ('category', 'content_type', 'object_id')
 
     def __str__(self):
-        return six.text_type(self.category.title)
+        return str(self.category.title)
 
 
-@python_2_unicode_compatible
 class OfferingFile(core_models.UuidMixin,
                    core_models.NameMixin,
                    structure_models.StructureModel,

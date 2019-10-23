@@ -3,7 +3,6 @@ import logging
 import os
 import subprocess  # nosec
 
-import six
 from django.conf import settings
 
 from waldur_ansible.common import exceptions
@@ -77,7 +76,7 @@ class ManagementRequestsBackend(object):
                 logger.error('%s - failed to execute command "%s".', request, command_str)
                 logger.error('%s - Ansible request processing output: \n %s.', request, request.output)
                 error_handler.handle_error(request, lines_post_processor_instance)
-                six.reraise(exceptions.AnsibleBackendError, e)
+                raise exceptions.AnsibleBackendError(e)
             else:
                 logger.info('Command "%s" was successfully executed.', command_str)
                 extracted_information_handler.handle_extracted_information(request, lines_post_processor_instance)

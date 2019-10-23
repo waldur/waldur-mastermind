@@ -13,7 +13,6 @@ from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
 from rest_framework.serializers import ListSerializer, ModelSerializer
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
-import six
 
 from waldur_core.core.filters import ContentTypeFilter, MappedMultipleChoiceFilter
 from waldur_core.core.serializers import GenericRelatedField
@@ -31,7 +30,7 @@ def getdoc(obj, warning=True):
             cls = obj.im_class
             name = '{}.{}.{}'.format(cls.__module__, cls.__name__, obj.im_func.func_name)
         else:
-            name = six.text_type(obj)
+            name = str(obj)
         logger.warning("Docstring is missing for %s", name)
     return doc
 

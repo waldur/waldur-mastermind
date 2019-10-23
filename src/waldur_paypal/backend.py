@@ -8,7 +8,7 @@ import paypalrestsdk as paypal
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.utils import six, timezone
+from django.utils import timezone
 
 
 class PayPalError(Exception):
@@ -160,7 +160,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(backend_invoice.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def send_invoice(self, invoice):
         if invoice.state != invoice.States.DRAFT:
@@ -169,7 +169,7 @@ class PaypalBackend(object):
         try:
             backend_invoice = paypal.Invoice.find(invoice.backend_id)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
         if not backend_invoice.send():
             raise PayPalError(backend_invoice.error)
@@ -180,7 +180,7 @@ class PaypalBackend(object):
         try:
             backend_invoice = paypal.Invoice.find(invoice.backend_id)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
         invoice.state = backend_invoice.status
         invoice.number = backend_invoice.number
@@ -232,7 +232,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(payment.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def approve_payment(self, payment_id, payer_id):
         try:
@@ -245,7 +245,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(payment.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def create_plan(self, amount, tax, name, description, return_url, cancel_url):
         """
@@ -300,7 +300,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(plan.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def _format_decimal(self, value):
         """
@@ -343,7 +343,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(agreement.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def execute_agreement(self, payment_token):
         """
@@ -356,7 +356,7 @@ class PaypalBackend(object):
                 raise PayPalError('Can not execute agreement')
             return agreement.id
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def get_agreement(self, agreement_id):
         """
@@ -369,7 +369,7 @@ class PaypalBackend(object):
                 raise PayPalError('Agreement not found')
             return agreement
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def cancel_agreement(self, agreement_id):
         agreement = self.get_agreement(agreement_id)
@@ -382,7 +382,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(agreement.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def get_agreement_transactions(self, agreement_id, start_date, end_date=None):
         if not end_date:
@@ -416,7 +416,7 @@ class PaypalBackend(object):
             return results
 
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def download_invoice_pdf(self, invoice):
         if not invoice.backend_id:

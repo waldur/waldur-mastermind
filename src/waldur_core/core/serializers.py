@@ -9,7 +9,6 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.fields import Field, ReadOnlyField
 from rest_framework.exceptions import ValidationError
-import six
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import TimestampField
@@ -39,7 +38,7 @@ class Base64Field(serializers.CharField):
 
     def to_representation(self, value):
         value = super(Base64Field, self).to_representation(value)
-        if isinstance(value, six.text_type):
+        if isinstance(value, str):
             value = value.encode('utf-8')
         return base64.b64encode(value)
 
@@ -135,7 +134,7 @@ class GenericRelatedField(Field):
             raise serializers.ValidationError(_("Can't restore object from url: %s") % data)
 
         if self.related_models and model not in self.related_models:
-            context = (model, ', '.join(six.text_type(model) for model in self.related_models))
+            context = (model, ', '.join(str(model) for model in self.related_models))
             message = _('%s is not valid. Valid models are: %s') % context
             raise serializers.ValidationError(message)
 

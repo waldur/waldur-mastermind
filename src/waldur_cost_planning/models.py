@@ -2,7 +2,6 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 from model_utils.models import TimeStampedModel
 
@@ -24,7 +23,6 @@ def get_service_content_types():
     return get_content_types_query(services)
 
 
-@python_2_unicode_compatible
 class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
     """
     Deployment plan contains list of plan items.
@@ -63,7 +61,6 @@ class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedMo
         return set(list(self.certifications.all()) + list(self.project.certifications.all()))
 
 
-@python_2_unicode_compatible
 class DeploymentPlanItem(models.Model):
     """
     Plan item specifies quantity of presets.
@@ -86,7 +83,6 @@ class DeploymentPlanItem(models.Model):
         return '%s %s' % (self.quantity, self.preset)
 
 
-@python_2_unicode_compatible
 class Category(core_models.NameMixin):
     class Meta(object):
         verbose_name_plural = 'Categories'
@@ -95,7 +91,6 @@ class Category(core_models.NameMixin):
         return self.name
 
 
-@python_2_unicode_compatible
 class Preset(core_models.UuidMixin, core_models.NameMixin):
     """
     Resource configuration preset.

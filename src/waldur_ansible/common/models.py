@@ -1,6 +1,5 @@
 from django.apps import apps
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 
 from waldur_core.core import models as core_models
@@ -14,7 +13,6 @@ class OutputMixin(models.Model):
         abstract = True
 
 
-@python_2_unicode_compatible
 class UuidStrMixin(core_models.UuidMixin):
 
     class Meta(object):

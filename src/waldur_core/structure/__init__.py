@@ -6,7 +6,6 @@ from django.conf import settings
 from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from rest_framework.reverse import reverse
-import six
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +147,7 @@ class SupportedServices(object):
 
     @classmethod
     def get_service_backend(cls, key):
-        if not isinstance(key, six.string_types):
+        if not isinstance(key, str):
             key = cls.get_model_key(key)
         try:
             return cls._registry[key]['backend']

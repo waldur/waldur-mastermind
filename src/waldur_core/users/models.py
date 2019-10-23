@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -8,7 +7,6 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
 
-@python_2_unicode_compatible
 class Invitation(core_models.UuidMixin,
                  TimeStampedModel,
                  core_models.ErrorMessageMixin,

@@ -21,7 +21,6 @@ from django.utils.translation import ugettext_lazy as _
 from jsoneditor.forms import JSONEditor
 from rest_framework import permissions as rf_permissions
 from reversion.admin import VersionAdmin
-import six
 
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
@@ -197,7 +196,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         return format_html_join(
             mark_safe('<br/>'),  # nosec
             '<a href={}>{}</a>',
-            ((get_admin_url(permission.customer), six.text_type(permission)) for permission in permissions),
+            ((get_admin_url(permission.customer), str(permission)) for permission in permissions),
         ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any organization.'))  # nosec
 
     customer_roles.short_description = _('Roles in organizations')
@@ -209,7 +208,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         return format_html_join(
             mark_safe('<br/>'),  # nosec
             '<a href={}>{}</a>',
-            ((get_admin_url(permission.project), six.text_type(permission)) for permission in permissions),
+            ((get_admin_url(permission.project), str(permission)) for permission in permissions),
         ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any project.'))  # nosec
 
     project_roles.short_description = _('Roles in projects')
@@ -304,7 +303,7 @@ class ExecutorAdminAction(object):
             try:
                 self.validate(instance)
             except ValidationError as e:
-                errors[six.text_type(e)].append(instance)
+                errors[str(e)].append(instance)
             else:
                 self.executor.execute(instance)
                 successfully_executed.append(instance)
@@ -312,14 +311,14 @@ class ExecutorAdminAction(object):
         if successfully_executed:
             message = _('Operation was successfully scheduled for %(count)d instances: %(names)s') % dict(
                 count=len(successfully_executed),
-                names=', '.join([six.text_type(i) for i in successfully_executed])
+                names=', '.join([str(i) for i in successfully_executed])
             )
             admin_class.message_user(request, message)
 
         for error, instances in errors.items():
             message = _('Failed to schedule operation for %(count)d instances: %(names)s. Error: %(message)s') % dict(
                 count=len(instances),
-                names=', '.join([six.text_type(i) for i in instances]),
+                names=', '.join([str(i) for i in instances]),
                 message=error,
             )
             admin_class.message_user(request, message, level=messages.ERROR)

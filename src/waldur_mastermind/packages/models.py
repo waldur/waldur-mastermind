@@ -3,7 +3,6 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
@@ -15,7 +14,6 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 
 
-@python_2_unicode_compatible
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       common_mixins.ProductCodeMixin,
@@ -101,7 +99,6 @@ class PackageTemplate(core_models.UuidMixin,
         return '%s | %s' % (self.name, self.service_settings.type)
 
 
-@python_2_unicode_compatible
 class PackageComponent(models.Model):
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
@@ -137,7 +134,6 @@ class PackageComponent(models.Model):
         return round(self.price * 30 * self.amount, 2)
 
 
-@python_2_unicode_compatible
 class OpenStackPackage(core_models.UuidMixin, models.Model):
     """ OpenStackPackage allows to create tenant and service_settings based on PackageTemplate """
     class Permissions(object):

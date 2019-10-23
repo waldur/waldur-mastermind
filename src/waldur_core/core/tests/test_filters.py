@@ -1,5 +1,6 @@
+import mock
+
 from rest_framework import test
-from six.moves import mock
 
 from waldur_core.core import filters as core_filters
 

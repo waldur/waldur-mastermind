@@ -224,7 +224,7 @@ def coerce_filename(filename):
     # then you'll get inconsistent behavior (crashes) depending on the user's
     # LANG environment variable
     is_unicode = (sys.version_info[0] <= 2 and
-                  isinstance(filename, six.text_type)) or \
+                  isinstance(filename, str)) or \
                  (sys.version_info[0] >= 3 and
                   isinstance(filename, str))
     if is_unicode:

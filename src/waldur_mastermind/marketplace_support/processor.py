@@ -1,5 +1,3 @@
-import six
-
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -75,4 +73,4 @@ class UpdateRequestProcessor(processors.UpdateResourceProcessor):
         return IssueViewSet.as_view({'post': 'update'})
 
     def get_post_data(self):
-        return {'uuid': six.text_type(self.order_item.uuid)}
+        return {'uuid': str(self.order_item.uuid)}

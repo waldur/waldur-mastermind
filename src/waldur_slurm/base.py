@@ -15,8 +15,7 @@ class BatchError(Exception):
     pass
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BaseBatchClient(object):
+class BaseBatchClient(object, metaclass=abc.ABCMeta):
 
     def __init__(self, hostname, key_path, username='root', port=22, use_sudo=False):
         self.hostname = hostname
@@ -134,7 +133,7 @@ class BaseBatchClient(object):
             if len(lines) > 0 and lines[0].startswith('Warning: Permanently added'):
                 lines = lines[1:]
             stdout = '\n'.join(lines)
-            six.reraise(BatchError, stdout)
+            raise BatchError(stdout)
 
 
 @six.add_metaclass(abc.ABCMeta)

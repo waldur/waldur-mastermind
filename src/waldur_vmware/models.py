@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
@@ -49,7 +48,6 @@ class VirtualMachineMixin(models.Model):
     disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
 
 
-@python_2_unicode_compatible
 class VirtualMachine(VirtualMachineMixin,
                      core_models.RuntimeStateMixin,
                      structure_models.NewResource):
@@ -141,7 +139,6 @@ class VirtualMachine(VirtualMachineMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
     service_project_link = models.ForeignKey(
         VMwareServiceProjectLink,
@@ -164,7 +161,6 @@ class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
         return self.name
 
 
-@python_2_unicode_compatible
 class Disk(structure_models.NewResource):
     service_project_link = models.ForeignKey(
         VMwareServiceProjectLink,
@@ -187,7 +183,6 @@ class Disk(structure_models.NewResource):
         return super(Disk, cls).get_backend_fields() + ('name', 'size')
 
 
-@python_2_unicode_compatible
 class Template(VirtualMachineMixin,
                core_models.DescribableMixin,
                structure_models.ServiceProperty):
@@ -202,7 +197,6 @@ class Template(VirtualMachineMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class Cluster(structure_models.ServiceProperty):
     @classmethod
     def get_url_name(cls):
@@ -223,7 +217,6 @@ class CustomerCluster(models.Model):
         unique_together = ('customer', 'cluster')
 
 
-@python_2_unicode_compatible
 class Network(structure_models.ServiceProperty):
     type = models.CharField(max_length=255)
 
@@ -259,7 +252,6 @@ class CustomerNetworkPair(models.Model):
         unique_together = ('customer', 'network')
 
 
-@python_2_unicode_compatible
 class Datastore(structure_models.ServiceProperty):
     type = models.CharField(max_length=255)
     capacity = models.PositiveIntegerField(help_text="Capacity, in MB.", null=True, blank=True)
@@ -284,7 +276,6 @@ class CustomerDatastore(models.Model):
         unique_together = ('customer', 'datastore')
 
 
-@python_2_unicode_compatible
 class Folder(structure_models.ServiceProperty):
 
     def __str__(self):

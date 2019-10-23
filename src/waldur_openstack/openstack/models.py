@@ -1,12 +1,12 @@
+from urllib.parse import urlparse
+
 from django.db import models
 from django.template.defaultfilters import slugify
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from waldur_core.core.fields import JSONField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
-from six.moves import urllib
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas.fields import QuotaField, UsageAggregatorQuotaField, CounterQuotaField
@@ -127,7 +127,6 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
     security_group = models.ForeignKey(on_delete=models.CASCADE, to=SecurityGroup, related_name='rules')
 
 
-@python_2_unicode_compatible
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
     service_project_link = models.ForeignKey(on_delete=models.CASCADE,
                                              to=OpenStackServiceProjectLink,
@@ -233,7 +232,7 @@ class Tenant(structure_models.PrivateCloud):
             return access_url
 
         if settings.backend_url:
-            parsed = urllib.parse.urlparse(settings.backend_url)
+            parsed = urlparse(settings.backend_url)
             return '%s://%s/dashboard' % (parsed.scheme, parsed.hostname)
 
     def format_quota(self, name, limit):

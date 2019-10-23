@@ -2,7 +2,6 @@ from django.db import IntegrityError
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
-import six
 
 from waldur_core.core.serializers import GenericRelatedField, AugmentedSerializerMixin
 from waldur_core.cost_tracking import models
@@ -48,7 +47,7 @@ class PriceEstimateSerializer(AugmentedSerializerMixin, serializers.HyperlinkedM
 
     def get_scope_name(self, obj):
         if obj.scope:
-            return getattr(obj.scope, 'name', six.text_type(obj.scope))
+            return getattr(obj.scope, 'name', str(obj.scope))
         if obj.details:
             return obj.details.get('scope_name')
 

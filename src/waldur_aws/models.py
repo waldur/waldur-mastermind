@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from libcloud.compute.drivers.ec2 import REGION_DETAILS
 
@@ -56,7 +55,6 @@ class Region(structure_models.GeneralServiceProperty):
         return 'aws-region'
 
 
-@python_2_unicode_compatible
 class Image(structure_models.GeneralServiceProperty):
     class Meta:
         ordering = ['name']

@@ -90,7 +90,7 @@ class MappedChoiceField(serializers.ChoiceField):
         data = super(MappedChoiceField, self).to_internal_value(data)
 
         try:
-            return self.mapped_to_model[six.text_type(data)]
+            return self.mapped_to_model[str(data)]
         except KeyError:
             self.fail('invalid_choice', input=data)
 
@@ -144,7 +144,7 @@ class StringUUID(uuid.UUID):
     """
 
     def __unicode__(self):
-        return six.text_type(str(self))
+        return str(str(self))
 
     def __str__(self):
         return self.hex
@@ -202,7 +202,7 @@ class JSONField(models.TextField):
         return self.to_python(value)
 
     def to_python(self, value):
-        if isinstance(value, six.string_types) and value:
+        if isinstance(value, str) and value:
             try:
                 return json.loads(value, **self.load_kwargs)
             except ValueError:

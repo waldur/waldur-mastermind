@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.quotas.fields import CounterQuotaField
@@ -45,7 +44,6 @@ class Region(structure_models.GeneralServiceProperty):
         return 'digitalocean-region'
 
 
-@python_2_unicode_compatible
 class Image(structure_models.GeneralServiceProperty):
     regions = models.ManyToManyField(Region)
     distribution = models.CharField(max_length=100)

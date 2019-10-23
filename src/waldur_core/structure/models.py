@@ -13,7 +13,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models, transaction
 from django.db.models import Q, signals
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
@@ -271,7 +270,6 @@ class CustomerRole(models.CharField):
         super(CustomerRole, self).__init__(*args, **kwargs)
 
 
-@python_2_unicode_compatible
 class CustomerPermission(BasePermission):
     class Meta(object):
         unique_together = ('customer', 'role', 'user', 'is_active')
@@ -300,7 +298,6 @@ def get_next_agreement_number():
     return (last_number or initial_number) + 1
 
 
-@python_2_unicode_compatible
 class DivisionType(core_models.UuidMixin,
                    core_models.NameMixin,
                    models.Model):
@@ -313,7 +310,6 @@ class DivisionType(core_models.UuidMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class Division(core_models.UuidMixin,
                core_models.NameMixin,
                models.Model):
@@ -340,7 +336,6 @@ class Division(core_models.UuidMixin,
         return ' -> '.join(full_path[::-1])
 
 
-@python_2_unicode_compatible
 class Customer(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescendantMixin,
@@ -537,7 +532,6 @@ class ProjectRole(models.CharField):
         super(ProjectRole, self).__init__(*args, **kwargs)
 
 
-@python_2_unicode_compatible
 class ProjectPermission(core_models.UuidMixin, BasePermission):
     class Meta(object):
         unique_together = ('project', 'role', 'user', 'is_active')
@@ -561,7 +555,6 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         return '%s | %s' % (self.project.name, self.get_role_display())
 
 
-@python_2_unicode_compatible
 class ProjectType(core_models.DescribableMixin, core_models.UuidMixin, core_models.NameMixin):
     class Meta(object):
         verbose_name = _('Project type')
@@ -580,7 +573,6 @@ class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
     pass
 
 
-@python_2_unicode_compatible
 class Project(core_models.DescribableMixin,
               core_models.UuidMixin,
               core_models.NameMixin,
@@ -730,7 +722,6 @@ class Project(core_models.DescribableMixin,
         base_manager_name = 'objects'
 
 
-@python_2_unicode_compatible
 class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
     link = models.URLField(max_length=255, blank=True)
     # NameMixin is not used here as name has to be unique.
@@ -749,7 +740,6 @@ class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
         return 'service-certification'
 
 
-@python_2_unicode_compatible
 class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
                       core_models.UuidMixin,
                       core_models.NameMixin,
@@ -852,7 +842,6 @@ class PrivateServiceSettings(ServiceSettings):
         verbose_name_plural = _('Private provider settings')
 
 
-@python_2_unicode_compatible
 class Service(core_models.UuidMixin,
               core_models.DescendantMixin,
               quotas_models.QuotaModelMixin,
@@ -942,7 +931,6 @@ class BaseServiceProperty(core_models.BackendModelMixin, core_models.UuidMixin, 
         return super(BaseServiceProperty, cls).get_backend_fields() + ('backend_id', 'name')
 
 
-@python_2_unicode_compatible
 class ServiceProperty(BaseServiceProperty):
 
     class Meta(object):
@@ -956,7 +944,6 @@ class ServiceProperty(BaseServiceProperty):
         return '{0} | {1}'.format(self.name, self.settings)
 
 
-@python_2_unicode_compatible
 class GeneralServiceProperty(BaseServiceProperty):
     """
     Service property which is not connected to settings
@@ -971,7 +958,6 @@ class GeneralServiceProperty(BaseServiceProperty):
         return self.name
 
 
-@python_2_unicode_compatible
 class ServiceProjectLink(quotas_models.QuotaModelMixin,
                          core_models.DescendantMixin,
                          LoggableMixin,
@@ -1080,7 +1066,6 @@ class ApplicationMixin(models.Model):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
-@python_2_unicode_compatible
 class ResourceMixin(MonitoringModelMixin,
                     core_models.UuidMixin,
                     core_models.DescribableMixin,

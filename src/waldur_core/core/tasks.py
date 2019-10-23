@@ -3,7 +3,6 @@ import json
 import logging
 from uuid import uuid4
 
-import six
 from celery import group
 from celery.backends.base import Backend
 from celery.execute import send_task as send_celery_task
@@ -97,9 +96,8 @@ class Task(CeleryTask):
         try:
             instance = utils.deserialize_instance(serialized_instance)
         except ObjectDoesNotExist:
-            message = ('Cannot restore instance from serialized object %s. Probably it was deleted.' %
-                       serialized_instance)
-            six.reraise(ObjectDoesNotExist, message)
+            raise ObjectDoesNotExist('Cannot restore instance from serialized object %s. Probably it was deleted.' %
+                                     serialized_instance)
 
         self.args = args
         self.kwargs = kwargs
@@ -152,12 +150,12 @@ class StateTransitionTask(Task):
             message = (
                 'Could not change state of %s, using method `%s` due to concurrent update' %
                 (instance_description, transition_method))
-            six.reraise(StateChangeError, StateChangeError(message))
+            raise StateChangeError(message)
         except TransitionNotAllowed:
             message = (
                 'Could not change state of %s, using method `%s`. Current instance state: %s.' %
                 (instance_description, transition_method, instance.human_readable_state))
-            six.reraise(StateChangeError, StateChangeError(message))
+            raise StateChangeError(message)
         else:
             logger.info('State of %s changed from %s to %s, with method `%s`',
                         instance_description, old_state, instance.human_readable_state, transition_method)

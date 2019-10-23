@@ -8,12 +8,10 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
-import six
 
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
@@ -30,7 +28,6 @@ class EstimateUpdateError(Exception):
     pass
 
 
-@python_2_unicode_compatible
 class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.DescendantMixin):
     """ Store prices based on both estimates and actual consumption.
 
@@ -187,7 +184,7 @@ class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.Descendant
         if self.scope:
             if isinstance(self.scope, (structure_models.ServiceProjectLink, structure_models.Service)):
                 # We need to display some meaningful name for SPL.
-                return six.text_type(self.scope)
+                return str(self.scope)
             else:
                 return self.scope.name
         else:
@@ -348,7 +345,6 @@ class AbstractPriceListItem(models.Model):
         return float(self.value) / 60
 
 
-@python_2_unicode_compatible
 class DefaultPriceListItem(core_models.UuidMixin, core_models.NameMixin, AbstractPriceListItem):
     """
     Default price list item for all resources of supported service types.

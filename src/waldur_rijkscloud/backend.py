@@ -1,10 +1,8 @@
 import logging
-import sys
 
 from django.db import transaction
 from django.utils import timezone
 import requests
-import six
 
 from waldur_core.structure import log_backend_action, ServiceBackend, ServiceBackendError
 from waldur_core.structure.utils import (
@@ -19,13 +17,6 @@ logger = logging.getLogger(__name__)
 
 class RijkscloudBackendError(ServiceBackendError):
     pass
-
-
-def reraise(exc):
-    """
-    Reraise RijkscloudBackendError while maintaining traceback.
-    """
-    six.reraise(RijkscloudBackendError, exc, sys.exc_info()[2])
 
 
 class RijkscloudBackend(ServiceBackend):
@@ -45,7 +36,7 @@ class RijkscloudBackend(ServiceBackend):
             self.client.list_flavors()
         except requests.RequestException as e:
             if raise_exception:
-                reraise(e)
+                raise RijkscloudBackendError(e)
             return False
         else:
             return True
@@ -71,7 +62,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             flavors = self.client.list_flavors()
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
         with transaction.atomic():
             cur_flavors = self._get_current_properties(models.Flavor)
@@ -108,7 +99,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             backend_volumes = self.client.list_volumes()
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
         else:
             return [self._backend_volume_to_volume(backend_volume)
                     for backend_volume in backend_volumes]
@@ -139,7 +130,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             backend_volume = self.client.get_volume(backend_volume_id)
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
         volume = self._backend_volume_to_volume(backend_volume)
         if service_project_link is not None:
             volume.service_project_link = service_project_link
@@ -156,7 +147,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             backend_volume = self.client.get_volume(volume.backend_id)
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
         else:
             if backend_volume['status'] != volume.runtime_state:
                 volume.runtime_state = backend_volume['status']
@@ -167,7 +158,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             self.client.delete_volume(volume.backend_id)
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
     @log_backend_action('check is volume deleted')
     def is_volume_deleted(self, instance):
@@ -178,7 +169,7 @@ class RijkscloudBackend(ServiceBackend):
             if e.response.status_code == 404:
                 return True
             else:
-                reraise(e)
+                raise RijkscloudBackendError(e)
 
     def pull_instances(self):
         backend_instances = self.get_instances()
@@ -212,7 +203,7 @@ class RijkscloudBackend(ServiceBackend):
             backend_instances = self.client.list_instances()
             backend_flavors = self.client.list_flavors()
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
         backend_flavors_map = {flavor['name']: flavor for flavor in backend_flavors}
         instances = []
@@ -259,7 +250,7 @@ class RijkscloudBackend(ServiceBackend):
             backend_instance = self.client.get_instance(backend_instance_id)
             flavor = self.client.get_flavor(backend_instance['flavor'])
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
         instance = self._backend_instance_to_instance(backend_instance, flavor)
         if service_project_link:
@@ -281,7 +272,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             self.client.create_volume(kwargs)
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
         backend_volume = self.client.get_volume(volume.name)
         volume.backend_id = volume.name
@@ -317,7 +308,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             self.client.create_instance(kwargs)
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
         instance.backend_id = instance.name
         instance.save()
@@ -328,7 +319,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             self.client.delete_instance(instance.backend_id)
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
 
     @log_backend_action('check is instance deleted')
     def is_instance_deleted(self, instance):
@@ -339,14 +330,13 @@ class RijkscloudBackend(ServiceBackend):
             if e.response.status_code == 404:
                 return True
             else:
-                reraise(e)
+                raise RijkscloudBackendError(e)
 
     def pull_floating_ips(self):
         try:
             backend_floating_ips = self.client.list_floatingips()
         except requests.RequestException as e:
-            reraise(e)
-            return
+            raise RijkscloudBackendError(e)
 
         with transaction.atomic():
             cur_floating_ips = self._get_current_properties(models.FloatingIP)
@@ -366,7 +356,7 @@ class RijkscloudBackend(ServiceBackend):
         try:
             backend_networks = self.client.list_networks()
         except requests.RequestException as e:
-            reraise(e)
+            raise RijkscloudBackendError(e)
             return
 
         with transaction.atomic():

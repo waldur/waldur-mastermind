@@ -1,5 +1,6 @@
 import functools
 import logging
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import auth
@@ -16,7 +17,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
-from six.moves.urllib.parse import urlencode
 
 from waldur_core import __version__
 from waldur_core.core import permissions, WaldurExtension

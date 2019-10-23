@@ -1,7 +1,6 @@
 import codecs
 import csv
 
-import six
 from io import StringIO
 
 
@@ -33,7 +32,7 @@ class UnicodeDictReader:
 
     def next(self):
         row = next(self.reader)
-        vals = [six.text_type(s, "utf-8") for s in row]
+        vals = [str(s, "utf-8") for s in row]
         return dict((self.header[x], vals[x]) for x in range(len(self.header)))
 
     def __iter__(self):
@@ -58,7 +57,7 @@ class UnicodeDictWriter:
         self.writer.writerow(self.fieldnames)
 
     def writerow(self, row):
-        self.writer.writerow([six.text_type(row[x]).encode("utf-8") for x in self.fieldnames])
+        self.writer.writerow([str(row[x]).encode("utf-8") for x in self.fieldnames])
         # Fetch UTF-8 output from the queue ...
         data = self.queue.getvalue()
         data = data.decode("utf-8")

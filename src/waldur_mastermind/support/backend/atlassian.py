@@ -1,4 +1,5 @@
 import collections
+from html.parser import HTMLParser
 import json
 import logging
 from datetime import datetime
@@ -10,7 +11,6 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from jira import Comment
 from jira.utils import json_loads
-from six.moves.html_parser import HTMLParser
 
 from waldur_jira.backend import reraise_exceptions, JiraBackend
 from waldur_mastermind.support import models

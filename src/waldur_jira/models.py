@@ -6,7 +6,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -82,7 +81,6 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
         abstract = True
 
 
-@python_2_unicode_compatible
 class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty):
     projects = models.ManyToManyField(Project, related_name='issue_types')
     subtask = models.BooleanField(default=False)
@@ -105,7 +103,6 @@ class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty
         )
 
 
-@python_2_unicode_compatible
 class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty):
 
     class Meta(structure_models.ServiceProperty.Meta):
@@ -124,7 +121,6 @@ class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty)
         return super(Priority, cls).get_backend_fields() + ('icon_url', 'description')
 
 
-@python_2_unicode_compatible
 class Issue(structure_models.StructureLoggableMixin,
             JiraPropertyIssue):
 
@@ -206,7 +202,6 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
         abstract = True
 
 
-@python_2_unicode_compatible
 class Comment(structure_models.StructureLoggableMixin,
               JiraSubPropertyIssue):
     issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='comments')

@@ -1,10 +1,10 @@
 from datetime import timedelta
+import mock
 
 from ddt import ddt, data
 from django.test import TestCase
 from django.utils import timezone
 from django.test.utils import override_settings
-from six.moves import mock
 
 from waldur_core.core import utils
 from waldur_core.structure import tasks

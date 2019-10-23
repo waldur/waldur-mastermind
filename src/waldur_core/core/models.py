@@ -16,7 +16,7 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.db import models
 from django.utils import timezone as django_timezone
-from django.utils.encoding import force_text, python_2_unicode_compatible
+from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
@@ -24,7 +24,6 @@ from model_utils import FieldTracker
 import pytz
 from reversion import revisions as reversion
 from reversion.models import Version
-import six
 
 from waldur_core.core.fields import CronScheduleField, UUIDField
 from waldur_core.core.validators import validate_name, MinCronValueValidator
@@ -149,7 +148,6 @@ class UserDetailsMixin(models.Model):
     job_title = models.CharField(_('job title'), max_length=40, blank=True)
 
 
-@python_2_unicode_compatible
 class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDetailsMixin, PermissionsMixin):
     username = models.CharField(
         _('username'), max_length=128, unique=True,
@@ -236,7 +234,7 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
 
 
 def validate_ssh_public_key(ssh_key):
-    if isinstance(ssh_key, six.text_type):
+    if isinstance(ssh_key, str):
         ssh_key = ssh_key.encode('utf-8')
 
     try:
@@ -258,7 +256,6 @@ def get_ssh_key_fingerprint(ssh_key):
     return ':'.join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
 
 
-@python_2_unicode_compatible
 class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     """
     User public key.

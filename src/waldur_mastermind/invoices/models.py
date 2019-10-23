@@ -15,7 +15,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
@@ -36,7 +35,6 @@ logger = logging.getLogger(__name__)
 Units = common_mixins.UnitPriceMixin.Units
 
 
-@python_2_unicode_compatible
 class Invoice(core_models.UuidMixin, models.Model):
     """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
@@ -150,7 +148,6 @@ class Invoice(core_models.UuidMixin, models.Model):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
-@python_2_unicode_compatible
 class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
     It is expected that get_scope_type method is defined as class method in scope class

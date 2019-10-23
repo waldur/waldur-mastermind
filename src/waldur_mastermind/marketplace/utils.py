@@ -1,4 +1,5 @@
 import base64
+from io import StringIO
 import os
 
 import pdfkit
@@ -7,7 +8,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
-from django.utils import six, timezone
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
@@ -45,7 +46,7 @@ def process_order_item(order_item, user):
         order_item.save(update_fields=['state'])
         processor(order_item).process_order_item(user)
     except exceptions.APIException as e:
-        order_item.error_message = six.text_type(e)
+        order_item.error_message = str(e)
         order_item.set_state_erred()
         order_item.save(update_fields=['state', 'error_message'])
 
@@ -80,7 +81,7 @@ def create_screenshot_thumbnail(screenshot):
     else:
         return
 
-    temp_thumb = six.StringIO()
+    temp_thumb = StringIO()
     image.save(temp_thumb, FTYPE)
     temp_thumb.seek(0)
     screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)

@@ -1,11 +1,11 @@
 import collections
 import datetime
+import mock
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.reverse import reverse
-from six.moves import mock
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import tasks

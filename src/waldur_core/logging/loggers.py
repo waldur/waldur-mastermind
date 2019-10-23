@@ -41,7 +41,7 @@ class BaseLogger(object):
         return getattr(self._meta, 'nullable_fields', [])
 
     def get_field_model(self, model):
-        if not isinstance(model, six.string_types):
+        if not isinstance(model, str):
             return model
 
         try:
@@ -56,11 +56,11 @@ class BaseLogger(object):
 
     def compile_message(self, message_template, context):
         try:
-            msg = six.text_type(message_template).format(**context)
+            msg = str(message_template).format(**context)
         except KeyError as e:
             raise LoggerError(
                 "Cannot find %s context field. Choices are: %s" % (
-                    six.text_type(e), ', '.join(context.keys())))
+                    str(e), ', '.join(context.keys())))
         return msg
 
     def validate_logging_type(self, logging_type):
@@ -110,12 +110,12 @@ class BaseLogger(object):
 
             if isinstance(entity, LoggableMixin):
                 context.update(entity._get_log_context(entity_name))
-            elif isinstance(entity, (int, float, six.string_types, dict, tuple, list, bool)):
+            elif isinstance(entity, (int, float, str, dict, tuple, list, bool)):
                 context[entity_name] = entity
             elif entity is None:
                 pass
             else:
-                context[entity_name] = six.text_type(entity)
+                context[entity_name] = str(entity)
                 logger.warning(
                     "Cannot properly serialize '%s' context field. "
                     "Must be inherited from LoggableMixin." % entity_name)
@@ -143,7 +143,7 @@ class EventLogger(BaseLogger):
                 tenant = Tenant
                 project = 'structure.Project'
                 threshold = float
-                quota_type = six.string_types
+                quota_type = str
 
                 class Meta:
                     event_types = 'quota_threshold_reached',
@@ -248,7 +248,7 @@ class LoggableMixin(object):
             elif callable(value):
                 context[name] = value()
             else:
-                context[name] = six.text_type(value)
+                context[name] = str(value)
 
         return context
 

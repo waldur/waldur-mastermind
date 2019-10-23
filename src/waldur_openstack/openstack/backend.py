@@ -15,7 +15,7 @@ from waldur_core.core.utils import create_batch_fetcher
 from waldur_core.structure import log_backend_action, SupportedServices
 from waldur_core.structure.utils import (
     update_pulled_fields, handle_resource_not_found, handle_resource_update_success)
-from waldur_openstack.openstack_base.backend import OpenStackBackendError, BaseOpenStackBackend, reraise
+from waldur_openstack.openstack_base.backend import OpenStackBackendError, BaseOpenStackBackend
 
 from . import models
 
@@ -33,7 +33,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         except keystone_exceptions.AuthorizationFailure:
             return False
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             return True
 
@@ -57,7 +57,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_tenants = keystone.projects.list(domain=self._get_domain())
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         backend_tenants_mapping = {tenant.id: tenant for tenant in backend_tenants}
 
@@ -113,7 +113,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             flavors = nova.flavors.findall(is_public=True)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         flavor_exclude_regex = self.settings.options.get('flavor_exclude_regex', '')
         name_pattern = re.compile(flavor_exclude_regex) if flavor_exclude_regex else None
@@ -171,7 +171,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             if neutron_quotas:
                 self.neutron_client.update_quota(tenant.backend_id, {'quota': neutron_quotas})
         except Exception as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action('pull quotas for tenant')
     def pull_tenant_quotas(self, tenant):
@@ -205,7 +205,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             return neutron.list_floatingips(tenant_id=tenants)['floatingips']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action('pull floating IPs for tenant')
     def pull_tenant_floating_ips(self, tenant):
@@ -214,7 +214,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_floating_ips = neutron.list_floatingips(tenant_id=self.tenant_id)['floatingips']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         with transaction.atomic():
             self._update_tenant_floating_ips(tenant, backend_floating_ips)
@@ -293,7 +293,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             return neutron.list_security_groups(tenant_id=tenants)['security_groups']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action('pull security groups for tenant')
     def pull_tenant_security_groups(self, tenant):
@@ -301,7 +301,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_security_groups = neutron.list_security_groups(tenant_id=self.tenant_id)['security_groups']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         with transaction.atomic():
             self._update_tenant_security_groups(tenant, backend_security_groups)
@@ -399,7 +399,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             return neutron.list_networks(tenant_id=tenants)['networks']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def _backend_network_to_network(self, backend_network, **kwargs):
         network = models.Network(
@@ -441,7 +441,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 # We can't filter subnets by network IDs because it exceeds maximum request length
                 backend_subnets = neutron.list_subnets()['subnets']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         subnet_uuids = []
         with transaction.atomic():
@@ -504,7 +504,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             tenant.backend_id = backend_tenant.id
             tenant.save(update_fields=['backend_id'])
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def create_tenant_safe(self, tenant):
@@ -526,7 +526,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             tenants = keystone.projects.list(domain=self._get_domain())
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         names = [tenant.name for tenant in tenants]
         new_name = name
@@ -546,7 +546,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_tenant = keystone.projects.get(tenant_backend_id)
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         tenant = models.Tenant()
         tenant.name = backend_tenant.name
@@ -585,7 +585,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except keystone_exceptions.Conflict:
                 pass
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action('add user to tenant')
     def create_tenant_user(self, tenant):
@@ -607,7 +607,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 project=tenant.backend_id,
             )
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def create_or_update_tenant_user(self, tenant):
         keystone = self.keystone_client
@@ -617,7 +617,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         except keystone_exceptions.NotFound:
             self.create_tenant_user(tenant)
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             self.change_tenant_user_password(tenant, keystone_user)
 
@@ -630,7 +630,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 keystone_user = keystone.users.find(name=tenant.user_username)
             keystone.users.update(user=keystone_user, password=tenant.user_password)
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def get_resources_for_import(self, resource_type=None):
         return self.get_tenants_for_import()
@@ -640,7 +640,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             tenants = keystone.projects.list(domain=self._get_domain())
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         cur_tenants = set(models.Tenant.objects.values_list('backend_id', flat=True))
 
@@ -665,7 +665,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             floatingips = neutron.list_floatingips(tenant_id=tenant.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for floating_ip in floatingips.get('floatingips', []):
             self._delete_backend_floating_ip(floating_ip['id'], tenant.backend_id)
@@ -681,7 +681,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             ports = neutron.list_ports(tenant_id=tenant.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for port in ports.get('ports', []):
             if 'device_id' in port and \
@@ -695,7 +695,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                     logger.debug("Port %s interface_router is already gone from tenant %s", port['id'],
                                  tenant.backend_id)
                 except neutron_exceptions.NeutronClientException as e:
-                    reraise(e)
+                    raise OpenStackBackendError(e)
 
             logger.info("Deleting port %s from tenant %s", port['id'], tenant.backend_id)
             try:
@@ -703,7 +703,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NotFound:
                 logger.debug("Port %s is already gone from tenant %s", port['id'], tenant.backend_id)
             except neutron_exceptions.NeutronClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @log_backend_action()
     def delete_tenant_routers(self, tenant):
@@ -716,7 +716,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             routers = neutron.list_routers(tenant_id=tenant.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for router in routers.get('routers', []):
             logger.info("Deleting router %s from tenant %s", router['id'], tenant.backend_id)
@@ -725,7 +725,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NotFound:
                 logger.debug("Router %s is already gone from tenant %s", router['id'], tenant.backend_id)
             except neutron_exceptions.NeutronClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @log_backend_action()
     def delete_tenant_networks(self, tenant):
@@ -738,7 +738,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             networks = neutron.list_networks(tenant_id=tenant.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for network in networks.get('networks', []):
             if network['router:external']:
@@ -750,7 +750,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 except neutron_exceptions.NotFound:
                     logger.info("Subnetwork %s is already gone from tenant %s", subnet, tenant.backend_id)
                 except neutron_exceptions.NeutronClientException as e:
-                    reraise(e)
+                    raise OpenStackBackendError(e)
 
             logger.info("Deleting network %s from tenant %s", network['id'], tenant.backend_id)
             try:
@@ -758,7 +758,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NotFound:
                 logger.debug("Network %s is already gone from tenant %s", network['id'], tenant.backend_id)
             except neutron_exceptions.NeutronClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
         tenant.set_quota_usage(tenant.Quotas.network_count, 0)
         tenant.set_quota_usage(tenant.Quotas.subnet_count, 0)
@@ -770,7 +770,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             sgroups = neutron.list_security_groups(tenant_id=tenant.backend_id)['security_groups']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for sgroup in sgroups:
             logger.info("Deleting security group %s from tenant %s", sgroup['id'], tenant.backend_id)
@@ -779,7 +779,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NotFound:
                 logger.debug("Security group %s is already gone from tenant %s", sgroup['id'], tenant.backend_id)
             except neutron_exceptions.NeutronClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @log_backend_action()
     def delete_tenant_instances(self, tenant):
@@ -788,7 +788,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             servers = nova.servers.list()
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for server in servers:
             logger.info("Deleting instance %s from tenant %s", server.id, tenant.backend_id)
@@ -797,7 +797,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except nova_exceptions.NotFound:
                 logger.debug("Instance %s is already gone from tenant %s", server.id, tenant.backend_id)
             except nova_exceptions.ClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @log_backend_action()
     def are_all_tenant_instances_deleted(self, tenant):
@@ -806,7 +806,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             servers = nova.servers.list()
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             return not servers
 
@@ -817,7 +817,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             snapshots = cinder.volume_snapshots.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for snapshot in snapshots:
             logger.info("Deleting snapshot %s from tenant %s", snapshot.id, tenant.backend_id)
@@ -826,7 +826,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except cinder_exceptions.NotFound:
                 logger.debug("Snapshot %s is already gone from tenant %s", snapshot.id, tenant.backend_id)
             except cinder_exceptions.ClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @log_backend_action()
     def are_all_tenant_snapshots_deleted(self, tenant):
@@ -835,7 +835,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             snapshots = cinder.volume_snapshots.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             return not snapshots
 
@@ -846,7 +846,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             volumes = cinder.volumes.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for volume in volumes:
             logger.info("Deleting volume %s from tenant %s", volume.id, tenant.backend_id)
@@ -855,7 +855,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except cinder_exceptions.NotFound:
                 logger.debug("Volume %s is already gone from tenant %s", volume.id, tenant.backend_id)
             except cinder_exceptions.ClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @log_backend_action()
     def are_all_tenant_volumes_deleted(self, tenant):
@@ -864,7 +864,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             volumes = cinder.volumes.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             return not volumes
 
@@ -893,7 +893,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         except keystone_exceptions.NotFound:
             logger.debug("Tenant %s is already gone", tenant.backend_id)
         except keystone_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def push_security_group_rules(self, security_group):
@@ -902,7 +902,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_security_group = neutron.show_security_group(security_group.backend_id)['security_group']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         backend_rules = {
             rule['id']: self._normalize_security_group_rule(rule)
@@ -973,7 +973,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NeutronClientException as e:
                 logger.exception('Failed to create rule %s for security group %s in backend',
                                  nc_rule, security_group)
-                reraise(e)
+                raise OpenStackBackendError(e)
             else:
                 logger.info('Security group rule with id %s successfully created in backend', nc_rule.id)
 
@@ -989,7 +989,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             security_group.save(update_fields=['backend_id'])
             self.push_security_group_rules(security_group)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def delete_security_group(self, security_group):
@@ -997,7 +997,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             neutron.delete_security_group(security_group.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         security_group.decrease_backend_quotas_usage()
 
     @log_backend_action()
@@ -1008,7 +1008,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             neutron.update_security_group(security_group.backend_id, {'security_group': data})
             self.push_security_group_rules(security_group)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def detect_external_network(self, tenant):
@@ -1016,7 +1016,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             routers = neutron.list_routers(tenant_id=tenant.backend_id)['routers']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         if bool(routers):
             router = routers[0]
         else:
@@ -1038,7 +1038,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             response = neutron.create_network({'networks': [data]})
         except neutron_exceptions.NeutronException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             backend_network = response['networks'][0]
             network.backend_id = backend_network['id']
@@ -1061,7 +1061,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             neutron.update_network(network.backend_id, {'network': data})
         except neutron_exceptions.NeutronException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def delete_network(self, network):
@@ -1072,7 +1072,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             neutron.delete_network(network.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             network.decrease_backend_quotas_usage()
 
@@ -1090,7 +1090,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_network = neutron.show_network(network_backend_id)['network']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         return self._backend_network_to_network(backend_network)
 
@@ -1126,7 +1126,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             self.connect_router(subnet.network.name, response['subnets'][0]['id'],
                                 tenant_id=subnet.network.tenant.backend_id)
         except neutron_exceptions.NeutronException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             backend_subnet = response['subnets'][0]
             subnet.backend_id = backend_subnet['id']
@@ -1143,7 +1143,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             neutron.update_subnet(subnet.backend_id, {'subnet': data})
         except neutron_exceptions.NeutronException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def _serialize_subnet_gateway(self, subnet):
         data = {}
@@ -1159,7 +1159,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             neutron.delete_subnet(subnet.backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             subnet.decrease_backend_quotas_usage()
 
@@ -1168,7 +1168,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_subnet = neutron.show_subnet(subnet_backend_id)['subnet']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         subnet = models.SubNet(
             name=backend_subnet['name'],
@@ -1198,7 +1198,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             backend_floating_ip = neutron.show_floatingip(floating_ip.backend_id)['floatingip']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         imported_floating_ip = self._backend_floating_ip_to_floating_ip(backend_floating_ip, tenant=floating_ip.tenant)
         update_pulled_fields(floating_ip, imported_floating_ip, models.FloatingIP.get_backend_fields())
@@ -1219,7 +1219,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 }
             })['floatingip']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             floating_ip.runtime_state = backend_floating_ip['status']
             floating_ip.address = backend_floating_ip['floating_ip_address']
@@ -1238,7 +1238,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             response = neutron.show_network(external_network_id)
         except neutron_exceptions.NeutronClientException as e:
             logger.exception('External network %s does not exist. Stale data in database?', external_network_id)
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         network_name = response['network']['name']
         subnet_id = response['network']['subnets'][0]
@@ -1258,7 +1258,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         try:
             routers = neutron.list_routers(tenant_id=tenant_id)['routers']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         # If any router in Tenant exists, use it
         return routers[0] if routers else None
@@ -1272,7 +1272,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             router = neutron.create_router(options)['router']
             logger.info('Router %s has been created.', router['name'])
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         return router
 
@@ -1294,7 +1294,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 else:
                     logger.info('Internal subnet %s is already connected to the router %s.', subnet_id, router['name'])
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def connect_router(self, network_name, subnet_id, external=False, network_id=None, tenant_id=None):
         tenant_id = tenant_id or self.tenant_id
@@ -1311,14 +1311,14 @@ class OpenStackBackend(BaseOpenStackBackend):
             keystone.projects.update(tenant.backend_id, name=tenant.name, description=tenant.description)
         except keystone_exceptions.NotFound as e:
             logger.error('Tenant with id %s does not exist', tenant.backend_id)
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def pull_service_settings_quotas(self):
         nova = self.nova_admin_client
         try:
             stats = nova.hypervisor_stats.statistics()
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         self.settings.set_quota_limit(self.settings.Quotas.openstack_vcpu, stats.vcpus)
         self.settings.set_quota_usage(self.settings.Quotas.openstack_vcpu, stats.vcpus_used)
@@ -1335,7 +1335,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             volumes = cinder.volumes.list()
             snapshots = cinder.volume_snapshots.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         storage = sum(self.gb2mb(v.size) for v in volumes + snapshots)
         return storage

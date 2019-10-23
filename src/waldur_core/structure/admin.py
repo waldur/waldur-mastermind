@@ -16,7 +16,6 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ungettext
-import six
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import (
@@ -181,7 +180,7 @@ class CustomerAdminForm(ModelForm):
         support_users = self.cleaned_data['support_users']
         invalid_users = set(owners) & set(support_users)
         if invalid_users:
-            invalid_users_list = ', '.join(map(six.text_type, invalid_users))
+            invalid_users_list = ', '.join(map(str, invalid_users))
             raise ValidationError(_('User role within organization must be unique. '
                                     'Role assignment of The following users is invalid: %s.') % invalid_users_list)
         return cleaned_data
@@ -256,7 +255,7 @@ class ProjectAdminForm(ModelForm):
         for xs, ys in itertools.combinations([set(admins), set(managers), set(support_users)], 2):
             invalid_users = xs & ys
             if invalid_users:
-                invalid_users_list = ', '.join(map(six.text_type, invalid_users))
+                invalid_users_list = ', '.join(map(str, invalid_users))
                 raise ValidationError(_('User role within project must be unique. '
                                         'Role assignment of The following users is invalid: %s.') % invalid_users_list)
         return cleaned_data
@@ -465,12 +464,12 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         spl_model = SupportedServices.get_related_models(settings)['service_project_link']
         for spl in spl_model.objects.filter(service__settings=settings):
             projects.setdefault(spl.project.id, {
-                'name': six.text_type(spl.project),
+                'name': str(spl.project),
                 'url': get_admin_url(spl.project),
                 'services': [],
             })
             projects[spl.project.id]['services'].append({
-                'name': six.text_type(spl.service),
+                'name': str(spl.service),
                 'url': get_admin_url(spl.service),
             })
 

@@ -3,7 +3,6 @@ import logging
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -41,7 +40,6 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
         return 'rancher-spl'
 
 
-@python_2_unicode_compatible
 class Cluster(NewResource):
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)

@@ -1,5 +1,3 @@
-import six
-
 from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 
@@ -25,7 +23,7 @@ class BooleanAttribute(AttributeType):
 class StringAttribute(AttributeType):
     @staticmethod
     def validate(values, available_values=None):
-        if not isinstance(values, six.text_type):
+        if not isinstance(values, str):
             raise ValidationError(_('Value must be a string.'))
 
 
@@ -47,7 +45,7 @@ class ChoiceAttribute(AttributeType):
 
     @staticmethod
     def validate(values, available_values):
-        if not isinstance(values, six.text_type):
+        if not isinstance(values, str):
             raise ValidationError(_('Value must be a string.'))
 
         if not(values in available_values):

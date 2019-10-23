@@ -3,7 +3,6 @@ from urllib.parse import urlparse
 
 from django.core.validators import RegexValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -112,7 +111,6 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
         return service_settings, service_settings.scope
 
 
-@python_2_unicode_compatible
 class FloatingIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4', null=True, default=None)
     runtime_state = models.CharField(max_length=30)
@@ -251,7 +249,6 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
         project_path = 'snapshot__service_project_link__project'
 
 
-@python_2_unicode_compatible
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
     settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     available = models.BooleanField(default=True)
@@ -439,7 +436,6 @@ class SnapshotSchedule(BaseSchedule):
         return 'openstacktenant-snapshot-schedule'
 
 
-@python_2_unicode_compatible
 class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
     is_external = models.BooleanField(default=False)
     type = models.CharField(max_length=50, blank=True)
@@ -456,7 +452,6 @@ class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
         return 'openstacktenant-network'
 
 
-@python_2_unicode_compatible
 class SubNet(core_models.DescribableMixin, structure_models.ServiceProperty):
     network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32, blank=True)
@@ -499,7 +494,6 @@ class InternalIP(openstack_base_models.Port):
         unique_together = ('backend_id', 'settings')
 
 
-@python_2_unicode_compatible
 class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
     class Meta(object):
         unique_together = ('settings', 'backend_id')
@@ -513,7 +507,6 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
         return 'openstacktenant-volume-type'
 
 
-@python_2_unicode_compatible
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
     settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     available = models.BooleanField(default=True)

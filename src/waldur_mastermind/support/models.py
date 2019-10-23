@@ -6,7 +6,6 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
@@ -23,7 +22,6 @@ from . import backend, managers
 logger = logging.getLogger(__name__)
 
 
-@python_2_unicode_compatible
 class Issue(core_models.UuidMixin,
             structure_models.StructureLoggableMixin,
             core_models.BackendModelMixin,
@@ -113,7 +111,6 @@ class Issue(core_models.UuidMixin,
         return '{}: {}'.format(self.key or '???', self.summary)
 
 
-@python_2_unicode_compatible
 class Priority(core_models.NameMixin,
                core_models.UuidMixin,
                core_models.UiDescribableMixin):
@@ -131,7 +128,6 @@ class Priority(core_models.NameMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         ordering = ['name']
@@ -151,7 +147,6 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
         return self.name
 
 
-@python_2_unicode_compatible
 class Comment(core_models.UuidMixin,
               core_models.BackendModelMixin,
               TimeStampedModel,
@@ -206,7 +201,6 @@ class Comment(core_models.UuidMixin,
         return self.description[:50]
 
 
-@python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                common_mixins.ProductCodeMixin,
@@ -284,7 +278,6 @@ class Offering(core_models.UuidMixin,
         return self.template.config if self.template else {}
 
 
-@python_2_unicode_compatible
 class OfferingTemplate(core_models.UuidMixin,
                        TimeStampedModel):
     name = models.CharField(_('name'), max_length=150)
@@ -313,7 +306,6 @@ class OfferingPlan(core_models.UuidMixin,
         return '{} | {}'.format(self.template, self.name)
 
 
-@python_2_unicode_compatible
 class Attachment(core_models.UuidMixin,
                  TimeStampedModel,
                  structure_models.StructureLoggableMixin,

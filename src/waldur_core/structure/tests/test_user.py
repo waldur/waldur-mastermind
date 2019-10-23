@@ -1,10 +1,10 @@
+import mock
 import unittest
 
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
 from rest_framework import test
-from six.moves import mock
 
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings

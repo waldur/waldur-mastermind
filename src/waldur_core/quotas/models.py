@@ -7,7 +7,6 @@ from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
 from django.db import models, transaction
 from django.db.models import Sum
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from reversion import revisions as reversion
@@ -21,7 +20,6 @@ from waldur_core.quotas import exceptions, managers, fields
 logger = logging.getLogger(__name__)
 
 
-@python_2_unicode_compatible
 @reversion.register(fields=['usage', 'limit'])
 class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, ReversionMixin, models.Model):
     """
@@ -117,7 +115,7 @@ class QuotaModelMixin(models.Model):
     Check methods docstrings for more details.
     """
 
-    class Quotas(six.with_metaclass(fields.FieldsContainerMeta)):
+    class Quotas(metaclass=fields.FieldsContainerMeta):
         enable_fields_caching = True
         # register model quota fields here
 
@@ -127,7 +125,7 @@ class QuotaModelMixin(models.Model):
     quotas = ct_fields.GenericRelation('quotas.Quota', related_query_name='quotas')
 
     def get_or_create_quota(self, quota_name_or_field):
-        if isinstance(quota_name_or_field, six.string_types):
+        if isinstance(quota_name_or_field, str):
             quota_name_or_field = getattr(self.Quotas, quota_name_or_field)
         quota, _ = quota_name_or_field.get_or_create_quota(self)
         return quota

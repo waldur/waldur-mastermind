@@ -1,5 +1,4 @@
 import logging
-import six
 
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices import models as invoice_models
@@ -50,7 +49,7 @@ class AllocationRegistrator(registrators.BaseRegistrator):
             'cpu_usage': source.cpu_usage,
             'gpu_usage': source.gpu_usage,
             'ram_usage': source.ram_usage,
-            'deposit_usage': six.text_type(source.deposit_usage),
+            'deposit_usage': str(source.deposit_usage),
             'scope_uuid': source.uuid.hex,
         }
         service_provider_info = marketplace_utils.get_service_provider_info(source)

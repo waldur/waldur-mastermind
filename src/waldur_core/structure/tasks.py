@@ -6,7 +6,6 @@ from django.core import exceptions
 from django.db import transaction
 from django.db.utils import DatabaseError
 from django.utils import timezone
-import six
 
 from waldur_core.core import utils as core_utils, tasks as core_tasks, models as core_models
 from waldur_core.quotas.exceptions import QuotaValidationError
@@ -112,7 +111,7 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
         raise NotImplementedError('Pull task should implement pull method.')
 
     def on_pull_fail(self, instance, error):
-        error_message = six.text_type(error)
+        error_message = str(error)
         self.log_error_message(instance, error_message)
         try:
             self.set_instance_erred(instance, error_message)

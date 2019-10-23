@@ -3,7 +3,6 @@ import logging
 import os
 import subprocess  # nosec
 
-import six
 from django.conf import settings
 
 from waldur_ansible.common.exceptions import AnsibleBackendError
@@ -65,7 +64,7 @@ class AnsiblePlaybookBackend(object):
             logger.info('Failed to execute command "%s".', command_str)
             job.output = e.output
             job.save(update_fields=['output'])
-            six.reraise(AnsibleBackendError, e)
+            raise AnsibleBackendError(e)
         else:
             logger.info('Command "%s" was successfully executed.', command_str)
             job.output = output

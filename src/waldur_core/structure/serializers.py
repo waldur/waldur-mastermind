@@ -14,7 +14,6 @@ from django.utils.translation import ugettext_lazy as _
 import pyvat
 from rest_framework import exceptions, serializers
 from rest_framework.reverse import reverse
-import six
 
 from waldur_core.core import (models as core_models, fields as core_fields, serializers as core_serializers,
                               utils as core_utils)
@@ -1004,11 +1003,11 @@ class ServiceSerializerMetaclass(serializers.SerializerMetaclass):
         return serializer
 
 
-class BaseServiceSerializer(six.with_metaclass(ServiceSerializerMetaclass,
-                                               PermissionFieldFilteringMixin,
-                                               core_serializers.RestrictedSerializerMixin,
-                                               core_serializers.AugmentedSerializerMixin,
-                                               serializers.HyperlinkedModelSerializer)):
+class BaseServiceSerializer(PermissionFieldFilteringMixin,
+                            core_serializers.RestrictedSerializerMixin,
+                            core_serializers.AugmentedSerializerMixin,
+                            serializers.HyperlinkedModelSerializer,
+                            metaclass=ServiceSerializerMetaclass):
     SERVICE_ACCOUNT_FIELDS = NotImplemented
     SERVICE_ACCOUNT_EXTRA_FIELDS = NotImplemented
 
@@ -1168,7 +1167,7 @@ class BaseServiceSerializer(six.with_metaclass(ServiceSerializerMetaclass,
                 for field in settings_fields:
                     if field in required and (field not in attrs or attrs[field] is None):
                         error = self.fields[field].error_messages['required']
-                        raise serializers.ValidationError({field: six.text_type(error)})
+                        raise serializers.ValidationError({field: str(error)})
 
                 args = {f: attrs.get(f) for f in settings_fields if f in attrs}
                 if extra_fields:
@@ -1353,7 +1352,7 @@ class TagListSerializerField(serializers.Field):
     }
 
     def to_internal_value(self, value):
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             if not value:
                 value = '[]'
             try:
@@ -1365,7 +1364,7 @@ class TagListSerializerField(serializers.Field):
             self.fail('not_a_list', input_type=type(value).__name__)
 
         for s in value:
-            if not isinstance(s, six.string_types):
+            if not isinstance(s, str):
                 self.fail('not_a_str')
 
             self.child.run_validation(s)
@@ -1384,13 +1383,13 @@ class TagListSerializerField(serializers.Field):
         return value
 
 
-class BaseResourceSerializer(six.with_metaclass(ResourceSerializerMetaclass,
-                                                core_serializers.RestrictedSerializerMixin,
-                                                MonitoringSerializerMixin,
-                                                PermissionFieldFilteringMixin,
-                                                core_serializers.AugmentedSerializerMixin,
-                                                TagSerializer,
-                                                serializers.HyperlinkedModelSerializer)):
+class BaseResourceSerializer(core_serializers.RestrictedSerializerMixin,
+                             MonitoringSerializerMixin,
+                             PermissionFieldFilteringMixin,
+                             core_serializers.AugmentedSerializerMixin,
+                             TagSerializer,
+                             serializers.HyperlinkedModelSerializer,
+                             metaclass=ResourceSerializerMetaclass):
     state = serializers.ReadOnlyField(source='get_state_display')
 
     project = serializers.HyperlinkedRelatedField(
@@ -1700,9 +1699,9 @@ class PropertySerializerMetaclass(serializers.SerializerMetaclass):
         return super(PropertySerializerMetaclass, cls).__new__(cls, name, bases, args)
 
 
-class BasePropertySerializer(six.with_metaclass(PropertySerializerMetaclass,
-                                                core_serializers.AugmentedSerializerMixin,
-                                                serializers.HyperlinkedModelSerializer)):
+class BasePropertySerializer(core_serializers.AugmentedSerializerMixin,
+                             serializers.HyperlinkedModelSerializer,
+                             metaclass=PropertySerializerMetaclass):
     class Meta(object):
         model = NotImplemented
 

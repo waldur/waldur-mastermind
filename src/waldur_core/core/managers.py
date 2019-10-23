@@ -5,7 +5,6 @@ import itertools
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-import six
 
 
 class GenericKeyMixin(object):
@@ -139,7 +138,7 @@ class SummaryQuerySet(object):
 
             def __init__(self, obj, attr, reverse=False):
                 self.attr = functools.reduce(Compared.get_obj_attr, attr.split("__"), obj)
-                if isinstance(self.attr, six.string_types):
+                if isinstance(self.attr, str):
                     self.attr = self.attr.lower()
                 self.reverse = reverse
 

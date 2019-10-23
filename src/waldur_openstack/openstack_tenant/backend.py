@@ -15,7 +15,7 @@ from novaclient import exceptions as nova_exceptions
 from waldur_core.structure import log_backend_action
 from waldur_core.structure.utils import (
     update_pulled_fields, handle_resource_not_found, handle_resource_update_success)
-from waldur_openstack.openstack_base.backend import BaseOpenStackBackend, OpenStackBackendError, reraise
+from waldur_openstack.openstack_base.backend import BaseOpenStackBackend, OpenStackBackendError
 
 from . import models
 
@@ -61,7 +61,7 @@ class InternalIPSynchronizer(object):
         try:
             ips = self.neutron_client.list_ports(tenant_id=self.tenant_id)['ports']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         return [backend_internal_ip_to_internal_ip(ip) for ip in ips]
 
@@ -256,7 +256,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             flavors = nova.flavors.findall()
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         flavor_exclude_regex = self.settings.options.get('flavor_exclude_regex', '')
         name_pattern = re.compile(flavor_exclude_regex) if flavor_exclude_regex else None
@@ -291,7 +291,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_floating_ips = neutron.list_floatingips(tenant_id=self.tenant_id)['floatingips']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         # Step 1. Prepare data
         imported_ips = {ip.backend_id: ip
@@ -374,7 +374,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             security_groups = neutron.list_security_groups(tenant_id=self.tenant_id)['security_groups']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for backend_security_group in security_groups:
             backend_id = backend_security_group['id']
@@ -405,7 +405,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             networks = neutron.list_networks(tenant_id=self.tenant_id)['networks']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         for backend_network in networks:
             defaults = {
@@ -435,7 +435,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             subnets = neutron.list_subnets(tenant_id=self.tenant_id)['subnets']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         current_networks = {
             network.backend_id: network.id
@@ -530,7 +530,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_volume = cinder.volumes.create(**kwargs)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         volume.backend_id = backend_volume.id
         if hasattr(backend_volume, 'volume_image_metadata'):
             volume.image_metadata = backend_volume.volume_image_metadata
@@ -545,7 +545,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             cinder.volumes.update(volume.backend_id, name=volume.name, description=volume.description)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def delete_volume(self, volume):
@@ -555,7 +555,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except cinder_exceptions.NotFound:
             logger.info('OpenStack volume %s has been already deleted', volume.backend_id)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         volume.decrease_backend_quotas_usage()
 
     @log_backend_action()
@@ -566,7 +566,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             nova.volumes.create_server_volume(instance.backend_id, volume.backend_id,
                                               device=None if device == '' else device)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             volume.instance = instance
             volume.device = device
@@ -578,7 +578,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.volumes.delete_server_volume(volume.instance.backend_id, volume.backend_id)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             volume.instance = None
             volume.device = ''
@@ -590,7 +590,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             cinder.volumes.extend(volume.backend_id, self.mb2gb(volume.size))
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def import_volume(self, backend_volume_id, save=True, service_project_link=None):
         """ Restore Waldur volume instance based on backend data. """
@@ -598,7 +598,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_volume = cinder.volumes.get(backend_volume_id)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         volume = self._backend_volume_to_volume(backend_volume)
         if service_project_link is not None:
             volume.service_project_link = service_project_link
@@ -669,7 +669,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_volumes = cinder.volumes.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         return [self._backend_volume_to_volume(backend_volume) for backend_volume in backend_volumes]
 
     def get_volumes_for_import(self):
@@ -682,7 +682,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             backend_volume = cinder.volumes.get(volume.backend_id)
             cinder.volumes.set_bootable(backend_volume, False)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         volume.bootable = False
         volume.save(update_fields=['bootable'])
 
@@ -708,7 +708,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             volume.save(update_fields=['runtime_state'])
             return
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             if backend_volume.status != volume.runtime_state:
                 volume.runtime_state = backend_volume.status
@@ -723,7 +723,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except cinder_exceptions.NotFound:
             return True
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def create_snapshot(self, snapshot, force=True):
@@ -736,7 +736,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_snapshot = cinder.volume_snapshots.create(snapshot.source_volume.backend_id, **kwargs)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         snapshot.backend_id = backend_snapshot.id
         snapshot.runtime_state = backend_snapshot.status
         snapshot.size = self.gb2mb(backend_snapshot.size)
@@ -749,7 +749,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_snapshot = cinder.volume_snapshots.get(backend_snapshot_id)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         snapshot = self._backend_snapshot_to_snapshot(backend_snapshot)
         if service_project_link is not None:
             snapshot.service_project_link = service_project_link
@@ -777,7 +777,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_snapshots = cinder.volume_snapshots.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         return [self._backend_snapshot_to_snapshot(backend_snapshot) for backend_snapshot in backend_snapshots]
 
     def get_snapshots_for_import(self):
@@ -800,7 +800,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_snapshot = cinder.volume_snapshots.get(snapshot.backend_id)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         if backend_snapshot.status != snapshot.runtime_state:
             snapshot.runtime_state = backend_snapshot.status
             snapshot.save(update_fields=['runtime_state'])
@@ -812,7 +812,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             cinder.volume_snapshots.delete(snapshot.backend_id)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         snapshot.decrease_backend_quotas_usage()
 
     @log_backend_action()
@@ -822,7 +822,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             cinder.volume_snapshots.update(
                 snapshot.backend_id, name=snapshot.name, description=snapshot.description)
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action('check is snapshot deleted')
     def is_snapshot_deleted(self, snapshot):
@@ -833,7 +833,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except cinder_exceptions.NotFound:
             return True
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def is_volume_availability_zone_supported(self):
         return 'AvailabilityZones' in [e.name for e in list_extensions.ListExtManager(self.cinder_client).show_all()]
@@ -901,7 +901,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             instance.save()
         except nova_exceptions.ClientException as e:
             logger.exception("Failed to provision instance %s", instance.uuid)
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             logger.info("Successfully provisioned instance %s", instance.uuid)
 
@@ -915,7 +915,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             backend_floating_ips = neutron.list_floatingips(
                 tenant_id=self.tenant_id, port_id=internal_ip_mappings.keys())['floatingips']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         backend_ids = {fip['id'] for fip in backend_floating_ips}
 
@@ -961,7 +961,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             backend_floating_ips = neutron.list_floatingips(
                 port_id=instance.internal_ips_set.values_list('backend_id', flat=True))['floatingips']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         # disconnect stale
         instance_floating_ips_ids = [fip.backend_id for fip in instance_floating_ips]
@@ -970,7 +970,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 try:
                     neutron.update_floatingip(backend_floating_ip['id'], body={'floatingip': {'port_id': None}})
                 except neutron_exceptions.NeutronClientException as e:
-                    reraise(e)
+                    raise OpenStackBackendError(e)
 
         # connect new ones
         backend_floating_ip_ids = {fip['id']: fip for fip in backend_floating_ips}
@@ -981,7 +981,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     neutron.update_floatingip(
                         floating_ip.backend_id, body={'floatingip': {'port_id': floating_ip.internal_ip.backend_id}})
                 except neutron_exceptions.NeutronClientException as e:
-                    reraise(e)
+                    raise OpenStackBackendError(e)
 
     def create_floating_ip(self, floating_ip):
         neutron = self.neutron_client
@@ -995,7 +995,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             floating_ip.runtime_state = 'ERRED'
             floating_ip.save()
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             floating_ip.address = backend_floating_ip['floating_ip_address']
             floating_ip.backend_id = backend_floating_ip['id']
@@ -1013,7 +1013,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_floating_ip = neutron.show_floatingip(floating_ip.backend_id)['floatingip']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             floating_ip.runtime_state = backend_floating_ip['status']
             floating_ip.save()
@@ -1032,9 +1032,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 logger.error('Unable to import SSH public key to OpenStack, '
                              'key_name: %s, fingerprint: %s, public_key: %s, error: %s',
                              key_name, fingerprint, public_key, e)
-                reraise(e)
+                raise OpenStackBackendError(e)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def update_instance(self, instance):
@@ -1042,7 +1042,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.servers.update(instance.backend_id, name=instance.name)
         except keystone_exceptions.NotFound as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def import_instance(self, backend_instance_id, save=True, service_project_link=None):
         # NB! This method does not import instance sub-objects like security groups or internal IPs.
@@ -1053,7 +1053,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             attached_volume_ids = [v.volumeId for v in nova.volumes.get_server_volumes(backend_instance_id)]
             flavor_id = backend_instance.flavor['id']
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         instance = self._backend_instance_to_instance(backend_instance, flavor_id)
         with transaction.atomic():
@@ -1134,7 +1134,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             logger.info('OpenStack flavor %s is gone.', flavor_id)
             return None
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def _get_backend_resource(self, model, resources):
         registered_backend_ids = model.objects.filter(
@@ -1146,7 +1146,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_instances = nova.servers.list()
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         instances = []
         for backend_instance in backend_instances:
@@ -1207,7 +1207,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             # Therefore we should explicitly pass detailed=False. Otherwise request fails.
             backend_zones = self.nova_client.availability_zones.list(detailed=False)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         self._pull_zones(backend_zones, models.InstanceAvailabilityZone)
 
@@ -1228,7 +1228,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_internal_ips = neutron.list_ports(device_id=instance.backend_id)['ports']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         existing_ips = {
             ip.backend_id: ip
@@ -1307,7 +1307,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_internal_ips = neutron.list_ports(device_id=instance.backend_id)['ports']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         # delete stale internal IPs
         exist_ids = instance.internal_ips_set.values_list('backend_id', flat=True)
@@ -1317,7 +1317,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     logger.info('About to delete network port with ID %s.', backend_internal_ip['id'])
                     neutron.delete_port(backend_internal_ip['id'])
                 except neutron_exceptions.NeutronClientException as e:
-                    reraise(e)
+                    raise OpenStackBackendError(e)
 
         # create new internal IPs
         new_internal_ips = instance.internal_ips_set.exclude(backend_id__in=[ip['id'] for ip in backend_internal_ips])
@@ -1338,9 +1338,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 backend_internal_ip = neutron.create_port({'port': port})['port']
                 nova.servers.interface_attach(instance.backend_id, backend_internal_ip['id'], None, None)
             except neutron_exceptions.NeutronClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
             except nova_exceptions.ClientException as e:
-                reraise(e)
+                raise OpenStackBackendError(e)
             new_internal_ip.mac_address = backend_internal_ip['mac_address']
             new_internal_ip.ip4_address = backend_internal_ip['fixed_ips'][0]['ip_address']
             new_internal_ip.backend_id = backend_internal_ip['id']
@@ -1368,7 +1368,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             }
             backend_internal_ip = neutron.create_port({'port': port})['port']
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         internal_ip.mac_address = backend_internal_ip['mac_address']
         internal_ip.ip4_address = backend_internal_ip['fixed_ips'][0]['ip_address']
@@ -1404,7 +1404,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_groups = nova.servers.list_security_group(server_id)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         backend_ids = set(g.id for g in backend_groups)
         nc_ids = set(
@@ -1436,7 +1436,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_ids = set(g.id for g in nova.servers.list_security_group(server_id))
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         nc_ids = set(
             models.SecurityGroup.objects
@@ -1471,7 +1471,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.NotFound:
             logger.info('OpenStack instance %s is already deleted', instance.backend_id)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         instance.decrease_backend_quotas_usage()
         for volume in instance.volumes.all():
             volume.decrease_backend_quotas_usage()
@@ -1485,7 +1485,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.NotFound:
             return True
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def start_instance(self, instance):
@@ -1496,7 +1496,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if e.code == 409 and 'it is in vm_state active' in e.message:
                 logger.info('OpenStack instance %s is already started', instance.backend_id)
                 return
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def stop_instance(self, instance):
@@ -1507,7 +1507,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if e.code == 409 and 'it is in vm_state stopped' in e.message:
                 logger.info('OpenStack instance %s is already stopped', instance.backend_id)
                 return
-            reraise(e)
+            raise OpenStackBackendError(e)
         else:
             instance.start_time = None
             instance.save(update_fields=['start_time'])
@@ -1518,7 +1518,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.servers.reboot(instance.backend_id)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def resize_instance(self, instance, flavor_id):
@@ -1526,7 +1526,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.servers.resize(instance.backend_id, flavor_id, 'MANUAL')
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def pull_instance_runtime_state(self, instance):
@@ -1534,7 +1534,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_instance = nova.servers.get(instance.backend_id)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
         if backend_instance.status != instance.runtime_state:
             instance.runtime_state = backend_instance.status
             instance.save(update_fields=['runtime_state'])
@@ -1551,7 +1551,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             nova.servers.confirm_resize(instance.backend_id)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @log_backend_action()
     def list_meters(self, resource):
@@ -1577,7 +1577,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             samples = ceilometer.samples.list(meter_name=meter_name, q=query)
         except ceilometer_exceptions.BaseException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         return samples
 
@@ -1589,7 +1589,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             url = nova.servers.get_console_url(instance.backend_id, console_type)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         return url['console']['url']
 
@@ -1599,13 +1599,13 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             return nova.servers.get_console_output(instance.backend_id, length)
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     def pull_volume_types(self):
         try:
             volume_types = self.cinder_client.volume_types.list()
         except nova_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         with transaction.atomic():
             cur_volume_types = self._get_current_properties(models.VolumeType)
@@ -1628,6 +1628,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_zones = self.cinder_client.availability_zones.list()
         except cinder_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         self._pull_zones(backend_zones, models.VolumeAvailabilityZone)

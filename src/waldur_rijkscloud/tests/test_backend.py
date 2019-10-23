@@ -1,6 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import test
-from six.moves import mock
+import mock
 
 from . import factories, fixtures
 from .. import models

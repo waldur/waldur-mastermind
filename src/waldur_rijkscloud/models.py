@@ -1,7 +1,5 @@
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
-from django.utils.encoding import python_2_unicode_compatible
-
 from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.structure import models as structure_models
@@ -69,7 +67,6 @@ class Volume(structure_models.Volume):
             'name', 'size', 'metadata', 'runtime_state')
 
 
-@python_2_unicode_compatible
 class Instance(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
         RijkscloudServiceProjectLink,
@@ -103,7 +100,6 @@ class Instance(structure_models.VirtualMachine):
         return self.name
 
 
-@python_2_unicode_compatible
 class FloatingIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4', null=True)
     is_available = models.BooleanField(default=True)
@@ -125,7 +121,6 @@ class FloatingIP(structure_models.ServiceProperty):
         return self.address
 
 
-@python_2_unicode_compatible
 class Network(structure_models.ServiceProperty):
     @classmethod
     def get_url_name(cls):
@@ -135,7 +130,6 @@ class Network(structure_models.ServiceProperty):
         return self.name
 
 
-@python_2_unicode_compatible
 class SubNet(structure_models.ServiceProperty):
     network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32)
@@ -156,7 +150,6 @@ class SubNet(structure_models.ServiceProperty):
         return 'rijkscloud-subnet'
 
 
-@python_2_unicode_compatible
 class InternalIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4')
     is_available = models.BooleanField(default=True)

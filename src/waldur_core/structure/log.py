@@ -1,5 +1,3 @@
-import six
-
 from waldur_core.core.models import User
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_core.structure import models
@@ -42,8 +40,8 @@ class CustomerRoleEventLogger(EventLogger):
     customer = models.Customer
     affected_user = User
     user = User
-    structure_type = six.text_type
-    role_name = six.text_type
+    structure_type = str
+    role_name = str
 
     class Meta:
         event_types = 'role_granted', 'role_revoked', 'role_updated'
@@ -62,8 +60,8 @@ class ProjectRoleEventLogger(EventLogger):
     project = models.Project
     user = User
     affected_user = User
-    structure_type = six.text_type
-    role_name = six.text_type
+    structure_type = str
+    role_name = str
 
     class Meta:
         event_types = 'role_granted', 'role_revoked', 'role_updated'

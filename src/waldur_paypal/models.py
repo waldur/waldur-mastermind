@@ -2,7 +2,6 @@ import logging
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils.models import TimeStampedModel
@@ -16,7 +15,6 @@ from . import backend
 logger = logging.getLogger(__name__)
 
 
-@python_2_unicode_compatible
 class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
     class Meta(object):
         ordering = ['-modified']
@@ -83,7 +81,6 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
         pass
 
 
-@python_2_unicode_compatible
 class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
     class Meta(object):
         ordering = ['-invoice_date']

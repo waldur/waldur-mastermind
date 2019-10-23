@@ -5,7 +5,6 @@ import operator
 from django.conf import settings as django_settings
 from django.db import transaction
 from django.utils import timezone
-import six
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError
 from waldur_freeipa import models as freeipa_models
@@ -44,7 +43,7 @@ class SlurmBackend(ServiceBackend):
             self.client.list_accounts()
         except base.BatchError as e:
             if raise_exception:
-                six.reraise(ServiceBackendError, e)
+                raise ServiceBackendError(e)
             return False
         else:
             return True

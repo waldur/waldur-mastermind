@@ -1,8 +1,8 @@
 # coding=utf-8
+from io import StringIO
+
 from django.core.management import call_command
 from django.test import TestCase
-import six
-from io import StringIO
 
 from .. import factories
 
@@ -17,6 +17,6 @@ class DumpUsersCommandTest(TestCase):
         except UnicodeDecodeError as e:
             self.fail(str(e))
         value = output.getvalue()
-        if not isinstance(value, six.text_type):
+        if not isinstance(value, str):
             value = value.decode('utf-8')
         self.assertIn(user.full_name, value)
