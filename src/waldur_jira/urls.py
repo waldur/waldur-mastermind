@@ -4,15 +4,15 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'jira', views.JiraServiceViewSet, base_name='jira')
-    router.register(r'jira-service-project-link', views.JiraServiceProjectLinkViewSet, base_name='jira-spl')
-    router.register(r'jira-attachments', views.AttachmentViewSet, base_name='jira-attachments')
-    router.register(r'jira-project-templates', views.ProjectTemplateViewSet, base_name='jira-project-templates')
-    router.register(r'jira-projects', views.ProjectViewSet, base_name='jira-projects')
-    router.register(r'jira-issue-types', views.IssueTypeViewSet, base_name='jira-issue-types')
-    router.register(r'jira-priorities', views.PriorityViewSet, base_name='jira-priorities')
-    router.register(r'jira-issues', views.IssueViewSet, base_name='jira-issues')
-    router.register(r'jira-comments', views.CommentViewSet, base_name='jira-comments')
+    router.register(r'jira', views.JiraServiceViewSet, basename='jira')
+    router.register(r'jira-service-project-link', views.JiraServiceProjectLinkViewSet, basename='jira-spl')
+    router.register(r'jira-attachments', views.AttachmentViewSet, basename='jira-attachments')
+    router.register(r'jira-project-templates', views.ProjectTemplateViewSet, basename='jira-project-templates')
+    router.register(r'jira-projects', views.ProjectViewSet, basename='jira-projects')
+    router.register(r'jira-issue-types', views.IssueTypeViewSet, basename='jira-issue-types')
+    router.register(r'jira-priorities', views.PriorityViewSet, basename='jira-priorities')
+    router.register(r'jira-issues', views.IssueViewSet, basename='jira-issues')
+    router.register(r'jira-comments', views.CommentViewSet, basename='jira-comments')
 
 
 urlpatterns = [

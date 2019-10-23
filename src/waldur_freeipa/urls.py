@@ -4,4 +4,4 @@ from . import views
 
 
 def register_in(router):
-    router.register(r'freeipa-profiles', views.ProfileViewSet, base_name='freeipa-profile')
+    router.register(r'freeipa-profiles', views.ProfileViewSet, basename='freeipa-profile')

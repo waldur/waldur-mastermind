@@ -7,31 +7,31 @@ from waldur_mastermind.marketplace import views
 
 def register_in(router):
     router.register(r'marketplace-service-providers', views.ServiceProviderViewSet,
-                    base_name='marketplace-service-provider'),
+                    basename='marketplace-service-provider'),
     router.register(r'marketplace-categories', views.CategoryViewSet,
-                    base_name='marketplace-category'),
+                    basename='marketplace-category'),
     router.register(r'marketplace-offerings', views.OfferingViewSet,
-                    base_name='marketplace-offering')
+                    basename='marketplace-offering')
     router.register(r'marketplace-plans', views.PlanViewSet,
-                    base_name='marketplace-plan')
+                    basename='marketplace-plan')
     router.register(r'marketplace-screenshots', views.ScreenshotViewSet,
-                    base_name='marketplace-screenshot')
+                    basename='marketplace-screenshot')
     router.register(r'marketplace-cart-items', views.CartItemViewSet,
-                    base_name='marketplace-cart-item')
+                    basename='marketplace-cart-item')
     router.register(r'marketplace-orders', views.OrderViewSet,
-                    base_name='marketplace-order')
+                    basename='marketplace-order')
     router.register(r'marketplace-order-items', views.OrderItemViewSet,
-                    base_name='marketplace-order-item')
+                    basename='marketplace-order-item')
     router.register(r'marketplace-resources', views.ResourceViewSet,
-                    base_name='marketplace-resource')
+                    basename='marketplace-resource')
     router.register(r'marketplace-category-component-usages', views.CategoryComponentUsageViewSet,
-                    base_name='marketplace-category-component-usage')
+                    basename='marketplace-category-component-usage')
     router.register(r'marketplace-component-usages', views.ComponentUsageViewSet,
-                    base_name='marketplace-component-usage')
+                    basename='marketplace-component-usage')
     router.register(r'marketplace-public-api', views.MarketplaceAPIViewSet,
-                    base_name='marketplace-public-api'),
+                    basename='marketplace-public-api'),
     router.register(r'marketplace-offering-files', views.OfferingFileViewSet,
-                    base_name='marketplace-offering-file'),
+                    basename='marketplace-offering-file'),
 
 
 urlpatterns = [
