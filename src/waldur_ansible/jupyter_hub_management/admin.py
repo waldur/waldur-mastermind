@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib import admin
-from django.core import urlresolvers
+from django.urls import reverse
 
 from . import models
 
@@ -18,7 +18,7 @@ class JupyterHubManagementAdmin(admin.ModelAdmin):
     list_display_links = ('uuid',)
 
     def python_management_link(self, obj):
-        link = urlresolvers.reverse("admin:python_management_pythonmanagement_change", args=[obj.id])
+        link = reverse("admin:python_management_pythonmanagement_change", args=[obj.id])
         return '<a href="%s">%s</a>' % (link, obj.python_management.virtual_envs_dir_path)
 
     python_management_link.allow_tags = True
