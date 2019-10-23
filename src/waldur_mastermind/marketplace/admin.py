@@ -2,11 +2,10 @@ from __future__ import unicode_literals
 
 from django.contrib import admin
 from django.conf.urls import url
-from django.core.urlresolvers import resolve
 from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse
+from django.urls import reverse, resolve
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _, ungettext
 from waldur_core.core.admin import JsonWidget

@@ -1,6 +1,6 @@
 import factory
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 
