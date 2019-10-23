@@ -533,7 +533,7 @@ class ImportVolumeTest(BaseBackendTest):
         volume = self.tenant_backend.import_volume(self.backend_volume_id, save=True, service_project_link=self.spl)
 
         self.assertTrue(models.Volume.objects.filter(backend_id=self.backend_volume_id).exists())
-        self.assertEqual(models.Volume.objects.get(backend_id=self.backend_volume_id).uuid, volume.uuid)
+        self.assertEqual(models.Volume.objects.get(backend_id=self.backend_volume_id)uuid.hex, volume.uuid)
         self.assertEqual(volume.name, self.backend_volume.name)
 
     def test_volume_instance_is_not_created_during_import(self):
@@ -545,7 +545,7 @@ class ImportVolumeTest(BaseBackendTest):
 
         self.assertIsNotNone(volume.instance)
         self.assertTrue(models.Volume.objects.filter(backend_id=self.backend_volume_id).exists())
-        self.assertEqual(models.Volume.objects.get(backend_id=self.backend_volume_id).uuid, volume.uuid)
+        self.assertEqual(models.Volume.objects.get(backend_id=self.backend_volume_id)uuid.hex, volume.uuid)
         self.assertEqual(volume.name, self.backend_volume.name)
 
 
@@ -1138,7 +1138,7 @@ class ImportInstanceTest(BaseBackendTest):
 
         self.assertEquals(instance.backend_id, self.backend_id)
         self.assertTrue(models.Instance.objects.filter(backend_id=self.backend_id).exists())
-        self.assertEquals(models.Instance.objects.get(backend_id=self.backend_id).uuid, instance.uuid)
+        self.assertEquals(models.Instance.objects.get(backend_id=self.backend_id)uuid.hex, instance.uuid)
         self.assertEquals(instance.name, self.backend_instance.name)
 
     def test_volume_is_attached_to_imported_instance_if_they_are_registered(self):

@@ -267,14 +267,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def get_valid_payload(self, **kwargs):
         data = self.get_usage_data(**kwargs)
         payload = dict(
-            customer=self.service_provider.customer.uuid,
+            customer=self.service_provider.customer.uuid.hex,
             data=core_utils.encode_jwt_token(data, self.secret_code)
         )
         return payload
 
     def get_usage_data(self, component_type='cpu', amount=5, description=''):
         return {
-            'plan_period': self.plan_period.uuid,
+            'plan_period': self.plan_period.uuid.hex,
             'usages': [{
                 'type': component_type,
                 'amount': amount,

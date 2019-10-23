@@ -19,7 +19,7 @@ class SlurmServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = SlurmServiceFactory()
-        url = 'http://testserver' + reverse('slurm-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('slurm-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -59,7 +59,7 @@ class AllocationFactory(factory.DjangoModelFactory):
     def get_url(cls, allocation=None, action=None):
         if allocation is None:
             allocation = AllocationFactory()
-        url = 'http://testserver' + reverse('slurm-allocation-detail', kwargs={'uuid': allocation.uuid})
+        url = 'http://testserver' + reverse('slurm-allocation-detail', kwargs={'uuid': allocation.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

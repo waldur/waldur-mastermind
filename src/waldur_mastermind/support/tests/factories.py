@@ -100,7 +100,7 @@ class OfferingTemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, offering_template=None, action=None):
         if offering_template is None:
             offering_template = OfferingTemplateFactory()
-        url = 'http://testserver' + reverse('support-offering-template-detail', kwargs={'uuid': offering_template.uuid})
+        url = 'http://testserver' + reverse('support-offering-template-detail', kwargs={'uuid': offering_template.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -120,7 +120,7 @@ class OfferingPlanFactory(factory.DjangoModelFactory):
     def get_url(cls, plan=None, action=None):
         if plan is None:
             plan = OfferingPlanFactory()
-        url = 'http://testserver' + reverse('support-offering-plan-detail', kwargs={'uuid': plan.uuid})
+        url = 'http://testserver' + reverse('support-offering-plan-detail', kwargs={'uuid': plan.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

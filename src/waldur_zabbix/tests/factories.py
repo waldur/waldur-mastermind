@@ -23,7 +23,7 @@ class ZabbixServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ZabbixServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('zabbix-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -78,7 +78,7 @@ class ITServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ITServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -98,5 +98,5 @@ class TemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, template=None, action=None):
         if template is None:
             template = TemplateFactory()
-        url = 'http://testserver' + reverse('zabbix-template-detail', kwargs={'uuid': template.uuid})
+        url = 'http://testserver' + reverse('zabbix-template-detail', kwargs={'uuid': template.uuid.hex})
         return url if action is None else url + action + '/'

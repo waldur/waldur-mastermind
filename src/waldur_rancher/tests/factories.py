@@ -28,7 +28,7 @@ class RancherServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = RancherServiceFactory()
-        url = 'http://testserver' + reverse('rancher-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('rancher-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -66,7 +66,7 @@ class ClusterFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, cluster=None, action=None):
         cluster = cluster or ClusterFactory()
-        url = 'http://testserver' + reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid})
+        url = 'http://testserver' + reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -81,7 +81,7 @@ class NodeFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_url(cls, node, action=None):
-        url = 'http://testserver' + reverse('rancher-node-detail', kwargs={'uuid': node.uuid})
+        url = 'http://testserver' + reverse('rancher-node-detail', kwargs={'uuid': node.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

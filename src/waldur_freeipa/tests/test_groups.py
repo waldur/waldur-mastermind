@@ -18,7 +18,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             description='customer,-1.0',
         )
 
@@ -30,7 +30,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.has_calls([mock.call(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             description='customer,100',
         )])
 
@@ -41,7 +41,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.has_calls([mock.call(
-            'waldur_project_%s' % project.uuid,
+            'waldur_project_%s' % project.uuid.hex,
             description='project,-1.0',
         )])
 
@@ -53,7 +53,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.has_calls([mock.call(
-            'waldur_project_%s' % project.uuid,
+            'waldur_project_%s' % project.uuid.hex,
             description='project,100',
         )])
 
@@ -69,7 +69,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_mod.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             description='customer,-1.0',
         )
 
@@ -85,7 +85,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_mod.assert_called_once_with(
-            'waldur_project_%s' % project.uuid,
+            'waldur_project_%s' % project.uuid.hex,
             description='project,-1.0',
         )
 
@@ -99,7 +99,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_add_member.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             users=[owner.username],
             skip_errors=True,
         )
@@ -116,7 +116,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_remove_member.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             users=['stale_user'],
             skip_errors=True,
         )
@@ -141,7 +141,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_add_member.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             groups=['waldur_project_%s' % project.uuid],
             skip_errors=True,
         )
@@ -158,7 +158,7 @@ class GroupTest(TestCase):
         }
         FreeIPABackend().synchronize_groups()
         mock_client().group_remove_member.assert_called_once_with(
-            'waldur_org_%s' % customer.uuid,
+            'waldur_org_%s' % customer.uuid.hex,
             groups=['waldur_stale_child'],
             skip_errors=True,
         )

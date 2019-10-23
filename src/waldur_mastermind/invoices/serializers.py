@@ -96,7 +96,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
             return None
 
         return reverse('invoice-pdf',
-                       kwargs={'uuid': obj.uuid},
+                       kwargs={'uuid': obj.uuid.hex},
                        request=self.context['request'])
 
     def get_items(self, invoice):

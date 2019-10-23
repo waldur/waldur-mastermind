@@ -36,7 +36,7 @@ class JupyterHubManagementFactory(factory.DjangoModelFactory):
         if jupyter_hub_management is None:
             jupyter_hub_management = JupyterHubManagementFactory()
 
-        url = 'http://testserver' + reverse(core_utils.get_detail_view_name(models.JupyterHubManagement), kwargs={'uuid': jupyter_hub_management.uuid})
+        url = 'http://testserver' + reverse(core_utils.get_detail_view_name(models.JupyterHubManagement), kwargs={'uuid': jupyter_hub_management.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

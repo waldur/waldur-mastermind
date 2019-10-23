@@ -48,7 +48,7 @@ class ServiceProviderFactory(factory.DjangoModelFactory):
         if service_provider is None:
             service_provider = ServiceProviderFactory()
         url = 'http://testserver' + reverse('marketplace-service-provider-detail',
-                                            kwargs={'uuid': service_provider.uuid})
+                                            kwargs={'uuid': service_provider.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -68,7 +68,7 @@ class CategoryFactory(factory.DjangoModelFactory):
         if category is None:
             category = CategoryFactory()
         url = 'http://testserver' + reverse('marketplace-category-detail',
-                                            kwargs={'uuid': category.uuid})
+                                            kwargs={'uuid': category.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -99,7 +99,7 @@ class OfferingFactory(factory.DjangoModelFactory):
         if offering is None:
             offering = OfferingFactory()
         url = 'http://testserver' + reverse('marketplace-offering-detail',
-                                            kwargs={'uuid': offering.uuid})
+                                            kwargs={'uuid': offering.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -138,7 +138,7 @@ class ScreenshotFactory(factory.DjangoModelFactory):
         if screenshot is None:
             screenshot = ScreenshotFactory()
         url = 'http://testserver' + reverse('marketplace-screenshot-detail',
-                                            kwargs={'uuid': screenshot.uuid})
+                                            kwargs={'uuid': screenshot.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -159,7 +159,7 @@ class OrderFactory(factory.DjangoModelFactory):
         if order is None:
             order = OrderFactory()
         url = 'http://testserver' + reverse('marketplace-order-detail',
-                                            kwargs={'uuid': order.uuid})
+                                            kwargs={'uuid': order.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -181,7 +181,7 @@ class PlanFactory(factory.DjangoModelFactory):
         if plan is None:
             plan = PlanFactory()
         url = 'http://testserver' + reverse('marketplace-plan-detail',
-                                            kwargs={'uuid': plan.uuid})
+                                            kwargs={'uuid': plan.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -222,7 +222,7 @@ class OrderItemFactory(factory.DjangoModelFactory):
         if order_item is None:
             order_item = OrderItemFactory()
         url = 'http://testserver' + reverse('marketplace-order-item-detail',
-                                            kwargs={'uuid': order_item.uuid})
+                                            kwargs={'uuid': order_item.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -243,7 +243,7 @@ class CartItemFactory(factory.DjangoModelFactory):
     def get_url(cls, item=None):
         if item is None:
             item = CartItemFactory()
-        return reverse('marketplace-cart-item-detail', kwargs={'uuid': item.uuid})
+        return reverse('marketplace-cart-item-detail', kwargs={'uuid': item.uuid.hex})
 
     @classmethod
     def get_list_url(cls, action=None):
@@ -262,7 +262,7 @@ class ResourceFactory(factory.DjangoModelFactory):
     def get_url(cls, resource=None, action=None):
         if resource is None:
             resource = ResourceFactory()
-        url = reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid})
+        url = reverse('marketplace-resource-detail', kwargs={'uuid': resource.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -284,7 +284,7 @@ class OfferingFileFactory(factory.DjangoModelFactory):
         if offering_file is None:
             offering_file = OfferingFileFactory()
         url = 'http://testserver' + reverse('marketplace-offering-file-detail',
-                                            kwargs={'uuid': offering_file.uuid})
+                                            kwargs={'uuid': offering_file.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

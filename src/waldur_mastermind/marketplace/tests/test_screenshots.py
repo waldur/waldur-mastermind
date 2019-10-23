@@ -36,7 +36,7 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         offering = self.screenshot.offering
         url = factories.ScreenshotFactory.get_list_url()
-        response = self.client.get(url, {'offering_uuid': offering.uuid})
+        response = self.client.get(url, {'offering_uuid': offering.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 

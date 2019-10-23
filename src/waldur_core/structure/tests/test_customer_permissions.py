@@ -410,7 +410,7 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
             self.assertNotEqual(value, permission['user_' + field])
 
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid})
+        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
 
 
 class CustomerPermissionExpirationTest(test.APITransactionTestCase):

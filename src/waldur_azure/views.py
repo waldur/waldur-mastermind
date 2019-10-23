@@ -112,7 +112,7 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
 
         payload = {
             'status': _('SQL database creation was scheduled'),
-            'database_uuid': database.uuid,
+            'database_uuid': database.uuid.hex,
         }
         return response.Response(payload, status=status.HTTP_202_ACCEPTED)
 

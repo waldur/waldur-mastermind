@@ -25,7 +25,7 @@ class OpenStackServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = OpenStackServiceFactory()
-        url = 'http://testserver' + reverse('openstack-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('openstack-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -69,7 +69,7 @@ class FlavorFactory(factory.DjangoModelFactory):
     def get_url(cls, flavor=None):
         if flavor is None:
             flavor = FlavorFactory()
-        return 'http://testserver' + reverse('openstack-flavor-detail', kwargs={'uuid': flavor.uuid})
+        return 'http://testserver' + reverse('openstack-flavor-detail', kwargs={'uuid': flavor.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -89,7 +89,7 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, image=None):
         if image is None:
             image = ImageFactory()
-        return 'http://testserver' + reverse('openstack-image-detail', kwargs={'uuid': image.uuid})
+        return 'http://testserver' + reverse('openstack-image-detail', kwargs={'uuid': image.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -127,7 +127,7 @@ class SecurityGroupFactory(TenantMixin, factory.DjangoModelFactory):
     def get_url(cls, sgp=None, action=None):
         if sgp is None:
             sgp = SecurityGroupFactory()
-        url = 'http://testserver' + reverse('openstack-sgp-detail', kwargs={'uuid': sgp.uuid})
+        url = 'http://testserver' + reverse('openstack-sgp-detail', kwargs={'uuid': sgp.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -159,7 +159,7 @@ class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
     def get_url(cls, instance=None):
         if instance is None:
             instance = FloatingIPFactory()
-        return 'http://testserver' + reverse('openstack-fip-detail', kwargs={'uuid': instance.uuid})
+        return 'http://testserver' + reverse('openstack-fip-detail', kwargs={'uuid': instance.uuid.hex})
 
     @classmethod
     def get_list_url(cls):

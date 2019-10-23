@@ -1192,14 +1192,14 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             fields['flavor'].display_name_field = 'name'
             fields['flavor'].view_name = 'openstacktenant-flavor-detail'
             fields['flavor'].query_params = {
-                'settings_uuid': backup.service_project_link.service.settings.uuid,
+                'settings_uuid': backup.service_project_link.service.settings.uuid.hex,
             }
 
             floating_ip_field = fields.get('floating_ips')
             if floating_ip_field:
                 floating_ip_field.view_name = 'openstacktenant-fip-detail'
                 floating_ip_field.query_params = {
-                    'settings_uuid': settings.uuid,
+                    'settings_uuid': settings.uuid.hex,
                     'is_booked': False,
                     'free': True,
                 }
@@ -1208,7 +1208,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             internal_ips_set_field = fields.get('internal_ips_set')
             if internal_ips_set_field:
                 internal_ips_set_field.query_params = {
-                    'settings_uuid': settings.uuid,
+                    'settings_uuid': settings.uuid.hex,
                 }
                 internal_ips_set_field.view_name = 'openstacktenant-subnet-detail'
                 internal_ips_set_field.display_name_field = 'name'
@@ -1216,7 +1216,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             security_groups_field = fields.get('security_groups')
             if security_groups_field:
                 security_groups_field.query_params = {
-                    'settings_uuid': settings.uuid,
+                    'settings_uuid': settings.uuid.hex,
                 }
                 security_groups_field.view_name = 'openstacktenant-sgp-detail'
                 security_groups_field.display_name_field = 'name'

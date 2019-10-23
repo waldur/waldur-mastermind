@@ -21,7 +21,7 @@ class PaypalPaymentFactory(factory.DjangoModelFactory):
     def get_url(self, payment=None, action=None):
         if payment is None:
             payment = PaypalPaymentFactory()
-        url = 'http://testserver' + reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid})
+        url = 'http://testserver' + reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

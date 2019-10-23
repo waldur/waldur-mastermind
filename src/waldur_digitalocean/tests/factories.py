@@ -19,7 +19,7 @@ class DigitalOceanServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = DigitalOceanServiceFactory()
-        url = 'http://testserver' + reverse('digitalocean-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('digitalocean-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -52,7 +52,7 @@ class RegionFactory(factory.DjangoModelFactory):
     def get_url(cls, region=None):
         if region is None:
             region = RegionFactory()
-        return 'http://testserver' + reverse('digitalocean-region-detail', kwargs={'uuid': region.uuid})
+        return 'http://testserver' + reverse('digitalocean-region-detail', kwargs={'uuid': region.uuid.hex})
 
 
 class ImageFactory(factory.DjangoModelFactory):
@@ -66,7 +66,7 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, image=None):
         if image is None:
             image = ImageFactory()
-        return 'http://testserver' + reverse('digitalocean-image-detail', kwargs={'uuid': image.uuid})
+        return 'http://testserver' + reverse('digitalocean-image-detail', kwargs={'uuid': image.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -90,7 +90,7 @@ class SizeFactory(factory.DjangoModelFactory):
     def get_url(cls, size=None):
         if size is None:
             size = SizeFactory()
-        return 'http://testserver' + reverse('digitalocean-size-detail', kwargs={'uuid': size.uuid})
+        return 'http://testserver' + reverse('digitalocean-size-detail', kwargs={'uuid': size.uuid.hex})
 
 
 class DropletFactory(factory.DjangoModelFactory):
@@ -112,7 +112,7 @@ class DropletFactory(factory.DjangoModelFactory):
     def get_url(cls, droplet=None, action=None):
         if droplet is None:
             droplet = DropletFactory()
-        url = 'http://testserver' + reverse('digitalocean-droplet-detail', kwargs={'uuid': droplet.uuid})
+        url = 'http://testserver' + reverse('digitalocean-droplet-detail', kwargs={'uuid': droplet.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

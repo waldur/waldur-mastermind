@@ -122,7 +122,7 @@ class OrderTest(object):
         self.stdout('Order UUID: %s' % self.order.uuid)
         self.stdout('Request UUID: %s' % self.order_item.resource.scope.uuid)
         issue = self.get_issue()
-        self.stdout('Issue UUID: %s, PK: %s' % (issue.uuid, issue.pk))
+        self.stdout('Issue UUID: %s, PK: %s' % (issue.uuid.hex, issue.pk))
 
     def validate_order_done(self):
         if self.order.state != marketplace_models.Order.States.DONE:
@@ -153,7 +153,7 @@ class OrderTest(object):
             self.stdout('A %s order UUID: %s' % (self.get_request_type(), self.order.uuid))
             self.stdout('Request UUID: %s' % self.order_item.resource.scope.uuid)
             issue = self.get_issue()
-            self.stdout('Issue UUID: %s, PK: %s' % (issue.uuid, issue.pk))
+            self.stdout('Issue UUID: %s, PK: %s' % (issue.uuid.hex, issue.pk))
             self.stdout('Please, resolve or cancel an issue.')
 
         if self.order.state == marketplace_models.Order.States.DONE:

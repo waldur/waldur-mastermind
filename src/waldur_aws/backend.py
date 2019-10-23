@@ -345,7 +345,7 @@ class AWSBackend(ServiceBackend):
             except re.error:
                 logger.warning(
                     'Invalid images regexp supplied for service settings %s: %s',
-                    self.settings.uuid, options['images_regex'])
+                    self.settings.uuid.hex, options['images_regex'])
 
         for region in models.Region.objects.all():
             manager = self._get_api(region.backend_id)
@@ -567,7 +567,7 @@ class AWSBackend(ServiceBackend):
 
         return {
             'id': instance.id,
-            'name': instance.name or instance.uuid,
+            'name': instance.name or instance.uuid.hex,
             'cores': instance_type.extra.get('cpu', 1),
             'ram': instance_type.ram,
             'disk': self.gb2mb(sum(volumes.values())),

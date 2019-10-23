@@ -189,7 +189,7 @@ class Issue(structure_models.StructureLoggableMixin,
         return self.description
 
     def __str__(self):
-        return '{}: {}'.format(self.uuid, self.backend_id or '???')
+        return '{}: {}'.format(self.uuid.hex, self.backend_id or '???')
 
 
 class JiraSubPropertyIssue(JiraPropertyIssue):

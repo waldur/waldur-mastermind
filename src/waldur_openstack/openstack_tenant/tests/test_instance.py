@@ -56,7 +56,7 @@ class InstanceFilterTest(test.APITransactionTestCase):
         }
         shared_settings.save()
 
-        response = self.client.get(self.url, {'attach_volume_uuid': volume.uuid})
+        response = self.client.get(self.url, {'attach_volume_uuid': volume.uuid.hex})
         self.assertEqual(len(response.data), 1)
 
 

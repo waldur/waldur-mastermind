@@ -49,7 +49,7 @@ class WebHookFactory(factory.DjangoModelFactory):
     def get_url(cls, hook=None):
         if hook is None:
             hook = WebHookFactory()
-        return 'http://testserver' + reverse('webhook-detail', kwargs={'uuid': hook.uuid})
+        return 'http://testserver' + reverse('webhook-detail', kwargs={'uuid': hook.uuid.hex})
 
 
 class PushHookFactory(factory.DjangoModelFactory):
@@ -68,7 +68,7 @@ class PushHookFactory(factory.DjangoModelFactory):
     def get_url(cls, hook=None):
         if hook is None:
             hook = PushHookFactory()
-        return 'http://testserver' + reverse('pushhook-detail', kwargs={'uuid': hook.uuid})
+        return 'http://testserver' + reverse('pushhook-detail', kwargs={'uuid': hook.uuid.hex})
 
 
 class SystemNotificationFactory(factory.DjangoModelFactory):

@@ -249,7 +249,7 @@ class DeleteResourceProcessor(BaseOrderItemProcessor):
 
         view = self.get_viewset().as_view({'delete': 'destroy'})
         delete_attributes = self.order_item.attributes
-        response = common_utils.delete_request(view, user, uuid=resource.uuid, query_params=delete_attributes)
+        response = common_utils.delete_request(view, user, uuid=resource.uuid.hex, query_params=delete_attributes)
 
         if response.status_code == status.HTTP_204_NO_CONTENT:
             with transaction.atomic():

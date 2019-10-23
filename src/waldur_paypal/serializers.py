@@ -48,7 +48,7 @@ class PaymentSerializer(core_serializers.AugmentedSerializerMixin,
         except (NotImplemented, VATException) as e:
             rate = 0
             logger.warning('Unable to compute VAT rate for customer with UUID %s, error is %s',
-                           customer.uuid, e)
+                           customer.uuid.hex, e)
         validated_data['tax'] = Decimal(rate) / Decimal(100) * amount
 
         return super(PaymentSerializer, self).create(validated_data)

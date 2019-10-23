@@ -545,7 +545,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 request=request,
             )
 
-        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     terminate_serializer_class = serializers.ResourceTerminateSerializer
 
@@ -579,7 +579,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 request=request,
             )
 
-        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
@@ -606,7 +606,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 request=request,
             )
 
-        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 

@@ -127,7 +127,7 @@ class HookPermissionsViewTest(BaseHookApiTest):
         self.client.force_authenticate(user=self.author)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.author.uuid, response.data['author_uuid'])
+        self.assertEqual(self.author.uuid.hex, response.data['author_uuid'])
 
     def test_hook_visible_to_staff(self):
         self.client.force_authenticate(user=self.staff)
@@ -148,7 +148,7 @@ class HookFilterViewTest(BaseHookApiTest):
         response = self.client.get(WebHookFactory.get_list_url(), {'author_uuid': self.author.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(self.author.uuid, response.data[0]['author_uuid'])
+        self.assertEqual(self.author.uuid.hex, response.data[0]['author_uuid'])
 
     def test_staff_can_filter_summary_hook_by_author_uuid(self):
         WebHookFactory(user=self.author)
@@ -157,7 +157,7 @@ class HookFilterViewTest(BaseHookApiTest):
         response = self.client.get(reverse('hooks-list'), {'author_uuid': self.author.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(self.author.uuid, response.data[0]['author_uuid'])
+        self.assertEqual(self.author.uuid.hex, response.data[0]['author_uuid'])
 
 
 class SystemNotificationTest(test.APITransactionTestCase):

@@ -25,7 +25,7 @@ class PriceEstimateFactory(factory.DjangoModelFactory):
     def get_url(cls, price_estimate, action=None):
         if price_estimate is None:
             price_estimate = PriceEstimateFactory()
-        url = 'http://testserver' + reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid})
+        url = 'http://testserver' + reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid.hex})
         return url if action is None else url + action + '/'
 
 
@@ -64,7 +64,7 @@ class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
         if default_price_list_item is None:
             default_price_list_item = DefaultPriceListItemFactory()
         url = 'http://testserver' + reverse(
-            'defaultpricelistitem-detail', kwargs={'uuid': default_price_list_item.uuid})
+            'defaultpricelistitem-detail', kwargs={'uuid': default_price_list_item.uuid.hex})
         return url if action is None else url + action + '/'
 
 
@@ -83,7 +83,7 @@ class PriceListItemFactory(AbstractPriceListItemFactory):
     def get_url(cls, price_list_item, action=None):
         if price_list_item is None:
             price_list_item = PriceListItemFactory()
-        url = 'http://testserver' + reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid})
+        url = 'http://testserver' + reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid.hex})
         return url if action is None else url + action + '/'
 
 

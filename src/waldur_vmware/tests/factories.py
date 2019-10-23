@@ -30,7 +30,7 @@ class VMwareServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = VMwareServiceFactory()
-        url = 'http://testserver' + reverse('vmware-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('vmware-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -70,7 +70,7 @@ class TemplateFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, template=None, action=None):
         template = template or TemplateFactory()
-        url = 'http://testserver' + reverse('vmware-template-detail', kwargs={'uuid': template.uuid})
+        url = 'http://testserver' + reverse('vmware-template-detail', kwargs={'uuid': template.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -89,7 +89,7 @@ class ClusterFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, cluster=None, action=None):
         cluster = cluster or ClusterFactory()
-        url = 'http://testserver' + reverse('vmware-cluster-detail', kwargs={'uuid': cluster.uuid})
+        url = 'http://testserver' + reverse('vmware-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -125,7 +125,7 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('vmware-virtual-machine-detail', kwargs={'uuid': instance.uuid})
+        url = 'http://testserver' + reverse('vmware-virtual-machine-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -148,7 +148,7 @@ class DiskFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, disk=None, action=None):
         disk = disk or DiskFactory()
-        url = 'http://testserver' + reverse('vmware-disk-detail', kwargs={'uuid': disk.uuid})
+        url = 'http://testserver' + reverse('vmware-disk-detail', kwargs={'uuid': disk.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -168,7 +168,7 @@ class NetworkFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, network=None, action=None):
         network = network or NetworkFactory()
-        url = 'http://testserver' + reverse('vmware-network-detail', kwargs={'uuid': network.uuid})
+        url = 'http://testserver' + reverse('vmware-network-detail', kwargs={'uuid': network.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -189,7 +189,7 @@ class PortFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, port=None, action=None):
         port = port or PortFactory()
-        url = 'http://testserver' + reverse('vmware-port-detail', kwargs={'uuid': port.uuid})
+        url = 'http://testserver' + reverse('vmware-port-detail', kwargs={'uuid': port.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -226,7 +226,7 @@ class DatastoreFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, datastore=None, action=None):
         datastore = datastore or DatastoreFactory()
-        url = 'http://testserver' + reverse('vmware-datastore-detail', kwargs={'uuid': datastore.uuid})
+        url = 'http://testserver' + reverse('vmware-datastore-detail', kwargs={'uuid': datastore.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -253,7 +253,7 @@ class FolderFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, folder=None, action=None):
         folder = folder or FolderFactory()
-        url = 'http://testserver' + reverse('vmware-folder-detail', kwargs={'uuid': folder.uuid})
+        url = 'http://testserver' + reverse('vmware-folder-detail', kwargs={'uuid': folder.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

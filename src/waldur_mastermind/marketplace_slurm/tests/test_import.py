@@ -26,7 +26,7 @@ class AllocationImportTest(test.APITransactionTestCase):
         super(AllocationImportTest, self).setUp()
         self.category = marketplace_factories.CategoryFactory(title='SLURM')
         self.decorator = override_plugin_settings(
-            CATEGORY_UUID=self.category.uuid,
+            CATEGORY_UUID=self.category.uuid.hex,
         )
         self.decorator.enable()
 

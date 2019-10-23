@@ -150,7 +150,7 @@ def format_list(resources):
 
 def get_order_item_url(order_item):
     link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-    return link_template.format(order_item_uuid=order_item.uuid,
+    return link_template.format(order_item_uuid=order_item.uuid.hex,
                                 project_uuid=order_item.order.project.uuid)
 
 

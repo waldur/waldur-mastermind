@@ -25,8 +25,8 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
             raise serializers.ValidationError('Offering has invalid scope. Support template is expected.')
 
         project = order_item.order.project
-        project_url = reverse('project-detail', kwargs={'uuid': project.uuid})
-        template_url = reverse('support-offering-template-detail', kwargs={'uuid': template.uuid})
+        project_url = reverse('project-detail', kwargs={'uuid': project.uuid.hex})
+        template_url = reverse('support-offering-template-detail', kwargs={'uuid': template.uuid.hex})
         attributes = order_item.attributes.copy()
 
         post_data = dict(

@@ -191,7 +191,7 @@ class OfferingCreateTest(BaseTest):
         self.assertIsNotNone(issue.project)
         self.assertEqual(models.Offering.objects.count(), 1)
         offering = models.Offering.objects.first()
-        self.assertEqual(issue.project.uuid, offering.project.uuid)
+        self.assertEqual(issue.project.uuid.hex, offering.project.uuid)
 
     @data('user')
     def test_user_cannot_associate_new_offering_with_project_if_he_has_no_project_level_permissions(self, user):

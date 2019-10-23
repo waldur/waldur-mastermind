@@ -48,7 +48,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             resource.set_state_terminated()
             resource.save()
 
-        return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def accept(self, request, uuid=None):
@@ -80,7 +80,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                     'resource': resource,
                 })
 
-        return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK)
 
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)

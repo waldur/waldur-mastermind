@@ -37,6 +37,6 @@ def validate_options(options, attributes):
 
         fields[name] = field_class(**params)
 
-    serializer_class = type(b'AttributesSerializer', (serializers.Serializer,), fields)
+    serializer_class = type('AttributesSerializer', (serializers.Serializer,), fields)
     serializer = serializer_class(data=attributes)
     serializer.is_valid(raise_exception=True)

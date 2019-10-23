@@ -15,13 +15,13 @@ from waldur_core.structure.tests import factories, fixtures
 
 class CustomerBaseTest(test.APITransactionTestCase):
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid})
+        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
 
     def _get_project_url(self, project):
-        return 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid})
+        return 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid.hex})
 
     def _get_user_url(self, user):
-        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid})
+        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex})
 
 
 @freeze_time('2017-11-01')
@@ -814,7 +814,7 @@ class CustomerDivisionFilterTest(test.APITransactionTestCase):
         """Test of customers' list filter by division name and division UUID."""
         filters = [
             {'name': 'division_name', 'correct': self.division.name[2:], 'uncorrect': 'uncorrect'},
-            {'name': 'division_uuid', 'correct': self.division.uuid, 'uncorrect': 'uncorrect'},
+            {'name': 'division_uuid', 'correct': self.division.uuid.hex, 'uncorrect': 'uncorrect'},
         ]
 
         self.client.force_authenticate(self.user)

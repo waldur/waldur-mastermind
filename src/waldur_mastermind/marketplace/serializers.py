@@ -1070,7 +1070,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
             return None
 
         return reverse('marketplace-order-pdf',
-                       kwargs={'uuid': obj.uuid},
+                       kwargs={'uuid': obj.uuid.hex},
                        request=self.context['request'])
 
     @transaction.atomic
