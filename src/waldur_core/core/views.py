@@ -255,7 +255,7 @@ class ActionsViewSet(viewsets.ModelViewSet):
             if obj.state != 'ok':
                 raise IncorrectStateException('Instance should be in state OK.')
 
-        @decorators.detail_route()
+        @decorators.action(detail=True, )
         def action(self, request, *args, **kwargs):
             ...
 

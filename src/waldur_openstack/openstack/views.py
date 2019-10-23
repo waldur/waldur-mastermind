@@ -151,7 +151,7 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
     ]
     delete_executor = executors.SecurityGroupDeleteExecutor
 
-    @decorators.detail_route(methods=['POST'])
+    @decorators.action(detail=True, methods=['POST'])
     def set_rules(self, request, uuid=None):
         """ WARNING! Auto-generated HTML form is wrong for this endpoint. List should be defined as input.
 
@@ -237,7 +237,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         structure_permissions.check_access_to_services_management,
     ]
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def set_quotas(self, request, uuid=None):
         """
         A quota can be set for a particular tenant. Only staff users can do that.
@@ -304,7 +304,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
     set_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
     set_quotas_serializer_class = serializers.TenantQuotaSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_network(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -321,7 +321,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
             raise core_exceptions.IncorrectStateException(
                 _('Cannot create floating IP if tenant external network is not defined.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_floating_ip(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -334,7 +334,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
                                      external_network_is_defined]
     create_floating_ip_serializer_class = serializers.FloatingIPSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def pull_floating_ips(self, request, uuid=None):
         tenant = self.get_object()
 
@@ -344,7 +344,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
     pull_floating_ips_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
     pull_floating_ips_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_security_group(self, request, uuid=None):
         """
         Example of a request:
@@ -380,7 +380,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
     create_security_group_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
     create_security_group_serializer_class = serializers.SecurityGroupSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def pull_security_groups(self, request, uuid=None):
         executors.TenantPullSecurityGroupsExecutor.execute(self.get_object())
         return response.Response(
@@ -388,7 +388,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
 
     pull_security_groups_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def change_password(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -400,7 +400,7 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
     change_password_serializer_class = serializers.TenantChangePasswordSerializer
     change_password_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def pull_quotas(self, request, uuid=None):
         executors.TenantPullQuotasExecutor.execute(self.get_object())
         return response.Response({'status': _('Quotas pull has been scheduled.')}, status=status.HTTP_202_ACCEPTED)
@@ -418,7 +418,7 @@ class NetworkViewSet(structure_views.BaseResourceViewSet):
     delete_executor = executors.NetworkDeleteExecutor
     pull_executor = executors.NetworkPullExecutor
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_subnet(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

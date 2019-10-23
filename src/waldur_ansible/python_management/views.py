@@ -75,21 +75,21 @@ class PythonManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsViewS
 
         self.service.schedule_virtual_environments_update(all_transient_virtual_environments, persisted_python_management)
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     @core_mixins.ensure_atomic_transaction
     def find_virtual_environments(self, request, uuid=None):
         persisted_python_management = self.get_object()
 
         return self.service.schedule_virtual_environments_search(persisted_python_management)
 
-    @decorators.detail_route(url_path="find_installed_libraries/(?P<virtual_env_name>.+)", methods=['get'])
+    @decorators.action(detail=True, url_path="find_installed_libraries/(?P<virtual_env_name>.+)", methods=['get'])
     @core_mixins.ensure_atomic_transaction
     def find_installed_libraries(self, request, virtual_env_name=None, uuid=None):
         persisted_python_management = self.get_object()
 
         return self.service.schedule_installed_libraries_search(persisted_python_management, virtual_env_name)
 
-    @decorators.detail_route(url_path="requests/(?P<request_uuid>.+)", methods=['get'])
+    @decorators.action(detail=True, url_path="requests/(?P<request_uuid>.+)", methods=['get'])
     def find_request_with_output_by_uuid(self, request, uuid=None, request_uuid=None):
         requests = core_managers.SummaryQuerySet(python_management_requests_models).filter(python_management=self.get_object(),
                                                                                            uuid=request_uuid)
@@ -97,7 +97,7 @@ class PythonManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsViewS
             requests, many=True, context={'select_output': True})
         return response.Response(serializer.data)
 
-    @decorators.list_route(url_path="validForJupyterHub", methods=['get'])
+    @decorators.action(url_path="validForJupyterHub", methods=['get'])
     def find_valid_for_jupyter_hub_python_managements_with_instance_info(self, request):
         result = super(PythonManagementViewSet, self).list(request)
         result.data = filter(
@@ -115,13 +115,13 @@ class PythonManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsViewS
 
 class PipPackagesViewSet(GenericViewSet):
 
-    @decorators.list_route(url_path="find_library_versions/(?P<queried_library_name>.+)/(?P<python_version>.+)", methods=['get'])
+    @decorators.action(url_path="find_library_versions/(?P<queried_library_name>.+)/(?P<python_version>.+)", methods=['get'])
     def find_library_versions(self, request, queried_library_name=None, python_version=None):
         versions = pip_service.find_versions(queried_library_name, python_version)
 
         return response.Response({'versions': versions})
 
-    @decorators.list_route(url_path="autocomplete_library/(?P<queried_library_name>.+)", methods=['get'])
+    @decorators.action(url_path="autocomplete_library/(?P<queried_library_name>.+)", methods=['get'])
     def autocomplete_library_name(self, request, queried_library_name=None):
         matching_libraries = pip_service.autocomplete_library_name(queried_library_name)
         serializer = serializers.CachedRepositoryPythonLibrarySerializer(matching_libraries, many=True)

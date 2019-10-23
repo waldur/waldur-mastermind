@@ -16,7 +16,7 @@ from rest_framework import filters as rf_filters
 from rest_framework import mixins, views, viewsets, status
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
-from rest_framework.decorators import detail_route, list_route
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, NotFound, APIException, ValidationError
 from rest_framework.response import Response
 from reversion.models import Version
@@ -201,7 +201,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
 
         return super(CustomerViewSet, self).perform_destroy(instance)
 
-    @detail_route(filter_backends=[filters.GenericRoleFilter])
+    @action(detail=True, filter_backends=[filters.GenericRoleFilter])
     def users(self, request, uuid=None):
         """ A list of users connected to the customer. """
         customer = self.get_object()
@@ -355,7 +355,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         super(ProjectViewSet, self).perform_create(serializer)
 
-    @detail_route(filter_backends=[filters.GenericRoleFilter])
+    @action(detail=True, filter_backends=[filters.GenericRoleFilter])
     def users(self, request, uuid=None):
         """ A list of users connected to the project """
         project = self.get_object()
@@ -369,7 +369,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
     users_serializer_class = serializers.ProjectUserSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def update_certifications(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -474,7 +474,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         return super(UserViewSet, self).retrieve(request, *args, **kwargs)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def password(self, request, uuid=None):
         """
         To change a user password, submit a **POST** request to the user's RPC URL, specifying new password
@@ -903,7 +903,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
 
     update_validators = partial_update_validators = [utils.check_customer_blocked]
 
-    @detail_route()
+    @action(detail=True)
     def stats(self, request, uuid=None):
         """
         This endpoint returns allocation of resources for current service setting.
@@ -944,7 +944,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
 
         return Response(stats, status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def update_certifications(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -1415,7 +1415,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     def get_import_context(self):
         return {}
 
-    @detail_route()
+    @action(detail=True)
     def managed_resources(self, request, uuid=None):
         service = self.get_object()
         backend = self.get_backend(service)
@@ -1440,7 +1440,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         if obj.settings.shared and not request.user.is_staff:
             raise PermissionDenied(_('Only staff users are allowed to import resources from shared services.'))
 
-    @detail_route(methods=['get', 'post'])
+    @action(detail=True, methods=['get', 'post'])
     def link(self, request, uuid=None):
         """
         To get a list of resources available for import, run **GET** against */<service_endpoint>/link/*
@@ -1514,7 +1514,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         else:
             return service.get_backend()
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def unlink(self, request, uuid=None):
         """
         Unlink all related resources, service project link and service itself.
@@ -1761,7 +1761,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     update_validators = partial_update_validators = [core_validators.StateValidator(models.NewResource.States.OK)]
     destroy_validators = [core_validators.StateValidator(models.NewResource.States.OK, models.NewResource.States.ERRED)]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def pull(self, request, uuid=None):
         if self.pull_executor == NotImplemented:
             return Response({'detail': _('Pull operation is not implemented.')},

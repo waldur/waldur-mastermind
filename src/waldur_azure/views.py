@@ -64,7 +64,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         virtual_machine = self.get_object()
         executors.VirtualMachineStartExecutor().execute(virtual_machine)
@@ -74,7 +74,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
                         core_validators.RuntimeStateValidator('stopped')]
     start_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         virtual_machine = self.get_object()
         executors.VirtualMachineStopExecutor().execute(virtual_machine)
@@ -84,7 +84,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
                        core_validators.RuntimeStateValidator('running')]
     stop_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         virtual_machine = self.get_object()
         executors.VirtualMachineRestartExecutor().execute(virtual_machine)
@@ -102,7 +102,7 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
     create_executor = executors.SQLServerCreateExecutor
     delete_executor = executors.SQLServerDeleteExecutor
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_database(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

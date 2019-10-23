@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from rest_framework import status, exceptions, response
-from rest_framework.decorators import detail_route, list_route
+from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 
@@ -26,7 +26,7 @@ class ZabbixServiceViewSet(structure_views.BaseServiceViewSet):
             return serializers.TriggerRequestSerializer
         return super(ZabbixServiceViewSet, self).get_serializer_class()
 
-    @detail_route(methods=['GET', 'POST'])
+    @action(detail=True, methods=['GET', 'POST'])
     def credentials(self, request, uuid):
         """ On GET request - return superadmin user data.
             On POST - reset superuser password and return new one.
@@ -42,7 +42,7 @@ class ZabbixServiceViewSet(structure_views.BaseServiceViewSet):
             executors.ServiceSettingsPasswordResetExecutor.execute(service.settings, password=password)
             return Response({'password': password})
 
-    @detail_route(methods=['GET', 'HEAD'])
+    @action(detail=True, methods=['GET', 'HEAD'])
     def trigger_status(self, request, uuid):
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(data=request.query_params)
@@ -95,7 +95,7 @@ class HostViewSet(structure_views.ResourceViewSet):
     update_executor = executors.HostUpdateExecutor
     delete_executor = executors.HostDeleteExecutor
 
-    @detail_route()
+    @action(detail=True)
     def items_history(self, request, uuid):
         """ Get host items historical values.
 
@@ -162,7 +162,7 @@ class HostViewSet(structure_views.ResourceViewSet):
         return Response(aggregated_data, status=status.HTTP_200_OK)
 
     # TODO: make methods items_aggregated_values and items_values DRY.
-    @detail_route()
+    @action(detail=True)
     def items_values(self, request, uuid):
         """ The same as items_aggregated_values, only for one host """
         host = self.get_object()
@@ -248,7 +248,7 @@ class ITServiceViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.ITServiceDeleteExecutor
     # TODO: add update operation
 
-    @detail_route()
+    @action(detail=True)
     def events(self, request, uuid):
         itservice = self.get_object()
         period = get_period(request)
@@ -292,7 +292,7 @@ class UserViewSet(structure_views.BaseServicePropertyViewSet):
     update_executor = executors.UserUpdateExecutor
     delete_executor = executors.UserDeleteExecutor
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def password(self, request, uuid):
         user = self.get_object()
         user.password = pwgen()

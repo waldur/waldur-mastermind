@@ -33,7 +33,7 @@ class AllocationViewSet(structure_views.BaseResourceViewSet):
     partial_update_permissions = update_permissions = [structure_permissions.is_owner]
     update_executor = executors.AllocationUpdateExecutor
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def cancel(self, request, uuid=None):
         allocation = self.get_object()
         allocation.get_backend().cancel_allocation(allocation)

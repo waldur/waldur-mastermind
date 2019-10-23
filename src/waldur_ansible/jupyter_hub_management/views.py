@@ -86,7 +86,7 @@ class JupyterHubManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsV
     def perform_destroy(self, persisted_jupyter_hub_management):
         self.service.schedule_jupyter_hub_management_removal(persisted_jupyter_hub_management)
 
-    @decorators.detail_route(url_path="requests/(?P<request_uuid>.+)", methods=['get'])
+    @decorators.action(detail=True, url_path="requests/(?P<request_uuid>.+)", methods=['get'])
     def find_request_with_output_by_uuid(self, request, uuid=None, request_uuid=None):
         requests = core_managers.SummaryQuerySet(jupyter_hub_management_requests_models).filter(
             jupyter_hub_management=self.get_object(), uuid=request_uuid)

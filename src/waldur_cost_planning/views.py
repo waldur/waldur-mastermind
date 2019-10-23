@@ -89,7 +89,7 @@ class DeploymentPlanViewSet(core_views.ActionsViewSet):
 
     update_serializer_class = partial_update_serializer_class = serializers.DeploymentPlanCreateSerializer
 
-    @decorators.detail_route(methods=['GET'])
+    @decorators.action(detail=True, methods=['GET'])
     def evaluate(self, request, *args, **kwargs):
         strategy = optimizers.SingleServiceStrategy(self.get_object())
         optimized_services = strategy.get_optimized()

@@ -90,7 +90,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             return
         raise rf_exceptions.PermissionDenied()
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def comment(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -186,7 +186,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     )
     filter_class = filters.OfferingFilter
 
-    @decorators.list_route()
+    @decorators.action()
     def configured(self, request):
         summary_config = {}
         for template in models.OfferingTemplate.objects.all():
@@ -212,7 +212,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if offering.state != models.Offering.States.REQUESTED:
             raise rf_exceptions.ValidationError(_('Offering must be in requested state.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def complete(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -223,7 +223,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     complete_permissions = [structure_permissions.is_staff]
     complete_serializer_class = serializers.OfferingCompleteSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         offering = self.get_object()
         offering.state = models.Offering.States.TERMINATED

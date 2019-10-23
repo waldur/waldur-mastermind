@@ -5,7 +5,7 @@ import logging
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers as rf_serializers, status
-from rest_framework.decorators import detail_route
+from rest_framework.decorators import action
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
@@ -63,7 +63,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         core_validators.RuntimeStateValidator(models.VirtualMachine.RuntimeStates.POWERED_OFF)
     ]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineStartExecutor().execute(instance)
@@ -78,7 +78,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     start_serializer_class = rf_serializers.Serializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineStopExecutor().execute(instance)
@@ -93,7 +93,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     stop_serializer_class = rf_serializers.Serializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def reset(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineResetExecutor().execute(instance)
@@ -107,7 +107,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     reset_serializer_class = rf_serializers.Serializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def suspend(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineSuspendExecutor().execute(instance)
@@ -125,7 +125,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
         if vm.tools_state != models.VirtualMachine.ToolsStates.RUNNING:
             raise rf_serializers.ValidationError('VMware Tools are not running.')
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def shutdown_guest(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineShutdownGuestExecutor().execute(instance)
@@ -140,7 +140,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     shutdown_guest_serializer_class = rf_serializers.Serializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def reboot_guest(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineRebootGuestExecutor().execute(instance)
@@ -148,7 +148,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 
     reboot_guest_serializer_class = rf_serializers.Serializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def create_port(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -168,7 +168,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     create_port_serializer_class = serializers.PortSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def create_disk(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -191,7 +191,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     ]
     create_disk_serializer_class = serializers.DiskSerializer
 
-    @detail_route(methods=['get'])
+    @action(detail=True, methods=['get'])
     def console(self, request, uuid=None):
         """
         This endpoint provides access to Virtual Machine Remote Console aka VMRC.
@@ -207,7 +207,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 
     console_validators = [core_validators.StateValidator(models.VirtualMachine.States.OK)]
 
-    @detail_route(methods=['get'])
+    @action(detail=True, methods=['get'])
     def web_console(self, request, uuid=None):
         """
         This endpoint provides access to HTML Console aka WMKS.
@@ -244,7 +244,7 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
     pull_executor = executors.DiskPullExecutor
     delete_executor = executors.DiskDeleteExecutor
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def extend(self, request, uuid=None):
         """ Increase disk capacity """
         disk = self.get_object()

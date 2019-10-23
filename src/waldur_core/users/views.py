@@ -5,7 +5,7 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
-from rest_framework.decorators import detail_route, list_route
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
@@ -106,7 +106,7 @@ class InvitationViewSet(ProtectedViewSet):
         return Response({'detail': _('Invitation has been rejected.')},
                         status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def send(self, request, uuid=None):
         invitation = self.get_object()
 
@@ -127,7 +127,7 @@ class InvitationViewSet(ProtectedViewSet):
         return Response({'detail': _('Invitation sending has been successfully scheduled.')},
                         status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def cancel(self, request, uuid=None):
         invitation = self.get_object()
 
@@ -142,7 +142,7 @@ class InvitationViewSet(ProtectedViewSet):
         return Response({'detail': _('Invitation has been successfully canceled.')},
                         status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'], filter_backends=[])
+    @action(detail=True, methods=['post'], filter_backends=[])
     def accept(self, request, uuid=None):
         """ Accept invitation for current user.
 
@@ -189,7 +189,7 @@ class InvitationViewSet(ProtectedViewSet):
         return Response({'detail': _('Invitation has been successfully accepted.')},
                         status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'], filter_backends=[], permission_classes=[])
+    @action(detail=True, methods=['post'], filter_backends=[], permission_classes=[])
     def check(self, request, uuid=None):
         invitation = self.get_object()
 

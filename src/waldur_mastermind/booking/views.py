@@ -5,7 +5,7 @@ from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework import serializers as rf_serializers
-from rest_framework.decorators import detail_route
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
@@ -27,7 +27,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.BookingResourceSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         resource = self.get_object()
 
@@ -52,7 +52,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def accept(self, request, uuid=None):
         resource = self.get_object()
 

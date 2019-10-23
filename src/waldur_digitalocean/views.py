@@ -75,7 +75,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
             backend_size_id=size.backend_id,
             ssh_key_uuid=ssh_key.uuid.hex if ssh_key else None)
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletStartExecutor().execute(instance)
@@ -85,7 +85,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
                         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE)]
     start_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletStopExecutor().execute(instance)
@@ -95,7 +95,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
                        core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE)]
     stop_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletRestartExecutor().execute(instance)
@@ -105,7 +105,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
                           core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE)]
     restart_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def resize(self, request, uuid=None):
         """
         To resize droplet, submit a **POST** request to the instance URL, specifying URI of a target size.

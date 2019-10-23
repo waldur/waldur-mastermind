@@ -92,7 +92,7 @@ class QuotaViewSet(mixins.UpdateModelMixin,
             quota.save(update_fields=['threshold'])
             serializer.instance.refresh_from_db()
 
-    @decorators.detail_route()
+    @decorators.action(detail=True, )
     def history(self, request, uuid=None):
         """
         Warning! This endpoint is deprecated. Please use daily-quotas endpoint instead.

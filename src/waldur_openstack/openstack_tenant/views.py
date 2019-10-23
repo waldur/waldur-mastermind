@@ -29,7 +29,7 @@ class TelemetryMixin(object):
         'meter_samples': serializers.MeterSampleSerializer
     }
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def meters(self, request, uuid=None):
         """
         To list available meters for the resource, make **GET** request to
@@ -46,7 +46,7 @@ class TelemetryMixin(object):
 
         return response.Response(meters)
 
-    @decorators.detail_route(methods=['get'], url_path='meter-samples/(?P<name>[a-z0-9_.]+)')
+    @decorators.action(detail=True, methods=['get'], url_path='meter-samples/(?P<name>[a-z0-9_.]+)')
     def meter_samples(self, request, name, uuid=None):
         """
         To get resource meter samples make **GET** request to */api/<resource_type>/<uuid>/meter-samples/<meter_name>/*.
@@ -197,7 +197,7 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
     filter_class = filters.ImageFilter
 
-    @decorators.list_route()
+    @decorators.action()
     def usage_stats(self, request):
         return ImageUsageReporter(self, request).get_report()
 
@@ -213,7 +213,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
     filter_class = filters.FlavorFilter
 
-    @decorators.list_route()
+    @decorators.action()
     def usage_stats(self, request):
         return FlavorUsageReporter(self, request).get_report()
 
@@ -278,7 +278,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         if volume.instance and volume.instance.state != models.Instance.States.OK:
             raise core_exceptions.IncorrectStateException(_('Volume instance should be in OK state.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def extend(self, request, uuid=None):
         """ Increase volume size """
         volume = self.get_object()
@@ -298,7 +298,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
                          core_validators.StateValidator(models.Volume.States.OK)]
     extend_serializer_class = serializers.VolumeExtendSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def snapshot(self, request, uuid=None):
         """ Create snapshot from volume """
         serializer = self.get_serializer(data=request.data)
@@ -310,7 +310,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 
     snapshot_serializer_class = serializers.SnapshotSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_snapshot_schedule(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -320,7 +320,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
     create_snapshot_schedule_validators = [core_validators.StateValidator(models.Volume.States.OK)]
     create_snapshot_schedule_serializer_class = serializers.SnapshotScheduleSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def attach(self, request, uuid=None):
         """ Attach volume to instance """
         volume = self.get_object()
@@ -335,7 +335,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
                          core_validators.StateValidator(models.Volume.States.OK)]
     attach_serializer_class = serializers.VolumeAttachSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def detach(self, request, uuid=None):
         """ Detach instance from volume """
         volume = self.get_object()
@@ -360,7 +360,7 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     filter_class = filters.SnapshotFilter
     disabled_actions = ['create']
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restore(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -373,7 +373,7 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     restore_serializer_class = serializers.SnapshotRestorationSerializer
     restore_validators = [core_validators.StateValidator(models.Snapshot.States.OK)]
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def restorations(self, request, uuid=None):
         snapshot = self.get_object()
         serializer = self.get_serializer(snapshot.restorations.all(), many=True)
@@ -489,7 +489,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     destroy_validators = [_can_destroy_instance, _has_backups]
     destroy_serializer_class = serializers.InstanceDeleteSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def change_flavor(self, request, uuid=None):
         instance = self.get_object()
         old_flavor_name = instance.flavor_name
@@ -511,7 +511,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                                 core_validators.StateValidator(models.Instance.States.OK),
                                 core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF)]
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceStartExecutor().execute(instance)
@@ -527,7 +527,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF)]
     start_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceStopExecutor().execute(instance)
@@ -543,7 +543,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE)]
     stop_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceRestartExecutor().execute(instance)
@@ -559,7 +559,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                           core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE)]
     restart_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_security_groups(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -572,7 +572,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     update_security_groups_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     update_security_groups_serializer_class = serializers.InstanceSecurityGroupsUpdateSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def backup(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -584,7 +584,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     backup_serializer_class = serializers.BackupSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_backup_schedule(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -594,7 +594,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     create_backup_schedule_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     create_backup_schedule_serializer_class = serializers.BackupScheduleSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_internal_ips_set(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -607,7 +607,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     update_internal_ips_set_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     update_internal_ips_set_serializer_class = serializers.InstanceInternalIPsSetUpdateSerializer
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def internal_ips_set(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance.internal_ips_set.all(), many=True)
@@ -615,7 +615,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     internal_ips_set_serializer_class = serializers.NestedInternalIPSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_floating_ips(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -628,7 +628,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     update_floating_ips_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     update_floating_ips_serializer_class = serializers.InstanceFloatingIPsUpdateSerializer
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def floating_ips(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(
@@ -642,7 +642,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     import_resource_serializer_class = serializers.InstanceImportSerializer
     import_resource_executor = executors.InstancePullExecutor
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def console(self, request, uuid=None):
         instance = self.get_object()
         backend = instance.get_backend()
@@ -669,7 +669,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     console_permissions = [check_permissions_for_console]
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def console_log(self, request, uuid=None):
         instance = self.get_object()
         backend = instance.get_backend()
@@ -701,7 +701,7 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
     def perform_update(self, serializer):
         serializer.save()
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restore(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -764,7 +764,7 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
         if resource_schedule.is_active:
             raise core_exceptions.IncorrectStateException(_('Resource schedule is already activated.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def activate(self, request, uuid):
         """
         Activate a resource schedule. Note that
@@ -782,7 +782,7 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
         if not resource_schedule.is_active:
             raise core_exceptions.IncorrectStateException(_('A schedule is already deactivated.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def deactivate(self, request, uuid):
         """
         Deactivate a resource schedule. Note that

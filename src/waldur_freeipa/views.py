@@ -37,7 +37,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
                 'username': _('Profile with such name already exists.')
             })
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_ssh_keys(self, request, uuid=None):
         profile = self.get_object()
         try:
@@ -48,7 +48,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         else:
             return response.Response(status=status.HTTP_200_OK)
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     @transaction.atomic()
     def disable(self, request, uuid=None):
         profile = self.get_object()
@@ -70,7 +70,7 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             profile.save(update_fields=['is_active'])
             return response.Response(status=status.HTTP_200_OK)
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     @transaction.atomic()
     def enable(self, request, uuid=None):
         profile = self.get_object()

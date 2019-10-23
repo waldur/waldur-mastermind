@@ -11,7 +11,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from rest_framework import status, exceptions as rf_exceptions, viewsets as rf_viewsets
 from rest_framework import views
-from rest_framework.decorators import detail_route, list_route
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -46,7 +46,7 @@ class ServiceProviderViewSet(BaseMarketplaceView):
     filter_class = filters.ServiceProviderFilter
     api_secret_code_permissions = [structure_permissions.is_owner]
 
-    @detail_route(methods=['GET', 'POST'])
+    @action(detail=True, methods=['GET', 'POST'])
     def api_secret_code(self, request, uuid=None):
         """ On GET request - return service provider api_secret_code.
             On POST - generate new service provider api_secret_code.
@@ -116,17 +116,17 @@ class OfferingViewSet(BaseMarketplaceView):
         filters.ExternalOfferingFilterBackend,
     )
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):
         return self._update_state('activate')
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def pause(self, request, uuid=None):
         return self._update_state('pause', request)
 
     pause_serializer_class = serializers.OfferingPauseSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def archive(self, request, uuid=None):
         return self._update_state('archive')
 
@@ -175,7 +175,7 @@ class OfferingViewSet(BaseMarketplaceView):
 
         super(OfferingViewSet, self).perform_create(serializer)
 
-    @detail_route(methods=['get'])
+    @action(detail=True, methods=['get'])
     def importable_resources(self, request, uuid=None):
         offering = self.get_object()
         resources = plugins.manager.get_importable_resources(offering)
@@ -189,7 +189,7 @@ class OfferingViewSet(BaseMarketplaceView):
 
     import_resource_serializer_class = serializers.ImportResourceSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def import_resource(self, request, uuid=None):
         offering = self.get_object()
 
@@ -329,7 +329,7 @@ class PlanViewSet(BaseMarketplaceView):
     archive_permissions = [structure_permissions.is_owner]
     archive_validators = [validate_plan_archive]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def archive(self, request, uuid=None):
         plan = self.get_object()
         plan.archived = True
@@ -354,7 +354,7 @@ class OrderViewSet(BaseMarketplaceView):
     filter_class = filters.OrderFilter
     destroy_validators = partial_update_validators = [structure_utils.check_customer_blocked]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         tasks.approve_order(self.get_object(), request.user)
 
@@ -364,7 +364,7 @@ class OrderViewSet(BaseMarketplaceView):
                           structure_utils.check_customer_blocked]
     approve_permissions = [permissions.user_can_approve_order_permission]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         order = self.get_object()
         order.reject()
@@ -375,7 +375,7 @@ class OrderViewSet(BaseMarketplaceView):
                          structure_utils.check_customer_blocked]
     reject_permissions = [permissions.user_can_reject_order]
 
-    @detail_route()
+    @action(detail=True)
     def pdf(self, request, uuid=None):
         order = self.get_object()
         if not order.has_file():
@@ -453,7 +453,7 @@ class OrderItemViewSet(BaseMarketplaceView):
     destroy_validators = [order_items_destroy_validator]
     destroy_permissions = terminate_permissions = [structure_permissions.is_administrator]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         order_item = self.get_object()
         if not plugins.manager.can_terminate_order_item(order_item.offering.type):
@@ -526,7 +526,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             )
         )
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -558,7 +558,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         structure_utils.check_customer_blocked
     ]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def switch_plan(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -585,7 +585,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def update_limits(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -622,7 +622,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             structure_utils.check_customer_blocked
         ]
 
-    @detail_route(methods=['get'])
+    @action(detail=True, methods=['get'])
     def plan_periods(self, request, uuid=None):
         resource = self.get_object()
         qs = models.ResourcePlanPeriod.objects.filter(resource=resource)

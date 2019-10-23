@@ -41,7 +41,7 @@ class AuthResultViewSet(core_mixins.CreateExecutorMixin,
         return super(AuthResultViewSet, self).create(request, *args, **kwargs)
 
     @validate_valimo
-    @decorators.list_route(methods=['POST'])
+    @decorators.action(methods=['POST'])
     def result(self, request, *args, **kwargs):
         """
         To get PKI login status and details - issue post request against /api/auth-valimo/result/
