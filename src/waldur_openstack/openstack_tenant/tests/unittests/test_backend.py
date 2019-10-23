@@ -1138,7 +1138,7 @@ class ImportInstanceTest(BaseBackendTest):
 
         self.assertEquals(instance.backend_id, self.backend_id)
         self.assertTrue(models.Instance.objects.filter(backend_id=self.backend_id).exists())
-        self.assertEquals(models.Instance.objects.get(backend_id=self.backend_id)uuid.hex, instance.uuid)
+        self.assertEquals(models.Instance.objects.get(backend_id=self.backend_id).uuid.hex, instance.uuid)
         self.assertEquals(instance.name, self.backend_instance.name)
 
     def test_volume_is_attached_to_imported_instance_if_they_are_registered(self):
