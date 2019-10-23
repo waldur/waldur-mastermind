@@ -28,7 +28,8 @@ class SlurmPackage(common_mixins.ProductCodeMixin,
 
     service_settings = models.OneToOneField(structure_models.ServiceSettings,
                                             related_name='+',
-                                            limit_choices_to={'type': 'SLURM'})
+                                            limit_choices_to={'type': 'SLURM'},
+                                            on_delete=models.CASCADE)
 
     cpu_price = models.DecimalField(default=0,
                                     verbose_name=_('Price for CPU hour'),

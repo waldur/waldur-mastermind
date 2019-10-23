@@ -311,7 +311,7 @@ class CustomerOpenStack(TimeStampedModel):
     settings = models.ForeignKey(structure_models.ServiceSettings,
                                  on_delete=models.CASCADE,
                                  limit_choices_to={'shared': True, 'type': 'OpenStack'}, )
-    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, on_delete=models.CASCADE)
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer)
     external_network_id = models.CharField(_('OpenStack external network ID'), max_length=255)
 
     class Meta(object):

@@ -246,7 +246,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
 
 class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
     snapshot = models.ForeignKey(on_delete=models.CASCADE, to=Snapshot, related_name='restorations')
-    volume = models.OneToOneField(Volume, related_name='restoration')
+    volume = models.OneToOneField(Volume, related_name='restoration', on_delete=models.CASCADE)
 
     class Permissions(object):
         customer_path = 'snapshot__service_project_link__project__customer'
@@ -392,7 +392,7 @@ class Backup(structure_models.SubResource):
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     """ This model corresponds to instance restoration from backup. """
     backup = models.ForeignKey(on_delete=models.CASCADE, to=Backup, related_name='restorations')
-    instance = models.OneToOneField(Instance, related_name='+')
+    instance = models.OneToOneField(Instance, related_name='+', on_delete=models.CASCADE)
     flavor = models.ForeignKey(Flavor, related_name='+', null=True, blank=True, on_delete=models.SET_NULL)
 
     class Permissions(object):

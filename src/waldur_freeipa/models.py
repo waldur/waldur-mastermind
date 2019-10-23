@@ -23,7 +23,7 @@ def validate_username(value):
 
 @python_2_unicode_compatible
 class Profile(core_models.UuidMixin, models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     username = models.CharField(
         _('username'), max_length=32, unique=True,
         help_text=_('Letters, numbers and ./+/-/_ characters'),

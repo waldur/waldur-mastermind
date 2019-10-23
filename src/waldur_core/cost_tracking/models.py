@@ -273,7 +273,7 @@ class ConsumptionDetails(core_models.UuidMixin, TimeStampedModel):
         Warning! Use method "update_configuration" to update configurations,
         do not update them manually.
     """
-    price_estimate = models.OneToOneField(PriceEstimate, related_name='consumption_details')
+    price_estimate = models.OneToOneField(PriceEstimate, related_name='consumption_details', on_delete=models.CASCADE)
     configuration = ConsumableItemsField(default=dict, help_text=_('Current resource configuration.'))
     last_update_time = models.DateTimeField(help_text=_('Last configuration change time.'))
     consumed_before_update = ConsumableItemsField(

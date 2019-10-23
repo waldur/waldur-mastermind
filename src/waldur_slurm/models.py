@@ -88,7 +88,7 @@ class AllocationUsage(models.Model):
 
     allocation = models.ForeignKey(on_delete=models.CASCADE, to=Allocation)
     username = models.CharField(max_length=32)
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, blank=True, null=True)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE)
 
     year = models.PositiveSmallIntegerField()
     month = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
