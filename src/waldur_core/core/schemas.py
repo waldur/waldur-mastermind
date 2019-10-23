@@ -312,13 +312,15 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
 
         return fields
 
-    def get_serializer_fields(self, path, method, view):
+    def get_serializer_fields(self, path, method):
         """
         Return a list of `coreapi.Field` instances corresponding to any
         request body input, as determined by the serializer class.
         """
         if method not in ('PUT', 'PATCH', 'POST'):
             return []
+
+        view = self.view
 
         if not hasattr(view, 'get_serializer'):
             return []
