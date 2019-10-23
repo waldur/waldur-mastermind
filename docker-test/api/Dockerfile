@@ -18,6 +18,7 @@ RUN yum-config-manager --disable centos-qemu-ev
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install \
   gcc \
+  git \
   libffi-devel \
   libjpeg-devel \
   libxml2-devel \
