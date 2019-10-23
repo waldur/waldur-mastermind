@@ -29,7 +29,7 @@ install_requires = [
     'django-fluent-dashboard==1.0.1',
     'django-fsm==2.6.1',
     'django-jsoneditor>=0.0.7',
-    'django-model-utils==3.3.0',
+    'django-model-utils==3.2.0',
     'django-redis-cache>=1.6.5',
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
