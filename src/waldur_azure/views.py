@@ -22,7 +22,7 @@ class AzureServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewS
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
     serializer_class = serializers.ImageSerializer
-    filter_class = filters.ImageFilter
+    filterset_class = filters.ImageFilter
     lookup_field = 'uuid'
 
     def get_queryset(self):
@@ -32,14 +32,14 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.SizeSerializer
-    filter_class = filters.SizeFilter
+    filterset_class = filters.SizeFilter
     lookup_field = 'uuid'
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Location.objects.filter(enabled=True)
     serializer_class = serializers.LocationSerializer
-    filter_class = filters.LocationFilter
+    filterset_class = filters.LocationFilter
     lookup_field = 'uuid'
 
 
@@ -51,7 +51,7 @@ class ResourceGroupViewSet(viewsets.ReadOnlyModelViewSet):
 
 class PublicIPViewSet(structure_views.BaseResourceViewSet):
     queryset = models.PublicIP.objects.all()
-    filter_class = filters.PublicIPFilter
+    filterset_class = filters.PublicIPFilter
     serializer_class = serializers.PublicIPSerializer
     create_executor = executors.PublicIPCreateExecutor
     delete_executor = executors.PublicIPDeleteExecutor
@@ -59,7 +59,7 @@ class PublicIPViewSet(structure_views.BaseResourceViewSet):
 
 class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
-    filter_class = filters.VirtualMachineFilter
+    filterset_class = filters.VirtualMachineFilter
     serializer_class = serializers.VirtualMachineSerializer
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
@@ -97,7 +97,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 
 class SQLServerViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SQLServer.objects.all()
-    filter_class = filters.SQLServerFilter
+    filterset_class = filters.SQLServerFilter
     serializer_class = serializers.SQLServerSerializer
     create_executor = executors.SQLServerCreateExecutor
     delete_executor = executors.SQLServerDeleteExecutor
@@ -122,7 +122,7 @@ class SQLServerViewSet(structure_views.BaseResourceViewSet):
 
 class SQLDatabaseViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SQLDatabase.objects.all()
-    filter_class = filters.SQLDatabaseFilter
+    filterset_class = filters.SQLDatabaseFilter
     serializer_class = serializers.SQLDatabaseSerializer
     create_executor = executors.SQLDatabaseCreateExecutor
     delete_executor = executors.SQLDatabaseDeleteExecutor

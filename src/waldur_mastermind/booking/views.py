@@ -23,7 +23,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
     )
-    filter_class = marketplace_filters.ResourceFilter
+    filterset_class = marketplace_filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.BookingResourceSerializer
 

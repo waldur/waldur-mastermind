@@ -101,7 +101,7 @@ class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
 class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     queryset = models.OpenStackTenantServiceProjectLink.objects.all()
     serializer_class = serializers.ServiceProjectLinkSerializer
-    filter_class = filters.OpenStackTenantServiceProjectLinkFilter
+    filterset_class = filters.OpenStackTenantServiceProjectLinkFilter
 
 
 class UsageReporter(object):
@@ -195,7 +195,7 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all().order_by('settings', 'name')
     serializer_class = serializers.ImageSerializer
     lookup_field = 'uuid'
-    filter_class = filters.ImageFilter
+    filterset_class = filters.ImageFilter
 
     @decorators.action()
     def usage_stats(self, request):
@@ -211,7 +211,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = serializers.FlavorSerializer
     lookup_field = 'uuid'
-    filter_class = filters.FlavorFilter
+    filterset_class = filters.FlavorFilter
 
     @decorators.action()
     def usage_stats(self, request):
@@ -222,34 +222,34 @@ class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Network.objects.all().order_by('settings', 'type', 'is_external')
     serializer_class = serializers.NetworkSerializer
     lookup_field = 'uuid'
-    filter_class = filters.NetworkFilter
+    filterset_class = filters.NetworkFilter
 
 
 class SubNetViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.SubNet.objects.all().order_by('settings')
     serializer_class = serializers.SubNetSerializer
     lookup_field = 'uuid'
-    filter_class = filters.SubNetFilter
+    filterset_class = filters.SubNetFilter
 
 
 class FloatingIPViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.FloatingIP.objects.all().order_by('settings', 'address')
     serializer_class = serializers.FloatingIPSerializer
     lookup_field = 'uuid'
-    filter_class = filters.FloatingIPFilter
+    filterset_class = filters.FloatingIPFilter
 
 
 class SecurityGroupViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.SecurityGroup.objects.all().order_by('settings', 'name')
     serializer_class = serializers.SecurityGroupSerializer
     lookup_field = 'uuid'
-    filter_class = filters.SecurityGroupFilter
+    filterset_class = filters.SecurityGroupFilter
 
 
 class VolumeViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Volume.objects.all()
     serializer_class = serializers.VolumeSerializer
-    filter_class = filters.VolumeFilter
+    filterset_class = filters.VolumeFilter
 
     create_executor = executors.VolumeCreateExecutor
     update_executor = executors.VolumeUpdateExecutor
@@ -357,7 +357,7 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     update_executor = executors.SnapshotUpdateExecutor
     delete_executor = executors.SnapshotDeleteExecutor
     pull_executor = executors.SnapshotPullExecutor
-    filter_class = filters.SnapshotFilter
+    filterset_class = filters.SnapshotFilter
     disabled_actions = ['create']
 
     @decorators.action(detail=True, methods=['post'])
@@ -390,7 +390,7 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
     queryset = models.InstanceAvailabilityZone.objects.all().order_by('settings', 'name')
     serializer_class = serializers.InstanceAvailabilityZoneSerializer
     lookup_field = 'uuid'
-    filter_class = filters.InstanceAvailabilityZoneFilter
+    filterset_class = filters.InstanceAvailabilityZoneFilter
 
 
 class InstanceViewSet(structure_views.ImportableResourceViewSet):
@@ -407,7 +407,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     """
     queryset = models.Instance.objects.all()
     serializer_class = serializers.InstanceSerializer
-    filter_class = filters.InstanceFilter
+    filterset_class = filters.InstanceFilter
     filter_backends = structure_views.ResourceViewSet.filter_backends + (
         structure_filters.StartTimeFilter,
     )
@@ -691,7 +691,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 class BackupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Backup.objects.all().order_by('name')
     serializer_class = serializers.BackupSerializer
-    filter_class = filters.BackupFilter
+    filterset_class = filters.BackupFilter
     disabled_actions = ['create']
 
     delete_executor = executors.BackupDeleteExecutor
@@ -799,13 +799,13 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
 class BackupScheduleViewSet(BaseScheduleViewSet):
     queryset = models.BackupSchedule.objects.all().order_by('name')
     serializer_class = serializers.BackupScheduleSerializer
-    filter_class = filters.BackupScheduleFilter
+    filterset_class = filters.BackupScheduleFilter
 
 
 class SnapshotScheduleViewSet(BaseScheduleViewSet):
     queryset = models.SnapshotSchedule.objects.all().order_by('name')
     serializer_class = serializers.SnapshotScheduleSerializer
-    filter_class = filters.SnapshotScheduleFilter
+    filterset_class = filters.SnapshotScheduleFilter
 
 
 class SharedSettingsBaseView(generics.GenericAPIView):
@@ -869,11 +869,11 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeType.objects.all().order_by('settings', 'name')
     serializer_class = serializers.VolumeTypeSerializer
     lookup_field = 'uuid'
-    filter_class = filters.VolumeTypeFilter
+    filterset_class = filters.VolumeTypeFilter
 
 
 class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeAvailabilityZone.objects.all().order_by('settings', 'name')
     serializer_class = serializers.VolumeAvailabilityZoneSerializer
     lookup_field = 'uuid'
-    filter_class = filters.VolumeAvailabilityZoneFilter
+    filterset_class = filters.VolumeAvailabilityZoneFilter

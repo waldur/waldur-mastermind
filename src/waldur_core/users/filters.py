@@ -12,11 +12,11 @@ from waldur_core.users import models
 
 class InvitationFilter(django_filters.FilterSet):
     project = django_filters.UUIDFilter(
-        name='project__uuid',
+        field_name='project__uuid',
     )
     project_url = core_filters.URLFilter(
         view_name='project-detail',
-        name='project__uuid',
+        field_name='project__uuid',
     )
     state = django_filters.MultipleChoiceFilter(choices=models.Invitation.State.CHOICES)
 
@@ -35,7 +35,7 @@ class InvitationFilter(django_filters.FilterSet):
 class InvitationCustomerFilterBackend(DjangoFilterBackend):
     url_filter = core_filters.URLFilter(
         view_name='customer-detail',
-        name='customer__uuid',
+        field_name='customer__uuid',
     )
 
     def filter_queryset(self, request, queryset, view):

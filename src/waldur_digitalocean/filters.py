@@ -27,7 +27,7 @@ class RegionFilter(structure_filters.BaseServicePropertyFilter):
 
 
 class DropletFilter(structure_filters.BaseResourceFilter):
-    external_ip = CharFilter(name='ip_address')
+    external_ip = CharFilter(field_name='ip_address')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Droplet

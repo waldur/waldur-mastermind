@@ -291,11 +291,11 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         fields = []
         for filter_backend in view.filter_backends:
             backend = filter_backend()
-            if not hasattr(backend, 'get_filter_class'):
+            if not hasattr(backend, 'get_filterset_class'):
                 fields += filter_backend().get_schema_fields(view)
                 continue
 
-            filter_class = backend.get_filter_class(view, view.get_queryset())
+            filter_class = backend.get_filterset_class(view, view.get_queryset())
             if not filter_class:
                 continue
 

@@ -20,7 +20,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.InvoiceFilter
+    filterset_class = filters.InvoiceFilter
 
     def _is_invoice_created(invoice):
         if invoice.state != models.Invoice.States.CREATED:

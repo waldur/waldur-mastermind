@@ -22,7 +22,7 @@ class TestNewInstanceFilter(structure_filters.BaseResourceFilter):
 class TestNewInstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.TestNewInstance.objects.all()
     serializer_class = serializers.NewInstanceSerializer
-    filter_class = TestNewInstanceFilter
+    filterset_class = TestNewInstanceFilter
 
     def perform_create(self, serializer):
         return serializer.save()

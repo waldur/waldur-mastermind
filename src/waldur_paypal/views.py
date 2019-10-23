@@ -44,7 +44,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
     queryset = models.Payment.objects.all()
     serializer_class = serializers.PaymentSerializer
     lookup_field = 'uuid'
-    filter_class = filters.PaymentFilter
+    filterset_class = filters.PaymentFilter
 
     def perform_create(self, serializer):
         """
@@ -176,7 +176,7 @@ class InvoicesViewSet(CheckExtensionMixin, core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.all()
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
-    filter_class = filters.InvoiceFilter
+    filterset_class = filters.InvoiceFilter
 
 
 class InvoiceWebHookViewSet(CheckExtensionMixin, views.APIView):

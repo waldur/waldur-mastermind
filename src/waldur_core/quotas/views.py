@@ -19,7 +19,7 @@ class QuotaViewSet(mixins.UpdateModelMixin,
     lookup_field = 'uuid'
     # XXX: Remove a custom pagination class once the quota calculation has been made more efficient
     pagination_class = UnlimitedLinkHeaderPagination
-    filter_class = filters.QuotaFilterSet
+    filterset_class = filters.QuotaFilterSet
 
     def get_queryset(self):
         return models.Quota.objects.filtered_for_user(self.request.user)

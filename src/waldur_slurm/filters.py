@@ -7,7 +7,7 @@ from . import models
 
 
 class SlurmServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='slurm-detail', name='service__uuid')
+    service = core_filters.URLFilter(view_name='slurm-detail', field_name='service__uuid')
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.SlurmServiceProjectLink
@@ -20,11 +20,11 @@ class AllocationFilter(structure_filters.BaseResourceFilter):
 
 
 class AllocationUsageFilter(django_filters.FilterSet):
-    user = core_filters.URLFilter(view_name='user-detail', name='user__uuid')
-    user_uuid = django_filters.UUIDFilter(name='user__uuid')
+    user = core_filters.URLFilter(view_name='user-detail', field_name='user__uuid')
+    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
 
-    allocation = core_filters.URLFilter(view_name='slurm-allocation-detail', name='allocation__uuid')
-    allocation_uuid = django_filters.UUIDFilter(name='allocation__uuid')
+    allocation = core_filters.URLFilter(view_name='slurm-allocation-detail', field_name='allocation__uuid')
+    allocation_uuid = django_filters.UUIDFilter(field_name='allocation__uuid')
 
     class Meta(object):
         model = models.AllocationUsage

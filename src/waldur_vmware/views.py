@@ -29,7 +29,7 @@ class ServiceViewSet(structure_views.BaseServiceViewSet):
 class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     queryset = models.VMwareServiceProjectLink.objects.all()
     serializer_class = serializers.ServiceProjectLinkSerializer
-    filter_class = filters.ServiceProjectLinkFilter
+    filterset_class = filters.ServiceProjectLinkFilter
 
 
 class LimitViewSet(RetrieveModelMixin, GenericViewSet):
@@ -49,7 +49,7 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
 class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
     queryset = models.VirtualMachine.objects.all()
     serializer_class = serializers.VirtualMachineSerializer
-    filter_class = filters.VirtualMachineFilter
+    filterset_class = filters.VirtualMachineFilter
     pull_executor = executors.VirtualMachinePullExecutor
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
@@ -230,7 +230,7 @@ class VirtualMachineViewSet(structure_views.BaseResourceViewSet):
 class PortViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Port.objects.all().order_by('-created')
     serializer_class = serializers.PortSerializer
-    filter_class = filters.PortFilter
+    filterset_class = filters.PortFilter
     disabled_actions = ['create', 'update', 'partial_update']
     pull_executor = executors.PortPullExecutor
     delete_executor = executors.PortDeleteExecutor
@@ -239,7 +239,7 @@ class PortViewSet(structure_views.BaseResourceViewSet):
 class DiskViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Disk.objects.all().order_by('-created')
     serializer_class = serializers.DiskSerializer
-    filter_class = filters.DiskFilter
+    filterset_class = filters.DiskFilter
     disabled_actions = ['create', 'update', 'partial_update']
     pull_executor = executors.DiskPullExecutor
     delete_executor = executors.DiskDeleteExecutor
@@ -278,33 +278,33 @@ class DiskViewSet(structure_views.BaseResourceViewSet):
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Template.objects.all()
     serializer_class = serializers.TemplateSerializer
-    filter_class = filters.TemplateFilter
+    filterset_class = filters.TemplateFilter
     lookup_field = 'uuid'
 
 
 class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Cluster.objects.all()
     serializer_class = serializers.ClusterSerializer
-    filter_class = filters.ClusterFilter
+    filterset_class = filters.ClusterFilter
     lookup_field = 'uuid'
 
 
 class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Network.objects.all()
     serializer_class = serializers.NetworkSerializer
-    filter_class = filters.NetworkFilter
+    filterset_class = filters.NetworkFilter
     lookup_field = 'uuid'
 
 
 class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Datastore.objects.all()
     serializer_class = serializers.DatastoreSerializer
-    filter_class = filters.DatastoreFilter
+    filterset_class = filters.DatastoreFilter
     lookup_field = 'uuid'
 
 
 class FolderViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Folder.objects.all()
     serializer_class = serializers.FolderSerializer
-    filter_class = filters.FolderFilter
+    filterset_class = filters.FolderFilter
     lookup_field = 'uuid'

@@ -9,7 +9,7 @@ from . import models
 
 
 class ServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='vmware-detail', name='service__uuid')
+    service = core_filters.URLFilter(view_name='vmware-detail', field_name='service__uuid')
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.VMwareServiceProjectLink
@@ -25,19 +25,19 @@ class PortFilter(structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Port
 
-    vm = core_filters.URLFilter(view_name='vmware-virtual-machine-detail', name='vm__uuid')
-    vm_uuid = django_filters.UUIDFilter(name='vm__uuid')
+    vm = core_filters.URLFilter(view_name='vmware-virtual-machine-detail', field_name='vm__uuid')
+    vm_uuid = django_filters.UUIDFilter(field_name='vm__uuid')
 
-    network = core_filters.URLFilter(view_name='vmware-network-detail', name='network__uuid')
-    network_uuid = django_filters.UUIDFilter(name='network__uuid')
+    network = core_filters.URLFilter(view_name='vmware-network-detail', field_name='network__uuid')
+    network_uuid = django_filters.UUIDFilter(field_name='network__uuid')
 
 
 class DiskFilter(structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Disk
 
-    vm = core_filters.URLFilter(view_name='vmware-virtual-machine-detail', name='vm__uuid')
-    vm_uuid = django_filters.UUIDFilter(name='vm__uuid')
+    vm = core_filters.URLFilter(view_name='vmware-virtual-machine-detail', field_name='vm__uuid')
+    vm_uuid = django_filters.UUIDFilter(field_name='vm__uuid')
     ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
         ('size', 'size'),
     )

@@ -35,27 +35,27 @@ class AmazonServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkView
 class RegionViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Region.objects.all()
     serializer_class = serializers.RegionSerializer
-    filter_class = filters.RegionFilter
+    filterset_class = filters.RegionFilter
     lookup_field = 'uuid'
 
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
     serializer_class = serializers.ImageSerializer
-    filter_class = filters.ImageFilter
+    filterset_class = filters.ImageFilter
     lookup_field = 'uuid'
 
 
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.SizeSerializer
-    filter_class = filters.SizeFilter
+    filterset_class = filters.SizeFilter
     lookup_field = 'uuid'
 
 
 class InstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all()
-    filter_class = filters.InstanceFilter
+    filterset_class = filters.InstanceFilter
     serializer_class = serializers.InstanceSerializer
     create_executor = executors.InstanceCreateExecutor
 

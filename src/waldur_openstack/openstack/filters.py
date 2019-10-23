@@ -7,23 +7,23 @@ from . import models
 
 
 class OpenStackServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='openstack-detail', name='service__uuid')
+    service = core_filters.URLFilter(view_name='openstack-detail', field_name='service__uuid')
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.OpenStackServiceProjectLink
 
 
 class SecurityGroupFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(name='tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', name='tenant__uuid')
+    tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SecurityGroup
 
 
 class FloatingIPFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(name='tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', name='tenant__uuid')
+    tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.FloatingIP
@@ -50,18 +50,18 @@ class ImageFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class NetworkFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(name='tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', name='tenant__uuid')
+    tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Network
 
 
 class SubNetFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(name='network__tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', name='network__tenant__uuid')
-    network_uuid = django_filters.UUIDFilter(name='network__uuid')
-    network = core_filters.URLFilter(view_name='openstack-network-detail', name='network__uuid')
+    tenant_uuid = django_filters.UUIDFilter(field_name='network__tenant__uuid')
+    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='network__tenant__uuid')
+    network_uuid = django_filters.UUIDFilter(field_name='network__uuid')
+    network = core_filters.URLFilter(view_name='openstack-network-detail', field_name='network__uuid')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SubNet

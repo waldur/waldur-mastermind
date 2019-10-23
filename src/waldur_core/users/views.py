@@ -26,7 +26,7 @@ class InvitationViewSet(ProtectedViewSet):
         DjangoFilterBackend,
         filters.InvitationCustomerFilterBackend,
     )
-    filter_class = filters.InvitationFilter
+    filterset_class = filters.InvitationFilter
     lookup_field = 'uuid'
 
     def can_manage_invitation_with(self, customer, customer_role=None, project_role=None):

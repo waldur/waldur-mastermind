@@ -14,7 +14,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated, core_permissions.IsAdminOrReadOnly)
     serializer_class = serializers.EventSerializer
     filter_backends = (DjangoFilterBackend, filters.EventFilterBackend)
-    filter_class = filters.EventFilter
+    filterset_class = filters.EventFilter
 
     @decorators.action()
     def count(self, request, *args, **kwargs):
@@ -57,7 +57,7 @@ class BaseHookViewSet(viewsets.ModelViewSet):
 
 class WebHookViewSet(BaseHookViewSet):
     queryset = models.WebHook.objects.all()
-    filter_class = filters.WebHookFilter
+    filterset_class = filters.WebHookFilter
     serializer_class = serializers.WebHookSerializer
 
     def create(self, request, *args, **kwargs):
@@ -110,7 +110,7 @@ class WebHookViewSet(BaseHookViewSet):
 
 class EmailHookViewSet(BaseHookViewSet):
     queryset = models.EmailHook.objects.all()
-    filter_class = filters.EmailHookFilter
+    filterset_class = filters.EmailHookFilter
     serializer_class = serializers.EmailHookSerializer
 
     def create(self, request, *args, **kwargs):
@@ -147,7 +147,7 @@ class EmailHookViewSet(BaseHookViewSet):
 
 class PushHookViewSet(BaseHookViewSet):
     queryset = models.PushHook.objects.all()
-    filter_class = filters.PushHookFilter
+    filterset_class = filters.PushHookFilter
     serializer_class = serializers.PushHookSerializer
 
     def create(self, request, *args, **kwargs):

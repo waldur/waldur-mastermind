@@ -16,8 +16,8 @@ from . import models
 
 
 class ServiceProviderFilter(django_filters.FilterSet):
-    customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
+    customer = core_filters.URLFilter(view_name='customer-detail', field_name='customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
     o = django_filters.OrderingFilter(fields=(('customer__name', 'customer_name'),))
 
     class Meta(object):
@@ -27,17 +27,17 @@ class ServiceProviderFilter(django_filters.FilterSet):
 
 class OfferingFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
-    name_exact = django_filters.CharFilter(name='name')
-    customer = core_filters.URLFilter(view_name='customer-detail', name='customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(name='customer__uuid')
+    name_exact = django_filters.CharFilter(field_name='name')
+    customer = core_filters.URLFilter(view_name='customer-detail', field_name='customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
     project_uuid = django_filters.UUIDFilter(method='filter_project')
-    allowed_customer_uuid = django_filters.UUIDFilter(name='customer__uuid', method='filter_allowed_customer')
-    attributes = django_filters.CharFilter(name='attributes', method='filter_attributes')
+    allowed_customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid', method='filter_allowed_customer')
+    attributes = django_filters.CharFilter(field_name='attributes', method='filter_attributes')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[(representation, representation) for db_value, representation in models.Offering.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.Offering.States.CHOICES},
     )
-    category_uuid = django_filters.UUIDFilter(name='category__uuid')
+    category_uuid = django_filters.UUIDFilter(field_name='category__uuid')
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
     o = django_filters.OrderingFilter(fields=('name', 'created'))
@@ -83,8 +83,8 @@ class OfferingImportableFilterBackend(DjangoFilterBackend):
 
 
 class ScreenshotFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
-    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', field_name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
@@ -94,10 +94,10 @@ class ScreenshotFilter(django_filters.FilterSet):
 
 
 class CartItemFilter(django_filters.FilterSet):
-    customer = core_filters.URLFilter(view_name='customer-detail', name='project__customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
-    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
-    project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    customer = core_filters.URLFilter(view_name='customer-detail', field_name='project__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
 
     class Meta(object):
         model = models.CartItem
@@ -105,10 +105,10 @@ class CartItemFilter(django_filters.FilterSet):
 
 
 class OrderFilter(django_filters.FilterSet):
-    customer = core_filters.URLFilter(view_name='customer-detail', name='project__customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
-    project = core_filters.URLFilter(view_name='project-detail', name='project__uuid')
-    project_uuid = django_filters.UUIDFilter(name='project__uuid')
+    customer = core_filters.URLFilter(view_name='customer-detail', field_name='project__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[(representation, representation) for db_value, representation in models.Order.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.Order.States.CHOICES},
@@ -121,12 +121,12 @@ class OrderFilter(django_filters.FilterSet):
 
 
 class OrderItemFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
-    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
-    project_uuid = django_filters.UUIDFilter(name='order__project__uuid')
-    category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
-    provider_uuid = django_filters.UUIDFilter(name='offering__customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(name='order__project__customer__uuid')
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', field_name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='order__project__uuid')
+    category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
+    provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='order__project__customer__uuid')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[(representation, representation) for db_value, representation in models.OrderItem.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.OrderItem.States.CHOICES},
@@ -135,11 +135,11 @@ class OrderItemFilter(django_filters.FilterSet):
         choices=[(representation, representation) for db_value, representation in models.OrderItem.Types.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.OrderItem.Types.CHOICES},
     )
-    order = core_filters.URLFilter(view_name='marketplace-order-detail', name='order__uuid')
-    order_uuid = django_filters.UUIDFilter(name='order__uuid')
+    order = core_filters.URLFilter(view_name='marketplace-order-detail', field_name='order__uuid')
+    order_uuid = django_filters.UUIDFilter(field_name='order__uuid')
 
-    resource = core_filters.URLFilter(view_name='marketplace-resource-detail', name='resource__uuid')
-    resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
+    resource = core_filters.URLFilter(view_name='marketplace-resource-detail', field_name='resource__uuid')
+    resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
 
     o = django_filters.OrderingFilter(fields=('created',))
 
@@ -150,16 +150,16 @@ class OrderItemFilter(django_filters.FilterSet):
 
 class ResourceFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
-    name_exact = django_filters.CharFilter(name='name')
+    name_exact = django_filters.CharFilter(field_name='name')
     query = django_filters.CharFilter(method='filter_query')
-    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
-    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
-    offering_type = django_filters.CharFilter(name='offering__type')
-    project_uuid = django_filters.UUIDFilter(name='project__uuid')
-    project_name = django_filters.CharFilter(name='project__name')
-    customer_uuid = django_filters.UUIDFilter(name='project__customer__uuid')
-    category_uuid = django_filters.UUIDFilter(name='offering__category__uuid')
-    provider_uuid = django_filters.UUIDFilter(name='offering__customer__uuid')
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', field_name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
+    offering_type = django_filters.CharFilter(field_name='offering__type')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    project_name = django_filters.CharFilter(field_name='project__name')
+    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
+    provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[(representation, representation) for db_value, representation in models.Resource.States.CHOICES],
         choice_mappings={representation: db_value for db_value, representation in models.Resource.States.CHOICES},
@@ -187,8 +187,8 @@ class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class PlanFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
-    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', field_name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
     class Meta(object):
         model = models.Plan
@@ -209,19 +209,19 @@ class CategoryComponentUsageFilter(django_filters.FilterSet):
         model = models.CategoryComponentUsage
         fields = []
 
-    date_before = django_filters.DateFilter(name='date', lookup_expr='lte')
-    date_after = django_filters.DateFilter(name='date', lookup_expr='gte')
+    date_before = django_filters.DateFilter(field_name='date', lookup_expr='lte')
+    date_after = django_filters.DateFilter(field_name='date', lookup_expr='gte')
 
 
 class ComponentUsageFilter(django_filters.FilterSet):
-    resource = core_filters.URLFilter(view_name='marketplace-resource-detail', name='resource__uuid')
-    resource_uuid = django_filters.UUIDFilter(name='resource__uuid')
-    offering_uuid = django_filters.UUIDFilter(name='resource__offering__uuid')
-    project_uuid = django_filters.UUIDFilter(name='resource__project__uuid')
-    customer_uuid = django_filters.UUIDFilter(name='resource__project__customer__uuid')
-    date_before = django_filters.DateFilter(name='date', lookup_expr='lte')
-    date_after = django_filters.DateFilter(name='date', lookup_expr='gte')
-    type = django_filters.CharFilter(name='component__type')
+    resource = core_filters.URLFilter(view_name='marketplace-resource-detail', field_name='resource__uuid')
+    resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='resource__offering__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='resource__project__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name='resource__project__customer__uuid')
+    date_before = django_filters.DateFilter(field_name='date', lookup_expr='lte')
+    date_after = django_filters.DateFilter(field_name='date', lookup_expr='gte')
+    type = django_filters.CharFilter(field_name='component__type')
 
     class Meta(object):
         model = models.ComponentUsage
@@ -229,8 +229,8 @@ class ComponentUsageFilter(django_filters.FilterSet):
 
 
 class OfferingFileFilter(django_filters.FilterSet):
-    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', name='offering__uuid')
-    offering_uuid = django_filters.UUIDFilter(name='offering__uuid')
+    offering = core_filters.URLFilter(view_name='marketplace-offering-detail', field_name='offering__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 

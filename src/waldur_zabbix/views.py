@@ -266,28 +266,28 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Template.objects.all().prefetch_related('items')
     serializer_class = serializers.TemplateSerializer
     lookup_field = 'uuid'
-    filter_class = filters.TemplateFilter
+    filterset_class = filters.TemplateFilter
 
 
 class TriggerViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Trigger.objects.all()
     serializer_class = serializers.TriggerSerializer
     lookup_field = 'uuid'
-    filter_class = filters.TriggerFilter
+    filterset_class = filters.TriggerFilter
 
 
 class UserGroupViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.UserGroup.objects.all()
     serializer_class = serializers.UserGroupSerializer
     lookup_field = 'uuid'
-    filter_class = filters.UserGroupFilter
+    filterset_class = filters.UserGroupFilter
 
 
 class UserViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.User.objects.all()
     serializer_class = serializers.UserSerializer
     lookup_field = 'uuid'
-    filter_class = filters.UserFilter
+    filterset_class = filters.UserFilter
     create_executor = executors.UserCreateExecutor
     update_executor = executors.UserUpdateExecutor
     delete_executor = executors.UserDeleteExecutor

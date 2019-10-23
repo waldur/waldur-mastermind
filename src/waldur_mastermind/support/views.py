@@ -31,7 +31,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
         filters.IssueResourceFilterBackend,
     )
-    filter_class = filters.IssueFilter
+    filterset_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
 
     def is_staff_or_support(request, view, obj=None):
@@ -106,7 +106,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Priority.objects.all()
     serializer_class = serializers.PrioritySerializer
-    filter_class = filters.PriorityFilter
+    filterset_class = filters.PriorityFilter
     lookup_field = 'uuid'
 
 
@@ -118,7 +118,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
         filters.CommentIssueResourceFilterBackend,
     )
-    filter_class = filters.CommentFilter
+    filterset_class = filters.CommentFilter
     queryset = models.Comment.objects.all()
 
     @transaction.atomic()
@@ -160,7 +160,7 @@ class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated, IsStaffOrSupportUser,)
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.SupportUserFilter
+    filterset_class = filters.SupportUserFilter
 
 
 class WebHookReceiverView(CheckExtensionMixin, views.APIView):
@@ -184,7 +184,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
     )
-    filter_class = filters.OfferingFilter
+    filterset_class = filters.OfferingFilter
 
     @decorators.action()
     def configured(self, request):
@@ -242,7 +242,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 class AttachmentViewSet(CheckExtensionMixin,
                         core_views.ActionsViewSet):
     queryset = models.Attachment.objects.all()
-    filter_class = filters.AttachmentFilter
+    filterset_class = filters.AttachmentFilter
     filter_backends = [DjangoFilterBackend]
     serializer_class = serializers.AttachmentSerializer
     lookup_field = 'uuid'

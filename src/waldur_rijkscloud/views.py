@@ -13,20 +13,20 @@ class ServiceViewSet(structure_views.BaseServiceViewSet):
 class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     queryset = models.RijkscloudServiceProjectLink.objects.all()
     serializer_class = serializers.ServiceProjectLinkSerializer
-    filter_class = filters.ServiceProjectLinkFilter
+    filterset_class = filters.ServiceProjectLinkFilter
 
 
 class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Flavor.objects.all().order_by('cores', 'ram')
     serializer_class = serializers.FlavorSerializer
     lookup_field = 'uuid'
-    filter_class = filters.FlavorFilter
+    filterset_class = filters.FlavorFilter
 
 
 class VolumeViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Volume.objects.all()
     serializer_class = serializers.VolumeSerializer
-    filter_class = filters.VolumeFilter
+    filterset_class = filters.VolumeFilter
     create_executor = executors.VolumeCreateExecutor
     pull_executor = executors.VolumePullExecutor
     delete_executor = executors.VolumeDeleteExecutor
@@ -40,7 +40,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 class InstanceViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Instance.objects.all()
     serializer_class = serializers.InstanceSerializer
-    filter_class = filters.InstanceFilter
+    filterset_class = filters.InstanceFilter
     pull_executor = executors.InstancePullExecutor
     create_executor = executors.InstanceCreateExecutor
     delete_executor = executors.InstanceDeleteExecutor
@@ -55,25 +55,25 @@ class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Network.objects.all().order_by('settings')
     serializer_class = serializers.NetworkSerializer
     lookup_field = 'uuid'
-    filter_class = filters.NetworkFilter
+    filterset_class = filters.NetworkFilter
 
 
 class SubNetViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.SubNet.objects.all().order_by('settings')
     serializer_class = serializers.SubNetSerializer
     lookup_field = 'uuid'
-    filter_class = filters.SubNetFilter
+    filterset_class = filters.SubNetFilter
 
 
 class InternalIPViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.InternalIP.objects.all().order_by('settings', 'address')
     serializer_class = serializers.InternalIPSerializer
     lookup_field = 'uuid'
-    filter_class = filters.InternalIPFilter
+    filterset_class = filters.InternalIPFilter
 
 
 class FloatingIPViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.FloatingIP.objects.all().order_by('settings', 'address')
     serializer_class = serializers.FloatingIPSerializer
     lookup_field = 'uuid'
-    filter_class = filters.FloatingIPFilter
+    filterset_class = filters.FloatingIPFilter

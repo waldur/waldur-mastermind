@@ -64,7 +64,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         'native_name',
         'registration_code',
     )
-    filter_class = filters.CustomerFilter
+    filterset_class = filters.CustomerFilter
 
     def list(self, request, *args, **kwargs):
         """
@@ -219,7 +219,7 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.ProjectTypeSerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.ProjectTypeFilter
+    filterset_class = filters.ProjectTypeFilter
 
 
 class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
@@ -231,7 +231,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
         filters.CustomerAccountingStartDateFilter,
     )
-    filter_class = filters.ProjectFilter
+    filterset_class = filters.ProjectFilter
     destroy_validators = partial_update_validators = [utils.check_customer_blocked]
 
     def get_serializer_context(self):
@@ -397,7 +397,7 @@ class UserViewSet(viewsets.ModelViewSet):
         filters.UserFilterBackend,
         DjangoFilterBackend,
     )
-    filter_class = filters.UserFilter
+    filterset_class = filters.UserFilter
 
     def list(self, request, *args, **kwargs):
         """
@@ -595,7 +595,7 @@ class ProjectPermissionViewSet(BasePermissionViewSet):
     queryset = models.ProjectPermission.objects.filter(is_active=True).order_by('-created')
     serializer_class = serializers.ProjectPermissionSerializer
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.ProjectPermissionFilter
+    filterset_class = filters.ProjectPermissionFilter
     scope_field = 'project'
     quota_scope_field = 'customer'
 
@@ -648,7 +648,7 @@ class ProjectPermissionLogViewSet(mixins.RetrieveModelMixin,
     queryset = models.ProjectPermission.objects.filter(is_active=None)
     serializer_class = serializers.ProjectPermissionLogSerializer
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.ProjectPermissionFilter
+    filterset_class = filters.ProjectPermissionFilter
 
 
 class CustomerPermissionViewSet(BasePermissionViewSet):
@@ -662,7 +662,7 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
     """
     queryset = models.CustomerPermission.objects.filter(is_active=True).order_by('-created')
     serializer_class = serializers.CustomerPermissionSerializer
-    filter_class = filters.CustomerPermissionFilter
+    filterset_class = filters.CustomerPermissionFilter
     scope_field = 'customer'
 
     def get_queryset(self):
@@ -722,7 +722,7 @@ class CustomerPermissionLogViewSet(mixins.RetrieveModelMixin,
     queryset = models.CustomerPermission.objects.filter(is_active=None)
     serializer_class = serializers.CustomerPermissionLogSerializer
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.CustomerPermissionFilter
+    filterset_class = filters.CustomerPermissionFilter
 
 
 class CreationTimeStatsView(views.APIView):
@@ -789,7 +789,7 @@ class SshKeyViewSet(mixins.CreateModelMixin,
     serializer_class = serializers.SshKeySerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.SshKeyFilter
+    filterset_class = filters.SshKeyFilter
 
     def get_queryset(self):
         queryset = super(SshKeyViewSet, self).get_queryset()
@@ -846,7 +846,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,
                        filters.ServiceSettingsScopeFilterBackend,
                        rf_filters.OrderingFilter)
-    filter_class = filters.ServiceSettingsFilter
+    filterset_class = filters.ServiceSettingsFilter
     lookup_field = 'uuid'
     ordering_fields = ('type', 'name', 'state',)
     disabled_actions = ['create', 'destroy']
@@ -1344,7 +1344,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     serializer_class = NotImplemented
     import_serializer_class = NotImplemented
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.BaseServiceFilter
+    filterset_class = filters.BaseServiceFilter
     lookup_field = 'uuid'
     metadata_class = ActionsMetadata
     unsafe_methods_permissions = [permissions.is_owner, permissions.check_access_to_services_management]
@@ -1536,7 +1536,7 @@ class BaseServiceProjectLinkViewSet(core_views.ActionsViewSet):
     queryset = NotImplemented
     serializer_class = NotImplemented
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.BaseServiceProjectLinkFilter
+    filterset_class = filters.BaseServiceProjectLinkFilter
     unsafe_methods_permissions = [permissions.is_owner]
     disabled_actions = ['update', 'partial_update']
 
@@ -1570,7 +1570,7 @@ class ResourceViewMetaclass(type):
 
 
 class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):
-    filter_class = filters.BaseServicePropertyFilter
+    filterset_class = filters.BaseServicePropertyFilter
 
 
 class AggregatedStatsView(views.APIView):
@@ -1854,4 +1854,4 @@ class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.DivisionSerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.DivisionFilter
+    filterset_class = filters.DivisionFilter

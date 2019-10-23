@@ -9,7 +9,7 @@ from . import models
 
 
 class ServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='rancher-detail', name='service__uuid')
+    service = core_filters.URLFilter(view_name='rancher-detail', field_name='service__uuid')
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.RancherServiceProjectLink
@@ -21,7 +21,7 @@ class ClusterFilter(structure_filters.BaseResourceFilter):
 
 
 class NodeFilter(django_filters.FilterSet):
-    cluster_uuid = django_filters.UUIDFilter(name='cluster__uuid')
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
 
     class Meta(object):
         model = models.Node

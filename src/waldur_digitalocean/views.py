@@ -23,14 +23,14 @@ class DigitalOceanServiceProjectLinkViewSet(structure_views.BaseServiceProjectLi
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
     serializer_class = serializers.ImageSerializer
-    filter_class = filters.ImageFilter
+    filterset_class = filters.ImageFilter
     lookup_field = 'uuid'
 
 
 class RegionViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Region.objects.all()
     serializer_class = serializers.RegionSerializer
-    filter_class = filters.RegionFilter
+    filterset_class = filters.RegionFilter
     lookup_field = 'uuid'
 
     def get_queryset(self):
@@ -40,14 +40,14 @@ class RegionViewSet(structure_views.BaseServicePropertyViewSet):
 class SizeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.SizeSerializer
-    filter_class = filters.SizeFilter
+    filterset_class = filters.SizeFilter
     lookup_field = 'uuid'
 
 
 class DropletViewSet(structure_views.ResourceViewSet):
     queryset = models.Droplet.objects.all()
     serializer_class = serializers.DropletSerializer
-    filter_class = filters.DropletFilter
+    filterset_class = filters.DropletFilter
     create_executor = executors.DropletCreateExecutor
     update_executor = core_executors.EmptyExecutor
     delete_executor = executors.DropletDeleteExecutor

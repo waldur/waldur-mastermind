@@ -96,7 +96,7 @@ class ResourceTypeFilter(django_filters.CharFilter):
 
 class DefaultPriceListItemFilter(django_filters.FilterSet):
     resource_content_type = core_filters.ContentTypeFilter()
-    resource_type = ResourceTypeFilter(name='resource_content_type')
+    resource_type = ResourceTypeFilter(field_name='resource_content_type')
 
     class Meta:
         model = models.DefaultPriceListItem
