@@ -364,7 +364,7 @@ class AzureBackend(ServiceBackend):
         poller = self.client.create_sql_database(
             resource_group_name=database.server.resource_group.name,
             server_name=database.server.name,
-            databasename=database.name,
+            database_name=database.name,
             charset=database.charset,
             collation=database.collation,
         )
@@ -376,6 +376,6 @@ class AzureBackend(ServiceBackend):
         poller = self.client.delete_sql_database(
             resource_group_name=database.server.resource_group.name,
             server_name=database.server.name,
-            databasename=database.name,
+            database_name=database.name,
         )
         poller.wait()
