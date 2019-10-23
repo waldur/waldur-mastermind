@@ -15,7 +15,7 @@ from . import models
 
 
 def hash_string(value, length=16):
-    return hashlib.sha256(value).hexdigest()[:length]
+    return hashlib.sha256(value.encode('utf-8')).hexdigest()[:length]
 
 
 def generate_username():

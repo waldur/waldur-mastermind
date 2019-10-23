@@ -154,7 +154,7 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
         help_text=_('Required. 128 characters or fewer. Letters, numbers and '
                     '@/./+/-/_ characters'),
         validators=[
-            validators.RegexValidator(re.compile(b'^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
+            validators.RegexValidator(re.compile(r'^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
         ])
     # Civil number is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it

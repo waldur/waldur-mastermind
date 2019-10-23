@@ -41,7 +41,7 @@ def create_report_archive(log_directory, interval):
         if stat.st_mtime > cutoff:
             log_filenames.append(full_path)
 
-    stream = StringIO.StringIO()
+    stream = StringIO()
 
     with tarfile.open(fileobj=stream, mode='w:gz') as archive:
         for filename in log_filenames:

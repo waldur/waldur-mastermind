@@ -1,3 +1,4 @@
+import base64
 import collections
 from io import BytesIO
 import json
@@ -282,8 +283,7 @@ class TestUpdateAttachmentFromJira(APITransactionTestCase):
                                  new=mock.Mock(return_value=self.backend_attachment))
         path.start()
 
-        GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-        file_content = BytesIO(GIF.decode('base64'))
+        file_content = BytesIO(base64.b64decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'))
         path = mock.patch.object(AttachmentSynchronizer, '_download_file',
                                  new=mock.Mock(return_value=file_content))
         path.start()

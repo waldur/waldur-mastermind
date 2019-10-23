@@ -25,7 +25,7 @@ class Profile(core_models.UuidMixin, models.Model):
         help_text=_('Letters, numbers and ./+/-/_ characters'),
         validators=[
             validate_username,
-            validators.RegexValidator(re.compile(b'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'),
+            validators.RegexValidator(re.compile(r'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'),
                                       _('Enter a valid username.'), 'invalid')
         ])
     agreement_date = models.DateTimeField(_('agreement date'), default=timezone.now,

@@ -275,7 +275,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         if not tenant_mappings:
             return
 
-        backend_security_groups = self.list_security_groups(tenant_mappings.keys())
+        backend_security_groups = self.list_security_groups(list(tenant_mappings.keys()))
 
         tenant_security_groups = dict()
         for tenant_id, security_groups in groupby(backend_security_groups, lambda x: x['tenant_id']):
@@ -360,7 +360,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def _pull_networks(self, tenants):
         tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
-        backend_networks = self.list_networks(tenant_mappings.keys())
+        backend_networks = self.list_networks(list(tenant_mappings.keys()))
 
         networks = []
         with transaction.atomic():

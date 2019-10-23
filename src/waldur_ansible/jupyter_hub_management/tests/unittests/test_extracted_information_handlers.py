@@ -15,7 +15,7 @@ class JupyterHubManagementServiceTest(TestCase):
         jupyter_hub_management = self.fixture.jupyter_hub_management
         virtual_env = python_management_factories.VirtualEnvironmentFactory(name='first-virt-env', jupyter_hub_global=True,
                                                                             python_management=jupyter_hub_management.python_management)
-        jupyter_hub_management.python_management.virtual_environments = [virtual_env]
+        jupyter_hub_management.python_management.virtual_environments.set([virtual_env])
         delete_request = factories.JupyterHubManagementDeleteRequestFactory(jupyter_hub_management=jupyter_hub_management)
 
         extracted_information_handler.handle_extracted_information(delete_request, python_handlers.NullExtractedInformationHandler())
@@ -26,9 +26,9 @@ class JupyterHubManagementServiceTest(TestCase):
         extracted_information_handler = extracted_information_handlers.JupyterHubVirtualEnvironmentLocalExtractedInformationHandler()
 
         jupyter_hub_management = self.fixture.jupyter_hub_management
-        jupyter_hub_management.python_management.virtual_environments = [
+        jupyter_hub_management.python_management.virtual_environments.set([
             python_management_factories.VirtualEnvironmentFactory(name='first-virt-env', jupyter_hub_global=True,
-                                                                  python_management=jupyter_hub_management.python_management)]
+                                                                  python_management=jupyter_hub_management.python_management)])
         make_ve_local_request = factories.JupyterHubManagementMakeVirtualEnvironmentLocalRequestFactory(
             jupyter_hub_management=jupyter_hub_management, virtual_env_name='first-virt-env')
 
@@ -41,9 +41,9 @@ class JupyterHubManagementServiceTest(TestCase):
         extracted_information_handler = extracted_information_handlers.JupyterHubVirtualEnvironmentGlobalExtractedInformationHandler()
 
         jupyter_hub_management = self.fixture.jupyter_hub_management
-        jupyter_hub_management.python_management.virtual_environments = [
+        jupyter_hub_management.python_management.virtual_environments.set([
             python_management_factories.VirtualEnvironmentFactory(name='first-virt-env', jupyter_hub_global=False,
-                                                                  python_management=jupyter_hub_management.python_management)]
+                                                                  python_management=jupyter_hub_management.python_management)])
         make_ve_local_request = factories.JupyterHubManagementMakeVirtualEnvironmentLocalRequestFactory(
             jupyter_hub_management=jupyter_hub_management, virtual_env_name='first-virt-env')
 

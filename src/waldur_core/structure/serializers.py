@@ -1547,10 +1547,9 @@ class BaseResourceSerializer(core_serializers.RestrictedSerializerMixin,
     def create(self, validated_data):
         data = validated_data.copy()
         fields = self.get_resource_fields()
+
         # Remove `virtual` properties which ain't actually belong to the model
-        for prop in data.keys():
-            if prop not in fields:
-                del data[prop]
+        data = {key: value for key, value in data.items() if key in fields}
 
         resource = super(BaseResourceSerializer, self).create(data)
         resource.increase_backend_quotas_usage()

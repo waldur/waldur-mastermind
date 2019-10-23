@@ -114,7 +114,7 @@ class LocalSignupTest(test.APITransactionTestCase):
     def test_local_signup_fails_if_it_is_not_enabled(self):
         response = self.post_request()
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertTrue('Authentication method is disabled.' in response.content)
+        self.assertTrue(b'Authentication method is disabled.' in response.content)
 
     @override_waldur_core_settings(AUTHENTICATION_METHODS=['LOCAL_SIGNUP'])
     @override_settings(task_always_eager=True)
@@ -130,4 +130,4 @@ class DisabledAuthenticationTest(BaseAuthTest):
     def test_google_auth_fails_if_social_authentication_is_not_enabled(self):
         response = self.google_login()
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertTrue('Authentication method is disabled.' in response.content)
+        self.assertTrue(b'Authentication method is disabled.' in response.content)

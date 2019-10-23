@@ -33,7 +33,7 @@ install_requires = [
     'django-redis-cache>=1.6.5',
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
-    'django-taggit>=0.20.2',
+    'django-taggit>=1.1.0',
     'Django>=2.2.6,<3.0',
     'djangorestframework>=3.10.2,<3.11.0',
     'djangosaml2==0.17.1',

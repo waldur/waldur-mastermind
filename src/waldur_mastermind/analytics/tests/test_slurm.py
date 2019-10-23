@@ -1,3 +1,5 @@
+import json
+
 from django.test import TestCase
 
 from waldur_slurm.tests import fixtures
@@ -21,15 +23,15 @@ class SlurmAnalyticsTest(TestCase):
 
         expected_points = [
             {
-                'measurement': 'slurm_ram_usage',
-                'fields': {
-                    'value': 12000,
-                }
-            },
-            {
                 'measurement': 'slurm_cpu_usage',
                 'fields': {
                     'value': 600,
+                }
+            },
+            {
+                'measurement': 'slurm_ram_usage',
+                'fields': {
+                    'value': 12000,
                 }
             },
             {
@@ -39,7 +41,7 @@ class SlurmAnalyticsTest(TestCase):
                 }
             },
         ]
-        self.assertSetEqual(set(slurm.get_usage()), set(expected_points))
+        self.assertEquals(json.dumps(slurm.get_usage()), json.dumps(expected_points))
 
     def test_if_there_are_no_allocations_empty_list_is_returned(self):
         self.assertEqual(slurm.get_usage(), [])

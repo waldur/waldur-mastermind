@@ -665,7 +665,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             return
 
         content = base64.b64decode(self._file)
-        return StringIO.StringIO(content)
+        return StringIO(content)
 
     @file.setter
     def file(self, value):

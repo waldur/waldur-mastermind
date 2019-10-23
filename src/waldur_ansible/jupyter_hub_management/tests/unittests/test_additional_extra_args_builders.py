@@ -12,7 +12,7 @@ class JupyterHubManagementExtraArgsBuildersTest(TestCase):
 
     def test_build_sync_config_extra_args_no_oauth(self):
         self.jupyter_hub_management.jupyter_hub_oauth_config = None
-        self.jupyter_hub_management.jupyter_hub_users = [self.fixture.jupyter_hub_admin_user, self.fixture.jupyter_hub_whitelisted_user]
+        self.jupyter_hub_management.jupyter_hub_users.set([self.fixture.jupyter_hub_admin_user, self.fixture.jupyter_hub_whitelisted_user])
 
         extra_vars = additional_extra_args_builders.build_sync_config_extra_args(self.sync_request)
 
@@ -24,7 +24,7 @@ class JupyterHubManagementExtraArgsBuildersTest(TestCase):
 
     def test_build_sync_config_extra_args_with_oauth(self):
         self.jupyter_hub_management.jupyter_hub_oauth_config = self.fixture.jupyter_hub_oauth_config
-        self.jupyter_hub_management.jupyter_hub_users = [self.fixture.jupyter_hub_admin_user, self.fixture.jupyter_hub_whitelisted_user]
+        self.jupyter_hub_management.jupyter_hub_users.set([self.fixture.jupyter_hub_admin_user, self.fixture.jupyter_hub_whitelisted_user])
 
         extra_vars = additional_extra_args_builders.build_sync_config_extra_args(self.sync_request)
 

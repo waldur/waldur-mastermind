@@ -338,8 +338,11 @@ class IssueFilterTest(BaseTest):
 
     def _get_response(self, sla_ttr_breached):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(factories.IssueFactory.get_list_url(), {
-            'sla_ttr_breached': sla_ttr_breached  # ttr - Time to resolution
-        })
+        if sla_ttr_breached:
+            response = self.client.get(factories.IssueFactory.get_list_url(), {
+                'sla_ttr_breached': sla_ttr_breached  # ttr - Time to resolution
+            })
+        else:
+            response = self.client.get(factories.IssueFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         return response

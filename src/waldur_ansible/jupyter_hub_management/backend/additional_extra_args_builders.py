@@ -9,7 +9,7 @@ def build_virtual_env_extra_args(jupyter_hub_virtual_env_request):
 
 def build_delete_jupyter_hub_extra_args(delete_jupyter_hub_request):
     return dict(
-        all_jupyterhub_users=map(lambda u: u.username, delete_jupyter_hub_request.jupyter_hub_management.jupyter_hub_users.all()),
+        all_jupyterhub_users=list(map(lambda u: u.username, delete_jupyter_hub_request.jupyter_hub_management.jupyter_hub_users.all())),
         first_admin_username=delete_jupyter_hub_request.jupyter_hub_management.get_admin_users()[0].username
     )
 
@@ -24,9 +24,9 @@ def build_sync_config_extra_args(sync_config_request):
     jupyterhub_whitelisted_users = sync_config_request.jupyter_hub_management.get_whitelisted_users()
     extra_vars = dict(
         session_timeout_seconds=sync_config_request.jupyter_hub_management.session_time_to_live_hours * 3600,
-        all_jupyterhub_users=map(user_password_pair_builder, all_jupyter_hub_users),
-        jupyterhub_admin_users=map(user_password_pair_builder, sync_config_request.jupyter_hub_management.get_admin_users()),
-        jupyterhub_whitelisted_users=map(user_password_pair_builder, jupyterhub_whitelisted_users if persisted_oauth_config else all_jupyter_hub_users),
+        all_jupyterhub_users=list(map(user_password_pair_builder, all_jupyter_hub_users)),
+        jupyterhub_admin_users=list(map(user_password_pair_builder, sync_config_request.jupyter_hub_management.get_admin_users())),
+        jupyterhub_whitelisted_users=list(map(user_password_pair_builder, jupyterhub_whitelisted_users if persisted_oauth_config else all_jupyter_hub_users)),
     )
 
     if persisted_oauth_config:

@@ -133,7 +133,7 @@ def format_invoice_csv(invoices):
 
     if settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
         fields = serializers.SAFReportSerializer.Meta.fields
-        stream = StringIO.StringIO()
+        stream = StringIO()
         writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
         writer.writeheader()
 
@@ -145,7 +145,7 @@ def format_invoice_csv(invoices):
         return stream.getvalue().decode('utf-8')
 
     fields = serializers.InvoiceItemReportSerializer.Meta.fields
-    stream = StringIO.StringIO()
+    stream = StringIO()
     writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
     writer.writeheader()
 

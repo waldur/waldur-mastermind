@@ -63,10 +63,10 @@ class GroupSynchronizer(object):
         return self.group_name('org_%s' % customer.uuid)
 
     def get_group_description(self, name, limit):
-        stream = StringIO.StringIO()
+        stream = StringIO()
         writer = csv.writer(stream)
         writer.writerow([name.encode('utf-8'), str(limit)])
-        return stream.getvalue().strip().decode('utf-8')
+        return stream.getvalue().strip()
 
     def add_customer(self, customer, limit):
         group = self.customer_group_name(customer)

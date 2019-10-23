@@ -320,7 +320,7 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
 
         for customer in self.customers:
             response = self.client.get(reverse('customer_permission-list'),
-                                       data={'customer': self.customers[customer].uuid})
+                                       data={'customer': self.customers[customer].uuid.hex})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             customer_url = self._get_customer_url(self.customers[customer])
@@ -378,7 +378,7 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
 
         for customer in self.customers:
             response = self.client.get(reverse('customer_permission-list'),
-                                       data={'customer': self.customers[customer].uuid})
+                                       data={'customer': self.customers[customer].uuid.hex})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             required_fields = ('url', 'user_native_name', 'user_full_name', 'user_username')

@@ -50,7 +50,7 @@ django-openid-auth==0.15
 django-redis-cache==1.7.1
 django-rest-swagger==2.1.2
 django-reversion==2.0.8
-django-taggit==0.22.2
+django-taggit==1.1.0
 djangorestframework==3.10.2
 djangosaml2==0.17.1
 dogpile.cache==0.6.5

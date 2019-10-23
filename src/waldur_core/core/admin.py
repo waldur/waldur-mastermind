@@ -48,8 +48,8 @@ class CopyButtonMixin(object):
             settings.STATIC_URL + 'landing/js/copy2clipboard.js',
         )
 
-    def render(self, name, value, attrs=None):
-        result = super(CopyButtonMixin, self).render(name, value, attrs)
+    def render(self, name, value, attrs=None, renderer=None):
+        result = super().render(name, value, attrs)
         button_attrs = {
             'class': 'button copy-button',
             'data-target-id': attrs['id'],
@@ -80,7 +80,7 @@ class OptionalChoiceField(forms.ChoiceField):
     def __init__(self, choices=(), *args, **kwargs):
         empty = [('', '---------')]
         choices = empty + sorted(choices, key=lambda pair: pair[1])
-        super(OptionalChoiceField, self).__init__(choices, *args, **kwargs)
+        super(OptionalChoiceField, self).__init__(choices=choices, *args, **kwargs)
 
 
 class UserCreationForm(auth_admin.UserCreationForm):
@@ -448,7 +448,8 @@ class ReadOnlyAdminMixin(object):
 
     def get_actions(self, request):
         actions = super(ReadOnlyAdminMixin, self).get_actions(request)
-        del actions['delete_selected']
+        if 'delete_selected' in actions:
+            del actions['delete_selected']
         return actions
 
     def has_add_permission(self, request):

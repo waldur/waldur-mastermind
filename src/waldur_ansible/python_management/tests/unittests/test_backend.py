@@ -23,8 +23,8 @@ class PythonManagementServiceTest(TestCase):
     def test_init_backend_issues_additional_requests(self):
         backend_under_test = python_management_backend.PythonManagementInitializationBackend()
         init_request = factories.PythonManagementInitializeRequestFactory(python_management=self.fixture.python_management)
-        init_request.sychronization_requests = [factories.PythonManagementSynchronizeRequestFactory(
-            python_management=self.fixture.python_management, virtual_env_name='virtual-env')]
+        init_request.sychronization_requests.set([factories.PythonManagementSynchronizeRequestFactory(
+            python_management=self.fixture.python_management, virtual_env_name='virtual-env')])
 
         with patch(self.module_path + 'executors.PythonManagementRequestExecutor.execute') as mocked_execute, \
                 patch(self.module_path + 'PythonManagementBackend.process_request'):

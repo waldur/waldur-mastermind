@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('username', models.CharField(
                     help_text='Required. 30 characters or fewer. Letters, numbers and @/./+/-/_ characters',
                     max_length=30, unique=True, validators=[
-                        django.core.validators.RegexValidator(re.compile(b'^[\\w.@+-]+$'), 'Enter a valid username.',
+                        django.core.validators.RegexValidator(re.compile('^[\\w.@+-]+$'), 'Enter a valid username.',
                                                               'invalid')], verbose_name='username')),
                 ('civil_number', models.CharField(blank=True, default=None, max_length=50, null=True, unique=True,
                                                   verbose_name='civil number')),
