@@ -37,7 +37,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
     create_serializer_class = serializers.OpenStackPackageCreateSerializer
     create_permissions = [structure_permissions.check_access_to_services_management]
 
-    @list_route(methods=['post'])
+    @action(methods=['post'])
     def change(self, request, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

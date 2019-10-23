@@ -1120,7 +1120,7 @@ class ResourceSummaryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         return super(ResourceSummaryViewSet, self).list(request, *args, **kwargs)
 
-    @list_route()
+    @action(detail=False)
     def count(self, request):
         """
         Count resources by type. Example output:
@@ -1807,7 +1807,7 @@ class ImportableResourceViewSet(BaseResourceViewSet):
     """
     import_resource_executor = None
 
-    @list_route(methods=['get'])
+    @action(methods=['get'], detail=False)
     def importable_resources(self, request):
         serializer = self.get_serializer(data=request.GET)
         serializer.is_valid(raise_exception=True)
@@ -1822,7 +1822,7 @@ class ImportableResourceViewSet(BaseResourceViewSet):
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    @list_route(methods=['post'])
+    @action(methods=['post'], detail=False)
     def import_resource(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -336,7 +336,7 @@ class PlanViewSet(BaseMarketplaceView):
         plan.save(update_fields=['archived'])
         return Response({'detail': _('Plan has been archived.')}, status=status.HTTP_200_OK)
 
-    @list_route()
+    @action(detail=False)
     def usage_stats(self, request):
         return PlanUsageReporter(self, request).get_report()
 
@@ -485,7 +485,7 @@ class CartItemViewSet(core_views.ActionsViewSet):
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
 
-    @list_route(methods=['post'])
+    @action(methods=['post'])
     def submit(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -644,7 +644,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
-    @list_route(methods=['post'])
+    @action(methods=['post'])
     def set_usage(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -682,13 +682,13 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
         return serializer.validated_data, dry_run
 
-    @list_route(methods=['post'])
+    @action(methods=['post'])
     @csrf_exempt
     def check_signature(self, request, *args, **kwargs):
         self.get_validated_data(request)
         return Response(status=status.HTTP_200_OK)
 
-    @list_route(methods=['post'])
+    @action(methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
         self.get_validated_data(request)

@@ -121,7 +121,7 @@ class HostViewSet(structure_views.ResourceViewSet):
         stats = self._get_stats(request, [host])
         return Response(stats, status=status.HTTP_200_OK)
 
-    @list_route()
+    @action(detail=False)
     def aggregated_items_history(self, request):
         """ Get sum of hosts historical values.
 
@@ -132,7 +132,7 @@ class HostViewSet(structure_views.ResourceViewSet):
         stats = self._get_stats(request, self._get_hosts())
         return Response(stats, status=status.HTTP_200_OK)
 
-    @list_route()
+    @action(detail=False)
     def items_aggregated_values(self, request):
         """ Get sum of aggregated hosts values.
 
