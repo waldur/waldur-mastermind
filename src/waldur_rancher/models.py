@@ -32,7 +32,7 @@ class RancherService(structure_models.Service):
 
 class RancherServiceProjectLink(structure_models.ServiceProjectLink):
 
-    service = models.ForeignKey(RancherService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=RancherService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('Rancher provider project link')
@@ -72,7 +72,7 @@ class Cluster(NewResource):
 
 
 class Node(TimeStampedModel, UuidMixin):
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('content_type', 'object_id')  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)

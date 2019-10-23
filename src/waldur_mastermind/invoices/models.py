@@ -158,8 +158,8 @@ class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     It is expected that get_scope_type method is defined as class method in scope class
     as it is used in generic invoice item serializer.
     """
-    invoice = models.ForeignKey(Invoice, related_name='generic_items')
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    invoice = models.ForeignKey(on_delete=models.CASCADE, to=Invoice, related_name='generic_items')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     quantity = models.PositiveIntegerField(default=0)
 
@@ -295,7 +295,7 @@ class ServiceDowntime(models.Model):
         default=timezone.now,
         help_text=_('Date and time when downtime has ended.')
     )
-    package = models.ForeignKey(package_models.OpenStackPackage)
+    package = models.ForeignKey(on_delete=models.CASCADE, to=package_models.OpenStackPackage)
 
     def clean(self):
         self._validate_duration()

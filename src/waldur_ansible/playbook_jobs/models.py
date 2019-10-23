@@ -96,11 +96,11 @@ class Job(core_models.UuidMixin,
         project_path = 'service_project_link__project'
         customer_path = 'service_project_link__project__customer'
 
-    user = models.ForeignKey(User, related_name='+')
-    ssh_public_key = models.ForeignKey(core_models.SshPublicKey, related_name='+')
-    service_project_link = models.ForeignKey(openstack_models.OpenStackTenantServiceProjectLink, related_name='+')
-    subnet = models.ForeignKey(openstack_models.SubNet, related_name='+')
-    playbook = models.ForeignKey(Playbook, related_name='jobs')
+    user = models.ForeignKey(on_delete=models.CASCADE, to=User, related_name='+')
+    ssh_public_key = models.ForeignKey(on_delete=models.CASCADE, to=core_models.SshPublicKey, related_name='+')
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=openstack_models.OpenStackTenantServiceProjectLink, related_name='+')
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=openstack_models.SubNet, related_name='+')
+    playbook = models.ForeignKey(on_delete=models.CASCADE, to=Playbook, related_name='jobs')
     arguments = core_fields.JSONField(default=dict, blank=True, null=True)
     output = models.TextField(blank=True)
 

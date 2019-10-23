@@ -28,7 +28,7 @@ class RijkscloudService(structure_models.Service):
 
 class RijkscloudServiceProjectLink(structure_models.ServiceProjectLink):
 
-    service = models.ForeignKey(RijkscloudService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=RijkscloudService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('Rijkscloud provider project link')
@@ -79,8 +79,8 @@ class Instance(structure_models.VirtualMachine):
         on_delete=models.PROTECT
     )
     flavor_name = models.CharField(max_length=255, blank=True)
-    floating_ip = models.ForeignKey('FloatingIP', blank=True, null=True)
-    internal_ip = models.ForeignKey('InternalIP')
+    floating_ip = models.ForeignKey(on_delete=models.CASCADE, to='FloatingIP', blank=True, null=True)
+    internal_ip = models.ForeignKey(on_delete=models.CASCADE, to='InternalIP')
 
     @classmethod
     def get_url_name(cls):
@@ -139,7 +139,7 @@ class Network(structure_models.ServiceProperty):
 
 @python_2_unicode_compatible
 class SubNet(structure_models.ServiceProperty):
-    network = models.ForeignKey(Network, related_name='subnets')
+    network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32)
     gateway_ip = models.GenericIPAddressField(protocol='IPv4')
     allocation_pools = JSONField()
@@ -162,7 +162,7 @@ class SubNet(structure_models.ServiceProperty):
 class InternalIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4')
     is_available = models.BooleanField(default=True)
-    subnet = models.ForeignKey(SubNet, related_name='internal_ips')
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet, related_name='internal_ips')
 
     @classmethod
     def get_backend_fields(cls):

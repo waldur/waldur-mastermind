@@ -14,7 +14,7 @@ class TestService(structure_models.Service):
 
 
 class TestServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(TestService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=TestService)
 
     class Quotas(QuotaModelMixin.Quotas):
         vcpu = QuotaField(default_limit=20, is_backend=True)

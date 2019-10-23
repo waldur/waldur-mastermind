@@ -16,16 +16,16 @@ User = get_user_model()
 
 
 class PythonManagement(common_models.UuidStrMixin, TimeStampedModel, common_models.ApplicationModel):
-    user = models.ForeignKey(User, related_name='+')
+    user = models.ForeignKey(on_delete=models.CASCADE, to=User, related_name='+')
     virtual_envs_dir_path = models.CharField(max_length=255)
     python_version = models.CharField(max_length=10)
     system_user = models.CharField(max_length=255, null=True)
 
-    instance_content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    instance_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     instance_object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('instance_content_type', 'instance_object_id')
 
-    project = models.ForeignKey(structure_models.Project, null=True, related_name='+')
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, null=True, related_name='+')
 
     class Permissions:
         project_path = 'project'
@@ -82,7 +82,7 @@ class VirtualEnvMixin(models.Model):
 class PythonManagementSynchronizeRequest(VirtualEnvMixin, PythonManagementRequest):
     libraries_to_install = core_fields.JSONField(default=list, help_text=_('List of libraries to install'), blank=True)
     libraries_to_remove = core_fields.JSONField(default=list, help_text=_('List of libraries to remove'), blank=True)
-    initialization_request = models.ForeignKey(PythonManagementInitializeRequest, related_name="sychronization_requests", null=True)
+    initialization_request = models.ForeignKey(on_delete=models.CASCADE, to=PythonManagementInitializeRequest, related_name="sychronization_requests", null=True)
 
 
 class PythonManagementDeleteRequest(PythonManagementRequest):

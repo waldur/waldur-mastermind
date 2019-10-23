@@ -122,7 +122,7 @@ class CategoryColumn(models.Model):
     class Meta(object):
         ordering = ('category', 'index')
 
-    category = models.ForeignKey(Category, related_name='columns')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='columns')
     index = models.PositiveSmallIntegerField(help_text=_('Index allows to reorder columns.'))
     title = models.CharField(blank=False, max_length=255,
                              help_text=_('Title is rendered as column header.'))
@@ -143,7 +143,7 @@ class CategoryColumn(models.Model):
 class Section(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
-    category = models.ForeignKey(Category, related_name='sections')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='sections')
     is_standalone = models.BooleanField(
         default=False, help_text=_('Whether section is rendered as a separate tab.'))
 
@@ -158,7 +158,7 @@ InternalNameValidator = RegexValidator('^[a-zA-Z][a-zA-Z0-9_]+$')
 class Attribute(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255, validators=[InternalNameValidator])
     title = models.CharField(blank=False, max_length=255)
-    section = models.ForeignKey(Section, related_name='attributes')
+    section = models.ForeignKey(on_delete=models.CASCADE, to=Section, related_name='attributes')
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
     required = models.BooleanField(default=False, help_text=_('A value must be provided for the attribute.'))
     default = BetterJSONField(null=True, blank=True)
@@ -184,7 +184,7 @@ class ScopeMixin(models.Model):
     class Meta(object):
         abstract = True
 
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
@@ -208,14 +208,14 @@ class CategoryComponent(BaseComponent):
     class Meta(object):
         unique_together = ('type', 'category')
 
-    category = models.ForeignKey(Category, related_name='components')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='components')
 
     def __str__(self):
         return '%s, category: %s' % (self.name, self.category.title)
 
 
 class CategoryComponentUsage(ScopeMixin):
-    component = models.ForeignKey(CategoryComponent)
+    component = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent)
     date = models.DateField()
     reported_usage = models.PositiveIntegerField(null=True)
     fixed_usage = models.PositiveIntegerField(null=True)
@@ -257,8 +257,8 @@ class Offering(core_models.UuidMixin,
     rating = models.IntegerField(null=True,
                                  validators=[MaxValueValidator(5), MinValueValidator(1)],
                                  help_text=_('Rating is value from 1 to 5.'))
-    category = models.ForeignKey(Category, related_name='offerings')
-    customer = models.ForeignKey(structure_models.Customer, related_name='+', null=True)
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='offerings')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, related_name='+', null=True)
     attributes = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Category.'))
     options = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Offering request form.'))
     geolocations = JSONField(default=list, blank=True,
@@ -361,8 +361,8 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
                     'amount over the whole active state of resource.'),
         )
 
-    offering = models.ForeignKey(Offering, related_name='components')
-    parent = models.ForeignKey(CategoryComponent, null=True, blank=True)
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='components')
+    parent = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent, null=True, blank=True)
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)
@@ -414,7 +414,7 @@ class Plan(core_models.UuidMixin,
     is created via REST API. Usage-based components don't contribute to plan price.
     It is assumed that plan price is updated manually when plan component is managed via Django ORM.
     """
-    offering = models.ForeignKey(Offering, related_name='plans')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='plans')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
     backend_id = models.CharField(max_length=255, blank=True)
@@ -493,8 +493,8 @@ class PlanComponent(models.Model):
     PRICE_MAX_DIGITS = 15
     PRICE_DECIMAL_PLACES = 7
 
-    plan = models.ForeignKey(Plan, related_name='components')
-    component = models.ForeignKey(OfferingComponent, related_name='components', null=True)
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, related_name='components')
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent, related_name='components', null=True)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
                                 max_digits=PRICE_MAX_DIGITS,
@@ -522,7 +522,7 @@ class Screenshot(core_models.UuidMixin,
                  core_models.NameMixin):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
-    offering = models.ForeignKey(Offering, related_name='screenshots')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='screenshots')
 
     class Permissions(object):
         customer_path = 'offering__customer'
@@ -544,7 +544,7 @@ class CostEstimateMixin(models.Model):
 
     # Cost estimate is computed with respect to fixed plan components and usage-based limits
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, null=True, blank=True)
     limits = BetterJSONField(blank=True, default=dict)
 
     def init_cost(self):
@@ -615,10 +615,10 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             (REJECTED, 'rejected'),
         )
 
-    created_by = models.ForeignKey(core_models.User, related_name='orders')
-    approved_by = models.ForeignKey(core_models.User, blank=True, null=True, related_name='+')
+    created_by = models.ForeignKey(on_delete=models.CASCADE, to=core_models.User, related_name='orders')
+    approved_by = models.ForeignKey(on_delete=models.CASCADE, to=core_models.User, blank=True, null=True, related_name='+')
     approved_at = models.DateTimeField(editable=False, null=True, blank=True)
-    project = models.ForeignKey(structure_models.Project)
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     state = FSMIntegerField(default=States.REQUESTED_FOR_APPROVAL, choices=States.CHOICES)
     total_cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     tracker = FieldTracker()
@@ -833,8 +833,8 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
     """
     This model allows to track billing plan for timeframes during resource lifecycle.
     """
-    resource = models.ForeignKey(Resource, related_name='+')
-    plan = models.ForeignKey(Plan)
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='+')
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan)
 
     def __str__(self):
         return six.text_type(self.resource.name)
@@ -870,11 +870,11 @@ class OrderItem(core_models.UuidMixin,
 
         TERMINAL_STATES = {DONE, ERRED}
 
-    order = models.ForeignKey(Order, related_name='items')
-    offering = models.ForeignKey(Offering)
+    order = models.ForeignKey(on_delete=models.CASCADE, to=Order, related_name='items')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering)
     attributes = BetterJSONField(blank=True, default=dict)
-    old_plan = models.ForeignKey(Plan, related_name='+', null=True, blank=True)
-    resource = models.ForeignKey(Resource, null=True, blank=True)
+    old_plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True)
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
     tracker = FieldTracker()
@@ -956,8 +956,8 @@ class OrderItem(core_models.UuidMixin,
 
 @python_2_unicode_compatible
 class ComponentQuota(models.Model):
-    resource = models.ForeignKey(Resource, related_name='quotas')
-    component = models.ForeignKey(OfferingComponent,
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='quotas')
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
     usage = models.PositiveIntegerField(default=0)
@@ -973,12 +973,12 @@ class ComponentQuota(models.Model):
 class ComponentUsage(TimeStampedModel,
                      core_models.DescribableMixin,
                      core_models.UuidMixin):
-    resource = models.ForeignKey(Resource, related_name='usages')
-    component = models.ForeignKey(OfferingComponent,
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='usages')
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateTimeField()
-    plan_period = models.ForeignKey('ResourcePlanPeriod', related_name='components', null=True)
+    plan_period = models.ForeignKey(on_delete=models.CASCADE, to='ResourcePlanPeriod', related_name='components', null=True)
     billing_period = models.DateField()
 
     tracker = FieldTracker()
@@ -995,7 +995,7 @@ class AggregateResourceCount(ScopeMixin):
     """
     This model allows to count current number of project or customer resources by category.
     """
-    category = models.ForeignKey(Category, related_name='+')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='+')
     count = models.PositiveIntegerField(default=0)
     objects = managers.MixinManager('scope')
 
@@ -1011,7 +1011,7 @@ class OfferingFile(core_models.UuidMixin,
                    core_models.NameMixin,
                    structure_models.StructureModel,
                    TimeStampedModel):
-    offering = models.ForeignKey(Offering, related_name='files')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='files')
     file = models.FileField(upload_to='offering_files')
 
     class Permissions(object):

@@ -30,7 +30,7 @@ class SlurmService(structure_models.Service):
 
 
 class SlurmServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(SlurmService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=SlurmService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('SLURM provider project link')
@@ -86,7 +86,7 @@ class AllocationUsage(models.Model):
     class Meta(object):
         ordering = ['allocation']
 
-    allocation = models.ForeignKey(Allocation)
+    allocation = models.ForeignKey(on_delete=models.CASCADE, to=Allocation)
     username = models.CharField(max_length=32)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, blank=True, null=True)
 

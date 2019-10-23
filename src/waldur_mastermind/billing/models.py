@@ -16,7 +16,7 @@ from . import exceptions, managers
 
 
 class PriceEstimate(logging_models.AlertThresholdMixin, core_models.UuidMixin, models.Model):
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 

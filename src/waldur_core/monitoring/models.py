@@ -10,7 +10,7 @@ from waldur_core.monitoring.managers import ResourceSlaManager, ResourceItemMana
 
 
 class ScopeMixin(models.Model):
-    content_type = models.ForeignKey(ContentType)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType)
     object_id = models.PositiveIntegerField()
     scope = GenericForeignKey('content_type', 'object_id')
 

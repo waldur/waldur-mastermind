@@ -68,7 +68,7 @@ class Issue(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True,
                                 on_delete=models.CASCADE)
 
-    resource_content_type = models.ForeignKey(ContentType, null=True)
+    resource_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
     resource_object_id = models.PositiveIntegerField(null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
@@ -138,7 +138,7 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         ordering = ['name']
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     is_active = models.BooleanField(_('active'), default=True,
                                     help_text=_('Designates whether this user should be treated as '
@@ -166,8 +166,8 @@ class Comment(core_models.UuidMixin,
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
-    issue = models.ForeignKey(Issue, related_name='comments')
-    author = models.ForeignKey(SupportUser, related_name='comments')
+    issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='comments')
+    author = models.ForeignKey(on_delete=models.CASCADE, to=SupportUser, related_name='comments')
     description = models.TextField()
     is_public = models.BooleanField(default=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True)
@@ -309,7 +309,7 @@ class OfferingPlan(core_models.UuidMixin,
                    core_models.DescribableMixin,
                    common_mixins.ProductCodeMixin,
                    common_mixins.UnitPriceMixin):
-    template = models.ForeignKey(OfferingTemplate, related_name='plans')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=OfferingTemplate, related_name='plans')
 
     def __str__(self):
         return '{} | {}'.format(self.template, self.name)
@@ -324,13 +324,13 @@ class Attachment(core_models.UuidMixin,
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
-    issue = models.ForeignKey(Issue, related_name='attachments')
+    issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='attachments')
     file = models.FileField(upload_to='support_attachments')
     backend_id = models.CharField(max_length=255, unique=True)
     mime_type = models.CharField(_('MIME type'), max_length=100, blank=True)
     file_size = models.PositiveIntegerField(_('Filesize, B'), blank=True, null=True)
     thumbnail = models.FileField(upload_to='support_attachments_thumbnails', blank=True, null=True)
-    author = models.ForeignKey(SupportUser, related_name='attachments', blank=True, null=True)
+    author = models.ForeignKey(on_delete=models.CASCADE, to=SupportUser, related_name='attachments', blank=True, null=True)
     objects = managers.AttachmentManager()
 
     @classmethod

@@ -35,13 +35,13 @@ class Invitation(core_models.UuidMixin,
             (EXPIRED, 'Expired'),
         )
 
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
-    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    created_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    approved_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
 
-    customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'), related_name='invitations')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, verbose_name=_('organization'), related_name='invitations')
     customer_role = structure_models.CustomerRole(verbose_name=_('organization role'), null=True, blank=True)
 
-    project = models.ForeignKey(structure_models.Project, related_name='invitations', blank=True, null=True)
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, related_name='invitations', blank=True, null=True)
     project_role = structure_models.ProjectRole(null=True, blank=True)
 
     state = models.CharField(max_length=10, choices=State.CHOICES, default=State.PENDING)

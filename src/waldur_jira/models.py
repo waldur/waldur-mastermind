@@ -28,7 +28,7 @@ class JiraService(structure_models.Service):
 
 
 class JiraServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(JiraService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=JiraService)
 
     @classmethod
     def get_url_name(cls):
@@ -52,7 +52,7 @@ class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
 
     service_project_link = models.ForeignKey(
         JiraServiceProjectLink, related_name='projects', on_delete=models.PROTECT)
-    template = models.ForeignKey(ProjectTemplate, blank=True, null=True)
+    template = models.ForeignKey(on_delete=models.CASCADE, to=ProjectTemplate, blank=True, null=True)
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
 
@@ -73,7 +73,7 @@ class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
 
 
 class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStampedModel):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, null=True)
     backend_id = models.CharField(max_length=255, null=True)
 
     class Permissions(object):
@@ -130,9 +130,9 @@ class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty)
 class Issue(structure_models.StructureLoggableMixin,
             JiraPropertyIssue):
 
-    type = models.ForeignKey(IssueType)
-    parent = models.ForeignKey('Issue', blank=True, null=True)
-    project = models.ForeignKey(Project, related_name='issues')
+    type = models.ForeignKey(on_delete=models.CASCADE, to=IssueType)
+    parent = models.ForeignKey(on_delete=models.CASCADE, to='Issue', blank=True, null=True)
+    project = models.ForeignKey(on_delete=models.CASCADE, to=Project, related_name='issues')
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     creator_name = models.CharField(blank=True, max_length=255)
@@ -146,11 +146,11 @@ class Issue(structure_models.StructureLoggableMixin,
     assignee_username = models.CharField(blank=True, max_length=255)
     resolution = models.CharField(blank=True, max_length=255)
     resolution_date = models.CharField(blank=True, null=True, max_length=255)
-    priority = models.ForeignKey(Priority)
+    priority = models.ForeignKey(on_delete=models.CASCADE, to=Priority)
     status = models.CharField(max_length=255)
     updated = models.DateTimeField(auto_now_add=True)
 
-    resource_content_type = models.ForeignKey(ContentType, blank=True, null=True, related_name='jira_issues')
+    resource_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, blank=True, null=True, related_name='jira_issues')
     resource_object_id = models.PositiveIntegerField(blank=True, null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
@@ -211,7 +211,7 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
 @python_2_unicode_compatible
 class Comment(structure_models.StructureLoggableMixin,
               JiraSubPropertyIssue):
-    issue = models.ForeignKey(Issue, related_name='comments')
+    issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='comments')
     message = models.TextField(blank=True)
 
     class Meta(object):
@@ -266,7 +266,7 @@ class Comment(structure_models.StructureLoggableMixin,
 
 
 class Attachment(JiraSubPropertyIssue):
-    issue = models.ForeignKey(Issue, related_name='attachments')
+    issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='attachments')
     file = models.FileField(upload_to='jira_attachments')
     thumbnail = models.FileField(upload_to='jira_attachments_thumbnails', blank=True, null=True)
 

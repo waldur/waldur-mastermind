@@ -38,7 +38,7 @@ class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedMo
     class Meta:
         ordering = ['-created']
 
-    project = models.ForeignKey(structure_models.Project, related_name='+')
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, related_name='+')
     certifications = models.ManyToManyField(structure_models.ServiceCertification, blank=True)
 
     def __str__(self):
@@ -80,8 +80,8 @@ class DeploymentPlanItem(models.Model):
         ordering = 'plan', 'preset'
         unique_together = 'plan', 'preset'
 
-    plan = models.ForeignKey(DeploymentPlan, related_name='items')
-    preset = models.ForeignKey('Preset')
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=DeploymentPlan, related_name='items')
+    preset = models.ForeignKey(on_delete=models.CASCADE, to='Preset')
     quantity = models.PositiveSmallIntegerField(default=1)
 
     def __str__(self):
@@ -126,7 +126,7 @@ class Preset(core_models.UuidMixin, core_models.NameMixin):
         (LARGE, 'Large'),
     )
 
-    category = models.ForeignKey(Category, related_name='presets')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='presets')
     variant = models.CharField(max_length=150, choices=VARIANTS)
     ram = models.PositiveIntegerField(default=0)
     cores = models.PositiveIntegerField(default=0, help_text='Preset cores count.')

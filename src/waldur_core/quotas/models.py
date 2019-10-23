@@ -40,7 +40,7 @@ class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, ReversionMixin, model
     usage = models.FloatField(default=0)
     name = models.CharField(max_length=150, db_index=True)
 
-    content_type = models.ForeignKey(ct_models.ContentType, null=True)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType, null=True)
     object_id = models.PositiveIntegerField(null=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
 

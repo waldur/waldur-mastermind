@@ -24,7 +24,7 @@ class ZabbixService(structure_models.Service):
 
 
 class ZabbixServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(ZabbixService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=ZabbixService)
 
     @classmethod
     def get_url_name(cls):
@@ -65,7 +65,7 @@ class Host(structure_models.NewResource):
     status = models.CharField(max_length=30, choices=Statuses.CHOICES, default=Statuses.MONITORED)
     templates = models.ManyToManyField('Template', related_name='hosts')
 
-    content_type = models.ForeignKey(ContentType, null=True)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
@@ -126,7 +126,7 @@ class Item(models.Model):
 
     key = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
-    template = models.ForeignKey(Template, related_name='items')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=Template, related_name='items')
     backend_id = models.CharField(max_length=64)
     value_type = models.IntegerField(choices=ValueTypes.CHOICES)
     units = models.CharField(max_length=255)
@@ -142,7 +142,7 @@ class Item(models.Model):
 
 @python_2_unicode_compatible
 class Trigger(structure_models.ServiceProperty):
-    template = models.ForeignKey(Template, related_name='triggers')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=Template, related_name='triggers')
     # https://www.zabbix.com/documentation/3.4/manual/api/reference/trigger/object
     priority = models.IntegerField(default=0)
 
@@ -209,7 +209,7 @@ class ITService(structure_models.NewResource):
 
     service_project_link = models.ForeignKey(
         ZabbixServiceProjectLink, related_name='itservices', on_delete=models.PROTECT)
-    host = models.ForeignKey(Host, related_name='itservices', blank=True, null=True)
+    host = models.ForeignKey(on_delete=models.CASCADE, to=Host, related_name='itservices', blank=True, null=True)
     is_main = models.BooleanField(
         default=True, help_text='Main IT service SLA will be added to hosts resource as monitoring item.')
 
@@ -218,7 +218,7 @@ class ITService(structure_models.NewResource):
     agreed_sla = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True)
 
     backend_trigger_id = models.CharField(max_length=64, null=True, blank=True)
-    trigger = models.ForeignKey(Trigger, null=True, blank=True)
+    trigger = models.ForeignKey(on_delete=models.CASCADE, to=Trigger, null=True, blank=True)
 
     class Meta(object):
         unique_together = ('host', 'is_main')
@@ -230,7 +230,7 @@ class ITService(structure_models.NewResource):
 
 @python_2_unicode_compatible
 class SlaHistory(models.Model):
-    itservice = models.ForeignKey(ITService)
+    itservice = models.ForeignKey(on_delete=models.CASCADE, to=ITService)
     period = models.CharField(max_length=10)
     value = models.DecimalField(max_digits=11, decimal_places=4, null=True, blank=True)
 
@@ -250,7 +250,7 @@ class SlaHistoryEvent(models.Model):
         ('D', 'UP'),
     )
 
-    history = models.ForeignKey(SlaHistory, related_name='events')
+    history = models.ForeignKey(on_delete=models.CASCADE, to=SlaHistory, related_name='events')
     timestamp = models.IntegerField()
     state = models.CharField(max_length=1, choices=EVENTS)
 

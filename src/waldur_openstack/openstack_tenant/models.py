@@ -39,7 +39,7 @@ class OpenStackTenantService(structure_models.Service):
 
 
 class OpenStackTenantServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(OpenStackTenantService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=OpenStackTenantService)
 
     class Meta(structure_models.CloudServiceProjectLink.Meta):
         verbose_name = _('OpenStackTenant provider project link')
@@ -101,7 +101,7 @@ class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProper
 
 
 class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
-    security_group = models.ForeignKey(SecurityGroup, related_name='rules')
+    security_group = models.ForeignKey(on_delete=models.CASCADE, to=SecurityGroup, related_name='rules')
 
 
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
@@ -157,7 +157,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
 
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='volumes', on_delete=models.PROTECT)
-    instance = models.ForeignKey('Instance', related_name='volumes', blank=True, null=True)
+    instance = models.ForeignKey(on_delete=models.CASCADE, to='Instance', related_name='volumes', blank=True, null=True)
     device = models.CharField(
         max_length=50, blank=True,
         validators=[RegexValidator('^/dev/[a-zA-Z0-9]+$',
@@ -245,7 +245,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
 
 
 class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
-    snapshot = models.ForeignKey(Snapshot, related_name='restorations')
+    snapshot = models.ForeignKey(on_delete=models.CASCADE, to=Snapshot, related_name='restorations')
     volume = models.OneToOneField(Volume, related_name='restoration')
 
     class Permissions(object):
@@ -255,7 +255,7 @@ class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
 
 @python_2_unicode_compatible
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
-    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     available = models.BooleanField(default=True)
 
     class Meta(object):
@@ -391,7 +391,7 @@ class Backup(structure_models.SubResource):
 
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     """ This model corresponds to instance restoration from backup. """
-    backup = models.ForeignKey(Backup, related_name='restorations')
+    backup = models.ForeignKey(on_delete=models.CASCADE, to=Backup, related_name='restorations')
     instance = models.OneToOneField(Instance, related_name='+')
     flavor = models.ForeignKey(Flavor, related_name='+', null=True, blank=True, on_delete=models.SET_NULL)
 
@@ -414,7 +414,7 @@ class BaseSchedule(structure_models.NewResource, core_models.ScheduleMixin):
 class BackupSchedule(BaseSchedule):
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='backup_schedules', on_delete=models.PROTECT)
-    instance = models.ForeignKey(Instance, related_name='backup_schedules')
+    instance = models.ForeignKey(on_delete=models.CASCADE, to=Instance, related_name='backup_schedules')
 
     tracker = FieldTracker()
 
@@ -429,7 +429,7 @@ class BackupSchedule(BaseSchedule):
 class SnapshotSchedule(BaseSchedule):
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='snapshot_schedules', on_delete=models.PROTECT)
-    source_volume = models.ForeignKey(Volume, related_name='snapshot_schedules')
+    source_volume = models.ForeignKey(on_delete=models.CASCADE, to=Volume, related_name='snapshot_schedules')
 
     tracker = FieldTracker()
 
@@ -460,7 +460,7 @@ class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
 
 @python_2_unicode_compatible
 class SubNet(core_models.DescribableMixin, structure_models.ServiceProperty):
-    network = models.ForeignKey(Network, related_name='subnets')
+    network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32, blank=True)
     gateway_ip = models.GenericIPAddressField(protocol='IPv4', null=True)
     allocation_pools = JSONField(default=dict)
@@ -488,13 +488,13 @@ class InternalIP(openstack_base_models.Port):
     """
     # Name "internal_ips" is reserved by virtual machine mixin and corresponds to list of internal IPs.
     # So another related name should be used.
-    instance = models.ForeignKey(Instance, related_name='internal_ips_set', null=True)
-    subnet = models.ForeignKey(SubNet, related_name='internal_ips')
+    instance = models.ForeignKey(on_delete=models.CASCADE, to=Instance, related_name='internal_ips_set', null=True)
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet, related_name='internal_ips')
 
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, null=True)
-    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     tracker = FieldTracker()
 
     class Meta:
@@ -517,7 +517,7 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
 
 @python_2_unicode_compatible
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
-    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     available = models.BooleanField(default=True)
 
     class Meta(object):

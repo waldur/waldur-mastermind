@@ -39,8 +39,8 @@ class JupyterHubOAuthConfig(common_models.UuidStrMixin):
 class JupyterHubManagement(common_models.UuidStrMixin,
                            TimeStampedModel,
                            common_models.ApplicationModel):
-    user = models.ForeignKey(User, related_name='+')
-    python_management = models.ForeignKey(python_management_models.PythonManagement, related_name='jupyter_hub_management')
+    user = models.ForeignKey(on_delete=models.CASCADE, to=User, related_name='+')
+    python_management = models.ForeignKey(on_delete=models.CASCADE, to=python_management_models.PythonManagement, related_name='jupyter_hub_management')
 
     session_time_to_live_hours = models.IntegerField(default=24)
     jupyter_hub_oauth_config = models.OneToOneField(
@@ -50,11 +50,11 @@ class JupyterHubManagement(common_models.UuidStrMixin,
         null=True
     )
 
-    instance_content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    instance_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     instance_object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('instance_content_type', 'instance_object_id')
 
-    project = models.ForeignKey(structure_models.Project, null=True, related_name='+')
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, null=True, related_name='+')
 
     # holds reference to jupyter_hub_users
 
@@ -107,7 +107,7 @@ class JupyterHubManagementSyncConfigurationRequest(JupyterHubManagementRequest):
 class JupyterHubManagementMakeVirtualEnvironmentGlobalRequest(
         python_management_models.VirtualEnvMixin,
         JupyterHubManagementRequest):
-    update_configuration_request = models.ForeignKey(JupyterHubManagementSyncConfigurationRequest, related_name="make_virtual_env_global_requests", null=True)
+    update_configuration_request = models.ForeignKey(on_delete=models.CASCADE, to=JupyterHubManagementSyncConfigurationRequest, related_name="make_virtual_env_global_requests", null=True)
 
 
 class JupyterHubManagementDeleteRequest(JupyterHubManagementRequest):

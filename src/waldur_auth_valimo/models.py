@@ -24,7 +24,7 @@ class AuthResult(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStamp
 
         CHOICES = ((SCHEDULED, SCHEDULED), (PROCESSING, PROCESSING), (OK, OK), (CANCELED, CANCELED), (ERRED, ERRED))
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='auth_valimo_results', null=True)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='auth_valimo_results', null=True)
     phone = models.CharField(max_length=30)
     message = models.CharField(max_length=4, default=_default_message, help_text='This message will be shown to user.')
     state = FSMField(choices=States.CHOICES, default=States.SCHEDULED)

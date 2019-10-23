@@ -57,7 +57,7 @@ class OpenStackService(structure_models.Service):
 
 class OpenStackServiceProjectLink(structure_models.ServiceProjectLink):
 
-    service = models.ForeignKey(OpenStackService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=OpenStackService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('OpenStack provider project link')
@@ -96,9 +96,9 @@ class Image(openstack_base_models.BaseImage):
 
 
 class SecurityGroup(structure_models.SubResource):
-    service_project_link = models.ForeignKey(
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=
         OpenStackServiceProjectLink, related_name='security_groups')
-    tenant = models.ForeignKey('Tenant', related_name='security_groups')
+    tenant = models.ForeignKey(on_delete=models.CASCADE, to='Tenant', related_name='security_groups')
 
     def get_backend(self):
         return self.tenant.get_backend()
@@ -125,14 +125,14 @@ class SecurityGroup(structure_models.SubResource):
 
 
 class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
-    security_group = models.ForeignKey(SecurityGroup, related_name='rules')
+    security_group = models.ForeignKey(on_delete=models.CASCADE, to=SecurityGroup, related_name='rules')
 
 
 @python_2_unicode_compatible
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
-    service_project_link = models.ForeignKey(
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=
         OpenStackServiceProjectLink, related_name='floating_ips')
-    tenant = models.ForeignKey('Tenant', related_name='floating_ips')
+    tenant = models.ForeignKey(on_delete=models.CASCADE, to='Tenant', related_name='floating_ips')
     address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
     backend_network_id = models.CharField(max_length=255, editable=False)
 
@@ -248,7 +248,7 @@ class Tenant(structure_models.PrivateCloud):
 class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
     service_project_link = models.ForeignKey(
         OpenStackServiceProjectLink, related_name='networks', on_delete=models.PROTECT)
-    tenant = models.ForeignKey(Tenant, related_name='networks')
+    tenant = models.ForeignKey(on_delete=models.CASCADE, to=Tenant, related_name='networks')
     is_external = models.BooleanField(default=False)
     type = models.CharField(max_length=50, blank=True)
     segmentation_id = models.IntegerField(null=True)
@@ -275,7 +275,7 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
 class SubNet(structure_models.SubResource):
     service_project_link = models.ForeignKey(
         OpenStackServiceProjectLink, related_name='subnets', on_delete=models.PROTECT)
-    network = models.ForeignKey(Network, related_name='subnets')
+    network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32, blank=True)
     gateway_ip = models.GenericIPAddressField(protocol='IPv4', null=True)
     allocation_pools = JSONField(default=dict)
@@ -311,7 +311,7 @@ class CustomerOpenStack(TimeStampedModel):
     settings = models.ForeignKey(structure_models.ServiceSettings,
                                  on_delete=models.CASCADE,
                                  limit_choices_to={'shared': True, 'type': 'OpenStack'}, )
-    customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, on_delete=models.CASCADE)
     external_network_id = models.CharField(_('OpenStack external network ID'), max_length=255)
 
     class Meta(object):

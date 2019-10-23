@@ -85,7 +85,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
     class Meta:
         abstract = True
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL)
     is_active = models.BooleanField(default=True)
 
     # This timestamp would be updated periodically when event is sent via this hook
@@ -226,7 +226,7 @@ class EmailHook(BaseHook):
 class SystemNotification(EventTypesMixin, models.Model):
     # Model doesn't inherit NameMixin, because this is circular dependence.
     name = models.CharField(_('name'), max_length=150)
-    hook_content_type = models.ForeignKey(ct_models.ContentType, related_name='+')
+    hook_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType, related_name='+')
     roles = JSONField('List of roles', default=list)
 
     @staticmethod
@@ -309,8 +309,8 @@ class FeedManager(GenericKeyMixin, models.Manager):
 
 
 class Feed(models.Model):
-    event = models.ForeignKey(Event)
-    content_type = models.ForeignKey(ct_models.ContentType, db_index=True)
+    event = models.ForeignKey(on_delete=models.CASCADE, to=Event)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType, db_index=True)
     object_id = models.PositiveIntegerField(db_index=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
     objects = FeedManager()

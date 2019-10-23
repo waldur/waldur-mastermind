@@ -155,8 +155,8 @@ class BasePermission(models.Model):
     class Meta(object):
         abstract = True
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, db_index=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+')
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True)
+    created_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+')
     created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.NullBooleanField(default=True, db_index=True)
@@ -281,7 +281,7 @@ class CustomerPermission(BasePermission):
     class Permissions(object):
         customer_path = 'customer'
 
-    customer = models.ForeignKey('structure.Customer', verbose_name=_('organization'), related_name='permissions')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to='structure.Customer', verbose_name=_('organization'), related_name='permissions')
     role = CustomerRole(db_index=True)
     tracker = FieldTracker(fields=['expiration_time'])
 
@@ -320,8 +320,8 @@ class Division(core_models.UuidMixin,
                core_models.NameMixin,
                models.Model):
 
-    type = models.ForeignKey('DivisionType')
-    parent = models.ForeignKey('Division', null=True, blank=True)
+    type = models.ForeignKey(on_delete=models.CASCADE, to='DivisionType')
+    parent = models.ForeignKey(on_delete=models.CASCADE, to='Division', null=True, blank=True)
 
     class Meta(object):
         verbose_name = _('division')
@@ -548,7 +548,7 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
         customer_path = 'project__customer'
         project_path = 'project'
 
-    project = models.ForeignKey('structure.Project', related_name='permissions')
+    project = models.ForeignKey(on_delete=models.CASCADE, to='structure.Project', related_name='permissions')
     role = ProjectRole(db_index=True)
     tracker = FieldTracker(fields=['expiration_time'])
 
@@ -768,7 +768,7 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
         customer_path = 'customer'
         extra_query = dict(shared=True)
 
-    customer = models.ForeignKey(Customer,
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer,
                                  verbose_name=_('organization'),
                                  related_name='service_settings',
                                  blank=True,
@@ -793,7 +793,7 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
     tracker = FieldTracker()
 
     # service settings scope - VM that contains service
-    content_type = models.ForeignKey(ContentType, null=True)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
@@ -870,8 +870,8 @@ class Service(core_models.UuidMixin,
         customer_path = 'customer'
         project_path = 'projects'
 
-    settings = models.ForeignKey(ServiceSettings)
-    customer = models.ForeignKey(Customer, verbose_name=_('organization'))
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=ServiceSettings)
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer, verbose_name=_('organization'))
     available_for_all = models.BooleanField(
         default=False,
         help_text=_('Service will be automatically added to all customers projects if it is available for all')
@@ -951,7 +951,7 @@ class ServiceProperty(BaseServiceProperty):
         abstract = True
         unique_together = ('settings', 'backend_id')
 
-    settings = models.ForeignKey(ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=ServiceSettings, related_name='+')
     backend_id = models.CharField(max_length=255, db_index=True)
 
     def __str__(self):
@@ -996,7 +996,7 @@ class ServiceProjectLink(quotas_models.QuotaModelMixin,
         project_path = 'project'
 
     service = NotImplemented
-    project = models.ForeignKey(Project)
+    project = models.ForeignKey(on_delete=models.CASCADE, to=Project)
 
     def get_backend(self, **kwargs):
         return self.service.get_backend(**kwargs)

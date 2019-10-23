@@ -42,7 +42,7 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
 
     state = FSMIntegerField(default=States.INIT, choices=STATE_CHOICES)
 
-    customer = models.ForeignKey(Customer)
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer)
     amount = models.DecimalField(max_digits=9, decimal_places=2)
     tax = models.DecimalField(max_digits=9, decimal_places=2, default=0)
 
@@ -118,7 +118,7 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
             (PAYMENT_PENDING, _('Payment pending')),
         )
 
-    customer = models.ForeignKey(Customer, related_name='paypal_invoices')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer, related_name='paypal_invoices')
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.DRAFT)
     invoice_date = models.DateField()
     end_date = models.DateField()
@@ -178,7 +178,7 @@ class InvoiceItem(models.Model):
 
         CHOICES = ((QUANTITY, _('Quantity')), (HOURS, _('Hours')), (AMOUNT, _('Amount')))
 
-    invoice = models.ForeignKey(Invoice, related_name='items')
+    invoice = models.ForeignKey(on_delete=models.CASCADE, to=Invoice, related_name='items')
     price = models.DecimalField(max_digits=9, decimal_places=2)
     tax = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)

@@ -30,7 +30,7 @@ class DigitalOceanService(structure_models.Service):
 
 
 class DigitalOceanServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(DigitalOceanService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=DigitalOceanService)
 
     class Meta(structure_models.CloudServiceProjectLink.Meta):
         verbose_name = _('DigitalOcean provider project link')

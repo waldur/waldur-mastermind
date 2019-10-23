@@ -43,7 +43,7 @@ class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.Descendant
         Only resource node has actual data.
         Another ones should be re-calculated on every change of resource estimate.
     """
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
     details = JSONField(default=dict, help_text=_('Saved scope details. Field is populated on scope deletion.'))
@@ -361,7 +361,7 @@ class DefaultPriceListItem(core_models.UuidMixin, core_models.NameMixin, Abstrac
     item_type = models.CharField(max_length=255, help_text=_('Type of price list item. Examples: storage, flavor.'))
     key = models.CharField(
         max_length=255, help_text=_('Key that corresponds particular consumable. Example: name of flavor.'))
-    resource_content_type = models.ForeignKey(ContentType, default=None)
+    resource_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, default=None)
     tracker = FieldTracker()
 
     def __str__(self):
@@ -419,11 +419,11 @@ class PriceListItem(core_models.UuidMixin, AbstractPriceListItem):
     It is entered manually by customer owner.
     """
     # Generic key to service
-    content_type = models.ForeignKey(ContentType)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType)
     object_id = models.PositiveIntegerField()
     service = GenericForeignKey('content_type', 'object_id')
     objects = managers.PriceListItemManager('service')
-    default_price_list_item = models.ForeignKey(DefaultPriceListItem)
+    default_price_list_item = models.ForeignKey(on_delete=models.CASCADE, to=DefaultPriceListItem)
 
     class Meta:
         unique_together = ('content_type', 'object_id', 'default_price_list_item')

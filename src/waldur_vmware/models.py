@@ -28,7 +28,7 @@ class VMwareService(structure_models.Service):
 
 class VMwareServiceProjectLink(structure_models.ServiceProjectLink):
 
-    service = models.ForeignKey(VMwareService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=VMwareService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('VMware provider project link')
@@ -150,8 +150,8 @@ class Port(core_models.RuntimeStateMixin, structure_models.NewResource):
         related_name='+',
         on_delete=models.PROTECT
     )
-    vm = models.ForeignKey(VirtualMachine)
-    network = models.ForeignKey('Network')
+    vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine)
+    network = models.ForeignKey(on_delete=models.CASCADE, to='Network')
     mac_address = models.CharField(max_length=32, blank=True, verbose_name=_('MAC address'))
 
     @classmethod
@@ -175,7 +175,7 @@ class Disk(structure_models.NewResource):
     )
 
     size = models.PositiveIntegerField(help_text=_('Size in MiB'))
-    vm = models.ForeignKey(VirtualMachine, related_name='disks')
+    vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine, related_name='disks')
 
     @classmethod
     def get_url_name(cls):
