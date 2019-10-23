@@ -17,6 +17,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='user',
             name='username',
-            field=models.CharField(help_text='Required. 128 characters or fewer. Letters, numbers and @/./+/-/_ characters', max_length=128, unique=True, validators=[django.core.validators.RegexValidator(re.compile('^[\\w.@+-]+$'), 'Enter a valid username.', 'invalid')], verbose_name='username'),
+            field=models.CharField(help_text='Required. 128 characters or fewer. Letters, numbers and @/./+/-/_ characters', max_length=128, unique=True, validators=[django.core.validators.RegexValidator(re.compile(b'^[\\w.@+-]+$'), 'Enter a valid username.', 'invalid')], verbose_name='username'),
         ),
     ]

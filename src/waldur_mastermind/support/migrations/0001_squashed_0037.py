@@ -18,31 +18,11 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [(b'support', '0001_initial'), (b'support', '0002_comment_and_support_user'),
-                (b'support', '0003_additional_issue_fields'), (b'support', '0004_issue_users'),
-                (b'support', '0005_issue_first_response_sla'), (b'support', '0006_offering'),
-                (b'support', '0007_offering_update'), (b'support', '0008_add_product_code'),
-                (b'support', '0009_offering_article_code'), (b'support', '0010_add_unit_price'),
-                (b'support', '0011_remove_price'), (b'support', '0012_attachment'),
-                (b'support', '0013_add_more_backend_fields'), (b'support', '0014_unique_backend_id_for_attachment'),
-                (b'support', '0015_offering_report'), (b'support', '0016_add_states'),
-                (b'support', '0017_unique_backend_id'), (b'support', '0018_offering_terminated_at'),
-                (b'support', '0019_template_templateattachment'), (b'support', '0020_protect_offering_issue'),
-                (b'support', '0021_protect_issue_user'), (b'support', '0022_offering_template'),
-                (b'support', '0023_offering_template_migrate_data'), (b'support', '0024_offeringplan'),
-                (b'support', '0025_offering_plan_data'), (b'support', '0026_remove_type_protect_template'),
-                (b'support', '0027_non_unique_template_name'),
-                (b'support', '0028_ignoredissuestatus_templatestatusnotification'),
-                (b'support', '0029_issue_resolution_date'), (b'support', '0030_issue_template'),
-                (b'support', '0031_supportcustomer'), (b'support', '0032_requesttype'),
-                (b'support', '0033_issuestatus'), (b'support', '0034_bootstrap_statuses'),
-                (b'support', '0035_offering_plan'), (b'support', '0036_offering_ordering'),
-                (b'support', '0037_priority')]
 
     initial = True
 
     dependencies = [
-        ('structure', '0009_project_is_removed'),
+        ('structure', '0001_squashed_0054'),
         ('contenttypes', '0002_remove_content_type_name'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

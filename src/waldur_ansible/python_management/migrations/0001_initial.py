@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('openstack_tenant', '0030_add_volume_image_name'),
+        ('openstack_tenant', '0001_squashed_0046'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

@@ -17,7 +17,7 @@ def update_vmware_component(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0089_make_billing_period_non_nullable')
+        ('marketplace', '0001_squashed_0093')
     ]
 
     operations = [

@@ -41,7 +41,7 @@ class Migration(migrations.Migration):
                 ('ram', models.PositiveIntegerField(default=0, help_text='Memory size in MiB', verbose_name='RAM')),
                 ('disk', models.PositiveIntegerField(default=0, help_text='Disk size in MiB')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='+', to='waldur_vmware.VMwareServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

@@ -97,7 +97,7 @@ class PythonManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsViewS
             requests, many=True, context={'select_output': True})
         return response.Response(serializer.data)
 
-    @decorators.action(url_path="validForJupyterHub", methods=['get'])
+    @decorators.action(detail=False, url_path="validForJupyterHub", methods=['get'])
     def find_valid_for_jupyter_hub_python_managements_with_instance_info(self, request):
         result = super(PythonManagementViewSet, self).list(request)
         result.data = filter(
@@ -115,13 +115,13 @@ class PythonManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsViewS
 
 class PipPackagesViewSet(GenericViewSet):
 
-    @decorators.action(url_path="find_library_versions/(?P<queried_library_name>.+)/(?P<python_version>.+)", methods=['get'])
+    @decorators.action(detail=False, url_path="find_library_versions/(?P<queried_library_name>.+)/(?P<python_version>.+)", methods=['get'])
     def find_library_versions(self, request, queried_library_name=None, python_version=None):
         versions = pip_service.find_versions(queried_library_name, python_version)
 
         return response.Response({'versions': versions})
 
-    @decorators.action(url_path="autocomplete_library/(?P<queried_library_name>.+)", methods=['get'])
+    @decorators.action(detail=False, url_path="autocomplete_library/(?P<queried_library_name>.+)", methods=['get'])
     def autocomplete_library_name(self, request, queried_library_name=None):
         matching_libraries = pip_service.autocomplete_library_name(queried_library_name)
         serializer = serializers.CachedRepositoryPythonLibrarySerializer(matching_libraries, many=True)

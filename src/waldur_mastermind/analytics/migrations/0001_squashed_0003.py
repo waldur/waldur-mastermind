@@ -14,8 +14,6 @@ def import_quotas(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
-    replaces = [(b'analytics', '0001_initial'), (b'analytics', '0002_import_quotas'), (b'analytics', '0003_daily_quota_constraints')]
-
     initial = True
 
     dependencies = [

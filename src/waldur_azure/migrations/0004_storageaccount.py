@@ -35,10 +35,10 @@ class Migration(migrations.Migration):
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('name', models.CharField(max_length=24, validators=[django.core.validators.RegexValidator(message='The name can contain only letters and numbers.', regex=re.compile(b'[a-z][a-z0-9]{2,23}$'))])),
+                ('name', models.CharField(max_length=24, validators=[django.core.validators.RegexValidator(message='The name can contain only letters and numbers.', regex=re.compile('[a-z][a-z0-9]{2,23}$'))])),
                 ('resource_group', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.ResourceGroup')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.AzureServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

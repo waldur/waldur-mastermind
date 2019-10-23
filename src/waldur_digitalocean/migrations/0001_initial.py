@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('taggit', '0002_auto_20150616_2121'),
-        ('structure', '0052_customer_subnets'),
+        ('structure', '0001_squashed_0054'),
     ]
 
     operations = [
@@ -83,7 +83,7 @@ class Migration(migrations.Migration):
                 ('region_name', models.CharField(blank=True, max_length=150)),
                 ('size_name', models.CharField(blank=True, max_length=150)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='droplets', to='waldur_digitalocean.DigitalOceanServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

@@ -14,13 +14,6 @@ import waldur_core.core.models
 
 
 class Migration(migrations.Migration):
-    replaces = [('core', '0001_initial'), ('core', '0002_user_organization_approved'),
-                ('core', '0003_ssh_key_name_length_changed'),
-                ('core', '0001_squashed_0003_ssh_key_name_length_changed'),
-                ('core', '0002_enlarge_civil_number_user_field'), ('core', '0003_user_registration_method'),
-                ('core', '0004_user_agreement_date'), ('core', '0005_add_user_language_and_competence'),
-                ('core', '0006_user_is_support'), ('core', '0007_user_token_lifetime'),
-                ('core', '0008_sshpublickey_is_shared')]
 
     initial = True
 
@@ -43,7 +36,7 @@ class Migration(migrations.Migration):
                 ('username', models.CharField(
                     help_text='Required. 30 characters or fewer. Letters, numbers and @/./+/-/_ characters',
                     max_length=30, unique=True, validators=[
-                        django.core.validators.RegexValidator(re.compile('^[\\w.@+-]+$'), 'Enter a valid username.',
+                        django.core.validators.RegexValidator(re.compile(b'^[\\w.@+-]+$'), 'Enter a valid username.',
                                                               'invalid')], verbose_name='username')),
                 ('civil_number', models.CharField(blank=True, default=None, max_length=50, null=True, unique=True,
                                                   verbose_name='civil number')),

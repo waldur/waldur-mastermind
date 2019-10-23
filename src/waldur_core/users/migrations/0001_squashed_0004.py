@@ -12,10 +12,6 @@ import waldur_core.structure.models
 
 
 class Migration(migrations.Migration):
-    replaces = [('users', '0001_initial'),
-                ('users', '0002_invitation_error_message'),
-                ('users', '0003_invitation_civil_number'),
-                ('users', '0004_migrate_to_new_permissions_model')]
 
     initial = True
 

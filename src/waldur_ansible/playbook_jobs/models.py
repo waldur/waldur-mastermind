@@ -70,7 +70,7 @@ class PlaybookParameter(core_models.DescribableMixin, models.Model):
 
     name = models.CharField(
         max_length=255,
-        validators=[validators.RegexValidator(re.compile('^[\w]+$'), _('Enter a valid name.'))],
+        validators=[validators.RegexValidator(re.compile(b'^[\w]+$'), _('Enter a valid name.'))],
         help_text=_('Required. 255 characters or fewer. Letters, numbers and _ characters'),
     )
     playbook = models.ForeignKey(Playbook, on_delete=models.CASCADE, related_name='parameters')

@@ -39,46 +39,11 @@ def create_quotas(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    replaces = [('structure', '0001_squashed_0021_balancehistory'),
-                ('structure', '0001_initial'),
-                ('structure', '0002_customer_native_name'),
-                ('structure', '0003_protect_non_empty_customers'), ('structure', '0004_init_new_quotas'),
-                ('structure', '0005_init_customers_quotas'), ('structure', '0006_inherit_namemixin'),
-                ('structure', '0007_add_service_model'), ('structure', '0008_add_customer_billing_fields'),
-                ('structure', '0009_update_service_models'), ('structure', '0010_add_oracle_service_type'),
-                ('structure', '0011_customer_registration_code'), ('structure', '0012_customer_image'),
-                ('structure', '0013_servicesettings_customer'), ('structure', '0014_servicesettings_options'),
-                ('structure', '0015_drop_service_polymorphic'), ('structure', '0016_init_nc_resource_count_quotas'),
-                ('structure', '0017_add_azure_service_type'), ('structure', '0018_service_settings_plural_form'),
-                ('structure', '0019_rename_nc_service_count_to_nc_service_project_link_count'),
-                ('structure', '0020_servicesettings_certificate'),
-                ('structure', '0021_balancehistory'),
-                ('structure', '0022_init_global_count_quotas'),
-                ('structure', '0023_add_creation_state'), ('structure', '0024_add_sugarcrm_to_settings'),
-                ('structure', '0025_add_zabbix_to_settings'), ('structure', '0026_add_error_message'),
-                ('structure', '0027_servicesettings_service_type'), ('structure', '0028_servicesettings_service_type2'),
-                ('structure', '0031_add_options_default'), ('structure', '0032_make_options_optional'),
-                ('structure', '0033_remove_servicesettings_dummy'),
-                ('structure', '0034_change_service_settings_state_field'),
-                ('structure', '0035_settings_tags_and_scope'), ('structure', '0036_add_vat_fields'),
-                ('structure', '0037_remove_customer_billing_backend_id'),
-                ('structure', '0038_add_project_and_customer_permissions'),
-                ('structure', '0039_remove_permission_groups'), ('structure', '0040_make_is_active_nullable'),
-                ('structure', '0041_servicesettings_domain'),
-                ('structure', '0042_add_service_certification_homepage_and_terms'),
-                ('structure', '0043_servicesettings_geolocations'), ('structure', '0044_terms_of_services_url'),
-                ('structure', '0045_project_services_certifications'),
-                ('structure', '0046_shared_service_settings_customer'),
-                ('structure', '0047_privateservicesettings_sharedservicesettings'),
-                ('structure', '0048_remove_balance'), ('structure', '0049_extend_abbreviation'),
-                ('structure', '0050_reset_cloud_spl_quota_limits'),
-                ('structure', '0051_add_customer_email_phone_agreement_number'), ('structure', '0052_customer_subnets'),
-                ('structure', '0053_add_project_type'), ('structure', '0054_payment_details')]
 
     initial = True
 
     dependencies = [
-        ('quotas', '0004_quota_threshold'),
+        ('quotas', '0001_squashed_0004'),
         ('taggit', '0002_auto_20150616_2121'),
         ('contenttypes', '0002_remove_content_type_name'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
@@ -216,7 +181,7 @@ class Migration(migrations.Migration):
                 ('certifications', models.ManyToManyField(blank=True, related_name='service_settings', to='structure.ServiceCertification')),
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
                 ('customer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='service_settings', to='structure.Customer', verbose_name='organization')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'verbose_name': 'Service settings',

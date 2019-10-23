@@ -9,7 +9,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('structure', '0054_payment_details'),
+        ('structure', '0001_squashed_0054'),
         ('contenttypes', '0002_remove_content_type_name'),
         ('python_management', '0001_initial'),
     ]

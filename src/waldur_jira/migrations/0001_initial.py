@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('taggit', '0002_auto_20150616_2121'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0052_customer_subnets'),
+        ('structure', '0001_squashed_0054'),
     ]
 
     operations = [
@@ -125,7 +125,7 @@ class Migration(migrations.Migration):
                 ('default_issue_type', models.CharField(blank=True, max_length=64)),
                 ('available_for_all', models.BooleanField(default=False, help_text=b'Allow access to any user')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='projects', to='waldur_jira.JiraServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('name', models.CharField(max_length=64, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'[a-zA-Z][a-zA-Z0-9._-]+$'))])),
+                ('name', models.CharField(max_length=64, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('[a-zA-Z][a-zA-Z0-9._-]+$'))])),
                 ('cidr', models.CharField(max_length=32)),
             ],
             options={
@@ -75,7 +75,7 @@ class Migration(migrations.Migration):
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('name', models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'[a-zA-Z][a-zA-Z0-9._-]+$'))])),
+                ('name', models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('[a-zA-Z][a-zA-Z0-9._-]+$'))])),
                 ('config_name', models.CharField(max_length=255)),
             ],
             options={
@@ -95,7 +95,7 @@ class Migration(migrations.Migration):
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('name', models.CharField(max_length=90, validators=[django.core.validators.RegexValidator(message='The name can include alphanumeric, underscore, parentheses, hyphen, period (except at end), and Unicode characters that match the allowed characters.', regex=re.compile(b'^[-\\w._()]+$'))])),
+                ('name', models.CharField(max_length=90, validators=[django.core.validators.RegexValidator(message='The name can include alphanumeric, underscore, parentheses, hyphen, period (except at end), and Unicode characters that match the allowed characters.', regex=re.compile('^[-\\w._()]+$'))])),
                 ('location', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.Location')),
             ],
             options={
@@ -151,7 +151,7 @@ class Migration(migrations.Migration):
                 ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('description', models.CharField(blank=True, max_length=500, verbose_name='description')),
-                ('name', models.CharField(max_length=150, validators=[django.core.validators.RegexValidator(message='The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. The hyphen may not lead or trail in the name.', regex=re.compile(b'[a-z0-9][a-z0-9-]+[a-z0-9]$'))], verbose_name='name')),
+                ('name', models.CharField(max_length=150, validators=[django.core.validators.RegexValidator(message='The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. The hyphen may not lead or trail in the name.', regex=re.compile('[a-z0-9][a-z0-9-]+[a-z0-9]$'))], verbose_name='name')),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
@@ -179,7 +179,7 @@ class Migration(migrations.Migration):
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('name', models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'[a-zA-Z][a-zA-Z0-9._-]+$'))])),
+                ('name', models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('[a-zA-Z][a-zA-Z0-9._-]+$'))])),
                 ('cidr', models.CharField(max_length=32)),
                 ('network', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.Network')),
                 ('resource_group', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.ResourceGroup')),
@@ -274,7 +274,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='virtualmachine',
             name='name',
-            field=models.CharField(max_length=15, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, and hyphens. The name must be shorter than 15 characters and start with a letter and must end with a letter or a number.', regex=re.compile(b'[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$'))]),
+            field=models.CharField(max_length=15, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, and hyphens. The name must be shorter than 15 characters and start with a letter and must end with a letter or a number.', regex=re.compile('[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$'))]),
         ),
         migrations.AlterUniqueTogether(
             name='image',
@@ -291,7 +291,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='subnet',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='sqlserver',
@@ -301,7 +301,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='sqlserver',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='sqldatabase',
@@ -316,7 +316,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='sqldatabase',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='resourcegroup',
@@ -326,7 +326,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='resourcegroup',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='networkinterface',
@@ -346,7 +346,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='networkinterface',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='network',
@@ -361,7 +361,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='network',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='virtualmachine',

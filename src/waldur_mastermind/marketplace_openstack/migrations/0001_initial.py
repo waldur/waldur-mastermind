@@ -30,8 +30,8 @@ def migrate_components(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('marketplace', '0064_remove_resource_count_project_field'),
-        ('packages', '0014_unique_package_tenant'),
+        ('marketplace', '0001_squashed_0093'),
+        ('packages', '0001_squashed_0015'),
     ]
 
     operations = [

@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0052_customer_subnets'),
+        ('structure', '0001_squashed_0054'),
     ]
 
     operations = [
@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 ('cpu_price', models.DecimalField(decimal_places=10, default=0, max_digits=14, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for CPU hour')),
                 ('gpu_price', models.DecimalField(decimal_places=10, default=0, max_digits=14, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for GPU hour')),
                 ('ram_price', models.DecimalField(decimal_places=10, default=0, max_digits=14, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for GB RAM')),
-                ('service_settings', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.ServiceSettings')),
+                ('service_settings', models.OneToOneField(limit_choices_to={'type': 'SLURM'}, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.ServiceSettings')),
             ],
             options={
                 'abstract': False,

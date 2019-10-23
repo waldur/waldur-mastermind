@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('taggit', '0002_auto_20150616_2121'),
         ('contenttypes', '0002_remove_content_type_name'),
-        ('structure', '0052_customer_subnets'),
+        ('structure', '0001_squashed_0054'),
     ]
 
     operations = [
@@ -220,7 +220,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='itservice',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='itservice',
@@ -240,7 +240,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='host',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='host',

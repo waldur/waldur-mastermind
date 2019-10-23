@@ -12,7 +12,7 @@ import waldur_core.core.validators
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('structure', '0052_customer_subnets'),
+        ('structure', '0001_squashed_0054'),
         ('waldur_jira', '0003_project_template'),
     ]
 

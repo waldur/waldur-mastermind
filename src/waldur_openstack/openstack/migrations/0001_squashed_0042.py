@@ -17,17 +17,13 @@ import waldur_core.logging.loggers
 
 class Migration(migrations.Migration):
 
-    replaces = [(b'openstack', '0001_initial'), (b'openstack', '0002_volume'), (b'openstack', '0003_snapshot'), (b'openstack', '0004_dr_and_volume_backups'), (b'openstack', '0005_ipmapping'), (b'openstack', '0006_backups_restorations'), (b'openstack', '0007_add_instance_tenant'), (b'openstack', '0008_require_instance_tenant'), (b'openstack', '0009_add_security_group_tenant'), (b'openstack', '0010_require_security_group_tenant'), (b'openstack', '0011_add_floating_ip_tenant'), (b'openstack', '0012_require_floating_ip_tenant'), (b'openstack', '0013_add_dr_backups_to_schedule'), (b'openstack', '0014_instance_volumes'), (b'openstack', '0015_instance_runtime_state'), (b'openstack', '0016_backup_state'), (b'openstack', '0017_backup_snapshots_and_restorations'), (b'openstack', '0018_replace_security_group'), (b'openstack', '0019_remove_payable_mixin'), (b'openstack', '0020_tenant_extra_configuration'), (b'openstack', '0021_volume_instance'), (b'openstack', '0022_volume_device'), (b'openstack', '0023_instance_state'), (b'openstack', '0024_network_subnet'), (b'openstack', '0025_delete_tenant_models'), (b'openstack', '0026_floating_ip_resource'), (b'openstack', '0027_delete_floating_ip_status'), (b'openstack', '0028_security_group_as_a_resource'), (b'openstack', '0029_tenant_quotas'), (b'openstack', '0030_subnet_dns_nameservers'), (b'openstack', '0031_tenant_backup_storage'), (b'openstack', '0032_service_setting_backend_url'), (b'openstack', '0033_remove_openstackservice_name'), (b'openstack', '0034_remove_start_time'), (b'openstack', '0035_remove_ipmapping'), (b'openstack', '0036_remove_security_group_duplicates'), (b'openstack', '0037_customer_openstack'), (b'openstack', '0038_unique_spl_backend_id'), (b'openstack', '0039_immutable_default_json'), (b'openstack', '0040_unique_floating_ip'), (b'openstack', '0041_tenant_default_volume_type_name'), (b'openstack', '0042_subnet_disable_gateway')]
-
     initial = True
 
     dependencies = [
-        ('structure', '0053_add_project_type'),
+        ('structure', '0001_squashed_0054'),
         ('contenttypes', '0002_remove_content_type_name'),
-        ('structure', '0035_settings_tags_and_scope'),
-        ('structure', '0041_servicesettings_domain'),
         ('taggit', '0002_auto_20150616_2121'),
-        ('quotas', '0004_quota_threshold'),
+        ('quotas', '0001_squashed_0004'),
     ]
 
     operations = [
@@ -156,7 +152,7 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(blank=True, max_length=50)),
                 ('user_password', models.CharField(blank=True, max_length=50)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='tenants', to='openstack.OpenStackServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('extra_configuration', waldur_core.core.fields.JSONField(default={}, help_text='Configuration details that are not represented on backend.')),
             ],
             options={
@@ -167,7 +163,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='openstackservice',
             name='projects',
-            field=models.ManyToManyField(related_name='openstack_services', through='openstack.OpenStackServiceProjectLink', to=b'structure.Project'),
+            field=models.ManyToManyField('structure.Project', related_name='openstack_services', through='openstack.OpenStackServiceProjectLink'),
         ),
         migrations.AddField(
             model_name='openstackservice',
@@ -227,7 +223,7 @@ class Migration(migrations.Migration):
                 ('type', models.CharField(blank=True, max_length=50)),
                 ('segmentation_id', models.IntegerField(null=True)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='networks', to='openstack.OpenStackServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='networks', to='openstack.Tenant')),
             ],
             options={
@@ -254,7 +250,7 @@ class Migration(migrations.Migration):
                 ('enable_dhcp', models.BooleanField(default=True)),
                 ('network', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='subnets', to='openstack.Network')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='subnets', to='openstack.OpenStackServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('dns_nameservers', waldur_core.core.fields.JSONField(default=list, help_text='List of DNS name servers associated with the subnet.')),
                 ('disable_gateway', models.BooleanField(default=False)),
             ],
@@ -304,7 +300,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='floatingip',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterField(
             model_name='floatingip',
@@ -333,7 +329,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='securitygroup',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterField(
             model_name='securitygroup',
@@ -356,7 +352,7 @@ class Migration(migrations.Migration):
                 ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
                 ('external_network_id', models.CharField(max_length=255, verbose_name='OpenStack external network ID')),
                 ('customer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='structure.Customer')),
-                ('settings', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='structure.ServiceSettings')),
+                ('settings', models.ForeignKey(limit_choices_to={'shared': True, 'type': 'OpenStack'}, on_delete=django.db.models.deletion.CASCADE, to='structure.ServiceSettings')),
             ],
             options={
                 'verbose_name': 'Organization OpenStack settings',

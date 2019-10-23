@@ -19,12 +19,10 @@ import waldur_openstack.openstack_tenant.models
 
 class Migration(migrations.Migration):
 
-    replaces = [(b'openstack_tenant', '0001_initial'), (b'openstack_tenant', '0002_service_properties'), (b'openstack_tenant', '0003_volume_and_snapshot'), (b'openstack_tenant', '0004_instance'), (b'openstack_tenant', '0005_resources_actions'), (b'openstack_tenant', '0006_resource_action_details'), (b'openstack_tenant', '0007_backup_backuprestoration'), (b'openstack_tenant', '0008_backup_schedule'), (b'openstack_tenant', '0009_tenant_service_verbose_name'), (b'openstack_tenant', '0010_rename_floating_ip_status'), (b'openstack_tenant', '0011_backupschedule_call_count'), (b'openstack_tenant', '0012_backupschedule_resource'), (b'openstack_tenant', '0013_init_backupschedule_spl'), (b'openstack_tenant', '0014_make_backupschedule_spl_non_nullable'), (b'openstack_tenant', '0015_snapshotrestoration'), (b'openstack_tenant', '0016_network_subnet_internalip'), (b'openstack_tenant', '0017_snapshot_schedule'), (b'openstack_tenant', '0018_remove_openstacktenantservice_name'), (b'openstack_tenant', '0019_migrate_to_single_external_ip'), (b'openstack_tenant', '0020_remove_external_ips'), (b'openstack_tenant', '0021_instance_subnets'), (b'openstack_tenant', '0022_floatingip_internal_ip'), (b'openstack_tenant', '0023_remove_instance_external_ip'), (b'openstack_tenant', '0024_add_backup_size'), (b'openstack_tenant', '0025_copy_certifications_from_existing_settings'), (b'openstack_tenant', '0026_remove_start_time'), (b'openstack_tenant', '0027_remove_duplicate_floating_ips'), (b'openstack_tenant', '0028_remove_duplicate_security_groups_networks_subnets'), (b'openstack_tenant', '0029_add_unique_constraint_for_properties'), (b'openstack_tenant', '0030_add_volume_image_name'), (b'openstack_tenant', '0031_unique_internal_ip'), (b'openstack_tenant', '0032_nullable_internal_ip_instance'), (b'openstack_tenant', '0033_unique_instance_backend_id'), (b'openstack_tenant', '0034_immutable_default_json'), (b'openstack_tenant', '0035_unique_floating_ip'), (b'openstack_tenant', '0036_instance_shared_ips'), (b'openstack_tenant', '0037_internal_ip_settings'), (b'openstack_tenant', '0038_internal_ip_settings_non_null'), (b'openstack_tenant', '0039_forbid_blank_backend_id'), (b'openstack_tenant', '0040_volume_type'), (b'openstack_tenant', '0041_volume_type_field'), (b'openstack_tenant', '0042_volume_availability_zone'), (b'openstack_tenant', '0043_field_availability_zone'), (b'openstack_tenant', '0044_instance_availability_zone'), (b'openstack_tenant', '0045_volumeavailabilityzone_available'), (b'openstack_tenant', '0046_instanceavailabilityzone_available')]
-
     initial = True
 
     dependencies = [
-        ('structure', '0009_project_is_removed'),
+        ('structure', '0001_squashed_0054'),
         ('taggit', '0002_auto_20150616_2121'),
     ]
 
@@ -183,8 +181,8 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('mac_address', models.CharField(blank=True, max_length=32)),
-                ('ip4_address', models.GenericIPAddressField(blank=True, null=True, protocol=b'IPv4')),
-                ('ip6_address', models.GenericIPAddressField(blank=True, null=True, protocol=b'IPv6')),
+                ('ip4_address', models.GenericIPAddressField(blank=True, null=True, protocol='IPv4')),
+                ('ip6_address', models.GenericIPAddressField(blank=True, null=True, protocol='IPv6')),
                 ('backend_id', models.CharField(max_length=255, null=True)),
                 ('instance', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='internal_ips_set', to='openstack_tenant.Instance')),
                 ('settings', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='+', to='structure.ServiceSettings')),
@@ -250,7 +248,7 @@ class Migration(migrations.Migration):
             name='SecurityGroupRule',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('protocol', models.CharField(blank=True, choices=[(b'tcp', b'tcp'), (b'udp', b'udp'), (b'icmp', b'icmp')], max_length=4)),
+                ('protocol', models.CharField(blank=True, choices=[('tcp', 'tcp'), ('udp', 'udp'), ('icmp', 'icmp')], max_length=4)),
                 ('from_port', models.IntegerField(null=True, validators=[django.core.validators.MaxValueValidator(65535)])),
                 ('to_port', models.IntegerField(null=True, validators=[django.core.validators.MaxValueValidator(65535)])),
                 ('cidr', models.CharField(blank=True, max_length=32)),
@@ -420,7 +418,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='volume',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='volume',
@@ -435,7 +433,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='snapshotschedule',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='snapshotrestoration',
@@ -455,7 +453,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='snapshot',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='openstacktenantservice',
@@ -495,7 +493,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='instance',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='floatingip',
@@ -520,7 +518,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='backupschedule',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='backuprestoration',
@@ -555,7 +553,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='backup',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterUniqueTogether(
             name='volumetype',

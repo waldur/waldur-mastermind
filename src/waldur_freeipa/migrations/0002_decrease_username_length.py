@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='profile',
             name='username',
-            field=models.CharField(help_text='Letters, numbers and ./+/-/_ characters', max_length=32, unique=True, validators=[waldur_freeipa.models.validate_username, django.core.validators.RegexValidator(re.compile('^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'), 'Enter a valid username.', 'invalid')], verbose_name='username'),
+            field=models.CharField(help_text='Letters, numbers and ./+/-/_ characters', max_length=32, unique=True, validators=[waldur_freeipa.models.validate_username, django.core.validators.RegexValidator(re.compile(b'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'), 'Enter a valid username.', 'invalid')], verbose_name='username'),
         ),
     ]

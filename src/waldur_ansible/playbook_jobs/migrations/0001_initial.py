@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0052_customer_subnets'),
+        ('structure', '0001_squashed_0054'),
     ]
 
     operations = [
@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('description', models.CharField(blank=True, max_length=500, verbose_name='description')),
-                ('name', models.CharField(help_text='Required. 255 characters or fewer. Letters, numbers and _ characters', max_length=255, validators=[django.core.validators.RegexValidator(re.compile('^[\\w]+$'), 'Enter a valid name.')])),
+                ('name', models.CharField(help_text='Required. 255 characters or fewer. Letters, numbers and _ characters', max_length=255, validators=[django.core.validators.RegexValidator(re.compile(b'^[\\w]+$'), 'Enter a valid name.')])),
                 ('required', models.BooleanField(default=False)),
                 ('default', models.CharField(blank=True, help_text='Default argument for this parameter.', max_length=255)),
                 ('playbook', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='parameters', to='playbook_jobs.Playbook')),

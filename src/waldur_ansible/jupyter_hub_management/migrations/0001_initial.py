@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0054_payment_details'),
+        ('structure', '0001_squashed_0054'),
         ('contenttypes', '0002_remove_content_type_name'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('python_management', '0003_added_unique_constraint'),

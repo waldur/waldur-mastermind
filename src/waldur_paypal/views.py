@@ -104,7 +104,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
 
         return payment
 
-    @decorators.action(methods=['POST'])
+    @decorators.action(detail=False, methods=['POST'])
     def approve(self, request):
         """
         Approve Paypal payment.
@@ -145,7 +145,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
             payment.save()
             return response.Response({'detail': message}, status=status.HTTP_409_CONFLICT)
 
-    @decorators.action(methods=['POST'])
+    @decorators.action(detail=False, methods=['POST'])
     def cancel(self, request):
         """
         Cancel Paypal payment.

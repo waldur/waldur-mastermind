@@ -10,9 +10,9 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('openstack_tenant', '0029_add_unique_constraint_for_properties'),
+        ('openstack_tenant', '0001_squashed_0046'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('core', '0007_user_token_lifetime'),
+        ('core', '0001_squashed_0008'),
         ('playbook_jobs', '0003_playbook_image'),
     ]
 

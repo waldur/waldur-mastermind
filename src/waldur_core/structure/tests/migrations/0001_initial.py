@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0054_payment_details'),
+        ('structure', '0001_squashed_0054'),
         ('taggit', '0002_auto_20150616_2121'),
     ]
 
@@ -96,7 +96,7 @@ class Migration(migrations.Migration):
                 ('backend_id', models.CharField(blank=True, max_length=255)),
                 ('size', models.PositiveIntegerField(help_text='Size in MiB')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='structure_tests.TestServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,
@@ -116,7 +116,7 @@ class Migration(migrations.Migration):
                 ('state', django_fsm.FSMIntegerField(choices=[(5, 'Creation Scheduled'), (6, 'Creating'), (1, 'Update Scheduled'), (2, 'Updating'), (7, 'Deletion Scheduled'), (8, 'Deleting'), (3, 'OK'), (4, 'Erred')], default=5)),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='structure_tests.TestServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,
@@ -138,7 +138,7 @@ class Migration(migrations.Migration):
                 ('backend_id', models.CharField(blank=True, max_length=255)),
                 ('size', models.PositiveIntegerField(help_text='Size in MiB')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='structure_tests.TestServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,
@@ -163,7 +163,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='testnewinstance',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterUniqueTogether(
             name='testserviceprojectlink',

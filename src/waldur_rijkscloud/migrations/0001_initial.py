@@ -116,7 +116,7 @@ class Migration(migrations.Migration):
                 ('size', models.PositiveIntegerField(help_text='Size in MiB')),
                 ('metadata', waldur_core.core.fields.JSONField(blank=True)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='volumes', to='waldur_rijkscloud.RijkscloudServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,
@@ -141,7 +141,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='instance',
             name='tags',
-            field=taggit.managers.TaggableManager(blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterUniqueTogether(
             name='rijkscloudserviceprojectlink',

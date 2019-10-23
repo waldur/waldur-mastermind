@@ -9,7 +9,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-    replaces = [('monitoring', '0001_initial'), ('monitoring', '0002_sla')]
 
     initial = True
 

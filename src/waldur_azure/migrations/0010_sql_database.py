@@ -28,17 +28,17 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='network',
             name='name',
-            field=models.CharField(max_length=64, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
+            field=models.CharField(max_length=64, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
         ),
         migrations.AlterField(
             model_name='networkinterface',
             name='name',
-            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
+            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
         ),
         migrations.AlterField(
             model_name='publicip',
             name='name',
-            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
+            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
         ),
         migrations.AlterField(
             model_name='sqldatabase',
@@ -58,7 +58,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='sqlserver',
             name='name',
-            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. The hyphen may not lead or trail in the name.', regex=re.compile(b'^[a-z0-9][a-z0-9-]+[a-z0-9]$'))]),
+            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can only be made up of lowercase letters "a"-"z", the numbers 0-9 and the hyphen. The hyphen may not lead or trail in the name.', regex=re.compile('^[a-z0-9][a-z0-9-]+[a-z0-9]$'))]),
         ),
         migrations.AlterField(
             model_name='sqlserver',
@@ -83,17 +83,17 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='storageaccount',
             name='name',
-            field=models.CharField(max_length=24, validators=[django.core.validators.RegexValidator(message='The name can contain only letters and numbers.', regex=re.compile(b'^[a-z][a-z0-9]{2,23}$'))]),
+            field=models.CharField(max_length=24, validators=[django.core.validators.RegexValidator(message='The name can contain only letters and numbers.', regex=re.compile('^[a-z][a-z0-9]{2,23}$'))]),
         ),
         migrations.AlterField(
             model_name='subnet',
             name='name',
-            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile(b'^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
+            field=models.CharField(max_length=80, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, underscore, period and hyphens.', regex=re.compile('^[a-zA-Z][a-zA-Z0-9._-]+$'))]),
         ),
         migrations.AlterField(
             model_name='virtualmachine',
             name='name',
-            field=models.CharField(max_length=15, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, and hyphens. The name must be shorter than 15 characters and start with a letter and must end with a letter or a number.', regex=re.compile(b'^[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$'))]),
+            field=models.CharField(max_length=15, validators=[django.core.validators.RegexValidator(message='The name can contain only letters, numbers, and hyphens. The name must be shorter than 15 characters and start with a letter and must end with a letter or a number.', regex=re.compile('^[a-zA-Z][a-zA-Z0-9-]{0,13}[a-zA-Z0-9]$'))]),
         ),
         migrations.AlterField(
             model_name='virtualmachine',
