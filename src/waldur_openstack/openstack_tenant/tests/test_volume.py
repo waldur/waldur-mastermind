@@ -312,7 +312,7 @@ class VolumeImportableResourcesTest(BaseVolumeTest):
         self.assertEquals(len(response.data), len(backend_volumes))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_volumes]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_volumes_mock.assert_called()
 
 

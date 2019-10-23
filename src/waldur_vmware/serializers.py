@@ -124,7 +124,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     guest_os = serializers.ChoiceField(
-        choices=constants.GUEST_OS_CHOICES.items(),
+        choices=list(constants.GUEST_OS_CHOICES.items()),
         required=False,
         allow_null=True,
     )

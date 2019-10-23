@@ -46,8 +46,9 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
         fields = ('name',)
         for field in fields:
-            expected_security_groups = [getattr(g, field) for g in self.security_groups]
-            self.assertItemsEqual([g[field] for g in response.data['security_groups']], expected_security_groups)
+            expected = sorted([getattr(g, field) for g in self.security_groups])
+            actual = sorted([g[field] for g in response.data['security_groups']])
+            self.assertEqual(expected, actual)
 
     def test_add_instance_with_security_groups(self):
         data = _instance_data(self.admin, self.instance)

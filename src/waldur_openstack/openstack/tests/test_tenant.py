@@ -765,7 +765,7 @@ class TenantImportableResourcesTest(BaseTenantActionsTest):
         self.assertEquals(len(response.data), len(backend_tenants))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_tenants]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_tenants_for_import_mock.assert_called()
 
     @data('admin', 'manager', 'owner')
