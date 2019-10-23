@@ -26,15 +26,15 @@ RUN yum --assumeyes install \
   openldap-devel \
   openssl-devel \
   postgresql-devel \
-  python-devel \
-  python-pip \
+  python3-devel \
+  python3-pip \
   rsync \
   xmlsec1 \
   zlib-devel
 
 # Install Python dependencies for Waldur MasterMind from PyPI
 COPY requirements.txt /tmp/
-RUN pip install -r /tmp/requirements.txt
+RUN pip3 install -r /tmp/requirements.txt
 
 # Copy unit test runner script
 COPY waldur-test /usr/bin/waldur-test
