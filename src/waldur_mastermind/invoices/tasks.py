@@ -142,7 +142,7 @@ def format_invoice_csv(invoices):
             items = utils.filter_invoice_items(items)
             serializer = serializers.SAFReportSerializer(items, many=True)
             writer.writerows(serializer.data)
-        return stream.getvalue().decode('utf-8')
+        return stream.getvalue()
 
     fields = serializers.InvoiceItemReportSerializer.Meta.fields
     stream = StringIO()
@@ -155,7 +155,7 @@ def format_invoice_csv(invoices):
         serializer = serializers.GenericItemReportSerializer(items, many=True)
         writer.writerows(serializer.data)
 
-    return stream.getvalue().decode('utf-8')
+    return stream.getvalue()
 
 
 @shared_task(name='invoices.update_invoices_current_cost')

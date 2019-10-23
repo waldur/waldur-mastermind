@@ -181,7 +181,8 @@ def get_info_about_missing_usage_reports():
 
     for resource in resources_without_usages:
         if filter(lambda x: x['customer'] == resource.offering.customer, result):
-            filter(lambda x: x['customer'] == resource.offering.customer, result)[0]['resources'].append(resource)
+            row = list(filter(lambda x: x['customer'] == resource.offering.customer, result))[0]
+            row['resources'].append(resource)
         else:
             result.append({
                 'customer': resource.offering.customer,
