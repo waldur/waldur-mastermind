@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny, SAFE_METHODS
 from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
+from rest_framework.schemas.generators import EndpointEnumerator
 from rest_framework.serializers import ListSerializer, Serializer
 from rest_framework.utils import formatting
 from rest_framework.views import APIView
@@ -20,7 +21,7 @@ from waldur_core.structure import SupportedServices, filters as structure_filter
 
 
 # XXX: Drop after removing HEAD requests
-class WaldurEndpointInspector(schemas.EndpointInspector):
+class WaldurEndpointInspector(EndpointEnumerator):
     def get_allowed_methods(self, callback):
         """
         Return a list of the valid HTTP methods for this endpoint.

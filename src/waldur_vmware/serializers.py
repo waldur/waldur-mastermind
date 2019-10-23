@@ -16,7 +16,7 @@ def get_int_or_none(options, key):
     if not value:
         return value
 
-    if isinstance(value, basestring):
+    if isinstance(value, str):
         try:
             return int(value)
         except ValueError:

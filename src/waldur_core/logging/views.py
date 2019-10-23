@@ -16,7 +16,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (DjangoFilterBackend, filters.EventFilterBackend)
     filterset_class = filters.EventFilter
 
-    @decorators.action()
+    @decorators.action(detail=False)
     def count(self, request, *args, **kwargs):
         """
         To get a count of events - run **GET** against */api/events/count/* as authenticated user.
@@ -32,12 +32,12 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
         self.queryset = self.filter_queryset(self.get_queryset())
         return response.Response({'count': self.queryset.count()}, status=status.HTTP_200_OK)
 
-    @decorators.action()
+    @decorators.action(detail=False)
     def scope_types(self, request, *args, **kwargs):
         """ Returns a list of scope types acceptable by events filter. """
         return response.Response(utils.get_scope_types_mapping().keys())
 
-    @decorators.action()
+    @decorators.action(detail=False)
     def event_groups(self, request, *args, **kwargs):
         """
         Returns a list of groups with event types.

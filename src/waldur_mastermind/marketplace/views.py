@@ -485,7 +485,7 @@ class CartItemViewSet(core_views.ActionsViewSet):
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
 
-    @action(methods=['post'])
+    @action(detail=False, methods=['post'])
     def submit(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -644,7 +644,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
-    @action(methods=['post'])
+    @action(detail=False, methods=['post'])
     def set_usage(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -682,13 +682,13 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
         return serializer.validated_data, dry_run
 
-    @action(methods=['post'])
+    @action(detail=False, methods=['post'])
     @csrf_exempt
     def check_signature(self, request, *args, **kwargs):
         self.get_validated_data(request)
         return Response(status=status.HTTP_200_OK)
 
-    @action(methods=['post'])
+    @action(detail=False, methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
         self.get_validated_data(request)

@@ -197,7 +197,7 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
     filterset_class = filters.ImageFilter
 
-    @decorators.action()
+    @decorators.action(detail=False)
     def usage_stats(self, request):
         return ImageUsageReporter(self, request).get_report()
 
@@ -213,7 +213,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = 'uuid'
     filterset_class = filters.FlavorFilter
 
-    @decorators.action()
+    @decorators.action(detail=False)
     def usage_stats(self, request):
         return FlavorUsageReporter(self, request).get_report()
 

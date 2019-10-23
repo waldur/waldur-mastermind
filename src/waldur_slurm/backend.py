@@ -223,5 +223,5 @@ class SlurmBackend(ServiceBackend):
         return self.get_account_name(django_settings.WALDUR_SLURM['ALLOCATION_PREFIX'], allocation)
 
     def get_account_name(self, prefix, object_or_uuid):
-        key = isinstance(object_or_uuid, basestring) and object_or_uuid or object_or_uuid.uuid.hex
+        key = isinstance(object_or_uuid, str) and object_or_uuid or object_or_uuid.uuid.hex
         return '%s%s' % (prefix, key)

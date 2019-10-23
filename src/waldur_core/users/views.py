@@ -65,7 +65,7 @@ class InvitationViewSet(ProtectedViewSet):
         else:
             transaction.on_commit(lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender))
 
-    @action(methods=['post'], permission_classes=[])
+    @action(detail=False, methods=['post'], permission_classes=[])
     def approve(self, request):
         """
         For user's convenience invitation approval is performed without authentication.
@@ -86,7 +86,7 @@ class InvitationViewSet(ProtectedViewSet):
         return Response({'detail': _('Invitation has been approved.')},
                         status=status.HTTP_200_OK)
 
-    @action(methods=['post'], permission_classes=[])
+    @action(detail=False, methods=['post'], permission_classes=[])
     def reject(self, request):
         """
         For user's convenience invitation reject action is performed without authentication.

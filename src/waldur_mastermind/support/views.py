@@ -186,7 +186,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     )
     filterset_class = filters.OfferingFilter
 
-    @decorators.action()
+    @decorators.action(detail=False)
     def configured(self, request):
         summary_config = {}
         for template in models.OfferingTemplate.objects.all():
