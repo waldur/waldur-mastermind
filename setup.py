@@ -22,7 +22,7 @@ install_requires = [
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4',
     'defusedxml>=0.4.1',
-    'django-admin-tools==0.8.0',
+    # 'django-admin-tools==0.8.2',  # Not published yet thus installing from GIT commit via pip
     'django-auth-ldap>=1.3.0',
     'django-defender>=0.6.2',
     'django-filter==2.2',
