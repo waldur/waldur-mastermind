@@ -27,7 +27,7 @@ install_requires = [
     'django-defender>=0.6.2',
     'django-filter==2.2',
     'django-fluent-dashboard==0.6.1',
-    'django-fsm==2.3.0',
+    'django-fsm==2.6.1',
     'django-jsoneditor>=0.0.7',
     'django-model-utils==3.0.0',
     'django-openid-auth>=0.14',
