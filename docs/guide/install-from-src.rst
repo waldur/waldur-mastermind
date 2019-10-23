@@ -8,8 +8,8 @@ Additional requirements:
 - ``virtualenv``
 - C compiler and development libraries needed to build dependencies
 
-  - CentOS: ``gcc libffi-devel openssl-devel postgresql-devel libjpeg-devel zlib-devel python-devel xmlsec1``
-  - Ubuntu: ``gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev python-dev xmlsec1``
+  - CentOS: ``gcc libffi-devel openssl-devel postgresql-devel libjpeg-devel zlib-devel python-devel xmlsec1 xz-devel``
+  - Ubuntu: ``gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev python-dev xmlsec1 libldap2-dev liblzma-dev``
 
 **Waldur MasterMind installation**
 
