@@ -94,7 +94,7 @@ class OpenStackPackageCreateTest(test.APITransactionTestCase):
 
     def test_user_cannot_create_openstack_package_if_template_is_archived(self):
         spl = self.fixture.openstack_spl
-        spl_url = 'http://testserver' + reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
+        spl_url = reverse('openstack-spl-detail', kwargs={'pk': spl.pk})
         template = factories.PackageTemplateFactory(archived=True,
                                                     service_settings=spl.service.settings)
         payload = {

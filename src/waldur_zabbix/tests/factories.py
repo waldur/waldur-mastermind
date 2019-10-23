@@ -23,12 +23,12 @@ class ZabbixServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ZabbixServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-detail', kwargs={'uuid': service.uuid.hex})
+        url = reverse('zabbix-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('zabbix-list')
+        return reverse('zabbix-list')
 
 
 class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -42,7 +42,7 @@ class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None):
         if spl is None:
             spl = ZabbixServiceProjectLinkFactory()
-        return 'http://testserver' + reverse('zabbix-spl-detail', kwargs={'pk': spl.pk})
+        return reverse('zabbix-spl-detail', kwargs={'pk': spl.pk})
 
 
 class HostFactory(factory.DjangoModelFactory):
@@ -55,13 +55,13 @@ class HostFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('zabbix-host-list')
+        return reverse('zabbix-host-list')
 
     @classmethod
     def get_url(cls, host=None, action=None):
         if host is None:
             host = HostFactory()
-        url = 'http://testserver' + reverse('zabbix-host-detail', kwargs={'uuid': host.uuid.hex})
+        url = reverse('zabbix-host-detail', kwargs={'uuid': host.uuid.hex})
         return url if action is None else url + action + '/'
 
 
@@ -78,7 +78,7 @@ class ITServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ITServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid.hex})
+        url = reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -98,5 +98,5 @@ class TemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, template=None, action=None):
         if template is None:
             template = TemplateFactory()
-        url = 'http://testserver' + reverse('zabbix-template-detail', kwargs={'uuid': template.uuid.hex})
+        url = reverse('zabbix-template-detail', kwargs={'uuid': template.uuid.hex})
         return url if action is None else url + action + '/'

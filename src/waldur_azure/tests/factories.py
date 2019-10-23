@@ -30,12 +30,12 @@ class AzureServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = AzureServiceFactory()
-        url = 'http://testserver' + reverse('azure-detail', kwargs={'uuid': service.uuid.hex})
+        url = reverse('azure-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-list')
+        return reverse('azure-list')
 
 
 class AzureServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -49,12 +49,12 @@ class AzureServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = AzureServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('azure-spl-detail', kwargs={'pk': spl.pk})
+        url = reverse('azure-spl-detail', kwargs={'pk': spl.pk})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-spl-list')
+        return reverse('azure-spl-list')
 
 
 class LocationFactory(factory.DjangoModelFactory):
@@ -69,12 +69,12 @@ class LocationFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = LocationFactory()
-        url = 'http://testserver' + reverse('azure-location-detail', kwargs={'uuid': spl.uuid.hex})
+        url = reverse('azure-location-detail', kwargs={'uuid': spl.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-location-list')
+        return reverse('azure-location-list')
 
 
 class SizeFactory(factory.DjangoModelFactory):
@@ -95,12 +95,12 @@ class SizeFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = SizeFactory()
-        url = 'http://testserver' + reverse('azure-size-detail', kwargs={'uuid': spl.uuid.hex})
+        url = reverse('azure-size-detail', kwargs={'uuid': spl.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-size-list')
+        return reverse('azure-size-list')
 
 
 class ImageFactory(factory.DjangoModelFactory):
@@ -119,12 +119,12 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = ImageFactory()
-        url = 'http://testserver' + reverse('azure-image-detail', kwargs={'uuid': spl.uuid.hex})
+        url = reverse('azure-image-detail', kwargs={'uuid': spl.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-image-list')
+        return reverse('azure-image-list')
 
 
 class ResourceGroupFactory(factory.DjangoModelFactory):
@@ -206,12 +206,12 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('azure-virtualmachine-detail', kwargs={'uuid': instance.uuid.hex})
+        url = reverse('azure-virtualmachine-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-virtualmachine-list')
+        return reverse('azure-virtualmachine-list')
 
 
 class SQLServerFactory(factory.DjangoModelFactory):
@@ -228,9 +228,9 @@ class SQLServerFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('azure-sql-server-detail', kwargs={'uuid': instance.uuid.hex})
+        url = reverse('azure-sql-server-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('azure-sql-server-list')
+        return reverse('azure-sql-server-list')

@@ -21,12 +21,12 @@ class PythonManagementFactory(factory.DjangoModelFactory):
         if python_management is None:
             python_management = PythonManagementFactory()
 
-        url = 'http://testserver' + reverse(core_utils.get_detail_view_name(models.PythonManagement), kwargs={'uuid': python_management.uuid.hex})
+        url = reverse(core_utils.get_detail_view_name(models.PythonManagement), kwargs={'uuid': python_management.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse(core_utils.get_list_view_name(models.PythonManagement))
+        return reverse(core_utils.get_list_view_name(models.PythonManagement))
 
 
 class PythonManagementInitializeRequestFactory(factory.DjangoModelFactory):

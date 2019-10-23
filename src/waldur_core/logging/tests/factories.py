@@ -31,7 +31,7 @@ class EventFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('event-list')
+        return reverse('event-list')
 
 
 class WebHookFactory(factory.DjangoModelFactory):
@@ -43,13 +43,13 @@ class WebHookFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('webhook-list')
+        return reverse('webhook-list')
 
     @classmethod
     def get_url(cls, hook=None):
         if hook is None:
             hook = WebHookFactory()
-        return 'http://testserver' + reverse('webhook-detail', kwargs={'uuid': hook.uuid.hex})
+        return reverse('webhook-detail', kwargs={'uuid': hook.uuid.hex})
 
 
 class PushHookFactory(factory.DjangoModelFactory):
@@ -62,13 +62,13 @@ class PushHookFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('pushhook-list')
+        return reverse('pushhook-list')
 
     @classmethod
     def get_url(cls, hook=None):
         if hook is None:
             hook = PushHookFactory()
-        return 'http://testserver' + reverse('pushhook-detail', kwargs={'uuid': hook.uuid.hex})
+        return reverse('pushhook-detail', kwargs={'uuid': hook.uuid.hex})
 
 
 class SystemNotificationFactory(factory.DjangoModelFactory):

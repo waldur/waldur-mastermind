@@ -82,7 +82,7 @@ class ProjectPermissionBaseTest(test.APITransactionTestCase):
             role=self.role_map[role],
             project=self.projects[project],
         )
-        return 'http://testserver' + reverse('project_permission-detail', kwargs={'pk': permission.pk})
+        return reverse('project_permission-detail', kwargs={'pk': permission.pk})
 
 
 class ProjectPermissionListTest(ProjectPermissionBaseTest):

@@ -28,12 +28,12 @@ class RancherServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = RancherServiceFactory()
-        url = 'http://testserver' + reverse('rancher-detail', kwargs={'uuid': service.uuid.hex})
+        url = reverse('rancher-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('rancher-list')
+        return reverse('rancher-list')
 
 
 class RancherServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -47,12 +47,12 @@ class RancherServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = RancherServiceProjectLinkFactory()
-        url = 'http://testserver' + reverse('rancher-spl-detail', kwargs={'pk': spl.pk})
+        url = reverse('rancher-spl-detail', kwargs={'pk': spl.pk})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('rancher-spl-list')
+        return reverse('rancher-spl-list')
 
 
 class ClusterFactory(factory.DjangoModelFactory):
@@ -66,12 +66,12 @@ class ClusterFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, cluster=None, action=None):
         cluster = cluster or ClusterFactory()
-        url = 'http://testserver' + reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
+        url = reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('rancher-cluster-list')
+        url = reverse('rancher-cluster-list')
         return url if action is None else url + action + '/'
 
 
@@ -81,9 +81,9 @@ class NodeFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_url(cls, node, action=None):
-        url = 'http://testserver' + reverse('rancher-node-detail', kwargs={'uuid': node.uuid.hex})
+        url = reverse('rancher-node-detail', kwargs={'uuid': node.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('rancher-node-list')
+        return reverse('rancher-node-list')

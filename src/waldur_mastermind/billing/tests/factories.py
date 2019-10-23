@@ -1,6 +1,6 @@
+from django.urls import reverse
 import factory
 from factory import fuzzy
-from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -17,14 +17,14 @@ class PriceEstimateFactory(factory.DjangoModelFactory):
     threshold = fuzzy.FuzzyInteger(0, 1000, step=10)
 
     @classmethod
-    def get_list_url(self, action=None):
-        url = 'http://testserver' + reverse('billing-price-estimate-list')
+    def get_list_url(cls, action=None):
+        url = reverse('billing-price-estimate-list')
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_url(self, price_estimate, action=None):
+    def get_url(cls, price_estimate, action=None):
         if price_estimate is None:
             price_estimate = PriceEstimateFactory()
-        url = 'http://testserver' + reverse('billing-price-estimate-detail',
-                                            kwargs={'uuid': price_estimate.uuid.hex})
+        url = reverse('billing-price-estimate-detail',
+                      kwargs={'uuid': price_estimate.uuid.hex})
         return url if action is None else url + action + '/'

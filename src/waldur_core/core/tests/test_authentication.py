@@ -14,7 +14,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
     def setUp(self):
         self.username = 'test'
         self.password = 'secret'
-        self.auth_url = 'http://testserver' + reverse('auth-password')
+        self.auth_url = reverse('auth-password')
         self.test_url = 'http://testserver/api/'
         get_user_model().objects.create_user(self.username, 'admin@example.com', self.password)
 

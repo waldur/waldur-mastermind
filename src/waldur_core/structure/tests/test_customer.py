@@ -15,13 +15,13 @@ from waldur_core.structure.tests import factories, fixtures
 
 class CustomerBaseTest(test.APITransactionTestCase):
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
+        return reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
 
     def _get_project_url(self, project):
-        return 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid.hex})
+        return reverse('project-detail', kwargs={'uuid': project.uuid.hex})
 
     def _get_user_url(self, user):
-        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex})
+        return reverse('user-detail', kwargs={'uuid': user.uuid.hex})
 
 
 @freeze_time('2017-11-01')

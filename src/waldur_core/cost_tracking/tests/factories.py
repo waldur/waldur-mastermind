@@ -18,14 +18,14 @@ class PriceEstimateFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(self, action=None):
-        url = 'http://testserver' + reverse('priceestimate-list')
+        url = reverse('priceestimate-list')
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_url(cls, price_estimate, action=None):
         if price_estimate is None:
             price_estimate = PriceEstimateFactory()
-        url = 'http://testserver' + reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid.hex})
+        url = reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid.hex})
         return url if action is None else url + action + '/'
 
 
@@ -57,13 +57,13 @@ class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('defaultpricelistitem-list')
+        return reverse('defaultpricelistitem-list')
 
     @classmethod
     def get_url(cls, default_price_list_item, action=None):
         if default_price_list_item is None:
             default_price_list_item = DefaultPriceListItemFactory()
-        url = 'http://testserver' + reverse(
+        url = reverse(
             'defaultpricelistitem-detail', kwargs={'uuid': default_price_list_item.uuid.hex})
         return url if action is None else url + action + '/'
 
@@ -77,13 +77,13 @@ class PriceListItemFactory(AbstractPriceListItemFactory):
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('pricelistitem-list')
+        return reverse('pricelistitem-list')
 
     @classmethod
     def get_url(cls, price_list_item, action=None):
         if price_list_item is None:
             price_list_item = PriceListItemFactory()
-        url = 'http://testserver' + reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid.hex})
+        url = reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid.hex})
         return url if action is None else url + action + '/'
 
 

@@ -19,12 +19,12 @@ class SlurmServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = SlurmServiceFactory()
-        url = 'http://testserver' + reverse('slurm-detail', kwargs={'uuid': service.uuid.hex})
+        url = reverse('slurm-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-list')
+        return reverse('slurm-list')
 
 
 class SlurmServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -38,7 +38,7 @@ class SlurmServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, link=None):
         if link is None:
             link = SlurmServiceProjectLinkFactory()
-        return 'http://testserver' + reverse('slurm-spl-detail', kwargs={'pk': link.id})
+        return reverse('slurm-spl-detail', kwargs={'pk': link.id})
 
 
 class AllocationFactory(factory.DjangoModelFactory):
@@ -59,12 +59,12 @@ class AllocationFactory(factory.DjangoModelFactory):
     def get_url(cls, allocation=None, action=None):
         if allocation is None:
             allocation = AllocationFactory()
-        url = 'http://testserver' + reverse('slurm-allocation-detail', kwargs={'uuid': allocation.uuid.hex})
+        url = reverse('slurm-allocation-detail', kwargs={'uuid': allocation.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-allocation-list')
+        return reverse('slurm-allocation-list')
 
 
 class AllocationUsageFactory(factory.DjangoModelFactory):
@@ -86,10 +86,10 @@ class AllocationUsageFactory(factory.DjangoModelFactory):
     def get_url(cls, allocation_usage=None):
         if allocation_usage is None:
             allocation_usage = AllocationUsageFactory()
-        return 'http://testserver' + reverse('slurm-allocation-usage-detail', kwargs={
+        return reverse('slurm-allocation-usage-detail', kwargs={
             'uuid': allocation_usage.uuid.hex
         })
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-allocation-usage-list')
+        return reverse('slurm-allocation-usage-list')

@@ -36,12 +36,12 @@ class JupyterHubManagementFactory(factory.DjangoModelFactory):
         if jupyter_hub_management is None:
             jupyter_hub_management = JupyterHubManagementFactory()
 
-        url = 'http://testserver' + reverse(core_utils.get_detail_view_name(models.JupyterHubManagement), kwargs={'uuid': jupyter_hub_management.uuid.hex})
+        url = reverse(core_utils.get_detail_view_name(models.JupyterHubManagement), kwargs={'uuid': jupyter_hub_management.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse(core_utils.get_list_view_name(models.JupyterHubManagement))
+        return reverse(core_utils.get_list_view_name(models.JupyterHubManagement))
 
 
 class JupyterHubManagementSyncConfigurationRequestFactory(factory.DjangoModelFactory):

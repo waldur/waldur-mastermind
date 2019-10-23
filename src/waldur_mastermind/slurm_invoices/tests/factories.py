@@ -25,9 +25,9 @@ class SlurmPackageFactory(factory.DjangoModelFactory):
     def get_url(cls, package=None, action=None):
         if package is None:
             package = SlurmPackageFactory()
-        url = 'http://testserver' + reverse('slurm-package-detail', kwargs={'uuid': package.uuid.hex})
+        url = reverse('slurm-package-detail', kwargs={'uuid': package.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-package-list')
+        return reverse('slurm-package-list')
