@@ -2,12 +2,12 @@ from waldur_ansible.python_management import models
 from waldur_core.core import models as core_models
 
 
-class NullErrorHandler(object):
+class NullErrorHandler:
     def handle_error(self, request, lines_post_processor):
         pass
 
 
-class DeleteRequestErrorHandler(object):
+class DeleteRequestErrorHandler:
     def handle_error(self, request, lines_post_processor):
         if not request.python_management.instance or self.exists_failed_initialization_request(request.python_management):
             request.python_management.delete()

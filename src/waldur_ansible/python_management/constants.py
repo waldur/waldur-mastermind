@@ -1,4 +1,4 @@
-class PythonManagementConstants(object):
+class PythonManagementConstants:
     INSTALL_PYTHON_ENVIRONMENT = 'install_python_environment'
     SYNCHRONIZE_PACKAGES = 'synchronize_packages'
     FIND_INSTALLED_LIBRARIES_FOR_VIRTUAL_ENVIRONMENT = 'find_installed_libraries_for_virtual_environment'

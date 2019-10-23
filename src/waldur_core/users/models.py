@@ -11,10 +11,10 @@ class Invitation(core_models.UuidMixin,
                  TimeStampedModel,
                  core_models.ErrorMessageMixin,
                  core_models.UserDetailsMixin):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class State(object):
+    class State:
         REQUESTED = 'requested'
         REJECTED = 'rejected'
         PENDING = 'pending'

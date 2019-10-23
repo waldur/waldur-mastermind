@@ -9,7 +9,7 @@ from waldur_core.structure.tests import factories as structure_factories
 
 
 class JupyterHubOAuthConfigFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubOAuthConfig
 
     type = factory.Sequence(lambda n: n)
@@ -21,7 +21,7 @@ class JupyterHubOAuthConfigFactory(factory.DjangoModelFactory):
 
 
 class JupyterHubManagementFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubManagement
 
     user = factory.SubFactory(structure_factories.UserFactory)
@@ -45,7 +45,7 @@ class JupyterHubManagementFactory(factory.DjangoModelFactory):
 
 
 class JupyterHubManagementSyncConfigurationRequestFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubManagementSyncConfigurationRequest
 
     jupyter_hub_management = factory.SubFactory(JupyterHubManagementFactory)
@@ -53,7 +53,7 @@ class JupyterHubManagementSyncConfigurationRequestFactory(factory.DjangoModelFac
 
 
 class JupyterHubManagementMakeVirtualEnvironmentGlobalRequestFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubManagementMakeVirtualEnvironmentGlobalRequest
 
     jupyter_hub_management = factory.SubFactory(JupyterHubManagementFactory)
@@ -63,7 +63,7 @@ class JupyterHubManagementMakeVirtualEnvironmentGlobalRequestFactory(factory.Dja
 
 
 class JupyterHubManagementDeleteRequestFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubManagementDeleteRequest
 
     jupyter_hub_management = factory.SubFactory(JupyterHubManagementFactory)
@@ -71,7 +71,7 @@ class JupyterHubManagementDeleteRequestFactory(factory.DjangoModelFactory):
 
 
 class JupyterHubManagementMakeVirtualEnvironmentLocalRequestFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubManagementMakeVirtualEnvironmentLocalRequest
 
     jupyter_hub_management = factory.SubFactory(JupyterHubManagementFactory)
@@ -80,7 +80,7 @@ class JupyterHubManagementMakeVirtualEnvironmentLocalRequestFactory(factory.Djan
 
 
 class JupyterHubUserFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubUser
 
     username = factory.Sequence(lambda n: 'username%s' % n)

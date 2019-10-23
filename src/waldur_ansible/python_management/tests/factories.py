@@ -8,7 +8,7 @@ from waldur_core.structure.tests import factories as structure_factories
 
 
 class PythonManagementFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PythonManagement
 
     user = factory.SubFactory(structure_factories.UserFactory)
@@ -30,7 +30,7 @@ class PythonManagementFactory(factory.DjangoModelFactory):
 
 
 class PythonManagementInitializeRequestFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PythonManagementInitializeRequest
 
     python_management = factory.SubFactory(PythonManagementFactory)
@@ -38,7 +38,7 @@ class PythonManagementInitializeRequestFactory(factory.DjangoModelFactory):
 
 
 class PythonManagementSynchronizeRequestFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PythonManagementSynchronizeRequest
 
     python_management = factory.SubFactory(PythonManagementFactory)
@@ -50,7 +50,7 @@ class PythonManagementSynchronizeRequestFactory(factory.DjangoModelFactory):
 
 
 class VirtualEnvironmentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VirtualEnvironment
 
     name = factory.Sequence(lambda n: 'name%s' % n)
@@ -58,7 +58,7 @@ class VirtualEnvironmentFactory(factory.DjangoModelFactory):
 
 
 class InstalledLibraryFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InstalledLibrary
 
     virtual_environment = factory.SubFactory(VirtualEnvironmentFactory)

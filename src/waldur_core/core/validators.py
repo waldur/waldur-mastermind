@@ -43,7 +43,7 @@ def validate_name(value):
         raise ValidationError(_('Ensure that name has at least one non-whitespace character.'))
 
 
-class StateValidator(object):
+class StateValidator:
 
     def __init__(self, *valid_states):
         self.valid_states = valid_states
@@ -87,7 +87,7 @@ def validate_cidr_list(value):
 
 
 @deconstructible
-class BlacklistValidator(object):
+class BlacklistValidator:
     message = _('This value is blacklisted.')
     code = 'blacklist'
     blacklist = ()

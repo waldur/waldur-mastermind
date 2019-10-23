@@ -4,7 +4,7 @@ import operator
 from waldur_core.core import models, utils, tasks
 
 
-class BaseExecutor(object):
+class BaseExecutor:
     """ Base class for describing logical operation with backend.
 
     Executor describes celery signature or primitive of low-level tasks that
@@ -89,7 +89,7 @@ class ExecutorException(Exception):
     pass
 
 
-class ErrorExecutorMixin(object):
+class ErrorExecutorMixin:
     """ Set object as erred on fail. """
 
     @classmethod
@@ -97,7 +97,7 @@ class ErrorExecutorMixin(object):
         return tasks.ErrorStateTransitionTask().s(serialized_instance)
 
 
-class SuccessExecutorMixin(object):
+class SuccessExecutorMixin:
     """ Set object as OK on success, cleanup action and its details. """
 
     @classmethod
@@ -106,7 +106,7 @@ class SuccessExecutorMixin(object):
             serialized_instance, state_transition='set_ok', action='', action_details={})
 
 
-class DeleteExecutorMixin(object):
+class DeleteExecutorMixin:
     """ Delete object on success or if force flag is enabled """
 
     @classmethod

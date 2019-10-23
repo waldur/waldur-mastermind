@@ -15,14 +15,14 @@ class PayPalError(Exception):
     pass
 
 
-class PaypalPayment(object):
+class PaypalPayment:
     def __init__(self, payment_id, approval_url, token):
         self.payment_id = payment_id
         self.approval_url = approval_url
         self.token = token
 
 
-class PaypalBackend(object):
+class PaypalBackend:
 
     BACKEND_SERVERS_MAP = {
         'sandbox': 'https://www.sandbox.paypal.com',

@@ -30,7 +30,7 @@ class Issue(core_models.UuidMixin,
     class Meta:
         ordering = ['-created']
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
         project_path = 'project'
 
@@ -116,7 +116,7 @@ class Priority(core_models.NameMixin,
                core_models.UiDescribableMixin):
     backend_id = models.CharField(max_length=255, blank=True)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Priority')
         verbose_name_plural = _('Priorities')
 
@@ -155,7 +155,7 @@ class Comment(core_models.UuidMixin,
         ordering = ['-created']
         unique_together = ('backend_id', 'issue')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
@@ -213,11 +213,11 @@ class Offering(core_models.UuidMixin,
         verbose_name = _('Request')
         verbose_name_plural = _('Requests')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
-    class States(object):
+    class States:
         REQUESTED = 'requested'
         OK = 'ok'
         TERMINATED = 'terminated'
@@ -310,7 +310,7 @@ class Attachment(core_models.UuidMixin,
                  TimeStampedModel,
                  structure_models.StructureLoggableMixin,
                  core_models.StateMixin):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
@@ -338,7 +338,7 @@ class Template(core_models.UuidMixin,
                core_models.NameMixin,
                TimeStampedModel):
 
-    class IssueTypes(object):
+    class IssueTypes:
         INFORMATIONAL = 'INFORMATIONAL'
         SERVICE_REQUEST = 'SERVICE_REQUEST'
         CHANGE_REQUEST = 'CHANGE_REQUEST'
@@ -407,7 +407,7 @@ class IssueStatus(models.Model):
         The field of resolution does not give an exact answer since may be the same in both cases.
     """
 
-    class Types(object):
+    class Types:
         RESOLVED = 0
         CANCELED = 1
 

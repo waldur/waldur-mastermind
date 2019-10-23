@@ -13,7 +13,7 @@ def can_access_admin_site(user):
     return user.is_active and (user.is_staff or user.is_support)
 
 
-class AuthenticationBackend(object):
+class AuthenticationBackend:
     """
     Enables only support and staff to access admin site.
     """

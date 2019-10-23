@@ -35,7 +35,7 @@ class ServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class ServiceFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.RijkscloudService
 
     settings = factory.SubFactory(ServiceSettingsFactory)
@@ -43,7 +43,7 @@ class ServiceFactory(UrlModelFactory):
 
 
 class ServiceProjectLinkFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.RijkscloudServiceProjectLink
 
     service = factory.SubFactory(ServiceFactory)
@@ -51,7 +51,7 @@ class ServiceProjectLinkFactory(UrlModelFactory):
 
 
 class FlavorFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Flavor
 
     name = factory.Sequence(lambda n: 'flavor%s' % n)
@@ -64,7 +64,7 @@ class FlavorFactory(UrlModelFactory):
 
 
 class VolumeFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Volume
 
     name = factory.Sequence(lambda n: 'volume%s' % n)
@@ -74,7 +74,7 @@ class VolumeFactory(UrlModelFactory):
 
 
 class FloatingIPFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.FloatingIP
 
     name = factory.Sequence(lambda n: 'floating_ip%s' % n)
@@ -84,7 +84,7 @@ class FloatingIPFactory(UrlModelFactory):
 
 
 class NetworkFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Network
 
     name = factory.Sequence(lambda n: 'network_%s' % n)
@@ -92,7 +92,7 @@ class NetworkFactory(UrlModelFactory):
 
 
 class SubNetFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SubNet
 
     name = factory.Sequence(lambda n: 'subnet%s' % n)
@@ -103,7 +103,7 @@ class SubNetFactory(UrlModelFactory):
 
 
 class InternalIPFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InternalIP
 
     name = factory.Sequence(lambda n: 'internal_ip%s' % n)
@@ -114,7 +114,7 @@ class InternalIPFactory(UrlModelFactory):
 
 
 class InstanceFactory(UrlModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Instance
 
     name = factory.Sequence(lambda n: 'vm_%s' % n)

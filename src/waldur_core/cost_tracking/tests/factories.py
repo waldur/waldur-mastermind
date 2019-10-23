@@ -8,7 +8,7 @@ from waldur_core.structure.tests import models as test_models
 
 
 class PriceEstimateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PriceEstimate
 
     scope = factory.SubFactory(structure_factories.ProjectFactory)
@@ -37,7 +37,7 @@ class ConsumptionDetailsFactory(factory.DjangoModelFactory):
 
 
 class AbstractPriceListItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AbstractPriceListItem
         abstract = True
 
@@ -46,7 +46,7 @@ class AbstractPriceListItemFactory(factory.DjangoModelFactory):
 
 
 class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
-    class Meta(object):
+    class Meta:
         model = models.DefaultPriceListItem
 
     resource_content_type = factory.LazyAttribute(
@@ -69,7 +69,7 @@ class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
 
 
 class PriceListItemFactory(AbstractPriceListItemFactory):
-    class Meta(object):
+    class Meta:
         model = models.PriceListItem
 
     service = factory.SubFactory(structure_factories.TestServiceFactory)
@@ -90,7 +90,7 @@ class PriceListItemFactory(AbstractPriceListItemFactory):
 class TestNewInstanceCostTrackingStrategy(CostTrackingStrategy):
     resource_class = test_models.TestNewInstance
 
-    class Types(object):
+    class Types:
         STORAGE = 'storage'
         RAM = 'ram'
         CORES = 'cores'

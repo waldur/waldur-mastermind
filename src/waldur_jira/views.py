@@ -23,7 +23,7 @@ class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSe
     serializer_class = serializers.ServiceProjectLinkSerializer
 
 
-class JiraPermissionMixin(object):
+class JiraPermissionMixin:
     def get_queryset(self):
         user = self.request.user
         queryset = super(JiraPermissionMixin, self).get_queryset()

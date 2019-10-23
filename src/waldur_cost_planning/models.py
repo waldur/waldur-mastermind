@@ -27,7 +27,7 @@ class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedMo
     """
     Deployment plan contains list of plan items.
     """
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
@@ -84,7 +84,7 @@ class DeploymentPlanItem(models.Model):
 
 
 class Category(core_models.NameMixin):
-    class Meta(object):
+    class Meta:
         verbose_name_plural = 'Categories'
 
     def __str__(self):

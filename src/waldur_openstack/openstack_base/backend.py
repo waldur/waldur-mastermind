@@ -97,7 +97,7 @@ class OpenStackSession(dict):
         return str({k: v if k != 'password' else '***' for k, v in self.items()})
 
 
-class OpenStackClient(object):
+class OpenStackClient:
     """ Generic OpenStack client. """
 
     def __init__(self, session=None, verify_ssl=False, **credentials):

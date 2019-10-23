@@ -26,6 +26,6 @@ class AllocationUsageFilter(django_filters.FilterSet):
     allocation = core_filters.URLFilter(view_name='slurm-allocation-detail', field_name='allocation__uuid')
     allocation_uuid = django_filters.UUIDFilter(field_name='allocation__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.AllocationUsage
         fields = ('year', 'month')

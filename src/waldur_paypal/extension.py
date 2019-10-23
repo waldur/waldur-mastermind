@@ -5,7 +5,7 @@ from waldur_core.core import WaldurExtension
 
 class PayPalExtension(WaldurExtension):
 
-    class Settings(object):
+    class Settings:
         WALDUR_PAYPAL = {
             'ENABLED': False,
             'BACKEND': {

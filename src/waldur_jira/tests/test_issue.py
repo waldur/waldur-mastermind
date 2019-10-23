@@ -112,7 +112,7 @@ class IssueCreateBaseTest(BaseTest):
         self.jira_mock = self.jira_patcher.start()
         self.create_issue = self.jira_mock().create_issue
 
-        class Object(object):
+        class Object:
             pass
 
         mock_priority = Object()

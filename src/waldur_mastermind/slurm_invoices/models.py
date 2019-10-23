@@ -14,11 +14,11 @@ class SlurmPackage(common_mixins.ProductCodeMixin,
                    core_models.NameMixin,
                    models.Model):
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('SLURM package')
         verbose_name_plural = _('SLURM packages')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'service_settings__customer'
 
     PRICE_MAX_DIGITS = 14

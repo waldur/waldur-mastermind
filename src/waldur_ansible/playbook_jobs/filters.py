@@ -10,7 +10,7 @@ class AnsibleJobsFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(view_name='project-detail', field_name='service_project_link__project__uuid')
     project_uuid = django_filters.UUIDFilter(field_name='service_project_link__project__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Job
         fields = ['state']
         o = django_filters.OrderingFilter(fields=(

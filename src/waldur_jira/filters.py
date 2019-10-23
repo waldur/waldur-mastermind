@@ -56,7 +56,7 @@ class IssueFilter(django_filters.FilterSet):
         else:
             return queryset.filter(resolution_sla__gte=0)
 
-    class Meta(object):
+    class Meta:
         model = models.Issue
         fields = [
             'description',
@@ -82,7 +82,7 @@ class CommentFilter(django_filters.FilterSet):
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Comment
         fields = []
 
@@ -91,6 +91,6 @@ class AttachmentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(view_name='jira-issues-detail', field_name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Attachment
         fields = []

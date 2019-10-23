@@ -35,7 +35,7 @@ def getdoc(obj, warning=True):
     return doc
 
 
-class ApiDocs(object):
+class ApiDocs:
     """ Generate RST docs for DRF endpoints from docstrings:
         - AppConfig class docstring may contain general info about an app,
           `verbose_name` in the config delivers human friendly title;
@@ -195,7 +195,7 @@ class ApiDocs(object):
         file.write('\n'.join(['\t' + s for s in docstring.split('\n')]) + '\n')
 
 
-class ApiEndpoint(object):
+class ApiEndpoint:
     FIELDS = {
         # filter
         'BooleanFilter': 'boolean',

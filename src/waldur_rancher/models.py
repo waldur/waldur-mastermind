@@ -56,7 +56,7 @@ class Cluster(NewResource):
     node_command = models.CharField(max_length=1024, blank=True,
                                     help_text='Rancher generated node installation command base.')
 
-    class Meta(object):
+    class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
 
     @classmethod
@@ -89,10 +89,10 @@ class Node(TimeStampedModel, UuidMixin):
 
         return self.cluster.node_command + ' ' + ' '.join(roles_command)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('content_type', 'object_id')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'cluster__service_project_link__project__customer'
         project_path = 'cluster__service_project_link__project'
         service_path = 'cluster__service_project_link__service'

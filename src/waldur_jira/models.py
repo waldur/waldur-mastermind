@@ -73,11 +73,11 @@ class JiraPropertyIssue(core_models.UuidMixin, core_models.StateMixin, TimeStamp
     user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, null=True)
     backend_id = models.CharField(max_length=255, null=True)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__service_project_link__project__customer'
         project_path = 'project__service_project_link__project'
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
@@ -152,7 +152,7 @@ class Issue(structure_models.StructureLoggableMixin,
 
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         unique_together = ('project', 'backend_id')
 
     def get_backend(self):
@@ -194,11 +194,11 @@ class Issue(structure_models.StructureLoggableMixin,
 
 class JiraSubPropertyIssue(JiraPropertyIssue):
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'issue__project__service_project_link__project__customer'
         project_path = 'issue__project__service_project_link__project'
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
@@ -207,7 +207,7 @@ class Comment(structure_models.StructureLoggableMixin,
     issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='comments')
     message = models.TextField(blank=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('issue', 'backend_id')
 
     def get_backend(self):
@@ -263,7 +263,7 @@ class Attachment(JiraSubPropertyIssue):
     file = models.FileField(upload_to='jira_attachments')
     thumbnail = models.FileField(upload_to='jira_attachments_thumbnails', blank=True, null=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('issue', 'backend_id')
 
     def get_backend(self):

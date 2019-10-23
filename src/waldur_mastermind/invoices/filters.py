@@ -10,6 +10,6 @@ class InvoiceFilter(django_filters.FilterSet):
     state = django_filters.MultipleChoiceFilter(choices=models.Invoice.States.CHOICES)
     o = django_filters.OrderingFilter(fields=(('year', 'month'),))
 
-    class Meta(object):
+    class Meta:
         model = models.Invoice
         fields = ('year', 'month')

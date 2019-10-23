@@ -4,7 +4,7 @@ import docker
 import requests
 
 
-class DockerImage(object):
+class DockerImage:
     def __init__(self, image_name, image_dir_name, base_image_download_url, base_image_file_name, base_image_file_extension):
         self.image_name = image_name
         self.image_dir_name = image_dir_name

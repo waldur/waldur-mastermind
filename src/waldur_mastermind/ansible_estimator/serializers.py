@@ -28,7 +28,7 @@ class JobEstimateSerializer(PermissionFieldFilteringMixin,
     )
     arguments = serializers.JSONField(default=dict)
 
-    class Meta(object):
+    class Meta:
         model = models.Job
         fields = ('ssh_public_key', 'service_project_link', 'playbook', 'arguments')
 

@@ -15,13 +15,13 @@ class BaseHookFilter(django_filters.FilterSet):
 
 
 class WebHookFilter(BaseHookFilter):
-    class Meta(object):
+    class Meta:
         model = models.WebHook
         fields = ('destination_url', 'content_type')
 
 
 class EmailHookFilter(BaseHookFilter):
-    class Meta(object):
+    class Meta:
         model = models.EmailHook
         fields = ('email',)
 
@@ -42,7 +42,7 @@ class HookSummaryFilterBackend(core_filters.SummaryFilter):
 
 
 class PushHookFilter(BaseHookFilter):
-    class Meta(object):
+    class Meta:
         model = models.PushHook
         fields = ('type', 'device_id', 'device_manufacturer', 'device_model', 'token')
 

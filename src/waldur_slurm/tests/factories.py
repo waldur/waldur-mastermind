@@ -9,7 +9,7 @@ from .. import models
 
 
 class SlurmServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SlurmService
 
     settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type='SLURM')
@@ -28,7 +28,7 @@ class SlurmServiceFactory(factory.DjangoModelFactory):
 
 
 class SlurmServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SlurmServiceProjectLink
 
     service = factory.SubFactory(SlurmServiceFactory)
@@ -42,7 +42,7 @@ class SlurmServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class AllocationFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Allocation
 
     name = factory.Sequence(lambda n: 'allocation%s' % n)
@@ -68,7 +68,7 @@ class AllocationFactory(factory.DjangoModelFactory):
 
 
 class AllocationUsageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AllocationUsage
 
     username = factory.Sequence(lambda n: 'john%s' % n)

@@ -71,7 +71,7 @@ class FieldsContainerMeta(type):
         return type.__new__(self, name, bases, attrs)
 
 
-class QuotaField(object):
+class QuotaField:
     """ Base quota field.
 
     Links quota to its scope right after its creation.

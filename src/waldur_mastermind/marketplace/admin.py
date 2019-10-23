@@ -75,7 +75,7 @@ class PlansInline(admin.StackedInline):
               'product_code', 'article_code', 'archived', 'max_amount')
 
 
-class ConnectedResourceMixin(object):
+class ConnectedResourceMixin:
     """
     Protects object from modification if there are connected resources.
     """
@@ -95,7 +95,7 @@ class ConnectedResourceMixin(object):
         return True
 
 
-class ParentInlineMixin(object):
+class ParentInlineMixin:
     def get_parent_object_from_request(self, request):
         """
         Returns the parent object from the request or None.

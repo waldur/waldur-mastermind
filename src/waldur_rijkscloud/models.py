@@ -137,7 +137,7 @@ class SubNet(structure_models.ServiceProperty):
     allocation_pools = JSONField()
     dns_nameservers = JSONField(help_text=_('List of DNS name servers associated with the subnet.'))
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Subnet')
         verbose_name_plural = _('Subnets')
         unique_together = ('settings', 'backend_id')

@@ -7,7 +7,7 @@ from .. import models
 
 
 class ProfileFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Profile
 
     username = factory.Sequence(lambda n: 'john%s' % n)

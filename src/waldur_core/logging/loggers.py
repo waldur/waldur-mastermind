@@ -25,7 +25,7 @@ class EventLoggerError(AttributeError):
     pass
 
 
-class BaseLogger(object):
+class BaseLogger:
     def __init__(self, logger_name=__name__):
         self._meta = getattr(self, 'Meta', None)
         self.supported_types = self.get_supported_types()
@@ -213,7 +213,7 @@ class EventLogger(BaseLogger):
                     models.Feed.objects.create(scope=scope, event=event)
 
 
-class LoggableMixin(object):
+class LoggableMixin:
     """ Mixin to serialize model in logs.
         Extends django model or custom class with fields extraction method.
     """
@@ -256,7 +256,7 @@ class LoggableMixin(object):
         return cls.objects.none()
 
 
-class BaseLoggerRegistry(object):
+class BaseLoggerRegistry:
 
     def get_loggers(self):
         raise NotImplementedError('Method "get_loggers" is not implemented.')

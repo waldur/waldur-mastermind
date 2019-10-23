@@ -19,7 +19,7 @@ from . import models as playbook_jobs_models
 class PlaybookParameterSerializer(serializers.ModelSerializer):
     name = serializers.RegexField('^[\w]+$')
 
-    class Meta(object):
+    class Meta:
         model = playbook_jobs_models.PlaybookParameter
         fields = ('name', 'description', 'required', 'default')
 
@@ -30,7 +30,7 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
     archive = serializers.FileField(write_only=True)
     parameters = PlaybookParameterSerializer(many=True)
 
-    class Meta(object):
+    class Meta:
         model = playbook_jobs_models.Playbook
         fields = ('url', 'uuid', 'name', 'description', 'archive', 'entrypoint', 'parameters', 'image')
         protected_fields = ('entrypoint', 'parameters', 'archive')
@@ -128,7 +128,7 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
     tag = serializers.SerializerMethodField()
     type = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = playbook_jobs_models.Job
         fields = ('url', 'uuid', 'name', 'description',
                   'service_project_link', 'service', 'service_name', 'service_uuid',

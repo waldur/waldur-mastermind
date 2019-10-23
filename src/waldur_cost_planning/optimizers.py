@@ -40,7 +40,7 @@ OptimizedService = namedtuple_with_defaults(
     'OptimizedService', ('service', 'price', 'error_message'), {'error_message': ''})
 
 
-class Strategy(object):
+class Strategy:
     """ Abstract. Defines how get the cheapest services setups for deployment plan. """
 
     def __init__(self, deployment_plan):
@@ -80,7 +80,7 @@ class OptimizationError(Exception):
     pass
 
 
-class Optimizer(object):
+class Optimizer:
     """ Abstract. Descendant should define how to get the cheapest setup for a
         particular service.
     """

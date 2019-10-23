@@ -9,13 +9,13 @@ from waldur_core.structure import models as structure_models
 class OutputMixin(models.Model):
     output = models.TextField(blank=True)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class UuidStrMixin(core_models.UuidMixin):
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def __str__(self):
@@ -23,7 +23,7 @@ class UuidStrMixin(core_models.UuidMixin):
 
 
 class ApplicationModel(structure_models.StructureModel):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     @classmethod

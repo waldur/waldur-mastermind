@@ -4,7 +4,7 @@ from collections import namedtuple
 LibraryDs = namedtuple('LibraryDs', ['name', 'version'])
 
 
-class InstalledLibrariesOutputLinesPostProcessor(object):
+class InstalledLibrariesOutputLinesPostProcessor:
     INSTALLED_LIBRARIES_AFTER_MODIFICATIONS_TASK = 'Final list of all installed libraries in the venv'
 
     def __init__(self):
@@ -31,7 +31,7 @@ class InstalledLibrariesOutputLinesPostProcessor(object):
                 self.stop_line_processing = True
 
 
-class InstalledVirtualEnvironmentsOutputLinesPostProcessor(object):
+class InstalledVirtualEnvironmentsOutputLinesPostProcessor:
     INSTALLED_VIRTUAL_ENVIRONMENTS_TASK = 'list all installed virtual environments'
 
     def __init__(self):
@@ -54,7 +54,7 @@ class InstalledVirtualEnvironmentsOutputLinesPostProcessor(object):
                 self.stop_line_processing = True
 
 
-class InitializationOutputLinesPostProcessor(object):
+class InitializationOutputLinesPostProcessor:
     PYTHON_VERSION_IDENTIFYING_TASK = 'Identify installed python version'
 
     def __init__(self):
@@ -74,6 +74,6 @@ class InitializationOutputLinesPostProcessor(object):
                 self.stop_line_processing = True
 
 
-class NullOutputLinesPostProcessor(object):
+class NullOutputLinesPostProcessor:
     def post_process_line(self, output_line):
         pass

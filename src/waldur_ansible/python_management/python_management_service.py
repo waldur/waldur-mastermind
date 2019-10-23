@@ -8,7 +8,7 @@ from waldur_core.core.models import StateMixin
 from . import models, executors
 
 
-class PythonManagementService(object):
+class PythonManagementService:
     executor = executors.PythonManagementRequestExecutor
 
     @staticmethod

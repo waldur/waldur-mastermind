@@ -14,7 +14,7 @@ class BatchError(Exception):
     pass
 
 
-class BaseBatchClient(object, metaclass=abc.ABCMeta):
+class BaseBatchClient(metaclass=abc.ABCMeta):
 
     def __init__(self, hostname, key_path, username='root', port=22, use_sudo=False):
         self.hostname = hostname

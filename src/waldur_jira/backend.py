@@ -636,7 +636,7 @@ class JiraBackend(ServiceBackend):
         return result['total']
 
 
-class AttachmentSynchronizer(object):
+class AttachmentSynchronizer:
     def __init__(self, backend, current_issue, backend_issue):
         self.backend = backend
         self.current_issue = current_issue
@@ -766,7 +766,7 @@ class AttachmentSynchronizer(object):
         current_attachment.thumbnail.save(backend_attachment.filename, content, save=True)
 
 
-class CommentSynchronizer(object):
+class CommentSynchronizer:
     def __init__(self, backend, current_issue, backend_issue):
         self.backend = backend
         self.current_issue = current_issue

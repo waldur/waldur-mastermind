@@ -78,7 +78,7 @@ class Size(structure_models.ServiceProperty):
 class BaseResource(core_models.RuntimeStateMixin, structure_models.NewResource):
     service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=AzureServiceProjectLink)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
@@ -94,7 +94,7 @@ class ResourceGroup(BaseResource):
 class BaseResourceGroupModel(BaseResource):
     resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 

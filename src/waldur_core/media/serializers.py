@@ -6,7 +6,7 @@ from waldur_core.media.utils import encode_protected_url
 from waldur_core.structure.metadata import merge_dictionaries
 
 
-class ProtectedFileMixin(object):
+class ProtectedFileMixin:
     def to_representation(self, value):
         if not value:
             return None

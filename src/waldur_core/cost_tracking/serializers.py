@@ -22,7 +22,7 @@ class PriceEstimateSerializer(AugmentedSerializerMixin, serializers.HyperlinkedM
         self.Meta.depth = depth
         super(PriceEstimateSerializer, self).__init__(*args, **kwargs)
 
-    class Meta(object):
+    class Meta:
         model = models.PriceEstimate
         fields = ('url', 'uuid', 'scope', 'total', 'consumed', 'month', 'year',
                   'scope_name', 'scope_type', 'resource_type', 'consumption_details', 'children')

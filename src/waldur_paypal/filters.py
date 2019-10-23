@@ -6,7 +6,7 @@ from . import models
 
 
 class PaymentFilter(django_filters.FilterSet):
-    class Meta(object):
+    class Meta:
         model = models.Payment
         fields = ('customer',)
 
@@ -17,7 +17,7 @@ class PaymentFilter(django_filters.FilterSet):
 
 
 class InvoiceFilter(django_filters.FilterSet):
-    class Meta(object):
+    class Meta:
         model = models.Invoice
         fields = ('customer', 'year', 'month')
 

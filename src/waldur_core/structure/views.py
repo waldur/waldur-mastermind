@@ -1693,7 +1693,7 @@ class QuotaTimelineStatsView(views.APIView):
         return ranges
 
 
-class QuotaTimelineCollector(object):
+class QuotaTimelineCollector:
     """
     Helper class for QuotaTimelineStatsView.
     Aggregate quotas grouped by date range and quota name.

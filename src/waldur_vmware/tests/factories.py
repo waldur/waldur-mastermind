@@ -11,7 +11,7 @@ from .. import models
 
 
 class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
 
     type = 'VMware'
@@ -20,7 +20,7 @@ class VMwareServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class VMwareServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VMwareService
 
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
@@ -39,7 +39,7 @@ class VMwareServiceFactory(factory.DjangoModelFactory):
 
 
 class VMwareServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VMwareServiceProjectLink
 
     service = factory.SubFactory(VMwareServiceFactory)
@@ -58,7 +58,7 @@ class VMwareServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class TemplateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Template
 
     created = datetime.datetime.now()
@@ -79,7 +79,7 @@ class TemplateFactory(factory.DjangoModelFactory):
 
 
 class ClusterFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Cluster
 
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
@@ -98,7 +98,7 @@ class ClusterFactory(factory.DjangoModelFactory):
 
 
 class CustomerClusterFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerCluster
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -106,7 +106,7 @@ class CustomerClusterFactory(factory.DjangoModelFactory):
 
 
 class VirtualMachineFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VirtualMachine
 
     name = factory.Sequence(lambda n: 'vm-%s' % n)
@@ -134,7 +134,7 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
 
 
 class DiskFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Disk
 
     name = factory.Sequence(lambda n: 'disk-%s' % n)
@@ -157,7 +157,7 @@ class DiskFactory(factory.DjangoModelFactory):
 
 
 class NetworkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Network
 
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
@@ -177,7 +177,7 @@ class NetworkFactory(factory.DjangoModelFactory):
 
 
 class PortFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Port
 
     name = factory.Sequence(lambda n: 'port-%s' % n)
@@ -198,7 +198,7 @@ class PortFactory(factory.DjangoModelFactory):
 
 
 class CustomerNetworkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerNetwork
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -206,7 +206,7 @@ class CustomerNetworkFactory(factory.DjangoModelFactory):
 
 
 class CustomerNetworkPairFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerNetworkPair
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -214,7 +214,7 @@ class CustomerNetworkPairFactory(factory.DjangoModelFactory):
 
 
 class DatastoreFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Datastore
 
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
@@ -235,7 +235,7 @@ class DatastoreFactory(factory.DjangoModelFactory):
 
 
 class CustomerDatastoreFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerDatastore
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -243,7 +243,7 @@ class CustomerDatastoreFactory(factory.DjangoModelFactory):
 
 
 class FolderFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Folder
 
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
@@ -262,7 +262,7 @@ class FolderFactory(factory.DjangoModelFactory):
 
 
 class CustomerFolderFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerFolder
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)

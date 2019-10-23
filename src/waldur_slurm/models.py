@@ -78,12 +78,12 @@ class Allocation(structure_models.NewResource):
 
 
 class AllocationUsage(models.Model):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'allocation__service_project_link__project__customer'
         project_path = 'allocation__service_project_link__project'
         service_path = 'allocation__service_project_link__service'
 
-    class Meta(object):
+    class Meta:
         ordering = ['allocation']
 
     allocation = models.ForeignKey(on_delete=models.CASCADE, to=Allocation)

@@ -203,7 +203,7 @@ class Tenant(structure_models.PrivateCloud):
 
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         unique_together = ('service_project_link', 'backend_id')
 
     @classmethod
@@ -313,7 +313,7 @@ class CustomerOpenStack(TimeStampedModel):
     customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer)
     external_network_id = models.CharField(_('OpenStack external network ID'), max_length=255)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Organization OpenStack settings')
         verbose_name_plural = _('Organization OpenStack settings')
         unique_together = ('settings', 'customer')

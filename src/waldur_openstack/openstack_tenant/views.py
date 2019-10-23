@@ -16,7 +16,7 @@ from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from . import models, serializers, filters, executors
 
 
-class TelemetryMixin(object):
+class TelemetryMixin:
     """
     This mixin adds /meters endpoint to the resource.
 
@@ -104,7 +104,7 @@ class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkV
     filterset_class = filters.OpenStackTenantServiceProjectLinkFilter
 
 
-class UsageReporter(object):
+class UsageReporter:
     """
     This class implements service for counting number of instances grouped
     by image and flavor name and by instance runtime status.

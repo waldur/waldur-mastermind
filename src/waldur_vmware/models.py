@@ -57,7 +57,7 @@ class VirtualMachine(VirtualMachineMixin,
         on_delete=models.PROTECT
     )
 
-    class RuntimeStates(object):
+    class RuntimeStates:
         POWERED_OFF = 'POWERED_OFF'
         POWERED_ON = 'POWERED_ON'
         SUSPENDED = 'SUSPENDED'
@@ -68,7 +68,7 @@ class VirtualMachine(VirtualMachineMixin,
             (SUSPENDED, 'Suspended'),
         )
 
-    class GuestPowerStates(object):
+    class GuestPowerStates:
         RUNNING = 'RUNNING'
         SHUTTING_DOWN = 'SHUTTING_DOWN'
         RESETTING = 'RESETTING'
@@ -85,7 +85,7 @@ class VirtualMachine(VirtualMachineMixin,
             (UNAVAILABLE, 'Unavailable'),
         )
 
-    class ToolsStates(object):
+    class ToolsStates:
         STARTING = 'STARTING'
         RUNNING = 'RUNNING'
         NOT_RUNNING = 'NOT_RUNNING'
@@ -213,7 +213,7 @@ class CustomerCluster(models.Model):
     def __str__(self):
         return '%s / %s' % (self.customer, self.cluster)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'cluster')
 
 
@@ -236,7 +236,7 @@ class CustomerNetwork(models.Model):
     def __str__(self):
         return '%s / %s' % (self.customer, self.network)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'network')
 
 
@@ -248,7 +248,7 @@ class CustomerNetworkPair(models.Model):
     def __str__(self):
         return '%s / %s' % (self.customer, self.network)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'network')
 
 
@@ -272,7 +272,7 @@ class CustomerDatastore(models.Model):
     def __str__(self):
         return '%s / %s' % (self.customer, self.datastore)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'datastore')
 
 
@@ -293,5 +293,5 @@ class CustomerFolder(models.Model):
     def __str__(self):
         return '%s / %s' % (self.customer, self.folder)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'folder')

@@ -30,6 +30,6 @@ class Saml2LogoutCompleteSerializer(serializers.Serializer):
 
 
 class Saml2ProviderSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.IdentityProvider
         fields = ('name', 'url')

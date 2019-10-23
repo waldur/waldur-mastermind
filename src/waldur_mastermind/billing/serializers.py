@@ -18,7 +18,7 @@ class PriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     scope_name = serializers.ReadOnlyField(source='scope.name')
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.PriceEstimate
         fields = ('url', 'uuid', 'scope', 'scope_name', 'scope_uuid',
                   'limit', 'total', 'threshold')

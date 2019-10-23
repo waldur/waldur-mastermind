@@ -596,7 +596,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         class ParentExecutor(executors.BaseCleanupExecutor):
             pass
 
-        class ParentExtension(object):
+        class ParentExtension:
             @staticmethod
             def get_cleanup_executor():
                 return ParentExecutor
@@ -604,7 +604,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         class ChildExecutor(executors.BaseCleanupExecutor):
             related_executor = ParentExecutor
 
-        class ChildExtension(object):
+        class ChildExtension:
             @staticmethod
             def get_cleanup_executor():
                 return ChildExecutor
@@ -639,7 +639,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         project = fixture.project
         resource = fixture.resource
 
-        class TestExtension(object):
+        class TestExtension:
             @staticmethod
             def get_cleanup_executor():
                 return TestExecutor

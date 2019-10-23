@@ -8,30 +8,30 @@ PYTHON_MANAGEMENT_GLOBAL_LOCK = 'waldur_python_management_global_%s'
 PYTHON_MANAGEMENT_VIRTUAL_ENV_SYNCING_LOCK = 'waldur_python_management_%s_%s'
 
 
-class NullProcessingFinishedLockingHandler(object):
+class NullProcessingFinishedLockingHandler:
     def handle_on_processing_finished(self, request):
         pass
 
 
-class RelatedToVirtualEnvRequestProcessingFinishedLockingHandler(object):
+class RelatedToVirtualEnvRequestProcessingFinishedLockingHandler:
     def handle_on_processing_finished(self, request):
         cache_utils.release_task_status(
             PythonManagementBackendLockBuilder.build_related_to_virt_env_lock(
                 request.python_management, request.virtual_env_name))
 
 
-class GlobalRequestProcessingFinishedLockingHandler(object):
+class GlobalRequestProcessingFinishedLockingHandler:
     def handle_on_processing_finished(self, request):
         cache_utils.release_task_status(
             PythonManagementBackendLockBuilder.build_global_lock(request.python_management))
 
 
-class NullProcessingAllowedDecider(object):
+class NullProcessingAllowedDecider:
     def is_processing_allowed(self, request):
         return True
 
 
-class RelatedToVirtualEnvProcessingAllowedDecider(object):
+class RelatedToVirtualEnvProcessingAllowedDecider:
     def is_processing_allowed(self, request):
         virtual_env_lock = PythonManagementBackendLockBuilder.build_related_to_virt_env_lock(
             request.python_management, request.virtual_env_name)
@@ -39,31 +39,31 @@ class RelatedToVirtualEnvProcessingAllowedDecider(object):
         return not cache_utils.is_syncing(virtual_env_lock) and not cache_utils.is_syncing(global_lock)
 
 
-class GlobalProcessingAllowedDecider(object):
+class GlobalProcessingAllowedDecider:
     def is_processing_allowed(self, request):
         global_lock = PythonManagementBackendLockBuilder.build_global_lock(request.python_management)
         return not cache_utils.is_syncing(global_lock)
 
 
-class NullSynchronizer(object):
+class NullSynchronizer:
     def lock(self, request):
         pass
 
 
-class RelatedToVirtualEnvSynchronizer(object):
+class RelatedToVirtualEnvSynchronizer:
     def lock(self, request):
         virtual_env_lock = PythonManagementBackendLockBuilder.build_related_to_virt_env_lock(
             request.python_management, request.virtual_env_name)
         cache_utils.renew_task_status(virtual_env_lock, settings.WALDUR_ANSIBLE_COMMON['ANSIBLE_REQUEST_TIMEOUT'])
 
 
-class GlobalSynchronizer(object):
+class GlobalSynchronizer:
     def lock(self, request):
         global_lock = PythonManagementBackendLockBuilder.build_global_lock(request.python_management)
         cache_utils.renew_task_status(global_lock, settings.WALDUR_ANSIBLE_COMMON['ANSIBLE_REQUEST_TIMEOUT'])
 
 
-class PythonManagementBackendLockingService(object):
+class PythonManagementBackendLockingService:
 
     @staticmethod
     def lock_for_processing(request):
@@ -81,7 +81,7 @@ class PythonManagementBackendLockingService(object):
         locking_handler.handle_on_processing_finished(request)
 
 
-class PythonManagementBackendLockBuilder(object):
+class PythonManagementBackendLockBuilder:
     # Initialize requests do not need locking - there can be no duplicates of same PythonManagement model
     REQUEST_TYPES_PROCESSING_ALLOWED_DECIDER = {
         models.PythonManagementInitializeRequest: NullProcessingAllowedDecider,

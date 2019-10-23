@@ -12,7 +12,7 @@ from waldur_core.quotas import models as quota_models
 from . import models, utils
 
 
-class GroupSynchronizer(object):
+class GroupSynchronizer:
     """
     This class maps Waldur structure units to FreeIPA groups and memberships.
 
@@ -212,7 +212,7 @@ class GroupSynchronizer(object):
             utils.release_task_status()
 
 
-class FreeIPABackend(object):
+class FreeIPABackend:
     def __init__(self):
         options = settings.WALDUR_FREEIPA
         self._client = python_freeipa.Client(

@@ -40,7 +40,7 @@ class IssueFilter(django_filters.FilterSet):
             ('assignee__name', 'assignee_name'),
         ))
 
-    class Meta(object):
+    class Meta:
         model = models.Issue
         fields = [
             'key',
@@ -50,7 +50,7 @@ class IssueFilter(django_filters.FilterSet):
 
 
 class PriorityFilter(structure_filters.NameFilterSet):
-    class Meta(object):
+    class Meta:
         model = models.Priority
         fields = ('name', 'name_exact')
 
@@ -96,7 +96,7 @@ class CommentFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(fields=('created', 'modified'))
 
-    class Meta(object):
+    class Meta:
         model = models.Comment
         fields = [
             'is_public',
@@ -106,7 +106,7 @@ class CommentFilter(django_filters.FilterSet):
 class SupportUserFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
 
-    class Meta(object):
+    class Meta:
         model = models.SupportUser
         fields = ('name', 'user', 'backend_id')
 
@@ -135,7 +135,7 @@ class OfferingFilter(django_filters.FilterSet):
             return queryset.filter(template__in=value)
         return queryset
 
-    class Meta(object):
+    class Meta:
         model = models.Offering
         fields = ('name', 'description', 'template', 'issue', 'issue_uuid', 'project', 'project_uuid', 'state')
 
@@ -144,6 +144,6 @@ class AttachmentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(view_name='support-issue-detail', field_name='issue__uuid')
     issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Attachment
         fields = ('issue', 'issue_uuid')

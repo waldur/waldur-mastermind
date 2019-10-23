@@ -11,7 +11,7 @@ from waldur_core.core.views import RefreshTokenMixin
 logger = logging.getLogger(__name__)
 
 
-class AnsiblePlaybookBackend(object):
+class AnsiblePlaybookBackend:
     def __init__(self, playbook):
         self.playbook = playbook
 

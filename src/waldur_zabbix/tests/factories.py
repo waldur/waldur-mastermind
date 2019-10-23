@@ -13,7 +13,7 @@ class ServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class ZabbixServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ZabbixService
 
     settings = factory.SubFactory(ServiceSettingsFactory)
@@ -32,7 +32,7 @@ class ZabbixServiceFactory(factory.DjangoModelFactory):
 
 
 class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ZabbixServiceProjectLink
 
     service = factory.SubFactory(ZabbixServiceFactory)
@@ -46,7 +46,7 @@ class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class HostFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Host
 
     service_project_link = factory.SubFactory(ZabbixServiceProjectLinkFactory)
@@ -66,7 +66,7 @@ class HostFactory(factory.DjangoModelFactory):
 
 
 class ITServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ITService
 
     service_project_link = factory.SubFactory(ZabbixServiceProjectLinkFactory)
@@ -87,7 +87,7 @@ class ITServiceFactory(factory.DjangoModelFactory):
 
 
 class TemplateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Template
 
     name = factory.Sequence(lambda n: 'zabbix-template#%s' % n)

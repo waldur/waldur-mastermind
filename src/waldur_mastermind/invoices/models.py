@@ -38,13 +38,13 @@ Units = common_mixins.UnitPriceMixin.Units
 class Invoice(core_models.UuidMixin, models.Model):
     """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'month', 'year')
 
-    class States(object):
+    class States:
         PENDING = 'pending'
         CREATED = 'created'
         PAID = 'paid'
@@ -335,7 +335,7 @@ class ServiceDowntime(models.Model):
             )
 
 
-class InvoiceItemAdjuster(object):
+class InvoiceItemAdjuster:
     def __init__(self, invoice, source, start, unit_price, unit):
         self.invoice = invoice
         self.source = source

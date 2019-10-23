@@ -20,7 +20,7 @@ class InvitationFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(fields=('email', 'state', 'created'))
 
-    class Meta(object):
+    class Meta:
         model = models.Invitation
         fields = [
             'email',

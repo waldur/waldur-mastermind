@@ -12,7 +12,7 @@ from rest_framework.utils.field_mapping import ClassLookupDict
 from waldur_core.core.utils import sort_dict
 
 
-class ActionSerializer(object):
+class ActionSerializer:
     def __init__(self, func, name, request, view, resource):
         self.func = func
         self.name = name

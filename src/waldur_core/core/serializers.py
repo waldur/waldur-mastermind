@@ -44,7 +44,7 @@ class Base64Field(serializers.CharField):
 
 
 class BasicInfoSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         fields = ('url', 'uuid', 'name')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -141,7 +141,7 @@ class GenericRelatedField(Field):
         return obj
 
 
-class AugmentedSerializerMixin(object):
+class AugmentedSerializerMixin:
     """
     This mixin provides several extensions to stock Serializer class:
 
@@ -170,7 +170,7 @@ class AugmentedSerializerMixin(object):
         Example:
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = (
                         'url', 'uuid', 'name',
@@ -185,7 +185,7 @@ class AugmentedSerializerMixin(object):
                                     serializers.HyperlinkedModelSerializer):
                 customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
                 customer_name = serializers.ReadOnlyField(source='customer.name')
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = (
                         'url', 'uuid', 'name',
@@ -197,7 +197,7 @@ class AugmentedSerializerMixin(object):
 
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = (
                         'url', 'uuid', 'name',
@@ -213,7 +213,7 @@ class AugmentedSerializerMixin(object):
         Example:
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = ('url', 'uuid', 'name', 'customer')
                     protected_fields = ('customer',)
@@ -288,7 +288,7 @@ class AugmentedSerializerMixin(object):
         return extra_kwargs
 
 
-class RestrictedSerializerMixin(object):
+class RestrictedSerializerMixin:
     """
     This mixin allows to specify list of fields to be rendered by serializer.
     It expects that request is available in serializer's context.
@@ -308,7 +308,7 @@ class RestrictedSerializerMixin(object):
         return OrderedDict(((key, value) for key, value in fields.items() if key in keys))
 
 
-class RequiredFieldsMixin(object):
+class RequiredFieldsMixin:
     """
     This mixin allows to specify list of required fields.
     It expects list of field names as Meta.required_fields attribute.
@@ -324,7 +324,7 @@ class RequiredFieldsMixin(object):
         return fields
 
 
-class ExtraFieldOptionsMixin(object):
+class ExtraFieldOptionsMixin:
     """
     This mixin allows to specify extra fields metadata.
     It expects dictionary of field name and options as Meta.extra_field_options attribute.

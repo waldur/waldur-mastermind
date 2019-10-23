@@ -15,7 +15,7 @@ class OpenStackServiceSettingsFactory(structure_factories.ServiceSettingsFactory
 
 
 class OpenStackServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackService
 
     settings = factory.SubFactory(OpenStackServiceSettingsFactory)
@@ -34,7 +34,7 @@ class OpenStackServiceFactory(factory.DjangoModelFactory):
 
 
 class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackServiceProjectLink
 
     service = factory.SubFactory(OpenStackServiceFactory)
@@ -53,7 +53,7 @@ class OpenStackServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class FlavorFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Flavor
 
     name = factory.Sequence(lambda n: 'flavor%s' % n)
@@ -77,7 +77,7 @@ class FlavorFactory(factory.DjangoModelFactory):
 
 
 class ImageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
@@ -96,7 +96,7 @@ class ImageFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstack-image-list')
 
 
-class TenantMixin(object):
+class TenantMixin:
     @classmethod
     def _create(cls, model_class, *args, **kwargs):
         """Create an instance of the model, and save it to the database."""
@@ -115,7 +115,7 @@ class TenantMixin(object):
 
 
 class SecurityGroupFactory(TenantMixin, factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SecurityGroup
 
     name = factory.Sequence(lambda n: 'security_group%s' % n)
@@ -136,7 +136,7 @@ class SecurityGroupFactory(TenantMixin, factory.DjangoModelFactory):
 
 
 class SecurityGroupRuleFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SecurityGroupRule
 
     security_group = factory.SubFactory(SecurityGroupFactory)
@@ -147,7 +147,7 @@ class SecurityGroupRuleFactory(factory.DjangoModelFactory):
 
 
 class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.FloatingIP
 
     service_project_link = factory.SubFactory(OpenStackServiceProjectLinkFactory)
@@ -167,7 +167,7 @@ class FloatingIPFactory(TenantMixin, factory.DjangoModelFactory):
 
 
 class TenantFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Tenant
 
     name = factory.Sequence(lambda n: 'tenant%s' % n)
@@ -193,7 +193,7 @@ class TenantFactory(factory.DjangoModelFactory):
 
 
 class NetworkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Network
 
     name = factory.Sequence(lambda n: 'network%s' % n)
@@ -216,7 +216,7 @@ class NetworkFactory(factory.DjangoModelFactory):
 
 
 class SubNetFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SubNet
 
     name = factory.Sequence(lambda n: 'subnet%s' % n)
@@ -241,7 +241,7 @@ class SharedOpenStackServiceSettingsFactory(OpenStackServiceSettingsFactory):
 
 
 class CustomerOpenStackFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerOpenStack
 
     settings = factory.SubFactory(SharedOpenStackServiceSettingsFactory)

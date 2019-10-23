@@ -21,6 +21,6 @@ class ClusterFilter(structure_filters.BaseResourceFilter):
 class NodeFilter(django_filters.FilterSet):
     cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Node
         fields = ('cluster_uuid',)

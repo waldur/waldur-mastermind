@@ -11,7 +11,7 @@ from . import models as test_models
 
 
 class UserFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = django.contrib.auth.get_user_model()
 
     username = factory.Sequence(lambda n: 'john%s' % n)
@@ -52,7 +52,7 @@ class UserFactory(factory.DjangoModelFactory):
 
 
 class SshPublicKeyFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = core_models.SshPublicKey
 
     user = factory.SubFactory(UserFactory)
@@ -77,7 +77,7 @@ class SshPublicKeyFactory(factory.DjangoModelFactory):
 
 
 class CustomerFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Customer
 
     name = factory.Sequence(lambda n: 'Customer%s' % n)
@@ -97,7 +97,7 @@ class CustomerFactory(factory.DjangoModelFactory):
 
 
 class ProjectFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Project
 
     name = factory.Sequence(lambda n: 'Proj%s' % n)
@@ -116,7 +116,7 @@ class ProjectFactory(factory.DjangoModelFactory):
 
 
 class ProjectPermissionFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ProjectPermission
 
     project = factory.SubFactory(ProjectFactory)
@@ -136,7 +136,7 @@ class ProjectPermissionFactory(factory.DjangoModelFactory):
 
 
 class CustomerPermissionFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CustomerPermission
 
     customer = factory.SubFactory(CustomerFactory)
@@ -156,7 +156,7 @@ class CustomerPermissionFactory(factory.DjangoModelFactory):
 
 
 class ServiceSettingsFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ServiceSettings
 
     name = factory.Sequence(lambda n: 'Settings %s' % n)
@@ -177,7 +177,7 @@ class ServiceSettingsFactory(factory.DjangoModelFactory):
 
 
 class TestServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = test_models.TestService
 
     settings = factory.SubFactory(ServiceSettingsFactory)
@@ -196,7 +196,7 @@ class TestServiceFactory(factory.DjangoModelFactory):
 
 
 class TestServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = test_models.TestServiceProjectLink
 
     service = factory.SubFactory(TestServiceFactory)
@@ -215,7 +215,7 @@ class TestServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class TestNewInstanceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = test_models.TestNewInstance
 
     name = factory.Sequence(lambda n: 'instance%s' % n)
@@ -234,7 +234,7 @@ class TestNewInstanceFactory(factory.DjangoModelFactory):
 
 
 class ServiceCertificationFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ServiceCertification
 
     name = factory.Sequence(lambda n: 'certification%s' % n)
@@ -263,7 +263,7 @@ class ServiceCertificationFactory(factory.DjangoModelFactory):
 
 
 class TestSubResourceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = test_models.TestSubResource
 
 
@@ -271,7 +271,7 @@ class TestVolumeFactory(factory.DjangoModelFactory):
     size = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
     service_project_link = factory.SubFactory(TestServiceProjectLinkFactory)
 
-    class Meta(object):
+    class Meta:
         model = test_models.TestVolume
 
 
@@ -279,19 +279,19 @@ class TestSnapshotFactory(factory.DjangoModelFactory):
     size = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
     service_project_link = factory.SubFactory(TestServiceProjectLinkFactory)
 
-    class Meta(object):
+    class Meta:
         model = test_models.TestSnapshot
 
 
 class DivisionTypeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.DivisionType
 
     name = factory.Sequence(lambda n: 'DivisionType_%s' % n)
 
 
 class DivisionFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Division
 
     name = factory.Sequence(lambda n: 'Division_%s' % n)

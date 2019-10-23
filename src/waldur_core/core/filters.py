@@ -55,7 +55,7 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
         return queryset
 
 
-class MappedFilterMixin(object):
+class MappedFilterMixin:
 
     def __init__(self, choice_mappings, **kwargs):
         super(MappedFilterMixin, self).__init__(**kwargs)

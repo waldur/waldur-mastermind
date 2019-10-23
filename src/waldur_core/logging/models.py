@@ -37,7 +37,7 @@ class AlertThresholdMixin(models.Model):
     It is expected that model has scope field.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     threshold = models.FloatField(default=0, validators=[validators.MinValueValidator(0)])
@@ -67,7 +67,7 @@ class EventTypesMixin(models.Model):
     Mixin to add a event_types and event_groups fields.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     event_types = BetterJSONField('List of event types')
@@ -119,7 +119,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
 
 
 class WebHook(BaseHook):
-    class ContentTypeChoices(object):
+    class ContentTypeChoices:
         JSON = 1
         FORM = 2
         CHOICES = ((JSON, 'json'), (FORM, 'form'))
@@ -275,7 +275,7 @@ class SystemNotification(EventTypesMixin, models.Model):
 
 
 class Report(UuidMixin, TimeStampedModel):
-    class States(object):
+    class States:
         PENDING = 'pending'
         DONE = 'done'
         ERRED = 'erred'
@@ -298,7 +298,7 @@ class Event(UuidMixin):
     message = models.TextField()
     context = BetterJSONField(blank=True)
 
-    class Meta(object):
+    class Meta:
         ordering = ('-created',)
 
 

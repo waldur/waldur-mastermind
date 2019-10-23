@@ -312,7 +312,7 @@ class ExtendableQuotaModelMixin(QuotaModelMixin):
             QuotasConfig.register_counter_field_signals(model=cls, counter_field=quota_field)
 
 
-class SharedQuotaMixin(object):
+class SharedQuotaMixin:
     """
     This mixin updates quotas for several scopes.
     """

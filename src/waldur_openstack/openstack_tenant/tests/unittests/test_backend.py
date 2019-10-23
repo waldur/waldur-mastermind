@@ -717,13 +717,13 @@ class PullInstanceTest(BaseBackendTest):
     def setUp(self):
         super(PullInstanceTest, self).setUp()
 
-        class MockFlavor(object):
+        class MockFlavor:
             name = 'flavor_name'
             disk = 102400
             ram = 10240
             vcpus = 1
 
-        class MockInstance(object):
+        class MockInstance:
             name = 'instance_name'
             id = 'instance_id'
             created = '2017-08-10'

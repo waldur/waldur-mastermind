@@ -198,7 +198,7 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         required=True,
     )
 
-    class Meta(object):
+    class Meta:
         model = models.Node
         fields = ('uuid', 'url', 'created', 'modified', 'cluster', 'instance', 'controlplane_role', 'etcd_role',
                   'worker_role', 'get_node_command')

@@ -32,7 +32,7 @@ class UnknownStatusError(ResponseParseError):
     pass
 
 
-class Response(object):
+class Response:
     ns_namespace = 'http://uri.etsi.org/TS102204/v1.1.2#'
 
     def __init__(self, content):
@@ -44,7 +44,7 @@ class Response(object):
         raise NotImplementedError
 
 
-class Request(object):
+class Request:
     url = NotImplemented
     template = NotImplemented
     response_class = NotImplemented
@@ -147,7 +147,7 @@ class SignatureRequest(Request):
         return super(SignatureRequest, cls).execute(**kwargs)
 
 
-class Statuses(object):
+class Statuses:
     OK = 'OK'
     PROCESSING = 'Processing'
     ERRED = 'Erred'

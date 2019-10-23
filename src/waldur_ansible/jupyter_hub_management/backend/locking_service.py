@@ -7,26 +7,26 @@ from waldur_ansible.python_management.backend.locking_service import PythonManag
 JUPYTOR_HUB_MANAGEMENT_LOCK = 'waldur_jupyter_hub_management_global_%s'
 
 
-class JupyterHubConfigRequestProcessingFinishedLockingHandler(object):
+class JupyterHubConfigRequestProcessingFinishedLockingHandler:
     def handle_on_processing_finished(self, request):
         python_cache_utils.release_task_status(
             JupyterHubManagementBackendLockBuilder.build_global_lock(request.jupyter_hub_management.python_management))
 
 
-class JupyterHubConfigRelatedToVirtualEnvRequestProcessingFinishedLockingHandler(object):
+class JupyterHubConfigRelatedToVirtualEnvRequestProcessingFinishedLockingHandler:
     def handle_on_processing_finished(self, request):
         python_cache_utils.release_task_status(
             python_locking_service.PythonManagementBackendLockBuilder.build_related_to_virt_env_lock(
                 request.jupyter_hub_management.python_management, request.virtual_env_name))
 
 
-class JupyterHubConfigProcessingAllowedDecider(object):
+class JupyterHubConfigProcessingAllowedDecider:
     def is_processing_allowed(self, request):
         global_lock = JupyterHubManagementBackendLockBuilder.build_global_lock(request.jupyter_hub_management.python_management)
         return not python_cache_utils.is_syncing(global_lock)
 
 
-class JupyterHubRelatedToVirtualEnvProcessingAllowedDecider(object):
+class JupyterHubRelatedToVirtualEnvProcessingAllowedDecider:
     def is_processing_allowed(self, request):
         virtual_env_lock = python_locking_service.PythonManagementBackendLockBuilder.build_related_to_virt_env_lock(
             request.jupyter_hub_management.python_management, request.virtual_env_name)
@@ -34,20 +34,20 @@ class JupyterHubRelatedToVirtualEnvProcessingAllowedDecider(object):
         return not python_cache_utils.is_syncing(virtual_env_lock) and not python_cache_utils.is_syncing(global_lock)
 
 
-class JupyterHubConfigSynchronizer(object):
+class JupyterHubConfigSynchronizer:
     def lock(self, request):
         global_lock = JupyterHubManagementBackendLockBuilder.build_global_lock(request.jupyter_hub_management.python_management)
         python_cache_utils.renew_task_status(global_lock, settings.WALDUR_ANSIBLE_COMMON['ANSIBLE_REQUEST_TIMEOUT'])
 
 
-class JupyterHubRelatedToVirtualEnvSynchronizer(object):
+class JupyterHubRelatedToVirtualEnvSynchronizer:
     def lock(self, request):
         virtual_env_lock = PythonManagementBackendLockBuilder.build_related_to_virt_env_lock(
             request.jupyter_hub_management.python_management, request.virtual_env_name)
         python_cache_utils.renew_task_status(virtual_env_lock, settings.WALDUR_ANSIBLE_COMMON['ANSIBLE_REQUEST_TIMEOUT'])
 
 
-class JupyterHubManagementBackendLockingService(object):
+class JupyterHubManagementBackendLockingService:
 
     @staticmethod
     def lock_for_processing(request):
@@ -65,7 +65,7 @@ class JupyterHubManagementBackendLockingService(object):
         locking_handler.handle_on_processing_finished(request)
 
 
-class JupyterHubManagementBackendLockBuilder(object):
+class JupyterHubManagementBackendLockBuilder:
     REQUEST_TYPES_PROCESSING_ALLOWED_DECIDER = {
         models.JupyterHubManagementSyncConfigurationRequest: JupyterHubConfigProcessingAllowedDecider,
         models.JupyterHubManagementMakeVirtualEnvironmentGlobalRequest: JupyterHubRelatedToVirtualEnvProcessingAllowedDecider,

@@ -47,7 +47,7 @@ class Host(structure_models.NewResource):
         }
     ]
 
-    class Statuses(object):
+    class Statuses:
         MONITORED = '0'
         UNMONITORED = '1'
 
@@ -214,7 +214,7 @@ class ITService(structure_models.NewResource):
     backend_trigger_id = models.CharField(max_length=64, null=True, blank=True)
     trigger = models.ForeignKey(on_delete=models.CASCADE, to=Trigger, null=True, blank=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('host', 'is_main')
 
     @classmethod
@@ -260,7 +260,7 @@ class UserGroup(structure_models.ServiceProperty):
 
 
 class User(core_models.StateMixin, structure_models.ServiceProperty):
-    class Types(object):
+    class Types:
         DEFAULT = '1'
         ADMIN = '2'
         SUPERADMIN = '3'
@@ -276,7 +276,7 @@ class User(core_models.StateMixin, structure_models.ServiceProperty):
     # phone is NC-only field
     phone = models.CharField(max_length=30, blank=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('alias', 'settings')
 
     def __str__(self):

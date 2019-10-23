@@ -107,7 +107,7 @@ class CustomerFilter(NameFilterSet):
     division_uuid = django_filters.UUIDFilter(field_name='division__uuid')
     division_name = django_filters.CharFilter(field_name='division__name', lookup_expr='icontains')
 
-    class Meta(object):
+    class Meta:
         model = models.Customer
         fields = [
             'name',
@@ -172,7 +172,7 @@ def filter_by_accounting_is_running(request, queryset, query):
 
 class ProjectTypeFilter(NameFilterSet):
 
-    class Meta(object):
+    class Meta:
         model = models.ProjectType
         fields = ['name']
 
@@ -215,7 +215,7 @@ class ProjectFilter(NameFilterSet):
         )
     )
 
-    class Meta(object):
+    class Meta:
         model = models.Project
         fields = [
             'name',
@@ -337,7 +337,7 @@ class BaseUserFilter(django_filters.FilterSet):
     email = django_filters.CharFilter(lookup_expr='icontains')
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
 
-    class Meta(object):
+    class Meta:
         model = User
         fields = [
             'full_name',
@@ -417,7 +417,7 @@ class UserPermissionFilter(django_filters.FilterSet):
 
 
 class ProjectPermissionFilter(UserPermissionFilter):
-    class Meta(object):
+    class Meta:
         fields = ['role']
         model = models.ProjectPermission
 
@@ -434,7 +434,7 @@ class ProjectPermissionFilter(UserPermissionFilter):
 
 
 class CustomerPermissionFilter(UserPermissionFilter):
-    class Meta(object):
+    class Meta:
         fields = ['role']
         model = models.CustomerPermission
 
@@ -453,7 +453,7 @@ class SshKeyFilter(NameFilterSet):
 
     o = django_filters.OrderingFilter(fields=('name',))
 
-    class Meta(object):
+    class Meta:
         model = core_models.SshPublicKey
         fields = [
             'name',
@@ -475,7 +475,7 @@ class ServiceSettingsFilter(NameFilterSet):
     state = core_filters.StateFilter()
     has_resources = django_filters.BooleanFilter(method='filter_has_resources', widget=BooleanWidget)
 
-    class Meta(object):
+    class Meta:
         model = models.ServiceSettings
         fields = ('name', 'type', 'state', 'shared')
 
@@ -535,7 +535,7 @@ class BaseServiceFilter(django_filters.FilterSet, metaclass=ServiceFilterMetacla
         conjoined=True,
     )
 
-    class Meta(object):
+    class Meta:
         model = models.Service
         fields = ('name', 'name_exact', 'project_uuid',
                   'customer', 'project', 'settings', 'shared', 'type', 'tag', 'rtag')
@@ -548,7 +548,7 @@ class BaseServiceProjectLinkFilter(django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.ServiceProjectLink
         fields = ()
 
@@ -629,7 +629,7 @@ class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
         ('created', 'created'),
     )
 
-    class Meta(object):
+    class Meta:
         model = models.ResourceMixin
         fields = (
             # customer
@@ -701,7 +701,7 @@ class StartTimeFilter(BaseFilterBackend):
 
 class BaseServicePropertyFilter(NameFilterSet):
 
-    class Meta(object):
+    class Meta:
         fields = ('name', 'name_exact')
 
 
@@ -741,7 +741,7 @@ class DivisionFilter(NameFilterSet):
     type = django_filters.CharFilter(field_name='type__name', lookup_expr='iexact')
     parent = django_filters.UUIDFilter(field_name='parent__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Division
         fields = [
             'name',

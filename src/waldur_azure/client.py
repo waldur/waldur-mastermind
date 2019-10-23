@@ -20,7 +20,7 @@ class AzureBackendError(ServiceBackendError):
     pass
 
 
-class AzureClient(object):
+class AzureClient:
     def __init__(self, settings):
         self.subscription_id = str(settings.options['subscription_id'])
         self.client_id = str(settings.options['client_id'])

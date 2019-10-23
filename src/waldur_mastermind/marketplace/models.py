@@ -50,10 +50,10 @@ class ServiceProvider(core_models.UuidMixin,
                                  help_text=_('Notification body template. '
                                              'Django template variables can be used.'))
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Service provider')
 
     def __str__(self):
@@ -90,7 +90,7 @@ class Category(core_models.UuidMixin,
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         offering_count = quotas_fields.QuotaField(is_backend=True)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Category')
         verbose_name_plural = _('Categories')
         ordering = ('title',)
@@ -112,7 +112,7 @@ class CategoryColumn(models.Model):
     If attribute field is specified, it is possible to filter and sort resources by it's value.
     """
 
-    class Meta(object):
+    class Meta:
         ordering = ('category', 'index')
 
     category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='columns')
@@ -163,7 +163,7 @@ class AttributeOption(models.Model):
     key = models.CharField(max_length=255, validators=[InternalNameValidator])
     title = models.CharField(max_length=255)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('attribute', 'key')
 
     def __str__(self):
@@ -171,7 +171,7 @@ class AttributeOption(models.Model):
 
 
 class ScopeMixin(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
@@ -180,7 +180,7 @@ class ScopeMixin(models.Model):
 
 
 class BaseComponent(core_models.DescribableMixin):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     name = models.CharField(max_length=150,
@@ -194,7 +194,7 @@ class BaseComponent(core_models.DescribableMixin):
 
 
 class CategoryComponent(BaseComponent):
-    class Meta(object):
+    class Meta:
         unique_together = ('type', 'category')
 
     category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='components')
@@ -223,7 +223,7 @@ class Offering(core_models.UuidMixin,
                ScopeMixin,
                LoggableMixin):
 
-    class States(object):
+    class States:
         DRAFT = 1
         ACTIVE = 2
         PAUSED = 3
@@ -275,10 +275,10 @@ class Offering(core_models.UuidMixin,
     objects = managers.OfferingManager()
     tracker = FieldTracker()
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Offering')
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
@@ -320,10 +320,10 @@ class Offering(core_models.UuidMixin,
 
 
 class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
-    class Meta(object):
+    class Meta:
         unique_together = ('type', 'offering')
 
-    class BillingTypes(object):
+    class BillingTypes:
         FIXED = 'fixed'
         USAGE = 'usage'
         ONE_TIME = 'one'
@@ -337,7 +337,7 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
             (ON_PLAN_SWITCH, 'One-time on plan switch'),
         )
 
-    class LimitPeriods(object):
+    class LimitPeriods:
         MONTH = 'month'
         TOTAL = 'total'
 
@@ -413,14 +413,14 @@ class Plan(core_models.UuidMixin,
     )
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         ordering = ('name',)
 
     @classmethod
     def get_url_name(cls):
         return 'marketplace-plan'
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'offering__customer'
 
     def get_estimate(self, limits=None):
@@ -472,7 +472,7 @@ class Plan(core_models.UuidMixin,
 
 
 class PlanComponent(models.Model):
-    class Meta(object):
+    class Meta:
         unique_together = ('plan', 'component')
 
     PRICE_MAX_DIGITS = 15
@@ -508,10 +508,10 @@ class Screenshot(core_models.UuidMixin,
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
     offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='screenshots')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'offering__customer'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Screenshot')
 
     def __str__(self):
@@ -523,7 +523,7 @@ class Screenshot(core_models.UuidMixin,
 
 
 class CostEstimateMixin(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     # Cost estimate is computed with respect to fixed plan components and usage-based limits
@@ -537,7 +537,7 @@ class CostEstimateMixin(models.Model):
 
 
 class RequestTypeMixin(CostEstimateMixin):
-    class Types(object):
+    class Types:
         CREATE = 1
         UPDATE = 2
         TERMINATE = 3
@@ -550,7 +550,7 @@ class RequestTypeMixin(CostEstimateMixin):
 
     type = models.PositiveSmallIntegerField(choices=Types.CHOICES, default=Types.CREATE)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def init_cost(self):
@@ -568,11 +568,11 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
     attributes = BetterJSONField(blank=True, default=dict)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
-    class Meta(object):
+    class Meta:
         ordering = ('created',)
 
     def __str__(self):
@@ -580,7 +580,7 @@ class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
 
 
 class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
-    class States(object):
+    class States:
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
         DONE = 3
@@ -606,11 +606,11 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
     tracker = FieldTracker()
     _file = models.TextField(blank=True, editable=False)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Order')
         ordering = ('created',)
 
@@ -722,7 +722,7 @@ class Resource(CostEstimateMixin,
     Eventually it is expected that core resource model is going to be superseded by
     marketplace resource model as a primary mean.
     """
-    class States(object):
+    class States:
         CREATING = 1
         OK = 2
         ERRED = 3
@@ -739,7 +739,7 @@ class Resource(CostEstimateMixin,
             (TERMINATED, 'Terminated'),
         )
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
@@ -830,7 +830,7 @@ class OrderItem(core_models.UuidMixin,
                 RequestTypeMixin,
                 structure_models.StructureLoggableMixin,
                 TimeStampedModel):
-    class States(object):
+    class States:
         PENDING = 1
         EXECUTING = 2
         DONE = 3
@@ -858,11 +858,11 @@ class OrderItem(core_models.UuidMixin,
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
     tracker = FieldTracker()
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'order__project__customer'
         project_path = 'order__project'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Order item')
         ordering = ('created',)
 
@@ -989,7 +989,7 @@ class OfferingFile(core_models.UuidMixin,
     offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='files')
     file = models.FileField(upload_to='offering_files')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'offering__customer'
 
     @classmethod

@@ -86,7 +86,7 @@ class VolumeImportableSerializer(core_serializers.AugmentedSerializerMixin,
     def get_filtered_field_names(self):
         return 'service_project_link',
 
-    class Meta(object):
+    class Meta:
         model = models.Volume
         model_fields = ('name', 'description', 'size', 'runtime_state')
         fields = ('service_project_link', 'backend_id') + model_fields
@@ -213,7 +213,7 @@ class InstanceImportableSerializer(core_serializers.AugmentedSerializerMixin,
     def get_filtered_field_names(self):
         return 'service_project_link',
 
-    class Meta(object):
+    class Meta:
         model = models.Instance
         model_fields = ('name', 'description', 'state', 'runtime_state', 'flavor_name', 'ram', 'cores')
         fields = ('service_project_link', 'backend_id') + model_fields

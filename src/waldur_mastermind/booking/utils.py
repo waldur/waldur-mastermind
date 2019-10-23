@@ -10,7 +10,7 @@ from . import PLUGIN_NAME
 logger = logging.getLogger(__name__)
 
 
-class TimePeriod(object):
+class TimePeriod:
     def __init__(self, start, end):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)

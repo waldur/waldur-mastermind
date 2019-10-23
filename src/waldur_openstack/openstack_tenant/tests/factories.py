@@ -16,7 +16,7 @@ from .. import models
 
 
 class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
         exclude = ('tenant',)
 
@@ -32,7 +32,7 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
 
 
 class OpenStackTenantServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackTenantService
 
     settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
@@ -51,7 +51,7 @@ class OpenStackTenantServiceFactory(factory.DjangoModelFactory):
 
 
 class OpenStackTenantServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackTenantServiceProjectLink
 
     service = factory.SubFactory(OpenStackTenantServiceFactory)
@@ -70,7 +70,7 @@ class OpenStackTenantServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class FlavorFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Flavor
 
     name = factory.Sequence(lambda n: 'flavor%s' % n)
@@ -95,7 +95,7 @@ class FlavorFactory(factory.DjangoModelFactory):
 
 
 class ImageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
@@ -116,7 +116,7 @@ class ImageFactory(factory.DjangoModelFactory):
 
 
 class VolumeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Volume
 
     name = factory.Sequence(lambda n: 'volume%s' % n)
@@ -138,7 +138,7 @@ class VolumeFactory(factory.DjangoModelFactory):
 
 
 class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InstanceAvailabilityZone
 
     name = factory.Sequence(lambda n: 'instance_availability_zone_%s' % n)
@@ -157,7 +157,7 @@ class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
 
 
 class InstanceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Instance
 
     name = factory.Sequence(lambda n: 'instance%s' % n)
@@ -209,7 +209,7 @@ class InstanceFactory(factory.DjangoModelFactory):
 
 
 class FloatingIPFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.FloatingIP
 
     name = factory.Sequence(lambda n: 'floating_ip%s' % n)
@@ -230,7 +230,7 @@ class FloatingIPFactory(factory.DjangoModelFactory):
 
 
 class SecurityGroupFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SecurityGroup
 
     name = factory.Sequence(lambda n: 'security_group%s' % n)
@@ -249,7 +249,7 @@ class SecurityGroupFactory(factory.DjangoModelFactory):
 
 
 class BackupScheduleFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.BackupSchedule
 
     instance = factory.SubFactory(InstanceFactory)
@@ -273,7 +273,7 @@ class BackupScheduleFactory(factory.DjangoModelFactory):
 
 
 class BackupFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Backup
 
     service_project_link = factory.SubFactory(OpenStackTenantServiceProjectLinkFactory)
@@ -295,7 +295,7 @@ class BackupFactory(factory.DjangoModelFactory):
 
 
 class SnapshotFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Snapshot
 
     size = 1024
@@ -318,7 +318,7 @@ class SnapshotFactory(factory.DjangoModelFactory):
 
 
 class SnapshotRestorationFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SnapshotRestoration
 
     snapshot = factory.SubFactory(SnapshotFactory)
@@ -326,7 +326,7 @@ class SnapshotRestorationFactory(factory.DjangoModelFactory):
 
 
 class SnapshotScheduleFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SnapshotSchedule
 
     source_volume = factory.SubFactory(VolumeFactory)
@@ -350,7 +350,7 @@ class SnapshotScheduleFactory(factory.DjangoModelFactory):
 
 
 class NetworkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Network
 
     name = factory.Sequence(lambda n: 'network%s' % n)
@@ -362,7 +362,7 @@ class NetworkFactory(factory.DjangoModelFactory):
 
 
 class SubNetFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SubNet
 
     name = factory.Sequence(lambda n: 'subnet%s' % n)
@@ -382,7 +382,7 @@ class SubNetFactory(factory.DjangoModelFactory):
 
 
 class InternalIPFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InternalIP
 
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
@@ -392,7 +392,7 @@ class InternalIPFactory(factory.DjangoModelFactory):
 
 
 class VolumeTypeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VolumeType
 
     name = factory.Sequence(lambda n: 'volume_type_%s' % n)
@@ -411,7 +411,7 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
 
 
 class VolumeAvailabilityZoneFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VolumeAvailabilityZone
 
     name = factory.Sequence(lambda n: 'volume_availability_zone_%s' % n)

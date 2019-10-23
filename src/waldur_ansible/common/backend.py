@@ -13,7 +13,7 @@ from . import utils
 logger = logging.getLogger(__name__)
 
 
-class ManagementRequestsBackend(object):
+class ManagementRequestsBackend:
 
     def is_processing_allowed(self, request):
         raise NotImplementedError

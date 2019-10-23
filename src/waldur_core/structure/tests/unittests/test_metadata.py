@@ -11,7 +11,7 @@ class ResourceProvisioningMetadataTest(TestCase):
             (2, 'Erred')
         )
 
-        class Queryset(object):
+        class Queryset:
             def all(self):
                 return {'key': 'value'}
 

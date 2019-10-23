@@ -26,7 +26,7 @@ directory_and_library_allowed_pattern = '^[a-zA-Z0-9\-_]+$'
 class InstalledPackageSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
     name = serializers.RegexField(directory_and_library_allowed_pattern)
 
-    class Meta(object):
+    class Meta:
         model = models.InstalledLibrary
         fields = ('name', 'version', 'uuid',)
         read_only_fields = ('uuid',)
@@ -39,7 +39,7 @@ class VirtualEnvironmentSerializer(core_serializers.AugmentedSerializerMixin, se
     name = serializers.RegexField(directory_and_library_allowed_pattern)
     installed_libraries = InstalledPackageSerializer(many=True)
 
-    class Meta(object):
+    class Meta:
         model = models.VirtualEnvironment
         fields = ('name', 'uuid', 'installed_libraries', 'jupyter_hub_global',)
         read_only_fields = ('uuid',)
@@ -53,7 +53,7 @@ class PythonManagementRequestMixin(common_serializers.BaseApplicationSerializer)
     state = serializers.SerializerMethodField()
     output = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = ('uuid', 'output', 'state', 'created', 'modified', 'request_type',)
         read_only_fields = ('uuid', 'output', 'state', 'created', 'modified', 'request_type',)
@@ -131,7 +131,7 @@ class PythonManagementSerializer(
         related_models=structure_models.ResourceMixin.get_all_models(), required=False)
     instance_name = serializers.ReadOnlyField(source='instance.name')
 
-    class Meta(object):
+    class Meta:
         model = models.PythonManagement
         fields = ('url', 'uuid', 'virtual_envs_dir_path', 'system_user',
                   'state', 'created', 'modified', 'virtual_environments', 'python_version', 'name', 'type', 'instance', 'instance_name',)
@@ -263,7 +263,7 @@ class PythonManagementSerializer(
 class CachedRepositoryPythonLibrarySerializer(
         core_serializers.AugmentedSerializerMixin,
         serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.CachedRepositoryPythonLibrary
         fields = ('name', 'uuid')
         extra_kwargs = {

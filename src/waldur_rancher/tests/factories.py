@@ -9,7 +9,7 @@ from .. import models
 
 
 class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
 
     type = 'Rancher'
@@ -18,7 +18,7 @@ class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class RancherServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.RancherService
 
     settings = factory.SubFactory(RancherServiceSettingsFactory)
@@ -37,7 +37,7 @@ class RancherServiceFactory(factory.DjangoModelFactory):
 
 
 class RancherServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.RancherServiceProjectLink
 
     service = factory.SubFactory(RancherServiceFactory)
@@ -56,7 +56,7 @@ class RancherServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class ClusterFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Cluster
 
     service_project_link = factory.SubFactory(RancherServiceProjectLinkFactory)
@@ -76,7 +76,7 @@ class ClusterFactory(factory.DjangoModelFactory):
 
 
 class NodeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Node
 
     @classmethod

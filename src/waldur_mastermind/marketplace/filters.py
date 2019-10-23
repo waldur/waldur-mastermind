@@ -20,7 +20,7 @@ class ServiceProviderFilter(django_filters.FilterSet):
     customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
     o = django_filters.OrderingFilter(fields=(('customer__name', 'customer_name'),))
 
-    class Meta(object):
+    class Meta:
         model = models.ServiceProvider
         fields = []
 
@@ -65,7 +65,7 @@ class OfferingFilter(django_filters.FilterSet):
                 queryset = queryset.filter(attributes__contains={k: v})
         return queryset
 
-    class Meta(object):
+    class Meta:
         model = models.Offering
         fields = ['shared', 'type']
 
@@ -88,7 +88,7 @@ class ScreenshotFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
-    class Meta(object):
+    class Meta:
         model = models.Screenshot
         fields = []
 
@@ -99,7 +99,7 @@ class CartItemFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(view_name='project-detail', field_name='project__uuid')
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.CartItem
         fields = []
 
@@ -115,7 +115,7 @@ class OrderFilter(django_filters.FilterSet):
     )
     o = django_filters.OrderingFilter(fields=('created', 'approved_at', 'total_cost', 'state'))
 
-    class Meta(object):
+    class Meta:
         model = models.Order
         fields = []
 
@@ -143,7 +143,7 @@ class OrderItemFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(fields=('created',))
 
-    class Meta(object):
+    class Meta:
         model = models.OrderItem
         fields = []
 
@@ -166,7 +166,7 @@ class ResourceFilter(django_filters.FilterSet):
     )
     o = django_filters.OrderingFilter(fields=('name', 'created',))
 
-    class Meta(object):
+    class Meta:
         model = models.Resource
         fields = []
 
@@ -190,7 +190,7 @@ class PlanFilter(django_filters.FilterSet):
     offering = core_filters.URLFilter(view_name='marketplace-offering-detail', field_name='offering__uuid')
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Plan
         fields = []
 
@@ -205,7 +205,7 @@ class CategoryComponentUsageScopeFilterBackend(core_filters.GenericKeyFilterBack
 
 
 class CategoryComponentUsageFilter(django_filters.FilterSet):
-    class Meta(object):
+    class Meta:
         model = models.CategoryComponentUsage
         fields = []
 
@@ -223,7 +223,7 @@ class ComponentUsageFilter(django_filters.FilterSet):
     date_after = django_filters.DateFilter(field_name='date', lookup_expr='gte')
     type = django_filters.CharFilter(field_name='component__type')
 
-    class Meta(object):
+    class Meta:
         model = models.ComponentUsage
         fields = []
 
@@ -234,7 +234,7 @@ class OfferingFileFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(fields=('name', 'created'))
 
-    class Meta(object):
+    class Meta:
         model = models.OfferingFile
         fields = []
 

@@ -64,7 +64,7 @@ class BackendModelAdmin(admin.ModelAdmin):
         return fields
 
 
-class FormRequestAdminMixin(object):
+class FormRequestAdminMixin:
     """
     This mixin allows you to get current request user in the model admin form,
     which then passed to add_user method, so that user which granted role,
@@ -77,7 +77,7 @@ class FormRequestAdminMixin(object):
         return form
 
 
-class ChangeReadonlyMixin(object):
+class ChangeReadonlyMixin:
     add_readonly_fields = ()
     change_readonly_fields = ()
 
@@ -93,7 +93,7 @@ class ChangeReadonlyMixin(object):
         return super(ChangeReadonlyMixin, self).add_view(request, *args, **kwargs)
 
 
-class ProtectedModelMixin(object):
+class ProtectedModelMixin:
     def delete_view(self, request, *args, **kwargs):
         try:
             response = super(ProtectedModelMixin, self).delete_view(request, *args, **kwargs)
@@ -104,7 +104,7 @@ class ProtectedModelMixin(object):
             return response
 
 
-class ResourceCounterFormMixin(object):
+class ResourceCounterFormMixin:
     def get_vm_count(self, obj):
         return obj.quotas.get(name=obj.Quotas.nc_vm_count).usage
 

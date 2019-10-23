@@ -36,7 +36,7 @@ class DescribableMixin(models.Model):
     """
     Mixin to add a standardized "description" field.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     description = models.CharField(_('description'), max_length=500, blank=True)
@@ -47,7 +47,7 @@ class NameMixin(models.Model):
     Mixin to add a standardized "name" field.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     name = models.CharField(_('name'), max_length=150, validators=[validate_name])
@@ -57,7 +57,7 @@ class UiDescribableMixin(DescribableMixin):
     """
     Mixin to add a standardized "description" and "icon url" fields.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     icon_url = models.URLField(_('icon url'), blank=True)
@@ -67,7 +67,7 @@ class UuidMixin(models.Model):
     """
     Mixin to identify models by UUID.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     uuid = UUIDField()
@@ -77,7 +77,7 @@ class ErrorMessageMixin(models.Model):
     """
     Mixin to add a standardized "error_message" field.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     error_message = models.TextField(blank=True)
@@ -87,7 +87,7 @@ class CoordinatesMixin(models.Model):
     """
     Mixin to add a latitude and longitude fields
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     latitude = models.FloatField(null=True, blank=True)
@@ -98,7 +98,7 @@ class ScheduleMixin(models.Model):
     """
     Mixin to add a standardized "schedule" fields.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     schedule = CronScheduleField(max_length=15, validators=[MinCronValueValidator(1)])
@@ -138,7 +138,7 @@ class UserDetailsMixin(models.Model):
     Note that civil_number and email fields are not included in this mixin
     because they have different constraints in User and Invitation model.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     full_name = models.CharField(_('full name'), max_length=100, blank=True)
@@ -189,7 +189,7 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('user')
         verbose_name_plural = _('users')
 
@@ -271,7 +271,7 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     )
     is_shared = models.BooleanField(default=False)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('user', 'name')
         verbose_name = _('SSH public key')
         verbose_name_plural = _('SSH public keys')
@@ -295,11 +295,11 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
 
 class RuntimeStateMixin(models.Model):
     """ Provide runtime_state field """
-    class RuntimeStates(object):
+    class RuntimeStates:
         ONLINE = 'online'
         OFFLINE = 'offline'
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     runtime_state = models.CharField(_('runtime state'), max_length=150, blank=True)
@@ -314,7 +314,7 @@ class RuntimeStateMixin(models.Model):
 
 
 class StateMixin(ErrorMessageMixin):
-    class States(object):
+    class States:
         CREATION_SCHEDULED = 5
         CREATING = 6
         UPDATE_SCHEDULED = 1
@@ -335,7 +335,7 @@ class StateMixin(ErrorMessageMixin):
             (ERRED, 'Erred'),
         )
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     state = FSMIntegerField(
@@ -386,7 +386,7 @@ class StateMixin(ErrorMessageMixin):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
-class ReversionMixin(object):
+class ReversionMixin:
     """ Store historical values of instance, using django-reversion.
 
         Note: `ReversionMixin` model should be registered in django-reversion,
@@ -425,7 +425,7 @@ class ReversionMixin(object):
 
 
 # XXX: consider renaming it to AffinityMixin
-class DescendantMixin(object):
+class DescendantMixin:
     """ Mixin to provide child-parent relationships.
         Each related model can provide list of its parents/children.
     """
@@ -471,7 +471,7 @@ class AbstractFieldTracker(FieldTracker):
             super(AbstractFieldTracker, self).finalize_class(sender, **kwargs)
 
 
-class BackendModelMixin(object):
+class BackendModelMixin:
     """
     Represents model that is connected to backend object.
 

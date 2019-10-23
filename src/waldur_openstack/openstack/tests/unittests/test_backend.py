@@ -529,7 +529,7 @@ class ImportTenantSubnets(BaseBackendTestCase):
         self.assertEqual(models.SubNet.objects.count(), 0)
 
 
-class MockTenant(object):
+class MockTenant:
     def __init__(self, name, id=None):
         self.name = name
         self.id = id

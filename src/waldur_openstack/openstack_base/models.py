@@ -25,7 +25,7 @@ class BaseSecurityGroupRule(models.Model):
 
     backend_id = models.CharField(max_length=128, blank=True)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def __str__(self):
@@ -40,7 +40,7 @@ class Port(core_models.BackendModelMixin, models.Model):
     ip6_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv6')
     backend_id = models.CharField(max_length=255, blank=True)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def __str__(self):

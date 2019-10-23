@@ -59,7 +59,7 @@ class Playbook(core_models.UuidMixin,
 
 
 class PlaybookParameter(core_models.DescribableMixin, models.Model):
-    class Meta(object):
+    class Meta:
         unique_together = ('playbook', 'name')
         ordering = ['order']
 
@@ -83,10 +83,10 @@ class Job(core_models.UuidMixin,
           core_models.DescribableMixin,
           TimeStampedModel,
           common_models.ApplicationModel):
-    class Meta(object):
+    class Meta:
         pass
 
-    class Permissions(object):
+    class Permissions:
         project_path = 'service_project_link__project'
         customer_path = 'service_project_link__project__customer'
 

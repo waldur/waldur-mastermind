@@ -10,6 +10,6 @@ class SlurmPackageFilter(django_filters.FilterSet):
     service_settings = core_filters.URLFilter(
         view_name='servicesettings-detail', field_name='service_settings__uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.SlurmPackage
         fields = []

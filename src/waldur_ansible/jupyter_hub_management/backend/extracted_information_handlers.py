@@ -17,20 +17,20 @@ def update_installed_libraries_list(lines_post_processor, request):
         request.jupyter_hub_management.python_management, request.virtual_env_name, lines_post_processor.installed_libraries_after_modifications)
 
 
-class JupyterHubVirtualEnvironmentGlobalExtractedInformationHandler(object):
+class JupyterHubVirtualEnvironmentGlobalExtractedInformationHandler:
 
     def handle_extracted_information(self, request, lines_post_processor):
         set_affected_virtual_env_global_or_not(request, True)
         update_installed_libraries_list(lines_post_processor, request)
 
 
-class JupyterHubVirtualEnvironmentLocalExtractedInformationHandler(object):
+class JupyterHubVirtualEnvironmentLocalExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         set_affected_virtual_env_global_or_not(request, False)
         update_installed_libraries_list(lines_post_processor, request)
 
 
-class JupyterHubManagementDeleteExtractedInformationHandler(object):
+class JupyterHubManagementDeleteExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         for global_virtual_env in request.jupyter_hub_management.python_management.virtual_environments.filter(jupyter_hub_global=True):
             global_virtual_env.jupyter_hub_global = False

@@ -9,14 +9,14 @@ from .. import models
 
 
 class SlurmServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
 
     type = 'SLURM'
 
 
 class SlurmPackageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SlurmPackage
 
     service_settings = factory.SubFactory(SlurmServiceSettingsFactory)

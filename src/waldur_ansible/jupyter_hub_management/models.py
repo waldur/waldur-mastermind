@@ -12,7 +12,7 @@ from waldur_core.structure import models as structure_models
 User = get_user_model()
 
 
-class JupyterHubOAuthType(object):
+class JupyterHubOAuthType:
     # these numbers are important for both frontend and ansible playbook logic
     GITLAB = 1
     AZURE = 2
@@ -89,7 +89,7 @@ class JupyterHubManagementRequest(common_models.UuidStrMixin,
                                   common_models.OutputMixin):
     jupyter_hub_management = models.ForeignKey(JupyterHubManagement, on_delete=models.CASCADE, related_name='+')
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def get_backend(self):

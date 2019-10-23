@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 
-class GenericKeyMixin(object):
+class GenericKeyMixin:
     """
     Filtering by generic key field
 
@@ -75,7 +75,7 @@ class GenericKeyMixin(object):
         return super(GenericKeyMixin, self).get_or_create(*args, **kwargs)
 
 
-class SummaryQuerySet(object):
+class SummaryQuerySet:
     """ Fake queryset that emulates union of different models querysets """
 
     def __init__(self, summary_models):
@@ -133,7 +133,7 @@ class SummaryQuerySet(object):
     def _merge(self, subsequences, compared_attr='pk'):
 
         @functools.total_ordering
-        class Compared(object):
+        class Compared:
             """ Order objects by their attributes, reverse ordering if <reverse> is True """
 
             def __init__(self, obj, attr, reverse=False):

@@ -10,7 +10,7 @@ def get_upload_path(instance, filename):
 
 
 class ImageModelMixin(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     image = models.ImageField(upload_to=get_upload_path, null=True, blank=True)

@@ -19,7 +19,7 @@ def ensure_atomic_transaction(func):
     return wrapped
 
 
-class AsyncExecutor(object):
+class AsyncExecutor:
     async_executor = True
 
 
@@ -67,7 +67,7 @@ class ExecutorMixin(CreateExecutorMixin, UpdateExecutorMixin, DeleteExecutorMixi
     pass
 
 
-class EagerLoadMixin(object):
+class EagerLoadMixin:
     """ Reduce number of requests to DB.
 
         Serializer should implement static method "eager_load", that selects

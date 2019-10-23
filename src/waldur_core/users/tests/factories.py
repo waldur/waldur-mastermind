@@ -20,7 +20,7 @@ class InvitationBaseFactory(factory.DjangoModelFactory):
 
 
 class ProjectInvitationFactory(InvitationBaseFactory):
-    class Meta(object):
+    class Meta:
         model = models.Invitation
 
     customer = factory.SelfAttribute('project.customer')
@@ -37,7 +37,7 @@ class ProjectInvitationFactory(InvitationBaseFactory):
 
 
 class CustomerInvitationFactory(InvitationBaseFactory):
-    class Meta(object):
+    class Meta:
         model = models.Invitation
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)

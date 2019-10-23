@@ -25,7 +25,7 @@ class QuotaFilterSet(django_filters.FilterSet):
         lookup_expr='icontains',
     )
 
-    class Meta(object):
+    class Meta:
         model = models.Quota
         fields = [
             'name'

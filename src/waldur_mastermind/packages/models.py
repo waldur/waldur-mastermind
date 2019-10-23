@@ -27,7 +27,7 @@ class PackageTemplate(core_models.UuidMixin,
     unit = models.CharField(default=common_mixins.UnitPriceMixin.Units.PER_DAY, max_length=30,
                             choices=common_mixins.UnitPriceMixin.Units.CHOICES)
 
-    class Categories(object):
+    class Categories:
         SMALL = 'small'
         MEDIUM = 'medium'
         LARGE = 'large'
@@ -37,7 +37,7 @@ class PackageTemplate(core_models.UuidMixin,
 
     category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('VPC package template')
         verbose_name_plural = _('VPC package templates')
 
@@ -103,10 +103,10 @@ class PackageComponent(models.Model):
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
-    class Meta(object):
+    class Meta:
         unique_together = ('type', 'template')
 
-    class Types(object):
+    class Types:
         RAM = 'ram'
         CORES = 'cores'
         STORAGE = 'storage'
@@ -136,7 +136,7 @@ class PackageComponent(models.Model):
 
 class OpenStackPackage(core_models.UuidMixin, models.Model):
     """ OpenStackPackage allows to create tenant and service_settings based on PackageTemplate """
-    class Permissions(object):
+    class Permissions:
         customer_path = 'tenant__service_project_link__project__customer'
         project_path = 'tenant__service_project_link__project'
 
@@ -175,6 +175,6 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
                 usage[component_type] = quotas[quota.name]
         return usage
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('OpenStack VPC package')
         verbose_name_plural = _('OpenStack VPC packages')

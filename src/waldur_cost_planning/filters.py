@@ -15,6 +15,6 @@ class DeploymentPlanFilter(django_filters.FilterSet):
         fields=('name', 'created')
     )
 
-    class Meta(object):
+    class Meta:
         model = models.DeploymentPlan
         fields = ('project', 'project_uuid', 'customer', 'customer_uuid')

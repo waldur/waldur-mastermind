@@ -23,7 +23,7 @@ class OrderTestException(Exception):
     pass
 
 
-class OrderTest(object):
+class OrderTest:
     def __init__(self, options, stdout_success):
         self.client = APIClient()
         self.stdout = stdout_success

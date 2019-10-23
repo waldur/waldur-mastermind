@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 default_app_config = 'waldur_core.structure.apps.StructureConfig'
 
 
-class SupportedServices(object):
+class SupportedServices:
     """ Comprehensive list of currently supported services and resources.
         Build the list via serializers definition on application start.
         Example data structure of registry:
@@ -445,7 +445,7 @@ class ServiceBackendNotImplemented(NotImplementedError):
     pass
 
 
-class ServiceBackend(object):
+class ServiceBackend:
     """ Basic service backed with only common methods pre-defined. """
 
     DEFAULTS = {}

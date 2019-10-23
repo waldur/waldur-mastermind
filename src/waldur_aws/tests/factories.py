@@ -9,7 +9,7 @@ from .. import models
 
 
 class AWSServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AWSService
 
     settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type='Amazon')
@@ -27,7 +27,7 @@ class AWSServiceFactory(factory.DjangoModelFactory):
 
 
 class AWSServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AWSServiceProjectLink
 
     service = factory.SubFactory(AWSServiceFactory)
@@ -45,7 +45,7 @@ class AWSServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class RegionFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Region
 
     name = factory.Sequence(lambda n: 'region%s' % n)
@@ -63,7 +63,7 @@ class RegionFactory(factory.DjangoModelFactory):
 
 
 class ImageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
@@ -82,7 +82,7 @@ class ImageFactory(factory.DjangoModelFactory):
 
 
 class SizeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Size
 
     name = factory.Sequence(lambda n: 'size%s' % n)
@@ -105,7 +105,7 @@ class SizeFactory(factory.DjangoModelFactory):
 
 
 class InstanceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Instance
 
     name = factory.Sequence(lambda n: 'instance%s' % n)

@@ -4,7 +4,7 @@ Account = collections.namedtuple('Account', ['name', 'description', 'organizatio
 Association = collections.namedtuple('Association', ['account', 'user', 'value'])
 
 
-class Quotas(object):
+class Quotas:
     def __init__(self, cpu=0, gpu=0, ram=0, deposit=0):
         self.cpu = cpu
         self.gpu = gpu

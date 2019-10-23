@@ -80,7 +80,7 @@ class LimitSerializer(serializers.Serializer):
 
 
 class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Port
         fields = ('url', 'uuid', 'name', 'mac_address', 'network')
         read_only_fields = ('mac_address',)
@@ -91,7 +91,7 @@ class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Disk
         fields = ('url', 'uuid', 'size')
         extra_kwargs = {
@@ -101,7 +101,7 @@ class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
 
 class NestedNetworkSerializer(core_serializers.AugmentedSerializerMixin,
                               core_serializers.HyperlinkedRelatedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Network
         fields = ('uuid', 'url', 'name', 'type')
         extra_kwargs = {

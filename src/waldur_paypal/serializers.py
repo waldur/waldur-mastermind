@@ -23,7 +23,7 @@ class PaymentSerializer(core_serializers.AugmentedSerializerMixin,
     return_url = serializers.CharField(write_only=True)
     cancel_url = serializers.CharField(write_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Payment
 
         fields = (
@@ -65,7 +65,7 @@ class PaymentCancelSerializer(serializers.Serializer):
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.InvoiceItem
         fields = ('price', 'tax', 'unit_price', 'quantity', 'unit_of_measure', 'name', 'start', 'end')
 
@@ -79,7 +79,7 @@ class InvoiceSerializer(core_serializers.AugmentedSerializerMixin,
     issuer_details = serializers.JSONField()
     customer_details = serializers.JSONField(source='payment_details')
 
-    class Meta(object):
+    class Meta:
         model = models.Invoice
         fields = (
             'url', 'uuid', 'total', 'price', 'tax', 'pdf', 'backend_id', 'issuer_details',

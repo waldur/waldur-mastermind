@@ -7,7 +7,7 @@ from waldur_openstack.openstack_tenant.tests import factories as openstack_facto
 
 
 class PlaybookFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Playbook
 
     name = factory.Sequence(lambda n: 'playbook%s' % n)
@@ -40,7 +40,7 @@ class PlaybookFactory(factory.DjangoModelFactory):
 
 
 class PlaybookParameterFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PlaybookParameter
 
     playbook = factory.SubFactory(PlaybookFactory)
@@ -50,7 +50,7 @@ class PlaybookParameterFactory(factory.DjangoModelFactory):
 
 
 class JobFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Job
 
     state = models.Job.States.OK

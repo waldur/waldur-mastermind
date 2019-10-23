@@ -42,7 +42,7 @@ class ReadonlyTextWidget(forms.TextInput):
         return render_to_readonly(self.format_value(value))
 
 
-class CopyButtonMixin(object):
+class CopyButtonMixin:
     class Media:
         js = (
             settings.STATIC_URL + 'landing/js/copy2clipboard.js',
@@ -84,7 +84,7 @@ class OptionalChoiceField(forms.ChoiceField):
 
 
 class UserCreationForm(auth_admin.UserCreationForm):
-    class Meta(object):
+    class Meta:
         model = get_user_model()
         fields = ("username",)
 
@@ -104,7 +104,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
 
 
 class UserChangeForm(auth_admin.UserChangeForm):
-    class Meta(object):
+    class Meta:
         model = get_user_model()
         exclude = ('details',)
 
@@ -279,7 +279,7 @@ class ReversionAdmin(VersionAdmin):
         return super(VersionAdmin, self).change_view(request, object_id, form_url, extra_context)
 
 
-class ExecutorAdminAction(object):
+class ExecutorAdminAction:
     """ Add executor as action to admin model.
 
     Usage example:
@@ -328,7 +328,7 @@ class ExecutorAdminAction(object):
         pass
 
 
-class ExtraActionsMixin(object):
+class ExtraActionsMixin:
     """
     Allows to add extra actions to admin list page.
     """
@@ -376,7 +376,7 @@ class ExtraActionsMixin(object):
         return getattr(action, 'name', action.__name__.replace('_', ' ').capitalize())
 
 
-class ExtraActionsObjectMixin(object):
+class ExtraActionsObjectMixin:
     """
     Allows to add extra actions to admin object edit page.
     """
@@ -430,7 +430,7 @@ class ExtraActionsObjectMixin(object):
         return getattr(action, 'validator', None)
 
 
-class UpdateOnlyModelAdmin(object):
+class UpdateOnlyModelAdmin:
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -439,7 +439,7 @@ class UpdateOnlyModelAdmin(object):
         return False
 
 
-class ReadOnlyAdminMixin(object):
+class ReadOnlyAdminMixin:
     """
     Disables all editing capabilities.
     Please ensure that readonly_fields is specified in derived class.

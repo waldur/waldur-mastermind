@@ -2,7 +2,7 @@ from waldur_ansible.jupyter_hub_management import models
 from waldur_core.core import models as core_models
 
 
-class DeleteRequestErrorHandler(object):
+class DeleteRequestErrorHandler:
     def handle_error(self, request, lines_post_processor):
         if not request.jupyter_hub_management.instance or self.exists_failed_initialization_request(request.jupyter_hub_management):
             request.jupyter_hub_management.delete()

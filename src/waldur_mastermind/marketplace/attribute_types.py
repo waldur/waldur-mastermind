@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import ugettext_lazy as _
 
 
-class AttributeType(object):
+class AttributeType:
     @staticmethod
     def available_values_validate(values):
         if values:

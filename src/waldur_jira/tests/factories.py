@@ -14,7 +14,7 @@ class JiraServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class JiraServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JiraService
 
     settings = factory.SubFactory(JiraServiceSettingsFactory)
@@ -32,7 +32,7 @@ class JiraServiceFactory(factory.DjangoModelFactory):
 
 
 class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JiraServiceProjectLink
 
     service = factory.SubFactory(JiraServiceFactory)
@@ -51,7 +51,7 @@ class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class ProjectTemplateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ProjectTemplate
 
     name = factory.Sequence(lambda n: 'template-%s' % n)
@@ -70,7 +70,7 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
 
 
 class ProjectFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Project
 
     backend_id = factory.Sequence(lambda n: 'PRJ-%s' % n)
@@ -93,7 +93,7 @@ class ProjectFactory(factory.DjangoModelFactory):
 
 
 class IssueTypeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.IssueType
 
     settings = factory.SubFactory(JiraServiceSettingsFactory)
@@ -114,7 +114,7 @@ class IssueTypeFactory(factory.DjangoModelFactory):
 
 
 class PriorityFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Priority
 
     settings = factory.SubFactory(JiraServiceSettingsFactory)
@@ -135,7 +135,7 @@ class PriorityFactory(factory.DjangoModelFactory):
 
 
 class IssueFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Issue
 
     type = factory.SubFactory(IssueTypeFactory)
@@ -161,7 +161,7 @@ class IssueFactory(factory.DjangoModelFactory):
 
 
 class CommentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Comment
 
     issue = factory.SubFactory(IssueFactory)

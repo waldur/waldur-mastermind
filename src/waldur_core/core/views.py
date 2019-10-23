@@ -44,7 +44,7 @@ def validate_authentication_method(method):
     return wrapper
 
 
-class RefreshTokenMixin(object):
+class RefreshTokenMixin:
     """
     This mixin is used in both password and social auth (implemented via plugin).
     Mixin allows to create new token if it does not exist yet or if it has already expired.
@@ -371,7 +371,7 @@ def logout_failed(message):
     return redirect_with(url_template, message=message)
 
 
-class CheckExtensionMixin(object):
+class CheckExtensionMixin:
     """ Raise exception if extension is disabled """
     extension_name = NotImplemented
 

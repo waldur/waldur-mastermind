@@ -4,7 +4,7 @@ from . import models
 
 
 class SlurmPackageSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.SlurmPackage
         fields = ('uuid', 'url', 'service_settings', 'name', 'cpu_price', 'gpu_price', 'ram_price')
         extra_kwargs = {

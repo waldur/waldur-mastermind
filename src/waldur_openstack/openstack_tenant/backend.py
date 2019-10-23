@@ -42,7 +42,7 @@ def backend_internal_ip_to_internal_ip(backend_internal_ip, **kwargs):
     return internal_ip
 
 
-class InternalIPSynchronizer(object):
+class InternalIPSynchronizer:
     """
     It is assumed that all subnets for the current tenant have been successfully synchronized.
     """

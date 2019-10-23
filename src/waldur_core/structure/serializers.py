@@ -34,7 +34,7 @@ class IpCountValidator(MaxLengthValidator):
     message = _('Only %(limit_value)s ip address is supported.')
 
 
-class PermissionFieldFilteringMixin(object):
+class PermissionFieldFilteringMixin:
     """
     Mixin allowing to filter related fields.
 
@@ -101,7 +101,7 @@ class PermissionListSerializer(serializers.ListSerializer):
 
 
 class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = User
         fields = ('url', 'uuid', 'username', 'full_name', 'native_name',)
         extra_kwargs = {
@@ -179,7 +179,7 @@ class NestedServiceProjectLinkSerializer(serializers.Serializer):
 
 class NestedServiceCertificationSerializer(core_serializers.AugmentedSerializerMixin,
                                            core_serializers.HyperlinkedRelatedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.ServiceCertification
         fields = ('uuid', 'url', 'name', 'description', 'link')
         read_only_fields = ('name', 'description', 'link')
@@ -189,7 +189,7 @@ class NestedServiceCertificationSerializer(core_serializers.AugmentedSerializerM
 
 
 class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.ProjectType
         fields = ('uuid', 'url', 'name', 'description')
         extra_kwargs = {
@@ -207,7 +207,7 @@ class ProjectSerializer(core_serializers.RestrictedSerializerMixin,
         queryset=models.ServiceCertification.objects.all(),
         many=True, required=False)
 
-    class Meta(object):
+    class Meta:
         model = models.Project
         fields = (
             'url', 'uuid',
@@ -312,7 +312,7 @@ class CustomerSerializer(ProtectedMediaSerializerMixin,
     division_name = serializers.ReadOnlyField(source='division.name')
     division_uuid = serializers.ReadOnlyField(source='division.uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Customer
         fields = (
             'url',
@@ -474,7 +474,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
 
 
 class BasePermissionSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         fields = ('user', 'user_full_name', 'user_native_name', 'user_username', 'user_uuid', 'user_email')
         related_paths = {
             'user': ('username', 'full_name', 'native_name', 'uuid', 'email'),
@@ -680,7 +680,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
                                                       context=self.context)
         return serializer.data
 
-    class Meta(object):
+    class Meta:
         model = User
         fields = (
             'url',
@@ -826,7 +826,7 @@ class PasswordSerializer(serializers.Serializer):
 class SshKeySerializer(serializers.HyperlinkedModelSerializer):
     user_uuid = serializers.ReadOnlyField(source='user.uuid')
 
-    class Meta(object):
+    class Meta:
         model = core_models.SshPublicKey
         fields = ('url', 'uuid', 'name', 'public_key', 'fingerprint', 'user_uuid', 'is_shared')
         read_only_fields = ('fingerprint', 'is_shared')
@@ -879,7 +879,7 @@ class ServiceCertificationsUpdateSerializer(serializers.Serializer):
 
 
 class ServiceCertificationSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.ServiceCertification
         fields = ('uuid', 'url', 'name', 'description', 'link')
         extra_kwargs = {
@@ -901,7 +901,7 @@ class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
     certifications = NestedServiceCertificationSerializer(many=True, read_only=True)
     geolocations = core_serializers.GeoLocationField(read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.ServiceSettings
         fields = (
             'url', 'uuid', 'name', 'type', 'state', 'error_message', 'shared',
@@ -1049,7 +1049,7 @@ class BaseServiceSerializer(PermissionFieldFilteringMixin,
     certifications = NestedServiceCertificationSerializer(many=True, read_only=True, source='settings.certifications')
     name = serializers.ReadOnlyField(source='settings.name')
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = (
             'uuid', 'url', 'name', 'state', 'service_type', 'shared',
@@ -1255,7 +1255,7 @@ class BaseServiceProjectLinkSerializer(PermissionFieldFilteringMixin,
     service_name = serializers.ReadOnlyField(source='service.settings.name')
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = (
             'url',
@@ -1452,7 +1452,7 @@ class BaseResourceSerializer(core_serializers.RestrictedSerializerMixin,
         read_only=True,
         help_text=_('True if resource is originated from a service that satisfies an associated project requirements.'))
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = MonitoringSerializerMixin.Meta.fields + (
             'url', 'uuid', 'name', 'description',
@@ -1599,7 +1599,7 @@ class BaseResourceImportSerializer(PermissionFieldFilteringMixin,
     import_history = serializers.BooleanField(
         default=True, write_only=True, help_text=_('Import historical resource usage.'))
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = (
             'url', 'uuid', 'name', 'state', 'created',
@@ -1701,7 +1701,7 @@ class PropertySerializerMetaclass(serializers.SerializerMetaclass):
 class BasePropertySerializer(core_serializers.AugmentedSerializerMixin,
                              serializers.HyperlinkedModelSerializer,
                              metaclass=PropertySerializerMetaclass):
-    class Meta(object):
+    class Meta:
         model = NotImplemented
 
 
@@ -1752,7 +1752,7 @@ class DivisionSerializer(serializers.HyperlinkedModelSerializer):
     type = serializers.ReadOnlyField(source='type.name')
     parent_uuid = serializers.ReadOnlyField(source='parent.uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Division
         fields = ('uuid', 'url', 'name', 'type', 'parent_uuid', 'parent')
         extra_kwargs = {

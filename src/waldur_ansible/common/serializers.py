@@ -3,7 +3,7 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 
 
-class ApplicationSerializerRegistry(object):
+class ApplicationSerializerRegistry:
     """
     Holds application-related model-serializer mappings
     """
@@ -31,7 +31,7 @@ class ApplicationSerializerMetaclass(serializers.SerializerMetaclass):
 class BaseApplicationSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer,
                                 metaclass=ApplicationSerializerMetaclass):
-    class Meta(object):
+    class Meta:
         model = NotImplemented
 
 

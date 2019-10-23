@@ -7,7 +7,7 @@ from waldur_core.core import models as core_models
 from . import models, executors
 
 
-class JupyterHubManagementService(object):
+class JupyterHubManagementService:
     executor = executors.JupyterHubManagementRequestExecutor
 
     def schedule_jupyter_hub_management_removal(self, persisted_jupyter_hub_management):

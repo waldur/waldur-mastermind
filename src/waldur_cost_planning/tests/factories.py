@@ -7,7 +7,7 @@ from .. import models
 
 
 class DeploymentPlanFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.DeploymentPlan
 
     name = factory.Sequence(lambda n: 'plan%s' % n)
@@ -24,14 +24,14 @@ class DeploymentPlanFactory(factory.DjangoModelFactory):
 
 
 class CategoryFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Category
 
     name = factory.Sequence(lambda n: 'category%s' % n)
 
 
 class PresetFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Preset
 
     name = factory.Sequence(lambda n: 'preset%s' % n)
@@ -45,7 +45,7 @@ class PresetFactory(factory.DjangoModelFactory):
 
 
 class DeploymentPlanItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.DeploymentPlanItem
 
     plan = factory.SubFactory(DeploymentPlanFactory)

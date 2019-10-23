@@ -238,7 +238,7 @@ class OfferingViewSet(BaseMarketplaceView):
                         status=status.HTTP_201_CREATED)
 
 
-class PlanUsageReporter(object):
+class PlanUsageReporter:
     """
     This class provides aggregate counts of how many plans of a
     certain type for each offering is used.

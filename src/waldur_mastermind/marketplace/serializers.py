@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
                                 serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.ServiceProvider
         fields = (
             'url', 'uuid', 'created', 'description', 'enable_notifications',
@@ -63,7 +63,7 @@ class ServiceProviderSerializer(core_serializers.AugmentedSerializerMixin,
 
 
 class NestedAttributeOptionSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.AttributeOption
         fields = ('key', 'title')
 
@@ -71,7 +71,7 @@ class NestedAttributeOptionSerializer(serializers.ModelSerializer):
 class NestedAttributeSerializer(serializers.ModelSerializer):
     options = NestedAttributeOptionSerializer(many=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Attribute
         fields = ('key', 'title', 'type', 'options', 'required', 'default')
 
@@ -79,19 +79,19 @@ class NestedAttributeSerializer(serializers.ModelSerializer):
 class NestedSectionSerializer(serializers.ModelSerializer):
     attributes = NestedAttributeSerializer(many=True, read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Section
         fields = ('key', 'title', 'attributes', 'is_standalone')
 
 
 class NestedColumnSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.CategoryColumn
         fields = ('index', 'title', 'attribute', 'widget')
 
 
 class CategoryComponentSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.CategoryComponent
         fields = ('type', 'name', 'description', 'measured_unit')
 
@@ -133,7 +133,7 @@ class CategorySerializer(ProtectedMediaSerializerMixin,
         queryset = queryset.annotate(offering_count=offering_count)
         return queryset.prefetch_related('sections', 'sections__attributes')
 
-    class Meta(object):
+    class Meta:
         model = models.Category
         fields = ('url', 'uuid', 'title', 'description', 'icon', 'offering_count',
                   'sections', 'columns', 'components')
@@ -155,7 +155,7 @@ class BasePlanSerializer(core_serializers.AugmentedSerializerMixin,
     quotas = serializers.DictField(child=serializers.IntegerField(min_value=0),
                                    write_only=True, required=False)
 
-    class Meta(object):
+    class Meta:
         model = models.Plan
         fields = ('url', 'uuid', 'name', 'description',
                   'article_code', 'product_code',
@@ -223,13 +223,13 @@ class PlanUsageResponseSerializer(serializers.Serializer):
 
 
 class NestedScreenshotSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Screenshot
         fields = ('name', 'description', 'image', 'thumbnail')
 
 
 class NestedOfferingFileSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.OfferingFile
         fields = ('name', 'created', 'file',)
 
@@ -238,7 +238,7 @@ class ScreenshotSerializer(ProtectedMediaSerializerMixin,
                            core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Screenshot
         fields = ('url', 'uuid', 'name', 'description', 'image', 'thumbnail', 'offering')
         protected_fields = ('offering', 'image')
@@ -291,7 +291,7 @@ class OfferingOptionsSerializer(serializers.Serializer):
 
 
 class OfferingComponentSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
                   'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code',
@@ -319,7 +319,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.Offering
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'terms_of_service',
                   'customer', 'customer_uuid', 'customer_name',
@@ -581,7 +581,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
 
 
 class OfferingPauseSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Offering
         fields = ['paused_reason']
 
@@ -753,7 +753,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
 class ComponentQuotaSerializer(serializers.ModelSerializer):
     type = serializers.ReadOnlyField(source='component.type')
 
-    class Meta(object):
+    class Meta:
         model = models.ComponentQuota
         fields = ('type', 'limit', 'usage')
 
@@ -762,7 +762,7 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer,
                          core_serializers.RestrictedSerializerMixin):
 
-    class Meta(object):
+    class Meta:
         fields = ('offering', 'offering_name', 'offering_uuid',
                   'offering_description', 'offering_thumbnail', 'offering_type',
                   'offering_terms_of_service', 'offering_shared', 'offering_billable',
@@ -1044,7 +1044,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
     state = serializers.ReadOnlyField(source='get_state_display')
     items = NestedOrderItemSerializer(many=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Order
         fields = ('url', 'uuid',
                   'created', 'created_by', 'created_by_username', 'created_by_full_name',
@@ -1112,7 +1112,7 @@ class CustomerOfferingSerializer(serializers.HyperlinkedModelSerializer):
         queryset=models.Offering.objects.all()
     )
 
-    class Meta(object):
+    class Meta:
         model = structure_models.Customer
         fields = ('offering_set',)
 
@@ -1150,7 +1150,7 @@ class ResourceSerializer(BaseItemSerializer):
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Resource
         fields = ('plan',)
 
@@ -1175,7 +1175,7 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Resource
         fields = ('limits',)
 
@@ -1195,14 +1195,14 @@ class CategoryComponentUsageSerializer(core_serializers.RestrictedSerializerMixi
     category_uuid = serializers.ReadOnlyField(source='component.category.uuid')
     scope = GenericRelatedField(related_models=(structure_models.Project, structure_models.Customer))
 
-    class Meta(object):
+    class Meta:
         model = models.CategoryComponentUsage
         fields = ('name', 'type', 'measured_unit', 'category_title', 'category_uuid',
                   'date', 'reported_usage', 'fixed_usage', 'scope')
 
 
 class BaseComponentUsageSerializer(BaseComponentSerializer, serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.ComponentUsage
         fields = (
             'uuid', 'created', 'description',
@@ -1346,7 +1346,7 @@ class OfferingFileSerializer(ProtectedMediaSerializerMixin,
                              core_serializers.AugmentedSerializerMixin,
                              serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.OfferingFile
         fields = ('url', 'uuid', 'name', 'offering', 'created', 'file',)
         extra_kwargs = dict(

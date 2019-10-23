@@ -38,7 +38,7 @@ OFFERING_OPTIONS = {
 
 
 class ServiceProviderFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ServiceProvider
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -58,7 +58,7 @@ class ServiceProviderFactory(factory.DjangoModelFactory):
 
 
 class CategoryFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Category
 
     title = factory.Sequence(lambda n: 'category-%s' % n)
@@ -78,7 +78,7 @@ class CategoryFactory(factory.DjangoModelFactory):
 
 
 class CategoryComponentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CategoryComponent
 
     category = factory.SubFactory(CategoryFactory)
@@ -87,7 +87,7 @@ class CategoryComponentFactory(factory.DjangoModelFactory):
 
 
 class OfferingFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Offering
 
     name = factory.Sequence(lambda n: 'offering-%s' % n)
@@ -109,7 +109,7 @@ class OfferingFactory(factory.DjangoModelFactory):
 
 
 class SectionFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Section
 
     key = factory.Sequence(lambda n: 'section-%s' % n)
@@ -117,7 +117,7 @@ class SectionFactory(factory.DjangoModelFactory):
 
 
 class AttributeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Attribute
 
     key = factory.Sequence(lambda n: 'attribute-%s' % n)
@@ -126,7 +126,7 @@ class AttributeFactory(factory.DjangoModelFactory):
 
 @factory.django.mute_signals(signals.pre_save, signals.post_save)
 class ScreenshotFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Screenshot
 
     name = factory.Sequence(lambda n: 'screenshot-%s' % n)
@@ -148,7 +148,7 @@ class ScreenshotFactory(factory.DjangoModelFactory):
 
 
 class OrderFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Order
 
     created_by = factory.SubFactory(structure_factories.UserFactory)
@@ -169,7 +169,7 @@ class OrderFactory(factory.DjangoModelFactory):
 
 
 class PlanFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Plan
 
     offering = factory.SubFactory(OfferingFactory)
@@ -191,7 +191,7 @@ class PlanFactory(factory.DjangoModelFactory):
 
 
 class OfferingComponentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OfferingComponent
 
     offering = factory.SubFactory(OfferingFactory)
@@ -200,7 +200,7 @@ class OfferingComponentFactory(factory.DjangoModelFactory):
 
 
 class PlanComponentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PlanComponent
 
     plan = factory.SubFactory(PlanFactory)
@@ -210,7 +210,7 @@ class PlanComponentFactory(factory.DjangoModelFactory):
 
 
 class OrderItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OrderItem
 
     order = factory.SubFactory(OrderFactory)
@@ -232,7 +232,7 @@ class OrderItemFactory(factory.DjangoModelFactory):
 
 
 class CartItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.CartItem
 
     offering = factory.SubFactory(OfferingFactory)
@@ -252,7 +252,7 @@ class CartItemFactory(factory.DjangoModelFactory):
 
 
 class ResourceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Resource
 
     offering = factory.SubFactory(OfferingFactory)
@@ -272,7 +272,7 @@ class ResourceFactory(factory.DjangoModelFactory):
 
 
 class OfferingFileFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OfferingFile
 
     name = factory.Sequence(lambda n: 'offering-file-%s' % n)
@@ -294,7 +294,7 @@ class OfferingFileFactory(factory.DjangoModelFactory):
 
 
 class ComponentUsageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ComponentUsage
 
     resource = factory.SubFactory(ResourceFactory)

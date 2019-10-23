@@ -11,6 +11,6 @@ class ApplicationFilter(django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     project_name = django_filters.CharFilter(field_name='project__name', lookup_expr='icontains')
 
-    class Meta(object):
+    class Meta:
         model = models.ApplicationModel
         fields = []

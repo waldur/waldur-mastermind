@@ -53,7 +53,7 @@ class StructureModel(models.Model):
 
     objects = StructureManager()
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def __getattr__(self, name):
@@ -113,7 +113,7 @@ class VATMixin(models.Model):
     Add country, VAT number fields and check results from EU VAT Information Exchange System.
     Allows to compute VAT charge rate.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     vat_code = models.CharField(max_length=20, blank=True, help_text=_('VAT number'))
@@ -149,7 +149,7 @@ class VATMixin(models.Model):
 
 
 class BasePermission(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True)
@@ -175,7 +175,7 @@ class BasePermission(models.Model):
         raise NotImplementedError
 
 
-class PermissionMixin(object):
+class PermissionMixin:
     """
     Base permission management mixin for customer and project.
     It is expected that reverse `permissions` relation is created for this model.
@@ -271,10 +271,10 @@ class CustomerRole(models.CharField):
 
 
 class CustomerPermission(BasePermission):
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'role', 'user', 'is_active')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
     customer = models.ForeignKey(on_delete=models.CASCADE, to='structure.Customer', verbose_name=_('organization'), related_name='permissions')
@@ -302,7 +302,7 @@ class DivisionType(core_models.UuidMixin,
                    core_models.NameMixin,
                    models.Model):
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('division type')
         ordering = ('name',)
 
@@ -317,7 +317,7 @@ class Division(core_models.UuidMixin,
     type = models.ForeignKey(on_delete=models.CASCADE, to='DivisionType')
     parent = models.ForeignKey(on_delete=models.CASCADE, to='Division', null=True, blank=True)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('division')
         ordering = ('name',)
 
@@ -346,7 +346,7 @@ class Customer(core_models.UuidMixin,
                ImageModelMixin,
                TimeStampedModel,
                StructureModel):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'self'
         project_path = 'projects'
 
@@ -378,7 +378,7 @@ class Customer(core_models.UuidMixin,
     division = models.ForeignKey('Division', null=True, blank=True, on_delete=models.SET_NULL)
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('organization')
         ordering = ('name',)
 
@@ -533,10 +533,10 @@ class ProjectRole(models.CharField):
 
 
 class ProjectPermission(core_models.UuidMixin, BasePermission):
-    class Meta(object):
+    class Meta:
         unique_together = ('project', 'role', 'user', 'is_active')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
@@ -556,7 +556,7 @@ class ProjectPermission(core_models.UuidMixin, BasePermission):
 
 
 class ProjectType(core_models.DescribableMixin, core_models.UuidMixin, core_models.NameMixin):
-    class Meta(object):
+    class Meta:
         verbose_name = _('Project type')
         verbose_name_plural = _('Project types')
         ordering = ['name']
@@ -583,7 +583,7 @@ class Project(core_models.DescribableMixin,
               TimeStampedModel,
               StructureModel,
               SoftDeletableModel):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
         project_path = 'self'
 
@@ -727,7 +727,7 @@ class ServiceCertification(core_models.UuidMixin, core_models.DescribableMixin):
     # NameMixin is not used here as name has to be unique.
     name = models.CharField(_('name'), max_length=150, validators=[validate_name], unique=True)
 
-    class Meta(object):
+    class Meta:
         verbose_name = 'Service Certification'
         verbose_name_plural = 'Service Certifications'
         ordering = ['-name']
@@ -752,7 +752,7 @@ class ServiceSettings(quotas_models.ExtendableQuotaModelMixin,
         verbose_name_plural = "Service settings"
         ordering = ('name',)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
         extra_query = dict(shared=True)
 
@@ -827,7 +827,7 @@ class SharedServiceSettings(ServiceSettings):
 
     objects = SharedServiceSettingsManager()
 
-    class Meta(object):
+    class Meta:
         proxy = True
         verbose_name_plural = _('Shared provider settings')
 
@@ -837,7 +837,7 @@ class PrivateServiceSettings(ServiceSettings):
 
     objects = PrivateServiceSettingsManager()
 
-    class Meta(object):
+    class Meta:
         proxy = True
         verbose_name_plural = _('Private provider settings')
 
@@ -849,11 +849,11 @@ class Service(core_models.UuidMixin,
               StructureModel):
     """ Base service class. """
 
-    class Meta(object):
+    class Meta:
         abstract = True
         unique_together = ('customer', 'settings')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
         project_path = 'projects'
 
@@ -918,7 +918,7 @@ class BaseServiceProperty(core_models.BackendModelMixin, core_models.UuidMixin, 
         which are usually used for Resource provisioning.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     @classmethod
@@ -933,7 +933,7 @@ class BaseServiceProperty(core_models.BackendModelMixin, core_models.UuidMixin, 
 
 class ServiceProperty(BaseServiceProperty):
 
-    class Meta(object):
+    class Meta:
         abstract = True
         unique_together = ('settings', 'backend_id')
 
@@ -949,7 +949,7 @@ class GeneralServiceProperty(BaseServiceProperty):
     Service property which is not connected to settings
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     backend_id = models.CharField(max_length=255, unique=True)
@@ -964,18 +964,18 @@ class ServiceProjectLink(quotas_models.QuotaModelMixin,
                          StructureModel):
     """ Base service-project link class. See Service class for usage example. """
 
-    class States(object):
+    class States:
         OK = 'OK'
         ERRED = 'ERRED'
         WARNING = 'WARNING'
 
         CHOICES = [OK, ERRED, WARNING]
 
-    class Meta(object):
+    class Meta:
         abstract = True
         unique_together = ('service', 'project')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'service__customer'
         project_path = 'project'
 
@@ -1057,7 +1057,7 @@ class CloudServiceProjectLink(ServiceProjectLink):
 
 class ApplicationMixin(models.Model):
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     @classmethod
@@ -1081,10 +1081,10 @@ class ResourceMixin(MonitoringModelMixin,
         for example: a VM in OpenStack or AWS, or a repository in Github.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'service_project_link__project__customer'
         project_path = 'service_project_link__project'
         service_path = 'service_project_link__service'
@@ -1169,7 +1169,7 @@ class ResourceMixin(MonitoringModelMixin,
 # TODO: rename to Resource
 class NewResource(ResourceMixin, core_models.StateMixin):
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
@@ -1195,7 +1195,7 @@ class VirtualMachine(CoordinatesMixin, core_models.RuntimeStateMixin, NewResourc
         help_text=_('Additional data that will be added to instance on provisioning'))
     start_time = models.DateTimeField(blank=True, null=True)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def detect_coordinates(self):
@@ -1241,30 +1241,30 @@ class PrivateCloud(quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin,
     extra_configuration = JSONField(default=dict,
                                     help_text=_('Configuration details that are not represented on backend.'))
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class Storage(core_models.RuntimeStateMixin, NewResource):
     size = models.PositiveIntegerField(help_text=_('Size in MiB'))
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class Volume(Storage):
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class Snapshot(Storage):
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class SubResource(NewResource):
     """ Resource dependent object that cannot exist without resource. """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     @classmethod

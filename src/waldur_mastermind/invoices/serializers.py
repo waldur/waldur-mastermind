@@ -18,7 +18,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.InvoiceItem
         fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit', 'factor',
                   'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid',
@@ -63,7 +63,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     due_date = serializers.DateField()
     file = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.Invoice
         fields = (
             'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
@@ -115,7 +115,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
     customer_uuid = serializers.ReadOnlyField(source='invoice.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='invoice.customer.name')
 
-    class Meta(object):
+    class Meta:
         model = models.InvoiceItem
         fields = (
             'customer_uuid', 'customer_name',
@@ -190,7 +190,7 @@ class SAFReportSerializer(serializers.Serializer):
     U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
-    class Meta(object):
+    class Meta:
         fields = ('DOKNR', 'KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
                   'ARTIKKEL', 'KOGUS', 'SUMMA', 'RMAKSUSUM', 'RMAKSULIPP',
                   'ARTPROJEKT', 'ARTNIMI', 'VALI', 'U_KONEDEARV', 'H_PERIOOD')

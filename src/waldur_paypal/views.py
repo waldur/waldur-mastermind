@@ -19,7 +19,7 @@ class ExtensionDisabled(exceptions.APIException):
     default_detail = _('PayPal extension is disabled.')
 
 
-class CheckExtensionMixin(object):
+class CheckExtensionMixin:
     """ Raise exception if paypal extension is disabled """
 
     def initial(self, request, *args, **kwargs):
@@ -28,7 +28,7 @@ class CheckExtensionMixin(object):
         return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
 
 
-class CreateByStaffOrOwnerMixin(object):
+class CreateByStaffOrOwnerMixin:
 
     def create(self, request):
         serializer = self.get_serializer(data=request.data)

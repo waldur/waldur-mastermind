@@ -31,7 +31,7 @@ class JupyterHubUserSerializer(core_serializers.AugmentedSerializerMixin, serial
         ),
     ])
 
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubUser
         fields = ('uuid', 'admin', 'whitelisted', 'username', 'password',)
         read_only_fields = ('uuid', 'output', 'state', 'created', 'modified',)
@@ -46,7 +46,7 @@ class JupyterHubManagementRequestMixin(core_serializers.AugmentedSerializerMixin
     state = serializers.SerializerMethodField()
     output = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = ('uuid', 'output', 'state', 'created', 'modified', 'request_type',)
         read_only_fields = ('uuid', 'output', 'state', 'created', 'modified', 'request_type',)
@@ -94,7 +94,7 @@ class JupyterHubOAuthConfigSerializer(core_serializers.AugmentedSerializerMixin,
                                       serializers.HyperlinkedModelSerializer):
     type = serializers.ChoiceField(choices=models.JupyterHubOAuthType.CHOICES)
 
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubOAuthConfig
         fields = ('uuid', 'type', 'oauth_callback_url', 'client_id', 'client_secret', 'tenant_id', 'gitlab_host',)
         read_only_fields = ('uuid',)
@@ -123,7 +123,7 @@ class JupyterHubManagementSerializer(
     name = serializers.SerializerMethodField()
     jupyter_hub_url = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.JupyterHubManagement
         fields = ('uuid', 'python_management', 'jupyter_hub_users', 'state', 'session_time_to_live_hours',
                   'created', 'modified', 'updated_virtual_environments', 'name', 'jupyter_hub_url', 'jupyter_hub_oauth_config',)

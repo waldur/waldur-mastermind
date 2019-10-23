@@ -9,7 +9,7 @@ from .. import models
 
 
 class DigitalOceanServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.DigitalOceanService
 
     settings = factory.SubFactory(structure_factories.ServiceSettingsFactory, type='DigitalOcean')
@@ -28,7 +28,7 @@ class DigitalOceanServiceFactory(factory.DjangoModelFactory):
 
 
 class DigitalOceanServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.DigitalOceanServiceProjectLink
 
     service = factory.SubFactory(DigitalOceanServiceFactory)
@@ -42,7 +42,7 @@ class DigitalOceanServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class RegionFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Region
 
     name = factory.Sequence(lambda n: 'region%s' % n)
@@ -56,7 +56,7 @@ class RegionFactory(factory.DjangoModelFactory):
 
 
 class ImageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
@@ -74,7 +74,7 @@ class ImageFactory(factory.DjangoModelFactory):
 
 
 class SizeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Size
 
     name = factory.Sequence(lambda n: 'size%s' % n)
@@ -94,7 +94,7 @@ class SizeFactory(factory.DjangoModelFactory):
 
 
 class DropletFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Droplet
 
     name = factory.Sequence(lambda n: 'droplet%s' % n)

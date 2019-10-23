@@ -49,7 +49,7 @@ def copy_attributes(fields, order_item):
     return payload
 
 
-class BaseOrderItemProcessor(object):
+class BaseOrderItemProcessor:
     def __init__(self, order_item):
         self.order_item = order_item
 

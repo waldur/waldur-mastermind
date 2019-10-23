@@ -3,7 +3,7 @@ from waldur_ansible.python_management import executors, models, utils
 from . import locking_service
 
 
-class InstalledLibrariesExtractedInformationHandler(object):
+class InstalledLibrariesExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         self.persist_installed_libraries_in_db(
             request.python_management,
@@ -47,17 +47,17 @@ class InstalledLibrariesExtractedInformationHandler(object):
         return False
 
 
-class PythonManagementDeletionRequestExtractedInformationHandler(object):
+class PythonManagementDeletionRequestExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         request.python_management.delete()
 
 
-class PythonManagementDeleteVirtualEnvExtractedInformationHandler(object):
+class PythonManagementDeleteVirtualEnvExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         request.python_management.virtual_environments.get(name=request.virtual_env_name).delete()
 
 
-class PythonManagementFindVirtualEnvsRequestExtractedInformationHandler(object):
+class PythonManagementFindVirtualEnvsRequestExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         for persisted_virtual_env in request.python_management.virtual_environments.all():
             if persisted_virtual_env not in lines_post_processor.installed_virtual_environments:
@@ -71,13 +71,13 @@ class PythonManagementFindVirtualEnvsRequestExtractedInformationHandler(object):
             executors.PythonManagementRequestExecutor.execute(find_libs_request, async=True)
 
 
-class InitializationRequestExtractedInformationHandler(object):
+class InitializationRequestExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         python_management = request.python_management
         python_management.python_version = lines_post_processor.python_version
         python_management.save()
 
 
-class NullExtractedInformationHandler(object):
+class NullExtractedInformationHandler:
     def handle_extracted_information(self, request, lines_post_processor):
         pass

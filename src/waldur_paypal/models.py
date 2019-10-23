@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
-    class Meta(object):
+    class Meta:
         ordering = ['-modified']
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class States(object):
+    class States:
         INIT = 0
         CREATED = 1
         APPROVED = 2
@@ -82,13 +82,13 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
 
 
 class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
-    class Meta(object):
+    class Meta:
         ordering = ['-invoice_date']
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class States(object):
+    class States:
         DRAFT = 'DRAFT'
         SENT = 'SENT'
         PAID = 'PAID'
@@ -163,10 +163,10 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
 
 
 class InvoiceItem(models.Model):
-    class Meta(object):
+    class Meta:
         ordering = ['invoice', '-start']
 
-    class UnitsOfMeasure(object):
+    class UnitsOfMeasure:
         QUANTITY = 'QUANTITY'
         HOURS = 'HOURS'
         AMOUNT = 'AMOUNT'

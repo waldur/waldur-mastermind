@@ -14,7 +14,7 @@ from . import models
 
 
 class PackageComponentSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.PackageComponent
         fields = ('type', 'amount', 'price')
 
@@ -26,7 +26,7 @@ class PackageTemplateSerializer(core_serializers.AugmentedSerializerMixin,
     components = PackageComponentSerializer(many=True)
     category = serializers.ReadOnlyField(source='get_category_display')
 
-    class Meta(object):
+    class Meta:
         model = models.PackageTemplate
         fields = (
             'uuid', 'name', 'description', 'service_settings',
@@ -169,7 +169,7 @@ class OpenStackPackageSerializer(core_serializers.AugmentedSerializerMixin,
     description = serializers.CharField(source='tenant.description', read_only=True)
     template_uuid = serializers.CharField(source='template.uuid', read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.OpenStackPackage
         fields = ('uuid', 'name', 'description', 'template_uuid', 'tenant', 'service_settings',)
 

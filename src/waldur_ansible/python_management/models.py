@@ -53,7 +53,7 @@ class InstalledLibrary(common_models.UuidStrMixin, core_models.NameMixin, models
 class PythonManagementRequest(common_models.UuidStrMixin, core_models.StateMixin, TimeStampedModel, common_models.OutputMixin):
     python_management = models.ForeignKey(PythonManagement, on_delete=models.CASCADE, related_name='+')
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def get_backend(self):
@@ -73,7 +73,7 @@ class PythonManagementInitializeRequest(PythonManagementRequest):
 class VirtualEnvMixin(models.Model):
     virtual_env_name = models.CharField(max_length=255)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
