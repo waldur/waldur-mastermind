@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import logging
+from urllib.parse import urlparse
 
 from django.core.validators import RegexValidator
 from django.db import models
@@ -8,7 +9,6 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
-from six.moves.urllib.parse import urlparse
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField

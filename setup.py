@@ -104,7 +104,7 @@ setup(
         ),
         'waldur_extensions': (
             'waldur_auth_social = waldur_auth_social.extension:AuthSocialExtension',
-            'waldur_auth_openid = waldur_auth_openid.extension:WaldurAuthOpenIDExtension',
+            # 'waldur_auth_openid = waldur_auth_openid.extension:WaldurAuthOpenIDExtension',
             'waldur_auth_saml2 = waldur_auth_saml2.extension:SAML2Extension',
             'waldur_auth_valimo = waldur_auth_valimo.extension:AuthValimoExtension',
             'waldur_auth_bcc = waldur_auth_bcc.extension:AuthBCCExtension',

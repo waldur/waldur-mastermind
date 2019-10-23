@@ -9,7 +9,7 @@ from django_filters.filters import MultipleChoiceFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
 import six
-from six.moves.urllib.parse import urlparse
+from urllib.parse import urlparse
 
 from waldur_core.core import serializers as core_serializers, fields as core_fields, models as core_models
 

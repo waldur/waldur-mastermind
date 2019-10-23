@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 import re
-import urlparse
+from urllib.parse import urljoin
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -61,7 +61,7 @@ class Project(structure_models.NewResource, core_models.RuntimeStateMixin):
 
     def get_access_url(self):
         base_url = self.service_project_link.service.settings.backend_url
-        return urlparse.urljoin(base_url, 'projects/' + self.backend_id)
+        return urljoin(base_url, 'projects/' + self.backend_id)
 
     @classmethod
     def get_url_name(cls):

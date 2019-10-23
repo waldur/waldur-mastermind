@@ -1,5 +1,5 @@
 import logging
-import urlparse
+from urllib.parse import urljoin
 
 from django.conf import settings as django_settings
 from django.utils import timezone
@@ -85,7 +85,7 @@ class Request(object):
 
     @classmethod
     def _get_url(cls):
-        return urlparse.urljoin(cls.settings['URL'], cls.url)
+        return urljoin(cls.settings['URL'], cls.url)
 
 
 class SignatureResponse(Response):

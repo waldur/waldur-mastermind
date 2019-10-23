@@ -1,10 +1,10 @@
 import datetime
+from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.request import urlopen
+
 import dateutil.parser
 import decimal
 import paypalrestsdk as paypal
-import urlparse
-import urllib
-import urllib2
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -48,7 +48,7 @@ class PaypalBackend(object):
     def get_payment_view_url(self, backend_invoice_id, params=None):
         invoice_url = '%s/invoice/payerView/details/%s' % (self.server, backend_invoice_id)
         if params:
-            query_params = urllib.urlencode(params)
+            query_params = urlencode(params)
             invoice_url = '%s?%s' % (invoice_url, query_params)
 
         return invoice_url
@@ -60,8 +60,8 @@ class PaypalBackend(object):
         raise PayPalError('Approval URL is not found')
 
     def _find_token(self, approval_url):
-        parts = urlparse.urlparse(approval_url)
-        params = urlparse.parse_qs(parts.query)
+        parts = urlparse(approval_url)
+        params = parse_qs(parts.query)
         token = params.get('token')
         if not token:
             raise PayPalError('Unable to parse token from approval_url')
@@ -426,6 +426,6 @@ class PaypalBackend(object):
             ))
 
         invoice_url = self.get_payment_view_url(invoice.backend_id, {'printPdfMode': 'true'})
-        response = urllib2.urlopen(invoice_url)  # nosec
+        response = urlopen(invoice_url)  # nosec
         content = response.read()
         invoice.pdf.save(invoice.file_name, ContentFile(content), save=True)
