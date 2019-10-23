@@ -1,4 +1,4 @@
-from cStringIO import StringIO
+from io import StringIO
 
 from PIL import Image
 from django.conf import settings

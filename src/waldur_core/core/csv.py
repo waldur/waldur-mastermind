@@ -4,7 +4,7 @@ import codecs
 import csv
 
 import six
-from six import StringIO
+from io import StringIO
 
 
 class UTF8Recoder:

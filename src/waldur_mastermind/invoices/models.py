@@ -1,9 +1,9 @@
 from __future__ import unicode_literals, division
 
-import StringIO
 import base64
 from datetime import timedelta
 import decimal
+from io import StringIO
 import logging
 from calendar import monthrange
 

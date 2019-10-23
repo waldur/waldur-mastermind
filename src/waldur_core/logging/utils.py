@@ -1,4 +1,4 @@
-import cStringIO
+from io import StringIO
 import datetime
 import os
 import tarfile
@@ -41,7 +41,7 @@ def create_report_archive(log_directory, interval):
         if stat.st_mtime > cutoff:
             log_filenames.append(full_path)
 
-    stream = cStringIO.StringIO()
+    stream = StringIO.StringIO()
 
     with tarfile.open(fileobj=stream, mode='w:gz') as archive:
         for filename in log_filenames:

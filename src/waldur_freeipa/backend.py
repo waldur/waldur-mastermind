@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 
 import collections
-import cStringIO
+from io import StringIO
 import csv
 
 from django.conf import settings
@@ -65,7 +65,7 @@ class GroupSynchronizer(object):
         return self.group_name('org_%s' % customer.uuid)
 
     def get_group_description(self, name, limit):
-        stream = cStringIO.StringIO()
+        stream = StringIO.StringIO()
         writer = csv.writer(stream)
         writer.writerow([name.encode('utf-8'), str(limit)])
         return stream.getvalue().strip().decode('utf-8')

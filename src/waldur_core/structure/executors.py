@@ -1,7 +1,7 @@
 from celery import chain
 from django.core import checks
-from django.db.migrations.topological_sort import stable_topological_sort
 from django.db.models import Model
+from django.utils.topological_sort import stable_topological_sort
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import executors as core_executors

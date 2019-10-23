@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import base64
 from decimal import Decimal
-import StringIO
+from io import StringIO
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
