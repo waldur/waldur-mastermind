@@ -253,7 +253,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         """
         view = super(WaldurSchemaGenerator, self).create_view(callback, method, request)
         if is_disabled_action(view):
-            view.exclude_from_schema = True
+            view.schema = None
 
         return view
 
