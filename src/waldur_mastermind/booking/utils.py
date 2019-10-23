@@ -56,7 +56,8 @@ def get_info_about_upcoming_bookings():
                            'Resource ID: %s', resource.id)
         else:
             if filter(lambda x: x['user'] == user, result):
-                filter(lambda x: x['user'] == resource.project.customer, result)[0]['resources'].append(resource)
+                row = list(filter(lambda x: x['user'] == resource.project.customer, result))[0]
+                row['resources'].append(resource)
             else:
                 result.append({
                     'user': user,
