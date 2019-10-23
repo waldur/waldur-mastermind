@@ -8,7 +8,7 @@ import logging
 from django.apps import apps
 from django.conf import settings
 from django.contrib.admindocs.views import simplify_regex
-from django.urls import RegexURLResolver, RegexURLPattern
+from django.urls import URLResolver, URLPattern
 from django_filters import ModelMultipleChoiceFilter
 from rest_framework.fields import ChoiceField, ReadOnlyField, ModelField
 from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
@@ -67,13 +67,15 @@ class ApiDocs(object):
 
     def get_all_view_names(self, urlpatterns, parent_pattern=None):
         for pattern in urlpatterns:
-            if isinstance(pattern, RegexURLResolver):
-                pp = None if pattern._regex == '^' else pattern
+            if isinstance(pattern, URLResolver):
+                regex = pattern.pattern.regex
+                pp = None if regex.pattern == '^' else pattern
                 for ep in self.get_all_view_names(pattern.url_patterns, parent_pattern=pp):
                     yield ep
-            elif isinstance(pattern, RegexURLPattern) and self._is_drf_view(pattern):
+            elif isinstance(pattern, URLPattern) and self._is_drf_view(pattern):
                 suffix = '?P<%s>' % api_settings.FORMAT_SUFFIX_KWARG
-                if suffix not in pattern.regex.pattern:
+                regex = pattern.pattern.regex
+                if suffix not in regex.pattern:
                     yield ApiEndpoint(pattern, parent_pattern)
 
     def _is_drf_view(self, pattern):
