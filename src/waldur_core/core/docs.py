@@ -99,7 +99,7 @@ class ApiDocs(object):
             name = conf.verbose_name
             file = '%s.rst' % app
 
-            print '\t* %s' % file
+            print('\t* %s' % file)
 
             with open(path + '/' + file, 'w') as f:
                 doc = getdoc(conf) or name
