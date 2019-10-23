@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
@@ -8,8 +9,6 @@ from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
-import six
-from urllib.parse import urlparse
 
 from waldur_core.core import serializers as core_serializers, fields as core_fields, models as core_models
 
@@ -66,7 +65,7 @@ class MappedFilterMixin(object):
         assert len(set(choice_mappings.values())) == len(choice_mappings), 'Mappings are not unique'
 
         self.mapped_to_model = choice_mappings
-        self.model_to_mapped = {v: k for k, v in six.iteritems(choice_mappings)}
+        self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
 
 
 class MappedChoiceFilter(MappedFilterMixin, django_filters.ChoiceFilter):

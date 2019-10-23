@@ -18,7 +18,6 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, NotFound, APIException, ValidationError
 from rest_framework.response import Response
 from reversion.models import Version
-import six
 
 from waldur_core.core import managers as core_managers
 from waldur_core.core import mixins as core_mixins
@@ -1774,7 +1773,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     ]
 
 
-class BaseResourceViewSet(six.with_metaclass(ResourceViewMetaclass, ResourceViewSet)):
+class BaseResourceViewSet(ResourceViewSet, metaclass=ResourceViewMetaclass):
     pass
 
 

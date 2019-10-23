@@ -10,7 +10,6 @@ from django.db.models import Sum
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from reversion import revisions as reversion
-import six
 
 from waldur_core.core.models import UuidMixin, ReversionMixin, DescendantMixin
 from waldur_core.logging.loggers import LoggableMixin
@@ -184,7 +183,7 @@ class QuotaModelMixin(models.Model):
 
         """
         errors = []
-        for name, delta in six.iteritems(quota_deltas):
+        for name, delta in quota_deltas.items():
             quota = self.quotas.get(name=name)
             if quota.is_exceeded(delta):
                 errors.append('%s quota limit: %s, requires %s (%s)\n' % (

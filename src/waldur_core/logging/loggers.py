@@ -9,7 +9,6 @@ import types
 import uuid
 
 from django.apps import apps
-import six
 
 from waldur_core.logging import models
 from waldur_core.logging.log import EventLoggerAdapter
@@ -93,7 +92,7 @@ class BaseLogger(object):
                 logger.warning("User is passed directly to event context. "
                                "Currently authenticated user %s is ignored.", username)
 
-        for entity_name, entity in six.iteritems(kwargs):
+        for entity_name, entity in kwargs.items():
             if entity_name in self.fields:
                 entity_class = self.fields[entity_name]
                 if entity is None and entity_name in self.get_nullable_fields():

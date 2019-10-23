@@ -1,4 +1,3 @@
-import six
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -29,9 +28,9 @@ class ApplicationSerializerMetaclass(serializers.SerializerMetaclass):
         return serializer
 
 
-class BaseApplicationSerializer(six.with_metaclass(ApplicationSerializerMetaclass,
-                                                   core_serializers.AugmentedSerializerMixin,
-                                                   serializers.HyperlinkedModelSerializer)):
+class BaseApplicationSerializer(core_serializers.AugmentedSerializerMixin,
+                                serializers.HyperlinkedModelSerializer,
+                                metaclass=ApplicationSerializerMetaclass):
     class Meta(object):
         model = NotImplemented
 

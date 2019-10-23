@@ -3,7 +3,6 @@ import logging
 import subprocess  # nosec
 
 from django.utils.functional import cached_property
-import six
 
 from .structures import Quotas
 
@@ -136,8 +135,7 @@ class BaseBatchClient(object, metaclass=abc.ABCMeta):
             raise BatchError(stdout)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BaseReportLine(object):
+class BaseReportLine(metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def account(self):
         pass

@@ -76,7 +76,6 @@ test_requires = [
     'freezegun==0.3.7',
     'mock>=1.0.1',
     'mock-django==0.6.9',
-    'six>=1.9.0',
     'sqlalchemy>=1.0.12',
     'responses',
 ]

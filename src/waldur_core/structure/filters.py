@@ -1,7 +1,6 @@
 import uuid
 
 import django_filters
-import six
 import taggit
 from django import forms
 from django.conf import settings as django_settings
@@ -512,7 +511,7 @@ class ServiceFilterMetaclass(FilterSetMetaclass):
         return service_filter
 
 
-class BaseServiceFilter(six.with_metaclass(ServiceFilterMetaclass, django_filters.FilterSet)):
+class BaseServiceFilter(django_filters.FilterSet, metaclass=ServiceFilterMetaclass):
     customer = django_filters.UUIDFilter(field_name='customer__uuid')
     name = django_filters.CharFilter(field_name='settings__name', lookup_expr='icontains')
     name_exact = django_filters.CharFilter(field_name='settings__name', lookup_expr='exact')
@@ -566,8 +565,7 @@ class ResourceFilterMetaclass(FilterSetMetaclass):
         return resource_filter
 
 
-class BaseResourceFilter(six.with_metaclass(ResourceFilterMetaclass,
-                                            NameFilterSet)):
+class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
     def __init__(self, *args, **kwargs):
         super(BaseResourceFilter, self).__init__(*args, **kwargs)
         self.filters['o'] = django_filters.OrderingFilter(fields=self.ORDERING_FIELDS)

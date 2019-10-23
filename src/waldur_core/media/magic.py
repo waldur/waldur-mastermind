@@ -26,8 +26,6 @@ import glob
 import sys
 import threading
 
-import six
-
 
 class MagicException(Exception):
     def __init__(self, message):
