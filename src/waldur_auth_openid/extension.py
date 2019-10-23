@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.utils.module_loading import import_string
 
 from waldur_core.core import WaldurExtension

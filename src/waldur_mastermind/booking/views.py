@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from croniter import croniter
 from django.core.exceptions import ValidationError
 from django.core.validators import BaseValidator, URLValidator

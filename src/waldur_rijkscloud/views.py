@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from waldur_core.structure import views as structure_views
 
 from . import filters, executors, models, serializers

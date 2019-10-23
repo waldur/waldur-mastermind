@@ -38,7 +38,7 @@ class JupyterHubOAuthConfigAdmin(admin.ModelAdmin):
     list_display_links = ('uuid',)
 
     def jupyter_hub_management_link(self, obj):
-        link = urlresolvers.reverse("admin:jupyter_hub_management_jupyterhubmanagement_change", args=[obj.id])
+        link = reverse("admin:jupyter_hub_management_jupyterhubmanagement_change", args=[obj.id])
         return '<a href="%s">JupyterHub management</a>' % link
 
     jupyter_hub_management_link.allow_tags = True
@@ -56,7 +56,7 @@ class RequestAdmin(admin.ModelAdmin):
     list_display_links = ('uuid',)
 
     def jupyter_hub_management_link(self, obj):
-        link = urlresolvers.reverse("admin:jupyter_hub_management_jupyterhubmanagement_change", args=[obj.id])
+        link = reverse("admin:jupyter_hub_management_jupyterhubmanagement_change", args=[obj.id])
         return '<a href="%s">JupyterHub management</a>' % link
 
     jupyter_hub_management_link.allow_tags = True

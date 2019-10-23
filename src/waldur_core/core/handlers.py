@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.conf import settings
 from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.urls import reverse
 from django.contrib.contenttypes import models as ct_models
 import factory

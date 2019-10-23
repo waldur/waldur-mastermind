@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import base64
 from collections import OrderedDict
 from datetime import timedelta
@@ -523,6 +521,6 @@ class GeoLocationField(serializers.JSONField):
 class UnicodeIntegerField(serializers.IntegerField):
 
     def to_internal_value(self, data):
-        if isinstance(data, unicode):
+        if isinstance(data, str):
             data = core_utils.normalize_unicode(data)
         return super(UnicodeIntegerField, self).to_internal_value(data)

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from decimal import Decimal
 
 from ddt import ddt, data

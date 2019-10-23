@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import test
 from six.moves import mock

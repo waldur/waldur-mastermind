@@ -1,5 +1,3 @@
-from __future__ import unicode_literals, division
-
 from datetime import datetime
 import decimal
 

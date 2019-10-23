@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import mock
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test

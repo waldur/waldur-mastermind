@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse

@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+import argparse
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -13,7 +13,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             'file',
-            type=file,
+            type=argparse.FileType('r'),
             metavar='FILE',
             help='AMI catalog file.'
         )
@@ -68,7 +68,7 @@ class Command(BaseCommand):
             return
 
         if not options['yes']:
-            confirm = raw_input('Enter [y] to continue: ')
+            confirm = input('Enter [y] to continue: ')
             if confirm.strip().lower() != 'y':
                 self.stdout.write('Changes are not applied.')
                 return

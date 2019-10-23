@@ -1,5 +1,3 @@
-from __future__ import unicode_literals, division
-
 import functools
 import logging
 import sys

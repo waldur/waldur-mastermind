@@ -1,3 +1,4 @@
+from functools import reduce
 import operator
 
 from waldur_core.core import models, utils, tasks

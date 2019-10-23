@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from python_freeipa import exceptions as freeipa_exceptions

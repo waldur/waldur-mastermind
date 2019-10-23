@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 
 from django.core import exceptions as django_exceptions

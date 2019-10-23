@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import base64
 from decimal import Decimal
 from io import StringIO

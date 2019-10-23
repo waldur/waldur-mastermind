@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from rest_framework import serializers
 from django.utils.translation import ugettext_lazy as _

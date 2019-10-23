@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from waldur_core.users import views
 
 

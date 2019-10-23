@@ -327,7 +327,7 @@ def chunks(xs, n):
     :param n: chunk size
     :return: list of lists
     """
-    return [xs[i:i + n] for i in xrange(0, len(xs), n)]
+    return [xs[i:i + n] for i in range(0, len(xs), n)]
 
 
 def create_batch_fetcher(fetcher):

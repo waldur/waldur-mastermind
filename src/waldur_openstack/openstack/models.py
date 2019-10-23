@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import models
 from django.template.defaultfilters import slugify
 from django.utils.encoding import python_2_unicode_compatible
@@ -96,8 +94,9 @@ class Image(openstack_base_models.BaseImage):
 
 
 class SecurityGroup(structure_models.SubResource):
-    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=
-        OpenStackServiceProjectLink, related_name='security_groups')
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE,
+                                             to=OpenStackServiceProjectLink,
+                                             related_name='security_groups')
     tenant = models.ForeignKey(on_delete=models.CASCADE, to='Tenant', related_name='security_groups')
 
     def get_backend(self):
@@ -130,8 +129,9 @@ class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
 
 @python_2_unicode_compatible
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
-    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=
-        OpenStackServiceProjectLink, related_name='floating_ips')
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE,
+                                             to=OpenStackServiceProjectLink,
+                                             related_name='floating_ips')
     tenant = models.ForeignKey(on_delete=models.CASCADE, to='Tenant', related_name='floating_ips')
     address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
     backend_network_id = models.CharField(max_length=255, editable=False)

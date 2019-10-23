@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from celery import chain
 from django.http import Http404, HttpResponse
 from django.utils.translation import ugettext_lazy as _

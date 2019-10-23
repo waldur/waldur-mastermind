@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import threading
 
 from django.utils.deprecation import MiddlewareMixin

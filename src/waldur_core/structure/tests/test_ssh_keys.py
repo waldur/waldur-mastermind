@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from rest_framework import test, status
 
 from waldur_core.core import models as core_models

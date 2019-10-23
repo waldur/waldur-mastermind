@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.conf import settings
 from rest_framework import views
 from rest_framework.exceptions import ValidationError

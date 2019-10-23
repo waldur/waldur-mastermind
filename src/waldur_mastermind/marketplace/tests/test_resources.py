@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from ddt import data, ddt
 import mock
 from rest_framework import status, test

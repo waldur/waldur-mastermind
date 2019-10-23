@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from zipfile import ZipFile
 
 from django.core.files.base import ContentFile

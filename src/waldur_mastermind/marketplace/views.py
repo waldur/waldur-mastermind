@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import IntegrityError, transaction
 from django.db.models import Count, OuterRef, Subquery, F, Q, ExpressionWrapper, PositiveSmallIntegerField
 from django.http import Http404, HttpResponse

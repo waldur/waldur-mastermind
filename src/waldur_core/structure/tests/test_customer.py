@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 from ddt import data, ddt
 from django.urls import reverse
 from django.utils import timezone

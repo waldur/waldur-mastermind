@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.http import Http404
 from rest_framework import viewsets, mixins, response, decorators
 

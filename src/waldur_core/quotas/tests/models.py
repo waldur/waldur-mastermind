@@ -19,7 +19,7 @@ class GrandparentModel(core_models.UuidMixin, quotas_models.QuotaModelMixin, cor
 
 
 class ParentModel(core_models.UuidMixin, quotas_models.QuotaModelMixin, core_models.DescendantMixin):
-    parent = django_models.ForeignKey(on_delete=models.CASCADE, to=GrandparentModel, related_name='children')
+    parent = django_models.ForeignKey(on_delete=django_models.CASCADE, to=GrandparentModel, related_name='children')
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         counter_quota = fields.CounterQuotaField(
@@ -62,8 +62,8 @@ class NonQuotaParentModel(core_models.UuidMixin, core_models.DescendantMixin):
 
 
 class ChildModel(core_models.UuidMixin, quotas_models.QuotaModelMixin, core_models.DescendantMixin):
-    parent = django_models.ForeignKey(on_delete=models.CASCADE, to=ParentModel, related_name='children')
-    non_quota_parent = django_models.ForeignKey(on_delete=models.CASCADE, to=NonQuotaParentModel, related_name='children', blank=True, null=True)
+    parent = django_models.ForeignKey(on_delete=django_models.CASCADE, to=ParentModel, related_name='children')
+    non_quota_parent = django_models.ForeignKey(on_delete=django_models.CASCADE, to=NonQuotaParentModel, related_name='children', blank=True, null=True)
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         regular_quota = fields.QuotaField()
@@ -77,7 +77,7 @@ class ChildModel(core_models.UuidMixin, quotas_models.QuotaModelMixin, core_mode
 
 
 class SecondChildModel(core_models.UuidMixin, quotas_models.QuotaModelMixin, core_models.DescendantMixin):
-    parent = django_models.ForeignKey(on_delete=models.CASCADE, to=ParentModel, related_name='second_children')
+    parent = django_models.ForeignKey(on_delete=django_models.CASCADE, to=ParentModel, related_name='second_children')
     size = django_models.IntegerField(default=0)
 
     def get_parents(self):

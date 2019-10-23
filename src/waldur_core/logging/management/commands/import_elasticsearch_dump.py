@@ -1,4 +1,5 @@
 from argparse import FileType
+from functools import reduce
 import operator
 import json
 from sys import stdin

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import factory
 from rest_framework.reverse import reverse
 from waldur_ansible.playbook_jobs import models

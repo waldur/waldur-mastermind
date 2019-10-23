@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from zipfile import is_zipfile, ZipFile
 
 from django.db import transaction

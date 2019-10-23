@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import re
 from urllib.parse import urljoin
 
@@ -182,7 +180,7 @@ class Issue(structure_models.StructureLoggableMixin,
 
     def get_access_url(self):
         base_url = self.project.service_project_link.service.settings.backend_url
-        return urlparse.urljoin(base_url, 'browse/' + (self.backend_id or ''))
+        return urljoin(base_url, 'browse/' + (self.backend_id or ''))
 
     def get_log_fields(self):
         return ('uuid', 'issue_user', 'key', 'summary', 'status', 'issue_project')

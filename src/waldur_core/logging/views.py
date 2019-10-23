@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import response, viewsets, permissions, status, decorators, mixins
 

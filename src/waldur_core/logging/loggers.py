@@ -1,7 +1,5 @@
 """ Custom loggers that allows to store logs in DB """
 
-from __future__ import unicode_literals
-
 from collections import defaultdict
 import datetime
 import decimal
