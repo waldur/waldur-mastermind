@@ -440,7 +440,7 @@ class Plan(core_models.UuidMixin,
                 price = component_prices.get(key, 0)
                 limit = limits.get(key, 0)
                 factor = component_factors.get(key, 1)
-                cost += price * limit / factor
+                cost += Decimal(price) * limit / factor
 
         return cost
 
