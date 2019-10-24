@@ -123,7 +123,7 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
     playbook_uuid = serializers.ReadOnlyField(source='playbook.uuid')
     playbook_image = ProtectedFileField(source='playbook.image', read_only=True)
     playbook_description = serializers.ReadOnlyField(source='playbook.description')
-    arguments = serializers.JSONField(default=dict)
+    arguments = serializers.JSONField(required=False)
     state = serializers.SerializerMethodField()
     tag = serializers.SerializerMethodField()
     type = serializers.SerializerMethodField()
@@ -165,7 +165,7 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
 
     def check_arguments(self, attrs):
         playbook = self.instance.playbook if self.instance else attrs['playbook']
-        arguments = attrs['arguments']
+        arguments = attrs.get('arguments', {})
         parameter_names = playbook.parameters.all().values_list('name', flat=True)
         for argument in arguments.keys():
             if argument not in parameter_names and argument != 'project_uuid':

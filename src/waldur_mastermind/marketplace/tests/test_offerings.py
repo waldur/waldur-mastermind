@@ -520,7 +520,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('required_attribute' in response.content)
+        self.assertTrue(b'required_attribute' in response.content)
 
     def test_default_attribute_value_is_used_if_user_did_not_override_it(self):
         category = factories.CategoryFactory()
