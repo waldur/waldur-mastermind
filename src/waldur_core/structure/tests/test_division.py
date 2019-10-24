@@ -38,9 +38,12 @@ class DivisionListTest(test.APITransactionTestCase):
 
         for row in rows:
             response = self.client.get(self.url, data={row['name']: row['valid']})
-            self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+            self.assertEqual(status.HTTP_200_OK, response.status_code)
             self.assertEqual(len(response.data), 1)
 
             response = self.client.get(self.url, data={row['name']: row['invalid']})
-            self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+            if row['name'] == 'parent':
+                self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+            else:
+                self.assertEqual(status.HTTP_200_OK, response.status_code)
             self.assertEqual(len(response.data), 0)
