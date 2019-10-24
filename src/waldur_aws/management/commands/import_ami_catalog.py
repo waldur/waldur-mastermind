@@ -1,8 +1,7 @@
 import argparse
+from csv import DictReader
 
 from django.core.management.base import BaseCommand, CommandError
-
-from waldur_core.core.csv import UnicodeDictReader
 
 from ... import models
 
@@ -26,7 +25,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        data = list(UnicodeDictReader(options['file']))
+        with open(options['file']) as csvfile:
+            data = list(DictReader(csvfile))
 
         csv_regions = set([image['region'] for image in data])
         nc_regions = {region.name: region.id for region in models.Region.objects.all()}

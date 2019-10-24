@@ -1,4 +1,5 @@
 import base64
+from csv import DictWriter
 from io import StringIO
 import logging
 
@@ -9,7 +10,6 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.csv import UnicodeDictWriter
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 
@@ -134,7 +134,7 @@ def format_invoice_csv(invoices):
     if settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
         fields = serializers.SAFReportSerializer.Meta.fields
         stream = StringIO()
-        writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
+        writer = DictWriter(stream, fieldnames=fields, **csv_params)
         writer.writeheader()
 
         for invoice in invoices:
@@ -146,7 +146,7 @@ def format_invoice_csv(invoices):
 
     fields = serializers.InvoiceItemReportSerializer.Meta.fields
     stream = StringIO()
-    writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
+    writer = DictWriter(stream, fieldnames=fields, **csv_params)
     writer.writeheader()
 
     for invoice in invoices:
