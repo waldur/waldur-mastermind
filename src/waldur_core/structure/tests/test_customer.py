@@ -812,17 +812,21 @@ class CustomerDivisionFilterTest(test.APITransactionTestCase):
 
     def test_filters(self):
         """Test of customers' list filter by division name and division UUID."""
-        filters = [
-            {'name': 'division_name', 'correct': self.division.name[2:], 'uncorrect': 'uncorrect'},
-            {'name': 'division_uuid', 'correct': self.division.uuid.hex, 'uncorrect': 'uncorrect'},
+        rows = [
+            {'name': 'division_name', 'valid': self.division.name[2:], 'invalid': 'invalid'},
+            {'name': 'division_uuid', 'valid': self.division.uuid.hex, 'invalid': 'invalid'},
         ]
 
         self.client.force_authenticate(self.user)
 
-        for f in filters:
-            response = self.client.get(self.url, data={f['name']: f['correct']})
+        for row in rows:
+            response = self.client.get(self.url, data={row['name']: row['valid']})
             self.assertEqual(status.HTTP_200_OK, response.status_code)
             self.assertEqual(len(response.data), 1)
-            response = self.client.get(self.url, data={f['name']: f['uncorrect']})
-            self.assertEqual(status.HTTP_200_OK, response.status_code)
-            self.assertEqual(len(response.data), 0)
+
+            response = self.client.get(self.url, data={row['name']: row['invalid']})
+            if row['name'] == 'division_uuid':
+                self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+            else:
+                self.assertEqual(status.HTTP_200_OK, response.status_code)
+                self.assertEqual(len(response.data), 0)
