@@ -338,7 +338,7 @@ class IssueFilterTest(BaseTest):
 
     def _get_response(self, sla_ttr_breached):
         self.client.force_authenticate(self.fixture.staff)
-        if sla_ttr_breached:
+        if sla_ttr_breached is not None:
             response = self.client.get(factories.IssueFactory.get_list_url(), {
                 'sla_ttr_breached': sla_ttr_breached  # ttr - Time to resolution
             })
