@@ -33,7 +33,7 @@ class InstanceFilterTest(test.APITransactionTestCase):
     def test_filter_instance_by_invalid_volume_uuid(self):
         self.fixture.instance
         response = self.client.get(self.url, {'attach_volume_uuid': 'invalid'})
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_filter_instance_by_availability_zone(self):
         vm_az = self.fixture.instance_availability_zone
