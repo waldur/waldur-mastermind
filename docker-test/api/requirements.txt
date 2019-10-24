@@ -173,7 +173,6 @@ smmap2==2.0.3
 SQLAlchemy==1.2.8
 sqlparse==0.2.4
 stevedore==1.28.0
-subprocess32==3.5.2
 traceback2==1.4.0
 unicodecsv==0.14.1
 unittest2==1.1.0
