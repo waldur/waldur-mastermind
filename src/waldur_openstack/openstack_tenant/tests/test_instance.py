@@ -27,7 +27,7 @@ class InstanceFilterTest(test.APITransactionTestCase):
 
     def test_filter_instance_by_valid_volume_uuid(self):
         self.fixture.instance
-        response = self.client.get(self.url, {'attach_volume_uuid': self.fixture.volume.uuid})
+        response = self.client.get(self.url, {'attach_volume_uuid': self.fixture.volume.uuid.hex})
         self.assertEqual(len(response.data), 1)
 
     def test_filter_instance_by_invalid_volume_uuid(self):
