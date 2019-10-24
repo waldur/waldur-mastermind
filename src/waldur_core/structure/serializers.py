@@ -423,7 +423,7 @@ class CustomerUserSerializer(serializers.ModelSerializer):
     permission = serializers.HyperlinkedRelatedField(
         source='perm.pk',
         view_name='customer_permission-detail',
-        queryset=models.CustomerPermission.objects.all(),
+        read_only=True,
     )
     projects = NestedProjectPermissionSerializer(many=True, read_only=True)
 
