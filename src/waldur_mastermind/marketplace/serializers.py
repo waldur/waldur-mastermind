@@ -1098,7 +1098,7 @@ class OrderSerializer(structure_serializers.PermissionFieldFilteringMixin,
 
             if offering.shared and offering.terms_of_service and not item.get('accepting_terms_of_service'):
                 raise ValidationError(
-                    {'items': _('Terms of service for offering \'%s\' have not been accepted.') % offering}
+                    _('Terms of service for offering \'%s\' have not been accepted.') % offering
                 )
 
         return items
