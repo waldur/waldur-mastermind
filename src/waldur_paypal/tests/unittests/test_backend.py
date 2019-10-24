@@ -66,7 +66,7 @@ class DownloadInvoicePDFTest(BaseBackendTest):
 
         self.assertRaises(PayPalError, self.backend.download_invoice_pdf, self.invoice)
 
-    @mock.patch('waldur_paypal.backend.urllib2.urlopen')
+    @mock.patch('waldur_paypal.backend.urlopen')
     def test_pdf_is_downloaded(self, urlopen_mock):
         response = mock.Mock()
         response.read.return_value = 'PDF file content'
