@@ -46,4 +46,4 @@ class DivisionListTest(test.APITransactionTestCase):
                 self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
             else:
                 self.assertEqual(status.HTTP_200_OK, response.status_code)
-            self.assertEqual(len(response.data), 0)
+                self.assertEqual(len(response.data), 0)
