@@ -186,7 +186,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         if not tenant_mappings:
             return
 
-        backend_floating_ips = self.list_floatingips(tenant_mappings.keys())
+        backend_floating_ips = self.list_floatingips(list(tenant_mappings.keys()))
 
         tenant_floating_ips = dict()
         for tenant_id, floating_ips in groupby(backend_floating_ips, lambda x: x['tenant_id']):
