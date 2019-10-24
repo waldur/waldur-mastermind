@@ -152,7 +152,7 @@ def format_invoice_csv(invoices):
     for invoice in invoices:
         items = invoice.items
         items = utils.filter_invoice_items(items)
-        serializer = serializers.GenericItemReportSerializer(items, many=True)
+        serializer = serializers.InvoiceItemReportSerializer(items, many=True)
         writer.writerows(serializer.data)
 
     return stream.getvalue()

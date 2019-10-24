@@ -165,12 +165,6 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
         return extra_kwargs
 
 
-class GenericItemReportSerializer(InvoiceItemReportSerializer):
-    class Meta(InvoiceItemReportSerializer.Meta):
-        model = models.InvoiceItem
-        fields = InvoiceItemReportSerializer.Meta.fields + ('quantity',)
-
-
 # SAF is accounting soft from Estonia: www.sysdec.ee/safsaf.htm
 class SAFReportSerializer(serializers.Serializer):
     DOKNR = serializers.ReadOnlyField(source='invoice.number')
