@@ -47,7 +47,7 @@ def digitalocean_error_handler(func):
         try:
             return func(*args, **kwargs)
         except digitalocean.DataReadError as e:
-            raise DigitalOceanBackendError(error_messages.get(str(e)))
+            raise error_messages.get(str(e))
     return wrapped
 
 
