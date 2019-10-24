@@ -45,7 +45,7 @@ class PaymentSerializer(core_serializers.AugmentedSerializerMixin,
 
         try:
             rate = customer.get_vat_rate() or 0
-        except (NotImplemented, VATException) as e:
+        except (NotImplementedError, VATException) as e:
             rate = 0
             logger.warning('Unable to compute VAT rate for customer with UUID %s, error is %s',
                            customer.uuid.hex, e)
