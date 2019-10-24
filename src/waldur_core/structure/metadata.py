@@ -134,7 +134,7 @@ class ActionsMetadata(SimpleMetadata):
             callback = getattr(view.__class__, key)
             if getattr(callback, 'deprecated', False):
                 continue
-            if 'post' not in getattr(callback, 'bind_to_methods', []):
+            if not hasattr(callback, 'detail'):
                 continue
             if key in disabled_actions:
                 continue
