@@ -37,7 +37,7 @@ debtcollector==1.19.0
 decorator==4.3.0
 defusedxml==0.5.0
 deprecation==2.0.3
-Django==2.2.6
+-e git://github.com/django/django.git@323467e286787684de18d2731776c71667a296be#egg=django
 -e git://github.com/django-admin-tools/django-admin-tools.git@062a14321c1eb46fcd035787c03aebdaaa009b10#egg=django-admin-tools
 django-auth-ldap==1.6.1
 django-defender==0.6.2
