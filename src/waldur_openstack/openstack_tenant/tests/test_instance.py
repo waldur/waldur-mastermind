@@ -616,7 +616,7 @@ class InstanceCreateBackupSchedule(test.APITransactionTestCase):
         self.backup_schedule_data['schedule'] = 'wrong schedule'
         response = self.client.post(self.create_url, self.backup_schedule_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('schedule', response.content)
+        self.assertIn(b'schedule', response.content)
 
     def test_backup_schedule_creation_with_correct_timezone(self):
         backupable = factories.InstanceFactory(state=models.Instance.States.OK)

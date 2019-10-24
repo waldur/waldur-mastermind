@@ -253,7 +253,7 @@ class VolumeCreateSnapshotScheduleTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self.snapshot_schedule_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('schedule', response.content)
+        self.assertIn(b'schedule', response.content)
 
     def test_snapshot_schedule_creation_with_correct_timezone(self):
         self.client.force_authenticate(self.fixture.owner)
