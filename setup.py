@@ -36,7 +36,7 @@ install_requires = [
     'django-taggit>=1.1.0',
     'Django>=2.2.6,<3.0',
     'djangorestframework>=3.10.2,<3.11.0',
-    'djangosaml2==0.17.1',
+    'djangosaml2==0.17.2',
     'hiredis>=0.2.0',
     'influxdb>=4.1.0',
     'iptools>=0.6.1',

@@ -52,7 +52,7 @@ django-rest-swagger==2.1.2
 django-reversion==2.0.8
 django-taggit==1.1.0
 djangorestframework==3.10.2
-djangosaml2==0.17.1
+djangosaml2==0.17.2
 dogpile.cache==0.6.5
 entrypoints==0.3
 enum34==1.1.6
@@ -135,7 +135,7 @@ PyJWT==1.5.3
 pyOpenSSL==18.0.0
 pyparsing==2.2.0
 pyperclip==1.6.2
-pysaml2==4.5.0
+pysaml2==4.6.0
 pytest==3.6.2
 pytest-cov==2.5.1
 pytest-django==3.3.2
