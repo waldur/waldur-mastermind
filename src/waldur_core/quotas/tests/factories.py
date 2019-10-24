@@ -15,11 +15,11 @@ class QuotaFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return reverse('quota-list')
+        return 'http://testserver' + reverse('quota-list')
 
     @classmethod
     def get_url(cls, quota, action=None):
         if quota is None:
             quota = QuotaFactory()
-        url = reverse('quota-detail', kwargs={'uuid': quota.uuid.hex})
+        url = 'http://testserver' + reverse('quota-detail', kwargs={'uuid': quota.uuid.hex})
         return url if action is None else url + action + '/'

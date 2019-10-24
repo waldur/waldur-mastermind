@@ -19,12 +19,12 @@ class DigitalOceanServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = DigitalOceanServiceFactory()
-        url = reverse('digitalocean-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse('digitalocean-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('digitalocean-list')
+        return 'http://testserver' + reverse('digitalocean-list')
 
 
 class DigitalOceanServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -38,7 +38,7 @@ class DigitalOceanServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, link=None):
         if link is None:
             link = DigitalOceanServiceProjectLinkFactory()
-        return reverse('digitalocean-spl-detail', kwargs={'pk': link.id})
+        return 'http://testserver' + reverse('digitalocean-spl-detail', kwargs={'pk': link.id})
 
 
 class RegionFactory(factory.DjangoModelFactory):
@@ -52,7 +52,7 @@ class RegionFactory(factory.DjangoModelFactory):
     def get_url(cls, region=None):
         if region is None:
             region = RegionFactory()
-        return reverse('digitalocean-region-detail', kwargs={'uuid': region.uuid.hex})
+        return 'http://testserver' + reverse('digitalocean-region-detail', kwargs={'uuid': region.uuid.hex})
 
 
 class ImageFactory(factory.DjangoModelFactory):
@@ -66,11 +66,11 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, image=None):
         if image is None:
             image = ImageFactory()
-        return reverse('digitalocean-image-detail', kwargs={'uuid': image.uuid.hex})
+        return 'http://testserver' + reverse('digitalocean-image-detail', kwargs={'uuid': image.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('digitalocean-image-list')
+        return 'http://testserver' + reverse('digitalocean-image-list')
 
 
 class SizeFactory(factory.DjangoModelFactory):
@@ -90,7 +90,7 @@ class SizeFactory(factory.DjangoModelFactory):
     def get_url(cls, size=None):
         if size is None:
             size = SizeFactory()
-        return reverse('digitalocean-size-detail', kwargs={'uuid': size.uuid.hex})
+        return 'http://testserver' + reverse('digitalocean-size-detail', kwargs={'uuid': size.uuid.hex})
 
 
 class DropletFactory(factory.DjangoModelFactory):
@@ -112,9 +112,9 @@ class DropletFactory(factory.DjangoModelFactory):
     def get_url(cls, droplet=None, action=None):
         if droplet is None:
             droplet = DropletFactory()
-        url = reverse('digitalocean-droplet-detail', kwargs={'uuid': droplet.uuid.hex})
+        url = 'http://testserver' + reverse('digitalocean-droplet-detail', kwargs={'uuid': droplet.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('digitalocean-droplet-list')
+        return 'http://testserver' + reverse('digitalocean-droplet-list')

@@ -31,12 +31,12 @@ class PlaybookFactory(factory.DjangoModelFactory):
         if playbook is None:
             playbook = PlaybookFactory()
 
-        url = reverse(get_detail_view_name(models.Playbook), kwargs={'uuid': playbook.uuid.hex})
+        url = 'http://testserver' + reverse(get_detail_view_name(models.Playbook), kwargs={'uuid': playbook.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse(get_list_view_name(models.Playbook))
+        return 'http://testserver' + reverse(get_list_view_name(models.Playbook))
 
 
 class PlaybookParameterFactory(factory.DjangoModelFactory):
@@ -79,9 +79,9 @@ class JobFactory(factory.DjangoModelFactory):
         if job is None:
             job = JobFactory()
 
-        url = reverse(get_detail_view_name(models.Job), kwargs={'uuid': job.uuid.hex})
+        url = 'http://testserver' + reverse(get_detail_view_name(models.Job), kwargs={'uuid': job.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse(get_list_view_name(models.Job))
+        return 'http://testserver' + reverse(get_list_view_name(models.Job))

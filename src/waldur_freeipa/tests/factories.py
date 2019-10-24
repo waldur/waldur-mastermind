@@ -15,9 +15,9 @@ class ProfileFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return reverse('freeipa-profile-list')
+        return 'http://testserver' + reverse('freeipa-profile-list')
 
     @classmethod
     def get_url(cls, user, action=None):
-        url = reverse('freeipa-profile-detail', kwargs={'uuid': user.uuid.hex})
+        url = 'http://testserver' + reverse('freeipa-profile-detail', kwargs={'uuid': user.uuid.hex})
         return url if action is None else url + action + '/'

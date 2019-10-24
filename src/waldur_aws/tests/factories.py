@@ -19,11 +19,11 @@ class AWSServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None):
         if service is None:
             service = AWSServiceFactory()
-        return reverse('aws-detail', kwargs={'uuid': service.uuid.hex})
+        return 'http://testserver' + reverse('aws-detail', kwargs={'uuid': service.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('aws-list')
+        return 'http://testserver' + reverse('aws-list')
 
 
 class AWSServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -37,11 +37,11 @@ class AWSServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None):
         if spl is None:
             spl = AWSServiceProjectLinkFactory()
-        return reverse('aws-spl-detail', kwargs={'pk': spl.id})
+        return 'http://testserver' + reverse('aws-spl-detail', kwargs={'pk': spl.id})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('aws-spl-list')
+        return 'http://testserver' + reverse('aws-spl-list')
 
 
 class RegionFactory(factory.DjangoModelFactory):
@@ -55,11 +55,11 @@ class RegionFactory(factory.DjangoModelFactory):
     def get_url(cls, region=None):
         if region is None:
             region = RegionFactory()
-        return reverse('aws-region-detail', kwargs={'uuid': region.uuid.hex})
+        return 'http://testserver' + reverse('aws-region-detail', kwargs={'uuid': region.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('aws-region-list')
+        return 'http://testserver' + reverse('aws-region-list')
 
 
 class ImageFactory(factory.DjangoModelFactory):
@@ -74,11 +74,11 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, image=None):
         if image is None:
             image = ImageFactory()
-        return reverse('aws-image-detail', kwargs={'uuid': image.uuid.hex})
+        return 'http://testserver' + reverse('aws-image-detail', kwargs={'uuid': image.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('aws-image-list')
+        return 'http://testserver' + reverse('aws-image-list')
 
 
 class SizeFactory(factory.DjangoModelFactory):
@@ -97,11 +97,11 @@ class SizeFactory(factory.DjangoModelFactory):
     def get_url(cls, size=None):
         if size is None:
             size = SizeFactory()
-        return reverse('aws-size-detail', kwargs={'uuid': size.uuid.hex})
+        return 'http://testserver' + reverse('aws-size-detail', kwargs={'uuid': size.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('aws-size-list')
+        return 'http://testserver' + reverse('aws-size-list')
 
 
 class InstanceFactory(factory.DjangoModelFactory):
@@ -123,9 +123,9 @@ class InstanceFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = InstanceFactory()
-        url = reverse('aws-instance-detail', kwargs={'uuid': instance.uuid.hex})
+        url = 'http://testserver' + reverse('aws-instance-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('aws-instance-list')
+        return 'http://testserver' + reverse('aws-instance-list')

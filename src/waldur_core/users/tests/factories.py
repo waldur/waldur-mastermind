@@ -10,12 +10,12 @@ from waldur_core.users import models
 class InvitationBaseFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('user-invitation-list')
+        url = 'http://testserver' + reverse('user-invitation-list')
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_url(cls, invitation, action=None):
-        url = reverse('user-invitation-detail', kwargs={'uuid': invitation.uuid.hex})
+        url = 'http://testserver' + reverse('user-invitation-detail', kwargs={'uuid': invitation.uuid.hex})
         return url if action is None else url + action + '/'
 
 

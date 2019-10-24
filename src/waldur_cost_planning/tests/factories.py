@@ -15,11 +15,11 @@ class DeploymentPlanFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls):
-        return reverse('deployment-plan-list')
+        return 'http://testserver' + reverse('deployment-plan-list')
 
     @classmethod
     def get_url(cls, obj, action=None):
-        url = reverse('deployment-plan-detail', kwargs={'uuid': obj.uuid.hex})
+        url = 'http://testserver' + reverse('deployment-plan-detail', kwargs={'uuid': obj.uuid.hex})
         return url if not action else url + action + '/'
 
 
@@ -41,7 +41,7 @@ class PresetFactory(factory.DjangoModelFactory):
     def get_url(cls, obj=None):
         if obj is None:
             obj = PresetFactory()
-        return reverse('deployment-preset-detail', kwargs={'uuid': obj.uuid.hex})
+        return 'http://testserver' + reverse('deployment-preset-detail', kwargs={'uuid': obj.uuid.hex})
 
 
 class DeploymentPlanItemFactory(factory.DjangoModelFactory):

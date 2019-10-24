@@ -20,12 +20,12 @@ class UrlModelFactory(factory.DjangoModelFactory):
             kwargs['uuid'] = service.uuid
         else:
             kwargs['pk'] = service.pk
-        url = reverse('{}-detail'.format(cls._meta.model.get_url_name()), kwargs=kwargs)
+        url = 'http://testserver' + reverse('{}-detail'.format(cls._meta.model.get_url_name()), kwargs=kwargs)
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('{}-list'.format(cls._meta.model.get_url_name()))
+        return 'http://testserver' + reverse('{}-list'.format(cls._meta.model.get_url_name()))
 
 
 class ServiceSettingsFactory(structure_factories.ServiceSettingsFactory):

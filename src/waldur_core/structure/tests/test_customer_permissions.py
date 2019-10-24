@@ -58,7 +58,7 @@ class CustomerPermissionBaseTest(test.APITransactionTestCase):
             role=self.role_map[role],
             customer=self.customers[customer],
         )
-        return reverse('customer_permission-detail', kwargs={'pk': permission.pk})
+        return 'http://testserver' + reverse('customer_permission-detail', kwargs={'pk': permission.pk})
 
 
 class CustomerPermissionListTest(CustomerPermissionBaseTest):
@@ -410,7 +410,7 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
             self.assertNotEqual(value, permission['user_' + field])
 
     def _get_customer_url(self, customer):
-        return reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
+        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
 
 
 class CustomerPermissionExpirationTest(test.APITransactionTestCase):

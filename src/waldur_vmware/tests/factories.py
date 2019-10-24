@@ -30,12 +30,12 @@ class VMwareServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = VMwareServiceFactory()
-        url = reverse('vmware-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-list')
+        return 'http://testserver' + reverse('vmware-list')
 
 
 class VMwareServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -49,12 +49,12 @@ class VMwareServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = VMwareServiceProjectLinkFactory()
-        url = reverse('vmware-spl-detail', kwargs={'pk': spl.pk})
+        url = 'http://testserver' + reverse('vmware-spl-detail', kwargs={'pk': spl.pk})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-spl-list')
+        return 'http://testserver' + reverse('vmware-spl-list')
 
 
 class TemplateFactory(factory.DjangoModelFactory):
@@ -70,12 +70,12 @@ class TemplateFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, template=None, action=None):
         template = template or TemplateFactory()
-        url = reverse('vmware-template-detail', kwargs={'uuid': template.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-template-detail', kwargs={'uuid': template.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-template-list')
+        return 'http://testserver' + reverse('vmware-template-list')
 
 
 class ClusterFactory(factory.DjangoModelFactory):
@@ -89,12 +89,12 @@ class ClusterFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, cluster=None, action=None):
         cluster = cluster or ClusterFactory()
-        url = reverse('vmware-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-cluster-list')
+        return 'http://testserver' + reverse('vmware-cluster-list')
 
 
 class CustomerClusterFactory(factory.DjangoModelFactory):
@@ -125,12 +125,12 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = reverse('vmware-virtual-machine-detail', kwargs={'uuid': instance.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-virtual-machine-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-virtual-machine-list')
+        return 'http://testserver' + reverse('vmware-virtual-machine-list')
 
 
 class DiskFactory(factory.DjangoModelFactory):
@@ -148,12 +148,12 @@ class DiskFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, disk=None, action=None):
         disk = disk or DiskFactory()
-        url = reverse('vmware-disk-detail', kwargs={'uuid': disk.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-disk-detail', kwargs={'uuid': disk.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-disk-list')
+        return 'http://testserver' + reverse('vmware-disk-list')
 
 
 class NetworkFactory(factory.DjangoModelFactory):
@@ -168,12 +168,12 @@ class NetworkFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, network=None, action=None):
         network = network or NetworkFactory()
-        url = reverse('vmware-network-detail', kwargs={'uuid': network.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-network-detail', kwargs={'uuid': network.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-network-list')
+        return 'http://testserver' + reverse('vmware-network-list')
 
 
 class PortFactory(factory.DjangoModelFactory):
@@ -189,12 +189,12 @@ class PortFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, port=None, action=None):
         port = port or PortFactory()
-        url = reverse('vmware-port-detail', kwargs={'uuid': port.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-port-detail', kwargs={'uuid': port.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-port-list')
+        return 'http://testserver' + reverse('vmware-port-list')
 
 
 class CustomerNetworkFactory(factory.DjangoModelFactory):
@@ -226,12 +226,12 @@ class DatastoreFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, datastore=None, action=None):
         datastore = datastore or DatastoreFactory()
-        url = reverse('vmware-datastore-detail', kwargs={'uuid': datastore.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-datastore-detail', kwargs={'uuid': datastore.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-datastore-list')
+        return 'http://testserver' + reverse('vmware-datastore-list')
 
 
 class CustomerDatastoreFactory(factory.DjangoModelFactory):
@@ -253,12 +253,12 @@ class FolderFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, folder=None, action=None):
         folder = folder or FolderFactory()
-        url = reverse('vmware-folder-detail', kwargs={'uuid': folder.uuid.hex})
+        url = 'http://testserver' + reverse('vmware-folder-detail', kwargs={'uuid': folder.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('vmware-folder-list')
+        return 'http://testserver' + reverse('vmware-folder-list')
 
 
 class CustomerFolderFactory(factory.DjangoModelFactory):

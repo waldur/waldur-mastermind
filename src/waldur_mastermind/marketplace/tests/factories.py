@@ -1,8 +1,8 @@
 from decimal import Decimal
 
+import factory
 from django.db.models import signals
 from django.utils import timezone
-import factory
 from rest_framework.reverse import reverse
 
 from waldur_core.core import utils as core_utils
@@ -10,6 +10,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 
 from .. import models
+
 
 OFFERING_OPTIONS = {
     'order': ['storage', 'ram', 'cpu_count'],
@@ -46,13 +47,13 @@ class ServiceProviderFactory(factory.DjangoModelFactory):
     def get_url(cls, service_provider=None, action=None):
         if service_provider is None:
             service_provider = ServiceProviderFactory()
-        url = reverse('marketplace-service-provider-detail',
-                      kwargs={'uuid': service_provider.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-service-provider-detail',
+                                            kwargs={'uuid': service_provider.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-service-provider-list')
+        url = 'http://testserver' + reverse('marketplace-service-provider-list')
         return url if action is None else url + action + '/'
 
 
@@ -66,12 +67,13 @@ class CategoryFactory(factory.DjangoModelFactory):
     def get_url(cls, category=None, action=None):
         if category is None:
             category = CategoryFactory()
-        url = reverse('marketplace-category-detail', kwargs={'uuid': category.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-category-detail',
+                                            kwargs={'uuid': category.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-category-list')
+        url = 'http://testserver' + reverse('marketplace-category-list')
         return url if action is None else url + action + '/'
 
 
@@ -96,13 +98,13 @@ class OfferingFactory(factory.DjangoModelFactory):
     def get_url(cls, offering=None, action=None):
         if offering is None:
             offering = OfferingFactory()
-        url = reverse('marketplace-offering-detail',
-                      kwargs={'uuid': offering.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-offering-detail',
+                                            kwargs={'uuid': offering.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-offering-list')
+        url = 'http://testserver' + reverse('marketplace-offering-list')
         return url if action is None else url + action + '/'
 
 
@@ -135,13 +137,13 @@ class ScreenshotFactory(factory.DjangoModelFactory):
     def get_url(cls, screenshot=None, action=None):
         if screenshot is None:
             screenshot = ScreenshotFactory()
-        url = reverse('marketplace-screenshot-detail',
-                      kwargs={'uuid': screenshot.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-screenshot-detail',
+                                            kwargs={'uuid': screenshot.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-screenshot-list')
+        url = 'http://testserver' + reverse('marketplace-screenshot-list')
         return url if action is None else url + action + '/'
 
 
@@ -156,13 +158,13 @@ class OrderFactory(factory.DjangoModelFactory):
     def get_url(cls, order=None, action=None):
         if order is None:
             order = OrderFactory()
-        url = reverse('marketplace-order-detail',
-                      kwargs={'uuid': order.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-order-detail',
+                                            kwargs={'uuid': order.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-order-list')
+        url = 'http://testserver' + reverse('marketplace-order-list')
         return url if action is None else url + action + '/'
 
 
@@ -178,13 +180,13 @@ class PlanFactory(factory.DjangoModelFactory):
     def get_url(cls, plan=None, action=None):
         if plan is None:
             plan = PlanFactory()
-        url = reverse('marketplace-plan-detail',
-                      kwargs={'uuid': plan.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-plan-detail',
+                                            kwargs={'uuid': plan.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-plan-list')
+        url = 'http://testserver' + reverse('marketplace-plan-list')
         return url if action is None else url + action + '/'
 
 
@@ -219,13 +221,13 @@ class OrderItemFactory(factory.DjangoModelFactory):
     def get_url(cls, order_item=None, action=None):
         if order_item is None:
             order_item = OrderItemFactory()
-        url = reverse('marketplace-order-item-detail',
-                      kwargs={'uuid': order_item.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-order-item-detail',
+                                            kwargs={'uuid': order_item.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-order-item-list')
+        url = 'http://testserver' + reverse('marketplace-order-item-list')
         return url if action is None else url + action + '/'
 
 
@@ -281,13 +283,13 @@ class OfferingFileFactory(factory.DjangoModelFactory):
     def get_url(cls, offering_file=None, action=None):
         if offering_file is None:
             offering_file = OfferingFileFactory()
-        url = reverse('marketplace-offering-file-detail',
-                      kwargs={'uuid': offering_file.uuid.hex})
+        url = 'http://testserver' + reverse('marketplace-offering-file-detail',
+                                            kwargs={'uuid': offering_file.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('marketplace-offering-file-list')
+        url = 'http://testserver' + reverse('marketplace-offering-file-list')
         return url if action is None else url + action + '/'
 
 

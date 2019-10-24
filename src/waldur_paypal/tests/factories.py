@@ -21,12 +21,12 @@ class PaypalPaymentFactory(factory.DjangoModelFactory):
     def get_url(self, payment=None, action=None):
         if payment is None:
             payment = PaypalPaymentFactory()
-        url = reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid.hex})
+        url = 'http://testserver' + reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('paypal-payment-list')
+        return 'http://testserver' + reverse('paypal-payment-list')
 
 
 class InvoiceFactory(factory.DjangoModelFactory):

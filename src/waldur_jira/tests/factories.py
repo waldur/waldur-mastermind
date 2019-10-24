@@ -24,11 +24,11 @@ class JiraServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None):
         if service is None:
             service = JiraServiceFactory()
-        return reverse('jira-detail', kwargs={'uuid': service.uuid.hex})
+        return 'http://testserver' + reverse('jira-detail', kwargs={'uuid': service.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-list')
+        return 'http://testserver' + reverse('jira-list')
 
 
 class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
@@ -42,12 +42,12 @@ class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = JiraServiceProjectLinkFactory()
-        url = reverse('jira-spl-detail', kwargs={'pk': spl.pk})
+        url = 'http://testserver' + reverse('jira-spl-detail', kwargs={'pk': spl.pk})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-spl-list')
+        return 'http://testserver' + reverse('jira-spl-list')
 
 
 class ProjectTemplateFactory(factory.DjangoModelFactory):
@@ -61,12 +61,12 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectTemplateFactory()
-        url = reverse('jira-project-templates-detail', kwargs={'uuid': project.uuid.hex})
+        url = 'http://testserver' + reverse('jira-project-templates-detail', kwargs={'uuid': project.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-project-templates-list')
+        return 'http://testserver' + reverse('jira-project-templates-list')
 
 
 class ProjectFactory(factory.DjangoModelFactory):
@@ -83,12 +83,12 @@ class ProjectFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectFactory()
-        url = reverse('jira-projects-detail', kwargs={'uuid': project.uuid.hex})
+        url = 'http://testserver' + reverse('jira-projects-detail', kwargs={'uuid': project.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = reverse('jira-projects-list')
+        url = 'http://testserver' + reverse('jira-projects-list')
         return url if action is None else url + action + '/'
 
 
@@ -105,12 +105,12 @@ class IssueTypeFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueTypeFactory()
-        url = reverse('jira-issue-types-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse('jira-issue-types-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-issue-types-list')
+        return 'http://testserver' + reverse('jira-issue-types-list')
 
 
 class PriorityFactory(factory.DjangoModelFactory):
@@ -126,12 +126,12 @@ class PriorityFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = PriorityFactory()
-        url = reverse('jira-priorities-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse('jira-priorities-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-priorities-list')
+        return 'http://testserver' + reverse('jira-priorities-list')
 
 
 class IssueFactory(factory.DjangoModelFactory):
@@ -152,12 +152,12 @@ class IssueFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueFactory()
-        url = reverse('jira-issues-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse('jira-issues-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-issues-list')
+        return 'http://testserver' + reverse('jira-issues-list')
 
 
 class CommentFactory(factory.DjangoModelFactory):
@@ -171,9 +171,9 @@ class CommentFactory(factory.DjangoModelFactory):
     def get_url(cls, comment=None, action=None):
         if comment is None:
             comment = CommentFactory()
-        url = reverse('jira-comments-detail', kwargs={'uuid': comment.uuid.hex})
+        url = 'http://testserver' + reverse('jira-comments-detail', kwargs={'uuid': comment.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls):
-        return reverse('jira-comments-list')
+        return 'http://testserver' + reverse('jira-comments-list')
