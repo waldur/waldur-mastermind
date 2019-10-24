@@ -1,10 +1,12 @@
-import json
-
 from django.test import TestCase
 
 from waldur_slurm.tests import fixtures
 
 from .. import slurm
+
+
+def sort(xs):
+    return sorted(xs, key=lambda x: x['measurement'])
 
 
 class SlurmAnalyticsTest(TestCase):
@@ -41,7 +43,7 @@ class SlurmAnalyticsTest(TestCase):
                 }
             },
         ]
-        self.assertEquals(json.dumps(slurm.get_usage()), json.dumps(expected_points))
+        self.assertEquals(sort(slurm.get_usage()), sort(expected_points))
 
     def test_if_there_are_no_allocations_empty_list_is_returned(self):
         self.assertEqual(slurm.get_usage(), [])
