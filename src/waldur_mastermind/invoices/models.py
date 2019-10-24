@@ -1,7 +1,7 @@
 import base64
 from datetime import timedelta
 import decimal
-from io import StringIO
+from io import BytesIO
 import logging
 from calendar import monthrange
 
@@ -132,7 +132,7 @@ class Invoice(core_models.UuidMixin, models.Model):
             return
 
         content = base64.b64decode(self._file)
-        return StringIO(content)
+        return BytesIO(content)
 
     @file.setter
     def file(self, value):

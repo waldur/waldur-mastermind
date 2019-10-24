@@ -1,6 +1,6 @@
 import base64
 from decimal import Decimal
-from io import StringIO
+from io import BytesIO
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
@@ -665,7 +665,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             return
 
         content = base64.b64decode(self._file)
-        return StringIO(content)
+        return BytesIO(content)
 
     @file.setter
     def file(self, value):
