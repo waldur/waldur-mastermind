@@ -605,7 +605,6 @@ class BaseResourceFilter(NameFilterSet, metaclass=ResourceFilterMetaclass):
         field_name='tags__name',
         label='tag',
         to_field_name='name',
-        lookup_expr='in',
         queryset=taggit.models.Tag.objects.all(),
     )
     rtag = django_filters.ModelMultipleChoiceFilter(
