@@ -61,7 +61,7 @@ class OrderCreateTest(test.APITransactionTestCase):
             ]
         }
         response = self.create_order(self.user, offering=self.offering, add_payload=add_payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(marketplace_models.Order.objects.filter(created_by=self.user).exists())
         self.assertEqual(1, len(response.data['items']))
 
