@@ -28,7 +28,7 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     archive = serializers.FileField(write_only=True)
-    parameters = PlaybookParameterSerializer(many=True)
+    parameters = PlaybookParameterSerializer(many=True, required=False)
 
     class Meta:
         model = playbook_jobs_models.Playbook
@@ -68,7 +68,7 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
 
     @transaction.atomic
     def create(self, validated_data):
-        parameters_data = validated_data.pop('parameters')
+        parameters_data = validated_data.pop('parameters', [])
         archive = validated_data.pop('archive')
         validated_data['workspace'] = playbook_jobs_models.Playbook.generate_workspace_path()
 
