@@ -29,9 +29,7 @@ def remove_ssh_key_from_service_settings_on_deletion(sender, instance, **kwargs)
     ssh_key = instance
     user = ssh_key.user
     services = structure_filters.filter_queryset_for_user(models.DigitalOceanService.objects.all(), user)
-    if not services:
-        return
-    settings_list = structure_models.ServiceSettings.objects.filter(digitaloceanservice=services)
+    settings_list = structure_models.ServiceSettings.objects.filter(digitaloceanservice__in=services)
     for settings in settings_list:
         serialized_settings = core_utils.serialize_instance(settings)
         core_tasks.IndependentBackendMethodTask().delay(
