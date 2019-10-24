@@ -363,15 +363,6 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
         for permission in response.data:
             self.assertEqual('owner', permission['role'])
 
-    def test_staff_user_cannot_filter_roles_within_customer_by_role_pk(self):
-        response = self.client.get(reverse('customer_permission-list'))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        response = self.client.get(reverse('customer_permission-list'),
-                                   data={'role': '1'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
-
     def test_staff_user_can_see_required_fields_in_filtration_response(self):
         response = self.client.get(reverse('customer_permission-list'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
