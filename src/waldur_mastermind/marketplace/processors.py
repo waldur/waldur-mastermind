@@ -180,7 +180,7 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
                 signals.limit_update_failed.send(
                     sender=self.order_item.resource.__class__,
                     order_item=self.order_item,
-                    error_message=e.message
+                    error_message=str(e),
                 )
             else:
                 signals.limit_update_succeeded.send(
