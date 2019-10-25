@@ -279,10 +279,7 @@ if config.get('logging', 'log_level').upper() == 'DEBUG':
     # Enabling debugging at http.client level (requests->urllib3->http.client)
     # you will see the REQUEST, including HEADERS and DATA, and RESPONSE with HEADERS but without DATA.
     # the only thing missing will be the response.body which is not logged.
-    try:  # for Python 3
-        from http.client import HTTPConnection
-    except ImportError:
-        from httplib import HTTPConnection
+    from http.client import HTTPConnection
     HTTPConnection.debuglevel = 1
 
     LOGGING['loggers']['requests.packages.urllib3'] = {
