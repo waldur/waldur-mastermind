@@ -41,7 +41,6 @@ deprecation==2.0.3
 Django==1.11.23
 django-admin-tools==0.8.0
 django-auth-ldap==1.6.1
-django-cors-headers==2.1.0
 django-defender==0.5.5
 django-filter==1.0.2
 django-fluent-dashboard==0.6.1
