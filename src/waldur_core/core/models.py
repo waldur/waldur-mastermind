@@ -8,7 +8,6 @@ from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import serialization
 from django.apps import apps
 from django.conf import settings
-from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
@@ -28,6 +27,8 @@ from reversion.models import Version
 from waldur_core.core.fields import CronScheduleField, UUIDField
 from waldur_core.core.validators import validate_name, MinCronValueValidator
 from waldur_core.logging.loggers import LoggableMixin
+
+from .shims import AbstractBaseUser
 
 logger = logging.getLogger(__name__)
 
