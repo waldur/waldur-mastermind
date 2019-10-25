@@ -32,7 +32,7 @@ RUN cd /tmp && \
 
 # Install build dependencies for Waldur MasterMind from RPM repositories
 RUN yum --assumeyes install \
-    centos-release-openstack-pike \
+    centos-release-openstack-rocky \
     epel-release \
     https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm \
 RUN yum --assumeyes update && yum clean all
@@ -58,7 +58,8 @@ RUN yum --assumeyes install --setopt=tsflags=nodocs \
   mailcap \
   openssl \
   uwsgi-plugin-python2 \
-  gettext
+  gettext \
+  && pip install -U pip
 
 RUN mkdir -p /usr/src/waldur
 
