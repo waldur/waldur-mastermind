@@ -19,7 +19,6 @@ install_requires = [
     'azure-mgmt-storage==2.0.0',
     'Babel!=2.4.0,>=2.3.4',
     'Celery>=4.3.0',
-    'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4',
     'defusedxml>=0.4.1',
     # 'django-admin-tools==0.8.2',  # Not published yet thus installing from GIT commit via pip
