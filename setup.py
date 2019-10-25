@@ -18,7 +18,7 @@ install_requires = [
     'azure-mgmt-resource==2.0.0',
     'azure-mgmt-storage==2.0.0',
     'Babel!=2.4.0,>=2.3.4',
-    'Celery>=4.2.0,<4.3.0',
+    'Celery>=4.3.0',
     'cmd2<0.9.0',  # TODO: Drop restriction after Waldur is migrated to Python 3.
     'croniter>=0.3.4',
     'defusedxml>=0.4.1',
