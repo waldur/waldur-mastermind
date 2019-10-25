@@ -346,6 +346,7 @@ class DigitalOceanBackend(ServiceBackend):
         backend_ssh_key.create()
         return backend_ssh_key
 
+    @digitalocean_error_handler
     def pull_ssh_key(self, name, fingerprint):
         backend_ssh_key = digitalocean.SSHKey(
             token=self.manager.token,
