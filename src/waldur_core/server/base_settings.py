@@ -81,7 +81,6 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.JSONRenderer',
         'waldur_core.core.renderers.BrowsableAPIRenderer',
     ),
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'waldur_core.core.pagination.LinkHeaderPagination',
     'PAGE_SIZE': 10,
     'EXCEPTION_HANDLER': 'waldur_core.core.views.exception_handler',
