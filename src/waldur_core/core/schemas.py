@@ -248,15 +248,21 @@ def is_disabled_action(view):
 class WaldurSchemaGenerator(schemas.SchemaGenerator):
     endpoint_inspector_cls = WaldurEndpointInspector
 
-    def create_view(self, callback, method, request=None):
+    def _get_paths_and_endpoints(self, request):
         """
-        Given a callback, return an actual view instance.
+        Generate (path, method, view) given (path, method, callback) for paths.
         """
-        view = super(WaldurSchemaGenerator, self).create_view(callback, method, request)
-        if is_disabled_action(view):
-            view.schema = None
+        paths = []
+        view_endpoints = []
+        for path, method, callback in self.endpoints:
+            view = self.create_view(callback, method, request)
+            if is_disabled_action(view):
+                continue
+            path = self.coerce_path(path, method, view)
+            paths.append(path)
+            view_endpoints.append((path, method, view))
 
-        return view
+        return paths, view_endpoints
 
     def get_description(self, path, method, view):
         """
