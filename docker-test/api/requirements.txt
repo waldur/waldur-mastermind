@@ -24,7 +24,6 @@ cffi==1.11.5
 chardet==3.0.4
 cliff==2.12.0
 cmd2==0.8.7
-configparser==3.5.0
 cookies==2.2.1
 coreapi==2.3.3
 coreschema==0.0.4

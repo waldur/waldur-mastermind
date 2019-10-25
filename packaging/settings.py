@@ -2,8 +2,7 @@
 from waldur_core.server.base_settings import *
 
 import os
-
-from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
 TEMPLATES[0]['DIRS'] = [os.path.join(BASE_DIR, 'waldur_core', 'templates')]
