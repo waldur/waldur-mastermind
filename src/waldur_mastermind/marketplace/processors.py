@@ -166,7 +166,7 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         a switch of a plan and a change of limits."""
         if self.is_update_limit_order_item():
             try:
-                # self.update_limits_process method can execute not async
+                # self.update_limits_process method can execute not is_async
                 # because in this case an order has got only one order item.
                 self.update_limits_process(user)
             except NotImplementedError:

@@ -481,7 +481,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
             force=force,
             delete_volumes=delete_volumes,
             release_floating_ips=release_floating_ips,
-            async=self.async_executor,
+            is_async=self.async_executor,
         )
 
         return response.Response({'status': _('destroy was scheduled')}, status=status.HTTP_202_ACCEPTED)

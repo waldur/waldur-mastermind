@@ -189,7 +189,7 @@ class TasksTest(BaseProjectImportTest):
 
     def test_import_projects(self):
         project = factories.ProjectFactory()
-        executors.ProjectPullExecutor.execute(project, async=False)
+        executors.ProjectPullExecutor.execute(project, is_async=False)
         project.refresh_from_db()
         self.assertEqual(project.state, models.Project.States.OK)
         self.assertEqual(project.runtime_state, 'success')

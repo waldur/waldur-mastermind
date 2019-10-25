@@ -68,7 +68,7 @@ class PythonManagementFindVirtualEnvsRequestExtractedInformationHandler:
         for virtual_env_name in lines_post_processor.installed_virtual_environments:
             find_libs_request = models.PythonManagementFindInstalledLibrariesRequest.objects.create(
                 python_management=request.python_management, virtual_env_name=virtual_env_name)
-            executors.PythonManagementRequestExecutor.execute(find_libs_request, async=True)
+            executors.PythonManagementRequestExecutor.execute(find_libs_request, is_async=True)
 
 
 class InitializationRequestExtractedInformationHandler:

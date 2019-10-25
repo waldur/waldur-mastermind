@@ -15,7 +15,7 @@ def run_openstack_package_change_executor(package, new_template):
                                                          new_template=new_template,
                                                          old_package=package,
                                                          service_settings=package.service_settings,
-                                                         async=False)
+                                                         is_async=False)
 
 
 def override_plugin_settings(**kwargs):

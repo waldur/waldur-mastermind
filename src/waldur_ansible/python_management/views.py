@@ -61,7 +61,7 @@ class PythonManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsViewS
                 libraries_to_install=libraries_to_install,
                 virtual_env_name=virtual_environment['name'])
 
-        self.python_management_request_executor.execute(initialization_request, async=self.async_executor)
+        self.python_management_request_executor.execute(initialization_request, is_async=self.async_executor)
 
     @core_mixins.ensure_atomic_transaction
     def perform_destroy(self, persisted_python_management):

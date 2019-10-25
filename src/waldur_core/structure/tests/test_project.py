@@ -619,7 +619,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         project = fixture.project
 
         get_extensions.return_value = []
-        executors.ProjectCleanupExecutor.execute(fixture.project, async=False)
+        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
 
@@ -629,7 +629,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         resource = fixture.resource
 
         get_extensions.return_value = []
-        executors.ProjectCleanupExecutor.execute(fixture.project, async=False)
+        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertTrue(models.Project.objects.filter(id=project.id).exists())
         self.assertTrue(test_models.TestNewInstance.objects.filter(id=resource.id).exists())
@@ -645,7 +645,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
                 return TestExecutor
 
         get_extensions.return_value = [TestExtension]
-        executors.ProjectCleanupExecutor.execute(fixture.project, async=False)
+        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
         self.assertFalse(test_models.TestNewInstance.objects.filter(id=resource.id).exists())

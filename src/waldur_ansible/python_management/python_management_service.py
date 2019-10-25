@@ -36,7 +36,7 @@ class PythonManagementService:
             raise APIException(code=HTTP_423_LOCKED)
 
         delete_request.save()
-        self.executor.execute(delete_request, async=True)
+        self.executor.execute(delete_request, is_async=True)
 
     def schedule_virtual_environments_search(self, persisted_python_management):
         find_virtual_envs_request = models.PythonManagementFindVirtualEnvsRequest(python_management=persisted_python_management)
@@ -45,7 +45,7 @@ class PythonManagementService:
             raise APIException(code=HTTP_423_LOCKED)
 
         find_virtual_envs_request.save()
-        self.executor.execute(find_virtual_envs_request, async=True)
+        self.executor.execute(find_virtual_envs_request, is_async=True)
         return Response({'status': 'Find installed virtual environments process has been scheduled.'},
                         status=HTTP_202_ACCEPTED)
 
@@ -57,7 +57,7 @@ class PythonManagementService:
             raise APIException(code=HTTP_423_LOCKED)
 
         find_installed_libraries_request.save()
-        self.executor.execute(find_installed_libraries_request, async=True)
+        self.executor.execute(find_installed_libraries_request, is_async=True)
         return Response(
             {'status': 'Find installed libraries in virtual environment process has been scheduled.'},
             status=HTTP_202_ACCEPTED)
@@ -182,4 +182,4 @@ class PythonManagementService:
     def create_or_refuse_request(self, sync_request):
         if locking_service.PythonManagementBackendLockingService.is_processing_allowed(sync_request):
             sync_request.save()
-            self.executor.execute(sync_request, async=True)
+            self.executor.execute(sync_request, is_async=True)

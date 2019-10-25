@@ -40,15 +40,15 @@ class BaseExecutor:
         return None
 
     @classmethod
-    def execute(cls, instance, async=True, countdown=2, is_heavy_task=False, **kwargs):
+    def execute(cls, instance, is_async=True, countdown=2, is_heavy_task=False, **kwargs):
         """ Execute high level-operation """
-        cls.pre_apply(instance, async=async, **kwargs)
+        cls.pre_apply(instance, is_async=is_async, **kwargs)
         serialized_instance = utils.serialize_instance(instance)
 
         signature = cls.get_task_signature(instance, serialized_instance, **kwargs)
         link = cls.get_success_signature(instance, serialized_instance, **kwargs)
         link_error = cls.get_failure_signature(instance, serialized_instance, **kwargs)
-        if async:
+        if is_async:
             return signature.apply_async(
                 link=link,
                 link_error=link_error,
@@ -151,10 +151,10 @@ class UpdateExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
         instance.save(update_fields=['state'])
 
     @classmethod
-    def execute(cls, instance, async=True, **kwargs):
+    def execute(cls, instance, is_async=True, **kwargs):
         if 'updated_fields' not in kwargs:
             raise ExecutorException('updated_fields keyword argument should be defined for UpdateExecutor.')
-        super(UpdateExecutor, cls).execute(instance, async=async, **kwargs)
+        super(UpdateExecutor, cls).execute(instance, is_async=is_async, **kwargs)
 
 
 class DeleteExecutor(DeleteExecutorMixin, BaseExecutor):

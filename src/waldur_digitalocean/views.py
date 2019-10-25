@@ -67,7 +67,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         #      View should pass objects to executor.
         self.create_executor.execute(
             droplet,
-            async=self.async_executor,
+            is_async=self.async_executor,
             backend_region_id=region.backend_id,
             backend_image_id=image.backend_id,
             backend_size_id=size.backend_id,
@@ -141,7 +141,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
             disk=disk,
             size=size,
             updated_fields=None,
-            async=self.async_executor)
+            is_async=self.async_executor)
 
         message = _('Droplet {droplet_name} has been scheduled to %s resize.') % \
             (disk and _('permanent') or _('flexible'))

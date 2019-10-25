@@ -128,7 +128,7 @@ class ProjectResourceCleanupTask(core_tasks.Task):
         project = core_utils.deserialize_instance(serialized_project)
 
         for resource in model_cls.objects.filter(project=project):
-            executor.execute(resource, async=False, force=True, **kwargs)
+            executor.execute(resource, is_async=False, force=True, **kwargs)
 
 
 class ProjectCleanupExecutor(core_executors.BaseExecutor):

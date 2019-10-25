@@ -115,4 +115,4 @@ class PythonManagementInitializationBackend(PythonManagementBackend):
         super(PythonManagementInitializationBackend, self).process_python_management_request(python_management_initialization_request)
 
         for synchronization_request in python_management_initialization_request.sychronization_requests.all():
-            executors.PythonManagementRequestExecutor.execute(synchronization_request, async=True)
+            executors.PythonManagementRequestExecutor.execute(synchronization_request, is_async=True)

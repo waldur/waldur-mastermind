@@ -68,7 +68,7 @@ class JupyterHubManagementViewSet(core_mixins.AsyncExecutor, core_views.ActionsV
                 virtual_env_request = models.JupyterHubManagementMakeVirtualEnvironmentGlobalRequest(
                     jupyter_hub_management=jupyter_hub_management, virtual_env_name=virtual_env['name'])
                 virtual_env_request.save()
-                executors.JupyterHubManagementRequestExecutor.execute(virtual_env_request, async=self.async_executor)
+                executors.JupyterHubManagementRequestExecutor.execute(virtual_env_request, is_async=self.async_executor)
 
     @core_mixins.ensure_atomic_transaction
     def perform_update(self, serializer):

@@ -18,7 +18,7 @@ class JupyterHubManagementService:
 
         delete_request.save()
 
-        self.executor.execute(delete_request, async=True)
+        self.executor.execute(delete_request, is_async=True)
 
     def issue_localize_globalize_requests(self, updated_jupyter_hub_management, validated_data):
         virtual_environments = validated_data['updated_virtual_environments']
@@ -46,14 +46,14 @@ class JupyterHubManagementService:
     def execute_or_refuse_request(self, localize_request):
         if locking_service.JupyterHubManagementBackendLockingService.is_processing_allowed(localize_request):
             localize_request.save()
-            self.executor.execute(localize_request, async=True)
+            self.executor.execute(localize_request, is_async=True)
 
     def execute_sync_configuration_request_if_allowed(self, persisted_jupyter_hub_management):
         sync_config_request = models.JupyterHubManagementSyncConfigurationRequest(jupyter_hub_management=persisted_jupyter_hub_management)
         if not locking_service.JupyterHubManagementBackendLockingService.is_processing_allowed(sync_config_request):
             raise APIException(code=HTTP_423_LOCKED)
         sync_config_request.save()
-        self.executor.execute(sync_config_request, async=True)
+        self.executor.execute(sync_config_request, is_async=True)
 
     def has_jupyter_hub_config_changed(self, incoming_validated_data, persisted_jupyter_hub_management):
         removed_jupyter_hub_users = self.find_removed_users(persisted_jupyter_hub_management.jupyter_hub_users.all(), incoming_validated_data.get('jupyter_hub_users'))

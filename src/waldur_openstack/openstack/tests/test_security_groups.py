@@ -390,7 +390,7 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
             response = self.client.delete(self.url)
             self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-            mocked_execute.assert_called_once_with(self.security_group, force=False, async=True)
+            mocked_execute.assert_called_once_with(self.security_group, force=False, is_async=True)
 
     def test_security_group_can_be_deleted_from_erred_state(self):
         self.security_group.state = models.SecurityGroup.States.ERRED
