@@ -48,6 +48,7 @@ RUN yum --assumeyes install --setopt=tsflags=nodocs \
   postgresql-devel \
   python-devel \
   python-pip \
+  python-django-cors-headers \
   xmlsec1 \
   xmlsec1-openssl \
   zlib-devel \

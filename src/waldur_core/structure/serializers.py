@@ -955,18 +955,34 @@ class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
                 extra_fields = serializer.SERVICE_ACCOUNT_EXTRA_FIELDS
                 if extra_fields is not NotImplemented:
                     for field in extra_fields:
-                        fields[field] = serializers.CharField(required=False,
-                                                              source='options.' + field,
-                                                              allow_blank=True,
-                                                              help_text=extra_fields[field])
+                        fields[field] = serializers.CharField(
+                            required=False,
+                            allow_blank=True,
+                            help_text=extra_fields[field]
+                        )
 
         if request.method == 'GET':
             fields['type'] = serializers.ReadOnlyField(source='get_type_display')
 
+            if self.can_see_extra_fields():
+                serializer = self.get_service_serializer()
+                extra_fields = serializer.SERVICE_ACCOUNT_EXTRA_FIELDS
+                if extra_fields is not NotImplemented:
+                    for field in extra_fields:
+                        fields[field] = serializers.CharField(
+                            required=False,
+                            source='options.' + field,
+                            allow_blank=True,
+                            help_text=extra_fields[field]
+                        )
         return fields
 
     def get_service_serializer(self):
-        service = SupportedServices.get_service_models()[self.instance.type]['service']
+        if isinstance(self.instance, list):
+            key = self.instance[0].type
+        else:
+            key = self.instance.type
+        service = SupportedServices.get_service_models()[key]['service']
         # Find service serializer by service type of settings object
         return next(cls for cls in BaseServiceSerializer.__subclasses__()
                     if cls.Meta.model == service)
@@ -977,15 +993,25 @@ class ServiceSettingsSerializer(PermissionFieldFilteringMixin,
         if request.user.is_staff:
             return True
 
-        if not self.instance.customer:
+        if isinstance(self.instance, list):
+            customer = self.instance[0].customer
+        else:
+            customer = self.instance.customer
+
+        if not customer:
             return False
 
         return self.instance.customer.has_user(request.user, models.CustomerRole.OWNER)
 
     def update(self, instance, validated_data):
-        if 'options' in validated_data:
+        if self.can_see_extra_fields():
             new_options = dict.copy(instance.options)
-            new_options.update(validated_data['options'])
+            serializer = self.get_service_serializer()
+            extra_fields = serializer.SERVICE_ACCOUNT_EXTRA_FIELDS
+            if extra_fields is not NotImplemented:
+                for field in extra_fields:
+                    if field in validated_data:
+                        new_options[field] = validated_data.pop(field)
             validated_data['options'] = new_options
 
         return super(ServiceSettingsSerializer, self).update(instance, validated_data)
