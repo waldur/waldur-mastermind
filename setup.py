@@ -60,7 +60,7 @@ install_requires = [
     'python-novaclient>=9.1.0',
     'pyvat>=1.3.1,<2.0',
     'pyvmomi>=6.7.1',
-    'PyYAML>=3.10',
+    'PyYAML>=5.1',
     'pyzabbix>=0.7.2',
     'redis==2.10.6',
     'requests>=2.14.2',
