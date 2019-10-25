@@ -1,9 +1,10 @@
+import mock
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories, fixtures
-from .. import models
+from . import factories, fixtures, test_cluster
+from .. import models, tasks
 
 
 class NodeGetTest(test.APITransactionTestCase):
@@ -26,32 +27,35 @@ class NodeGetTest(test.APITransactionTestCase):
         self.assertEqual(len(list(response.data)), 1)
 
 
-class NodeCreateTest(test.APITransactionTestCase):
+class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def setUp(self):
         super(NodeCreateTest, self).setUp()
-        self.fixture = fixtures.RancherFixture()
-        self.url = factories.NodeFactory.get_list_url()
+        self.node_url = factories.NodeFactory.get_list_url()
 
-    def test_create_node_if_cluster_has_been_created(self):
+    @mock.patch('waldur_rancher.views.executors')
+    def test_create_node_if_cluster_has_been_created(self, mock_executors):
         self.client.force_authenticate(self.fixture.owner)
-        instance = self._create_new_test_instance(customer=self.fixture.customer)
-        url = factories.ClusterFactory.get_list_url()
-        response = self.client.post(url,
-                                    {'name': 'name',
-                                     'instance':
-                                         structure_factories.TestNewInstanceFactory.get_url(instance),
-                                     'service_project_link':
-                                         factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
-                                     })
+        response = self._create_request_(name='name')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         cluster = models.Cluster.objects.get(name='name')
-        self.assertTrue(cluster.node_set.filter(object_id=instance.id).exists())
+        self.assertTrue(mock_executors.ClusterCreateExecutor.execute.called)
+        create_node_task = tasks.CreateNodeTask()
+        create_node_task.execute(
+            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0],
+            node=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['nodes'][0],
+            user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['user'].id,
+        )
+        self.assertTrue(cluster.node_set.filter(cluster=cluster).exists())
+        node = cluster.node_set.get(cluster=cluster)
+        self.assertTrue(node.controlplane_role)
+        self.assertTrue(node.etcd_role)
+        self.assertTrue(node.worker_role)
 
     def test_create_node(self):
         self.client.force_authenticate(self.fixture.owner)
         cluster = self.fixture.cluster
         instance = self._create_new_test_instance(customer=self.fixture.customer)
-        response = self.client.post(self.url,
+        response = self.client.post(self.node_url,
                                     {'cluster': factories.ClusterFactory.get_url(cluster),
                                      'instance': structure_factories.TestNewInstanceFactory.get_url(instance),
                                      })
@@ -62,7 +66,7 @@ class NodeCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         cluster = self.fixture.cluster
         instance = structure_factories.TestNewInstanceFactory()
-        response = self.client.post(self.url,
+        response = self.client.post(self.node_url,
                                     {'cluster': factories.ClusterFactory.get_url(cluster),
                                      'instance': structure_factories.TestNewInstanceFactory.get_url(instance),
                                      })
@@ -71,7 +75,7 @@ class NodeCreateTest(test.APITransactionTestCase):
 
     def test_validate_if_instance_is_already_in_use(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post(self.url,
+        response = self.client.post(self.node_url,
                                     {'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
                                      'instance': structure_factories.TestNewInstanceFactory.get_url(self.fixture.instance),
                                      })
