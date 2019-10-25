@@ -288,3 +288,12 @@ class EmptyFilter(django_filters.CharFilter):
             return qs
         else:
             return qs.none()
+
+
+class BaseSummaryFilterSet(django_filters.FilterSet):
+
+    def filter_queryset(self, queryset):
+        # Skip queryset class validation
+        for name, value in self.form.cleaned_data.items():
+            queryset = self.filters[name].filter(queryset, value)
+        return queryset
