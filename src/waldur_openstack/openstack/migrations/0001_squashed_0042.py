@@ -6,7 +6,7 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import taggit.managers
+import waldur_core.core.shims
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
@@ -150,7 +150,7 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(blank=True, max_length=50)),
                 ('user_password', models.CharField(blank=True, max_length=50)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='tenants', to='openstack.OpenStackServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('extra_configuration', waldur_core.core.fields.JSONField(default={}, help_text='Configuration details that are not represented on backend.')),
             ],
             options={
@@ -221,7 +221,7 @@ class Migration(migrations.Migration):
                 ('type', models.CharField(blank=True, max_length=50)),
                 ('segmentation_id', models.IntegerField(null=True)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='networks', to='openstack.OpenStackServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('tenant', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='networks', to='openstack.Tenant')),
             ],
             options={
@@ -248,7 +248,7 @@ class Migration(migrations.Migration):
                 ('enable_dhcp', models.BooleanField(default=True)),
                 ('network', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='subnets', to='openstack.Network')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='subnets', to='openstack.OpenStackServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('dns_nameservers', waldur_core.core.fields.JSONField(default=list, help_text='List of DNS name servers associated with the subnet.')),
                 ('disable_gateway', models.BooleanField(default=False)),
             ],
@@ -298,7 +298,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='floatingip',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterField(
             model_name='floatingip',
@@ -327,7 +327,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='securitygroup',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterField(
             model_name='securitygroup',

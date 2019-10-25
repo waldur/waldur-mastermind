@@ -5,7 +5,7 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import taggit.managers
+import waldur_core.core.shims
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
@@ -39,7 +39,7 @@ class Migration(migrations.Migration):
                 ('ram', models.PositiveIntegerField(default=0, help_text='Memory size in MiB', verbose_name='RAM')),
                 ('disk', models.PositiveIntegerField(default=0, help_text='Disk size in MiB')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='+', to='waldur_vmware.VMwareServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

@@ -7,7 +7,7 @@ import django.utils.timezone
 import django_fsm
 import model_utils.fields
 import re
-import taggit.managers
+import waldur_core.core.shims
 import waldur_azure.validators
 import waldur_core.core.fields
 import waldur_core.core.models
@@ -289,7 +289,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='subnet',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='sqlserver',
@@ -299,7 +299,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='sqlserver',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='sqldatabase',
@@ -314,7 +314,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='sqldatabase',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='resourcegroup',
@@ -324,7 +324,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='resourcegroup',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='networkinterface',
@@ -344,7 +344,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='networkinterface',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='network',
@@ -359,7 +359,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='network',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AddField(
             model_name='virtualmachine',

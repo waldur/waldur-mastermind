@@ -20,13 +20,13 @@ from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeStampedModel, SoftDeletableModel
 from model_utils.managers import SoftDeletableManagerMixin
 import pyvat
-from taggit.managers import TaggableManager
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import CoordinatesMixin, AbstractFieldTracker
+from waldur_core.core.shims import TaggableManager
 from waldur_core.core.validators import validate_name, validate_cidr_list
 from waldur_core.media.validators import CertificateValidator
 from waldur_core.logging.loggers import LoggableMixin
@@ -86,7 +86,7 @@ class TagMixin(models.Model):
     class Meta:
         abstract = True
 
-    tags = TaggableManager(related_name='+', blank=True)
+    tags = TaggableManager(blank=True, related_name='+')
 
     def get_tags(self):
         key = self._get_tag_cache_key()

@@ -5,7 +5,7 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import taggit.managers
+import waldur_core.core.shims
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
@@ -114,7 +114,7 @@ class Migration(migrations.Migration):
                 ('size', models.PositiveIntegerField(help_text='Size in MiB')),
                 ('metadata', waldur_core.core.fields.JSONField(blank=True)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='volumes', to='waldur_rijkscloud.RijkscloudServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,
@@ -139,7 +139,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='instance',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterUniqueTogether(
             name='rijkscloudserviceprojectlink',

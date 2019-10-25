@@ -7,7 +7,7 @@ import django.utils.timezone
 import django_fsm
 import model_utils.fields
 import re
-import taggit.managers
+import waldur_core.core.shims
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.logging.loggers
@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=24, validators=[django.core.validators.RegexValidator(message='The name can contain only letters and numbers.', regex=re.compile('[a-z][a-z0-9]{2,23}$'))])),
                 ('resource_group', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.ResourceGroup')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_azure.AzureServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

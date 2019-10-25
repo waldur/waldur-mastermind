@@ -10,7 +10,7 @@ import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
 import waldur_core.logging.loggers
-import taggit.managers
+import waldur_core.core.shims
 
 
 class Migration(migrations.Migration):
@@ -103,7 +103,7 @@ class Migration(migrations.Migration):
                 ('user_username', models.CharField(max_length=50)),
                 ('user_password', models.CharField(max_length=50)),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='virtualmachines', to='waldur_azure.AzureServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

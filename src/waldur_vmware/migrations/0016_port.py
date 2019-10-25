@@ -5,7 +5,7 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import taggit.managers
+import waldur_core.core.shims
 import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                 ('backend_id', models.CharField(blank=True, max_length=255)),
                 ('mac_address', models.CharField(blank=True, max_length=32, verbose_name='MAC address')),
                 ('network', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_vmware.Network')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
                 ('vm', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='waldur_vmware.VirtualMachine')),
             ],
             options={

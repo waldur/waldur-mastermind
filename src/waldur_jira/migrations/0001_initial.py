@@ -11,7 +11,7 @@ import waldur_core.core.models
 import waldur_core.core.validators
 import waldur_core.logging.loggers
 import waldur_core.structure.models
-import taggit.managers
+import waldur_core.core.shims
 
 
 class Migration(migrations.Migration):
@@ -123,7 +123,7 @@ class Migration(migrations.Migration):
                 ('default_issue_type', models.CharField(blank=True, max_length=64)),
                 ('available_for_all', models.BooleanField(default=False, help_text=b'Allow access to any user')),
                 ('service_project_link', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='projects', to='waldur_jira.JiraServiceProjectLink')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'abstract': False,

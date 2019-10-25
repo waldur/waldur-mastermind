@@ -9,7 +9,7 @@ import waldur_core.core.fields
 import waldur_core.core.models
 import waldur_core.core.validators
 import waldur_core.logging.loggers
-import taggit.managers
+import waldur_core.core.shims
 
 
 class Migration(migrations.Migration):
@@ -89,7 +89,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='allocation',
             name='tags',
-            field=taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
+            field=waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags'),
         ),
         migrations.AlterUniqueTogether(
             name='slurmserviceprojectlink',

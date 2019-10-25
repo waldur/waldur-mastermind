@@ -5,8 +5,10 @@ from django.contrib.auth.hashers import (
     check_password, is_password_usable, make_password,
 )
 from django.db import models
+from django.db.models.fields.related import lazy_related_operation
 from django.utils.crypto import salted_hmac
 from django.utils.translation import gettext_lazy as _
+from taggit.managers import TaggableManager as _TaggableManager
 
 
 class AbstractBaseUser(models.Model):
@@ -103,3 +105,51 @@ class AbstractBaseUser(models.Model):
     @classmethod
     def normalize_username(cls, username):
         return unicodedata.normalize('NFKC', username) if isinstance(username, str) else username
+
+
+class TaggableManager(_TaggableManager):
+    """
+    Modify contribute_to_class method, so it can use in abstract class
+    See also: https://github.com/jazzband/django-taggit/pull/632/files
+    """
+    def contribute_to_class(self, cls, name):
+        self.set_attributes_from_name(name)
+        self.model = cls
+        self.opts = cls._meta
+
+        cls._meta.add_field(self)
+        setattr(cls, name, self)
+        if not cls._meta.abstract:
+            self.remote_field.related_name = '%(class)s_%(model_name)s_%(app_label)s' % {
+                "class": cls.__name__.lower(),
+                "model_name": cls._meta.model_name.lower(),
+                "app_label": cls._meta.app_label.lower(),
+            }
+
+            if self.remote_field.related_query_name:
+                related_query_name = self.remote_field.related_query_name % {
+                    "class": cls.__name__.lower(),
+                    "app_label": cls._meta.app_label.lower(),
+                }
+                self.remote_field.related_query_name = related_query_name
+
+            if isinstance(self.remote_field.model, str):
+
+                def resolve_related_class(cls, model, field):
+                    field.remote_field.model = model
+
+                lazy_related_operation(
+                    resolve_related_class, cls, self.remote_field.model, field=self
+                )
+            if isinstance(self.through, str):
+
+                def resolve_related_class(cls, model, field):
+                    self.through = model
+                    self.remote_field.through = model
+                    self.post_through_setup(cls)
+
+                lazy_related_operation(
+                    resolve_related_class, cls, self.through, field=self
+                )
+            else:
+                self.post_through_setup(cls)

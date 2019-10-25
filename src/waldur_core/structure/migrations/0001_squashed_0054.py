@@ -5,7 +5,7 @@ import django.core.validators
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import taggit.managers
+import waldur_core.core.shims
 from django.conf import settings
 from django.db import migrations, models
 
@@ -179,7 +179,7 @@ class Migration(migrations.Migration):
                 ('certifications', models.ManyToManyField(blank=True, related_name='service_settings', to='structure.ServiceCertification')),
                 ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
                 ('customer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='service_settings', to='structure.Customer', verbose_name='organization')),
-                ('tags', taggit.managers.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
+                ('tags', waldur_core.core.shims.TaggableManager(related_name='+', blank=True, help_text='A comma-separated list of tags.', through='taggit.TaggedItem', to='taggit.Tag', verbose_name='Tags')),
             ],
             options={
                 'verbose_name': 'Service settings',
