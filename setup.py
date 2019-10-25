@@ -62,7 +62,7 @@ install_requires = [
     'pyvmomi>=6.7.1',
     'PyYAML>=5.1',
     'pyzabbix>=0.7.2',
-    'redis==2.10.6',
+    'redis>=3.2.1',
     'requests>=2.14.2',
     'sqlparse>=0.1.11',
     'pyjwt>=1.5.3',
