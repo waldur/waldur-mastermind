@@ -6,7 +6,7 @@ from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
-from mock_django from unittest import mock_signal_receiver
+from mock_django import mock_signal_receiver
 from rest_framework import test, status
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings

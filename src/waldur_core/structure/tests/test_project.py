@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
-from mock_django from unittest import mock_signal_receiver
+from mock_django import mock_signal_receiver
 from rest_framework import status, test
 from unittest import mock
 
