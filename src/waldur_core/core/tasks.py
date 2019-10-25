@@ -3,11 +3,8 @@ import json
 import logging
 from uuid import uuid4
 
-from celery import group
-from celery.backends.base import Backend
 from celery.execute import send_task as send_celery_task
 from celery.task import Task as CeleryTask
-from celery.utils.functional import arity_greater
 from celery.worker.request import Request
 from django.core.cache import cache
 from django.db import IntegrityError, models as django_models
@@ -18,30 +15,6 @@ from waldur_core.core import models, utils
 from waldur_core.core.exceptions import RuntimeStateException
 
 logger = logging.getLogger(__name__)
-
-
-# This code is a copy from https://github.com/celery/celery/blob/4.1/celery/backends/base.py#L162
-def _call_task_errbacks_fix(self, request, exc, traceback):
-    old_signature = []
-    for errback in request.errbacks:
-        errback = self.app.signature(errback)
-        # This check is necessary to solve a problem https://github.com/celery/celery/issues/4377 for celery 4.1.0
-        __header__ = getattr(errback.type, '__header__', None)
-        if __header__ and arity_greater(__header__, 1):
-            errback(request, exc, traceback)
-        else:
-            old_signature.append(errback)
-    if old_signature:
-        # Previously errback was called as a task so we still
-        # need to do so if the errback only takes a single task_id arg.
-        task_id = request.id
-        root_id = request.root_id or task_id
-        group(old_signature, app=self.app).apply_async(
-            (task_id,), parent_id=task_id, root_id=root_id
-        )
-
-
-Backend._call_task_errbacks = _call_task_errbacks_fix
 
 
 class StateChangeError(RuntimeError):
