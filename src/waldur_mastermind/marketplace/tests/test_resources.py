@@ -1,5 +1,5 @@
 from ddt import data, ddt
-import mock
+from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils

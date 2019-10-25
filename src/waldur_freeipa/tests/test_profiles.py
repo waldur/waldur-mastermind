@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 from ddt import data, ddt

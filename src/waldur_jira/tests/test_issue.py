@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from django.conf import settings
 from rest_framework import test, status
 

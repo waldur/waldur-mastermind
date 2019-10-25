@@ -1,6 +1,6 @@
 from django.contrib import auth
 from rest_framework import serializers, test
-import mock
+from unittest import mock
 
 from . import helpers
 from .. import exceptions, mixins

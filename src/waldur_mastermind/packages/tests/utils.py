@@ -2,7 +2,7 @@ import copy
 
 from django.conf import settings
 from django.test.utils import override_settings
-import mock
+from unittest import mock
 
 from waldur_core.core import tasks as core_tasks
 

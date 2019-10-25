@@ -1,5 +1,5 @@
 import json
-import mock
+from unittest import mock
 
 from django.core import mail
 from django.conf import settings

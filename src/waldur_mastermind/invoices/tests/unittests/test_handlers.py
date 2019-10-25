@@ -6,7 +6,7 @@ from django.conf import settings
 from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from mock import mock
+from mock from unittest import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories

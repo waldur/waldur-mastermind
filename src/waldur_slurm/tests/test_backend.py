@@ -1,7 +1,7 @@
 import decimal
 
 from django.test import TestCase
-import mock
+from unittest import mock
 from freezegun import freeze_time
 
 from waldur_freeipa import models as freeipa_models

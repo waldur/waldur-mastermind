@@ -5,7 +5,7 @@ from django.test import TestCase
 from cinderclient.v2.volumes import Volume
 from novaclient.v2.servers import Server
 from novaclient.v2.flavors import Flavor
-import mock
+from unittest import mock
 
 from waldur_openstack.openstack_tenant.backend import OpenStackTenantBackend
 from waldur_openstack.openstack_tenant import models

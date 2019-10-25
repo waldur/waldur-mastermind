@@ -73,7 +73,6 @@ test_requires = [
     'docker',
     'factory_boy==2.4.1',
     'freezegun==0.3.7',
-    'mock>=1.0.1',
     'mock-django==0.6.9',
     'sqlalchemy>=1.0.12',
     'responses',

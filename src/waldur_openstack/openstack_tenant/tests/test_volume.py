@@ -1,7 +1,7 @@
 from ddt import ddt, data
 from django.conf import settings
 from rest_framework import test, status
-import mock
+from unittest import mock
 
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories

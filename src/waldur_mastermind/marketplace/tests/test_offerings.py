@@ -1,8 +1,8 @@
 import json
 import uuid
+from unittest from unittest import mock
 
 from ddt import data, ddt
-import mock
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import test, status
 

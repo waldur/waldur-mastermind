@@ -4,7 +4,7 @@ import itertools
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from mock import patch
+from unittest.mock import patch
 from rest_framework import test, status
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings

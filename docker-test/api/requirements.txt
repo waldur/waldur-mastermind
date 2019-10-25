@@ -87,7 +87,6 @@ linecache2==1.0.0
 lxml==4.2.1
 MarkupSafe==1.0
 mccabe==0.6.1
-mock==2.0.0
 mock-django==0.6.9
 monotonic==1.5
 more-itertools==4.2.0

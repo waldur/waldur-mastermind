@@ -8,7 +8,7 @@ from django.conf import settings
 from django.test import override_settings
 from novaclient import exceptions as nova_exceptions
 from rest_framework import status, test
-import mock
+from unittest import mock
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories

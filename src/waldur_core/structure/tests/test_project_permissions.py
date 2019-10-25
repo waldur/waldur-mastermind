@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
-import mock
+from unittest import mock
 
 from waldur_core.structure import tasks
 from waldur_core.structure.models import ProjectRole, CustomerRole, ProjectPermission

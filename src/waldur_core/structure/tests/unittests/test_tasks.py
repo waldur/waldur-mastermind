@@ -1,5 +1,5 @@
 from datetime import timedelta
-import mock
+from unittest import mock
 
 from ddt import ddt, data
 from django.test import TestCase

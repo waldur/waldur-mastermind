@@ -2,7 +2,7 @@ import base64
 import collections
 from io import BytesIO
 import json
-import mock
+from unittest import mock
 
 import jira
 from django.conf import settings

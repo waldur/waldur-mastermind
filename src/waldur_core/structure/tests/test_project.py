@@ -1,9 +1,9 @@
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
-from mock_django import mock_signal_receiver
+from mock_django from unittest import mock_signal_receiver
 from rest_framework import status, test
-import mock
+from unittest import mock
 
 from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import executors, models, signals, views

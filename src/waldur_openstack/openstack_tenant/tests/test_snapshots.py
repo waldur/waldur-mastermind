@@ -1,6 +1,6 @@
 from ddt import ddt, data
 from rest_framework import test, status
-import mock
+from unittest import mock
 
 from waldur_openstack.openstack_tenant import models
 

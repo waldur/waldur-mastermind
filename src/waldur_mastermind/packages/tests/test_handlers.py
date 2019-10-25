@@ -6,7 +6,7 @@ from django.db.models.signals import pre_delete
 from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from mock import Mock
+from mock from unittest import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories

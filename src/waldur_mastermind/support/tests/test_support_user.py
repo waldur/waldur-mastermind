@@ -1,5 +1,5 @@
 import jira
-import mock
+from unittest import mock
 from ddt import ddt, data
 from rest_framework import status
 

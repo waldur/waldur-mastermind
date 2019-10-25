@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from ddt import ddt, data
-import mock
+from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories

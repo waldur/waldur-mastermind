@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from rest_framework import status, test
 
 from waldur_aws import models

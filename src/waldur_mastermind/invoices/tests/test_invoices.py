@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.test import override_settings
-import mock
+from unittest import mock
 from ddt import ddt, data
 from django.core import mail
 from freezegun import freeze_time

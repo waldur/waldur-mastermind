@@ -1,5 +1,5 @@
 from django.test import TestCase
-from mock import MagicMock
+from unittest.mock import MagicMock
 
 from waldur_core.core import models as core_models
 from waldur_mastermind.packages.tests.fixtures import PackageFixture

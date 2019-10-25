@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from django.test import TestCase
 
 from waldur_core.quotas import models as quota_models

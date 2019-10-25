@@ -1,6 +1,6 @@
 import json
 
-import mock
+from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 

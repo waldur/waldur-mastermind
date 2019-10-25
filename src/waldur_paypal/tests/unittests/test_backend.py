@@ -1,5 +1,5 @@
 from django.test import TestCase
-import mock
+from unittest import mock
 
 from waldur_paypal.backend import PaypalBackend, PayPalError
 

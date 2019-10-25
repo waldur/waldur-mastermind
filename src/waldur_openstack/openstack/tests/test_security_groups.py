@@ -1,5 +1,5 @@
 from ddt import ddt, data
-from mock import patch
+from unittest.mock import patch
 from rest_framework import test, status
 
 from .. import models
