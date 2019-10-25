@@ -29,9 +29,20 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Cluster.objects.all()
     serializer_class = serializers.ClusterSerializer
     filter_class = filters.ClusterFilter
-    create_executor = executors.ClusterCreateExecutor
     delete_executor = executors.ClusterDeleteExecutor
     update_executor = executors.ClusterUpdateExecutor
+
+    def perform_create(self, serializer):
+        cluster = serializer.save()
+        user = self.request.user
+        nodes = serializer.validated_data.get('node_set')
+        executors.ClusterCreateExecutor.execute(
+            cluster,
+            nodes=nodes,
+            user=user,
+            is_heavy_task=True,
+        )
+
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Cluster.States.OK),
     ]

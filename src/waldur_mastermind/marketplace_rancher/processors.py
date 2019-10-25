@@ -6,7 +6,7 @@ class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
     viewset = rancher_views.ClusterViewSet
     fields = (
         'name',
-        'instance',
+        'nodes',
     )
 
 
