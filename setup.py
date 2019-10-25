@@ -118,8 +118,6 @@ setup(
             'waldur_rijkscloud = waldur_rijkscloud.extension:RijkscloudExtension',
             'waldur_common = waldur_ansible.common.extension:AnsibleCommonExtension',
             'waldur_playbook_jobs = waldur_ansible.playbook_jobs.extension:PlaybookJobsExtension',
-            'waldur_python_management = waldur_ansible.python_management.extension:PythonManagementExtension',
-            'waldur_jupyter_hub_management = waldur_ansible.jupyter_hub_management.extension:JupyterHubManagementExtension',
             'waldur_packages = waldur_mastermind.packages.extension:PackagesExtension',
             'waldur_invoices = waldur_mastermind.invoices.extension:InvoicesExtension',
             'waldur_support = waldur_mastermind.support.extension:SupportExtension',
