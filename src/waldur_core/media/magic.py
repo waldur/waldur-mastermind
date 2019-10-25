@@ -77,7 +77,7 @@ class Magic:
                 # which is not what libmagic expects
                 if isinstance(buf, str) and str != bytes:
                     buf = buf.encode('utf-8', errors='replace')
-                return maybe_decode(magic_buffer(self.cookie, buf))
+                return magic_buffer(self.cookie, buf).decode('utf-8')
             except MagicException as e:
                 return self._handle509Bug(e)
 
@@ -87,7 +87,7 @@ class Magic:
             pass
         with self.lock:
             try:
-                return maybe_decode(magic_file(self.cookie, filename))
+                return magic_file(self.cookie, filename).decode('utf-8')
             except MagicException as e:
                 return self._handle509Bug(e)
 
@@ -202,15 +202,6 @@ def errorcheck_negative_one(result, func, args):
         raise MagicException(err)
     else:
         return result
-
-
-# return str on python3.  Don't want to unconditionally
-# decode because that results in unicode on python2
-def maybe_decode(s):
-    if str == bytes:
-        return s
-    else:
-        return s.decode('utf-8')
 
 
 def coerce_filename(filename):

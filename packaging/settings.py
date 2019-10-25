@@ -126,7 +126,7 @@ ALLOWED_HOSTS = ['*']
 #
 #   yum install python-psycopg2
 #
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#databases
+# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
@@ -139,14 +139,14 @@ DATABASES = {
 }
 
 # Logging
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#logging
+# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#logging
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,  # fixes Celery beat logging
 
     # Filters
     # Filter provides additional control over which log records are passed from logger to handler.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#filters
+    # See also: https://docs.djangoproject.com/en/2.2/topics/logging/#filters
     'filters': {
         # Filter out only events (user-facing messages)
         'is-event': {
@@ -164,7 +164,7 @@ LOGGING = {
 
     # Formatters
     # Formatter describes the exact format of the log entry.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#formatters
+    # See also: https://docs.djangoproject.com/en/2.2/topics/logging/#formatters
     'formatters': {
         'message-only': {
             'format': '%(message)s',
@@ -176,10 +176,10 @@ LOGGING = {
 
     # Handlers
     # Handler determines what happens to each message in a logger.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#handlers
+    # See also: https://docs.djangoproject.com/en/2.2/topics/logging/#handlers
     'handlers': {
         # Send logs to admins by email
-        # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#django.utils.log.AdminEmailHandler
+        # See also: https://docs.djangoproject.com/en/2.2/topics/logging/#django.utils.log.AdminEmailHandler
         'email-admins': {
             'filters': ['is-not-background-task'],
             'class': 'django.utils.log.AdminEmailHandler',
@@ -234,7 +234,7 @@ LOGGING = {
     # Loggers
     # A logger is the entry point into the logging system.
     # Each logger is a named bucket to which messages can be written for processing.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#loggers
+    # See also: https://docs.djangoproject.com/en/2.2/topics/logging/#loggers
     #
     # Default logger configuration
     'root': {
@@ -300,20 +300,20 @@ if config.getboolean('events', 'syslog'):
     LOGGING['loggers']['waldur_core']['handlers'].append('syslog-event')
 
 # Static files
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#static-files
+# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#static-files
 STATIC_ROOT = config.get('global', 'static_root')
 
 # Django cache
-# https://docs.djangoproject.com/en/1.11/topics/cache/
+# https://docs.djangoproject.com/en/2.2/topics/cache/
 CACHES['default']['LOCATION'] = redis_url
 
 # Email
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#default-from-email
+# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#default-from-email
 if config.get('global', 'default_from_email') != '':
     DEFAULT_FROM_EMAIL = config.get('global', 'default_from_email')
 
 # Session
-# https://docs.djangoproject.com/en/1.11/ref/settings/#sessions
+# https://docs.djangoproject.com/en/2.2/ref/settings/#sessions
 SESSION_COOKIE_AGE = config.getint('auth', 'session_lifetime')
 
 # Celery

@@ -143,14 +143,14 @@ ROOT_URLCONF = 'waldur_core.server.urls'
 AUTH_USER_MODEL = 'core.User'
 
 # Session
-# https://docs.djangoproject.com/en/1.11/ref/settings/#sessions
+# https://docs.djangoproject.com/en/2.2/ref/settings/#sessions
 SESSION_COOKIE_AGE = 3600
 SESSION_SAVE_EVERY_REQUEST = True
 
 WSGI_APPLICATION = 'waldur_core.server.wsgi.application'
 
 # Internationalization
-# https://docs.djangoproject.com/en/1.11/topics/i18n/
+# https://docs.djangoproject.com/en/2.2/topics/i18n/
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -174,7 +174,7 @@ USE_TZ = True
 DEFENDER_REDIS_URL = 'redis://localhost:6379/0'
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/1.11/howto/static-files/
+# https://docs.djangoproject.com/en/2.2/howto/static-files/
 STATIC_URL = '/static/'
 
 # Celery

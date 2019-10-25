@@ -37,6 +37,7 @@ RUN yum --assumeyes install \
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install --setopt=tsflags=nodocs \
   gcc \
+  git \
   libffi-devel \
   libjpeg-devel \
   libxml2-devel \
@@ -56,7 +57,7 @@ RUN yum --assumeyes install --setopt=tsflags=nodocs \
   logrotate \
   mailcap \
   openssl \
-  uwsgi-plugin-python2 \
+  uwsgi-plugin-python36 \
   gettext \
   && pip3 install -U pip
 
