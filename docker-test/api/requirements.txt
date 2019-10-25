@@ -115,7 +115,7 @@ Paste==2.0.3
 paypalrestsdk==1.13.1
 pbr==4.0.4
 pdfkit==0.6.1
-Pillow==5.1.0
+Pillow==6.2.0
 pluggy==0.6.0
 prettytable==0.7.2
 psycopg2==2.7.4
