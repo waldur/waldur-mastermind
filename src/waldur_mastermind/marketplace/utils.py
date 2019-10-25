@@ -1,5 +1,5 @@
 import base64
-from io import StringIO
+from io import BytesIO
 import os
 
 import pdfkit
@@ -81,7 +81,7 @@ def create_screenshot_thumbnail(screenshot):
     else:
         return
 
-    temp_thumb = StringIO()
+    temp_thumb = BytesIO()
     image.save(temp_thumb, FTYPE)
     temp_thumb.seek(0)
     screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)

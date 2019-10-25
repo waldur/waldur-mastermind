@@ -1,4 +1,4 @@
-from io import StringIO
+from io import BytesIO
 
 from PIL import Image
 from django.conf import settings
@@ -20,6 +20,6 @@ def resize_playbook_image(sender, instance, **kwargs):
     image = Image.open(field.file)
     image.thumbnail(size, Image.ANTIALIAS)
 
-    image_file = StringIO()
+    image_file = BytesIO()
     image.save(image_file, 'png')
     field.file = image_file
