@@ -79,7 +79,7 @@ def send_invoice_notification(invoice_uuid):
     attachment = None
     content_type = None
 
-    if invoice.file:
+    if invoice._file:
         filename = '%s_%s_%s.pdf' % (settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
                                      invoice.year, invoice.month)
         attachment = base64.b64decode(invoice._file)
