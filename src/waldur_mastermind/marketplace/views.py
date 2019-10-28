@@ -497,15 +497,34 @@ class CartItemViewSet(core_views.ActionsViewSet):
 
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
+    queryset = models.Resource.objects.all()
     filter_backends = (
-        structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
         filters.ResourceScopeFilterBackend
     )
     filter_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
+
+    def get_queryset(self):
+        """
+        Resources are available to both service provider and service consumer.
+        """
+        if self.request.user.is_staff:
+            return self.queryset
+
+        return self.queryset.filter(
+            Q(
+                project__permissions__user=self.request.user,
+                project__permissions__is_active=True,
+            ) | Q(
+                project__customer__permissions__user=self.request.user,
+                project__customer__permissions__is_active=True,
+            ) | Q(
+                offering__customer__permissions__user=self.request.user,
+                offering__customer__permissions__is_active=True,
+            )
+        )
 
     @detail_route(methods=['post'])
     def terminate(self, request, uuid=None):
@@ -531,6 +550,13 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
 
     terminate_serializer_class = serializers.ResourceTerminateSerializer
+
+    terminate_permissions = [permissions.user_can_terminate_resource]
+
+    terminate_validators = [
+        core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
+        structure_utils.check_customer_blocked
+    ]
 
     @detail_route(methods=['post'])
     def switch_plan(self, request, uuid=None):
@@ -586,19 +612,15 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
-    terminate_permissions = \
-        switch_plan_permissions = \
+    switch_plan_permissions = \
         update_limits_permissions = \
         [structure_permissions.is_administrator]
+
     switch_plan_validators = \
         update_limits_validators = [
             core_validators.StateValidator(models.Resource.States.OK),
             structure_utils.check_customer_blocked
         ]
-    terminate_validators = [
-        core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
-        structure_utils.check_customer_blocked
-    ]
 
     @detail_route(methods=['get'])
     def plan_periods(self, request, uuid=None):

@@ -5,7 +5,9 @@ import mock
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import factories, utils as test_utils
@@ -24,8 +26,10 @@ class ResourceGetTest(test.APITransactionTestCase):
             plan=self.plan,
         )
 
-    def get_resource(self):
-        self.client.force_authenticate(self.fixture.owner)
+    def get_resource(self, user=None):
+        if not user:
+            user = self.fixture.owner
+        self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(self.resource)
         return self.client.get(url)
 
@@ -39,6 +43,25 @@ class ResourceGetTest(test.APITransactionTestCase):
 
     def test_resource_is_not_usage_based(self):
         self.assertFalse(self.get_resource().data['is_usage_based'])
+
+    def test_project_manager_can_get_resource_data(self):
+        response = self.get_resource(self.fixture.manager)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_customer_owner_can_get_resource_data(self):
+        response = self.get_resource(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_service_provider_can_get_resource_data(self):
+        owner = UserFactory()
+        self.offering.customer.add_user(owner, structure_models.CustomerRole.OWNER)
+
+        response = self.get_resource()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_other_user_can_not_get_resource_data(self):
+        response = self.get_resource(UserFactory())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
@@ -119,13 +142,6 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-
-    def test_plan_switch_is_not_available_if_user_is_not_authorized(self):
-        # Act
-        response = self.switch_plan(self.fixture.global_support, self.resource1, self.plan2)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_order_item_is_created(self):
         # Act
@@ -211,9 +227,10 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
         self.plan = factories.PlanFactory()
+        self.offering = self.plan.offering
         self.resource = models.Resource.objects.create(
             project=self.project,
-            offering=self.plan.offering,
+            offering=self.offering,
             plan=self.plan,
             state=models.Resource.States.OK,
         )
@@ -222,7 +239,23 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         attributes = attributes or {}
         self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(self.resource, 'terminate')
-        return self.client.post(url, {'attributes': attributes})
+        if attributes:
+            return self.client.post(url, {'attributes': attributes})
+        else:
+            return self.client.post(url)
+
+    @mock.patch('waldur_mastermind.marketplace.tasks.notify_order_approvers.delay')
+    def test_service_provider_can_terminate_resource(self, mocked_approve):
+        # Arrange
+        owner = UserFactory()
+        self.offering.customer.add_user(owner, structure_models.CustomerRole.OWNER)
+
+        # Act
+        response = self.terminate(owner)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mocked_approve.assert_not_called()
 
     def test_order_item_is_created_when_user_submits_termination_request(self):
         # Act
@@ -256,13 +289,6 @@ class ResourceTerminateTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_termination_request_is_not_accepted_if_user_is_not_authorized(self):
-        # Act
-        response = self.terminate(self.fixture.global_support)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_order_is_approved_implicitly_for_authorized_user(self):
         # Act
@@ -564,13 +590,6 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-
-    def test_update_limits_is_not_available_if_user_is_not_authorized(self):
-        # Act
-        response = self.update_limits(self.fixture.global_support, self.resource)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_order_item_is_created(self):
         # Act
