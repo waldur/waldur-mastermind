@@ -42,6 +42,10 @@ class RequestCreateTest(BaseTest):
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
         self.assertTrue(support_models.Offering.objects.filter(name='item_name').exists())
+        support_offering = support_models.Offering.objects.get(name='item_name')
+        resource = marketplace_models.Resource.objects.get(scope=support_offering)
+        order_item = marketplace_models.OrderItem.objects.get(resource=resource)
+        self.assertTrue(support_models.Issue.objects.filter(resource_object_id=order_item.id).exists())
 
     def test_request_payload_is_validated(self):
         self.fixture = fixtures.ProjectFixture()
@@ -195,7 +199,8 @@ class RequestDeleteTest(RequestActionBaseTest):
     def test_success_terminate_resource_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.mock_get_active_backend.call_count, 1)
+        self.assertEqual(self.mock_get_active_backend().create_issue.call_count, 1)
+        self.assertEqual(self.mock_get_active_backend().create_issue_links.call_count, 1)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.TERMINATED)
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
@@ -274,10 +279,23 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
     def test_success_switch_plan_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.DONE)
-        self.assertEqual(self.mock_get_active_backend.call_count, 1)
+        self.assertEqual(self.mock_get_active_backend().create_issue.call_count, 1)
+        self.assertEqual(self.mock_get_active_backend().create_issue_links.call_count, 1)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, marketplace_models.Resource.States.OK)
         self.assertEqual(self.resource.plan, self.plan)
+
+    def test_add_links_to_previous_issues(self):
+        create_issue = support_factories.IssueFactory(
+            resource=self.order_item
+        )
+        order_item = self.get_order_item(self.success_issue_status)
+        self.assertEqual(self.mock_get_active_backend().create_issue.call_count, 1)
+        self.assertEqual(self.mock_get_active_backend().create_issue_links.call_count, 1)
+        update_issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        self.mock_get_active_backend().create_issue_links.assert_called_once_with(
+            update_issue,
+            list(support_models.Issue.objects.filter(id=create_issue.id)))
 
     def test_offering_issue_is_updated_when_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)

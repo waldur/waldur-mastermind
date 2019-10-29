@@ -31,6 +31,7 @@ class SupportExtension(WaldurExtension):
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
+                'type_of_linked_issue': 'Relates',
                 # 'organisation_field': 'Reporter organization',
                 # 'project_field': 'Waldur project',
                 # 'affected_resource_field': 'Affected resource',

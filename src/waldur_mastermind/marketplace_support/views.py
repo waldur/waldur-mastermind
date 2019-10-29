@@ -8,6 +8,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
 from rest_framework.response import Response
+from jira import JIRAError
 
 from waldur_core.core import views as core_views
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -16,6 +17,9 @@ from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import serializers as support_serializers
+from waldur_mastermind.support import views as support_views
+
+from . import serializers
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +27,9 @@ logger = logging.getLogger(__name__)
 def create_issue(order_item, description, summary):
     order_item_content_type = ContentType.objects.get_for_model(order_item)
 
-    if not support_models.Issue.objects.filter(resource_object_id=order_item.id,
-                                               resource_content_type=order_item_content_type).exists():
+    if not support_models.Issue.objects.filter(
+            resource_object_id=order_item.id,
+            resource_content_type=order_item_content_type).exists():
         issue_details = dict(
             caller=order_item.order.created_by,
             project=order_item.order.project,
@@ -44,6 +49,16 @@ def create_issue(order_item, description, summary):
             order_item.resource.save(update_fields=['state'])
             raise rf_exceptions.ValidationError(_('Delete resource process is cancelled and issue not created '
                                                   'because a caller is inactive.'))
+        else:
+            ids = marketplace_models.OrderItem.objects.filter(resource=order_item.resource).\
+                values_list('id', flat=True)
+            linked_issues = support_models.Issue.objects.filter(resource_object_id__in=ids,
+                                                                resource_content_type=order_item_content_type).\
+                exclude(id=issue.id)
+            try:
+                support_backend.get_active_backend().create_issue_links(issue, list(linked_issues))
+            except JIRAError as e:
+                logger.exception('Linked issues have not been added: %s', e)
     else:
         message = 'An issue creating is skipped because an issue for order item %s exists already.' % order_item.uuid
         logger.warning(message)
@@ -72,3 +87,7 @@ class IssueViewSet(core_views.ActionsViewSet):
         })
         create_issue(order_item, description, summary)
         return Response(status=status.HTTP_202_ACCEPTED)
+
+
+class OfferingViewSet(support_views.OfferingViewSet):
+    create_serializer_class = serializers.OfferingCreateSerializer

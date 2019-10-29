@@ -4,17 +4,17 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import processors
 from waldur_mastermind.marketplace.utils import get_order_item_url
 from waldur_mastermind.marketplace_support.utils import format_description
 from waldur_mastermind.support import models as support_models
-from waldur_mastermind.support import views as support_views
 
-from .views import IssueViewSet
+from .views import IssueViewSet, OfferingViewSet
 
 
 class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
-    viewset = support_views.OfferingViewSet
+    viewset = OfferingViewSet
 
     def get_post_data(self):
         order_item = self.order_item
@@ -35,6 +35,7 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
             project=project_url,
             template=template_url,
             name=attributes.pop('name', ''),
+            order_item=core_utils.serialize_instance(order_item),
         )
 
         description = attributes.pop('description', '')
