@@ -1,16 +1,32 @@
+from celery import chain
+
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
+
+from . import tasks
 
 
 class ClusterCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        return core_tasks.BackendMethodTask().si(
+    def get_task_signature(cls, instance, serialized_instance, nodes, user):
+        _tasks = [core_tasks.BackendMethodTask().si(
             serialized_instance,
             'create_cluster',
-            state_transition='begin_creating'
-        )
+            state_transition='begin_creating').set(countdown=30)]
+        _tasks += cls.create_nodes(serialized_instance, nodes, user)
+        return chain(*_tasks)
+
+    @classmethod
+    def create_nodes(cls, serialized_cluster, nodes, user):
+        _tasks = []
+        for node in nodes:
+            _tasks.append(tasks.CreateNodeTask().si(
+                serialized_cluster,
+                node=node,
+                user_id=user.id,
+            ))
+        return _tasks
 
 
 class ClusterDeleteExecutor(core_executors.DeleteExecutor):

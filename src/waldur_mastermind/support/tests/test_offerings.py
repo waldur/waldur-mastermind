@@ -1,12 +1,8 @@
 from __future__ import unicode_literals
 
-from datetime import timedelta
 from decimal import Decimal
 
 from ddt import ddt, data
-from django.conf import settings
-from django.utils import timezone
-from freezegun import freeze_time
 import mock
 from rest_framework import status, test
 
@@ -15,7 +11,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.support.tests.base import override_support_settings, BaseTest
 
 from . import factories, fixtures
-from .. import models, tasks
+from .. import models
 
 
 class BaseOfferingTest(BaseTest):
@@ -407,28 +403,6 @@ class OfferingTerminateTest(BaseOfferingTest):
 
         self.fixture.offering.refresh_from_db()
         self.assertEqual(self.fixture.offering.state, models.Offering.States.REQUESTED)
-
-    def test_terminated_offerings_is_deleted_if_expiration_date_passed(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        mocked_now = timezone.now() + settings.WALDUR_SUPPORT['TERMINATED_OFFERING_LIFETIME'] + timedelta(hours=1)
-        with freeze_time(mocked_now):
-            tasks.remove_terminated_offerings()
-
-        self.assertRaises(models.Offering.DoesNotExist, self.fixture.offering.refresh_from_db)
-
-    def test_terminated_offerings_is_skipped_if_expiration_date_has_not_passed_yet(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        mocked_now = timezone.now() + settings.WALDUR_SUPPORT['TERMINATED_OFFERING_LIFETIME'] - timedelta(hours=1)
-        with freeze_time(mocked_now):
-            tasks.remove_terminated_offerings()
-
-        self.fixture.offering.refresh_from_db()
 
 
 @ddt

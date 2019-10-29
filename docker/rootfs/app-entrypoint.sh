@@ -28,6 +28,7 @@ DEFAULT_PWD_COMMENT="******"
 # queue
 : ${REDIS_HOST:=waldur-queue}
 : ${REDIS_PORT:=6379}
+: ${REDIS_PASSWORD:=$DEFAULT_PWD}
 # uwsgi
 : ${UWSGI_SOCKET:=":8000"}
 
@@ -107,6 +108,8 @@ EOF
 	crudini --set /etc/waldur/core.ini redis host $REDIS_HOST
 	echo "INFO: Setting [redis] port = $REDIS_PORT"
 	crudini --set /etc/waldur/core.ini redis port $REDIS_PORT
+	echo "INFO: Setting [redis] password = $REDIS_PASSWORD"
+	crudini --set /etc/waldur/core.ini redis password $REDIS_PASSWORD
 
 	echo "INFO: Setting [uwsgi] socket = $UWSGI_SOCKET"
 	crudini --set /etc/waldur/uwsgi.ini uwsgi socket $UWSGI_SOCKET

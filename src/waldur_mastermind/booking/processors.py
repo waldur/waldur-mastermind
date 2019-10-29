@@ -52,7 +52,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
 
         # Check that the schedule is available for the offering.
         offering = self.order_item.offering
-        offering_schedules = offering.options.get('schedules', [])
+        offering_schedules = offering.attributes.get('schedules', [])
 
         for period in schedules:
             if not is_interval_in_schedules(TimePeriod(period['start'], period['end']),

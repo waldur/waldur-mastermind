@@ -41,7 +41,6 @@ deprecation==2.0.3
 Django==1.11.23
 django-admin-tools==0.8.0
 django-auth-ldap==1.6.1
-django-cors-headers==2.1.0
 django-defender==0.5.5
 django-filter==1.0.2
 django-fluent-dashboard==0.6.1
@@ -165,6 +164,7 @@ requestsexceptions==1.4.0
 responses==0.9.0
 rfc3986==1.1.0
 scrypt==0.8.6
+sentry-sdk==0.13.1
 simplejson==3.15.0
 six==1.11.0
 smmap2==2.0.3

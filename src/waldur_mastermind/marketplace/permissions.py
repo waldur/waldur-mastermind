@@ -4,6 +4,8 @@ from rest_framework import exceptions
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 
+from . import models
+
 
 def can_register_service_provider(request, customer):
     if request.user.is_staff:
@@ -20,6 +22,12 @@ def check_availability_of_auto_approving(items, user, project):
     # Skip approval of private offering for project users
     if all(item.offering.is_private for item in items):
         return structure_permissions._has_admin_access(user, project)
+
+    # Service provider is not required to approve termination order
+    if (len(items) == 1 and
+            items[0].type == models.OrderItem.Types.TERMINATE and
+            structure_permissions._has_owner_access(user, items[0].offering.customer)):
+        return True
 
     return user_can_approve_order(user, project)
 
@@ -91,3 +99,18 @@ def user_can_list_importable_resources(request, view, offering=None):
 
     if offering.customer not in owned_customers and not (offering.allowed_customers & owned_customers):
         raise exceptions.PermissionDenied('Import is limited to owners for private offerings.')
+
+
+def user_can_terminate_resource(request, view, resource=None):
+    if not resource:
+        return
+
+    # Project manager/admin and customer owner are allowed to terminate resource.
+    if structure_permissions._has_admin_access(request.user, resource.project):
+        return
+
+    # Service provider is allowed to terminate resource too.
+    if structure_permissions._has_owner_access(request.user, resource.offering.customer):
+        return
+
+    raise exceptions.PermissionDenied()

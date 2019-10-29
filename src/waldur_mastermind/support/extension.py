@@ -31,6 +31,7 @@ class SupportExtension(WaldurExtension):
                 'reporter_field': 'Original Reporter',
                 'caller_field': 'Caller',
                 'sla_field': 'Time to first response',
+                'type_of_linked_issue': 'Relates',
                 # 'organisation_field': 'Reporter organization',
                 # 'project_field': 'Waldur project',
                 # 'affected_resource_field': 'Affected resource',
@@ -57,38 +58,8 @@ class SupportExtension(WaldurExtension):
                 ),
             },
             'DEFAULT_OFFERING_ISSUE_TYPE': 'Service Request',
-            'TERMINATED_OFFERING_LIFETIME': timedelta(weeks=2),
-            'OFFERINGS': {
-                # An example of configuration for debugging purposes.
-                # Add it to settings file to enable Custom VPC offering
-                # 'custom_vpc': {
-                #     'label': 'Custom VPC',
-                #     'order': ['storage', 'ram', 'cpu_count'],
-                #     'icon': 'fa-gear',
-                #     'category': 'Custom requests',
-                #     'description': 'Custom VPC example.',
-                #     'options': {
-                #         'storage': {
-                #             'type': 'integer',
-                #             'label': 'Max storage, GB',
-                #             'required': True,
-                #             'help_text': 'VPC storage limit in GB.',
-                #         },
-                #         'ram': {
-                #             'type': 'integer',
-                #             'label': 'Max RAM, GB',
-                #             'required': True,
-                #             'help_text': 'VPC RAM limit in GB.',
-                #         },
-                #         'cpu_count': {
-                #             'type': 'integer',
-                #             'label': 'Max vCPU',
-                #             'required': True,
-                #             'help_text': 'VPC CPU count limit.',
-                #         },
-                #     },
-                # },
-            },
+            # TODO: OFFERINGS is a deprecated attribute, to be cleaned up after removal of squashed migrations
+            'OFFERINGS': {},
             'EXCLUDED_ATTACHMENT_TYPES': [],
         }
 
@@ -123,11 +94,6 @@ class SupportExtension(WaldurExtension):
             },
             'pull-priorities': {
                 'task': 'waldur_mastermind.support.pull_priorities',
-                'schedule': timedelta(hours=24),
-                'args': (),
-            },
-            'remove-terminated-offerings': {
-                'task': 'waldur_mastermind.support.remove_terminated_offerings',
                 'schedule': timedelta(hours=24),
                 'args': (),
             },

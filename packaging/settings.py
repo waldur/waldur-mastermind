@@ -61,9 +61,6 @@ config_defaults = {
         'port': '6379',
         'password': '',
     },
-    'rest_api': {
-        'cors_allowed_domains': 'localhost,127.0.0.1',
-    },
     'sentry': {
         'dsn': '',  # Please ensure that Python Sentry SDK is installed.
     },
@@ -314,28 +311,6 @@ CACHES['default']['LOCATION'] = redis_url
 # See also: https://docs.djangoproject.com/en/1.11/ref/settings/#default-from-email
 if config.get('global', 'default_from_email') != '':
     DEFAULT_FROM_EMAIL = config.get('global', 'default_from_email')
-
-# Django CORS headers
-# See also: https://github.com/ottoyiu/django-cors-headers
-
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_EXPOSE_HEADERS = (
-    'x-result-count',
-    'Link',
-)
-
-CORS_ORIGIN_ALLOW_ALL = False
-CORS_ORIGIN_WHITELIST = tuple(i.strip() for i in config.get('rest_api', 'cors_allowed_domains').split(','))
-
-INSTALLED_APPS = (
-    'corsheaders',
-) + INSTALLED_APPS
-
-MIDDLEWARE = (
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.common.CommonMiddleware',
-) + MIDDLEWARE
 
 # Session
 # https://docs.djangoproject.com/en/1.11/ref/settings/#sessions

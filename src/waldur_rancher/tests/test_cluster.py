@@ -1,9 +1,13 @@
+import json
+
 import mock
 import pkg_resources
-import json
 from rest_framework import status, test
 
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_core.structure.models import ServiceSettings
+from waldur_openstack.openstack.tests import factories as openstack_factories
+from waldur_openstack.openstack_tenant.models import OpenStackTenantServiceProjectLink
+from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures
 from .. import models
@@ -29,71 +33,84 @@ class ClusterGetTest(test.APITransactionTestCase):
         self.assertEqual(len(list(response.data)), 1)
 
 
-class ClusterCreateTest(test.APITransactionTestCase):
+class BaseClusterCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        super(ClusterCreateTest, self).setUp()
+        super(BaseClusterCreateTest, self).setUp()
         self.fixture = fixtures.RancherFixture()
         self.url = factories.ClusterFactory.get_list_url()
+        openstack_service_settings = openstack_factories.OpenStackServiceSettingsFactory(
+            customer=self.fixture.customer)
+        openstack_service = openstack_factories.OpenStackServiceFactory(
+            customer=self.fixture.customer, settings=openstack_service_settings)
+        openstack_spl = openstack_factories.OpenStackServiceProjectLinkFactory(
+            project=self.fixture.project, service=openstack_service)
+        self.tenant = openstack_factories.TenantFactory(service_project_link=openstack_spl)
+
+        settings = ServiceSettings.objects.get(scope=self.tenant)
+        project = self.fixture.project
+        instance_spl = OpenStackTenantServiceProjectLink.objects.get(
+            project=project,
+            service__settings=settings)
+
+        openstack_tenant_factories.FlavorFactory(settings=instance_spl.service.settings)
+        image = openstack_tenant_factories.ImageFactory(settings=instance_spl.service.settings)
+        openstack_tenant_factories.SecurityGroupFactory(name='default',
+                                                        settings=instance_spl.service.settings)
+        self.fixture.settings.options['base_image_name'] = image.name
+        self.fixture.settings.save()
+
+        network = openstack_tenant_factories.NetworkFactory(
+            settings=instance_spl.service.settings)
+        self.subnet = openstack_tenant_factories.SubNetFactory(
+            network=network,
+            settings=instance_spl.service.settings)
+        self.fixture.settings.options['base_subnet_name'] = self.subnet.name
+        self.fixture.settings.save()
+
+    def _create_request_(self, name, disk=1024, memory=1, cpu=1, add_payload=None):
+        add_payload = add_payload or {}
+        payload = {'name': name,
+                   'service_project_link':
+                       factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
+                   'nodes': [{
+                       'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                       'storage': disk,
+                       'memory': memory,
+                       'cpu': cpu,
+                       'roles': ['controlplane', 'etcd', 'worker'],
+                   }],
+                   }
+        payload.update(add_payload)
+        return self.client.post(self.url, payload)
+
+
+class ClusterCreateTest(BaseClusterCreateTest):
+    def setUp(self):
+        super(ClusterCreateTest, self).setUp()
 
     @mock.patch('waldur_rancher.executors.core_tasks')
     def test_create_cluster(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
-        instance = self._create_new_test_instance(self.fixture.customer)
-        response = self._create_request_('new-cluster', instance)
+        response = self._create_request_('new-cluster')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
         cluster = models.Cluster.objects.get(name='new-cluster')
-        self.assertTrue(models.Node.objects.filter(cluster=cluster).exists())
-        node = models.Node.objects.get(cluster=cluster)
-        self.assertEqual(node.instance, instance)
         mock_core_tasks.BackendMethodTask.return_value.si.assert_called_once_with(
             'waldur_rancher.cluster:%s' % cluster.id,
             'create_cluster',
             state_transition='begin_creating'
         )
 
-    def test_user_cannot_create_cluster_if_instance_is_not_available(self):
-        self.client.force_authenticate(self.fixture.owner)
-        instance = structure_factories.TestNewInstanceFactory()
-        response = self._create_request_('new-cluster', instance)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('Can\'t restore object from' in response.data['instance'][0])
-
-    def test_validate_if_instance_is_already_in_use(self):
-        self.client.force_authenticate(self.fixture.owner)
-        self._create_request_('new-cluster', self.fixture.instance)
-        response = self._create_request_('new-cluster', self.fixture.instance)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('The selected instance is already in use.' in response.data['instance'][0])
-
     def test_validate_name_uniqueness(self):
         self.client.force_authenticate(self.fixture.owner)
-        instance_1 = self._create_new_test_instance(self.fixture.customer)
-        self._create_request_('new-cluster', instance_1)
-        instance_2 = self._create_new_test_instance(self.fixture.customer)
-        response = self._create_request_('new-cluster', instance_2)
+        self._create_request_('new-cluster')
+        response = self._create_request_('new-cluster')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_validate_name(self):
         self.client.force_authenticate(self.fixture.owner)
-        instance = self._create_new_test_instance(self.fixture.customer)
-        response = self._create_request_('new_cluster', instance)
+        response = self._create_request_('new_cluster')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def _create_new_test_instance(self, customer):
-        settings = structure_factories.ServiceSettingsFactory(customer=customer)
-        service = structure_factories.TestServiceFactory(customer=customer, settings=settings)
-        spl = structure_factories.TestServiceProjectLinkFactory(service=service, project=self.fixture.project)
-        return structure_factories.TestNewInstanceFactory(service_project_link=spl)
-
-    def _create_request_(self, name, instance):
-        return self.client.post(self.url,
-                                {'name': name,
-                                 'instance':
-                                     structure_factories.TestNewInstanceFactory.get_url(instance),
-                                 'service_project_link':
-                                     factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
-                                 })
 
 
 class ClusterUpdateTest(test.APITransactionTestCase):

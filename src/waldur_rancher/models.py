@@ -76,6 +76,22 @@ class Node(TimeStampedModel, UuidMixin):
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('content_type', 'object_id')  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
+    controlplane_role = models.BooleanField(default=False)
+    etcd_role = models.BooleanField(default=False)
+    worker_role = models.BooleanField(default=False)
+
+    def get_node_command(self):
+        roles_command = []
+        if self.controlplane_role:
+            roles_command.append('--controlplane')
+
+        if self.etcd_role:
+            roles_command.append('--etcd')
+
+        if self.worker_role:
+            roles_command.append('--worker')
+
+        return self.cluster.node_command + ' ' + ' '.join(roles_command)
 
     class Meta(object):
         unique_together = ('content_type', 'object_id')

@@ -100,7 +100,6 @@ class RancherClient(object):
         cluster = filter(lambda x: x['clusterId'] == cluster_id, cluster_list)
         if cluster:
             node_command = cluster[0]['nodeCommand']
-            node_command += ' --etcd --controlplane --worker'
             return node_command
 
     def update_cluster(self, cluster_id, new_params):

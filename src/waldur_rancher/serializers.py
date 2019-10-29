@@ -1,14 +1,16 @@
 from __future__ import unicode_literals
 
-from django.utils.translation import ugettext_lazy as _
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
-
+from waldur_core.quotas import exceptions as quotas_exceptions
+from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 from . import models, validators, exceptions
 
@@ -22,11 +24,13 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'password': _('Rancher secret key'),
     }
 
-    SERVICE_ACCOUNT_EXTRA_FIELDS = {}
+    SERVICE_ACCOUNT_EXTRA_FIELDS = {
+        'base_image_name': _('Base image name'),
+    }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.RancherService
-        required_fields = ('backend_url', 'username', 'password')
+        required_fields = ('backend_url', 'username', 'password', 'base_image_name')
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
@@ -35,6 +39,33 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         extra_kwargs = {
             'service': {'lookup_field': 'uuid', 'view_name': 'vmware-detail'},
         }
+
+
+class NestedNodeSerializer(serializers.HyperlinkedModelSerializer):
+    instance = core_serializers.GenericRelatedField(
+        related_models=VirtualMachine.get_all_models(),
+        read_only=True
+    )
+
+    subnet = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-subnet-detail',
+        queryset=openstack_tenant_models.SubNet.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        write_only=True,
+    )
+    storage = serializers.IntegerField(write_only=True)
+    memory = serializers.IntegerField(write_only=True)
+    cpu = serializers.IntegerField(write_only=True)
+    roles = serializers.MultipleChoiceField(choices=['controlplane', 'etcd', 'worker'], write_only=True)
+
+    class Meta(object):
+        model = models.Node
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
+        }
+        exclude = ('cluster', 'object_id', 'content_type')
 
 
 class ClusterSerializer(structure_serializers.BaseResourceSerializer):
@@ -51,27 +82,18 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         allow_null=True,
         required=False,
     )
-
-    instance = core_serializers.GenericRelatedField(
-        related_models=VirtualMachine.get_all_models(),
-        required=True,
-        write_only=True,
-    )
-
     name = serializers.CharField(max_length=150, validators=[validators.ClusterNameValidator])
+    nodes = NestedNodeSerializer(many=True, source='node_set')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'instance', 'node_command',
-        )
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'instance',
+            'node_command', 'nodes',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'node_command',
         )
-
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + ('nodes',)
         extra_kwargs = dict(
             cluster={
                 'view_name': 'rancher-cluster-detail',
@@ -80,24 +102,94 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
         )
 
-    def create(self, validated_data):
-        instance = validated_data.pop('instance')
-        cluster = super(ClusterSerializer, self).create(validated_data)
-        models.Node.objects.create(instance=instance, cluster=cluster)
-        return cluster
-
     def validate(self, attrs):
         # Skip validation on update
         if self.instance:
             return attrs
 
-        instance = attrs.get('instance')
+        nodes = attrs.get('node_set')
+        spl = attrs.get('service_project_link')
 
-        if models.Node.objects.filter(
-                object_id=instance.id,
-                content_type=ContentType.objects.get_for_model(instance)
-        ).exists():
-            raise serializers.ValidationError({'instance': 'The selected instance is already in use.'})
+        for node in nodes:
+            error_message = {}
+
+            for node_param in ['storage', 'memory', 'cpu', 'subnet']:
+
+                if not node.get(node_param):
+                    error_message[node_param] = 'This field is required.'
+
+            if error_message:
+                raise serializers.ValidationError(error_message)
+
+            memory = node.pop('memory')
+            cpu = node.pop('cpu')
+            subnet = node.pop('subnet')
+            roles = node.pop('roles')
+
+            try:
+                settings = subnet.settings
+                project = spl.project
+                instance_spl = openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.get(
+                    project=project,
+                    service__settings=settings)
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError('No matching instance service project link found.')
+
+            flavors = openstack_tenant_models.Flavor.objects.filter(
+                cores__gte=cpu,
+                ram__gte=memory,
+                settings=instance_spl.service.settings).\
+                order_by('cores', 'ram')
+
+            if not flavors:
+                raise serializers.ValidationError('No matching flavor found.')
+
+            try:
+                base_image_name = spl.service.settings.get_option('base_image_name')
+                image = openstack_tenant_models.Image.objects.get(
+                    name=base_image_name,
+                    settings=instance_spl.service.settings)
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError('No matching image found.')
+
+            try:
+                group = openstack_tenant_models.SecurityGroup.objects.get(
+                    name='default',
+                    settings=instance_spl.service.settings)
+            except ObjectDoesNotExist:
+                raise serializers.ValidationError('No matching group found.')
+
+            flavor = flavors[0]
+            node['flavor'] = flavor.uuid
+            node['vcpu'] = flavor.cores
+            node['ram'] = flavor.ram
+            node['image'] = image.uuid
+            node['subnet'] = subnet.uuid
+            node['tenant_service_project_link'] = instance_spl.id
+            node['roles'] = list(roles)
+            node['group'] = group.uuid
+
+        # check quotas
+        quota_sources = [
+            instance_spl,
+            instance_spl.project,
+            instance_spl.customer,
+            instance_spl.service,
+            instance_spl.service.settings
+        ]
+
+        for quota_name in ['storage', 'vcpu', 'ram']:
+            requested = sum([node[quota_name] for node in nodes])
+
+            for source in quota_sources:
+                try:
+                    quota = source.quotas.get(name=quota_name)
+                    if quota.limit != -1 and (quota.usage + requested > quota.limit):
+                        raise quotas_exceptions.QuotaValidationError(
+                            _('"%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.') % dict(
+                                name=quota_name, usage=quota.usage + requested, limit=quota.limit))
+                except ObjectDoesNotExist:
+                    pass
 
         return super(ClusterSerializer, self).validate(attrs)
 
@@ -110,7 +202,8 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta(object):
         model = models.Node
-        fields = ('uuid', 'url', 'created', 'modified', 'cluster', 'instance')
+        fields = ('uuid', 'url', 'created', 'modified', 'cluster', 'instance', 'controlplane_role', 'etcd_role',
+                  'worker_role', 'get_node_command')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}

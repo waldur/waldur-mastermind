@@ -67,6 +67,7 @@ install_requires = [
     'requests>=2.14.2',
     'sqlparse>=0.1.11',
     'pyjwt>=1.5.3',
+    'sentry-sdk>=0.9.0',
 ]
 
 test_requires = [
@@ -83,7 +84,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='4.0.8',
+    version='4.0.9',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
