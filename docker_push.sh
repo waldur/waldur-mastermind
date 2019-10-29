@@ -8,6 +8,6 @@ else
 fi
 
 echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-docker build -t opennode/waldur-mastermind .
+docker build -t opennode/waldur-mastermind:$version .
 docker push "opennode/waldur-mastermind:$version"
 docker images
