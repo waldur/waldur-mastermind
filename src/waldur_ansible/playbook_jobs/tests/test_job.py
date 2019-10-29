@@ -1,6 +1,4 @@
-from __future__ import unicode_literals
-
-import mock
+from unittest import mock
 from ddt import data, ddt
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase

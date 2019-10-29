@@ -9,14 +9,14 @@ from .. import models
 
 
 class SlurmServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
 
     type = 'SLURM'
 
 
 class SlurmPackageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SlurmPackage
 
     service_settings = factory.SubFactory(SlurmServiceSettingsFactory)
@@ -25,7 +25,7 @@ class SlurmPackageFactory(factory.DjangoModelFactory):
     def get_url(cls, package=None, action=None):
         if package is None:
             package = SlurmPackageFactory()
-        url = 'http://testserver' + reverse('slurm-package-detail', kwargs={'uuid': package.uuid})
+        url = 'http://testserver' + reverse('slurm-package-detail', kwargs={'uuid': package.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

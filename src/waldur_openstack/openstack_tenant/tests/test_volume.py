@@ -1,7 +1,7 @@
 from ddt import ddt, data
 from django.conf import settings
 from rest_framework import test, status
-import mock
+from unittest import mock
 
 from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -253,7 +253,7 @@ class VolumeCreateSnapshotScheduleTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self.snapshot_schedule_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('schedule', response.content)
+        self.assertIn(b'schedule', response.content)
 
     def test_snapshot_schedule_creation_with_correct_timezone(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -312,7 +312,7 @@ class VolumeImportableResourcesTest(BaseVolumeTest):
         self.assertEquals(len(response.data), len(backend_volumes))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_volumes]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_volumes_mock.assert_called()
 
 

@@ -13,7 +13,7 @@ from waldur_core.structure.models import Service
 
 
 # TODO: This mixin duplicates quota filter manager - they need to be moved to core (NC-686)
-class UserFilterMixin(object):
+class UserFilterMixin:
 
     def filtered_for_user(self, user, queryset=None):
         if queryset is None:

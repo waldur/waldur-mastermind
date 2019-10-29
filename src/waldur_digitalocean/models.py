@@ -1,7 +1,4 @@
-from __future__ import unicode_literals
-
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.quotas.fields import CounterQuotaField
@@ -30,7 +27,7 @@ class DigitalOceanService(structure_models.Service):
 
 
 class DigitalOceanServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(DigitalOceanService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=DigitalOceanService)
 
     class Meta(structure_models.CloudServiceProjectLink.Meta):
         verbose_name = _('DigitalOcean provider project link')
@@ -47,7 +44,6 @@ class Region(structure_models.GeneralServiceProperty):
         return 'digitalocean-region'
 
 
-@python_2_unicode_compatible
 class Image(structure_models.GeneralServiceProperty):
     regions = models.ManyToManyField(Region)
     distribution = models.CharField(max_length=100)

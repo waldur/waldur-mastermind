@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import models
 
 from django.contrib.contenttypes import fields as ct_fields
@@ -27,7 +25,7 @@ class DailyQuotaHistory(models.Model):
     See also related design pattern:
     https://martinfowler.com/bliki/ReportingDatabase.html
     """
-    content_type = models.ForeignKey(ct_models.ContentType)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType)
     object_id = models.PositiveIntegerField()
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
     objects = QuotaManager()

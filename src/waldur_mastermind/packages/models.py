@@ -1,11 +1,8 @@
-from __future__ import unicode_literals
-
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
@@ -17,7 +14,6 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 
 
-@python_2_unicode_compatible
 class PackageTemplate(core_models.UuidMixin,
                       core_models.NameMixin,
                       common_mixins.ProductCodeMixin,
@@ -25,13 +21,13 @@ class PackageTemplate(core_models.UuidMixin,
     # We do not define permissions for PackageTemplate because we are planning
     # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
-    service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    service_settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new packages.'))
     tracker = FieldTracker()
     unit = models.CharField(default=common_mixins.UnitPriceMixin.Units.PER_DAY, max_length=30,
                             choices=common_mixins.UnitPriceMixin.Units.CHOICES)
 
-    class Categories(object):
+    class Categories:
         SMALL = 'small'
         MEDIUM = 'medium'
         LARGE = 'large'
@@ -41,7 +37,7 @@ class PackageTemplate(core_models.UuidMixin,
 
     category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('VPC package template')
         verbose_name_plural = _('VPC package templates')
 
@@ -103,15 +99,14 @@ class PackageTemplate(core_models.UuidMixin,
         return '%s | %s' % (self.name, self.service_settings.type)
 
 
-@python_2_unicode_compatible
 class PackageComponent(models.Model):
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
-    class Meta(object):
+    class Meta:
         unique_together = ('type', 'template')
 
-    class Types(object):
+    class Types:
         RAM = 'ram'
         CORES = 'cores'
         STORAGE = 'storage'
@@ -123,7 +118,7 @@ class PackageComponent(models.Model):
     price = models.DecimalField(default=0, max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit'))
-    template = models.ForeignKey(PackageTemplate, related_name='components')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=PackageTemplate, related_name='components')
 
     def __str__(self):
         return '%s | %s' % (self.type, self.template.name)
@@ -139,17 +134,16 @@ class PackageComponent(models.Model):
         return round(self.price * 30 * self.amount, 2)
 
 
-@python_2_unicode_compatible
 class OpenStackPackage(core_models.UuidMixin, models.Model):
     """ OpenStackPackage allows to create tenant and service_settings based on PackageTemplate """
-    class Permissions(object):
+    class Permissions:
         customer_path = 'tenant__service_project_link__project__customer'
         project_path = 'tenant__service_project_link__project'
 
     template = models.ForeignKey(PackageTemplate, related_name='openstack_packages',
                                  help_text=_('Tenant will be created based on this template.'),
                                  on_delete=models.PROTECT)
-    tenant = models.OneToOneField(openstack_models.Tenant, related_name='+')
+    tenant = models.OneToOneField(openstack_models.Tenant, related_name='+', on_delete=models.CASCADE)
     service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+', null=True,
                                          on_delete=models.SET_NULL)
 
@@ -181,6 +175,6 @@ class OpenStackPackage(core_models.UuidMixin, models.Model):
                 usage[component_type] = quotas[quota.name]
         return usage
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('OpenStack VPC package')
         verbose_name_plural = _('OpenStack VPC packages')

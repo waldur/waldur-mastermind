@@ -1,9 +1,6 @@
-from __future__ import unicode_literals
-
 import logging
 import re
 
-import six
 from django.core import validators as django_validators
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
@@ -44,7 +41,7 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
 
 class BaseJiraPropertySerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = ('url', 'uuid', 'name', 'description', 'icon_url')
         extra_kwargs = {
@@ -140,7 +137,7 @@ class ProjectImportableSerializer(core_serializers.AugmentedSerializerMixin,
     def get_filtered_field_names(self):
         return 'service_project_link',
 
-    class Meta(object):
+    class Meta:
         model = models.Project
         model_fields = ('name',)
         fields = ('service_project_link', 'backend_id') + model_fields
@@ -184,7 +181,7 @@ class JiraPropertySerializer(core_serializers.RestrictedSerializerMixin,
                              serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
 
-    class Meta(object):
+    class Meta:
         model = NotImplemented
         fields = (
             'url', 'uuid', 'user', 'user_uuid', 'user_name', 'user_email', 'state', 'error_message', 'backend_id'
@@ -416,7 +413,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
     @classmethod
     def remove_event(cls, events):
-        if isinstance(events, six.text_type):
+        if isinstance(events, str):
             events = [events]
 
         elements = set(filter(lambda e: e[0] in events, cls.Event.CHOICES))

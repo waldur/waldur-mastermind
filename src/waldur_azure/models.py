@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import models
 from model_utils import FieldTracker
 
@@ -26,7 +24,7 @@ class AzureService(structure_models.Service):
 
 
 class AzureServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(AzureService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=AzureService)
 
     @classmethod
     def get_url_name(cls):
@@ -78,15 +76,15 @@ class Size(structure_models.ServiceProperty):
 
 
 class BaseResource(core_models.RuntimeStateMixin, structure_models.NewResource):
-    service_project_link = models.ForeignKey(AzureServiceProjectLink)
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=AzureServiceProjectLink)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class ResourceGroup(BaseResource):
     name = models.CharField(max_length=90, validators=[validators.ResourceGroupNameValidator])
-    location = models.ForeignKey(Location)
+    location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
 
     @classmethod
     def get_url_name(cls):
@@ -94,9 +92,9 @@ class ResourceGroup(BaseResource):
 
 
 class BaseResourceGroupModel(BaseResource):
-    resource_group = models.ForeignKey(ResourceGroup)
+    resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
@@ -111,7 +109,7 @@ class Network(BaseResourceGroupModel):
 
 class SubNet(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
-    network = models.ForeignKey(Network)
+    network = models.ForeignKey(on_delete=models.CASCADE, to=Network)
     cidr = models.CharField(max_length=32)
 
 
@@ -121,7 +119,7 @@ class SecurityGroup(BaseResourceGroupModel):
 
 class NetworkInterface(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
-    subnet = models.ForeignKey(SubNet)
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet)
     config_name = models.CharField(max_length=255)
     public_ip = models.ForeignKey('PublicIP', on_delete=models.SET_NULL, null=True, blank=True)
     security_group = models.ForeignKey(SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True)
@@ -131,7 +129,7 @@ class NetworkInterface(BaseResourceGroupModel):
 
 class PublicIP(BaseResourceGroupModel):
     name = models.CharField(max_length=80, validators=[validators.NetworkingNameValidator])
-    location = models.ForeignKey(Location)
+    location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
     ip_address = models.GenericIPAddressField(null=True, blank=True, protocol='IPv4', default=None)
     tracker = FieldTracker()
 
@@ -143,11 +141,11 @@ class PublicIP(BaseResourceGroupModel):
 class VirtualMachine(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
         AzureServiceProjectLink, related_name='virtualmachines', on_delete=models.PROTECT)
-    resource_group = models.ForeignKey(ResourceGroup)
-    size = models.ForeignKey(Size)
-    image = models.ForeignKey(Image)
-    ssh_key = models.ForeignKey(core_models.SshPublicKey, null=True, blank=True)
-    network_interface = models.ForeignKey(NetworkInterface)
+    resource_group = models.ForeignKey(on_delete=models.CASCADE, to=ResourceGroup)
+    size = models.ForeignKey(on_delete=models.CASCADE, to=Size)
+    image = models.ForeignKey(on_delete=models.CASCADE, to=Image)
+    ssh_key = models.ForeignKey(on_delete=models.CASCADE, to=core_models.SshPublicKey, null=True, blank=True)
+    network_interface = models.ForeignKey(on_delete=models.CASCADE, to=NetworkInterface)
     name = models.CharField(max_length=15, validators=[validators.VirtualMachineNameValidator])
     username = models.CharField(max_length=32, validators=[validators.VirtualMachineUsernameValidator])
     password = models.CharField(max_length=72, validators=validators.VirtualMachinePasswordValidators)
@@ -187,7 +185,7 @@ class SQLServer(BaseResourceGroupModel):
 
 
 class SQLDatabase(BaseResource):
-    server = models.ForeignKey(SQLServer)
+    server = models.ForeignKey(on_delete=models.CASCADE, to=SQLServer)
     charset = models.CharField(max_length=255, blank=True, null=True, default='utf8')
     collation = models.CharField(max_length=255, blank=True, null=True, default='utf8_general_ci')
     tracker = FieldTracker()

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import IntegrityError, transaction
 from django.db.models import Count, OuterRef, Subquery, F, Q, ExpressionWrapper, PositiveSmallIntegerField
 from django.http import Http404, HttpResponse
@@ -11,7 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from rest_framework import status, exceptions as rf_exceptions, viewsets as rf_viewsets
 from rest_framework import views
-from rest_framework.decorators import detail_route, list_route
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -43,10 +41,10 @@ class BaseMarketplaceView(core_views.ActionsViewSet):
 class ServiceProviderViewSet(BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all()
     serializer_class = serializers.ServiceProviderSerializer
-    filter_class = filters.ServiceProviderFilter
+    filterset_class = filters.ServiceProviderFilter
     api_secret_code_permissions = [structure_permissions.is_owner]
 
-    @detail_route(methods=['GET', 'POST'])
+    @action(detail=True, methods=['GET', 'POST'])
     def api_secret_code(self, request, uuid=None):
         """ On GET request - return service provider api_secret_code.
             On POST - generate new service provider api_secret_code.
@@ -108,7 +106,7 @@ class OfferingViewSet(BaseMarketplaceView):
     serializer_class = serializers.OfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
     update_serializer_class = partial_update_serializer_class = serializers.OfferingUpdateSerializer
-    filter_class = filters.OfferingFilter
+    filterset_class = filters.OfferingFilter
     filter_backends = (
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
@@ -116,17 +114,17 @@ class OfferingViewSet(BaseMarketplaceView):
         filters.ExternalOfferingFilterBackend,
     )
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):
         return self._update_state('activate')
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def pause(self, request, uuid=None):
         return self._update_state('pause', request)
 
     pause_serializer_class = serializers.OfferingPauseSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def archive(self, request, uuid=None):
         return self._update_state('archive')
 
@@ -175,7 +173,7 @@ class OfferingViewSet(BaseMarketplaceView):
 
         super(OfferingViewSet, self).perform_create(serializer)
 
-    @detail_route(methods=['get'])
+    @action(detail=True, methods=['get'])
     def importable_resources(self, request, uuid=None):
         offering = self.get_object()
         resources = plugins.manager.get_importable_resources(offering)
@@ -189,7 +187,7 @@ class OfferingViewSet(BaseMarketplaceView):
 
     import_resource_serializer_class = serializers.ImportResourceSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def import_resource(self, request, uuid=None):
         offering = self.get_object()
 
@@ -240,7 +238,7 @@ class OfferingViewSet(BaseMarketplaceView):
                         status=status.HTTP_201_CREATED)
 
 
-class PlanUsageReporter(object):
+class PlanUsageReporter:
     """
     This class provides aggregate counts of how many plans of a
     certain type for each offering is used.
@@ -321,7 +319,7 @@ def validate_plan_archive(plan):
 class PlanViewSet(BaseMarketplaceView):
     queryset = models.Plan.objects.all()
     serializer_class = serializers.PlanDetailsSerializer
-    filter_class = filters.PlanFilter
+    filterset_class = filters.PlanFilter
 
     disabled_actions = ['destroy']
     update_validators = partial_update_validators = [validate_plan_update]
@@ -329,14 +327,14 @@ class PlanViewSet(BaseMarketplaceView):
     archive_permissions = [structure_permissions.is_owner]
     archive_validators = [validate_plan_archive]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def archive(self, request, uuid=None):
         plan = self.get_object()
         plan.archived = True
         plan.save(update_fields=['archived'])
         return Response({'detail': _('Plan has been archived.')}, status=status.HTTP_200_OK)
 
-    @list_route()
+    @action(detail=False)
     def usage_stats(self, request):
         return PlanUsageReporter(self, request).get_report()
 
@@ -344,17 +342,17 @@ class PlanViewSet(BaseMarketplaceView):
 class ScreenshotViewSet(BaseMarketplaceView):
     queryset = models.Screenshot.objects.all()
     serializer_class = serializers.ScreenshotSerializer
-    filter_class = filters.ScreenshotFilter
+    filterset_class = filters.ScreenshotFilter
 
 
 class OrderViewSet(BaseMarketplaceView):
     queryset = models.Order.objects.all()
     serializer_class = serializers.OrderSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.OrderFilter
+    filterset_class = filters.OrderFilter
     destroy_validators = partial_update_validators = [structure_utils.check_customer_blocked]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         tasks.approve_order(self.get_object(), request.user)
 
@@ -364,7 +362,7 @@ class OrderViewSet(BaseMarketplaceView):
                           structure_utils.check_customer_blocked]
     approve_permissions = [permissions.user_can_approve_order_permission]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         order = self.get_object()
         order.reject()
@@ -375,7 +373,7 @@ class OrderViewSet(BaseMarketplaceView):
                          structure_utils.check_customer_blocked]
     reject_permissions = [permissions.user_can_reject_order]
 
-    @detail_route()
+    @action(detail=True)
     def pdf(self, request, uuid=None):
         order = self.get_object()
         if not order.has_file():
@@ -442,7 +440,7 @@ class OrderItemViewSet(BaseMarketplaceView):
     queryset = models.OrderItem.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.OrderItemDetailsSerializer
-    filter_class = filters.OrderItemFilter
+    filterset_class = filters.OrderItemFilter
 
     def order_items_destroy_validator(order_item):
         if not order_item:
@@ -453,7 +451,7 @@ class OrderItemViewSet(BaseMarketplaceView):
     destroy_validators = [order_items_destroy_validator]
     destroy_permissions = terminate_permissions = [structure_permissions.is_administrator]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         order_item = self.get_object()
         if not plugins.manager.can_terminate_order_item(order_item.offering.type):
@@ -480,12 +478,12 @@ class CartItemViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     serializer_class = serializers.CartItemSerializer
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.CartItemFilter
+    filterset_class = filters.CartItemFilter
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
 
-    @list_route(methods=['post'])
+    @action(detail=False, methods=['post'])
     def submit(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -502,7 +500,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         DjangoFilterBackend,
         filters.ResourceScopeFilterBackend
     )
-    filter_class = filters.ResourceFilter
+    filterset_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
 
@@ -526,7 +524,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             )
         )
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -547,7 +545,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 request=request,
             )
 
-        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     terminate_serializer_class = serializers.ResourceTerminateSerializer
 
@@ -558,7 +556,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         structure_utils.check_customer_blocked
     ]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def switch_plan(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -581,11 +579,11 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 request=request,
             )
 
-        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def update_limits(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
@@ -608,7 +606,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 request=request,
             )
 
-        return Response({'order_uuid': order.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
@@ -622,7 +620,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             structure_utils.check_customer_blocked
         ]
 
-    @detail_route(methods=['get'])
+    @action(detail=True, methods=['get'])
     def plan_periods(self, request, uuid=None):
         resource = self.get_object()
         qs = models.ResourcePlanPeriod.objects.filter(resource=resource)
@@ -634,17 +632,17 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.CategoryComponentUsage.objects.all().order_by('-date', 'component__type')
     filter_backends = (DjangoFilterBackend, filters.CategoryComponentUsageScopeFilterBackend)
-    filter_class = filters.CategoryComponentUsageFilter
+    filterset_class = filters.CategoryComponentUsageFilter
     serializer_class = serializers.CategoryComponentUsageSerializer
 
 
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ComponentUsage.objects.all().order_by('-date', 'component__type')
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.ComponentUsageFilter
+    filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
-    @list_route(methods=['post'])
+    @action(detail=False, methods=['post'])
     def set_usage(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -682,13 +680,13 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
         return serializer.validated_data, dry_run
 
-    @list_route(methods=['post'])
+    @action(detail=False, methods=['post'])
     @csrf_exempt
     def check_signature(self, request, *args, **kwargs):
         self.get_validated_data(request)
         return Response(status=status.HTTP_200_OK)
 
-    @list_route(methods=['post'])
+    @action(detail=False, methods=['post'])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):
         self.get_validated_data(request)
@@ -697,7 +695,7 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
 class OfferingFileViewSet(core_views.ActionsViewSet):
     queryset = models.OfferingFile.objects.all()
-    filter_class = filters.OfferingFileFilter
+    filterset_class = filters.OfferingFileFilter
     filter_backends = [DjangoFilterBackend]
     serializer_class = serializers.OfferingFileSerializer
     lookup_field = 'uuid'

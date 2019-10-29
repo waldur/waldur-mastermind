@@ -1,7 +1,5 @@
-from __future__ import unicode_literals
-
 from django.test import TransactionTestCase
-import mock
+from unittest import mock
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models

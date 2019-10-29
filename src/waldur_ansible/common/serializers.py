@@ -1,12 +1,9 @@
-from __future__ import unicode_literals
-
-import six
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 
 
-class ApplicationSerializerRegistry(object):
+class ApplicationSerializerRegistry:
     """
     Holds application-related model-serializer mappings
     """
@@ -31,10 +28,10 @@ class ApplicationSerializerMetaclass(serializers.SerializerMetaclass):
         return serializer
 
 
-class BaseApplicationSerializer(six.with_metaclass(ApplicationSerializerMetaclass,
-                                                   core_serializers.AugmentedSerializerMixin,
-                                                   serializers.HyperlinkedModelSerializer)):
-    class Meta(object):
+class BaseApplicationSerializer(core_serializers.AugmentedSerializerMixin,
+                                serializers.HyperlinkedModelSerializer,
+                                metaclass=ApplicationSerializerMetaclass):
+    class Meta:
         model = NotImplemented
 
 

@@ -1,11 +1,8 @@
-from __future__ import unicode_literals
-
 import logging
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -32,7 +29,7 @@ class RancherService(structure_models.Service):
 
 class RancherServiceProjectLink(structure_models.ServiceProjectLink):
 
-    service = models.ForeignKey(RancherService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=RancherService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('Rancher provider project link')
@@ -43,7 +40,6 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
         return 'rancher-spl'
 
 
-@python_2_unicode_compatible
 class Cluster(NewResource):
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)
@@ -60,7 +56,7 @@ class Cluster(NewResource):
     node_command = models.CharField(max_length=1024, blank=True,
                                     help_text='Rancher generated node installation command base.')
 
-    class Meta(object):
+    class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
 
     @classmethod
@@ -72,7 +68,7 @@ class Cluster(NewResource):
 
 
 class Node(TimeStampedModel, UuidMixin):
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('content_type', 'object_id')  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
@@ -93,10 +89,10 @@ class Node(TimeStampedModel, UuidMixin):
 
         return self.cluster.node_command + ' ' + ' '.join(roles_command)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('content_type', 'object_id')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'cluster__service_project_link__project__customer'
         project_path = 'cluster__service_project_link__project'
         service_path = 'cluster__service_project_link__service'

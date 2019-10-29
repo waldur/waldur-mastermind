@@ -28,18 +28,22 @@ class DivisionListTest(test.APITransactionTestCase):
         division_parent = factories.DivisionFactory()
         self.division_1.parent = division_parent
         self.division_1.save()
-        filters = [
-            {'name': 'name', 'correct': self.division_1.name[2:], 'uncorrect': 'AAA'},
-            {'name': 'name_exact', 'correct': self.division_1.name, 'uncorrect': self.division_1.name[2:]},
-            {'name': 'type', 'correct': self.division_1.type.name, 'uncorrect': self.division_1.type.name[2:]},
-            {'name': 'parent', 'correct': division_parent.uuid.hex, 'uncorrect': division_parent.uuid.hex[2:]},
+        rows = [
+            {'name': 'name', 'valid': self.division_1.name[2:], 'invalid': 'AAA'},
+            {'name': 'name_exact', 'valid': self.division_1.name, 'invalid': self.division_1.name[2:]},
+            {'name': 'type', 'valid': self.division_1.type.name, 'invalid': self.division_1.type.name[2:]},
+            {'name': 'parent', 'valid': division_parent.uuid.hex, 'invalid': division_parent.uuid.hex[2:]},
         ]
         self.client.force_authenticate(user=self.fixture.staff)
 
-        for f in filters:
-            response = self.client.get(self.url, data={f['name']: f['correct']})
+        for row in rows:
+            response = self.client.get(self.url, data={row['name']: row['valid']})
             self.assertEqual(status.HTTP_200_OK, response.status_code)
             self.assertEqual(len(response.data), 1)
-            response = self.client.get(self.url, data={f['name']: f['uncorrect']})
-            self.assertEqual(status.HTTP_200_OK, response.status_code)
-            self.assertEqual(len(response.data), 0)
+
+            response = self.client.get(self.url, data={row['name']: row['invalid']})
+            if row['name'] == 'parent':
+                self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+            else:
+                self.assertEqual(status.HTTP_200_OK, response.status_code)
+                self.assertEqual(len(response.data), 0)

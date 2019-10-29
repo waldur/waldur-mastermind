@@ -31,7 +31,7 @@ class PlaybookPermissionsTest(APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         payload = self._get_valid_payload()
         response = self.client.post(factories.PlaybookFactory.get_list_url(), data=payload, format='multipart')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     @data('user', 'global_support',
           'owner', 'customer_support',

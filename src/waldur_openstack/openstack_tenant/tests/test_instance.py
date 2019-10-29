@@ -1,3 +1,4 @@
+from urllib.parse import urlencode
 import uuid
 
 from celery import Signature
@@ -7,8 +8,7 @@ from django.conf import settings
 from django.test import override_settings
 from novaclient import exceptions as nova_exceptions
 from rest_framework import status, test
-import mock
-from six.moves import urllib
+from unittest import mock
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
@@ -27,13 +27,13 @@ class InstanceFilterTest(test.APITransactionTestCase):
 
     def test_filter_instance_by_valid_volume_uuid(self):
         self.fixture.instance
-        response = self.client.get(self.url, {'attach_volume_uuid': self.fixture.volume.uuid})
+        response = self.client.get(self.url, {'attach_volume_uuid': self.fixture.volume.uuid.hex})
         self.assertEqual(len(response.data), 1)
 
     def test_filter_instance_by_invalid_volume_uuid(self):
         self.fixture.instance
         response = self.client.get(self.url, {'attach_volume_uuid': 'invalid'})
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_filter_instance_by_availability_zone(self):
         vm_az = self.fixture.instance_availability_zone
@@ -56,7 +56,7 @@ class InstanceFilterTest(test.APITransactionTestCase):
         }
         shared_settings.save()
 
-        response = self.client.get(self.url, {'attach_volume_uuid': volume.uuid})
+        response = self.client.get(self.url, {'attach_volume_uuid': volume.uuid.hex})
         self.assertEqual(len(response.data), 1)
 
 
@@ -434,7 +434,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
         url = factories.InstanceFactory.get_url(self.instance)
         if query_params:
-            url += '?' + urllib.parse.urlencode(query_params)
+            url += '?' + urlencode(query_params)
 
         with override_settings(CELERY_ALWAYS_EAGER=True, CELERY_EAGER_PROPAGATES_EXCEPTIONS=True):
             response = self.client.delete(url)
@@ -616,7 +616,7 @@ class InstanceCreateBackupSchedule(test.APITransactionTestCase):
         self.backup_schedule_data['schedule'] = 'wrong schedule'
         response = self.client.post(self.create_url, self.backup_schedule_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('schedule', response.content)
+        self.assertIn(b'schedule', response.content)
 
     def test_backup_schedule_creation_with_correct_timezone(self):
         backupable = factories.InstanceFactory(state=models.Instance.States.OK)
@@ -907,7 +907,7 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
         self.assertEquals(len(response.data), len(backend_instances))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_instances]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_instances_for_import_mock.assert_called()
 
 

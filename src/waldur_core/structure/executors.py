@@ -1,7 +1,7 @@
 from celery import chain
 from django.core import checks
-from django.db.migrations.topological_sort import stable_topological_sort
 from django.db.models import Model
+from django.utils.topological_sort import stable_topological_sort
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import executors as core_executors
@@ -128,7 +128,7 @@ class ProjectResourceCleanupTask(core_tasks.Task):
         project = core_utils.deserialize_instance(serialized_project)
 
         for resource in model_cls.objects.filter(project=project):
-            executor.execute(resource, async=False, force=True, **kwargs)
+            executor.execute(resource, is_async=False, force=True, **kwargs)
 
 
 class ProjectCleanupExecutor(core_executors.BaseExecutor):

@@ -1,14 +1,11 @@
-from __future__ import unicode_literals
-
 import logging
+from urllib.parse import urlparse
 
 from django.core.validators import RegexValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
-from six.moves.urllib.parse import urlparse
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
@@ -39,7 +36,7 @@ class OpenStackTenantService(structure_models.Service):
 
 
 class OpenStackTenantServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(OpenStackTenantService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=OpenStackTenantService)
 
     class Meta(structure_models.CloudServiceProjectLink.Meta):
         verbose_name = _('OpenStackTenant provider project link')
@@ -72,7 +69,7 @@ class Flavor(LoggableMixin, structure_models.ServiceProperty):
     ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
     disk = models.PositiveIntegerField(help_text=_('Root disk size in MiB'))
 
-    class Meta(object):
+    class Meta:
         unique_together = ('settings', 'backend_id')
 
     @classmethod
@@ -92,7 +89,7 @@ class Image(openstack_base_models.BaseImage):
 
 class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProperty):
 
-    class Meta(object):
+    class Meta:
         unique_together = ('settings', 'backend_id')
 
     @classmethod
@@ -101,7 +98,7 @@ class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProper
 
 
 class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
-    security_group = models.ForeignKey(SecurityGroup, related_name='rules')
+    security_group = models.ForeignKey(on_delete=models.CASCADE, to=SecurityGroup, related_name='rules')
 
 
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
@@ -114,7 +111,6 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
         return service_settings, service_settings.scope
 
 
-@python_2_unicode_compatible
 class FloatingIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4', null=True, default=None)
     runtime_state = models.CharField(max_length=30)
@@ -157,7 +153,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
 
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='volumes', on_delete=models.PROTECT)
-    instance = models.ForeignKey('Instance', related_name='volumes', blank=True, null=True)
+    instance = models.ForeignKey(on_delete=models.CASCADE, to='Instance', related_name='volumes', blank=True, null=True)
     device = models.CharField(
         max_length=50, blank=True,
         validators=[RegexValidator('^/dev/[a-zA-Z0-9]+$',
@@ -178,7 +174,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
 
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         unique_together = ('service_project_link', 'backend_id')
 
     def get_quota_deltas(self):
@@ -224,7 +220,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
         blank=True,
         help_text=_('Guaranteed time of snapshot retention. If null - keep forever.'))
 
-    class Meta(object):
+    class Meta:
         unique_together = ('service_project_link', 'backend_id')
 
     @classmethod
@@ -245,20 +241,19 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
 
 
 class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
-    snapshot = models.ForeignKey(Snapshot, related_name='restorations')
-    volume = models.OneToOneField(Volume, related_name='restoration')
+    snapshot = models.ForeignKey(on_delete=models.CASCADE, to=Snapshot, related_name='restorations')
+    volume = models.OneToOneField(Volume, related_name='restoration', on_delete=models.CASCADE)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'snapshot__service_project_link__project__customer'
         project_path = 'snapshot__service_project_link__project'
 
 
-@python_2_unicode_compatible
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
-    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     available = models.BooleanField(default=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('settings', 'name')
 
     def __str__(self):
@@ -271,7 +266,7 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
 
 class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
-    class RuntimeStates(object):
+    class RuntimeStates:
         # All possible OpenStack Instance states on backend.
         # See https://docs.openstack.org/developer/nova/vmstates.html
         ACTIVE = 'ACTIVE'
@@ -310,7 +305,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         unique_together = ('service_project_link', 'backend_id')
 
     @property
@@ -391,11 +386,11 @@ class Backup(structure_models.SubResource):
 
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     """ This model corresponds to instance restoration from backup. """
-    backup = models.ForeignKey(Backup, related_name='restorations')
-    instance = models.OneToOneField(Instance, related_name='+')
+    backup = models.ForeignKey(on_delete=models.CASCADE, to=Backup, related_name='restorations')
+    instance = models.OneToOneField(Instance, related_name='+', on_delete=models.CASCADE)
     flavor = models.ForeignKey(Flavor, related_name='+', null=True, blank=True, on_delete=models.SET_NULL)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'backup__service_project_link__project__customer'
         project_path = 'backup__service_project_link__project'
 
@@ -407,14 +402,14 @@ class BaseSchedule(structure_models.NewResource, core_models.ScheduleMixin):
     call_count = models.PositiveSmallIntegerField(default=0,
                                                   help_text=_('How many times a resource schedule was called.'))
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
 class BackupSchedule(BaseSchedule):
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='backup_schedules', on_delete=models.PROTECT)
-    instance = models.ForeignKey(Instance, related_name='backup_schedules')
+    instance = models.ForeignKey(on_delete=models.CASCADE, to=Instance, related_name='backup_schedules')
 
     tracker = FieldTracker()
 
@@ -429,7 +424,7 @@ class BackupSchedule(BaseSchedule):
 class SnapshotSchedule(BaseSchedule):
     service_project_link = models.ForeignKey(
         OpenStackTenantServiceProjectLink, related_name='snapshot_schedules', on_delete=models.PROTECT)
-    source_volume = models.ForeignKey(Volume, related_name='snapshot_schedules')
+    source_volume = models.ForeignKey(on_delete=models.CASCADE, to=Volume, related_name='snapshot_schedules')
 
     tracker = FieldTracker()
 
@@ -441,13 +436,12 @@ class SnapshotSchedule(BaseSchedule):
         return 'openstacktenant-snapshot-schedule'
 
 
-@python_2_unicode_compatible
 class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
     is_external = models.BooleanField(default=False)
     type = models.CharField(max_length=50, blank=True)
     segmentation_id = models.IntegerField(null=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('settings', 'backend_id')
 
     def __str__(self):
@@ -458,9 +452,8 @@ class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
         return 'openstacktenant-network'
 
 
-@python_2_unicode_compatible
 class SubNet(core_models.DescribableMixin, structure_models.ServiceProperty):
-    network = models.ForeignKey(Network, related_name='subnets')
+    network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32, blank=True)
     gateway_ip = models.GenericIPAddressField(protocol='IPv4', null=True)
     allocation_pools = JSONField(default=dict)
@@ -468,7 +461,7 @@ class SubNet(core_models.DescribableMixin, structure_models.ServiceProperty):
     enable_dhcp = models.BooleanField(default=True)
     dns_nameservers = JSONField(default=list, help_text=_('List of DNS name servers associated with the subnet.'))
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Subnet')
         verbose_name_plural = _('Subnets')
         unique_together = ('settings', 'backend_id')
@@ -488,22 +481,21 @@ class InternalIP(openstack_base_models.Port):
     """
     # Name "internal_ips" is reserved by virtual machine mixin and corresponds to list of internal IPs.
     # So another related name should be used.
-    instance = models.ForeignKey(Instance, related_name='internal_ips_set', null=True)
-    subnet = models.ForeignKey(SubNet, related_name='internal_ips')
+    instance = models.ForeignKey(on_delete=models.CASCADE, to=Instance, related_name='internal_ips_set', null=True)
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet, related_name='internal_ips')
 
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, null=True)
-    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     tracker = FieldTracker()
 
     class Meta:
         unique_together = ('backend_id', 'settings')
 
 
-@python_2_unicode_compatible
 class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
-    class Meta(object):
+    class Meta:
         unique_together = ('settings', 'backend_id')
         # TODO: validate behaviour in different OpenStack versions and add unique_together = ('settings', 'name')
 
@@ -515,12 +507,11 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
         return 'openstacktenant-volume-type'
 
 
-@python_2_unicode_compatible
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
-    settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+')
+    settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
     available = models.BooleanField(default=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('settings', 'name')
 
     def __str__(self):

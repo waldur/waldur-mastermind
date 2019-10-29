@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
@@ -15,7 +13,7 @@ def can_access_admin_site(user):
     return user.is_active and (user.is_staff or user.is_support)
 
 
-class AuthenticationBackend(object):
+class AuthenticationBackend:
     """
     Enables only support and staff to access admin site.
     """

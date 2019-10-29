@@ -1,11 +1,9 @@
-from __future__ import unicode_literals
-
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework import serializers as rf_serializers
-from rest_framework.decorators import detail_route
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
@@ -23,11 +21,11 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         DjangoFilterBackend,
         filters.OfferingCustomersFilterBackend,
     )
-    filter_class = marketplace_filters.ResourceFilter
+    filterset_class = marketplace_filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.BookingResourceSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
         resource = self.get_object()
 
@@ -50,9 +48,9 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             resource.set_state_terminated()
             resource.save()
 
-        return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def accept(self, request, uuid=None):
         resource = self.get_object()
 
@@ -82,7 +80,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                     'resource': resource,
                 })
 
-        return Response({'order_item_uuid': order_item.uuid}, status=status.HTTP_200_OK)
+        return Response({'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK)
 
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)

@@ -1,12 +1,9 @@
-from __future__ import unicode_literals, division
-
 import functools
+from io import BytesIO
 import logging
-import sys
 
 from django.conf import settings
 from django.db import transaction, IntegrityError
-from django.utils import six
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
@@ -38,20 +35,13 @@ def check_captcha(e):
     return e.response.headers['X-Seraph-LoginReason'] == 'AUTHENTICATED_FAILED'
 
 
-def reraise(exc):
-    """
-    Reraise JiraBackendError while maintaining traceback.
-    """
-    six.reraise(JiraBackendError, exc, sys.exc_info()[2])
-
-
 def reraise_exceptions(func):
     @functools.wraps(func)
     def wrapped(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
         except JIRAError as e:
-            reraise(e)
+            JiraBackendError(e)
 
     return wrapped
 
@@ -91,7 +81,7 @@ class JiraBackend(ServiceBackend):
             self.manager.myself()
         except JIRAError as e:
             if raise_exception:
-                reraise(e)
+                raise JiraBackendError(e)
             return False
         else:
             return True
@@ -137,7 +127,7 @@ class JiraBackend(ServiceBackend):
             except JIRAError as e:
                 if check_captcha(e):
                     raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
-                reraise(e)
+                raise JiraBackendError(e)
 
             return self._manager
 
@@ -646,7 +636,7 @@ class JiraBackend(ServiceBackend):
         return result['total']
 
 
-class AttachmentSynchronizer(object):
+class AttachmentSynchronizer:
     def __init__(self, backend, current_issue, backend_issue):
         self.backend = backend
         self.current_issue = current_issue
@@ -678,7 +668,7 @@ class AttachmentSynchronizer(object):
     @cached_property
     def current_attachments_map(self):
         return {
-            six.text_type(attachment.backend_id): attachment
+            str(attachment.backend_id): attachment
             for attachment in self.current_issue.attachments.all()
         }
 
@@ -689,7 +679,7 @@ class AttachmentSynchronizer(object):
     @cached_property
     def backend_attachments_map(self):
         return {
-            six.text_type(attachment.id): attachment
+            str(attachment.id): attachment
             for attachment in self.backend_issue.fields.attachment
         }
 
@@ -734,7 +724,7 @@ class AttachmentSynchronizer(object):
         session = self.backend.manager._session
         response = session.get(url)
         response.raise_for_status()
-        return six.BytesIO(response.content)
+        return BytesIO(response.content)
 
     def _add_attachment(self, issue, backend_attachment):
         attachment = self.backend.model_attachment(issue=issue,
@@ -776,7 +766,7 @@ class AttachmentSynchronizer(object):
         current_attachment.thumbnail.save(backend_attachment.filename, content, save=True)
 
 
-class CommentSynchronizer(object):
+class CommentSynchronizer:
     def __init__(self, backend, current_issue, backend_issue):
         self.backend = backend
         self.current_issue = current_issue
@@ -795,7 +785,7 @@ class CommentSynchronizer(object):
     @cached_property
     def current_comments_map(self):
         return {
-            six.text_type(comment.backend_id): comment
+            str(comment.backend_id): comment
             for comment in self.current_issue.comments.all()
         }
 
@@ -806,7 +796,7 @@ class CommentSynchronizer(object):
     @cached_property
     def backend_comments_map(self):
         return {
-            six.text_type(comment.id): comment
+            str(comment.id): comment
             for comment in self.backend_issue.fields.comment.comments
         }
 

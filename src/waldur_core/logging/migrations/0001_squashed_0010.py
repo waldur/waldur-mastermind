@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import django.utils.timezone
 import model_utils.fields
 from django.conf import settings
@@ -10,17 +8,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-    replaces = [('logging', '0001_squashed_0003_emailhook_webhook'),
-                ('logging', '0001_initial'),
-                ('logging', '0002_alert_acknowledged'),
-                ('logging', '0002_index_alert_type'),
-                ('logging', '0003_emailhook_webhook'),
-                ('logging', '0003_add_alert_unique_together_constraint'),
-                ('logging', '0004_index_alert_type'),
-                ('logging', '0005_add_alert_unique_together_constraint'),
-                ('logging', '0006_pushhook_systemnotification'), ('logging', '0007_pushhook_unique_key'),
-                ('logging', '0008_pushhook_token'), ('logging', '0009_add_device_metadata'),
-                ('logging', '0010_add_event_groups')]
 
     initial = True
 

@@ -1,6 +1,6 @@
 from ddt import ddt, data
 from rest_framework import test, status
-import mock
+from unittest import mock
 
 from waldur_openstack.openstack_tenant import models
 
@@ -192,7 +192,7 @@ class SnapshotImportableResourcesTest(BaseSnapshotImportTest):
         self.assertEquals(len(response.data), len(backend_snapshots))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_snapshots]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_volumes_mock.assert_called()
 
 

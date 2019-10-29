@@ -1,11 +1,9 @@
-from __future__ import unicode_literals
-
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
 from mock_django import mock_signal_receiver
 from rest_framework import status, test
-from six.moves import mock
+from unittest import mock
 
 from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import executors, models, signals, views
@@ -598,7 +596,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         class ParentExecutor(executors.BaseCleanupExecutor):
             pass
 
-        class ParentExtension(object):
+        class ParentExtension:
             @staticmethod
             def get_cleanup_executor():
                 return ParentExecutor
@@ -606,7 +604,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         class ChildExecutor(executors.BaseCleanupExecutor):
             related_executor = ParentExecutor
 
-        class ChildExtension(object):
+        class ChildExtension:
             @staticmethod
             def get_cleanup_executor():
                 return ChildExecutor
@@ -621,7 +619,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         project = fixture.project
 
         get_extensions.return_value = []
-        executors.ProjectCleanupExecutor.execute(fixture.project, async=False)
+        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
 
@@ -631,7 +629,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         resource = fixture.resource
 
         get_extensions.return_value = []
-        executors.ProjectCleanupExecutor.execute(fixture.project, async=False)
+        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertTrue(models.Project.objects.filter(id=project.id).exists())
         self.assertTrue(test_models.TestNewInstance.objects.filter(id=resource.id).exists())
@@ -641,13 +639,13 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         project = fixture.project
         resource = fixture.resource
 
-        class TestExtension(object):
+        class TestExtension:
             @staticmethod
             def get_cleanup_executor():
                 return TestExecutor
 
         get_extensions.return_value = [TestExtension]
-        executors.ProjectCleanupExecutor.execute(fixture.project, async=False)
+        executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
         self.assertFalse(test_models.TestNewInstance.objects.filter(id=resource.id).exists())

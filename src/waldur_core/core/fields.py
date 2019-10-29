@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import copy
 import json
 import uuid
@@ -11,7 +9,6 @@ from django.utils.encoding import smart_text
 from django.utils.translation import ugettext_lazy as _
 import pycountry
 from rest_framework import serializers
-import six
 
 from waldur_core.core import utils, validators as core_validators
 from waldur_core.core.validators import validate_cron_schedule
@@ -83,7 +80,7 @@ class MappedChoiceField(serializers.ChoiceField):
         assert len(set(choice_mappings.values())) == len(choice_mappings), 'Mappings are not unique'
 
         self.mapped_to_model = choice_mappings
-        self.model_to_mapped = {v: k for k, v in six.iteritems(choice_mappings)}
+        self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
 
     def to_internal_value(self, data):
         if data == '' and self.allow_blank:
@@ -92,7 +89,7 @@ class MappedChoiceField(serializers.ChoiceField):
         data = super(MappedChoiceField, self).to_internal_value(data)
 
         try:
-            return self.mapped_to_model[six.text_type(data)]
+            return self.mapped_to_model[str(data)]
         except KeyError:
             self.fail('invalid_choice', input=data)
 
@@ -146,7 +143,7 @@ class StringUUID(uuid.UUID):
     """
 
     def __unicode__(self):
-        return six.text_type(str(self))
+        return str(str(self))
 
     def __str__(self):
         return self.hex
@@ -204,7 +201,7 @@ class JSONField(models.TextField):
         return self.to_python(value)
 
     def to_python(self, value):
-        if isinstance(value, six.string_types) and value:
+        if isinstance(value, str) and value:
             try:
                 return json.loads(value, **self.load_kwargs)
             except ValueError:

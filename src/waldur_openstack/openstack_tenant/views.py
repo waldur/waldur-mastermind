@@ -16,7 +16,7 @@ from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from . import models, serializers, filters, executors
 
 
-class TelemetryMixin(object):
+class TelemetryMixin:
     """
     This mixin adds /meters endpoint to the resource.
 
@@ -29,7 +29,7 @@ class TelemetryMixin(object):
         'meter_samples': serializers.MeterSampleSerializer
     }
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def meters(self, request, uuid=None):
         """
         To list available meters for the resource, make **GET** request to
@@ -46,7 +46,7 @@ class TelemetryMixin(object):
 
         return response.Response(meters)
 
-    @decorators.detail_route(methods=['get'], url_path='meter-samples/(?P<name>[a-z0-9_.]+)')
+    @decorators.action(detail=True, methods=['get'], url_path='meter-samples/(?P<name>[a-z0-9_.]+)')
     def meter_samples(self, request, name, uuid=None):
         """
         To get resource meter samples make **GET** request to */api/<resource_type>/<uuid>/meter-samples/<meter_name>/*.
@@ -101,10 +101,10 @@ class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
 class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     queryset = models.OpenStackTenantServiceProjectLink.objects.all()
     serializer_class = serializers.ServiceProjectLinkSerializer
-    filter_class = filters.OpenStackTenantServiceProjectLinkFilter
+    filterset_class = filters.OpenStackTenantServiceProjectLinkFilter
 
 
-class UsageReporter(object):
+class UsageReporter:
     """
     This class implements service for counting number of instances grouped
     by image and flavor name and by instance runtime status.
@@ -195,9 +195,9 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all().order_by('settings', 'name')
     serializer_class = serializers.ImageSerializer
     lookup_field = 'uuid'
-    filter_class = filters.ImageFilter
+    filterset_class = filters.ImageFilter
 
-    @decorators.list_route()
+    @decorators.action(detail=False)
     def usage_stats(self, request):
         return ImageUsageReporter(self, request).get_report()
 
@@ -211,9 +211,9 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = serializers.FlavorSerializer
     lookup_field = 'uuid'
-    filter_class = filters.FlavorFilter
+    filterset_class = filters.FlavorFilter
 
-    @decorators.list_route()
+    @decorators.action(detail=False)
     def usage_stats(self, request):
         return FlavorUsageReporter(self, request).get_report()
 
@@ -222,34 +222,34 @@ class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Network.objects.all().order_by('settings', 'type', 'is_external')
     serializer_class = serializers.NetworkSerializer
     lookup_field = 'uuid'
-    filter_class = filters.NetworkFilter
+    filterset_class = filters.NetworkFilter
 
 
 class SubNetViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.SubNet.objects.all().order_by('settings')
     serializer_class = serializers.SubNetSerializer
     lookup_field = 'uuid'
-    filter_class = filters.SubNetFilter
+    filterset_class = filters.SubNetFilter
 
 
 class FloatingIPViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.FloatingIP.objects.all().order_by('settings', 'address')
     serializer_class = serializers.FloatingIPSerializer
     lookup_field = 'uuid'
-    filter_class = filters.FloatingIPFilter
+    filterset_class = filters.FloatingIPFilter
 
 
 class SecurityGroupViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.SecurityGroup.objects.all().order_by('settings', 'name')
     serializer_class = serializers.SecurityGroupSerializer
     lookup_field = 'uuid'
-    filter_class = filters.SecurityGroupFilter
+    filterset_class = filters.SecurityGroupFilter
 
 
 class VolumeViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Volume.objects.all()
     serializer_class = serializers.VolumeSerializer
-    filter_class = filters.VolumeFilter
+    filterset_class = filters.VolumeFilter
 
     create_executor = executors.VolumeCreateExecutor
     update_executor = executors.VolumeUpdateExecutor
@@ -278,7 +278,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
         if volume.instance and volume.instance.state != models.Instance.States.OK:
             raise core_exceptions.IncorrectStateException(_('Volume instance should be in OK state.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def extend(self, request, uuid=None):
         """ Increase volume size """
         volume = self.get_object()
@@ -298,7 +298,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
                          core_validators.StateValidator(models.Volume.States.OK)]
     extend_serializer_class = serializers.VolumeExtendSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def snapshot(self, request, uuid=None):
         """ Create snapshot from volume """
         serializer = self.get_serializer(data=request.data)
@@ -310,7 +310,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
 
     snapshot_serializer_class = serializers.SnapshotSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_snapshot_schedule(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -320,7 +320,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
     create_snapshot_schedule_validators = [core_validators.StateValidator(models.Volume.States.OK)]
     create_snapshot_schedule_serializer_class = serializers.SnapshotScheduleSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def attach(self, request, uuid=None):
         """ Attach volume to instance """
         volume = self.get_object()
@@ -335,7 +335,7 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
                          core_validators.StateValidator(models.Volume.States.OK)]
     attach_serializer_class = serializers.VolumeAttachSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def detach(self, request, uuid=None):
         """ Detach instance from volume """
         volume = self.get_object()
@@ -357,10 +357,10 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     update_executor = executors.SnapshotUpdateExecutor
     delete_executor = executors.SnapshotDeleteExecutor
     pull_executor = executors.SnapshotPullExecutor
-    filter_class = filters.SnapshotFilter
+    filterset_class = filters.SnapshotFilter
     disabled_actions = ['create']
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restore(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -373,7 +373,7 @@ class SnapshotViewSet(structure_views.ImportableResourceViewSet):
     restore_serializer_class = serializers.SnapshotRestorationSerializer
     restore_validators = [core_validators.StateValidator(models.Snapshot.States.OK)]
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def restorations(self, request, uuid=None):
         snapshot = self.get_object()
         serializer = self.get_serializer(snapshot.restorations.all(), many=True)
@@ -390,7 +390,7 @@ class InstanceAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet
     queryset = models.InstanceAvailabilityZone.objects.all().order_by('settings', 'name')
     serializer_class = serializers.InstanceAvailabilityZoneSerializer
     lookup_field = 'uuid'
-    filter_class = filters.InstanceAvailabilityZoneFilter
+    filterset_class = filters.InstanceAvailabilityZoneFilter
 
 
 class InstanceViewSet(structure_views.ImportableResourceViewSet):
@@ -407,7 +407,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     """
     queryset = models.Instance.objects.all()
     serializer_class = serializers.InstanceSerializer
-    filter_class = filters.InstanceFilter
+    filterset_class = filters.InstanceFilter
     filter_backends = structure_views.ResourceViewSet.filter_backends + (
         structure_filters.StartTimeFilter,
     )
@@ -481,7 +481,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
             force=force,
             delete_volumes=delete_volumes,
             release_floating_ips=release_floating_ips,
-            async=self.async_executor,
+            is_async=self.async_executor,
         )
 
         return response.Response({'status': _('destroy was scheduled')}, status=status.HTTP_202_ACCEPTED)
@@ -489,7 +489,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     destroy_validators = [_can_destroy_instance, _has_backups]
     destroy_serializer_class = serializers.InstanceDeleteSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def change_flavor(self, request, uuid=None):
         instance = self.get_object()
         old_flavor_name = instance.flavor_name
@@ -511,7 +511,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                                 core_validators.StateValidator(models.Instance.States.OK),
                                 core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF)]
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceStartExecutor().execute(instance)
@@ -527,7 +527,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF)]
     start_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceStopExecutor().execute(instance)
@@ -543,7 +543,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE)]
     stop_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         instance = self.get_object()
         executors.InstanceRestartExecutor().execute(instance)
@@ -559,7 +559,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
                           core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE)]
     restart_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_security_groups(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -572,7 +572,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     update_security_groups_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     update_security_groups_serializer_class = serializers.InstanceSecurityGroupsUpdateSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def backup(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -584,7 +584,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     backup_serializer_class = serializers.BackupSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def create_backup_schedule(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -594,7 +594,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     create_backup_schedule_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     create_backup_schedule_serializer_class = serializers.BackupScheduleSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_internal_ips_set(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -607,7 +607,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     update_internal_ips_set_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     update_internal_ips_set_serializer_class = serializers.InstanceInternalIPsSetUpdateSerializer
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def internal_ips_set(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance.internal_ips_set.all(), many=True)
@@ -615,7 +615,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     internal_ips_set_serializer_class = serializers.NestedInternalIPSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def update_floating_ips(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -628,7 +628,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     update_floating_ips_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     update_floating_ips_serializer_class = serializers.InstanceFloatingIPsUpdateSerializer
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def floating_ips(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(
@@ -642,7 +642,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     import_resource_serializer_class = serializers.InstanceImportSerializer
     import_resource_executor = executors.InstancePullExecutor
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def console(self, request, uuid=None):
         instance = self.get_object()
         backend = instance.get_backend()
@@ -669,7 +669,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 
     console_permissions = [check_permissions_for_console]
 
-    @decorators.detail_route(methods=['get'])
+    @decorators.action(detail=True, methods=['get'])
     def console_log(self, request, uuid=None):
         instance = self.get_object()
         backend = instance.get_backend()
@@ -691,7 +691,7 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
 class BackupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Backup.objects.all().order_by('name')
     serializer_class = serializers.BackupSerializer
-    filter_class = filters.BackupFilter
+    filterset_class = filters.BackupFilter
     disabled_actions = ['create']
 
     delete_executor = executors.BackupDeleteExecutor
@@ -701,7 +701,7 @@ class BackupViewSet(structure_views.BaseResourceViewSet):
     def perform_update(self, serializer):
         serializer.save()
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restore(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -764,7 +764,7 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
         if resource_schedule.is_active:
             raise core_exceptions.IncorrectStateException(_('Resource schedule is already activated.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def activate(self, request, uuid):
         """
         Activate a resource schedule. Note that
@@ -782,7 +782,7 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
         if not resource_schedule.is_active:
             raise core_exceptions.IncorrectStateException(_('A schedule is already deactivated.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def deactivate(self, request, uuid):
         """
         Deactivate a resource schedule. Note that
@@ -799,13 +799,13 @@ class BaseScheduleViewSet(structure_views.BaseResourceViewSet):
 class BackupScheduleViewSet(BaseScheduleViewSet):
     queryset = models.BackupSchedule.objects.all().order_by('name')
     serializer_class = serializers.BackupScheduleSerializer
-    filter_class = filters.BackupScheduleFilter
+    filterset_class = filters.BackupScheduleFilter
 
 
 class SnapshotScheduleViewSet(BaseScheduleViewSet):
     queryset = models.SnapshotSchedule.objects.all().order_by('name')
     serializer_class = serializers.SnapshotScheduleSerializer
-    filter_class = filters.SnapshotScheduleFilter
+    filterset_class = filters.SnapshotScheduleFilter
 
 
 class SharedSettingsBaseView(generics.GenericAPIView):
@@ -869,11 +869,11 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeType.objects.all().order_by('settings', 'name')
     serializer_class = serializers.VolumeTypeSerializer
     lookup_field = 'uuid'
-    filter_class = filters.VolumeTypeFilter
+    filterset_class = filters.VolumeTypeFilter
 
 
 class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.VolumeAvailabilityZone.objects.all().order_by('settings', 'name')
     serializer_class = serializers.VolumeAvailabilityZoneSerializer
     lookup_field = 'uuid'
-    filter_class = filters.VolumeAvailabilityZoneFilter
+    filterset_class = filters.VolumeAvailabilityZoneFilter

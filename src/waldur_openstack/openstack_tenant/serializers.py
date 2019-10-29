@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import collections
 import logging
 import re
@@ -198,7 +196,7 @@ class VolumeImportableSerializer(core_serializers.AugmentedSerializerMixin,
     def get_filtered_field_names(self):
         return 'service_project_link',
 
-    class Meta(object):
+    class Meta:
         model = models.Volume
         model_fields = ('name', 'description', 'size', 'bootable', 'device',
                         'runtime_state', 'instance_name', 'instance_uuid')
@@ -365,7 +363,7 @@ class VolumeExtendSerializer(serializers.Serializer):
 
 class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin,
                              serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Volume
         fields = ('instance', 'device')
         extra_kwargs = dict(
@@ -419,7 +417,7 @@ class SnapshotRestorationSerializer(core_serializers.AugmentedSerializerMixin, s
     description = serializers.CharField(required=False, help_text=_('New volume description.'))
     volume_state = serializers.CharField(source='volume.human_readable_state', read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.SnapshotRestoration
         fields = ('uuid', 'created', 'name', 'description',
                   'volume', 'volume_name', 'volume_state', 'volume_runtime_state', 'volume_size', 'volume_device')
@@ -507,7 +505,7 @@ class SnapshotImportableSerializer(core_serializers.AugmentedSerializerMixin,
     def get_filtered_field_names(self):
         return 'service_project_link',
 
-    class Meta(object):
+    class Meta:
         model = models.Snapshot
         model_fields = ('name', 'description', 'size', 'action', 'action_details',
                         'metadata', 'runtime_state', 'state', 'source_volume_name', 'source_volume_name')
@@ -591,7 +589,7 @@ class NestedSecurityGroupSerializer(core_serializers.AugmentedSerializerMixin,
     )
     state = serializers.ReadOnlyField(source='human_readable_state')
 
-    class Meta(object):
+    class Meta:
         model = models.SecurityGroup
         fields = ('url', 'name', 'rules', 'description', 'state')
         read_only_fields = ('name', 'rules', 'description', 'state')
@@ -602,7 +600,7 @@ class NestedSecurityGroupSerializer(core_serializers.AugmentedSerializerMixin,
 
 class NestedInternalIPSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.InternalIP
         fields = (
             'ip4_address', 'mac_address', 'subnet', 'subnet_uuid', 'subnet_name', 'subnet_description', 'subnet_cidr')
@@ -632,7 +630,7 @@ class NestedFloatingIPSerializer(core_serializers.AugmentedSerializerMixin,
     subnet_description = serializers.ReadOnlyField(source='internal_ip.subnet.description')
     subnet_cidr = serializers.ReadOnlyField(source='internal_ip.subnet.cidr')
 
-    class Meta(object):
+    class Meta:
         model = models.FloatingIP
         fields = ('url', 'uuid', 'address', 'internal_ip_ip4_address', 'internal_ip_mac_address',
                   'subnet', 'subnet_uuid', 'subnet_name', 'subnet_description', 'subnet_cidr')
@@ -1174,7 +1172,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
         required=False
     )
 
-    class Meta(object):
+    class Meta:
         model = models.BackupRestoration
         fields = ('uuid', 'instance', 'created', 'flavor', 'name', 'floating_ips', 'security_groups',
                   'internal_ips_set')
@@ -1194,14 +1192,14 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             fields['flavor'].display_name_field = 'name'
             fields['flavor'].view_name = 'openstacktenant-flavor-detail'
             fields['flavor'].query_params = {
-                'settings_uuid': backup.service_project_link.service.settings.uuid,
+                'settings_uuid': backup.service_project_link.service.settings.uuid.hex,
             }
 
             floating_ip_field = fields.get('floating_ips')
             if floating_ip_field:
                 floating_ip_field.view_name = 'openstacktenant-fip-detail'
                 floating_ip_field.query_params = {
-                    'settings_uuid': settings.uuid,
+                    'settings_uuid': settings.uuid.hex,
                     'is_booked': False,
                     'free': True,
                 }
@@ -1210,7 +1208,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             internal_ips_set_field = fields.get('internal_ips_set')
             if internal_ips_set_field:
                 internal_ips_set_field.query_params = {
-                    'settings_uuid': settings.uuid,
+                    'settings_uuid': settings.uuid.hex,
                 }
                 internal_ips_set_field.view_name = 'openstacktenant-subnet-detail'
                 internal_ips_set_field.display_name_field = 'name'
@@ -1218,7 +1216,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             security_groups_field = fields.get('security_groups')
             if security_groups_field:
                 security_groups_field.query_params = {
-                    'settings_uuid': settings.uuid,
+                    'settings_uuid': settings.uuid.hex,
                 }
                 security_groups_field.view_name = 'openstacktenant-sgp-detail'
                 security_groups_field.display_name_field = 'name'
@@ -1536,7 +1534,7 @@ class InstanceImportableSerializer(core_serializers.AugmentedSerializerMixin, se
     def get_filtered_field_names(self):
         return 'service_project_link',
 
-    class Meta(object):
+    class Meta:
         model = models.Instance
         model_fields = ('name', 'description', 'state', 'runtime_state', 'flavor_name', 'size', 'ram', 'cores')
         fields = ('service_project_link', 'backend_id') + model_fields

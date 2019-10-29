@@ -82,7 +82,6 @@ class CustomMenu(Menu):
 
     EXTRA_MODELS = (
         'django.core.*',
-        'django_openid_auth.*',
         'rest_framework.authtoken.*',
         'waldur_core.core.*',
         'waldur_core.structure.*',

@@ -1,5 +1,5 @@
 import collections
-import mock
+from unittest import mock
 
 from django.utils import timezone
 from rest_framework import status, test

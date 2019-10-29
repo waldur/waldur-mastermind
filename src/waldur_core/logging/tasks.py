@@ -6,7 +6,6 @@ import traceback
 from celery import shared_task
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-import six
 
 from waldur_core.core.utils import deserialize_instance
 from waldur_core.logging.models import BaseHook, SystemNotification, Report, Feed, Event
@@ -69,7 +68,7 @@ def create_report(serialized_report):
         )
     except (tarfile.TarError, OSError, ValueError) as e:
         report.state = Report.States.ERRED
-        error_message = 'Error message: %s. Traceback: %s' % (six.text_type(e), traceback.format_exc())
+        error_message = 'Error message: %s. Traceback: %s' % (str(e), traceback.format_exc())
         report.error_message = error_message
         report.save()
     else:

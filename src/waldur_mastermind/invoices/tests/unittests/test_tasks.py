@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
-import mock
+from unittest import mock
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories as structure_factories

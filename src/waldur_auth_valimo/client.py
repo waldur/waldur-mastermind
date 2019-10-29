@@ -1,5 +1,5 @@
 import logging
-import urlparse
+from urllib.parse import urljoin
 
 from django.conf import settings as django_settings
 from django.utils import timezone
@@ -32,7 +32,7 @@ class UnknownStatusError(ResponseParseError):
     pass
 
 
-class Response(object):
+class Response:
     ns_namespace = 'http://uri.etsi.org/TS102204/v1.1.2#'
 
     def __init__(self, content):
@@ -44,7 +44,7 @@ class Response(object):
         raise NotImplementedError
 
 
-class Request(object):
+class Request:
     url = NotImplemented
     template = NotImplemented
     response_class = NotImplemented
@@ -85,7 +85,7 @@ class Request(object):
 
     @classmethod
     def _get_url(cls):
-        return urlparse.urljoin(cls.settings['URL'], cls.url)
+        return urljoin(cls.settings['URL'], cls.url)
 
 
 class SignatureResponse(Response):
@@ -147,7 +147,7 @@ class SignatureRequest(Request):
         return super(SignatureRequest, cls).execute(**kwargs)
 
 
-class Statuses(object):
+class Statuses:
     OK = 'OK'
     PROCESSING = 'Processing'
     ERRED = 'Erred'

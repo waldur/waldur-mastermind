@@ -25,7 +25,7 @@ request = MockRequest()
 request.user = MockSuperUser()
 
 
-class override_serializer(object):
+class override_serializer:
     def __init__(self, field_info):
         self.field_info = field_info
         self.required = copy.copy(ServiceSerializer.Meta.required_fields)

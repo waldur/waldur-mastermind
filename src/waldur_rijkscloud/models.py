@@ -1,9 +1,5 @@
-from __future__ import unicode_literals
-
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
-from django.utils.encoding import python_2_unicode_compatible
-
 from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.structure import models as structure_models
@@ -28,7 +24,7 @@ class RijkscloudService(structure_models.Service):
 
 class RijkscloudServiceProjectLink(structure_models.ServiceProjectLink):
 
-    service = models.ForeignKey(RijkscloudService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=RijkscloudService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('Rijkscloud provider project link')
@@ -71,7 +67,6 @@ class Volume(structure_models.Volume):
             'name', 'size', 'metadata', 'runtime_state')
 
 
-@python_2_unicode_compatible
 class Instance(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
         RijkscloudServiceProjectLink,
@@ -79,8 +74,8 @@ class Instance(structure_models.VirtualMachine):
         on_delete=models.PROTECT
     )
     flavor_name = models.CharField(max_length=255, blank=True)
-    floating_ip = models.ForeignKey('FloatingIP', blank=True, null=True)
-    internal_ip = models.ForeignKey('InternalIP')
+    floating_ip = models.ForeignKey(on_delete=models.CASCADE, to='FloatingIP', blank=True, null=True)
+    internal_ip = models.ForeignKey(on_delete=models.CASCADE, to='InternalIP')
 
     @classmethod
     def get_url_name(cls):
@@ -105,7 +100,6 @@ class Instance(structure_models.VirtualMachine):
         return self.name
 
 
-@python_2_unicode_compatible
 class FloatingIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4', null=True)
     is_available = models.BooleanField(default=True)
@@ -127,7 +121,6 @@ class FloatingIP(structure_models.ServiceProperty):
         return self.address
 
 
-@python_2_unicode_compatible
 class Network(structure_models.ServiceProperty):
     @classmethod
     def get_url_name(cls):
@@ -137,15 +130,14 @@ class Network(structure_models.ServiceProperty):
         return self.name
 
 
-@python_2_unicode_compatible
 class SubNet(structure_models.ServiceProperty):
-    network = models.ForeignKey(Network, related_name='subnets')
+    network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
     cidr = models.CharField(max_length=32)
     gateway_ip = models.GenericIPAddressField(protocol='IPv4')
     allocation_pools = JSONField()
     dns_nameservers = JSONField(help_text=_('List of DNS name servers associated with the subnet.'))
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Subnet')
         verbose_name_plural = _('Subnets')
         unique_together = ('settings', 'backend_id')
@@ -158,11 +150,10 @@ class SubNet(structure_models.ServiceProperty):
         return 'rijkscloud-subnet'
 
 
-@python_2_unicode_compatible
 class InternalIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4')
     is_available = models.BooleanField(default=True)
-    subnet = models.ForeignKey(SubNet, related_name='internal_ips')
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet, related_name='internal_ips')
 
     @classmethod
     def get_backend_fields(cls):

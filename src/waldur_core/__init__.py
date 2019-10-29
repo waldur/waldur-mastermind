@@ -1,10 +1,6 @@
 # The dancing with the function and its deletion is done
 # to keep the namespace clean: only __version__ is going to be exposed.
 
-from six import add_move, MovedModule
-
-add_move(MovedModule('mock', 'mock', 'unittest.mock'))
-
 
 def _get_version(package_name='waldur_mastermind'):
     import pkg_resources

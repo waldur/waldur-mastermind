@@ -1,5 +1,5 @@
 from django.test import TestCase
-from mock import patch
+from unittest.mock import patch
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models

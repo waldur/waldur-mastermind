@@ -1,13 +1,12 @@
 import logging
-import sys
 import ssl
+from urllib.parse import urlencode
 
-from django.utils import six, timezone
+from django.utils import timezone
 from django.utils.functional import cached_property
 import pyVim.task
 import pyVim.connect
 from pyVmomi import vim
-from six.moves.urllib import parse as urlparse
 
 from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
 from waldur_core.structure.utils import update_pulled_fields
@@ -23,13 +22,6 @@ logger = logging.getLogger(__name__)
 
 class VMwareBackendError(ServiceBackendError):
     pass
-
-
-def reraise(exc):
-    """
-    Reraise VMwareBackendError while maintaining traceback.
-    """
-    six.reraise(VMwareBackendError, exc, sys.exc_info()[2])
 
 
 class VMwareBackend(ServiceBackend):
@@ -75,7 +67,7 @@ class VMwareBackend(ServiceBackend):
             self.client.list_vms()
         except VMwareError as e:
             if raise_exception:
-                reraise(e)
+                raise VMwareBackendError(e)
             return False
         else:
             return True
@@ -95,8 +87,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_templates = self.client.list_all_templates()
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         if is_basic_mode():
             # If basic mode is enabled, we should filter out templates which have more than 1 NIC
@@ -195,8 +186,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_vm = self.client.get_vm(backend_id)
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         tools_installed = self.get_vm_tools_installed(backend_id)
         tools_state = self.get_vm_tools_state(backend_id)
@@ -240,8 +230,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_clusters = self.client.list_clusters()
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         backend_clusters_map = {
             item['cluster']: item
@@ -278,8 +267,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_networks = self.client.list_networks()
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         backend_networks_map = {
             item['network']: item
@@ -317,8 +305,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_datastores = self.client.list_datastores()
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         backend_datastores_map = {
             item['datastore']: item
@@ -370,7 +357,7 @@ class VMwareBackend(ServiceBackend):
         try:
             return self.client.list_folders(folder_type='VIRTUAL_MACHINE')
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def get_default_vm_folder(self):
         """
@@ -393,7 +380,7 @@ class VMwareBackend(ServiceBackend):
         try:
             return self.client.list_resource_pools()[0]['resource_pool']
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def get_default_datastore(self):
         """
@@ -406,7 +393,7 @@ class VMwareBackend(ServiceBackend):
         try:
             return self.client.list_datastores()[0]['datastore']
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def pull_folders(self):
         backend_folders = self.get_vm_folders()
@@ -457,8 +444,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_vm = self.client.get_vm(backend_id)
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         vm.backend_id = backend_id
         vm.runtime_state = backend_vm['power_state']
@@ -477,7 +463,7 @@ class VMwareBackend(ServiceBackend):
                 try:
                     self.client.create_nic(vm.backend_id, network.backend_id)
                 except VMwareError as e:
-                    reraise(e)
+                    raise VMwareBackendError(e)
 
         signals.vm_created.send(self.__class__, vm=vm)
         return vm
@@ -513,7 +499,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_template = self.client.get_template_library_item(template.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
         else:
             return [nic['key'] for nic in backend_template['nics']]
 
@@ -579,7 +565,7 @@ class VMwareBackend(ServiceBackend):
         try:
             return self.client.deploy_vm_from_template(vm.template.backend_id, spec)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def create_virtual_machine_from_scratch(self, vm):
         spec = {
@@ -606,7 +592,7 @@ class VMwareBackend(ServiceBackend):
         try:
             return self.client.create_vm(spec)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def delete_virtual_machine(self, vm):
         """
@@ -618,7 +604,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.delete_vm(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def start_virtual_machine(self, vm):
         """
@@ -630,7 +616,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.start_vm(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def stop_virtual_machine(self, vm):
         """
@@ -642,7 +628,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.stop_vm(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def reset_virtual_machine(self, vm):
         """
@@ -654,7 +640,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.reset_vm(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def suspend_virtual_machine(self, vm):
         """
@@ -666,7 +652,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.suspend_vm(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def shutdown_guest(self, vm):
         """
@@ -679,7 +665,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.shutdown_guest(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def reboot_guest(self, vm):
         """
@@ -691,13 +677,13 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.reboot_guest(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def is_virtual_machine_shutted_down(self, vm):
         try:
             guest_power = self.client.get_guest_power(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
         else:
             return guest_power['state'] == models.VirtualMachine.GuestPowerStates.NOT_RUNNING
 
@@ -721,7 +707,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_vm = self.client.get_vm(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
         else:
             backend_power_state = backend_vm['power_state']
             if backend_power_state != vm.runtime_state:
@@ -759,7 +745,7 @@ class VMwareBackend(ServiceBackend):
                     'count': vm.cores,
                 })
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def update_memory(self, vm):
         """
@@ -775,7 +761,7 @@ class VMwareBackend(ServiceBackend):
                     'size_MiB': vm.ram
                 })
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     def create_port(self, port):
         """
@@ -787,7 +773,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_id = self.client.create_nic(port.vm.backend_id, port.network.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
         else:
             port.backend_id = backend_id
             port.save(update_fields=['backend_id'])
@@ -803,7 +789,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.delete_nic(port.vm.backend_id, port.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
     @log_backend_action()
     def pull_port(self, port, update_fields=None):
@@ -842,8 +828,7 @@ class VMwareBackend(ServiceBackend):
             backend_port = self.client.get_nic(backend_vm_id, backend_port_id)
             backend_port['nic'] = backend_port_id
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         port = self._backend_port_to_port(backend_port)
         if service_project_link is not None:
@@ -874,8 +859,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_ports = self.client.list_nics(vm.backend_id)
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         backend_ports_map = {
             item['nic']: item
@@ -930,7 +914,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_id = self.client.create_disk(disk.vm.backend_id, spec)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
         else:
             disk.backend_id = backend_id
             disk.save(update_fields=['backend_id'])
@@ -950,7 +934,7 @@ class VMwareBackend(ServiceBackend):
         try:
             self.client.delete_disk(disk.vm.backend_id, disk.backend_id)
         except VMwareError as e:
-            reraise(e)
+            raise VMwareBackendError(e)
 
         if delete_vmdk:
             vdm = self.soap_client.content.virtualDiskManager
@@ -1112,8 +1096,7 @@ class VMwareBackend(ServiceBackend):
         try:
             backend_disk = self.client.get_disk(backend_vm_id, backend_disk_id)
         except VMwareError as e:
-            reraise(e)
-            return
+            raise VMwareBackendError(e)
 
         disk = self._backend_disk_to_disk(backend_disk, backend_disk_id)
         if service_project_link is not None:
@@ -1172,5 +1155,5 @@ class VMwareBackend(ServiceBackend):
         }
         return 'wss://{host}/ui/webconsole/authd?{params}'.format(
             host=ticket.host,
-            params=urlparse.urlencode(params)
+            params=urlencode(params)
         )

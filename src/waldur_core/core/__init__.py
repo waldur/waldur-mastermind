@@ -5,7 +5,7 @@ import pkg_resources
 default_app_config = 'waldur_core.core.apps.CoreConfig'
 
 
-class WaldurExtension(object):
+class WaldurExtension:
     """ Base class for Waldur extensions """
 
     class Settings:

@@ -1,13 +1,11 @@
-from __future__ import unicode_literals
-
 import collections
 import datetime
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.reverse import reverse
-from six.moves import mock
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure import tasks
@@ -322,7 +320,7 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
 
         for customer in self.customers:
             response = self.client.get(reverse('customer_permission-list'),
-                                       data={'customer': self.customers[customer].uuid})
+                                       data={'customer': self.customers[customer].uuid.hex})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             customer_url = self._get_customer_url(self.customers[customer])
@@ -365,22 +363,13 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
         for permission in response.data:
             self.assertEqual('owner', permission['role'])
 
-    def test_staff_user_cannot_filter_roles_within_customer_by_role_pk(self):
-        response = self.client.get(reverse('customer_permission-list'))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        response = self.client.get(reverse('customer_permission-list'),
-                                   data={'role': '1'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
-
     def test_staff_user_can_see_required_fields_in_filtration_response(self):
         response = self.client.get(reverse('customer_permission-list'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for customer in self.customers:
             response = self.client.get(reverse('customer_permission-list'),
-                                       data={'customer': self.customers[customer].uuid})
+                                       data={'customer': self.customers[customer].uuid.hex})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             required_fields = ('url', 'user_native_name', 'user_full_name', 'user_username')
@@ -412,7 +401,7 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
             self.assertNotEqual(value, permission['user_' + field])
 
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid})
+        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
 
 
 class CustomerPermissionExpirationTest(test.APITransactionTestCase):

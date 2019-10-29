@@ -3,7 +3,7 @@ import logging
 from waldur_core.structure import SupportedServices
 
 
-class Component(object):
+class Component:
     def __init__(self, type, name, measured_unit, billing_type, factor=1):
         self.type = type
         self.name = name
@@ -25,7 +25,7 @@ class Component(object):
 logger = logging.getLogger(__name__)
 
 
-class PluginManager(object):
+class PluginManager:
     def __init__(self):
         self.backends = {}
 

@@ -5,7 +5,7 @@ from waldur_core.cost_tracking.models import DefaultPriceListItem
 from waldur_openstack.openstack import models as openstack_models
 
 
-class Types(object):
+class Types:
     PACKAGE_TEMPLATE = 'PackageTemplate'
 
 

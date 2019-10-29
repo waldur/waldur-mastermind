@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 import re
 
@@ -69,7 +67,8 @@ def log_project_save(sender, instance, created=False, **kwargs):
             return
 
         message = 'Project {project_name} has been updated.'
-        for name, previous_value in changed_fields.items():
+        for name in sorted(changed_fields.keys()):
+            previous_value = changed_fields[name]
             current_value = getattr(instance, name)
             message = "%s %s has been changed from '%s' to '%s'." % (
                 message,

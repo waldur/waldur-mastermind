@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import uuid
 
 from ddt import data, ddt
@@ -7,7 +5,7 @@ from django.test import TestCase
 from cinderclient.v2.volumes import Volume
 from novaclient.v2.servers import Server
 from novaclient.v2.flavors import Flavor
-import mock
+from unittest import mock
 
 from waldur_openstack.openstack_tenant.backend import OpenStackTenantBackend
 from waldur_openstack.openstack_tenant import models
@@ -442,7 +440,7 @@ class GetVolumesTest(VolumesBaseTest):
 
         returned_backend_ids = [item.backend_id for item in result]
         expected_backend_ids = [item.id for item in volumes]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
 
 
 class CreateVolumesTest(VolumesBaseTest):
@@ -535,7 +533,7 @@ class ImportVolumeTest(BaseBackendTest):
         volume = self.tenant_backend.import_volume(self.backend_volume_id, save=True, service_project_link=self.spl)
 
         self.assertTrue(models.Volume.objects.filter(backend_id=self.backend_volume_id).exists())
-        self.assertEqual(models.Volume.objects.get(backend_id=self.backend_volume_id).uuid, volume.uuid)
+        self.assertEqual(str(models.Volume.objects.get(backend_id=self.backend_volume_id).uuid), str(volume.uuid))
         self.assertEqual(volume.name, self.backend_volume.name)
 
     def test_volume_instance_is_not_created_during_import(self):
@@ -547,7 +545,7 @@ class ImportVolumeTest(BaseBackendTest):
 
         self.assertIsNotNone(volume.instance)
         self.assertTrue(models.Volume.objects.filter(backend_id=self.backend_volume_id).exists())
-        self.assertEqual(models.Volume.objects.get(backend_id=self.backend_volume_id).uuid, volume.uuid)
+        self.assertEqual(str(models.Volume.objects.get(backend_id=self.backend_volume_id).uuid), str(volume.uuid))
         self.assertEqual(volume.name, self.backend_volume.name)
 
 
@@ -719,13 +717,13 @@ class PullInstanceTest(BaseBackendTest):
     def setUp(self):
         super(PullInstanceTest, self).setUp()
 
-        class MockFlavor(object):
+        class MockFlavor:
             name = 'flavor_name'
             disk = 102400
             ram = 10240
             vcpus = 1
 
-        class MockInstance(object):
+        class MockInstance:
             name = 'instance_name'
             id = 'instance_id'
             created = '2017-08-10'
@@ -1117,7 +1115,7 @@ class GetInstancesTest(BaseBackendTest):
 
         returned_backend_ids = [item.backend_id for item in result]
         expected_backend_ids = [item.id for item in instances]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
 
 
 class ImportInstanceTest(BaseBackendTest):
@@ -1140,7 +1138,7 @@ class ImportInstanceTest(BaseBackendTest):
 
         self.assertEquals(instance.backend_id, self.backend_id)
         self.assertTrue(models.Instance.objects.filter(backend_id=self.backend_id).exists())
-        self.assertEquals(models.Instance.objects.get(backend_id=self.backend_id).uuid, instance.uuid)
+        self.assertEquals(str(models.Instance.objects.get(backend_id=self.backend_id).uuid), str(instance.uuid))
         self.assertEquals(instance.name, self.backend_instance.name)
 
     def test_volume_is_attached_to_imported_instance_if_they_are_registered(self):
@@ -1156,7 +1154,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.assertEquals(models.Volume.objects.count(), 1)
         self.assertEquals(instance.volumes.count(), 1)
         actual_backend_ids = [v.backend_id for v in instance.volumes.all()]
-        self.assertItemsEqual([backend_volume.id], actual_backend_ids)
+        self.assertEqual([backend_volume.id], actual_backend_ids)
 
     def test_instance_is_imported_with_attached_volume(self):
         volume_backend_id = 'volume_id'
@@ -1173,7 +1171,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.assertEquals(models.Volume.objects.count(), 1)
         self.assertEquals(instance.volumes.count(), 1)
         actual_backend_ids = [v.backend_id for v in instance.volumes.all()]
-        self.assertItemsEqual([backend_volume.id], actual_backend_ids)
+        self.assertEqual([backend_volume.id], actual_backend_ids)
 
     def test_instance_error_message_is_filled_if_fault_is_provided_by_backend(self):
         expected_error_message = 'An error occurred displaying an error'

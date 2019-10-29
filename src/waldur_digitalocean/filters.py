@@ -9,14 +9,14 @@ class ImageFilter(structure_filters.BaseServicePropertyFilter):
 
     o = OrderingFilter(fields=('distribution', 'type'))
 
-    class Meta(object):
+    class Meta:
         model = models.Image
         fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('distribution', 'type')
 
 
 class SizeFilter(structure_filters.BaseServicePropertyFilter):
 
-    class Meta(object):
+    class Meta:
         model = models.Size
         fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('cores', 'ram', 'disk')
 
@@ -27,7 +27,7 @@ class RegionFilter(structure_filters.BaseServicePropertyFilter):
 
 
 class DropletFilter(structure_filters.BaseResourceFilter):
-    external_ip = CharFilter(name='ip_address')
+    external_ip = CharFilter(field_name='ip_address')
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Droplet

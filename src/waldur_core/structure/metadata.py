@@ -12,7 +12,7 @@ from rest_framework.utils.field_mapping import ClassLookupDict
 from waldur_core.core.utils import sort_dict
 
 
-class ActionSerializer(object):
+class ActionSerializer:
     def __init__(self, func, name, request, view, resource):
         self.func = func
         self.name = name
@@ -134,7 +134,7 @@ class ActionsMetadata(SimpleMetadata):
             callback = getattr(view.__class__, key)
             if getattr(callback, 'deprecated', False):
                 continue
-            if 'post' not in getattr(callback, 'bind_to_methods', []):
+            if not hasattr(callback, 'detail'):
                 continue
             if key in disabled_actions:
                 continue

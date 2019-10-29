@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import base64
 import json
 import jwt
@@ -55,7 +53,7 @@ class FacebookException(AuthException):
 
 class GoogleException(AuthException):
     def __init__(self, google_error):
-        if isinstance(google_error, basestring):
+        if isinstance(google_error, str):
             self.message = google_error
         else:
             self.message_text = google_error.get('message', 'Undefined')

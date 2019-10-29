@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from zipfile import is_zipfile, ZipFile
 
 from django.db import transaction
@@ -21,7 +19,7 @@ from . import models as playbook_jobs_models
 class PlaybookParameterSerializer(serializers.ModelSerializer):
     name = serializers.RegexField('^[\w]+$')
 
-    class Meta(object):
+    class Meta:
         model = playbook_jobs_models.PlaybookParameter
         fields = ('name', 'description', 'required', 'default')
 
@@ -30,9 +28,9 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
                          core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
     archive = serializers.FileField(write_only=True)
-    parameters = PlaybookParameterSerializer(many=True)
+    parameters = PlaybookParameterSerializer(many=True, required=False)
 
-    class Meta(object):
+    class Meta:
         model = playbook_jobs_models.Playbook
         fields = ('url', 'uuid', 'name', 'description', 'archive', 'entrypoint', 'parameters', 'image')
         protected_fields = ('entrypoint', 'parameters', 'archive')
@@ -70,7 +68,7 @@ class PlaybookSerializer(ProtectedMediaSerializerMixin,
 
     @transaction.atomic
     def create(self, validated_data):
-        parameters_data = validated_data.pop('parameters')
+        parameters_data = validated_data.pop('parameters', [])
         archive = validated_data.pop('archive')
         validated_data['workspace'] = playbook_jobs_models.Playbook.generate_workspace_path()
 
@@ -125,12 +123,12 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
     playbook_uuid = serializers.ReadOnlyField(source='playbook.uuid')
     playbook_image = ProtectedFileField(source='playbook.image', read_only=True)
     playbook_description = serializers.ReadOnlyField(source='playbook.description')
-    arguments = serializers.JSONField(default=dict)
+    arguments = serializers.JSONField(required=False)
     state = serializers.SerializerMethodField()
     tag = serializers.SerializerMethodField()
     type = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = playbook_jobs_models.Job
         fields = ('url', 'uuid', 'name', 'description',
                   'service_project_link', 'service', 'service_name', 'service_uuid',
@@ -167,7 +165,7 @@ class JobSerializer(common_serializers.BaseApplicationSerializer,
 
     def check_arguments(self, attrs):
         playbook = self.instance.playbook if self.instance else attrs['playbook']
-        arguments = attrs['arguments']
+        arguments = attrs.get('arguments', {})
         parameter_names = playbook.parameters.all().values_list('name', flat=True)
         for argument in arguments.keys():
             if argument not in parameter_names and argument != 'project_uuid':

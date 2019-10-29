@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 
 from django.core import exceptions as django_exceptions
@@ -189,7 +187,7 @@ def update_service_settings_credentials(sender, instance, created=False, **kwarg
             service_settings.save()
 
 
-class BaseSynchronizationHandler(object):
+class BaseSynchronizationHandler:
     """
     This class provides signal handlers for synchronization of OpenStack properties
     when parent OpenStack resource are created, updated or deleted.

@@ -9,7 +9,7 @@ from .. import models
 
 
 class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
 
     type = 'Rancher'
@@ -18,7 +18,7 @@ class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class RancherServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.RancherService
 
     settings = factory.SubFactory(RancherServiceSettingsFactory)
@@ -28,7 +28,7 @@ class RancherServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = RancherServiceFactory()
-        url = 'http://testserver' + reverse('rancher-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('rancher-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -37,7 +37,7 @@ class RancherServiceFactory(factory.DjangoModelFactory):
 
 
 class RancherServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.RancherServiceProjectLink
 
     service = factory.SubFactory(RancherServiceFactory)
@@ -56,7 +56,7 @@ class RancherServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class ClusterFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Cluster
 
     service_project_link = factory.SubFactory(RancherServiceProjectLinkFactory)
@@ -66,7 +66,7 @@ class ClusterFactory(factory.DjangoModelFactory):
     @classmethod
     def get_url(cls, cluster=None, action=None):
         cluster = cluster or ClusterFactory()
-        url = 'http://testserver' + reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid})
+        url = 'http://testserver' + reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -76,12 +76,12 @@ class ClusterFactory(factory.DjangoModelFactory):
 
 
 class NodeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Node
 
     @classmethod
     def get_url(cls, node, action=None):
-        url = 'http://testserver' + reverse('rancher-node-detail', kwargs={'uuid': node.uuid})
+        url = 'http://testserver' + reverse('rancher-node-detail', kwargs={'uuid': node.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

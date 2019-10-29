@@ -4,7 +4,7 @@ import itertools
 from ddt import data, ddt
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from mock import patch
+from unittest.mock import patch
 from rest_framework import test, status
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
@@ -454,7 +454,7 @@ class TenantDeleteTest(BaseTenantActionsTest):
         response = self.client.delete(self.get_url())
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mocked_task.assert_called_once_with(self.tenant, async=True, force=False)
+        mocked_task.assert_called_once_with(self.tenant, is_async=True, force=False)
 
     @data('admin', 'manager')
     def test_cannot_delete_tenant_from_shared_settings(self, user, mocked_task):
@@ -479,7 +479,7 @@ class TenantDeleteTest(BaseTenantActionsTest):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mocked_task.assert_called_once_with(self.tenant, async=True, force=False)
+        mocked_task.assert_called_once_with(self.tenant, is_async=True, force=False)
 
     @override_openstack_settings(ADMIN_CAN_MANAGE_TENANTS=True)
     def test_admin_can_delete_tenant_from_shared_settings_with_permission_from_settings(self, mocked_task):
@@ -493,7 +493,7 @@ class TenantDeleteTest(BaseTenantActionsTest):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mocked_task.assert_called_once_with(self.tenant, async=True, force=False)
+        mocked_task.assert_called_once_with(self.tenant, is_async=True, force=False)
 
     @data('global_support')
     def test_cannot_delete_tenant(self, user, mocked_task):
@@ -765,7 +765,7 @@ class TenantImportableResourcesTest(BaseTenantActionsTest):
         self.assertEquals(len(response.data), len(backend_tenants))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item.backend_id for item in backend_tenants]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_tenants_for_import_mock.assert_called()
 
     @data('admin', 'manager', 'owner')

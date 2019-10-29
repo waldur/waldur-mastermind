@@ -45,7 +45,7 @@ class LinkFilterBackend(DjangoFilterBackend):
                 type=ZabbixConfig.service_name,
                 scope__in=siblings,
             )
-            queryset = queryset.filter(project=link.project, service__settings=service_settings)
+            queryset = queryset.filter(project=link.project, service__settings__in=service_settings)
         return queryset
 
     def get_resource_by_url(self, request, resource_url):

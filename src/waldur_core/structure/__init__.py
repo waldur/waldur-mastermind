@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import functools
 import importlib
 import logging
@@ -8,7 +6,6 @@ from django.conf import settings
 from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from rest_framework.reverse import reverse
-import six
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +13,7 @@ logger = logging.getLogger(__name__)
 default_app_config = 'waldur_core.structure.apps.StructureConfig'
 
 
-class SupportedServices(object):
+class SupportedServices:
     """ Comprehensive list of currently supported services and resources.
         Build the list via serializers definition on application start.
         Example data structure of registry:
@@ -150,7 +147,7 @@ class SupportedServices(object):
 
     @classmethod
     def get_service_backend(cls, key):
-        if not isinstance(key, six.string_types):
+        if not isinstance(key, str):
             key = cls.get_model_key(key)
         try:
             return cls._registry[key]['backend']
@@ -433,7 +430,7 @@ def log_backend_action(action=None):
     def decorator(func):
         @functools.wraps(func)
         def wrapped(self, instance, *args, **kwargs):
-            action_name = func.func_name.replace('_', ' ') if action is None else action
+            action_name = func.__name__.replace('_', ' ') if action is None else action
 
             logger.debug('About to %s `%s` (PK: %s).', action_name, instance, instance.pk)
             result = func(self, instance, *args, **kwargs)
@@ -448,7 +445,7 @@ class ServiceBackendNotImplemented(NotImplementedError):
     pass
 
 
-class ServiceBackend(object):
+class ServiceBackend:
     """ Basic service backed with only common methods pre-defined. """
 
     DEFAULTS = {}

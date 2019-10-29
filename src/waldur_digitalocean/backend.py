@@ -1,13 +1,10 @@
-from __future__ import unicode_literals
-
 import functools
 import logging
-import sys
 
 import digitalocean
 
 from django.db import IntegrityError, transaction
-from django.utils import dateparse, six
+from django.utils import dateparse
 
 from waldur_core.core.models import SshPublicKey
 from waldur_core.structure import ServiceBackend, ServiceBackendError, SupportedServices
@@ -50,10 +47,7 @@ def digitalocean_error_handler(func):
         try:
             return func(*args, **kwargs)
         except digitalocean.DataReadError as e:
-            exc = list(sys.exc_info())
-            message = six.text_type(e)
-            exc[0] = error_messages.get(message, DigitalOceanBackendError)
-            six.reraise(*exc)
+            raise error_messages.get(str(e))
     return wrapped
 
 
@@ -142,7 +136,7 @@ class DigitalOceanBackend(ServiceBackend):
                 self.manager.get_account()
             except digitalocean.DataReadError as e:
                 if raise_exception:
-                    six.reraise(DigitalOceanBackendError, e)
+                    raise DigitalOceanBackendError(e)
             else:
                 return True
         return False
@@ -230,7 +224,7 @@ class DigitalOceanBackend(ServiceBackend):
 
     @transaction.atomic
     def pull_droplets(self):
-        backend_droplets = {six.text_type(droplet.id): droplet for droplet in self.get_all_droplets()}
+        backend_droplets = {str(droplet.id): droplet for droplet in self.get_all_droplets()}
         backend_ids = set(backend_droplets.keys())
 
         nc_droplets = models.Droplet.objects.filter(service_project_link__service__settings=self.settings)

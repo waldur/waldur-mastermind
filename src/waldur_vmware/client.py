@@ -7,7 +7,7 @@ from waldur_vmware.exceptions import VMwareError
 logger = logging.getLogger(__name__)
 
 
-class VMwareClient(object):
+class VMwareClient:
     """
     Lightweight VMware vCenter Automation API client.
     See also: https://vmware.github.io/vsphere-automation-sdk-rest/vsphere/

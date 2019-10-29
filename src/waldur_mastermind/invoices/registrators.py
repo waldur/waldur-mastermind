@@ -20,7 +20,7 @@ from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import models as invoices_models
 
 
-class BaseRegistrator(object):
+class BaseRegistrator:
 
     def get_customer(self, source):
         """ Return customer based on provided item. """
@@ -90,7 +90,7 @@ class BaseRegistrator(object):
         return {}
 
 
-class RegistrationManager(object):
+class RegistrationManager:
     """ The highest interface for invoice item registration and termination. """
     _registrators = {}
 

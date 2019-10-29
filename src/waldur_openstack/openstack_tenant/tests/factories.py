@@ -16,7 +16,7 @@ from .. import models
 
 
 class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
         exclude = ('tenant',)
 
@@ -32,7 +32,7 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
 
 
 class OpenStackTenantServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackTenantService
 
     settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
@@ -42,7 +42,7 @@ class OpenStackTenantServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = OpenStackTenantServiceSettingsFactory()
-        url = 'http://testserver' + reverse('openstacktenant-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -51,7 +51,7 @@ class OpenStackTenantServiceFactory(factory.DjangoModelFactory):
 
 
 class OpenStackTenantServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackTenantServiceProjectLink
 
     service = factory.SubFactory(OpenStackTenantServiceFactory)
@@ -70,7 +70,7 @@ class OpenStackTenantServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class FlavorFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Flavor
 
     name = factory.Sequence(lambda n: 'flavor%s' % n)
@@ -86,7 +86,7 @@ class FlavorFactory(factory.DjangoModelFactory):
     def get_url(cls, flavor=None):
         if flavor is None:
             flavor = FlavorFactory()
-        return 'http://testserver' + reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor.uuid})
+        return 'http://testserver' + reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor.uuid.hex})
 
     @classmethod
     def get_list_url(cls, action):
@@ -95,7 +95,7 @@ class FlavorFactory(factory.DjangoModelFactory):
 
 
 class ImageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Image
 
     name = factory.Sequence(lambda n: 'image%s' % n)
@@ -107,7 +107,7 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, image=None):
         if image is None:
             image = ImageFactory()
-        return 'http://testserver' + reverse('openstacktenant-image-detail', kwargs={'uuid': image.uuid})
+        return 'http://testserver' + reverse('openstacktenant-image-detail', kwargs={'uuid': image.uuid.hex})
 
     @classmethod
     def get_list_url(cls, action=None):
@@ -116,7 +116,7 @@ class ImageFactory(factory.DjangoModelFactory):
 
 
 class VolumeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Volume
 
     name = factory.Sequence(lambda n: 'volume%s' % n)
@@ -128,7 +128,7 @@ class VolumeFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = InstanceFactory()
-        url = 'http://testserver' + reverse('openstacktenant-volume-detail', kwargs={'uuid': instance.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-volume-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -138,7 +138,7 @@ class VolumeFactory(factory.DjangoModelFactory):
 
 
 class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InstanceAvailabilityZone
 
     name = factory.Sequence(lambda n: 'instance_availability_zone_%s' % n)
@@ -157,7 +157,7 @@ class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
 
 
 class InstanceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Instance
 
     name = factory.Sequence(lambda n: 'instance%s' % n)
@@ -169,7 +169,7 @@ class InstanceFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = InstanceFactory()
-        url = 'http://testserver' + reverse('openstacktenant-instance-detail', kwargs={'uuid': instance.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-instance-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -209,7 +209,7 @@ class InstanceFactory(factory.DjangoModelFactory):
 
 
 class FloatingIPFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.FloatingIP
 
     name = factory.Sequence(lambda n: 'floating_ip%s' % n)
@@ -222,7 +222,7 @@ class FloatingIPFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None):
         if instance is None:
             instance = FloatingIPFactory()
-        return 'http://testserver' + reverse('openstacktenant-fip-detail', kwargs={'uuid': instance.uuid})
+        return 'http://testserver' + reverse('openstacktenant-fip-detail', kwargs={'uuid': instance.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -230,7 +230,7 @@ class FloatingIPFactory(factory.DjangoModelFactory):
 
 
 class SecurityGroupFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SecurityGroup
 
     name = factory.Sequence(lambda n: 'security_group%s' % n)
@@ -241,7 +241,7 @@ class SecurityGroupFactory(factory.DjangoModelFactory):
     def get_url(cls, sgp=None):
         if sgp is None:
             sgp = SecurityGroupFactory()
-        return 'http://testserver' + reverse('openstacktenant-sgp-detail', kwargs={'uuid': sgp.uuid})
+        return 'http://testserver' + reverse('openstacktenant-sgp-detail', kwargs={'uuid': sgp.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -249,7 +249,7 @@ class SecurityGroupFactory(factory.DjangoModelFactory):
 
 
 class BackupScheduleFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.BackupSchedule
 
     instance = factory.SubFactory(InstanceFactory)
@@ -264,7 +264,7 @@ class BackupScheduleFactory(factory.DjangoModelFactory):
     def get_url(cls, schedule, action=None):
         if schedule is None:
             schedule = BackupScheduleFactory()
-        url = 'http://testserver' + reverse('openstacktenant-backup-schedule-detail', kwargs={'uuid': schedule.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-backup-schedule-detail', kwargs={'uuid': schedule.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -273,7 +273,7 @@ class BackupScheduleFactory(factory.DjangoModelFactory):
 
 
 class BackupFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Backup
 
     service_project_link = factory.SubFactory(OpenStackTenantServiceProjectLinkFactory)
@@ -286,7 +286,7 @@ class BackupFactory(factory.DjangoModelFactory):
     def get_url(cls, backup=None, action=None):
         if backup is None:
             backup = BackupFactory()
-        url = 'http://testserver' + reverse('openstacktenant-backup-detail', kwargs={'uuid': backup.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-backup-detail', kwargs={'uuid': backup.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -295,7 +295,7 @@ class BackupFactory(factory.DjangoModelFactory):
 
 
 class SnapshotFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Snapshot
 
     size = 1024
@@ -308,7 +308,7 @@ class SnapshotFactory(factory.DjangoModelFactory):
     def get_url(cls, snapshot, action=None):
         if snapshot is None:
             snapshot = SnapshotFactory()
-        url = 'http://testserver' + reverse('openstacktenant-snapshot-detail', kwargs={'uuid': snapshot.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-snapshot-detail', kwargs={'uuid': snapshot.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -318,7 +318,7 @@ class SnapshotFactory(factory.DjangoModelFactory):
 
 
 class SnapshotRestorationFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SnapshotRestoration
 
     snapshot = factory.SubFactory(SnapshotFactory)
@@ -326,7 +326,7 @@ class SnapshotRestorationFactory(factory.DjangoModelFactory):
 
 
 class SnapshotScheduleFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SnapshotSchedule
 
     source_volume = factory.SubFactory(VolumeFactory)
@@ -341,7 +341,7 @@ class SnapshotScheduleFactory(factory.DjangoModelFactory):
     def get_url(cls, schedule, action=None):
         if schedule is None:
             schedule = SnapshotScheduleFactory()
-        url = 'http://testserver' + reverse('openstacktenant-snapshot-schedule-detail', kwargs={'uuid': schedule.uuid})
+        url = 'http://testserver' + reverse('openstacktenant-snapshot-schedule-detail', kwargs={'uuid': schedule.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -350,7 +350,7 @@ class SnapshotScheduleFactory(factory.DjangoModelFactory):
 
 
 class NetworkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Network
 
     name = factory.Sequence(lambda n: 'network%s' % n)
@@ -362,7 +362,7 @@ class NetworkFactory(factory.DjangoModelFactory):
 
 
 class SubNetFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SubNet
 
     name = factory.Sequence(lambda n: 'subnet%s' % n)
@@ -374,7 +374,7 @@ class SubNetFactory(factory.DjangoModelFactory):
     def get_url(cls, subnet=None):
         if subnet is None:
             subnet = SubNetFactory()
-        return 'http://testserver' + reverse('openstacktenant-subnet-detail', kwargs={'uuid': subnet.uuid})
+        return 'http://testserver' + reverse('openstacktenant-subnet-detail', kwargs={'uuid': subnet.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -382,7 +382,7 @@ class SubNetFactory(factory.DjangoModelFactory):
 
 
 class InternalIPFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InternalIP
 
     backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
@@ -392,7 +392,7 @@ class InternalIPFactory(factory.DjangoModelFactory):
 
 
 class VolumeTypeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VolumeType
 
     name = factory.Sequence(lambda n: 'volume_type_%s' % n)
@@ -403,7 +403,7 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
     def get_url(cls, volume_type=None):
         if volume_type is None:
             volume_type = VolumeTypeFactory()
-        return 'http://testserver' + reverse('openstacktenant-volume-type-detail', kwargs={'uuid': volume_type.uuid})
+        return 'http://testserver' + reverse('openstacktenant-volume-type-detail', kwargs={'uuid': volume_type.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -411,7 +411,7 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
 
 
 class VolumeAvailabilityZoneFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VolumeAvailabilityZone
 
     name = factory.Sequence(lambda n: 'volume_availability_zone_%s' % n)
@@ -422,7 +422,7 @@ class VolumeAvailabilityZoneFactory(factory.DjangoModelFactory):
         if volume_availability_zone is None:
             volume_availability_zone = VolumeAvailabilityZoneFactory()
         return 'http://testserver' + reverse('openstacktenant-volume-availability-zone-detail',
-                                             kwargs={'uuid': volume_availability_zone.uuid})
+                                             kwargs={'uuid': volume_availability_zone.uuid.hex})
 
     @classmethod
     def get_list_url(cls):

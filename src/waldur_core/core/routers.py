@@ -21,7 +21,7 @@ class SortedDefaultRouter(DefaultRouter):
 
         class APIRootView(views.APIView):
             _ignore_model_permissions = True
-            exclude_from_schema = True
+            schema = None
 
             def get(self, request, *args, **kwargs):
                 # Return a plain {"name": "hyperlink"} response.
@@ -46,7 +46,7 @@ class SortedDefaultRouter(DefaultRouter):
 
         return APIRootView.as_view()
 
-    def get_default_base_name(self, viewset):
+    def get_default_basename(self, viewset):
         """
         Attempt to automatically determine base name using `get_url_name`.
         """
@@ -57,7 +57,7 @@ class SortedDefaultRouter(DefaultRouter):
             if get_url_name is not None:
                 return get_url_name()
 
-        return super(SortedDefaultRouter, self).get_default_base_name(viewset)
+        return super(SortedDefaultRouter, self).get_default_basename(viewset)
 
     def get_method_map(self, viewset, method_map):
         # head method is not included by default

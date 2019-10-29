@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from rest_framework import test, status
 
 from waldur_core.structure.tests import factories as structure_factories

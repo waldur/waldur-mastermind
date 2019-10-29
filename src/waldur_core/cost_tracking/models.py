@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import datetime
 import logging
 
@@ -10,12 +8,10 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
-import six
 
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
@@ -32,7 +28,6 @@ class EstimateUpdateError(Exception):
     pass
 
 
-@python_2_unicode_compatible
 class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.DescendantMixin):
     """ Store prices based on both estimates and actual consumption.
 
@@ -43,7 +38,7 @@ class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.Descendant
         Only resource node has actual data.
         Another ones should be re-calculated on every change of resource estimate.
     """
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
     details = JSONField(default=dict, help_text=_('Saved scope details. Field is populated on scope deletion.'))
@@ -189,7 +184,7 @@ class PriceEstimate(LoggableMixin, core_models.UuidMixin, core_models.Descendant
         if self.scope:
             if isinstance(self.scope, (structure_models.ServiceProjectLink, structure_models.Service)):
                 # We need to display some meaningful name for SPL.
-                return six.text_type(self.scope)
+                return str(self.scope)
             else:
                 return self.scope.name
         else:
@@ -273,7 +268,7 @@ class ConsumptionDetails(core_models.UuidMixin, TimeStampedModel):
         Warning! Use method "update_configuration" to update configurations,
         do not update them manually.
     """
-    price_estimate = models.OneToOneField(PriceEstimate, related_name='consumption_details')
+    price_estimate = models.OneToOneField(PriceEstimate, related_name='consumption_details', on_delete=models.CASCADE)
     configuration = ConsumableItemsField(default=dict, help_text=_('Current resource configuration.'))
     last_update_time = models.DateTimeField(help_text=_('Last configuration change time.'))
     consumed_before_update = ConsumableItemsField(
@@ -350,7 +345,6 @@ class AbstractPriceListItem(models.Model):
         return float(self.value) / 60
 
 
-@python_2_unicode_compatible
 class DefaultPriceListItem(core_models.UuidMixin, core_models.NameMixin, AbstractPriceListItem):
     """
     Default price list item for all resources of supported service types.
@@ -361,7 +355,7 @@ class DefaultPriceListItem(core_models.UuidMixin, core_models.NameMixin, Abstrac
     item_type = models.CharField(max_length=255, help_text=_('Type of price list item. Examples: storage, flavor.'))
     key = models.CharField(
         max_length=255, help_text=_('Key that corresponds particular consumable. Example: name of flavor.'))
-    resource_content_type = models.ForeignKey(ContentType, default=None)
+    resource_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, default=None)
     tracker = FieldTracker()
 
     def __str__(self):
@@ -419,11 +413,11 @@ class PriceListItem(core_models.UuidMixin, AbstractPriceListItem):
     It is entered manually by customer owner.
     """
     # Generic key to service
-    content_type = models.ForeignKey(ContentType)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType)
     object_id = models.PositiveIntegerField()
     service = GenericForeignKey('content_type', 'object_id')
     objects = managers.PriceListItemManager('service')
-    default_price_list_item = models.ForeignKey(DefaultPriceListItem)
+    default_price_list_item = models.ForeignKey(on_delete=models.CASCADE, to=DefaultPriceListItem)
 
     class Meta:
         unique_together = ('content_type', 'object_id', 'default_price_list_item')

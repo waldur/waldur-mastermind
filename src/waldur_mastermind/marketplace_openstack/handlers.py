@@ -307,8 +307,12 @@ def import_instance_metadata(vm):
 
 
 def synchronize_internal_ips_on_delete(sender, instance, **kwargs):
-    if hasattr(instance, 'instance'):
-        import_instance_metadata(instance.instance)
+    try:
+        vm = instance.instance
+    except ObjectDoesNotExist:
+        pass
+    else:
+        import_instance_metadata(vm)
 
 
 def synchronize_floating_ips_on_delete(sender, instance, **kwargs):

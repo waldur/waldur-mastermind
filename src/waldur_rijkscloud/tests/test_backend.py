@@ -1,8 +1,6 @@
-from __future__ import unicode_literals
-
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import test
-from six.moves import mock
+from unittest import mock
 
 from . import factories, fixtures
 from .. import models

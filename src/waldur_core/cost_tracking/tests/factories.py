@@ -8,7 +8,7 @@ from waldur_core.structure.tests import models as test_models
 
 
 class PriceEstimateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PriceEstimate
 
     scope = factory.SubFactory(structure_factories.ProjectFactory)
@@ -25,7 +25,7 @@ class PriceEstimateFactory(factory.DjangoModelFactory):
     def get_url(cls, price_estimate, action=None):
         if price_estimate is None:
             price_estimate = PriceEstimateFactory()
-        url = 'http://testserver' + reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid})
+        url = 'http://testserver' + reverse('priceestimate-detail', kwargs={'uuid': price_estimate.uuid.hex})
         return url if action is None else url + action + '/'
 
 
@@ -37,7 +37,7 @@ class ConsumptionDetailsFactory(factory.DjangoModelFactory):
 
 
 class AbstractPriceListItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AbstractPriceListItem
         abstract = True
 
@@ -46,7 +46,7 @@ class AbstractPriceListItemFactory(factory.DjangoModelFactory):
 
 
 class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
-    class Meta(object):
+    class Meta:
         model = models.DefaultPriceListItem
 
     resource_content_type = factory.LazyAttribute(
@@ -64,12 +64,12 @@ class DefaultPriceListItemFactory(AbstractPriceListItemFactory):
         if default_price_list_item is None:
             default_price_list_item = DefaultPriceListItemFactory()
         url = 'http://testserver' + reverse(
-            'defaultpricelistitem-detail', kwargs={'uuid': default_price_list_item.uuid})
+            'defaultpricelistitem-detail', kwargs={'uuid': default_price_list_item.uuid.hex})
         return url if action is None else url + action + '/'
 
 
 class PriceListItemFactory(AbstractPriceListItemFactory):
-    class Meta(object):
+    class Meta:
         model = models.PriceListItem
 
     service = factory.SubFactory(structure_factories.TestServiceFactory)
@@ -83,14 +83,14 @@ class PriceListItemFactory(AbstractPriceListItemFactory):
     def get_url(cls, price_list_item, action=None):
         if price_list_item is None:
             price_list_item = PriceListItemFactory()
-        url = 'http://testserver' + reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid})
+        url = 'http://testserver' + reverse('pricelistitem-detail', kwargs={'uuid': price_list_item.uuid.hex})
         return url if action is None else url + action + '/'
 
 
 class TestNewInstanceCostTrackingStrategy(CostTrackingStrategy):
     resource_class = test_models.TestNewInstance
 
-    class Types(object):
+    class Types:
         STORAGE = 'storage'
         RAM = 'ram'
         CORES = 'cores'

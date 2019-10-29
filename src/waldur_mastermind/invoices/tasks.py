@@ -1,7 +1,6 @@
-from __future__ import unicode_literals
-
 import base64
-import cStringIO
+from csv import DictWriter
+from io import StringIO
 import logging
 
 from celery import shared_task, chain
@@ -11,7 +10,6 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.csv import UnicodeDictWriter
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 
@@ -81,7 +79,7 @@ def send_invoice_notification(invoice_uuid):
     attachment = None
     content_type = None
 
-    if invoice.file:
+    if invoice._file:
         filename = '%s_%s_%s.pdf' % (settings.WALDUR_CORE['SITE_NAME'].replace(' ', '_'),
                                      invoice.year, invoice.month)
         attachment = base64.b64decode(invoice._file)
@@ -135,8 +133,8 @@ def format_invoice_csv(invoices):
 
     if settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
         fields = serializers.SAFReportSerializer.Meta.fields
-        stream = cStringIO.StringIO()
-        writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
+        stream = StringIO()
+        writer = DictWriter(stream, fieldnames=fields, **csv_params)
         writer.writeheader()
 
         for invoice in invoices:
@@ -144,20 +142,20 @@ def format_invoice_csv(invoices):
             items = utils.filter_invoice_items(items)
             serializer = serializers.SAFReportSerializer(items, many=True)
             writer.writerows(serializer.data)
-        return stream.getvalue().decode('utf-8')
+        return stream.getvalue()
 
     fields = serializers.InvoiceItemReportSerializer.Meta.fields
-    stream = cStringIO.StringIO()
-    writer = UnicodeDictWriter(stream, fieldnames=fields, **csv_params)
+    stream = StringIO()
+    writer = DictWriter(stream, fieldnames=fields, **csv_params)
     writer.writeheader()
 
     for invoice in invoices:
         items = invoice.items
         items = utils.filter_invoice_items(items)
-        serializer = serializers.GenericItemReportSerializer(items, many=True)
+        serializer = serializers.InvoiceItemReportSerializer(items, many=True)
         writer.writerows(serializer.data)
 
-    return stream.getvalue().decode('utf-8')
+    return stream.getvalue()
 
 
 @shared_task(name='invoices.update_invoices_current_cost')

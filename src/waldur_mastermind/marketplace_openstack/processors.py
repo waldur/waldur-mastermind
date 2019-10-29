@@ -35,7 +35,7 @@ class PackageCreateProcessor(processors.CreateResourceProcessor):
 
         project = order_item.order.project
 
-        project_url = reverse('project-detail', kwargs={'uuid': project.uuid})
+        project_url = reverse('project-detail', kwargs={'uuid': project.uuid.hex})
         spl_url = processors.get_spl_url(openstack_models.OpenStackServiceProjectLink, order_item)
 
         fields = (

@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from rest_framework import test
 
 from waldur_vmware.tests.utils import override_plugin_settings

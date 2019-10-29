@@ -7,7 +7,7 @@ from .exceptions import RancherException
 logger = logging.getLogger(__name__)
 
 
-class RancherClient(object):
+class RancherClient:
     """
     Rancher API client.
     See also: https://rancher.com/docs/rancher/v2.x/en/api/

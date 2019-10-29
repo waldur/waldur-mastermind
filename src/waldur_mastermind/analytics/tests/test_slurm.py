@@ -5,6 +5,10 @@ from waldur_slurm.tests import fixtures
 from .. import slurm
 
 
+def sort(xs):
+    return sorted(xs, key=lambda x: x['measurement'])
+
+
 class SlurmAnalyticsTest(TestCase):
     def test_total_usage_for_cpu_gpu_ram_is_aggregated(self):
         allocation1 = fixtures.SlurmFixture().allocation
@@ -21,15 +25,15 @@ class SlurmAnalyticsTest(TestCase):
 
         expected_points = [
             {
-                'measurement': 'slurm_ram_usage',
-                'fields': {
-                    'value': 12000,
-                }
-            },
-            {
                 'measurement': 'slurm_cpu_usage',
                 'fields': {
                     'value': 600,
+                }
+            },
+            {
+                'measurement': 'slurm_ram_usage',
+                'fields': {
+                    'value': 12000,
                 }
             },
             {
@@ -39,7 +43,7 @@ class SlurmAnalyticsTest(TestCase):
                 }
             },
         ]
-        self.assertItemsEqual(slurm.get_usage(), expected_points)
+        self.assertEquals(sort(slurm.get_usage()), sort(expected_points))
 
     def test_if_there_are_no_allocations_empty_list_is_returned(self):
         self.assertEqual(slurm.get_usage(), [])

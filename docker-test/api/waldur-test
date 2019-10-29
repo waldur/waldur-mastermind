@@ -15,7 +15,7 @@ rsync \
 
 echo '[+] Installing Python package under test'
 cd /tmp/mnt
-pip --cache-dir=/root/.cache/pip/ install --editable .[test]
+pip3 --cache-dir=/root/.cache/pip/ install --editable .[test]
 
 echo '[+] Copying pip cache from guest to host'
 rsync \
@@ -29,7 +29,7 @@ rsync \
 chown -R user:user /tmp/pip-cache
 
 echo '[+] Running Python linter'
-flake8 --ignore E501 --exclude=*migrations* src/
+python3 -m flake8 --ignore E501 --exclude=*migrations* src/
 
 echo '[+] Running security tests'
 bandit --ini .bandit -x tests -r src/

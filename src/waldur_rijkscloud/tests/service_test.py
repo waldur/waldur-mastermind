@@ -1,5 +1,5 @@
 from rest_framework import status, test
-from six.moves import mock
+from unittest import mock
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_core.structure.tests import factories as structure_factories

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from datetime import datetime
 import logging
 import re
@@ -10,7 +8,6 @@ from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import serialization
 from django.apps import apps
 from django.conf import settings
-from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
@@ -18,7 +15,7 @@ from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.db import models
 from django.utils import timezone as django_timezone
-from django.utils.encoding import force_text, python_2_unicode_compatible
+from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
@@ -26,11 +23,12 @@ from model_utils import FieldTracker
 import pytz
 from reversion import revisions as reversion
 from reversion.models import Version
-import six
 
 from waldur_core.core.fields import CronScheduleField, UUIDField
 from waldur_core.core.validators import validate_name, MinCronValueValidator
 from waldur_core.logging.loggers import LoggableMixin
+
+from .shims import AbstractBaseUser
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +37,7 @@ class DescribableMixin(models.Model):
     """
     Mixin to add a standardized "description" field.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     description = models.CharField(_('description'), max_length=500, blank=True)
@@ -50,7 +48,7 @@ class NameMixin(models.Model):
     Mixin to add a standardized "name" field.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     name = models.CharField(_('name'), max_length=150, validators=[validate_name])
@@ -60,7 +58,7 @@ class UiDescribableMixin(DescribableMixin):
     """
     Mixin to add a standardized "description" and "icon url" fields.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     icon_url = models.URLField(_('icon url'), blank=True)
@@ -70,7 +68,7 @@ class UuidMixin(models.Model):
     """
     Mixin to identify models by UUID.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     uuid = UUIDField()
@@ -80,7 +78,7 @@ class ErrorMessageMixin(models.Model):
     """
     Mixin to add a standardized "error_message" field.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     error_message = models.TextField(blank=True)
@@ -90,7 +88,7 @@ class CoordinatesMixin(models.Model):
     """
     Mixin to add a latitude and longitude fields
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     latitude = models.FloatField(null=True, blank=True)
@@ -101,7 +99,7 @@ class ScheduleMixin(models.Model):
     """
     Mixin to add a standardized "schedule" fields.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     schedule = CronScheduleField(max_length=15, validators=[MinCronValueValidator(1)])
@@ -141,7 +139,7 @@ class UserDetailsMixin(models.Model):
     Note that civil_number and email fields are not included in this mixin
     because they have different constraints in User and Invitation model.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
     full_name = models.CharField(_('full name'), max_length=100, blank=True)
@@ -151,14 +149,13 @@ class UserDetailsMixin(models.Model):
     job_title = models.CharField(_('job title'), max_length=40, blank=True)
 
 
-@python_2_unicode_compatible
 class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDetailsMixin, PermissionsMixin):
     username = models.CharField(
         _('username'), max_length=128, unique=True,
         help_text=_('Required. 128 characters or fewer. Letters, numbers and '
                     '@/./+/-/_ characters'),
         validators=[
-            validators.RegexValidator(re.compile('^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
+            validators.RegexValidator(re.compile(r'^[\w.@+-]+$'), _('Enter a valid username.'), 'invalid')
         ])
     # Civil number is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
@@ -193,7 +190,7 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('user')
         verbose_name_plural = _('users')
 
@@ -238,7 +235,7 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
 
 
 def validate_ssh_public_key(ssh_key):
-    if isinstance(ssh_key, six.text_type):
+    if isinstance(ssh_key, str):
         ssh_key = ssh_key.encode('utf-8')
 
     try:
@@ -260,14 +257,13 @@ def get_ssh_key_fingerprint(ssh_key):
     return ':'.join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
 
 
-@python_2_unicode_compatible
 class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     """
     User public key.
 
     Used for injection into VMs for remote access.
     """
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, db_index=True)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True)
     # Model doesn't inherit NameMixin, because name field can be blank.
     name = models.CharField(max_length=150, blank=True)
     fingerprint = models.CharField(max_length=47)  # In ideal world should be unique
@@ -276,7 +272,7 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     )
     is_shared = models.BooleanField(default=False)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('user', 'name')
         verbose_name = _('SSH public key')
         verbose_name_plural = _('SSH public keys')
@@ -300,11 +296,11 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
 
 class RuntimeStateMixin(models.Model):
     """ Provide runtime_state field """
-    class RuntimeStates(object):
+    class RuntimeStates:
         ONLINE = 'online'
         OFFLINE = 'offline'
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     runtime_state = models.CharField(_('runtime state'), max_length=150, blank=True)
@@ -319,7 +315,7 @@ class RuntimeStateMixin(models.Model):
 
 
 class StateMixin(ErrorMessageMixin):
-    class States(object):
+    class States:
         CREATION_SCHEDULED = 5
         CREATING = 6
         UPDATE_SCHEDULED = 1
@@ -340,7 +336,7 @@ class StateMixin(ErrorMessageMixin):
             (ERRED, 'Erred'),
         )
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     state = FSMIntegerField(
@@ -391,7 +387,7 @@ class StateMixin(ErrorMessageMixin):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
-class ReversionMixin(object):
+class ReversionMixin:
     """ Store historical values of instance, using django-reversion.
 
         Note: `ReversionMixin` model should be registered in django-reversion,
@@ -430,7 +426,7 @@ class ReversionMixin(object):
 
 
 # XXX: consider renaming it to AffinityMixin
-class DescendantMixin(object):
+class DescendantMixin:
     """ Mixin to provide child-parent relationships.
         Each related model can provide list of its parents/children.
     """
@@ -476,7 +472,7 @@ class AbstractFieldTracker(FieldTracker):
             super(AbstractFieldTracker, self).finalize_class(sender, **kwargs)
 
 
-class BackendModelMixin(object):
+class BackendModelMixin:
     """
     Represents model that is connected to backend object.
 

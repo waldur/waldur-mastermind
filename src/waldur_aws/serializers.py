@@ -41,7 +41,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
 class RegionSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Region
         fields = ('url', 'uuid', 'name')
         extra_kwargs = {
@@ -51,7 +51,7 @@ class RegionSerializer(structure_serializers.BasePropertySerializer):
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Image
         fields = ('url', 'uuid', 'name', 'region')
         extra_kwargs = {
@@ -63,7 +63,7 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
 
 class SizeSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Size
         fields = ('url', 'uuid', 'name', 'cores', 'ram', 'disk', 'regions', 'description')
         extra_kwargs = {
@@ -85,7 +85,7 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
-class AWSImportSerializerMixin(object):
+class AWSImportSerializerMixin:
     def get_fields(self):
         from waldur_core.structure import SupportedServices
         fields = super(AWSImportSerializerMixin, self).get_fields()

@@ -1,6 +1,6 @@
 import factory
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -14,7 +14,7 @@ class JiraServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class JiraServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JiraService
 
     settings = factory.SubFactory(JiraServiceSettingsFactory)
@@ -24,7 +24,7 @@ class JiraServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None):
         if service is None:
             service = JiraServiceFactory()
-        return 'http://testserver' + reverse('jira-detail', kwargs={'uuid': service.uuid})
+        return 'http://testserver' + reverse('jira-detail', kwargs={'uuid': service.uuid.hex})
 
     @classmethod
     def get_list_url(cls):
@@ -32,7 +32,7 @@ class JiraServiceFactory(factory.DjangoModelFactory):
 
 
 class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.JiraServiceProjectLink
 
     service = factory.SubFactory(JiraServiceFactory)
@@ -51,7 +51,7 @@ class JiraServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class ProjectTemplateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ProjectTemplate
 
     name = factory.Sequence(lambda n: 'template-%s' % n)
@@ -61,7 +61,7 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectTemplateFactory()
-        url = 'http://testserver' + reverse('jira-project-templates-detail', kwargs={'uuid': project.uuid})
+        url = 'http://testserver' + reverse('jira-project-templates-detail', kwargs={'uuid': project.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -70,7 +70,7 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
 
 
 class ProjectFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Project
 
     backend_id = factory.Sequence(lambda n: 'PRJ-%s' % n)
@@ -83,7 +83,7 @@ class ProjectFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectFactory()
-        url = 'http://testserver' + reverse('jira-projects-detail', kwargs={'uuid': project.uuid})
+        url = 'http://testserver' + reverse('jira-projects-detail', kwargs={'uuid': project.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -93,7 +93,7 @@ class ProjectFactory(factory.DjangoModelFactory):
 
 
 class IssueTypeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.IssueType
 
     settings = factory.SubFactory(JiraServiceSettingsFactory)
@@ -105,7 +105,7 @@ class IssueTypeFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueTypeFactory()
-        url = 'http://testserver' + reverse('jira-issue-types-detail', kwargs={'uuid': issue.uuid})
+        url = 'http://testserver' + reverse('jira-issue-types-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -114,7 +114,7 @@ class IssueTypeFactory(factory.DjangoModelFactory):
 
 
 class PriorityFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Priority
 
     settings = factory.SubFactory(JiraServiceSettingsFactory)
@@ -126,7 +126,7 @@ class PriorityFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = PriorityFactory()
-        url = 'http://testserver' + reverse('jira-priorities-detail', kwargs={'uuid': issue.uuid})
+        url = 'http://testserver' + reverse('jira-priorities-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -135,7 +135,7 @@ class PriorityFactory(factory.DjangoModelFactory):
 
 
 class IssueFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Issue
 
     type = factory.SubFactory(IssueTypeFactory)
@@ -152,7 +152,7 @@ class IssueFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueFactory()
-        url = 'http://testserver' + reverse('jira-issues-detail', kwargs={'uuid': issue.uuid})
+        url = 'http://testserver' + reverse('jira-issues-detail', kwargs={'uuid': issue.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -161,7 +161,7 @@ class IssueFactory(factory.DjangoModelFactory):
 
 
 class CommentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Comment
 
     issue = factory.SubFactory(IssueFactory)
@@ -171,7 +171,7 @@ class CommentFactory(factory.DjangoModelFactory):
     def get_url(cls, comment=None, action=None):
         if comment is None:
             comment = CommentFactory()
-        url = 'http://testserver' + reverse('jira-comments-detail', kwargs={'uuid': comment.uuid})
+        url = 'http://testserver' + reverse('jira-comments-detail', kwargs={'uuid': comment.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

@@ -6,7 +6,6 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from rest_framework import status
 from rest_framework.test import APIClient
-import six
 
 User = get_user_model()
 
@@ -44,7 +43,7 @@ class Command(BaseCommand):
 
         data = json.loads(response.content)
         if options['output'] is None:
-            self.stdout.write(six.text_type(data))
+            self.stdout.write(str(data))
         else:
             with open(options['output'], 'w') as output_file:
                 json.dump(data, output_file)

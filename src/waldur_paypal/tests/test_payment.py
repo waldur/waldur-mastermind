@@ -1,5 +1,5 @@
 import decimal
-import mock
+from unittest import mock
 
 from rest_framework import test, status
 

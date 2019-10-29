@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 
 import requests
@@ -39,7 +37,7 @@ class AlertThresholdMixin(models.Model):
     It is expected that model has scope field.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     threshold = models.FloatField(default=0, validators=[validators.MinValueValidator(0)])
@@ -69,7 +67,7 @@ class EventTypesMixin(models.Model):
     Mixin to add a event_types and event_groups fields.
     """
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     event_types = BetterJSONField('List of event types')
@@ -85,7 +83,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
     class Meta:
         abstract = True
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL)
     is_active = models.BooleanField(default=True)
 
     # This timestamp would be updated periodically when event is sent via this hook
@@ -121,7 +119,7 @@ class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
 
 
 class WebHook(BaseHook):
-    class ContentTypeChoices(object):
+    class ContentTypeChoices:
         JSON = 1
         FORM = 2
         CHOICES = ((JSON, 'json'), (FORM, 'form'))
@@ -226,7 +224,7 @@ class EmailHook(BaseHook):
 class SystemNotification(EventTypesMixin, models.Model):
     # Model doesn't inherit NameMixin, because this is circular dependence.
     name = models.CharField(_('name'), max_length=150)
-    hook_content_type = models.ForeignKey(ct_models.ContentType, related_name='+')
+    hook_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType, related_name='+')
     roles = JSONField('List of roles', default=list)
 
     @staticmethod
@@ -277,7 +275,7 @@ class SystemNotification(EventTypesMixin, models.Model):
 
 
 class Report(UuidMixin, TimeStampedModel):
-    class States(object):
+    class States:
         PENDING = 'pending'
         DONE = 'done'
         ERRED = 'erred'
@@ -300,7 +298,7 @@ class Event(UuidMixin):
     message = models.TextField()
     context = BetterJSONField(blank=True)
 
-    class Meta(object):
+    class Meta:
         ordering = ('-created',)
 
 
@@ -309,8 +307,8 @@ class FeedManager(GenericKeyMixin, models.Manager):
 
 
 class Feed(models.Model):
-    event = models.ForeignKey(Event)
-    content_type = models.ForeignKey(ct_models.ContentType, db_index=True)
+    event = models.ForeignKey(on_delete=models.CASCADE, to=Event)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType, db_index=True)
     object_id = models.PositiveIntegerField(db_index=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
     objects = FeedManager()

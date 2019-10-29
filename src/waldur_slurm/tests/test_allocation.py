@@ -1,7 +1,5 @@
-from __future__ import unicode_literals
-
 from ddt import ddt, data
-import mock
+from unittest import mock
 from rest_framework import status, test
 
 from waldur_freeipa import models as freeipa_models

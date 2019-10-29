@@ -1,9 +1,7 @@
-from __future__ import unicode_literals, division
-
-import StringIO
 import base64
 from datetime import timedelta
 import decimal
+from io import BytesIO
 import logging
 from calendar import monthrange
 
@@ -17,7 +15,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
@@ -38,17 +35,16 @@ logger = logging.getLogger(__name__)
 Units = common_mixins.UnitPriceMixin.Units
 
 
-@python_2_unicode_compatible
 class Invoice(core_models.UuidMixin, models.Model):
     """ Invoice describes billing information about purchased resources for customers on a monthly basis """
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class Meta(object):
+    class Meta:
         unique_together = ('customer', 'month', 'year')
 
-    class States(object):
+    class States:
         PENDING = 'pending'
         CREATED = 'created'
         PAID = 'paid'
@@ -136,7 +132,7 @@ class Invoice(core_models.UuidMixin, models.Model):
             return
 
         content = base64.b64decode(self._file)
-        return StringIO.StringIO(content)
+        return BytesIO(content)
 
     @file.setter
     def file(self, value):
@@ -152,14 +148,13 @@ class Invoice(core_models.UuidMixin, models.Model):
         return '%s | %s-%s' % (self.customer, self.year, self.month)
 
 
-@python_2_unicode_compatible
 class InvoiceItem(common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin):
     """
     It is expected that get_scope_type method is defined as class method in scope class
     as it is used in generic invoice item serializer.
     """
-    invoice = models.ForeignKey(Invoice, related_name='generic_items')
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    invoice = models.ForeignKey(on_delete=models.CASCADE, to=Invoice, related_name='generic_items')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     quantity = models.PositiveIntegerField(default=0)
 
@@ -295,7 +290,7 @@ class ServiceDowntime(models.Model):
         default=timezone.now,
         help_text=_('Date and time when downtime has ended.')
     )
-    package = models.ForeignKey(package_models.OpenStackPackage)
+    package = models.ForeignKey(on_delete=models.CASCADE, to=package_models.OpenStackPackage)
 
     def clean(self):
         self._validate_duration()
@@ -340,7 +335,7 @@ class ServiceDowntime(models.Model):
             )
 
 
-class InvoiceItemAdjuster(object):
+class InvoiceItemAdjuster:
     def __init__(self, invoice, source, start, unit_price, unit):
         self.invoice = invoice
         self.source = source

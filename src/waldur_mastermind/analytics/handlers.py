@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.utils import timezone
 
 from waldur_core.structure import models as structure_models

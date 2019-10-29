@@ -47,7 +47,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
             for value in [start, end]:
                 match = datetime_re.match(value)
                 kw = match.groupdict()
-                if filter(lambda x: not kw[x], ['hour', 'month', 'second', 'year', 'tzinfo', 'day', 'minute']):
+                if list(filter(lambda x: not kw[x], ['hour', 'month', 'second', 'year', 'tzinfo', 'day', 'minute'])):
                     raise ValidationError(_('The value %s does not match the format.') % value)
 
         # Check that the schedule is available for the offering.

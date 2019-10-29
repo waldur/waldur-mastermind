@@ -1,5 +1,6 @@
+from unittest import mock
+
 from rest_framework import test
-from six.moves import mock
 
 from waldur_core.core import filters as core_filters
 
@@ -13,7 +14,7 @@ class TestUrlFilter(test.APITransactionTestCase):
 
         self.customer_filter = core_filters.URLFilter(
             view_name='customer-detail',
-            name='customer__uuid'
+            field_name='customer__uuid'
         )
 
     def test_filter_checks_that_url_matches_view(self):

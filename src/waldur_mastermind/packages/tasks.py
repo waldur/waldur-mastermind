@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import transaction
 
 from waldur_core.core import tasks as core_tasks, utils as core_utils

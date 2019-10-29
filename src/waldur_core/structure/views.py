@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 import time
 from collections import defaultdict
@@ -16,11 +14,10 @@ from rest_framework import filters as rf_filters
 from rest_framework import mixins, views, viewsets, status
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
-from rest_framework.decorators import detail_route, list_route
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, NotFound, APIException, ValidationError
 from rest_framework.response import Response
 from reversion.models import Version
-import six
 
 from waldur_core.core import managers as core_managers
 from waldur_core.core import mixins as core_mixins
@@ -64,7 +61,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
         'native_name',
         'registration_code',
     )
-    filter_class = filters.CustomerFilter
+    filterset_class = filters.CustomerFilter
 
     def list(self, request, *args, **kwargs):
         """
@@ -201,7 +198,7 @@ class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
 
         return super(CustomerViewSet, self).perform_destroy(instance)
 
-    @detail_route(filter_backends=[filters.GenericRoleFilter])
+    @action(detail=True, filter_backends=[filters.GenericRoleFilter])
     def users(self, request, uuid=None):
         """ A list of users connected to the customer. """
         customer = self.get_object()
@@ -219,7 +216,7 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.ProjectTypeSerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.ProjectTypeFilter
+    filterset_class = filters.ProjectTypeFilter
 
 
 class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
@@ -231,7 +228,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
         filters.CustomerAccountingStartDateFilter,
     )
-    filter_class = filters.ProjectFilter
+    filterset_class = filters.ProjectFilter
     destroy_validators = partial_update_validators = [utils.check_customer_blocked]
 
     def get_serializer_context(self):
@@ -355,7 +352,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         super(ProjectViewSet, self).perform_create(serializer)
 
-    @detail_route(filter_backends=[filters.GenericRoleFilter])
+    @action(detail=True, filter_backends=[filters.GenericRoleFilter])
     def users(self, request, uuid=None):
         """ A list of users connected to the project """
         project = self.get_object()
@@ -369,7 +366,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
     users_serializer_class = serializers.ProjectUserSerializer
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def update_certifications(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -397,7 +394,7 @@ class UserViewSet(viewsets.ModelViewSet):
         filters.UserFilterBackend,
         DjangoFilterBackend,
     )
-    filter_class = filters.UserFilter
+    filterset_class = filters.UserFilter
 
     def list(self, request, *args, **kwargs):
         """
@@ -474,7 +471,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         return super(UserViewSet, self).retrieve(request, *args, **kwargs)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def password(self, request, uuid=None):
         """
         To change a user password, submit a **POST** request to the user's RPC URL, specifying new password
@@ -595,7 +592,7 @@ class ProjectPermissionViewSet(BasePermissionViewSet):
     queryset = models.ProjectPermission.objects.filter(is_active=True).order_by('-created')
     serializer_class = serializers.ProjectPermissionSerializer
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.ProjectPermissionFilter
+    filterset_class = filters.ProjectPermissionFilter
     scope_field = 'project'
     quota_scope_field = 'customer'
 
@@ -648,7 +645,7 @@ class ProjectPermissionLogViewSet(mixins.RetrieveModelMixin,
     queryset = models.ProjectPermission.objects.filter(is_active=None)
     serializer_class = serializers.ProjectPermissionLogSerializer
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.ProjectPermissionFilter
+    filterset_class = filters.ProjectPermissionFilter
 
 
 class CustomerPermissionViewSet(BasePermissionViewSet):
@@ -662,7 +659,7 @@ class CustomerPermissionViewSet(BasePermissionViewSet):
     """
     queryset = models.CustomerPermission.objects.filter(is_active=True).order_by('-created')
     serializer_class = serializers.CustomerPermissionSerializer
-    filter_class = filters.CustomerPermissionFilter
+    filterset_class = filters.CustomerPermissionFilter
     scope_field = 'customer'
 
     def get_queryset(self):
@@ -722,7 +719,7 @@ class CustomerPermissionLogViewSet(mixins.RetrieveModelMixin,
     queryset = models.CustomerPermission.objects.filter(is_active=None)
     serializer_class = serializers.CustomerPermissionLogSerializer
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.CustomerPermissionFilter
+    filterset_class = filters.CustomerPermissionFilter
 
 
 class CreationTimeStatsView(views.APIView):
@@ -789,7 +786,7 @@ class SshKeyViewSet(mixins.CreateModelMixin,
     serializer_class = serializers.SshKeySerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.SshKeyFilter
+    filterset_class = filters.SshKeyFilter
 
     def get_queryset(self):
         queryset = super(SshKeyViewSet, self).get_queryset()
@@ -846,7 +843,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend,
                        filters.ServiceSettingsScopeFilterBackend,
                        rf_filters.OrderingFilter)
-    filter_class = filters.ServiceSettingsFilter
+    filterset_class = filters.ServiceSettingsFilter
     lookup_field = 'uuid'
     ordering_fields = ('type', 'name', 'state',)
     disabled_actions = ['create', 'destroy']
@@ -903,7 +900,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
 
     update_validators = partial_update_validators = [utils.check_customer_blocked]
 
-    @detail_route()
+    @action(detail=True)
     def stats(self, request, uuid=None):
         """
         This endpoint returns allocation of resources for current service setting.
@@ -944,7 +941,7 @@ class ServiceSettingsViewSet(core_mixins.EagerLoadMixin,
 
         return Response(stats, status=status.HTTP_200_OK)
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def update_certifications(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
@@ -1120,7 +1117,7 @@ class ResourceSummaryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
         return super(ResourceSummaryViewSet, self).list(request, *args, **kwargs)
 
-    @list_route()
+    @action(detail=False)
     def count(self, request):
         """
         Count resources by type. Example output:
@@ -1344,7 +1341,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     serializer_class = NotImplemented
     import_serializer_class = NotImplemented
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.BaseServiceFilter
+    filterset_class = filters.BaseServiceFilter
     lookup_field = 'uuid'
     metadata_class = ActionsMetadata
     unsafe_methods_permissions = [permissions.is_owner, permissions.check_access_to_services_management]
@@ -1415,7 +1412,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
     def get_import_context(self):
         return {}
 
-    @detail_route()
+    @action(detail=True)
     def managed_resources(self, request, uuid=None):
         service = self.get_object()
         backend = self.get_backend(service)
@@ -1440,7 +1437,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         if obj.settings.shared and not request.user.is_staff:
             raise PermissionDenied(_('Only staff users are allowed to import resources from shared services.'))
 
-    @detail_route(methods=['get', 'post'])
+    @action(detail=True, methods=['get', 'post'])
     def link(self, request, uuid=None):
         """
         To get a list of resources available for import, run **GET** against */<service_endpoint>/link/*
@@ -1514,7 +1511,7 @@ class BaseServiceViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
         else:
             return service.get_backend()
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def unlink(self, request, uuid=None):
         """
         Unlink all related resources, service project link and service itself.
@@ -1536,7 +1533,7 @@ class BaseServiceProjectLinkViewSet(core_views.ActionsViewSet):
     queryset = NotImplemented
     serializer_class = NotImplemented
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.BaseServiceProjectLinkFilter
+    filterset_class = filters.BaseServiceProjectLinkFilter
     unsafe_methods_permissions = [permissions.is_owner]
     disabled_actions = ['update', 'partial_update']
 
@@ -1570,7 +1567,7 @@ class ResourceViewMetaclass(type):
 
 
 class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):
-    filter_class = filters.BaseServicePropertyFilter
+    filterset_class = filters.BaseServicePropertyFilter
 
 
 class AggregatedStatsView(views.APIView):
@@ -1696,7 +1693,7 @@ class QuotaTimelineStatsView(views.APIView):
         return ranges
 
 
-class QuotaTimelineCollector(object):
+class QuotaTimelineCollector:
     """
     Helper class for QuotaTimelineStatsView.
     Aggregate quotas grouped by date range and quota name.
@@ -1761,7 +1758,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     update_validators = partial_update_validators = [core_validators.StateValidator(models.NewResource.States.OK)]
     destroy_validators = [core_validators.StateValidator(models.NewResource.States.OK, models.NewResource.States.ERRED)]
 
-    @detail_route(methods=['post'])
+    @action(detail=True, methods=['post'])
     def pull(self, request, uuid=None):
         if self.pull_executor == NotImplemented:
             return Response({'detail': _('Pull operation is not implemented.')},
@@ -1776,7 +1773,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     ]
 
 
-class BaseResourceViewSet(six.with_metaclass(ResourceViewMetaclass, ResourceViewSet)):
+class BaseResourceViewSet(ResourceViewSet, metaclass=ResourceViewMetaclass):
     pass
 
 
@@ -1807,7 +1804,7 @@ class ImportableResourceViewSet(BaseResourceViewSet):
     """
     import_resource_executor = None
 
-    @list_route(methods=['get'])
+    @action(methods=['get'], detail=False)
     def importable_resources(self, request):
         serializer = self.get_serializer(data=request.GET)
         serializer.is_valid(raise_exception=True)
@@ -1822,7 +1819,7 @@ class ImportableResourceViewSet(BaseResourceViewSet):
 
         return Response(data=serializer.data, status=status.HTTP_200_OK)
 
-    @list_route(methods=['post'])
+    @action(methods=['post'], detail=False)
     def import_resource(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1854,4 +1851,4 @@ class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.DivisionSerializer
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.DivisionFilter
+    filterset_class = filters.DivisionFilter

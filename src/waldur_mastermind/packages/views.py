@@ -1,10 +1,8 @@
-from __future__ import unicode_literals
-
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import response, status
-from rest_framework.decorators import list_route
+from rest_framework.decorators import action
 
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters, permissions as structure_permissions
@@ -37,7 +35,7 @@ class OpenStackPackageViewSet(core_views.ActionsViewSet):
     create_serializer_class = serializers.OpenStackPackageCreateSerializer
     create_permissions = [structure_permissions.check_access_to_services_management]
 
-    @list_route(methods=['post'])
+    @action(detail=False, methods=['post'])
     def change(self, request, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

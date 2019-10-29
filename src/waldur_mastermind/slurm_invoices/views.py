@@ -12,4 +12,4 @@ class SlurmPackageViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend,)
-    filter_class = filters.SlurmPackageFilter
+    filterset_class = filters.SlurmPackageFilter

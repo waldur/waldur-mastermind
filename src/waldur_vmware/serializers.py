@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from rest_framework import serializers
 from django.utils.translation import ugettext_lazy as _
@@ -16,7 +14,7 @@ def get_int_or_none(options, key):
     if not value:
         return value
 
-    if isinstance(value, basestring):
+    if isinstance(value, str):
         try:
             return int(value)
         except ValueError:
@@ -82,7 +80,7 @@ class LimitSerializer(serializers.Serializer):
 
 
 class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Port
         fields = ('url', 'uuid', 'name', 'mac_address', 'network')
         read_only_fields = ('mac_address',)
@@ -93,7 +91,7 @@ class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Disk
         fields = ('url', 'uuid', 'size')
         extra_kwargs = {
@@ -103,7 +101,7 @@ class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
 
 class NestedNetworkSerializer(core_serializers.AugmentedSerializerMixin,
                               core_serializers.HyperlinkedRelatedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.Network
         fields = ('uuid', 'url', 'name', 'type')
         extra_kwargs = {
@@ -126,7 +124,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     guest_os = serializers.ChoiceField(
-        choices=constants.GUEST_OS_CHOICES.items(),
+        choices=list(constants.GUEST_OS_CHOICES.items()),
         required=False,
         allow_null=True,
     )

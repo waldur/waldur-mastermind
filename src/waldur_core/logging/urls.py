@@ -4,11 +4,11 @@ from waldur_core.logging import views
 
 
 def register_in(router):
-    router.register(r'events', views.EventViewSet, base_name='event')
-    router.register(r'hooks-web', views.WebHookViewSet, base_name='webhook')
-    router.register(r'hooks-push', views.PushHookViewSet, base_name='pushhook')
-    router.register(r'hooks-email', views.EmailHookViewSet, base_name='emailhook')
-    router.register(r'hooks', views.HookSummary, base_name='hooks')
+    router.register(r'events', views.EventViewSet, basename='event')
+    router.register(r'hooks-web', views.WebHookViewSet, basename='webhook')
+    router.register(r'hooks-push', views.PushHookViewSet, basename='pushhook')
+    router.register(r'hooks-email', views.EmailHookViewSet, basename='emailhook')
+    router.register(r'hooks', views.HookSummary, basename='hooks')
 
 
 events_count_history = views.EventViewSet.as_view({'get': 'count_history'})

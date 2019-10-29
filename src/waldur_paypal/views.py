@@ -19,7 +19,7 @@ class ExtensionDisabled(exceptions.APIException):
     default_detail = _('PayPal extension is disabled.')
 
 
-class CheckExtensionMixin(object):
+class CheckExtensionMixin:
     """ Raise exception if paypal extension is disabled """
 
     def initial(self, request, *args, **kwargs):
@@ -28,7 +28,7 @@ class CheckExtensionMixin(object):
         return super(CheckExtensionMixin, self).initial(request, *args, **kwargs)
 
 
-class CreateByStaffOrOwnerMixin(object):
+class CreateByStaffOrOwnerMixin:
 
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -44,7 +44,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
     queryset = models.Payment.objects.all()
     serializer_class = serializers.PaymentSerializer
     lookup_field = 'uuid'
-    filter_class = filters.PaymentFilter
+    filterset_class = filters.PaymentFilter
 
     def perform_create(self, serializer):
         """
@@ -104,7 +104,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
 
         return payment
 
-    @decorators.list_route(methods=['POST'])
+    @decorators.action(detail=False, methods=['POST'])
     def approve(self, request):
         """
         Approve Paypal payment.
@@ -145,7 +145,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
             payment.save()
             return response.Response({'detail': message}, status=status.HTTP_409_CONFLICT)
 
-    @decorators.list_route(methods=['POST'])
+    @decorators.action(detail=False, methods=['POST'])
     def cancel(self, request):
         """
         Cancel Paypal payment.
@@ -176,7 +176,7 @@ class InvoicesViewSet(CheckExtensionMixin, core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.all()
     serializer_class = serializers.InvoiceSerializer
     lookup_field = 'uuid'
-    filter_class = filters.InvoiceFilter
+    filterset_class = filters.InvoiceFilter
 
 
 class InvoiceWebHookViewSet(CheckExtensionMixin, views.APIView):

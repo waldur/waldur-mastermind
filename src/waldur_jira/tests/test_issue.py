@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from django.conf import settings
 from rest_framework import test, status
 
@@ -112,7 +112,7 @@ class IssueCreateBaseTest(BaseTest):
         self.jira_mock = self.jira_patcher.start()
         self.create_issue = self.jira_mock().create_issue
 
-        class Object(object):
+        class Object:
             pass
 
         mock_priority = Object()
@@ -338,8 +338,11 @@ class IssueFilterTest(BaseTest):
 
     def _get_response(self, sla_ttr_breached):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(factories.IssueFactory.get_list_url(), {
-            'sla_ttr_breached': sla_ttr_breached  # ttr - Time to resolution
-        })
+        if sla_ttr_breached is not None:
+            response = self.client.get(factories.IssueFactory.get_list_url(), {
+                'sla_ttr_breached': sla_ttr_breached  # ttr - Time to resolution
+            })
+        else:
+            response = self.client.get(factories.IssueFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         return response

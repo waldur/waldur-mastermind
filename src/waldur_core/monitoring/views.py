@@ -17,4 +17,4 @@ class ResourceSlaStateTransitionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.ResourceSlaStateTransitionSerializer
     permission_classes = (rf_permissions.IsAuthenticated,)
     filter_backends = (filters.ResourceScopeFilterBackend, DjangoFilterBackend)
-    filter_class = filters.ResourceStateFilter
+    filterset_class = filters.ResourceStateFilter

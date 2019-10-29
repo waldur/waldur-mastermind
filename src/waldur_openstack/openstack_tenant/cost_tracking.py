@@ -6,7 +6,7 @@ from . import models, utils, PriceItemTypes
 class InstanceStrategy(CostTrackingStrategy):
     resource_class = models.Instance
 
-    class Types(object):
+    class Types:
         FLAVOR = PriceItemTypes.FLAVOR
 
     @classmethod
@@ -28,10 +28,10 @@ CostTrackingRegister.register_strategy(InstanceStrategy)
 class VolumeStrategy(CostTrackingStrategy):
     resource_class = models.Volume
 
-    class Types(object):
+    class Types:
         STORAGE = PriceItemTypes.STORAGE
 
-    class Keys(object):
+    class Keys:
         STORAGE = '1 GB'
 
     @classmethod
@@ -49,10 +49,10 @@ CostTrackingRegister.register_strategy(VolumeStrategy)
 class SnapshotStrategy(CostTrackingStrategy):
     resource_class = models.Snapshot
 
-    class Types(object):
+    class Types:
         STORAGE = PriceItemTypes.STORAGE
 
-    class Keys(object):
+    class Keys:
         STORAGE = '1 GB'
 
     @classmethod

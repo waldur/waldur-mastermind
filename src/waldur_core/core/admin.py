@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from collections import defaultdict
 import copy
 import json
@@ -23,7 +21,6 @@ from django.utils.translation import ugettext_lazy as _
 from jsoneditor.forms import JSONEditor
 from rest_framework import permissions as rf_permissions
 from reversion.admin import VersionAdmin
-import six
 
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
@@ -45,14 +42,14 @@ class ReadonlyTextWidget(forms.TextInput):
         return render_to_readonly(self.format_value(value))
 
 
-class CopyButtonMixin(object):
+class CopyButtonMixin:
     class Media:
         js = (
             settings.STATIC_URL + 'landing/js/copy2clipboard.js',
         )
 
-    def render(self, name, value, attrs=None):
-        result = super(CopyButtonMixin, self).render(name, value, attrs)
+    def render(self, name, value, attrs=None, renderer=None):
+        result = super().render(name, value, attrs)
         button_attrs = {
             'class': 'button copy-button',
             'data-target-id': attrs['id'],
@@ -83,11 +80,11 @@ class OptionalChoiceField(forms.ChoiceField):
     def __init__(self, choices=(), *args, **kwargs):
         empty = [('', '---------')]
         choices = empty + sorted(choices, key=lambda pair: pair[1])
-        super(OptionalChoiceField, self).__init__(choices, *args, **kwargs)
+        super(OptionalChoiceField, self).__init__(choices=choices, *args, **kwargs)
 
 
 class UserCreationForm(auth_admin.UserCreationForm):
-    class Meta(object):
+    class Meta:
         model = get_user_model()
         fields = ("username",)
 
@@ -107,7 +104,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
 
 
 class UserChangeForm(auth_admin.UserChangeForm):
-    class Meta(object):
+    class Meta:
         model = get_user_model()
         exclude = ('details',)
 
@@ -199,7 +196,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         return format_html_join(
             mark_safe('<br/>'),  # nosec
             '<a href={}>{}</a>',
-            ((get_admin_url(permission.customer), six.text_type(permission)) for permission in permissions),
+            ((get_admin_url(permission.customer), str(permission)) for permission in permissions),
         ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any organization.'))  # nosec
 
     customer_roles.short_description = _('Roles in organizations')
@@ -211,7 +208,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
         return format_html_join(
             mark_safe('<br/>'),  # nosec
             '<a href={}>{}</a>',
-            ((get_admin_url(permission.project), six.text_type(permission)) for permission in permissions),
+            ((get_admin_url(permission.project), str(permission)) for permission in permissions),
         ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any project.'))  # nosec
 
     project_roles.short_description = _('Roles in projects')
@@ -282,7 +279,7 @@ class ReversionAdmin(VersionAdmin):
         return super(VersionAdmin, self).change_view(request, object_id, form_url, extra_context)
 
 
-class ExecutorAdminAction(object):
+class ExecutorAdminAction:
     """ Add executor as action to admin model.
 
     Usage example:
@@ -306,7 +303,7 @@ class ExecutorAdminAction(object):
             try:
                 self.validate(instance)
             except ValidationError as e:
-                errors[six.text_type(e)].append(instance)
+                errors[str(e)].append(instance)
             else:
                 self.executor.execute(instance)
                 successfully_executed.append(instance)
@@ -314,14 +311,14 @@ class ExecutorAdminAction(object):
         if successfully_executed:
             message = _('Operation was successfully scheduled for %(count)d instances: %(names)s') % dict(
                 count=len(successfully_executed),
-                names=', '.join([six.text_type(i) for i in successfully_executed])
+                names=', '.join([str(i) for i in successfully_executed])
             )
             admin_class.message_user(request, message)
 
         for error, instances in errors.items():
             message = _('Failed to schedule operation for %(count)d instances: %(names)s. Error: %(message)s') % dict(
                 count=len(instances),
-                names=', '.join([six.text_type(i) for i in instances]),
+                names=', '.join([str(i) for i in instances]),
                 message=error,
             )
             admin_class.message_user(request, message, level=messages.ERROR)
@@ -331,7 +328,7 @@ class ExecutorAdminAction(object):
         pass
 
 
-class ExtraActionsMixin(object):
+class ExtraActionsMixin:
     """
     Allows to add extra actions to admin list page.
     """
@@ -379,7 +376,7 @@ class ExtraActionsMixin(object):
         return getattr(action, 'name', action.__name__.replace('_', ' ').capitalize())
 
 
-class ExtraActionsObjectMixin(object):
+class ExtraActionsObjectMixin:
     """
     Allows to add extra actions to admin object edit page.
     """
@@ -433,7 +430,7 @@ class ExtraActionsObjectMixin(object):
         return getattr(action, 'validator', None)
 
 
-class UpdateOnlyModelAdmin(object):
+class UpdateOnlyModelAdmin:
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -442,7 +439,7 @@ class UpdateOnlyModelAdmin(object):
         return False
 
 
-class ReadOnlyAdminMixin(object):
+class ReadOnlyAdminMixin:
     """
     Disables all editing capabilities.
     Please ensure that readonly_fields is specified in derived class.
@@ -451,7 +448,8 @@ class ReadOnlyAdminMixin(object):
 
     def get_actions(self, request):
         actions = super(ReadOnlyAdminMixin, self).get_actions(request)
-        del actions['delete_selected']
+        if 'delete_selected' in actions:
+            del actions['delete_selected']
         return actions
 
     def has_add_permission(self, request):

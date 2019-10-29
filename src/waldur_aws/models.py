@@ -1,7 +1,4 @@
-from __future__ import unicode_literals
-
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from libcloud.compute.drivers.ec2 import REGION_DETAILS
 
@@ -38,7 +35,7 @@ class AWSService(structure_models.Service):
 
 
 class AWSServiceProjectLink(structure_models.CloudServiceProjectLink):
-    service = models.ForeignKey(AWSService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=AWSService)
 
     class Meta(structure_models.CloudServiceProjectLink.Meta):
         verbose_name = _('AWS provider project link')
@@ -58,12 +55,11 @@ class Region(structure_models.GeneralServiceProperty):
         return 'aws-region'
 
 
-@python_2_unicode_compatible
 class Image(structure_models.GeneralServiceProperty):
     class Meta:
         ordering = ['name']
 
-    region = models.ForeignKey(Region)
+    region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
 
     def __str__(self):
         return '{0} | {1}'.format(self.name, self.region.name)
@@ -100,7 +96,7 @@ class Instance(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
         AWSServiceProjectLink, related_name='instances', on_delete=models.PROTECT)
 
-    region = models.ForeignKey(Region)
+    region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
     public_ips = JSONField(default=list, help_text=_('List of public IP addresses'), blank=True)
     private_ips = JSONField(default=list, help_text=_('List of private IP addresses'), blank=True)
     size_backend_id = models.CharField(max_length=150, blank=True)
@@ -158,10 +154,10 @@ class Volume(RuntimeStateMixin, structure_models.NewResource):
         ('standard', _('Magnetic volumes'))
     )
     size = models.PositiveIntegerField(help_text=_('Size of volume in gigabytes'))
-    region = models.ForeignKey(Region)
+    region = models.ForeignKey(on_delete=models.CASCADE, to=Region)
     volume_type = models.CharField(max_length=8, choices=VOLUME_TYPES)
     device = models.CharField(max_length=128, blank=True, null=True)
-    instance = models.ForeignKey(Instance, blank=True, null=True)
+    instance = models.ForeignKey(on_delete=models.CASCADE, to=Instance, blank=True, null=True)
 
     @classmethod
     def get_url_name(cls):

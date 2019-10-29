@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 from reversion.models import Version
-from six.moves import input
 
 from waldur_core.quotas.models import Quota
 

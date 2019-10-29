@@ -1,6 +1,6 @@
 import json
 
-import mock
+from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
@@ -198,7 +198,7 @@ class ClusterImportableResourcesTest(BaseProjectImportTest):
         self.assertEquals(len(response.data), len(backend_clusters))
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item['id'] for item in backend_clusters]
-        self.assertItemsEqual(returned_backend_ids, expected_backend_ids)
+        self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
         get_projects_mock.assert_called()
 
 

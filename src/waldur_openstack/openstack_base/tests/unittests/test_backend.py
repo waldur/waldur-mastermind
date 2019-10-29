@@ -1,5 +1,4 @@
 import pickle
-import six
 
 from unittest import TestCase
 
@@ -29,7 +28,7 @@ class TestOpenStackBackendError(TestCase):
             raise test_exception
         except test_exception.__class__ as e:
             try:
-                six.reraise(OpenStackBackendError, e)
+                raise OpenStackBackendError(e)
             except OpenStackBackendError as e:
                 self._test_exception_is_serializable(e)
 

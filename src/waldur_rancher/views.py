@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -22,13 +20,13 @@ class ServiceViewSet(structure_views.BaseServiceViewSet):
 class ServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSet):
     queryset = models.RancherServiceProjectLink.objects.all()
     serializer_class = serializers.ServiceProjectLinkSerializer
-    filter_class = filters.ServiceProjectLinkFilter
+    filterset_class = filters.ServiceProjectLinkFilter
 
 
 class ClusterViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Cluster.objects.all()
     serializer_class = serializers.ClusterSerializer
-    filter_class = filters.ClusterFilter
+    filterset_class = filters.ClusterFilter
     delete_executor = executors.ClusterDeleteExecutor
     update_executor = executors.ClusterUpdateExecutor
 
@@ -55,6 +53,6 @@ class NodeViewSet(core_views.ActionsViewSet):
     queryset = models.Node.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.NodeSerializer
-    filter_class = filters.NodeFilter
+    filterset_class = filters.NodeFilter
     lookup_field = 'uuid'
     disabled_actions = ['update', 'partial_update']

@@ -10,7 +10,7 @@ class EventSerializer(RestrictedSerializerMixin,
                       serializers.ModelSerializer):
     context = serializers.JSONField(read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Event
         fields = ('uuid', 'created', 'event_type', 'message', 'context')
 
@@ -19,7 +19,7 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
     author_uuid = serializers.ReadOnlyField(source='user.uuid')
     hook_type = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.BaseHook
 
         fields = (

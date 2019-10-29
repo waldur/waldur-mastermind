@@ -1,6 +1,6 @@
 import factory
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -13,7 +13,7 @@ class ServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class ZabbixServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ZabbixService
 
     settings = factory.SubFactory(ServiceSettingsFactory)
@@ -23,7 +23,7 @@ class ZabbixServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ZabbixServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('zabbix-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -32,7 +32,7 @@ class ZabbixServiceFactory(factory.DjangoModelFactory):
 
 
 class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ZabbixServiceProjectLink
 
     service = factory.SubFactory(ZabbixServiceFactory)
@@ -46,7 +46,7 @@ class ZabbixServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class HostFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Host
 
     service_project_link = factory.SubFactory(ZabbixServiceProjectLinkFactory)
@@ -66,7 +66,7 @@ class HostFactory(factory.DjangoModelFactory):
 
 
 class ITServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ITService
 
     service_project_link = factory.SubFactory(ZabbixServiceProjectLinkFactory)
@@ -78,7 +78,7 @@ class ITServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ITServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -87,7 +87,7 @@ class ITServiceFactory(factory.DjangoModelFactory):
 
 
 class TemplateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Template
 
     name = factory.Sequence(lambda n: 'zabbix-template#%s' % n)
@@ -98,5 +98,5 @@ class TemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, template=None, action=None):
         if template is None:
             template = TemplateFactory()
-        url = 'http://testserver' + reverse('zabbix-template-detail', kwargs={'uuid': template.uuid})
+        url = 'http://testserver' + reverse('zabbix-template-detail', kwargs={'uuid': template.uuid.hex})
         return url if action is None else url + action + '/'

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
@@ -200,7 +198,7 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         required=True,
     )
 
-    class Meta(object):
+    class Meta:
         model = models.Node
         fields = ('uuid', 'url', 'created', 'modified', 'cluster', 'instance', 'controlplane_role', 'etcd_role',
                   'worker_role', 'get_node_command')

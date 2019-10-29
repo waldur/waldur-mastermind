@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 from ddt import ddt, data
 from rest_framework import test, status
 from rest_framework.reverse import reverse
@@ -249,7 +249,7 @@ class OpenStackPackageChangeTest(test.APITransactionTestCase):
 
     def set_usage_and_limit(self, component_type, usage, old_limit, new_limit):
         mapping = models.OpenStackPackage.get_quota_to_component_mapping()
-        inv_map = {component_type: quota.name for quota, component_type in mapping.iteritems()}
+        inv_map = {component_type: quota.name for quota, component_type in mapping.items()}
         self.package.tenant.set_quota_usage(quota_name=inv_map[component_type], usage=usage)
 
         old_component = self.package.template.components.get(type=component_type)

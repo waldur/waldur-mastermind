@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from decimal import Decimal
 
 from django.core.validators import MinValueValidator
@@ -11,10 +9,10 @@ class UnitPriceMixin(models.Model):
     """
     Mixin to expose standardized "unit_price" and "unit" field.
     """
-    class Meta(object):
+    class Meta:
         abstract = True
 
-    class Units(object):
+    class Units:
         PER_MONTH = 'month'
         PER_HALF_MONTH = 'half_month'
         PER_DAY = 'day'
@@ -35,7 +33,7 @@ class UnitPriceMixin(models.Model):
 
 
 class ProductCodeMixin(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     # technical code used by accounting software

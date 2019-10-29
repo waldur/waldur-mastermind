@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from decimal import Decimal
 
 from django.db import models
@@ -16,11 +14,11 @@ class SlurmPackage(common_mixins.ProductCodeMixin,
                    core_models.NameMixin,
                    models.Model):
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('SLURM package')
         verbose_name_plural = _('SLURM packages')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'service_settings__customer'
 
     PRICE_MAX_DIGITS = 14
@@ -28,7 +26,8 @@ class SlurmPackage(common_mixins.ProductCodeMixin,
 
     service_settings = models.OneToOneField(structure_models.ServiceSettings,
                                             related_name='+',
-                                            limit_choices_to={'type': 'SLURM'})
+                                            limit_choices_to={'type': 'SLURM'},
+                                            on_delete=models.CASCADE)
 
     cpu_price = models.DecimalField(default=0,
                                     verbose_name=_('Price for CPU hour'),

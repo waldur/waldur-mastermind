@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from functools import wraps
 
 from django.conf import settings
@@ -21,7 +19,7 @@ def ensure_atomic_transaction(func):
     return wrapped
 
 
-class AsyncExecutor(object):
+class AsyncExecutor:
     async_executor = True
 
 
@@ -31,7 +29,7 @@ class CreateExecutorMixin(AsyncExecutor):
     @ensure_atomic_transaction
     def perform_create(self, serializer):
         instance = serializer.save()
-        self.create_executor.execute(instance, async=self.async_executor)
+        self.create_executor.execute(instance, is_async=self.async_executor)
         instance.refresh_from_db()
 
 
@@ -48,7 +46,7 @@ class UpdateExecutorMixin(AsyncExecutor):
         super(UpdateExecutorMixin, self).perform_update(serializer)
         instance.refresh_from_db()
         updated_fields = {f.name for f, v in before_update_fields.items() if v != getattr(instance, f.attname)}
-        self.update_executor.execute(instance, async=self.async_executor, updated_fields=updated_fields)
+        self.update_executor.execute(instance, is_async=self.async_executor, updated_fields=updated_fields)
         serializer.instance.refresh_from_db()
 
 
@@ -59,7 +57,7 @@ class DeleteExecutorMixin(AsyncExecutor):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.delete_executor.execute(
-            instance, async=self.async_executor, force=instance.state == models.StateMixin.States.ERRED)
+            instance, is_async=self.async_executor, force=instance.state == models.StateMixin.States.ERRED)
         return response.Response(
             {'detail': _('Deletion was scheduled.')}, status=status.HTTP_202_ACCEPTED)
 
@@ -69,7 +67,7 @@ class ExecutorMixin(CreateExecutorMixin, UpdateExecutorMixin, DeleteExecutorMixi
     pass
 
 
-class EagerLoadMixin(object):
+class EagerLoadMixin:
     """ Reduce number of requests to DB.
 
         Serializer should implement static method "eager_load", that selects

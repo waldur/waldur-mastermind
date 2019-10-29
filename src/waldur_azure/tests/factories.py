@@ -12,7 +12,7 @@ from .. import models
 
 
 class AzureServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
-    class Meta(object):
+    class Meta:
         model = structure_models.ServiceSettings
 
     type = 'Azure'
@@ -20,7 +20,7 @@ class AzureServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
 
 
 class AzureServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AzureService
 
     settings = factory.SubFactory(AzureServiceSettingsFactory)
@@ -30,7 +30,7 @@ class AzureServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = AzureServiceFactory()
-        url = 'http://testserver' + reverse('azure-detail', kwargs={'uuid': service.uuid})
+        url = 'http://testserver' + reverse('azure-detail', kwargs={'uuid': service.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -39,7 +39,7 @@ class AzureServiceFactory(factory.DjangoModelFactory):
 
 
 class AzureServiceProjectLinkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.AzureServiceProjectLink
 
     service = factory.SubFactory(AzureServiceFactory)
@@ -58,7 +58,7 @@ class AzureServiceProjectLinkFactory(factory.DjangoModelFactory):
 
 
 class LocationFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Location
 
     settings = factory.SubFactory(AzureServiceSettingsFactory)
@@ -69,7 +69,7 @@ class LocationFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = LocationFactory()
-        url = 'http://testserver' + reverse('azure-location-detail', kwargs={'uuid': spl.uuid})
+        url = 'http://testserver' + reverse('azure-location-detail', kwargs={'uuid': spl.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -78,7 +78,7 @@ class LocationFactory(factory.DjangoModelFactory):
 
 
 class SizeFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Size
 
     settings = factory.SubFactory(AzureServiceSettingsFactory)
@@ -95,7 +95,7 @@ class SizeFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = SizeFactory()
-        url = 'http://testserver' + reverse('azure-size-detail', kwargs={'uuid': spl.uuid})
+        url = 'http://testserver' + reverse('azure-size-detail', kwargs={'uuid': spl.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -104,7 +104,7 @@ class SizeFactory(factory.DjangoModelFactory):
 
 
 class ImageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Image
 
     settings = factory.SubFactory(AzureServiceSettingsFactory)
@@ -119,7 +119,7 @@ class ImageFactory(factory.DjangoModelFactory):
     def get_url(cls, spl=None, action=None):
         if spl is None:
             spl = ImageFactory()
-        url = 'http://testserver' + reverse('azure-image-detail', kwargs={'uuid': spl.uuid})
+        url = 'http://testserver' + reverse('azure-image-detail', kwargs={'uuid': spl.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -128,7 +128,7 @@ class ImageFactory(factory.DjangoModelFactory):
 
 
 class ResourceGroupFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.ResourceGroup
 
     name = factory.Sequence(lambda n: 'rg-%s' % n)
@@ -138,7 +138,7 @@ class ResourceGroupFactory(factory.DjangoModelFactory):
 
 
 class NetworkFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Network
 
     name = factory.Sequence(lambda n: 'net-%s' % n)
@@ -149,7 +149,7 @@ class NetworkFactory(factory.DjangoModelFactory):
 
 
 class SubNetFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SubNet
 
     name = factory.Sequence(lambda n: 'subnet-%s' % n)
@@ -161,7 +161,7 @@ class SubNetFactory(factory.DjangoModelFactory):
 
 
 class NetworkInterfaceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.NetworkInterface
 
     name = factory.Sequence(lambda n: 'nic-%s' % n)
@@ -173,7 +173,7 @@ class NetworkInterfaceFactory(factory.DjangoModelFactory):
 
 
 class PublicIPFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PublicIP
 
     name = factory.Sequence(lambda n: 'floating_ip%s' % n)
@@ -185,7 +185,7 @@ class PublicIPFactory(factory.DjangoModelFactory):
 
 
 class VirtualMachineFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.VirtualMachine
 
     name = factory.Sequence(lambda n: 'vm-%s' % n)
@@ -206,7 +206,7 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('azure-virtualmachine-detail', kwargs={'uuid': instance.uuid})
+        url = 'http://testserver' + reverse('azure-virtualmachine-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -215,7 +215,7 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
 
 
 class SQLServerFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.SQLServer
 
     name = factory.Sequence(lambda n: 'sql-%s' % n)
@@ -228,7 +228,7 @@ class SQLServerFactory(factory.DjangoModelFactory):
     def get_url(cls, instance=None, action=None):
         if instance is None:
             instance = VirtualMachineFactory()
-        url = 'http://testserver' + reverse('azure-sql-server-detail', kwargs={'uuid': instance.uuid})
+        url = 'http://testserver' + reverse('azure-sql-server-detail', kwargs={'uuid': instance.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
