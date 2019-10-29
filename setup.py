@@ -67,7 +67,7 @@ install_requires = [
     'requests>=2.14.2',
     'sqlparse>=0.1.11',
     'pyjwt>=1.5.3',
-    'sentry-sdk>=0.13.1',
+    'sentry-sdk>=0.9.0',
 ]
 
 test_requires = [
