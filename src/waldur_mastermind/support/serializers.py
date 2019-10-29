@@ -398,7 +398,6 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
             'summary' - has a format of 'Request for <template_name>' or 'Request for "Support" if empty;
             'description' - combined list of all other fields provided with the request;
         """
-        project = validated_data['project']
         template = validated_data['template']
         plan = validated_data.pop('plan', None)
 
@@ -422,14 +421,7 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
                 validated_data.update(attributes)
 
         offering_configuration = template.config
-        type_label = offering_configuration.get('label', template.name)
-        issue_details = dict(
-            caller=self.context['request'].user,
-            project=project,
-            customer=project.customer,
-            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
-            summary='Request for \'%s\'' % type_label,
-            description=self._form_description(offering_configuration, validated_data))
+        issue_details = self._get_issue_details(validated_data)
         issue_details['summary'] = render_issue_template('summary', issue_details)
         issue_details['description'] = render_issue_template('description', issue_details)
         issue = models.Issue.objects.create(**issue_details)
@@ -458,6 +450,18 @@ class OfferingCreateSerializer(OfferingSerializer, ConfigurableFormDescriptionMi
         offering = models.Offering.objects.create(**payload)
 
         return offering
+
+    def _get_issue_details(self, validated_data):
+        project = validated_data['project']
+        template = validated_data['template']
+
+        return dict(
+            caller=self.context['request'].user,
+            project=project,
+            customer=project.customer,
+            type=settings.WALDUR_SUPPORT['DEFAULT_OFFERING_ISSUE_TYPE'],
+            summary='Request for \'%s\'' % template.config.get('label', template.name),
+            description=self._form_description(template.config, validated_data))
 
 
 class OfferingCompleteSerializer(serializers.Serializer):

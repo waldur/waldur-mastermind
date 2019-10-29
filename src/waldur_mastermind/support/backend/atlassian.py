@@ -322,3 +322,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                         'description': priority.description,
                         'icon_url': priority.iconUrl,
                     })
+
+    def create_issue_links(self, issue, linked_issues):
+        for linked_issue in linked_issues:
+            link_type = self.issue_settings['type_of_linked_issue']
+            self.manager.create_issue_link(link_type, issue.key, linked_issue.key)
