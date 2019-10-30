@@ -57,21 +57,27 @@ class OfferingRegistrator(registrators.BaseRegistrator):
             offering_component = plan_component.component
 
             is_fixed = offering_component.billing_type == BillingTypes.FIXED
+            is_usage = offering_component.billing_type == BillingTypes.USAGE
             is_one = offering_component.billing_type == BillingTypes.ONE_TIME
             is_switch = offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH
 
             if is_fixed or \
                     (is_one and order_type == OrderTypes.CREATE) or \
-                    (is_switch and order_type == OrderTypes.UPDATE):
+                    (is_switch and order_type == OrderTypes.UPDATE) or \
+                    (is_usage and offering_component.use_limit_for_billing):
                 details = self.get_component_details(offering, plan_component)
 
                 unit_price = plan_component.price
                 unit = plan.unit
+                quantity = 0
 
                 if is_fixed:
                     unit_price *= plan_component.amount
                 elif is_one or is_switch:
                     unit = invoice_models.Units.QUANTITY
+                    quantity = 1
+                elif is_usage:
+                    quantity = resource.limits.get(offering_component.type)
 
                 item = invoice_models.InvoiceItem.objects.create(
                     content_type=ContentType.objects.get_for_model(offering),
@@ -83,7 +89,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     details=details,
                     unit_price=unit_price,
                     unit=unit,
-                    quantity=1 if is_one or is_switch else 0,
+                    quantity=quantity,
                     product_code=offering_component.product_code or plan.product_code,
                     article_code=offering_component.article_code or plan.article_code,
                 )
