@@ -2,7 +2,6 @@ import json
 import logging
 import re
 
-from ceilometerclient import exc as ceilometer_exceptions
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
 from django.db import transaction, IntegrityError
@@ -1563,23 +1562,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError("Cannot find meters for the '%s' resources" % resource.__class__.__name__)
 
         return meters
-
-    @log_backend_action()
-    def get_meter_samples(self, resource, meter_name, start=None, end=None):
-        query = [dict(field='resource_id', op='eq', value=resource.backend_id)]
-
-        if start is not None:
-            query.append(dict(field='timestamp', op='ge', value=start.strftime('%Y-%m-%dT%H:%M:%S')))
-        if end is not None:
-            query.append(dict(field='timestamp', op='le', value=end.strftime('%Y-%m-%dT%H:%M:%S')))
-
-        ceilometer = self.ceilometer_client
-        try:
-            samples = ceilometer.samples.list(meter_name=meter_name, q=query)
-        except ceilometer_exceptions.BaseException as e:
-            raise OpenStackBackendError(e)
-
-        return samples
 
     @log_backend_action()
     def get_console_url(self, instance):

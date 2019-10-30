@@ -49,7 +49,6 @@ install_requires = [
     'PrettyTable<0.8,>=0.7.1',
     'psycopg2>=2.5.4',  # https://docs.djangoproject.com/en/2.2/ref/databases/#postgresql-notes
     'pycountry>=1.20,<2.0',
-    'python-ceilometerclient>=2.9.0',
     'python-cinderclient>=3.1.0',
     'python-digitalocean>=1.5',
     'python-freeipa>=0.2.2',
