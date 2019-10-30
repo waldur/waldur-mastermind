@@ -62,7 +62,7 @@ install_requires = [
     'PyYAML>=5.1',
     'pyzabbix>=0.7.2',
     'redis>=3.2.1,<3.3',
-    'requests>=2.14.2',
+    'requests>=2.20.0',
     'sqlparse>=0.1.11',
     'pyjwt>=1.5.3',
     'sentry-sdk>=0.9.0',
@@ -74,7 +74,7 @@ test_requires = [
     'factory_boy==2.4.1',
     'freezegun==0.3.7',
     'mock-django==0.6.9',
-    'sqlalchemy>=1.0.12',
+    'sqlalchemy>=1.3.0',
     'responses',
 ]
 
