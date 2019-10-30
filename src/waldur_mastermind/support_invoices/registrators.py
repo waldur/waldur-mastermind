@@ -41,35 +41,16 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
         try:
             resource = marketplace_models.Resource.objects.get(scope=offering)
-            plan = resource.plan
-
-            if not plan:
-                logger.warning('Skipping support invoice creation because '
-                               'billing is not enabled for offering. '
-                               'Offering ID: %s', offering.id)
-                return
-
-            self.create_items_for_plan(invoice, plan, offering, start, end, **kwargs)
-
         except marketplace_models.Resource.DoesNotExist:
-            # If an offering isn't request based support offering
-            item = invoice_models.InvoiceItem.objects.create(
-                content_type=ContentType.objects.get_for_model(offering),
-                object_id=offering.id,
-                project=offering.project,
-                invoice=invoice,
-                start=start,
-                end=end,
-                details=self.get_details(offering),
-                unit_price=offering.unit_price,
-                unit=offering.unit,
-                product_code=offering.product_code,
-                article_code=offering.article_code
-            )
-            self.init_details(item)
-            return item
+            return
 
-    def create_items_for_plan(self, invoice, plan, offering, start, end, **kwargs):
+        plan = resource.plan
+        if not plan:
+            logger.warning('Skipping support invoice creation because '
+                           'billing is not enabled for offering. '
+                           'Offering ID: %s', offering.id)
+            return
+
         order_type = kwargs.get('order_type')
 
         for plan_component in plan.components.all():
