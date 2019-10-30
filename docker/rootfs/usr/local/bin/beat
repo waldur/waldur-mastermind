@@ -6,6 +6,6 @@ set -e
 echo "INFO: Running Celery Beat..."
 mkdir -p /run/waldur/celerybeat
 chown -R waldur:waldur /run/waldur/celerybeat
-su - waldur -c "/usr/bin/celery -A waldur_core.server beat --loglevel=$LOGGING_LOG_LEVEL"
+su - waldur -c "celery -A waldur_core.server beat --loglevel=$LOGGING_LOG_LEVEL"
 
 exit 0
