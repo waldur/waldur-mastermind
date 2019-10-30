@@ -136,7 +136,6 @@ pytest-cov==2.5.1
 pytest-django==3.3.2
 pytest-forked==0.2
 pytest-xdist==1.22.2
-python-ceilometerclient==2.9.0
 python-cinderclient==3.6.0
 python-dateutil==2.7.3
 python-digitalocean==1.13.2

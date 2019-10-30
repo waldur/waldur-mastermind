@@ -3,8 +3,6 @@ import hashlib
 import json
 import logging
 
-from ceilometerclient import client as ceilometer_client
-from ceilometerclient import exc as ceilometer_exceptions
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2 import client as cinder_client
 from django.core.cache import cache
@@ -152,14 +150,6 @@ class OpenStackClient:
             logger.exception('Failed to create glance client: %s', e)
             raise OpenStackBackendError(e)
 
-    @property
-    def ceilometer(self):
-        try:
-            return ceilometer_client.Client('2', session=self.session.keystone_session)
-        except ceilometer_exceptions.BaseException as e:
-            logger.exception('Failed to create ceilometer client: %s', e)
-            raise OpenStackBackendError(e)
-
 
 class BaseOpenStackBackend(ServiceBackend):
 
@@ -216,7 +206,7 @@ class BaseOpenStackBackend(ServiceBackend):
             return client
 
     def __getattr__(self, name):
-        clients = 'keystone', 'nova', 'neutron', 'cinder', 'glance', 'ceilometer'
+        clients = 'keystone', 'nova', 'neutron', 'cinder', 'glance'
         for client in clients:
             if name == '{}_client'.format(client):
                 return self.get_client(client, admin=False)
