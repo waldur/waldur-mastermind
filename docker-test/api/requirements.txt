@@ -81,7 +81,7 @@ jsonschema==2.6.0
 keyring==18.0.0
 keystoneauth1==3.8.0
 kitchen==1.2.6
-kombu==4.6.5
+kombu==4.6.3
 linecache2==1.0.0
 lxml==4.2.1
 MarkupSafe==1.0
