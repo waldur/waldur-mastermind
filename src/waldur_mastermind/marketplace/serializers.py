@@ -294,7 +294,9 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
-                  'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code',
+                  'limit_period', 'limit_amount',
+                  'disable_quotas', 'use_limit_for_billing',
+                  'product_code', 'article_code',
                   'max_value', 'min_value')
         extra_kwargs = {
             'billing_type': {'required': True},
@@ -645,7 +647,8 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         COMPONENT_KEYS = (
             'name', 'description',
             'billing_type', 'measured_unit',
-            'limit_period', 'limit_amount', 'disable_quotas',
+            'limit_period', 'limit_amount',
+            'disable_quotas', 'use_limit_for_billing',
             'product_code', 'article_code',
         )
 
