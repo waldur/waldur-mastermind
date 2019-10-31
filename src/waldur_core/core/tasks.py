@@ -327,7 +327,7 @@ class BackgroundTask(CeleryTask):
         active = inspect.active() or {}
         scheduled = inspect.scheduled() or {}
         reserved = inspect.reserved() or {}
-        uncompleted = sum(list(active.values()) + list(scheduled.values()) + reserved.values(), [])
+        uncompleted = sum(list(active.values()) + list(scheduled.values()) + list(reserved.values()), [])
         return any(self.is_equal(task, *args, **kwargs) for task in uncompleted)
 
     def apply_async(self, args=None, kwargs=None, **options):
