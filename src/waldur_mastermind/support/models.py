@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 import re
 
@@ -8,7 +6,6 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
@@ -25,7 +22,6 @@ from . import backend, managers
 logger = logging.getLogger(__name__)
 
 
-@python_2_unicode_compatible
 class Issue(core_models.UuidMixin,
             structure_models.StructureLoggableMixin,
             core_models.BackendModelMixin,
@@ -34,7 +30,7 @@ class Issue(core_models.UuidMixin,
     class Meta:
         ordering = ['-created']
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
         project_path = 'project'
 
@@ -68,7 +64,7 @@ class Issue(core_models.UuidMixin,
     project = models.ForeignKey(structure_models.Project, related_name='issues', blank=True, null=True,
                                 on_delete=models.CASCADE)
 
-    resource_content_type = models.ForeignKey(ContentType, null=True)
+    resource_content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
     resource_object_id = models.PositiveIntegerField(null=True)
     resource = GenericForeignKey('resource_content_type', 'resource_object_id')
 
@@ -115,13 +111,12 @@ class Issue(core_models.UuidMixin,
         return '{}: {}'.format(self.key or '???', self.summary)
 
 
-@python_2_unicode_compatible
 class Priority(core_models.NameMixin,
                core_models.UuidMixin,
                core_models.UiDescribableMixin):
     backend_id = models.CharField(max_length=255, blank=True)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Priority')
         verbose_name_plural = _('Priorities')
 
@@ -133,12 +128,11 @@ class Priority(core_models.NameMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         ordering = ['name']
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     is_active = models.BooleanField(_('active'), default=True,
                                     help_text=_('Designates whether this user should be treated as '
@@ -153,7 +147,6 @@ class SupportUser(core_models.UuidMixin, core_models.NameMixin, models.Model):
         return self.name
 
 
-@python_2_unicode_compatible
 class Comment(core_models.UuidMixin,
               core_models.BackendModelMixin,
               TimeStampedModel,
@@ -162,12 +155,12 @@ class Comment(core_models.UuidMixin,
         ordering = ['-created']
         unique_together = ('backend_id', 'issue')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
-    issue = models.ForeignKey(Issue, related_name='comments')
-    author = models.ForeignKey(SupportUser, related_name='comments')
+    issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='comments')
+    author = models.ForeignKey(on_delete=models.CASCADE, to=SupportUser, related_name='comments')
     description = models.TextField()
     is_public = models.BooleanField(default=True)
     backend_id = models.CharField(max_length=255, blank=True, null=True)
@@ -208,7 +201,6 @@ class Comment(core_models.UuidMixin,
         return self.description[:50]
 
 
-@python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                common_mixins.ProductCodeMixin,
@@ -221,11 +213,11 @@ class Offering(core_models.UuidMixin,
         verbose_name = _('Request')
         verbose_name_plural = _('Requests')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
-    class States(object):
+    class States:
         REQUESTED = 'requested'
         OK = 'ok'
         TERMINATED = 'terminated'
@@ -286,7 +278,6 @@ class Offering(core_models.UuidMixin,
         return self.template.config if self.template else {}
 
 
-@python_2_unicode_compatible
 class OfferingTemplate(core_models.UuidMixin,
                        TimeStampedModel):
     name = models.CharField(_('name'), max_length=150)
@@ -309,28 +300,27 @@ class OfferingPlan(core_models.UuidMixin,
                    core_models.DescribableMixin,
                    common_mixins.ProductCodeMixin,
                    common_mixins.UnitPriceMixin):
-    template = models.ForeignKey(OfferingTemplate, related_name='plans')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=OfferingTemplate, related_name='plans')
 
     def __str__(self):
         return '{} | {}'.format(self.template, self.name)
 
 
-@python_2_unicode_compatible
 class Attachment(core_models.UuidMixin,
                  TimeStampedModel,
                  structure_models.StructureLoggableMixin,
                  core_models.StateMixin):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'issue__customer'
         project_path = 'issue__project'
 
-    issue = models.ForeignKey(Issue, related_name='attachments')
+    issue = models.ForeignKey(on_delete=models.CASCADE, to=Issue, related_name='attachments')
     file = models.FileField(upload_to='support_attachments')
     backend_id = models.CharField(max_length=255, unique=True)
     mime_type = models.CharField(_('MIME type'), max_length=100, blank=True)
     file_size = models.PositiveIntegerField(_('Filesize, B'), blank=True, null=True)
     thumbnail = models.FileField(upload_to='support_attachments_thumbnails', blank=True, null=True)
-    author = models.ForeignKey(SupportUser, related_name='attachments', blank=True, null=True)
+    author = models.ForeignKey(on_delete=models.CASCADE, to=SupportUser, related_name='attachments', blank=True, null=True)
     objects = managers.AttachmentManager()
 
     @classmethod
@@ -348,7 +338,7 @@ class Template(core_models.UuidMixin,
                core_models.NameMixin,
                TimeStampedModel):
 
-    class IssueTypes(object):
+    class IssueTypes:
         INFORMATIONAL = 'INFORMATIONAL'
         SERVICE_REQUEST = 'SERVICE_REQUEST'
         CHANGE_REQUEST = 'CHANGE_REQUEST'
@@ -417,7 +407,7 @@ class IssueStatus(models.Model):
         The field of resolution does not give an exact answer since may be the same in both cases.
     """
 
-    class Types(object):
+    class Types:
         RESOLVED = 0
         CANCELED = 1
 

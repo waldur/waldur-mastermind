@@ -4,7 +4,7 @@ from waldur_core.logging.loggers import EventLogger, event_logger
 class OpenStackPackageLogger(EventLogger):
     tenant = 'openstack.Tenant'
     service_settings = 'structure.ServiceSettings'
-    package_template_name = basestring
+    package_template_name = str
 
     class Meta:
         event_types = (

@@ -15,9 +15,9 @@ class BaseOpenStackTest(test.APITransactionTestCase):
         self.volume_category = marketplace_factories.CategoryFactory(title='Volume')
 
         self.decorator = override_plugin_settings(
-            TENANT_CATEGORY_UUID=self.tenant_category.uuid,
-            INSTANCE_CATEGORY_UUID=self.instance_category.uuid,
-            VOLUME_CATEGORY_UUID=self.volume_category.uuid,
+            TENANT_CATEGORY_UUID=self.tenant_category.uuid.hex,
+            INSTANCE_CATEGORY_UUID=self.instance_category.uuid.hex,
+            VOLUME_CATEGORY_UUID=self.volume_category.uuid.hex,
         )
         self.decorator.enable()
 

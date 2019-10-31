@@ -51,7 +51,7 @@ class ActionsPermission(BasePermission):
             # only user with civil number will have access to all unsafe actions
             unsafe_methods_permissions = [has_civil_number]
             ...
-            @decorators.detail_route(method='POST')
+            @decorators.action(detail=True, method='POST')
             def action(...):
                 ...
 

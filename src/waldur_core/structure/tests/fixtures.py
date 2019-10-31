@@ -4,7 +4,7 @@ from . import factories
 from .. import models
 
 
-class UserFixture(object):
+class UserFixture:
 
     @cached_property
     def staff(self):

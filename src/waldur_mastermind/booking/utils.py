@@ -10,7 +10,7 @@ from . import PLUGIN_NAME
 logger = logging.getLogger(__name__)
 
 
-class TimePeriod(object):
+class TimePeriod:
     def __init__(self, start, end):
         if not isinstance(start, datetime.datetime):
             start = parse_datetime(start)
@@ -55,8 +55,9 @@ def get_info_about_upcoming_bookings():
                            'marketplace resource has got few order items. '
                            'Resource ID: %s', resource.id)
         else:
-            if filter(lambda x: x['user'] == user, result):
-                filter(lambda x: x['user'] == resource.project.customer, result)[0]['resources'].append(resource)
+            rows = list(filter(lambda x: x['user'] == resource.project.customer, result))
+            if rows:
+                rows[0]['resources'].append(resource)
             else:
                 result.append({
                     'user': user,

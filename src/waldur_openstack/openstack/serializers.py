@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import copy
 import logging
 import re
@@ -104,7 +102,7 @@ class ServiceNameSerializer(serializers.Serializer):
 
 class FlavorSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Flavor
         fields = ('url', 'uuid', 'name', 'cores', 'ram', 'disk', 'display_name')
         extra_kwargs = {
@@ -120,7 +118,7 @@ class FlavorSerializer(structure_serializers.BasePropertySerializer):
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Image
         fields = ('url', 'uuid', 'name', 'min_disk', 'min_ram')
         extra_kwargs = {
@@ -386,7 +384,7 @@ class TenantImportSerializer(serializers.HyperlinkedModelSerializer):
     )
     quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Tenant
         read_only_fields = ('name', 'uuid', 'availability_zone', 'internal_network_id', 'external_network_id',
                             'user_username', 'user_password', 'quotas')
@@ -619,7 +617,7 @@ class TenantSerializer(structure_serializers.PrivateCloudSerializer):
 
 class _NestedSubNetSerializer(serializers.ModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.SubNet
         fields = ('name', 'description', 'cidr', 'gateway_ip', 'allocation_pools', 'ip_version', 'enable_dhcp')
 

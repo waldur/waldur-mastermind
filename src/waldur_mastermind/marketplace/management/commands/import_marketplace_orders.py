@@ -28,7 +28,7 @@ def get_resource_user(default_user, resource):
             return User.objects.get(uuid=user_uuid)
         except User.DoesNotExist:
             logger.warning('Using default user for resource because user does not exist. '
-                           'Resource UUID: %s. User UUID: %s', resource.uuid, user_uuid)
+                           'Resource UUID: %s. User UUID: %s', resource.uuid.hex, user_uuid)
     else:
         logger.warning('Using default user for resource because related event is not found. '
                        'Resource UUID: %s', resource.uuid)

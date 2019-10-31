@@ -1,8 +1,7 @@
-from __future__ import unicode_literals
+import argparse
+from csv import DictReader
 
 from django.core.management.base import BaseCommand, CommandError
-
-from waldur_core.core.csv import UnicodeDictReader
 
 from ... import models
 
@@ -13,7 +12,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             'file',
-            type=file,
+            type=argparse.FileType('r'),
             metavar='FILE',
             help='AMI catalog file.'
         )
@@ -26,7 +25,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        data = list(UnicodeDictReader(options['file']))
+        with open(options['file']) as csvfile:
+            data = list(DictReader(csvfile))
 
         csv_regions = set([image['region'] for image in data])
         nc_regions = {region.name: region.id for region in models.Region.objects.all()}
@@ -68,7 +68,7 @@ class Command(BaseCommand):
             return
 
         if not options['yes']:
-            confirm = raw_input('Enter [y] to continue: ')
+            confirm = input('Enter [y] to continue: ')
             if confirm.strip().lower() != 'y':
                 self.stdout.write('Changes are not applied.')
                 return

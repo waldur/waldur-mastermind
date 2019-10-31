@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
@@ -40,7 +38,7 @@ class Command(BaseCommand):
                         'Failed to add security_group %s to tenant %s. Error: %s' % (group['name'], tenant, e))
                 else:
                     try:
-                        executors.SecurityGroupCreateExecutor.execute(db_security_group, async=False)
+                        executors.SecurityGroupCreateExecutor.execute(db_security_group, is_async=False)
                     except Exception as e:
                         self.stdout.write('Failed to add security group %s to tenant %s. Error: %s' %
                                           (db_security_group, tenant, e))

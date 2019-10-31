@@ -1,6 +1,4 @@
-from __future__ import unicode_literals
-
-import mock
+from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -318,7 +316,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         }
         response = self.create_order(user, offering=offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.content,
+        self.assertEqual(str(response.content, 'utf-8'),
                          '{"items":["Terms of service for offering \'%s\' have not been accepted."]}' % offering)
         self.assertFalse(models.Order.objects.filter(created_by=user).exists())
 

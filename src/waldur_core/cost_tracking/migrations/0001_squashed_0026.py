@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import django.core.validators
 import django.utils.timezone
 import model_utils.fields
@@ -12,25 +10,6 @@ import waldur_core.cost_tracking.models
 
 
 class Migration(migrations.Migration):
-    replaces = [('cost_tracking', '0001_squashed_0012_fix_fields_length'),
-                ('cost_tracking', '0001_initial'), ('cost_tracking', '0002_price_list'),
-                ('cost_tracking', '0003_new_price_list_items'), ('cost_tracking', '0004_remove_connection_to_resource'),
-                ('cost_tracking', '0005_expand_item_type_size'),
-                ('cost_tracking', '0006_add_backend_cache_fields_to_pricelist'),
-                ('cost_tracking', '0007_remove_obsolete_billing_fields'),
-                ('cost_tracking', '0008_delete_resourceusage'), ('cost_tracking', '0009_defaultpricelistitem_name'),
-                ('cost_tracking', '0010_applicationtype'), ('cost_tracking', '0011_applicationtype_slug'),
-                ('cost_tracking', '0012_fix_fields_length'),
-                ('cost_tracking', '0013_remove_item_type_choices'), ('cost_tracking', '0014_more_digits_for_price'),
-                ('cost_tracking', '0015_defaultpricelistitem_metadata'),
-                ('cost_tracking', '0016_leaf_estimates_squashed_0022_priceestimate_leafs'),
-                ('cost_tracking', '0016_leaf_estimates'), ('cost_tracking', '0017_nullable_object_id'),
-                ('cost_tracking', '0018_priceestimate_threshold'), ('cost_tracking', '0019_priceestimate_limit'),
-                ('cost_tracking', '0020_reset_price_list_item'), ('cost_tracking', '0021_delete_applicationtype'),
-                ('cost_tracking', '0022_priceestimate_leafs'),
-                ('cost_tracking', '0023_consumptiondetails'), ('cost_tracking', '0024_refactor_price_estimate'),
-                ('cost_tracking', '0025_increase_price_decimal_places'),
-                ('cost_tracking', '0026_remove_limit_threshold')]
 
     initial = True
 

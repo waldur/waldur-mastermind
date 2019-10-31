@@ -1,6 +1,4 @@
-from __future__ import unicode_literals
-
-import mock
+from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -38,7 +36,7 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         offering = self.screenshot.offering
         url = factories.ScreenshotFactory.get_list_url()
-        response = self.client.get(url, {'offering_uuid': offering.uuid})
+        response = self.client.get(url, {'offering_uuid': offering.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 

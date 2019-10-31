@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 from smtplib import SMTPException
 
@@ -111,5 +109,5 @@ def _send_issue_notification(issue, template, receiver=None):
     try:
         send_mail(subject, text_message, settings.DEFAULT_FROM_EMAIL, [receiver.email], html_message=html_message)
     except SMTPException as e:
-        message = 'Failed to notify a user about an issue update. Issue uuid: %s. Error: %s' % (issue.uuid, e.message)
+        message = 'Failed to notify a user about an issue update. Issue uuid: %s. Error: %s' % (issue.uuid.hex, e.message)
         logger.warning(message)

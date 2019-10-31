@@ -9,7 +9,7 @@ from .. import models
 
 
 class PackageTemplateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PackageTemplate
 
     service_settings = factory.SubFactory(structure_factories.ServiceSettingsFactory)
@@ -34,7 +34,7 @@ class PackageTemplateFactory(factory.DjangoModelFactory):
 # generated in 'post_generation.components' method. So it is impossible to add
 # any new component to it.
 class PackageComponentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PackageComponent
 
     type = models.PackageComponent.Types.RAM
@@ -43,7 +43,7 @@ class PackageComponentFactory(factory.DjangoModelFactory):
 
 
 class OpenStackServiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = openstack_models.OpenStackService
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -51,7 +51,7 @@ class OpenStackServiceFactory(factory.DjangoModelFactory):
 
 
 class OpenStackPackageFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.OpenStackPackage
 
     tenant = factory.SubFactory(TenantFactory)

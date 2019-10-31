@@ -1,10 +1,7 @@
-from __future__ import unicode_literals
-
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from waldur_core.core.fields import JSONField
@@ -24,14 +21,13 @@ class ZabbixService(structure_models.Service):
 
 
 class ZabbixServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(ZabbixService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=ZabbixService)
 
     @classmethod
     def get_url_name(cls):
         return 'zabbix-spl'
 
 
-@python_2_unicode_compatible
 class Host(structure_models.NewResource):
     VISIBLE_NAME_MAX_LENGTH = 64
 
@@ -51,7 +47,7 @@ class Host(structure_models.NewResource):
         }
     ]
 
-    class Statuses(object):
+    class Statuses:
         MONITORED = '0'
         UNMONITORED = '1'
 
@@ -65,7 +61,7 @@ class Host(structure_models.NewResource):
     status = models.CharField(max_length=30, choices=Statuses.CHOICES, default=Statuses.MONITORED)
     templates = models.ManyToManyField('Template', related_name='hosts')
 
-    content_type = models.ForeignKey(ContentType, null=True)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
@@ -107,7 +103,6 @@ class Template(structure_models.ServiceProperty):
         return 'zabbix-template'
 
 
-@python_2_unicode_compatible
 class Item(models.Model):
     class ValueTypes:
         FLOAT = 0
@@ -126,7 +121,7 @@ class Item(models.Model):
 
     key = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
-    template = models.ForeignKey(Template, related_name='items')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=Template, related_name='items')
     backend_id = models.CharField(max_length=64)
     value_type = models.IntegerField(choices=ValueTypes.CHOICES)
     units = models.CharField(max_length=255)
@@ -140,9 +135,8 @@ class Item(models.Model):
         return self.name
 
 
-@python_2_unicode_compatible
 class Trigger(structure_models.ServiceProperty):
-    template = models.ForeignKey(Template, related_name='triggers')
+    template = models.ForeignKey(on_delete=models.CASCADE, to=Template, related_name='triggers')
     # https://www.zabbix.com/documentation/3.4/manual/api/reference/trigger/object
     priority = models.IntegerField(default=0)
 
@@ -209,7 +203,7 @@ class ITService(structure_models.NewResource):
 
     service_project_link = models.ForeignKey(
         ZabbixServiceProjectLink, related_name='itservices', on_delete=models.PROTECT)
-    host = models.ForeignKey(Host, related_name='itservices', blank=True, null=True)
+    host = models.ForeignKey(on_delete=models.CASCADE, to=Host, related_name='itservices', blank=True, null=True)
     is_main = models.BooleanField(
         default=True, help_text='Main IT service SLA will be added to hosts resource as monitoring item.')
 
@@ -218,9 +212,9 @@ class ITService(structure_models.NewResource):
     agreed_sla = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True)
 
     backend_trigger_id = models.CharField(max_length=64, null=True, blank=True)
-    trigger = models.ForeignKey(Trigger, null=True, blank=True)
+    trigger = models.ForeignKey(on_delete=models.CASCADE, to=Trigger, null=True, blank=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('host', 'is_main')
 
     @classmethod
@@ -228,9 +222,8 @@ class ITService(structure_models.NewResource):
         return 'zabbix-itservice'
 
 
-@python_2_unicode_compatible
 class SlaHistory(models.Model):
-    itservice = models.ForeignKey(ITService)
+    itservice = models.ForeignKey(on_delete=models.CASCADE, to=ITService)
     period = models.CharField(max_length=10)
     value = models.DecimalField(max_digits=11, decimal_places=4, null=True, blank=True)
 
@@ -243,14 +236,13 @@ class SlaHistory(models.Model):
         return 'SLA for %s during %s: %s' % (self.itservice, self.period, self.value)
 
 
-@python_2_unicode_compatible
 class SlaHistoryEvent(models.Model):
     EVENTS = (
         ('U', 'DOWN'),
         ('D', 'UP'),
     )
 
-    history = models.ForeignKey(SlaHistory, related_name='events')
+    history = models.ForeignKey(on_delete=models.CASCADE, to=SlaHistory, related_name='events')
     timestamp = models.IntegerField()
     state = models.CharField(max_length=1, choices=EVENTS)
 
@@ -267,9 +259,8 @@ class UserGroup(structure_models.ServiceProperty):
         return self.settings.get_backend()
 
 
-@python_2_unicode_compatible
 class User(core_models.StateMixin, structure_models.ServiceProperty):
-    class Types(object):
+    class Types:
         DEFAULT = '1'
         ADMIN = '2'
         SUPERADMIN = '3'
@@ -285,7 +276,7 @@ class User(core_models.StateMixin, structure_models.ServiceProperty):
     # phone is NC-only field
     phone = models.CharField(max_length=30, blank=True)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('alias', 'settings')
 
     def __str__(self):

@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import re
 
 import django.contrib.auth.models
@@ -14,13 +12,6 @@ import waldur_core.core.models
 
 
 class Migration(migrations.Migration):
-    replaces = [('core', '0001_initial'), ('core', '0002_user_organization_approved'),
-                ('core', '0003_ssh_key_name_length_changed'),
-                ('core', '0001_squashed_0003_ssh_key_name_length_changed'),
-                ('core', '0002_enlarge_civil_number_user_field'), ('core', '0003_user_registration_method'),
-                ('core', '0004_user_agreement_date'), ('core', '0005_add_user_language_and_competence'),
-                ('core', '0006_user_is_support'), ('core', '0007_user_token_lifetime'),
-                ('core', '0008_sshpublickey_is_shared')]
 
     initial = True
 

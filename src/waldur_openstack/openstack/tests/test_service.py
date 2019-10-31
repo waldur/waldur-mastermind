@@ -1,5 +1,5 @@
 from ddt import ddt, data
-from mock import patch
+from unittest.mock import patch
 from rest_framework import status, test
 
 from waldur_core.structure.models import ServiceSettings, ProjectRole, CustomerRole

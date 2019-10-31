@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core import mail
-from six.moves import mock
+from unittest import mock
 from rest_framework import test
 
 from waldur_core.logging import models as logging_models

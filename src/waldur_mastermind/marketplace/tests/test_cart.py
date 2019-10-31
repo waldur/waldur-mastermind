@@ -1,5 +1,6 @@
 import ddt
-from mock import patch
+from unittest.mock import patch
+
 from rest_framework import status, test
 from django.contrib.contenttypes.models import ContentType
 

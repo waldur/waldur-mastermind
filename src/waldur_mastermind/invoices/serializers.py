@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import datetime
 from django.conf import settings
 from rest_framework import serializers
@@ -20,7 +18,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     scope_type = serializers.SerializerMethodField()
     scope_uuid = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.InvoiceItem
         fields = ('name', 'price', 'tax', 'total', 'unit_price', 'unit', 'factor',
                   'start', 'end', 'product_code', 'article_code', 'project_name', 'project_uuid',
@@ -65,7 +63,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
     due_date = serializers.DateField()
     file = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.Invoice
         fields = (
             'url', 'uuid', 'number', 'customer', 'price', 'tax', 'total',
@@ -98,7 +96,7 @@ class InvoiceSerializer(core_serializers.RestrictedSerializerMixin,
             return None
 
         return reverse('invoice-pdf',
-                       kwargs={'uuid': obj.uuid},
+                       kwargs={'uuid': obj.uuid.hex},
                        request=self.context['request'])
 
     def get_items(self, invoice):
@@ -117,7 +115,7 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
     customer_uuid = serializers.ReadOnlyField(source='invoice.customer.uuid')
     customer_name = serializers.ReadOnlyField(source='invoice.customer.name')
 
-    class Meta(object):
+    class Meta:
         model = models.InvoiceItem
         fields = (
             'customer_uuid', 'customer_name',
@@ -167,12 +165,6 @@ class InvoiceItemReportSerializer(serializers.ModelSerializer):
         return extra_kwargs
 
 
-class GenericItemReportSerializer(InvoiceItemReportSerializer):
-    class Meta(InvoiceItemReportSerializer.Meta):
-        model = models.InvoiceItem
-        fields = InvoiceItemReportSerializer.Meta.fields + ('quantity',)
-
-
 # SAF is accounting soft from Estonia: www.sysdec.ee/safsaf.htm
 class SAFReportSerializer(serializers.Serializer):
     DOKNR = serializers.ReadOnlyField(source='invoice.number')
@@ -192,7 +184,7 @@ class SAFReportSerializer(serializers.Serializer):
     U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
-    class Meta(object):
+    class Meta:
         fields = ('DOKNR', 'KUUPAEV', 'VORMKUUP', 'MAKSEAEG', 'YKSUS', 'PARTNER',
                   'ARTIKKEL', 'KOGUS', 'SUMMA', 'RMAKSUSUM', 'RMAKSULIPP',
                   'ARTPROJEKT', 'ARTNIMI', 'VALI', 'U_KONEDEARV', 'H_PERIOOD')

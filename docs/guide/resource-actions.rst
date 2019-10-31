@@ -146,7 +146,7 @@ For example:
             if self.instance:
                 query_params = {
                     'status': 'DOWN',
-                    'project': self.instance.service_project_link.project.uuid,
+                    'project': self.instance.service_project_link.project.uuid.hex,
                     'service': self.instance.service_project_link.service.uuid
                 }
 

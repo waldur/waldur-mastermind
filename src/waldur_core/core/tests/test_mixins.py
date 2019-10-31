@@ -1,6 +1,6 @@
 from django.contrib import auth
 from rest_framework import serializers, test
-from six.moves import mock
+from unittest import mock
 
 from . import helpers
 from .. import exceptions, mixins
@@ -9,7 +9,7 @@ User = auth.get_user_model()
 
 
 class TestUserSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = User
         fields = ('username', 'full_name')
 

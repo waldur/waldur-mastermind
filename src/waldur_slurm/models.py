@@ -30,7 +30,7 @@ class SlurmService(structure_models.Service):
 
 
 class SlurmServiceProjectLink(structure_models.ServiceProjectLink):
-    service = models.ForeignKey(SlurmService)
+    service = models.ForeignKey(on_delete=models.CASCADE, to=SlurmService)
 
     class Meta(structure_models.ServiceProjectLink.Meta):
         verbose_name = _('SLURM provider project link')
@@ -78,17 +78,17 @@ class Allocation(structure_models.NewResource):
 
 
 class AllocationUsage(models.Model):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'allocation__service_project_link__project__customer'
         project_path = 'allocation__service_project_link__project'
         service_path = 'allocation__service_project_link__service'
 
-    class Meta(object):
+    class Meta:
         ordering = ['allocation']
 
-    allocation = models.ForeignKey(Allocation)
+    allocation = models.ForeignKey(on_delete=models.CASCADE, to=Allocation)
     username = models.CharField(max_length=32)
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, blank=True, null=True)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE)
 
     year = models.PositiveSmallIntegerField()
     month = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])

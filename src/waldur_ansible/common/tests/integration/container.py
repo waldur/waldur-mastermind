@@ -1,7 +1,7 @@
 import docker
 
 
-class DockerContainer(object):
+class DockerContainer:
     def __init__(self, container_name, image):
         self.ports = {}
         self.image = image

@@ -6,7 +6,7 @@ from . import models
 class DropletStrategy(CostTrackingStrategy):
     resource_class = models.Droplet
 
-    class Types(object):
+    class Types:
         FLAVOR = 'flavor'
 
     @classmethod

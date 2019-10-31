@@ -8,7 +8,6 @@ from django.shortcuts import redirect
 from django.template.defaultfilters import filesizeformat
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-import six
 
 from waldur_core.core.admin import (
     format_json_field, ReadOnlyAdminMixin,
@@ -22,7 +21,7 @@ from waldur_core.logging.loggers import get_valid_events, get_event_groups
 class JSONMultipleChoiceField(forms.MultipleChoiceField):
 
     def prepare_value(self, value):
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             return json.loads(value)
         return value
 

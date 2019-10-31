@@ -1,12 +1,12 @@
-from decimal import Decimal
-
 import datetime
+from decimal import Decimal
+from unittest.mock import Mock
+
 import pytz
 from django.db.models.signals import pre_delete
 from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
-from mock import Mock
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories

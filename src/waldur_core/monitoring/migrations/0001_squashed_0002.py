@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals
-
 import django.utils.timezone
 from django.db import migrations, models
 
@@ -9,7 +7,6 @@ import waldur_core.core.validators
 
 
 class Migration(migrations.Migration):
-    replaces = [('monitoring', '0001_initial'), ('monitoring', '0002_sla')]
 
     initial = True
 

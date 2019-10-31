@@ -1,10 +1,7 @@
-from __future__ import unicode_literals
-
 import logging
 
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils.models import TimeStampedModel
@@ -18,15 +15,14 @@ from . import backend
 logger = logging.getLogger(__name__)
 
 
-@python_2_unicode_compatible
 class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
-    class Meta(object):
+    class Meta:
         ordering = ['-modified']
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class States(object):
+    class States:
         INIT = 0
         CREATED = 1
         APPROVED = 2
@@ -42,7 +38,7 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
 
     state = FSMIntegerField(default=States.INIT, choices=STATE_CHOICES)
 
-    customer = models.ForeignKey(Customer)
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer)
     amount = models.DecimalField(max_digits=9, decimal_places=2)
     tax = models.DecimalField(max_digits=9, decimal_places=2, default=0)
 
@@ -85,15 +81,14 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
         pass
 
 
-@python_2_unicode_compatible
 class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
-    class Meta(object):
+    class Meta:
         ordering = ['-invoice_date']
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class States(object):
+    class States:
         DRAFT = 'DRAFT'
         SENT = 'SENT'
         PAID = 'PAID'
@@ -118,7 +113,7 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
             (PAYMENT_PENDING, _('Payment pending')),
         )
 
-    customer = models.ForeignKey(Customer, related_name='paypal_invoices')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer, related_name='paypal_invoices')
     state = models.CharField(max_length=30, choices=States.CHOICES, default=States.DRAFT)
     invoice_date = models.DateField()
     end_date = models.DateField()
@@ -168,17 +163,17 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
 
 
 class InvoiceItem(models.Model):
-    class Meta(object):
+    class Meta:
         ordering = ['invoice', '-start']
 
-    class UnitsOfMeasure(object):
+    class UnitsOfMeasure:
         QUANTITY = 'QUANTITY'
         HOURS = 'HOURS'
         AMOUNT = 'AMOUNT'
 
         CHOICES = ((QUANTITY, _('Quantity')), (HOURS, _('Hours')), (AMOUNT, _('Amount')))
 
-    invoice = models.ForeignKey(Invoice, related_name='items')
+    invoice = models.ForeignKey(on_delete=models.CASCADE, to=Invoice, related_name='items')
     price = models.DecimalField(max_digits=9, decimal_places=2)
     tax = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)

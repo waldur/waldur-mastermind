@@ -2,7 +2,6 @@ from functools import reduce
 
 from django.db import models
 from django.db.models import F, Sum
-import six
 
 from . import exceptions
 
@@ -72,7 +71,7 @@ class FieldsContainerMeta(type):
         return type.__new__(self, name, bases, attrs)
 
 
-class QuotaField(object):
+class QuotaField:
     """ Base quota field.
 
     Links quota to its scope right after its creation.
@@ -106,7 +105,7 @@ class QuotaField(object):
         try:
             return getattr(scope, attr_name)
         except AttributeError:
-            return self.default_limit(scope) if six.callable(self.default_limit) else self.default_limit
+            return self.default_limit(scope) if callable(self.default_limit) else self.default_limit
 
     def get_or_create_quota(self, scope):
         if not self.is_connected_to_scope(scope):
@@ -114,7 +113,7 @@ class QuotaField(object):
                 'Wrong scope: Cannot create quota "%s" for scope "%s".' % (self.name, scope))
         defaults = {
             'limit': self.scope_default_limit(scope),
-            'usage': self.default_usage(scope) if six.callable(self.default_usage) else self.default_usage,
+            'usage': self.default_usage(scope) if callable(self.default_usage) else self.default_usage,
         }
 
         return scope.quotas.get_or_create(name=self.name, defaults=defaults)
@@ -185,7 +184,7 @@ class CounterQuotaField(QuotaField):
     @property
     def target_models(self):
         if not hasattr(self, '_target_models'):
-            self._target_models = (self._raw_target_models() if six.callable(self._raw_target_models)
+            self._target_models = (self._raw_target_models() if callable(self._raw_target_models)
                                    else self._raw_target_models)
         return self._target_models
 

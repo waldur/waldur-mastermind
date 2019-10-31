@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions, decorators, response, status
 from rest_framework import mixins
@@ -19,7 +17,7 @@ class QuotaViewSet(mixins.UpdateModelMixin,
     lookup_field = 'uuid'
     # XXX: Remove a custom pagination class once the quota calculation has been made more efficient
     pagination_class = UnlimitedLinkHeaderPagination
-    filter_class = filters.QuotaFilterSet
+    filterset_class = filters.QuotaFilterSet
 
     def get_queryset(self):
         return models.Quota.objects.filtered_for_user(self.request.user)
@@ -92,7 +90,7 @@ class QuotaViewSet(mixins.UpdateModelMixin,
             quota.save(update_fields=['threshold'])
             serializer.instance.refresh_from_db()
 
-    @decorators.detail_route()
+    @decorators.action(detail=True, )
     def history(self, request, uuid=None):
         """
         Warning! This endpoint is deprecated. Please use daily-quotas endpoint instead.

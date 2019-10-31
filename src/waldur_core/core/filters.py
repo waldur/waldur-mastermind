@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
@@ -8,8 +9,6 @@ from django_filters.constants import EMPTY_VALUES
 from django_filters.filters import MultipleChoiceFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import BaseFilterBackend
-import six
-from six.moves.urllib.parse import urlparse
 
 from waldur_core.core import serializers as core_serializers, fields as core_fields, models as core_models
 
@@ -56,7 +55,7 @@ class GenericKeyFilterBackend(DjangoFilterBackend):
         return queryset
 
 
-class MappedFilterMixin(object):
+class MappedFilterMixin:
 
     def __init__(self, choice_mappings, **kwargs):
         super(MappedFilterMixin, self).__init__(**kwargs)
@@ -66,7 +65,7 @@ class MappedFilterMixin(object):
         assert len(set(choice_mappings.values())) == len(choice_mappings), 'Mappings are not unique'
 
         self.mapped_to_model = choice_mappings
-        self.model_to_mapped = {v: k for k, v in six.iteritems(choice_mappings)}
+        self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
 
 
 class MappedChoiceFilter(MappedFilterMixin, django_filters.ChoiceFilter):
@@ -289,3 +288,12 @@ class EmptyFilter(django_filters.CharFilter):
             return qs
         else:
             return qs.none()
+
+
+class BaseSummaryFilterSet(django_filters.FilterSet):
+
+    def filter_queryset(self, queryset):
+        # Skip queryset class validation
+        for name, value in self.form.cleaned_data.items():
+            queryset = self.filters[name].filter(queryset, value)
+        return queryset

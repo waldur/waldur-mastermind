@@ -85,7 +85,7 @@ class CommentRetrieveTest(base.BaseTest):
         factories.CommentFactory(issue=issue)
         self.client.force_authenticate(user)
 
-        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue__uuid': issue.uuid})
+        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue__uuid': issue.uuid.hex})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -101,7 +101,7 @@ class CommentRetrieveTest(base.BaseTest):
         # add some noise
         factories.CommentFactory(issue=issue)
 
-        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue_uuid': issue.uuid})
+        response = self.client.get(factories.CommentFactory.get_list_url(), {'issue_uuid': issue.uuid.hex})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)

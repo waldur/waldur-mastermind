@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from celery import chain
 from django.db import transaction
 

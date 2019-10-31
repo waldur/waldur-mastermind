@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from celery import chain
 
 from waldur_core.core import executors as core_executors

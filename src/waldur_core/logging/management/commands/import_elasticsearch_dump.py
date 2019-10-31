@@ -1,4 +1,5 @@
 from argparse import FileType
+from functools import reduce
 import operator
 import json
 from sys import stdin
@@ -6,7 +7,6 @@ from sys import stdin
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 
-from waldur_auth_openid.log import OpenIDEventLogger
 from waldur_auth_saml2.log import Saml2AuthEventLogger
 from waldur_auth_social.log import SocialEventLogger
 from waldur_core.core.log import AuthEventLogger
@@ -31,7 +31,6 @@ SKIPPED_FIELDS = (
 )
 
 USER_LOGGERS = (
-    OpenIDEventLogger,
     Saml2AuthEventLogger,
     SocialEventLogger,
     AuthEventLogger,

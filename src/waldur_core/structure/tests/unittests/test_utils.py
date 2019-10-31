@@ -1,11 +1,11 @@
 import unittest
 
-from six.moves import mock
+from unittest import mock
 
 from waldur_core.structure.utils import update_pulled_fields
 
 
-class InstanceMock(object):
+class InstanceMock:
     def __init__(self, name='Virtual machine', runtime_state='OK', error_message=''):
         self.pk = 1
         self.name = name

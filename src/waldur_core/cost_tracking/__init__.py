@@ -12,7 +12,7 @@ default_app_config = 'waldur_core.cost_tracking.apps.CostTrackingConfig'
 logger = logging.getLogger(__name__)
 
 
-class ConsumableItem(object):
+class ConsumableItem:
 
     def __init__(self, item_type, key, name=None, units='', default_price=0):
         self.item_type = item_type
@@ -38,7 +38,7 @@ class ConsumableItem(object):
         return not(self == other)
 
 
-class CostTrackingStrategy(object):
+class CostTrackingStrategy:
     """ Describes all methods that should be implemented to enable cost
         tracking for particular resource.
     """
@@ -97,7 +97,7 @@ class ResourceNotRegisteredError(TypeError):
     pass
 
 
-class CostTrackingRegister(object):
+class CostTrackingRegister:
     """ Register of all connected NC plugins """
     registered_resources = {}
     is_autodiscovered = False

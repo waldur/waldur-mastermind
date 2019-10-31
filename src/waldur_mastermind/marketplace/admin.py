@@ -1,12 +1,9 @@
-from __future__ import unicode_literals
-
 from django.contrib import admin
 from django.conf.urls import url
-from django.core.urlresolvers import resolve
 from django.forms.models import ModelForm
 from django.http import HttpResponse
 from django.shortcuts import redirect
-from django.urls import reverse
+from django.urls import reverse, resolve
 from django.utils.html import format_html
 from django.utils.translation import ugettext_lazy as _, ungettext
 from waldur_core.core.admin import JsonWidget
@@ -78,7 +75,7 @@ class PlansInline(admin.StackedInline):
               'product_code', 'article_code', 'archived', 'max_amount')
 
 
-class ConnectedResourceMixin(object):
+class ConnectedResourceMixin:
     """
     Protects object from modification if there are connected resources.
     """
@@ -98,7 +95,7 @@ class ConnectedResourceMixin(object):
         return True
 
 
-class ParentInlineMixin(object):
+class ParentInlineMixin:
     def get_parent_object_from_request(self, request):
         """
         Returns the parent object from the request or None.

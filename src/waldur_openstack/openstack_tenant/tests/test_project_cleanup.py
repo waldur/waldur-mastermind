@@ -22,6 +22,6 @@ class PackageCleanupTest(test_backend.BaseBackendTestCase):
         self.mocked_cinder().volumes.get.side_effect = cinder_exceptions.NotFound(code=404)
         self.mocked_nova().servers.get.side_effect = nova_exceptions.NotFound(code=404)
 
-        ProjectCleanupExecutor.execute(self.project, async=False)
+        ProjectCleanupExecutor.execute(self.project, is_async=False)
         self.assertFalse(Project.objects.filter(id=self.project.id).exists())
         self.assertFalse(models.Instance.objects.filter(id=self.instance.id).exists())

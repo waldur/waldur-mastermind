@@ -1,12 +1,10 @@
-from __future__ import unicode_literals
-
 from datetime import timedelta
 
 from waldur_core.core import WaldurExtension
 
 
 class SupportExtension(WaldurExtension):
-    class Settings(object):
+    class Settings:
         WALDUR_SUPPORT = {
             # wiki for global options: https://opennode.atlassian.net/wiki/display/WD/Assembly+plugin+configuration
             'ENABLED': False,

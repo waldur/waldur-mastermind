@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny, SAFE_METHODS
 from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
+from rest_framework.schemas.generators import EndpointEnumerator
 from rest_framework.serializers import ListSerializer, Serializer
 from rest_framework.utils import formatting
 from rest_framework.views import APIView
@@ -20,7 +21,7 @@ from waldur_core.structure import SupportedServices, filters as structure_filter
 
 
 # XXX: Drop after removing HEAD requests
-class WaldurEndpointInspector(schemas.EndpointInspector):
+class WaldurEndpointInspector(EndpointEnumerator):
     def get_allowed_methods(self, callback):
         """
         Return a list of the valid HTTP methods for this endpoint.
@@ -247,15 +248,21 @@ def is_disabled_action(view):
 class WaldurSchemaGenerator(schemas.SchemaGenerator):
     endpoint_inspector_cls = WaldurEndpointInspector
 
-    def create_view(self, callback, method, request=None):
+    def _get_paths_and_endpoints(self, request):
         """
-        Given a callback, return an actual view instance.
+        Generate (path, method, view) given (path, method, callback) for paths.
         """
-        view = super(WaldurSchemaGenerator, self).create_view(callback, method, request)
-        if is_disabled_action(view):
-            view.exclude_from_schema = True
+        paths = []
+        view_endpoints = []
+        for path, method, callback in self.endpoints:
+            view = self.create_view(callback, method, request)
+            if is_disabled_action(view):
+                continue
+            path = self.coerce_path(path, method, view)
+            paths.append(path)
+            view_endpoints.append((path, method, view))
 
-        return view
+        return paths, view_endpoints
 
     def get_description(self, path, method, view):
         """
@@ -291,11 +298,11 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         fields = []
         for filter_backend in view.filter_backends:
             backend = filter_backend()
-            if not hasattr(backend, 'get_filter_class'):
+            if not hasattr(backend, 'get_filterset_class'):
                 fields += filter_backend().get_schema_fields(view)
                 continue
 
-            filter_class = backend.get_filter_class(view, view.get_queryset())
+            filter_class = backend.get_filterset_class(view, view.get_queryset())
             if not filter_class:
                 continue
 
@@ -312,13 +319,15 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
 
         return fields
 
-    def get_serializer_fields(self, path, method, view):
+    def get_serializer_fields(self, path, method):
         """
         Return a list of `coreapi.Field` instances corresponding to any
         request body input, as determined by the serializer class.
         """
         if method not in ('PUT', 'PATCH', 'POST'):
             return []
+
+        view = self.view
 
         if not hasattr(view, 'get_serializer'):
             return []

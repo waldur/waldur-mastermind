@@ -28,7 +28,7 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
 
     expires = serializers.DateTimeField(source='get_expiration_time', read_only=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Invitation
         detail_fields = (
             'full_name', 'native_name',

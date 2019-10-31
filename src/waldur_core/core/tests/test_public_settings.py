@@ -1,5 +1,5 @@
 from django.test import TestCase
-from six.moves import mock
+from unittest import mock
 
 from waldur_core.core import views
 
@@ -9,9 +9,9 @@ class TestPublicSettings(TestCase):
     def setUp(self):
         super(TestPublicSettings, self).setUp()
 
-        class MockExtension(object):
+        class MockExtension:
             def __init__(self, name):
-                class Settings(object):
+                class Settings:
                     def __init__(self, name):
                         setattr(self, name, {})
 

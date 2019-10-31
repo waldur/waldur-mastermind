@@ -6,7 +6,7 @@ from . import models
 class InstanceStrategy(CostTrackingStrategy):
     resource_class = models.Instance
 
-    class Types(object):
+    class Types:
         FLAVOR = 'flavor'
 
     @classmethod

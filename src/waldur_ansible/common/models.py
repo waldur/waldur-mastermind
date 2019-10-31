@@ -1,8 +1,5 @@
-from __future__ import unicode_literals
-
 from django.apps import apps
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.lru_cache import lru_cache
 
 from waldur_core.core import models as core_models
@@ -12,14 +9,13 @@ from waldur_core.structure import models as structure_models
 class OutputMixin(models.Model):
     output = models.TextField(blank=True)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
 
-@python_2_unicode_compatible
 class UuidStrMixin(core_models.UuidMixin):
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def __str__(self):
@@ -27,7 +23,7 @@ class UuidStrMixin(core_models.UuidMixin):
 
 
 class ApplicationModel(structure_models.StructureModel):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     @classmethod

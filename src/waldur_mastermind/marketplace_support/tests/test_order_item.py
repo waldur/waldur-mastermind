@@ -128,7 +128,7 @@ class RequestCreateTest(BaseTest):
         self.assertTrue(support_models.Offering.objects.filter(name='item_name').exists())
         offering = support_models.Offering.objects.get(name='item_name')
         link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-        order_item_url = link_template.format(order_item_uuid=order_item.uuid,
+        order_item_url = link_template.format(order_item_uuid=order_item.uuid.hex,
                                               project_uuid=order_item.order.project.uuid)
         self.assertTrue(order_item_url in offering.issue.description)
 

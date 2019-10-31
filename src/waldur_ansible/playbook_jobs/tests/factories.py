@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import factory
 from rest_framework.reverse import reverse
 from waldur_ansible.playbook_jobs import models
@@ -9,7 +7,7 @@ from waldur_openstack.openstack_tenant.tests import factories as openstack_facto
 
 
 class PlaybookFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Playbook
 
     name = factory.Sequence(lambda n: 'playbook%s' % n)
@@ -33,7 +31,7 @@ class PlaybookFactory(factory.DjangoModelFactory):
         if playbook is None:
             playbook = PlaybookFactory()
 
-        url = 'http://testserver' + reverse(get_detail_view_name(models.Playbook), kwargs={'uuid': playbook.uuid})
+        url = 'http://testserver' + reverse(get_detail_view_name(models.Playbook), kwargs={'uuid': playbook.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -42,7 +40,7 @@ class PlaybookFactory(factory.DjangoModelFactory):
 
 
 class PlaybookParameterFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PlaybookParameter
 
     playbook = factory.SubFactory(PlaybookFactory)
@@ -52,7 +50,7 @@ class PlaybookParameterFactory(factory.DjangoModelFactory):
 
 
 class JobFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Job
 
     state = models.Job.States.OK
@@ -81,7 +79,7 @@ class JobFactory(factory.DjangoModelFactory):
         if job is None:
             job = JobFactory()
 
-        url = 'http://testserver' + reverse(get_detail_view_name(models.Job), kwargs={'uuid': job.uuid})
+        url = 'http://testserver' + reverse(get_detail_view_name(models.Job), kwargs={'uuid': job.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod

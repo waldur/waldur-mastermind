@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 import django.core.validators
 import django.db.models.deletion
 from django.db import migrations, models
@@ -9,10 +7,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-    replaces = [('quotas', '0001_initial'),
-                ('quotas', '0002_make_quota_scope_nullable'),
-                ('quotas', '0003_index_quota_name'),
-                ('quotas', '0004_quota_threshold')]
 
     initial = True
 

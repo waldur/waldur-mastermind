@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Prefetch
@@ -133,7 +131,7 @@ class PriceListItemViewSet(viewsets.ModelViewSet):
 class DefaultPriceListItemViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.DefaultPriceListItem.objects.all()
     lookup_field = 'uuid'
-    filter_class = filters.DefaultPriceListItemFilter
+    filterset_class = filters.DefaultPriceListItemFilter
     serializer_class = serializers.DefaultPriceListItemSerializer
 
     def list(self, request, *args, **kwargs):
@@ -152,7 +150,7 @@ class DefaultPriceListItemViewSet(viewsets.ReadOnlyModelViewSet):
 
 class MergedPriceListItemViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
-    filter_class = filters.DefaultPriceListItemFilter
+    filterset_class = filters.DefaultPriceListItemFilter
     serializer_class = serializers.MergedPriceListItemSerializer
 
     def list(self, request, *args, **kwargs):

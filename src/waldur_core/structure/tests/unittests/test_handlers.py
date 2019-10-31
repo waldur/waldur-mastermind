@@ -1,5 +1,6 @@
+from unittest import mock
+
 from django.test import TestCase
-from six.moves import mock
 
 from .. import factories, fixtures
 

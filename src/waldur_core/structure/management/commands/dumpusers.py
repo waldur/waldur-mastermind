@@ -3,7 +3,6 @@ from collections import OrderedDict
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 import prettytable
-import six
 
 from waldur_core.structure import models
 
@@ -27,7 +26,7 @@ def format_string_to_column_size(string):
 
     formatted = '\n'.join(string[i:i + COLUMN_MAX_WIDTH] for i in range(0, len(string), COLUMN_MAX_WIDTH))
     if isinstance(formatted, str):
-        formatted = six.text_type(formatted, errors='replace')
+        formatted = str(formatted, errors='replace')
     return formatted
 
 
@@ -36,7 +35,7 @@ def to_string(value):
         return 'Yes' if value else 'No'
     elif isinstance(value, int):
         return str(value)
-    elif isinstance(value, six.string_types):
+    elif isinstance(value, str):
         return format_string_to_column_size(value)
     elif isinstance(value, list):
         strings = [to_string(v) for v in value]

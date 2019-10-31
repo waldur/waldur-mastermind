@@ -12,7 +12,7 @@ class DeploymentPlanViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.DeploymentPlanSerializer
     lookup_field = 'uuid'
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.DeploymentPlanFilter
+    filterset_class = filters.DeploymentPlanFilter
     unsafe_methods_permissions = [structure_permissions.is_administrator]
 
     def retrieve(self, request, *args, **kwargs):
@@ -89,7 +89,7 @@ class DeploymentPlanViewSet(core_views.ActionsViewSet):
 
     update_serializer_class = partial_update_serializer_class = serializers.DeploymentPlanCreateSerializer
 
-    @decorators.detail_route(methods=['GET'])
+    @decorators.action(detail=True, methods=['GET'])
     def evaluate(self, request, *args, **kwargs):
         strategy = optimizers.SingleServiceStrategy(self.get_object())
         optimized_services = strategy.get_optimized()

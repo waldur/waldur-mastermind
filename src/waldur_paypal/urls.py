@@ -1,13 +1,11 @@
-from __future__ import unicode_literals
-
 from django.conf.urls import url
 
 from . import views
 
 
 def register_in(router):
-    router.register(r'paypal-payments', views.PaymentView, base_name='paypal-payment')
-    router.register(r'paypal-invoices', views.InvoicesViewSet, base_name='paypal-invoice')
+    router.register(r'paypal-payments', views.PaymentView, basename='paypal-payment')
+    router.register(r'paypal-invoices', views.InvoicesViewSet, basename='paypal-invoice')
 
 
 urlpatterns = [

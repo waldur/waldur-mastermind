@@ -1,9 +1,7 @@
-from __future__ import unicode_literals
-
 import json
 
 import jira
-import mock
+from unittest import mock
 from django.test import TestCase
 from django.utils import timezone
 from jira import User

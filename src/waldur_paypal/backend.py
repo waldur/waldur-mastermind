@@ -1,28 +1,28 @@
 import datetime
+from urllib.parse import urlencode, urlparse, parse_qs
+from urllib.request import urlopen
+
 import dateutil.parser
 import decimal
 import paypalrestsdk as paypal
-import urlparse
-import urllib
-import urllib2
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.utils import six, timezone
+from django.utils import timezone
 
 
 class PayPalError(Exception):
     pass
 
 
-class PaypalPayment(object):
+class PaypalPayment:
     def __init__(self, payment_id, approval_url, token):
         self.payment_id = payment_id
         self.approval_url = approval_url
         self.token = token
 
 
-class PaypalBackend(object):
+class PaypalBackend:
 
     BACKEND_SERVERS_MAP = {
         'sandbox': 'https://www.sandbox.paypal.com',
@@ -48,7 +48,7 @@ class PaypalBackend(object):
     def get_payment_view_url(self, backend_invoice_id, params=None):
         invoice_url = '%s/invoice/payerView/details/%s' % (self.server, backend_invoice_id)
         if params:
-            query_params = urllib.urlencode(params)
+            query_params = urlencode(params)
             invoice_url = '%s?%s' % (invoice_url, query_params)
 
         return invoice_url
@@ -60,8 +60,8 @@ class PaypalBackend(object):
         raise PayPalError('Approval URL is not found')
 
     def _find_token(self, approval_url):
-        parts = urlparse.urlparse(approval_url)
-        params = urlparse.parse_qs(parts.query)
+        parts = urlparse(approval_url)
+        params = parse_qs(parts.query)
         token = params.get('token')
         if not token:
             raise PayPalError('Unable to parse token from approval_url')
@@ -160,7 +160,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(backend_invoice.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def send_invoice(self, invoice):
         if invoice.state != invoice.States.DRAFT:
@@ -169,7 +169,7 @@ class PaypalBackend(object):
         try:
             backend_invoice = paypal.Invoice.find(invoice.backend_id)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
         if not backend_invoice.send():
             raise PayPalError(backend_invoice.error)
@@ -180,7 +180,7 @@ class PaypalBackend(object):
         try:
             backend_invoice = paypal.Invoice.find(invoice.backend_id)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
         invoice.state = backend_invoice.status
         invoice.number = backend_invoice.number
@@ -232,7 +232,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(payment.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def approve_payment(self, payment_id, payer_id):
         try:
@@ -245,7 +245,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(payment.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def create_plan(self, amount, tax, name, description, return_url, cancel_url):
         """
@@ -300,7 +300,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(plan.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def _format_decimal(self, value):
         """
@@ -343,7 +343,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(agreement.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def execute_agreement(self, payment_token):
         """
@@ -356,7 +356,7 @@ class PaypalBackend(object):
                 raise PayPalError('Can not execute agreement')
             return agreement.id
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def get_agreement(self, agreement_id):
         """
@@ -369,7 +369,7 @@ class PaypalBackend(object):
                 raise PayPalError('Agreement not found')
             return agreement
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def cancel_agreement(self, agreement_id):
         agreement = self.get_agreement(agreement_id)
@@ -382,7 +382,7 @@ class PaypalBackend(object):
             else:
                 raise PayPalError(agreement.error)
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def get_agreement_transactions(self, agreement_id, start_date, end_date=None):
         if not end_date:
@@ -416,7 +416,7 @@ class PaypalBackend(object):
             return results
 
         except paypal.exceptions.ConnectionError as e:
-            six.reraise(PayPalError, e)
+            raise PayPalError(e)
 
     def download_invoice_pdf(self, invoice):
         if not invoice.backend_id:
@@ -426,6 +426,6 @@ class PaypalBackend(object):
             ))
 
         invoice_url = self.get_payment_view_url(invoice.backend_id, {'printPdfMode': 'true'})
-        response = urllib2.urlopen(invoice_url)  # nosec
+        response = urlopen(invoice_url)  # nosec
         content = response.read()
         invoice.pdf.save(invoice.file_name, ContentFile(content), save=True)

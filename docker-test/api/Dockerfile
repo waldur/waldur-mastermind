@@ -10,14 +10,12 @@ LABEL   summary="Waldur Mastermind REST API Image for Unit Test" \
         description="Waldur Cloud Brokerage Platform" \
         url="https://waldur.com"
 
-# Install build dependencies for Waldur MasterMind from RPM repositories
-RUN yum --assumeyes install http://opennodecloud.com/centos/7/waldur-release.rpm
 RUN yum --assumeyes install https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm
-RUN yum --assumeyes install epel-release centos-release-openstack-pike
-RUN yum-config-manager --disable centos-qemu-ev
+RUN yum --assumeyes install epel-release
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install \
   gcc \
+  git \
   libffi-devel \
   libjpeg-devel \
   libxml2-devel \
@@ -26,15 +24,15 @@ RUN yum --assumeyes install \
   openldap-devel \
   openssl-devel \
   postgresql-devel \
-  python-devel \
-  python-pip \
+  python3-devel \
+  python3-pip \
   rsync \
   xmlsec1 \
   zlib-devel
 
 # Install Python dependencies for Waldur MasterMind from PyPI
 COPY requirements.txt /tmp/
-RUN pip install -r /tmp/requirements.txt
+RUN pip3 install -r /tmp/requirements.txt
 
 # Copy unit test runner script
 COPY waldur-test /usr/bin/waldur-test

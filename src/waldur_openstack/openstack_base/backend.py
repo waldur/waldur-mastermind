@@ -2,10 +2,7 @@ import datetime
 import hashlib
 import json
 import logging
-import sys
 
-from ceilometerclient import client as ceilometer_client
-from ceilometerclient import exc as ceilometer_exceptions
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2 import client as cinder_client
 from django.core.cache import cache
@@ -22,7 +19,6 @@ from neutronclient.v2_0 import client as neutron_client
 from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
-import six
 
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.exceptions import SerializableBackendError
@@ -43,13 +39,6 @@ class OpenStackAuthorizationFailed(OpenStackBackendError):
     pass
 
 
-def reraise(exc):
-    """
-    Reraise OpenStackBackendError while maintaining traceback.
-    """
-    six.reraise(OpenStackBackendError, exc, sys.exc_info()[2])
-
-
 class OpenStackSession(dict):
     """ Serializable session """
 
@@ -63,7 +52,7 @@ class OpenStackSession(dict):
             # This will eagerly sign in throwing AuthorizationFailure on bad credentials
             self.keystone_session.get_auth_headers()
         except keystone_exceptions.ClientException as e:
-            six.reraise(OpenStackAuthorizationFailed, e)
+            raise OpenStackAuthorizationFailed(e)
 
         for opt in ('auth_ref', 'auth_url', 'project_id', 'project_name', 'project_domain_name'):
             self[opt] = getattr(self.auth, opt)
@@ -106,7 +95,7 @@ class OpenStackSession(dict):
         return str({k: v if k != 'password' else '***' for k, v in self.items()})
 
 
-class OpenStackClient(object):
+class OpenStackClient:
     """ Generic OpenStack client. """
 
     def __init__(self, session=None, verify_ssl=False, **credentials):
@@ -123,7 +112,7 @@ class OpenStackClient(object):
                 self.session = OpenStackSession(verify_ssl=verify_ssl, **credentials)
             except AttributeError as e:
                 logger.error('Failed to create OpenStack session.')
-                reraise(e)
+                raise OpenStackBackendError(e)
 
     @property
     def keystone(self):
@@ -135,7 +124,7 @@ class OpenStackClient(object):
             return nova_client.Client(version='2', session=self.session.keystone_session, endpoint_type='publicURL')
         except nova_exceptions.ClientException as e:
             logger.exception('Failed to create nova client: %s', e)
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @property
     def neutron(self):
@@ -143,7 +132,7 @@ class OpenStackClient(object):
             return neutron_client.Client(session=self.session.keystone_session)
         except neutron_exceptions.NeutronClientException as e:
             logger.exception('Failed to create neutron client: %s', e)
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @property
     def cinder(self):
@@ -151,7 +140,7 @@ class OpenStackClient(object):
             return cinder_client.Client(session=self.session.keystone_session)
         except cinder_exceptions.ClientException as e:
             logger.exception('Failed to create cinder client: %s', e)
-            reraise(e)
+            raise OpenStackBackendError(e)
 
     @property
     def glance(self):
@@ -159,15 +148,7 @@ class OpenStackClient(object):
             return glance_client.Client(session=self.session.keystone_session)
         except glance_exceptions.ClientException as e:
             logger.exception('Failed to create glance client: %s', e)
-            reraise(e)
-
-    @property
-    def ceilometer(self):
-        try:
-            return ceilometer_client.Client('2', session=self.session.keystone_session)
-        except ceilometer_exceptions.BaseException as e:
-            logger.exception('Failed to create ceilometer client: %s', e)
-            reraise(e)
+            raise OpenStackBackendError(e)
 
 
 class BaseOpenStackBackend(ServiceBackend):
@@ -179,7 +160,7 @@ class BaseOpenStackBackend(ServiceBackend):
     def _get_cached_session_key(self, admin):
         key = 'OPENSTACK_ADMIN_SESSION' if admin else 'OPENSTACK_SESSION_%s' % self.tenant_id
         settings_key = str(self.settings.backend_url) + str(self.settings.password) + str(self.settings.username)
-        hashed_settings_key = hashlib.sha256(settings_key).hexdigest()
+        hashed_settings_key = hashlib.sha256(settings_key.encode('utf-8')).hexdigest()
         return '%s_%s_%s' % (self.settings.uuid.hex, hashed_settings_key, key)
 
     def get_client(self, name=None, admin=False):
@@ -225,7 +206,7 @@ class BaseOpenStackBackend(ServiceBackend):
             return client
 
     def __getattr__(self, name):
-        clients = 'keystone', 'nova', 'neutron', 'cinder', 'glance', 'ceilometer'
+        clients = 'keystone', 'nova', 'neutron', 'cinder', 'glance'
         for client in clients:
             if name == '{}_client'.format(client):
                 return self.get_client(client, admin=False)
@@ -241,7 +222,7 @@ class BaseOpenStackBackend(ServiceBackend):
             self.keystone_client
         except keystone_exceptions.ClientException as e:
             if raise_exception:
-                reraise(e)
+                raise OpenStackBackendError(e)
             return False
         else:
             return True
@@ -272,7 +253,7 @@ class BaseOpenStackBackend(ServiceBackend):
         except (nova_exceptions.ClientException,
                 cinder_exceptions.ClientException,
                 neutron_exceptions.NeutronClientException) as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         return {
             Tenant.Quotas.ram: nova_quotas.ram,
@@ -317,7 +298,7 @@ class BaseOpenStackBackend(ServiceBackend):
         except (nova_exceptions.ClientException,
                 cinder_exceptions.ClientException,
                 neutron_exceptions.NeutronClientException) as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         volumes_size = sum(self.gb2mb(v.size) for v in volumes)
         snapshots_size = sum(self.gb2mb(v.size) for v in snapshots)
@@ -382,7 +363,7 @@ class BaseOpenStackBackend(ServiceBackend):
         try:
             images = glance.images.list()
         except glance_exceptions.ClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)
 
         images = [image for image in images if not image['status'] == 'deleted']
         if filter_function:
@@ -410,4 +391,4 @@ class BaseOpenStackBackend(ServiceBackend):
         except neutron_exceptions.NotFound:
             logger.debug("Floating IP %s is already gone from tenant %s", backend_id, tenant_backend_id)
         except neutron_exceptions.NeutronClientException as e:
-            reraise(e)
+            raise OpenStackBackendError(e)

@@ -1,6 +1,6 @@
 import factory
 
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils import timezone
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -9,7 +9,7 @@ from waldur_paypal import models
 
 
 class PaypalPaymentFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Payment
 
     amount = 10
@@ -21,7 +21,7 @@ class PaypalPaymentFactory(factory.DjangoModelFactory):
     def get_url(self, payment=None, action=None):
         if payment is None:
             payment = PaypalPaymentFactory()
-        url = 'http://testserver' + reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid})
+        url = 'http://testserver' + reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid.hex})
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -30,7 +30,7 @@ class PaypalPaymentFactory(factory.DjangoModelFactory):
 
 
 class InvoiceFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Invoice
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
@@ -55,7 +55,7 @@ class InvoiceFactory(factory.DjangoModelFactory):
 
 
 class InvoiceItemFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.InvoiceItem
 
     invoice = factory.SubFactory(InvoiceFactory)

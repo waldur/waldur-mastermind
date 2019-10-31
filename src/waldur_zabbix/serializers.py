@@ -315,7 +315,7 @@ class ItemsAggregatedValuesSerializer(serializers.Serializer):
 
 
 class UserGroupSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(object):
+    class Meta:
         model = models.UserGroup
         fields = 'url', 'name', 'settings'
         read_only_fields = 'url', 'backend_id'
@@ -344,7 +344,7 @@ class UserSerializer(structure_serializers.BasePropertySerializer):
     password = serializers.SerializerMethodField(
         help_text='Password is visible only after user creation or if user has type "default".')
 
-    class Meta(object):
+    class Meta:
         model = models.User
         fields = ('url', 'alias', 'name', 'surname', 'type', 'groups', 'backend_id', 'settings', 'state', 'phone',
                   'password')

@@ -1,6 +1,5 @@
-from __future__ import unicode_literals
-
 import base64
+from io import BytesIO
 import os
 
 import pdfkit
@@ -9,7 +8,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
-from django.utils import six, timezone
+from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
@@ -47,7 +46,7 @@ def process_order_item(order_item, user):
         order_item.save(update_fields=['state'])
         processor(order_item).process_order_item(user)
     except exceptions.APIException as e:
-        order_item.error_message = six.text_type(e)
+        order_item.error_message = str(e)
         order_item.set_state_erred()
         order_item.save(update_fields=['state', 'error_message'])
 
@@ -82,7 +81,7 @@ def create_screenshot_thumbnail(screenshot):
     else:
         return
 
-    temp_thumb = six.StringIO()
+    temp_thumb = BytesIO()
     image.save(temp_thumb, FTYPE)
     temp_thumb.seek(0)
     screenshot.thumbnail.save(thumb_name, ContentFile(temp_thumb.read()), save=True)
@@ -151,7 +150,7 @@ def format_list(resources):
 
 def get_order_item_url(order_item):
     link_template = settings.WALDUR_MARKETPLACE['ORDER_ITEM_LINK_TEMPLATE']
-    return link_template.format(order_item_uuid=order_item.uuid,
+    return link_template.format(order_item_uuid=order_item.uuid.hex,
                                 project_uuid=order_item.order.project.uuid)
 
 
@@ -181,8 +180,9 @@ def get_info_about_missing_usage_reports():
     result = []
 
     for resource in resources_without_usages:
-        if filter(lambda x: x['customer'] == resource.offering.customer, result):
-            filter(lambda x: x['customer'] == resource.offering.customer, result)[0]['resources'].append(resource)
+        rows = list(filter(lambda x: x['customer'] == resource.offering.customer, result))
+        if rows:
+            rows[0]['resources'].append(resource)
         else:
             result.append({
                 'customer': resource.offering.customer,

@@ -1,7 +1,6 @@
-from __future__ import unicode_literals
-
 import functools
 import logging
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import auth
@@ -18,7 +17,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
-from six.moves.urllib.parse import urlencode
 
 from waldur_core import __version__
 from waldur_core.core import permissions, WaldurExtension
@@ -46,7 +44,7 @@ def validate_authentication_method(method):
     return wrapper
 
 
-class RefreshTokenMixin(object):
+class RefreshTokenMixin:
     """
     This mixin is used in both password and social auth (implemented via plugin).
     Mixin allows to create new token if it does not exist yet or if it has already expired.
@@ -255,7 +253,7 @@ class ActionsViewSet(viewsets.ModelViewSet):
             if obj.state != 'ok':
                 raise IncorrectStateException('Instance should be in state OK.')
 
-        @decorators.detail_route()
+        @decorators.action(detail=True, )
         def action(self, request, *args, **kwargs):
             ...
 
@@ -373,7 +371,7 @@ def logout_failed(message):
     return redirect_with(url_template, message=message)
 
 
-class CheckExtensionMixin(object):
+class CheckExtensionMixin:
     """ Raise exception if extension is disabled """
     extension_name = NotImplemented
 

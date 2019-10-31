@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from celery import shared_task
 
 from waldur_core.core import utils as core_utils

@@ -310,4 +310,4 @@ class Saml2ProviderView(ListAPIView):
     permission_classes = ()
     serializer_class = serializers.Saml2ProviderSerializer
     queryset = models.IdentityProvider.objects.all()
-    filter_class = filters.IdentityProviderFilter
+    filterset_class = filters.IdentityProviderFilter

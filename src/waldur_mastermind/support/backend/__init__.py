@@ -15,7 +15,7 @@ class SupportBackendError(Exception):
     pass
 
 
-class SupportBackend(object):
+class SupportBackend:
     """ Interface for support backend """
 
     def create_issue(self, issue):

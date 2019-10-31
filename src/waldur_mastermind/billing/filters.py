@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import OuterRef, Subquery
 from rest_framework.filters import BaseFilterBackend

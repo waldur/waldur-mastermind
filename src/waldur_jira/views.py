@@ -23,7 +23,7 @@ class JiraServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkViewSe
     serializer_class = serializers.ServiceProjectLinkSerializer
 
 
-class JiraPermissionMixin(object):
+class JiraPermissionMixin:
     def get_queryset(self):
         user = self.request.user
         queryset = super(JiraPermissionMixin, self).get_queryset()
@@ -35,14 +35,14 @@ class JiraPermissionMixin(object):
 
 class ProjectTemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.ProjectTemplate.objects.all()
-    filter_class = filters.ProjectTemplateFilter
+    filterset_class = filters.ProjectTemplateFilter
     serializer_class = serializers.ProjectTemplateSerializer
     lookup_field = 'uuid'
 
 
 class ProjectViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Project.objects.all()
-    filter_class = filters.ProjectFilter
+    filterset_class = filters.ProjectFilter
     serializer_class = serializers.ProjectSerializer
     create_executor = executors.ProjectCreateExecutor
     update_executor = executors.ProjectUpdateExecutor
@@ -58,7 +58,7 @@ class ProjectViewSet(structure_views.ImportableResourceViewSet):
 
 class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.IssueType.objects.all()
-    filter_class = filters.IssueTypeFilter
+    filterset_class = filters.IssueTypeFilter
     serializer_class = serializers.IssueTypeSerializer
     lookup_field = 'uuid'
 
@@ -66,14 +66,14 @@ class IssueTypeViewSet(structure_views.BaseServicePropertyViewSet):
 class PriorityViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Priority.objects.all()
     serializer_class = serializers.PrioritySerializer
-    filter_class = filters.PriorityFilter
+    filterset_class = filters.PriorityFilter
     lookup_field = 'uuid'
 
 
 class IssueViewSet(JiraPermissionMixin,
                    structure_views.ResourceViewSet):
     queryset = models.Issue.objects.all()
-    filter_class = filters.IssueFilter
+    filterset_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
     create_executor = executors.IssueCreateExecutor
     update_executor = executors.IssueUpdateExecutor
@@ -84,7 +84,7 @@ class IssueViewSet(JiraPermissionMixin,
 class CommentViewSet(JiraPermissionMixin,
                      structure_views.ResourceViewSet):
     queryset = models.Comment.objects.all()
-    filter_class = filters.CommentFilter
+    filterset_class = filters.CommentFilter
     serializer_class = serializers.CommentSerializer
     create_executor = executors.CommentCreateExecutor
     update_executor = executors.CommentUpdateExecutor
@@ -97,7 +97,7 @@ class AttachmentViewSet(JiraPermissionMixin,
                         core_mixins.DeleteExecutorMixin,
                         viewsets.ModelViewSet):
     queryset = models.Attachment.objects.all()
-    filter_class = filters.AttachmentFilter
+    filterset_class = filters.AttachmentFilter
     filter_backends = structure_filters.GenericRoleFilter, DjangoFilterBackend
     permission_classes = permissions.IsAuthenticated, permissions.DjangoObjectPermissions
     serializer_class = serializers.AttachmentSerializer

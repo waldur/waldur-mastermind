@@ -1,10 +1,11 @@
 from datetime import timedelta
+from unittest import mock
 
 from ddt import ddt, data
 from django.test import TestCase
 from django.utils import timezone
 from django.test.utils import override_settings
-from six.moves import mock
+from freezegun import freeze_time
 
 from waldur_core.core import utils
 from waldur_core.structure import tasks
@@ -70,8 +71,7 @@ class ThrottleProvisionTaskTest(TestCase):
 
 class SetErredProvisioningResourcesTaskTest(TestCase):
     def test_stuck_resource_becomes_erred(self):
-        with mock.patch('model_utils.fields.now') as mocked_now:
-            mocked_now.return_value = timezone.now() - timedelta(hours=4)
+        with freeze_time(timezone.now() - timedelta(hours=4)):
             stuck_vm = factories.TestNewInstanceFactory(state=models.TestNewInstance.States.CREATING)
             stuck_volume = factories.TestVolumeFactory(state=models.TestVolume.States.CREATING)
 

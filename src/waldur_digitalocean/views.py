@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import decorators, response, status, serializers as rf_serializers
 
@@ -23,14 +21,14 @@ class DigitalOceanServiceProjectLinkViewSet(structure_views.BaseServiceProjectLi
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
     serializer_class = serializers.ImageSerializer
-    filter_class = filters.ImageFilter
+    filterset_class = filters.ImageFilter
     lookup_field = 'uuid'
 
 
 class RegionViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Region.objects.all()
     serializer_class = serializers.RegionSerializer
-    filter_class = filters.RegionFilter
+    filterset_class = filters.RegionFilter
     lookup_field = 'uuid'
 
     def get_queryset(self):
@@ -40,14 +38,14 @@ class RegionViewSet(structure_views.BaseServicePropertyViewSet):
 class SizeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Size.objects.all()
     serializer_class = serializers.SizeSerializer
-    filter_class = filters.SizeFilter
+    filterset_class = filters.SizeFilter
     lookup_field = 'uuid'
 
 
 class DropletViewSet(structure_views.ResourceViewSet):
     queryset = models.Droplet.objects.all()
     serializer_class = serializers.DropletSerializer
-    filter_class = filters.DropletFilter
+    filterset_class = filters.DropletFilter
     create_executor = executors.DropletCreateExecutor
     update_executor = core_executors.EmptyExecutor
     delete_executor = executors.DropletDeleteExecutor
@@ -69,13 +67,13 @@ class DropletViewSet(structure_views.ResourceViewSet):
         #      View should pass objects to executor.
         self.create_executor.execute(
             droplet,
-            async=self.async_executor,
+            is_async=self.async_executor,
             backend_region_id=region.backend_id,
             backend_image_id=image.backend_id,
             backend_size_id=size.backend_id,
             ssh_key_uuid=ssh_key.uuid.hex if ssh_key else None)
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletStartExecutor().execute(instance)
@@ -85,7 +83,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
                         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE)]
     start_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletStopExecutor().execute(instance)
@@ -95,7 +93,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
                        core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE)]
     stop_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def restart(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletRestartExecutor().execute(instance)
@@ -105,7 +103,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
                           core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE)]
     restart_serializer_class = rf_serializers.Serializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def resize(self, request, uuid=None):
         """
         To resize droplet, submit a **POST** request to the instance URL, specifying URI of a target size.
@@ -143,7 +141,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
             disk=disk,
             size=size,
             updated_fields=None,
-            async=self.async_executor)
+            is_async=self.async_executor)
 
         message = _('Droplet {droplet_name} has been scheduled to %s resize.') % \
             (disk and _('permanent') or _('flexible'))

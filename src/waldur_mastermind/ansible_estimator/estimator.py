@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import collections
 import itertools
 import logging
@@ -15,7 +13,7 @@ from . import serializers
 logger = logging.getLogger(__name__)
 
 
-class InMemoryJob(object):
+class InMemoryJob:
     """
     This class is used instead of database object for Ansible Job model.
     """
@@ -31,7 +29,7 @@ class InMemoryJob(object):
         """Skip database interaction"""
 
 
-class InMemoryResource(object):
+class InMemoryResource:
     """
     This class allows to treat dictionary as an object
     For example, use resource.flavor.cores instead of resource['flavor'].cores

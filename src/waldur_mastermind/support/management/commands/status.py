@@ -8,8 +8,8 @@ from django.db.utils import OperationalError
 from redis import exceptions as redis_exceptions
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.schemas import EndpointInspector
 
+from waldur_core.core.schemas import WaldurEndpointInspector
 from waldur_core.server.celery import app as celery_app
 
 User = get_user_model()
@@ -85,7 +85,7 @@ class Command(BaseCommand):
 
     def _check_api_endpoints(self, base_url):
         self.stdout.write('\nChecking Waldur MasterMind API endpoints...')
-        inspector = EndpointInspector()
+        inspector = WaldurEndpointInspector()
         endpoints = inspector.get_api_endpoints()
         user, _ = User.objects.get_or_create(username='waldur_status_checker', is_staff=True)
         authenticate(username='waldur_status_checker')

@@ -3,8 +3,6 @@ import collections
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
-import six
-from six.moves import input
 
 from waldur_core.cost_tracking import CostTrackingRegister
 from waldur_core.cost_tracking.models import PriceEstimate
@@ -136,7 +134,7 @@ class Command(BaseCommand):
 
     def delete_price_estimates_for_invalid_content_types(self):
         content_types = self.get_invalid_content_types()
-        content_types_list = ', '.join(map(six.text_type, content_types))
+        content_types_list = ', '.join(map(str, content_types))
 
         query = Q(content_type__in=content_types) | Q(content_type__isnull=True)
         invalid_estimates = PriceEstimate.objects.all().filter(query).filter()

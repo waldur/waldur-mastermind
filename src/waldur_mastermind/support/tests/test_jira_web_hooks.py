@@ -1,9 +1,10 @@
+import base64
 import collections
+from io import BytesIO
 import json
+from unittest import mock
 
 import jira
-import mock
-import six
 from django.conf import settings
 from django.core import mail
 from django.urls import reverse
@@ -282,8 +283,7 @@ class TestUpdateAttachmentFromJira(APITransactionTestCase):
                                  new=mock.Mock(return_value=self.backend_attachment))
         path.start()
 
-        GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-        file_content = six.BytesIO(GIF.decode('base64'))
+        file_content = BytesIO(base64.b64decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'))
         path = mock.patch.object(AttachmentSynchronizer, '_download_file',
                                  new=mock.Mock(return_value=file_content))
         path.start()

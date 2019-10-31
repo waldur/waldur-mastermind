@@ -1,9 +1,8 @@
 import logging
 import re
-import sys
 
 from django.db import IntegrityError
-from django.utils import six, dateparse, timezone
+from django.utils import dateparse, timezone
 from libcloud.common.types import LibcloudError
 from libcloud.compute.drivers.ec2 import EC2NodeDriver, REGION_DETAILS, NAMESPACE, RESOURCE_EXTRA_ATTRIBUTES_MAP
 from libcloud.compute.types import NodeState, StorageVolumeState
@@ -173,13 +172,6 @@ class AWSBackendError(ServiceBackendError):
     pass
 
 
-def reraise(exc):
-    """
-    Reraise AWSBackendError while maintaining traceback.
-    """
-    six.reraise(AWSBackendError, exc, sys.exc_info()[2])
-
-
 class AWSBackend(ServiceBackend):
     """ Waldur interface to AWS EC2 API.
         https://libcloud.apache.org/
@@ -210,7 +202,7 @@ class AWSBackend(ServiceBackend):
             self._get_api().list_key_pairs()
         except Exception as e:
             if raise_exception:
-                reraise(e)
+                raise AWSBackendError(e)
             return False
         else:
             return True
@@ -300,7 +292,7 @@ class AWSBackend(ServiceBackend):
             volume.save(update_fields=['backend_id'])
         except Exception as e:
             logger.exception('Unable to create volume with id %s', volume.id)
-            reraise(e)
+            raise AWSBackendError(e)
 
     def delete_volume(self, volume):
         try:
@@ -308,7 +300,7 @@ class AWSBackend(ServiceBackend):
             manager.destroy_volume(self.get_volume(volume))
         except Exception as e:
             logger.exception('Unable to delete volume with id %s', volume.id)
-            reraise(e)
+            raise AWSBackendError(e)
 
     def attach_volume(self, volume):
         """
@@ -322,7 +314,7 @@ class AWSBackend(ServiceBackend):
         except Exception as e:
             logger.exception('Unable to attach volume with id %s to instance with id %s',
                              volume.id, volume.instance.id)
-            reraise(e)
+            raise AWSBackendError(e)
 
     def detach_volume(self, volume):
         """
@@ -334,7 +326,7 @@ class AWSBackend(ServiceBackend):
             manager.detach_volume(backend_volume)
         except Exception as e:
             logger.exception('Unable to detach volume with id %s', volume.id)
-            reraise(e)
+            raise AWSBackendError(e)
         else:
             volume.instance = None
             volume.device = ''
@@ -353,7 +345,7 @@ class AWSBackend(ServiceBackend):
             except re.error:
                 logger.warning(
                     'Invalid images regexp supplied for service settings %s: %s',
-                    self.settings.uuid, options['images_regex'])
+                    self.settings.uuid.hex, options['images_regex'])
 
         for region in models.Region.objects.all():
             manager = self._get_api(region.backend_id)
@@ -403,7 +395,7 @@ class AWSBackend(ServiceBackend):
                 for node in manager.list_nodes():
                     yield region, node
         except LibcloudError as e:
-            reraise(e)
+            raise AWSBackendError(e)
 
     def create_instance(self, instance, backend_image_id=None, backend_size_id=None, ssh_key_uuid=None):
         manager = self.get_manager(instance)
@@ -424,7 +416,7 @@ class AWSBackend(ServiceBackend):
                 backend_ssh_key = self.get_or_create_ssh_key(ssh_key, manager)
             except LibcloudError as e:
                 logger.exception('Unable to provision SSH key %s', ssh_key_uuid)
-                reraise(e)
+                raise AWSBackendError(e)
 
             params['ex_keyname'] = backend_ssh_key['keyName']
 
@@ -432,7 +424,7 @@ class AWSBackend(ServiceBackend):
             backend_instance = manager.create_node(**params)
         except LibcloudError as e:
             logger.exception('Failed to provision virtual machine %s', instance.name)
-            reraise(e)
+            raise AWSBackendError(e)
 
         if ssh_key_uuid:
             instance.key_name = ssh_key.name
@@ -449,7 +441,7 @@ class AWSBackend(ServiceBackend):
             backend_volume = manager.list_volumes(instance.backend_id)[0]
         except Exception as e:
             logger.exception('Failed to get volume for Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
 
         volume.name = ('volume-%s' % instance.name)[:150]
         volume.backend_id = backend_volume.id
@@ -464,7 +456,7 @@ class AWSBackend(ServiceBackend):
             manager.reboot_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception('Unable to reboot Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
         else:
             instance.start_time = timezone.now()
             instance.save(update_fields=['start_time'])
@@ -475,7 +467,7 @@ class AWSBackend(ServiceBackend):
             manager.ex_stop_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception('Unable to stop Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
         else:
             instance.start_time = None
             instance.save(update_fields=['start_time'])
@@ -486,7 +478,7 @@ class AWSBackend(ServiceBackend):
             manager.ex_start_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception('Unable to start Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
         else:
             instance.start_time = timezone.now()
             instance.save(update_fields=['start_time'])
@@ -497,7 +489,7 @@ class AWSBackend(ServiceBackend):
             manager.destroy_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception('Unable to destroy Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
         else:
             instance.decrease_backend_quotas_usage()
 
@@ -507,7 +499,7 @@ class AWSBackend(ServiceBackend):
             manager.ex_change_node_size(manager.get_node(instance.backend_id), size_id)
         except Exception as e:
             logger.exception('Unable to resize Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
 
     def pull_instance_runtime_state(self, instance):
         try:
@@ -515,7 +507,7 @@ class AWSBackend(ServiceBackend):
             backend_vm = manager.get_node(instance.backend_id)
         except Exception as e:
             logger.exception('Unable to pull state for Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
 
         if backend_vm.state != instance.runtime_state:
             instance.runtime_state = backend_vm.state
@@ -527,7 +519,7 @@ class AWSBackend(ServiceBackend):
             backend_vm = manager.get_node(instance.backend_id)
         except Exception as e:
             logger.exception('Unable to pull public IPs for Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
 
         if backend_vm.public_ips != instance.public_ips:
             instance.public_ips = backend_vm.public_ips
@@ -539,7 +531,7 @@ class AWSBackend(ServiceBackend):
             backend_vm = manager.get_node(instance.backend_id)
         except Exception as e:
             logger.exception('Unable to check state for Amazon virtual machine %s', instance.uuid.hex)
-            six.reraise(AWSBackendError, six.text_type(e))
+            raise AWSBackendError(str(e))
 
         return backend_vm.state == self.State.TERMINATED
 
@@ -548,7 +540,7 @@ class AWSBackend(ServiceBackend):
         try:
             backend_instance = manager.get_node(instance.backend_id)
         except Exception as e:
-            reraise(e)
+            raise AWSBackendError(e)
 
         size = self.get_size(backend_instance.extra['instance_type'], manager)
 
@@ -563,7 +555,7 @@ class AWSBackend(ServiceBackend):
         try:
             volumes = {v.id: v.size for v in manager.list_volumes(instance.id)}
         except Exception as e:
-            reraise(e)
+            raise AWSBackendError(e)
 
         for device in instance.extra['block_device_mapping']:
             vid = device['ebs']['volume_id']
@@ -575,7 +567,7 @@ class AWSBackend(ServiceBackend):
 
         return {
             'id': instance.id,
-            'name': instance.name or instance.uuid,
+            'name': instance.name or instance.uuid.hex,
             'cores': instance_type.extra.get('cpu', 1),
             'ram': instance_type.ram,
             'disk': self.gb2mb(sum(volumes.values())),
@@ -596,14 +588,14 @@ class AWSBackend(ServiceBackend):
             return next(s for s in manager.list_sizes() if s.id == size_id)
         except (StopIteration, LibcloudError) as e:
             logger.exception("Size %s doesn't exist", size_id)
-            reraise(e)
+            raise AWSBackendError(e)
 
     def get_image(self, image_id, manager):
         try:
             return manager.get_image(image_id)
         except (StopIteration, LibcloudError) as e:
             logger.exception("Image %s doesn't exist", image_id)
-            reraise(e)
+            raise AWSBackendError(e)
 
     def get_or_create_ssh_key(self, ssh_key, manager):
         try:
@@ -693,7 +685,7 @@ class AWSBackend(ServiceBackend):
                     yield region, node
         except Exception as e:
             logger.exception('Unable to list EC2 volumes')
-            reraise(e)
+            raise AWSBackendError(e)
 
     def to_volume(self, volume):
         from waldur_core.structure import SupportedServices
@@ -727,7 +719,7 @@ class AWSBackend(ServiceBackend):
             manager = self._get_api(volume.region.backend_id)
             return manager.get_volume(volume.backend_id)
         except LibcloudError as e:
-            reraise(e)
+            raise AWSBackendError(e)
 
     def pull_volume_runtime_state(self, volume):
         backend_volume = self.get_volume(volume)

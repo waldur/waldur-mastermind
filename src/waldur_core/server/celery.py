@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import os
 
 from celery import Celery
@@ -18,7 +16,7 @@ app.config_from_object('django.conf:settings')
 app.autodiscover_tasks()
 
 
-class PriorityRouter(object):
+class PriorityRouter:
     """ Run heavy tasks and background tasks in separate queues. """
 
     def route_for_task(self, task_name, *args, **kwargs):

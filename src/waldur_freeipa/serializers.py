@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
@@ -14,7 +12,7 @@ class ProfileSerializer(core_serializers.AugmentedSerializerMixin,
     agree_with_policy = serializers.BooleanField(write_only=True,
                                                  help_text=_('User must agree with the policy.'))
 
-    class Meta(object):
+    class Meta:
         model = models.Profile
         fields = ('uuid', 'username', 'agreement_date', 'is_active', 'agree_with_policy')
         protected_fields = ('username', 'agreement_date')

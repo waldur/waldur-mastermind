@@ -1,7 +1,5 @@
 import pickle  # nosec
 
-import six
-
 from . import ServiceBackendError
 
 
@@ -25,6 +23,6 @@ class SerializableBackendError(ServiceBackendError):
                 # it is safe from security point of view
                 pickle.loads(pickle.dumps(arg))  # nosec
             except (pickle.PickleError, TypeError):
-                args[i] = six.text_type(arg)
+                args[i] = str(arg)
 
         super(SerializableBackendError, self).__init__(*args, **kwargs)

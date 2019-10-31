@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.test import override_settings
-import mock
+from unittest import mock
 from ddt import ddt, data
 from django.core import mail
 from freezegun import freeze_time
@@ -47,7 +47,7 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
 
         self.patcher = mock.patch('waldur_mastermind.invoices.utils.pdfkit')
         mock_pdfkit = self.patcher.start()
-        mock_pdfkit.from_string.return_value = ''
+        mock_pdfkit.from_string.return_value = 'PDF'
 
     def tearDown(self):
         super(InvoiceSendNotificationTest, self).tearDown()

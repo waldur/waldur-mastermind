@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -31,7 +29,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
         filters.IssueResourceFilterBackend,
     )
-    filter_class = filters.IssueFilter
+    filterset_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
 
     def is_staff_or_support(request, view, obj=None):
@@ -90,7 +88,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             return
         raise rf_exceptions.PermissionDenied()
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def comment(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -106,7 +104,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Priority.objects.all()
     serializer_class = serializers.PrioritySerializer
-    filter_class = filters.PriorityFilter
+    filterset_class = filters.PriorityFilter
     lookup_field = 'uuid'
 
 
@@ -118,7 +116,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         DjangoFilterBackend,
         filters.CommentIssueResourceFilterBackend,
     )
-    filter_class = filters.CommentFilter
+    filterset_class = filters.CommentFilter
     queryset = models.Comment.objects.all()
 
     @transaction.atomic()
@@ -160,7 +158,7 @@ class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated, IsStaffOrSupportUser,)
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
-    filter_class = filters.SupportUserFilter
+    filterset_class = filters.SupportUserFilter
 
 
 class WebHookReceiverView(CheckExtensionMixin, views.APIView):
@@ -184,9 +182,9 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
     )
-    filter_class = filters.OfferingFilter
+    filterset_class = filters.OfferingFilter
 
-    @decorators.list_route()
+    @decorators.action(detail=False)
     def configured(self, request):
         summary_config = {}
         for template in models.OfferingTemplate.objects.all():
@@ -212,7 +210,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if offering.state != models.Offering.States.REQUESTED:
             raise rf_exceptions.ValidationError(_('Offering must be in requested state.'))
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def complete(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -223,7 +221,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     complete_permissions = [structure_permissions.is_staff]
     complete_serializer_class = serializers.OfferingCompleteSerializer
 
-    @decorators.detail_route(methods=['post'])
+    @decorators.action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         offering = self.get_object()
         offering.state = models.Offering.States.TERMINATED
@@ -242,7 +240,7 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 class AttachmentViewSet(CheckExtensionMixin,
                         core_views.ActionsViewSet):
     queryset = models.Attachment.objects.all()
-    filter_class = filters.AttachmentFilter
+    filterset_class = filters.AttachmentFilter
     filter_backends = [DjangoFilterBackend]
     serializer_class = serializers.AttachmentSerializer
     lookup_field = 'uuid'

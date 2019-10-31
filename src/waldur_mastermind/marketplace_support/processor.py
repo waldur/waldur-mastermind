@@ -1,5 +1,3 @@
-import six
-
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -27,8 +25,8 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
             raise serializers.ValidationError('Offering has invalid scope. Support template is expected.')
 
         project = order_item.order.project
-        project_url = reverse('project-detail', kwargs={'uuid': project.uuid})
-        template_url = reverse('support-offering-template-detail', kwargs={'uuid': template.uuid})
+        project_url = reverse('project-detail', kwargs={'uuid': project.uuid.hex})
+        template_url = reverse('support-offering-template-detail', kwargs={'uuid': template.uuid.hex})
         attributes = order_item.attributes.copy()
 
         post_data = dict(
@@ -76,4 +74,4 @@ class UpdateRequestProcessor(processors.UpdateResourceProcessor):
         return IssueViewSet.as_view({'post': 'update'})
 
     def get_post_data(self):
-        return {'uuid': six.text_type(self.order_item.uuid)}
+        return {'uuid': str(self.order_item.uuid)}

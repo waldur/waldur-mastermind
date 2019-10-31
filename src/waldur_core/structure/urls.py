@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.conf.urls import url
 
 from waldur_core.structure import views
@@ -7,20 +5,20 @@ from waldur_core.structure import views
 
 def register_in(router):
     router.register(r'customers', views.CustomerViewSet)
-    router.register(r'project-types', views.ProjectTypeViewSet, base_name='project_type')
+    router.register(r'project-types', views.ProjectTypeViewSet, basename='project_type')
     router.register(r'projects', views.ProjectViewSet)
-    router.register(r'customer-permissions', views.CustomerPermissionViewSet, base_name='customer_permission')
-    router.register(r'customer-permissions-log', views.CustomerPermissionLogViewSet, base_name='customer_permission_log')
-    router.register(r'project-permissions', views.ProjectPermissionViewSet, base_name='project_permission')
-    router.register(r'project-permissions-log', views.ProjectPermissionLogViewSet, base_name='project_permission_log')
+    router.register(r'customer-permissions', views.CustomerPermissionViewSet, basename='customer_permission')
+    router.register(r'customer-permissions-log', views.CustomerPermissionLogViewSet, basename='customer_permission_log')
+    router.register(r'project-permissions', views.ProjectPermissionViewSet, basename='project_permission')
+    router.register(r'project-permissions-log', views.ProjectPermissionLogViewSet, basename='project_permission_log')
     router.register(r'service-settings', views.ServiceSettingsViewSet)
-    router.register(r'service-metadata', views.ServiceMetadataViewSet, base_name='service_metadata')
-    router.register(r'services', views.ServicesViewSet, base_name='service_items')
-    router.register(r'resources', views.ResourceSummaryViewSet, base_name='resource')
+    router.register(r'service-metadata', views.ServiceMetadataViewSet, basename='service_metadata')
+    router.register(r'services', views.ServicesViewSet, basename='service_items')
+    router.register(r'resources', views.ResourceSummaryViewSet, basename='resource')
     router.register(r'users', views.UserViewSet)
     router.register(r'keys', views.SshKeyViewSet)
-    router.register(r'service-certifications', views.ServiceCertificationViewSet, base_name='service-certification')
-    router.register(r'divisions', views.DivisionViewSet, base_name='division')
+    router.register(r'service-certifications', views.ServiceCertificationViewSet, basename='service-certification')
+    router.register(r'divisions', views.DivisionViewSet, basename='division')
 
 
 urlpatterns = [

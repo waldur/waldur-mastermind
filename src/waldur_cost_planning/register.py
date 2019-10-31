@@ -1,4 +1,4 @@
-class Register(object):
+class Register:
     _optimizers = {}
     _serializers = {}
 

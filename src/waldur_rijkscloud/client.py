@@ -3,7 +3,7 @@ import json
 import requests
 
 
-class RijkscloudClient(object):
+class RijkscloudClient:
     """
     Rijkscloud Python client.
     """

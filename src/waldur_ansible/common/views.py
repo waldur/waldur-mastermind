@@ -25,7 +25,7 @@ structure_views.ProjectCountersView.register_counter('ansible', get_project_apps
 class ApplicationsSummaryViewSet(ListModelMixin, GenericViewSet):
     serializer_class = serializers.SummaryApplicationSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.ApplicationFilter
+    filterset_class = filters.ApplicationFilter
 
     def get_queryset(self):
         return get_applications_queryset()

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import os
 import re
 import uuid
@@ -8,7 +6,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -26,7 +23,6 @@ def get_upload_path(instance, filename):
     return '%s/%s.png' % (instance._meta.model_name, instance.uuid.hex)
 
 
-@python_2_unicode_compatible
 class Playbook(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
@@ -62,15 +58,14 @@ class Playbook(core_models.UuidMixin,
         return self.name
 
 
-@python_2_unicode_compatible
 class PlaybookParameter(core_models.DescribableMixin, models.Model):
-    class Meta(object):
+    class Meta:
         unique_together = ('playbook', 'name')
         ordering = ['order']
 
     name = models.CharField(
         max_length=255,
-        validators=[validators.RegexValidator(re.compile('^[\w]+$'), _('Enter a valid name.'))],
+        validators=[validators.RegexValidator(re.compile(r'^[\w]+$'), _('Enter a valid name.'))],
         help_text=_('Required. 255 characters or fewer. Letters, numbers and _ characters'),
     )
     playbook = models.ForeignKey(Playbook, on_delete=models.CASCADE, related_name='parameters')
@@ -82,25 +77,24 @@ class PlaybookParameter(core_models.DescribableMixin, models.Model):
         return self.name
 
 
-@python_2_unicode_compatible
 class Job(core_models.UuidMixin,
           core_models.StateMixin,
           core_models.NameMixin,
           core_models.DescribableMixin,
           TimeStampedModel,
           common_models.ApplicationModel):
-    class Meta(object):
+    class Meta:
         pass
 
-    class Permissions(object):
+    class Permissions:
         project_path = 'service_project_link__project'
         customer_path = 'service_project_link__project__customer'
 
-    user = models.ForeignKey(User, related_name='+')
-    ssh_public_key = models.ForeignKey(core_models.SshPublicKey, related_name='+')
-    service_project_link = models.ForeignKey(openstack_models.OpenStackTenantServiceProjectLink, related_name='+')
-    subnet = models.ForeignKey(openstack_models.SubNet, related_name='+')
-    playbook = models.ForeignKey(Playbook, related_name='jobs')
+    user = models.ForeignKey(on_delete=models.CASCADE, to=User, related_name='+')
+    ssh_public_key = models.ForeignKey(on_delete=models.CASCADE, to=core_models.SshPublicKey, related_name='+')
+    service_project_link = models.ForeignKey(on_delete=models.CASCADE, to=openstack_models.OpenStackTenantServiceProjectLink, related_name='+')
+    subnet = models.ForeignKey(on_delete=models.CASCADE, to=openstack_models.SubNet, related_name='+')
+    playbook = models.ForeignKey(on_delete=models.CASCADE, to=Playbook, related_name='jobs')
     arguments = core_fields.JSONField(default=dict, blank=True, null=True)
     output = models.TextField(blank=True)
 

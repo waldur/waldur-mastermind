@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from collections import defaultdict
 from functools import reduce
 import inspect
@@ -9,11 +7,9 @@ from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
 from django.db import models, transaction
 from django.db.models import Sum
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 from reversion import revisions as reversion
-import six
 
 from waldur_core.core.models import UuidMixin, ReversionMixin, DescendantMixin
 from waldur_core.logging.loggers import LoggableMixin
@@ -23,7 +19,6 @@ from waldur_core.quotas import exceptions, managers, fields
 logger = logging.getLogger(__name__)
 
 
-@python_2_unicode_compatible
 @reversion.register(fields=['usage', 'limit'])
 class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, ReversionMixin, models.Model):
     """
@@ -40,7 +35,7 @@ class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, ReversionMixin, model
     usage = models.FloatField(default=0)
     name = models.CharField(max_length=150, db_index=True)
 
-    content_type = models.ForeignKey(ct_models.ContentType, null=True)
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType, null=True)
     object_id = models.PositiveIntegerField(null=True)
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
 
@@ -119,7 +114,7 @@ class QuotaModelMixin(models.Model):
     Check methods docstrings for more details.
     """
 
-    class Quotas(six.with_metaclass(fields.FieldsContainerMeta)):
+    class Quotas(metaclass=fields.FieldsContainerMeta):
         enable_fields_caching = True
         # register model quota fields here
 
@@ -129,7 +124,7 @@ class QuotaModelMixin(models.Model):
     quotas = ct_fields.GenericRelation('quotas.Quota', related_query_name='quotas')
 
     def get_or_create_quota(self, quota_name_or_field):
-        if isinstance(quota_name_or_field, six.string_types):
+        if isinstance(quota_name_or_field, str):
             quota_name_or_field = getattr(self.Quotas, quota_name_or_field)
         quota, _ = quota_name_or_field.get_or_create_quota(self)
         return quota
@@ -188,7 +183,7 @@ class QuotaModelMixin(models.Model):
 
         """
         errors = []
-        for name, delta in six.iteritems(quota_deltas):
+        for name, delta in quota_deltas.items():
             quota = self.quotas.get(name=name)
             if quota.is_exceeded(delta):
                 errors.append('%s quota limit: %s, requires %s (%s)\n' % (
@@ -317,7 +312,7 @@ class ExtendableQuotaModelMixin(QuotaModelMixin):
             QuotasConfig.register_counter_field_signals(model=cls, counter_field=quota_field)
 
 
-class SharedQuotaMixin(object):
+class SharedQuotaMixin:
     """
     This mixin updates quotas for several scopes.
     """

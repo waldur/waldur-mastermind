@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 import os
 
@@ -73,7 +71,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
         initial=False, default=False, write_only=True,
         help_text=_('Set true if issue is created by regular user via portal.'))
 
-    class Meta(object):
+    class Meta:
         model = models.Issue
         fields = (
             'url', 'uuid', 'type', 'key', 'backend_id', 'link',
@@ -200,7 +198,7 @@ class IssueSerializer(core_serializers.AugmentedSerializerMixin,
 class PrioritySerializer(core_serializers.AugmentedSerializerMixin,
                          serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Priority
         fields = ('url', 'uuid', 'name', 'description', 'icon_url')
         extra_kwargs = {
@@ -220,7 +218,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
 
     author_uuid = serializers.ReadOnlyField(source='author.user.uuid')
 
-    class Meta(object):
+    class Meta:
         model = models.Comment
         fields = ('url', 'uuid', 'issue', 'issue_key', 'description', 'is_public',
                   'author_name', 'author_uuid', 'author_user', 'backend_id', 'created')
@@ -244,7 +242,7 @@ class CommentSerializer(core_serializers.AugmentedSerializerMixin,
 
 class SupportUserSerializer(core_serializers.AugmentedSerializerMixin,
                             serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.SupportUser
         fields = ('url', 'uuid', 'name', 'backend_id', 'user')
         extra_kwargs = dict(
@@ -309,7 +307,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
     template_uuid = serializers.ReadOnlyField(source='template.uuid')
     resource_type = serializers.SerializerMethodField()
 
-    class Meta(object):
+    class Meta:
         model = models.Offering
         fields = ('url', 'uuid', 'name', 'project', 'type', 'template', 'template_uuid', 'resource_type', 'plan',
                   'state', 'type_label', 'unit_price',
@@ -355,7 +353,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
         return obj.get_scope_type()
 
 
-class ConfigurableFormDescriptionMixin(object):
+class ConfigurableFormDescriptionMixin:
     def _form_description(self, configuration, validated_data):
         result = []
 
@@ -481,7 +479,7 @@ class AttachmentSerializer(ProtectedMediaSerializerMixin,
                            core_serializers.AugmentedSerializerMixin,
                            serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Attachment
         fields = ('url', 'uuid', 'issue', 'issue_key', 'created', 'file',
                   'mime_type', 'file_size', 'thumbnail', 'backend_id', )
@@ -510,7 +508,7 @@ class AttachmentSerializer(ProtectedMediaSerializerMixin,
 
 
 class TemplateAttachmentSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.TemplateAttachment
         fields = ('name', 'file')
 
@@ -518,7 +516,7 @@ class TemplateAttachmentSerializer(ProtectedMediaSerializerMixin, serializers.Mo
 class TemplateSerializer(serializers.HyperlinkedModelSerializer):
     attachments = TemplateAttachmentSerializer(many=True)
 
-    class Meta(object):
+    class Meta:
         model = models.Template
         fields = ('url', 'uuid',
                   'name', 'native_name',
@@ -538,7 +536,7 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
 
 class OfferingTemplateSerializer(serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.OfferingTemplate
         fields = ('url', 'uuid', 'name', 'config')
         extra_kwargs = dict(
@@ -548,7 +546,7 @@ class OfferingTemplateSerializer(serializers.HyperlinkedModelSerializer):
 
 class OfferingPlanSerializer(serializers.HyperlinkedModelSerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.OfferingPlan
         fields = ('url', 'uuid', 'product_code', 'article_code', 'unit', 'unit_price')
         extra_kwargs = dict(

@@ -1,6 +1,4 @@
-from __future__ import unicode_literals
-
-import mock
+from unittest import mock
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 from ddt import data, ddt
@@ -121,7 +119,7 @@ class ProfileCreateTest(BaseProfileTest):
         self.client.post(self.url, self.valid_data)
 
         args, kwargs = mock_client().user_add.call_args
-        self.assertItemsEqual(expected_keys, kwargs.get('ssh_key'))
+        self.assertEqual(sorted(expected_keys), sorted(kwargs.get('ssh_key')))
 
 
 @override_plugin_settings(ENABLED=True)

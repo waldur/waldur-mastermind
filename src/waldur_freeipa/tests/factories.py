@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import factory
 from django.urls import reverse
 
@@ -9,7 +7,7 @@ from .. import models
 
 
 class ProfileFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.Profile
 
     username = factory.Sequence(lambda n: 'john%s' % n)
@@ -21,5 +19,5 @@ class ProfileFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_url(cls, user, action=None):
-        url = 'http://testserver' + reverse('freeipa-profile-detail', kwargs={'uuid': user.uuid})
+        url = 'http://testserver' + reverse('freeipa-profile-detail', kwargs={'uuid': user.uuid.hex})
         return url if action is None else url + action + '/'

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from zipfile import ZipFile
 
 from django.core.files.base import ContentFile
@@ -45,9 +43,9 @@ class PlaybookSerializerTest(TestCase):
                          ['Failed to find entrypoint %s in archive %s.' % (data['entrypoint'], data['archive'].name)])
 
     def _get_data(self, filename='playbook.zip'):
-        temp_file = ContentFile('file content', name=filename)
+        temp_file = ContentFile(b'file content', name=filename)
         zip_file = ZipFile(temp_file, 'w')
-        zip_file.writestr('main.yml', 'test'.encode('utf8'))
+        zip_file.writestr('main.yml', b'test')
         zip_file.close()
         temp_file.seek(0)
 

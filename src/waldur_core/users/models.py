@@ -1,8 +1,5 @@
-from __future__ import unicode_literals
-
 from django.conf import settings
 from django.db import models
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from model_utils.models import TimeStampedModel
 
@@ -10,15 +7,14 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 
 
-@python_2_unicode_compatible
 class Invitation(core_models.UuidMixin,
                  TimeStampedModel,
                  core_models.ErrorMessageMixin,
                  core_models.UserDetailsMixin):
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class State(object):
+    class State:
         REQUESTED = 'requested'
         REJECTED = 'rejected'
         PENDING = 'pending'
@@ -35,13 +31,13 @@ class Invitation(core_models.UuidMixin,
             (EXPIRED, 'Expired'),
         )
 
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
-    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    created_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
+    approved_by = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, related_name='+', blank=True, null=True)
 
-    customer = models.ForeignKey(structure_models.Customer, verbose_name=_('organization'), related_name='invitations')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, verbose_name=_('organization'), related_name='invitations')
     customer_role = structure_models.CustomerRole(verbose_name=_('organization role'), null=True, blank=True)
 
-    project = models.ForeignKey(structure_models.Project, related_name='invitations', blank=True, null=True)
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, related_name='invitations', blank=True, null=True)
     project_role = structure_models.ProjectRole(null=True, blank=True)
 
     state = models.CharField(max_length=10, choices=State.CHOICES, default=State.PENDING)

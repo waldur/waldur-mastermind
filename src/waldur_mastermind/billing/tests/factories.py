@@ -8,7 +8,7 @@ from .. import models
 
 
 class PriceEstimateFactory(factory.DjangoModelFactory):
-    class Meta(object):
+    class Meta:
         model = models.PriceEstimate
 
     scope = factory.SubFactory(structure_factories.ProjectFactory)

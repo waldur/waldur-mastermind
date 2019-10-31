@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 from django.db import migrations, models
 import waldur_auth_valimo.models
 import django.utils.timezone
@@ -30,7 +28,7 @@ class Migration(migrations.Migration):
                 ('state', django_fsm.FSMField(default='Scheduled', max_length=50, choices=[('Scheduled', 'Scheduled'), ('Processing', 'Processing'), ('OK', 'OK'), ('Canceled', 'Canceled'), ('Erred', 'Erred')])),
                 ('details', models.CharField(help_text='Cancellation details.', max_length=255, blank=True)),
                 ('backend_transaction_id', models.CharField(max_length=100, blank=True)),
-                ('user', models.ForeignKey(related_name='auth_valimo_results', to=settings.AUTH_USER_MODEL, null=True)),
+                ('user', models.ForeignKey(related_name='auth_valimo_results', to=settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE)),
             ],
             options={
                 'abstract': False,

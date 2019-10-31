@@ -1,5 +1,5 @@
 from ddt import data, ddt
-import mock
+from unittest import mock
 
 from rest_framework import test
 from keystoneclient import exceptions as keystone_exceptions
@@ -529,7 +529,7 @@ class ImportTenantSubnets(BaseBackendTestCase):
         self.assertEqual(models.SubNet.objects.count(), 0)
 
 
-class MockTenant(object):
+class MockTenant:
     def __init__(self, name, id=None):
         self.name = name
         self.id = id

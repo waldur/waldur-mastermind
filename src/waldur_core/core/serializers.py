@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import base64
 from collections import OrderedDict
 from datetime import timedelta
@@ -11,7 +9,6 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 from rest_framework.fields import Field, ReadOnlyField
 from rest_framework.exceptions import ValidationError
-import six
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import TimestampField
@@ -41,13 +38,13 @@ class Base64Field(serializers.CharField):
 
     def to_representation(self, value):
         value = super(Base64Field, self).to_representation(value)
-        if isinstance(value, six.text_type):
+        if isinstance(value, str):
             value = value.encode('utf-8')
         return base64.b64encode(value)
 
 
 class BasicInfoSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta(object):
+    class Meta:
         fields = ('url', 'uuid', 'name')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -137,14 +134,14 @@ class GenericRelatedField(Field):
             raise serializers.ValidationError(_("Can't restore object from url: %s") % data)
 
         if self.related_models and model not in self.related_models:
-            context = (model, ', '.join(six.text_type(model) for model in self.related_models))
+            context = (model, ', '.join(str(model) for model in self.related_models))
             message = _('%s is not valid. Valid models are: %s') % context
             raise serializers.ValidationError(message)
 
         return obj
 
 
-class AugmentedSerializerMixin(object):
+class AugmentedSerializerMixin:
     """
     This mixin provides several extensions to stock Serializer class:
 
@@ -173,7 +170,7 @@ class AugmentedSerializerMixin(object):
         Example:
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = (
                         'url', 'uuid', 'name',
@@ -188,7 +185,7 @@ class AugmentedSerializerMixin(object):
                                     serializers.HyperlinkedModelSerializer):
                 customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
                 customer_name = serializers.ReadOnlyField(source='customer.name')
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = (
                         'url', 'uuid', 'name',
@@ -200,7 +197,7 @@ class AugmentedSerializerMixin(object):
 
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = (
                         'url', 'uuid', 'name',
@@ -216,7 +213,7 @@ class AugmentedSerializerMixin(object):
         Example:
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                class Meta(object):
+                class Meta:
                     model = models.Project
                     fields = ('url', 'uuid', 'name', 'customer')
                     protected_fields = ('customer',)
@@ -291,7 +288,7 @@ class AugmentedSerializerMixin(object):
         return extra_kwargs
 
 
-class RestrictedSerializerMixin(object):
+class RestrictedSerializerMixin:
     """
     This mixin allows to specify list of fields to be rendered by serializer.
     It expects that request is available in serializer's context.
@@ -311,7 +308,7 @@ class RestrictedSerializerMixin(object):
         return OrderedDict(((key, value) for key, value in fields.items() if key in keys))
 
 
-class RequiredFieldsMixin(object):
+class RequiredFieldsMixin:
     """
     This mixin allows to specify list of required fields.
     It expects list of field names as Meta.required_fields attribute.
@@ -327,7 +324,7 @@ class RequiredFieldsMixin(object):
         return fields
 
 
-class ExtraFieldOptionsMixin(object):
+class ExtraFieldOptionsMixin:
     """
     This mixin allows to specify extra fields metadata.
     It expects dictionary of field name and options as Meta.extra_field_options attribute.
@@ -523,6 +520,6 @@ class GeoLocationField(serializers.JSONField):
 class UnicodeIntegerField(serializers.IntegerField):
 
     def to_internal_value(self, data):
-        if isinstance(data, unicode):
+        if isinstance(data, str):
             data = core_utils.normalize_unicode(data)
         return super(UnicodeIntegerField, self).to_internal_value(data)

@@ -1,11 +1,8 @@
-from __future__ import absolute_import
-
 import abc
 import logging
 import subprocess  # nosec
 
 from django.utils.functional import cached_property
-import six
 
 from .structures import Quotas
 
@@ -17,8 +14,7 @@ class BatchError(Exception):
     pass
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BaseBatchClient(object):
+class BaseBatchClient(metaclass=abc.ABCMeta):
 
     def __init__(self, hostname, key_path, username='root', port=22, use_sudo=False):
         self.hostname = hostname
@@ -136,11 +132,10 @@ class BaseBatchClient(object):
             if len(lines) > 0 and lines[0].startswith('Warning: Permanently added'):
                 lines = lines[1:]
             stdout = '\n'.join(lines)
-            six.reraise(BatchError, stdout)
+            raise BatchError(stdout)
 
 
-@six.add_metaclass(abc.ABCMeta)
-class BaseReportLine(object):
+class BaseReportLine(metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def account(self):
         pass

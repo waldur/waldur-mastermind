@@ -18,8 +18,8 @@ class HostScopeFilterBackend(core_filters.GenericKeyFilterBackend):
 
 
 class TriggerFilter(ServicePropertySettingsFilter):
-    template = core_filters.URLFilter(view_name='zabbix-template-detail', name='template__uuid', distinct=True)
-    template_uuid = django_filters.UUIDFilter(name='template__uuid')
+    template = core_filters.URLFilter(view_name='zabbix-template-detail', field_name='template__uuid', distinct=True)
+    template_uuid = django_filters.UUIDFilter(field_name='template__uuid')
 
     class Meta(ServicePropertySettingsFilter.Meta):
         model = models.Trigger

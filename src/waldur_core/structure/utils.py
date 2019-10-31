@@ -3,8 +3,8 @@ import logging
 
 from django.conf import settings
 from django.db import models
-from django.db.migrations.topological_sort import stable_topological_sort
 from django.utils.lru_cache import lru_cache
+from django.utils.topological_sort import stable_topological_sort
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
 import requests

@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 from ddt import data, ddt
 from django.urls import reverse
 from django.utils import timezone
@@ -17,13 +15,13 @@ from waldur_core.structure.tests import factories, fixtures
 
 class CustomerBaseTest(test.APITransactionTestCase):
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid})
+        return 'http://testserver' + reverse('customer-detail', kwargs={'uuid': customer.uuid.hex})
 
     def _get_project_url(self, project):
-        return 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid})
+        return 'http://testserver' + reverse('project-detail', kwargs={'uuid': project.uuid.hex})
 
     def _get_user_url(self, user):
-        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid})
+        return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex})
 
 
 @freeze_time('2017-11-01')
@@ -814,17 +812,21 @@ class CustomerDivisionFilterTest(test.APITransactionTestCase):
 
     def test_filters(self):
         """Test of customers' list filter by division name and division UUID."""
-        filters = [
-            {'name': 'division_name', 'correct': self.division.name[2:], 'uncorrect': 'uncorrect'},
-            {'name': 'division_uuid', 'correct': self.division.uuid, 'uncorrect': 'uncorrect'},
+        rows = [
+            {'name': 'division_name', 'valid': self.division.name[2:], 'invalid': 'invalid'},
+            {'name': 'division_uuid', 'valid': self.division.uuid.hex, 'invalid': 'invalid'},
         ]
 
         self.client.force_authenticate(self.user)
 
-        for f in filters:
-            response = self.client.get(self.url, data={f['name']: f['correct']})
+        for row in rows:
+            response = self.client.get(self.url, data={row['name']: row['valid']})
             self.assertEqual(status.HTTP_200_OK, response.status_code)
             self.assertEqual(len(response.data), 1)
-            response = self.client.get(self.url, data={f['name']: f['uncorrect']})
-            self.assertEqual(status.HTTP_200_OK, response.status_code)
-            self.assertEqual(len(response.data), 0)
+
+            response = self.client.get(self.url, data={row['name']: row['invalid']})
+            if row['name'] == 'division_uuid':
+                self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+            else:
+                self.assertEqual(status.HTTP_200_OK, response.status_code)
+                self.assertEqual(len(response.data), 0)

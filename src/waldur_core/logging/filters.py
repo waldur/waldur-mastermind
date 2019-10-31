@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from django.contrib.contenttypes.models import ContentType
 import django_filters
 from django_filters.widgets import BooleanWidget
@@ -11,19 +9,19 @@ from waldur_core.logging.loggers import expand_event_groups
 
 
 class BaseHookFilter(django_filters.FilterSet):
-    author_uuid = django_filters.UUIDFilter(name='user__uuid')
+    author_uuid = django_filters.UUIDFilter(field_name='user__uuid')
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
     last_published = django_filters.DateTimeFilter()
 
 
 class WebHookFilter(BaseHookFilter):
-    class Meta(object):
+    class Meta:
         model = models.WebHook
         fields = ('destination_url', 'content_type')
 
 
 class EmailHookFilter(BaseHookFilter):
-    class Meta(object):
+    class Meta:
         model = models.EmailHook
         fields = ('email',)
 
@@ -44,14 +42,14 @@ class HookSummaryFilterBackend(core_filters.SummaryFilter):
 
 
 class PushHookFilter(BaseHookFilter):
-    class Meta(object):
+    class Meta:
         model = models.PushHook
         fields = ('type', 'device_id', 'device_manufacturer', 'device_model', 'token')
 
 
 class EventFilter(django_filters.FilterSet):
-    created_from = core_filters.TimestampFilter(name='created', lookup_expr='gte')
-    created_to = core_filters.TimestampFilter(name='created', lookup_expr='lt')
+    created_from = core_filters.TimestampFilter(field_name='created', lookup_expr='gte')
+    created_to = core_filters.TimestampFilter(field_name='created', lookup_expr='lt')
     message = django_filters.CharFilter(lookup_expr='icontains')
     o = django_filters.OrderingFilter(fields=('created',))
 

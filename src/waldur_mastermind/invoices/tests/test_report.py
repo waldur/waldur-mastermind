@@ -1,5 +1,5 @@
 import datetime
-import mock
+from unittest import mock
 
 from django.test import TransactionTestCase
 from django.utils import timezone
@@ -96,7 +96,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
         item.save()
 
         report = format_invoice_csv(self.invoice)
-        lines = report.splitlines()
+        lines = report.splitlines()[1:]
         self.assertEqual(0, len(lines))
 
     def test_usage_based_item_is_skipped_if_unit_price_is_zero(self):
@@ -107,7 +107,7 @@ class SafReportFormatterTest(BaseReportFormatterTest):
         item.save()
 
         report = format_invoice_csv(self.invoice)
-        lines = report.splitlines()
+        lines = report.splitlines()[1:]
         self.assertEqual(0, len(lines))
 
 
@@ -127,7 +127,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
         self.customer.save()
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attachment']
-        lines = message.splitlines()
+        lines = message.splitlines()[1:]
         self.assertEqual(0, len(lines))
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
@@ -170,7 +170,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attachment']
-        lines = message.splitlines()
+        lines = message.splitlines()[1:]
         self.assertEqual(0, len(lines))
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)
@@ -184,7 +184,7 @@ class InvoiceReportTaskTest(BaseReportFormatterTest):
 
         tasks.send_invoice_report()
         message = send_mail_mock.call_args[1]['attachment']
-        lines = message.splitlines()
+        lines = message.splitlines()[1:]
         self.assertEqual(0, len(lines))
 
     @utils.override_invoices_settings(INVOICE_REPORTING=INVOICE_REPORTING)

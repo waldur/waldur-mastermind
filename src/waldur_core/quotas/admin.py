@@ -25,7 +25,7 @@ class QuotaScopeClassListFilter(admin.SimpleListFilter):
         return queryset
 
 
-class QuotaFieldTypeLimit(object):
+class QuotaFieldTypeLimit:
     fields = ('name', 'limit', 'usage', 'quota_field_type')
     readonly_fields = ('name', 'usage', 'quota_field_type')
 

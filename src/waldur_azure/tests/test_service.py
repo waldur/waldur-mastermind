@@ -1,6 +1,6 @@
 import uuid
 
-import mock
+from unittest import mock
 from rest_framework import status, test
 
 from waldur_azure.client import AzureBackendError

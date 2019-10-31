@@ -8,5 +8,5 @@ class IdentityProvider(models.Model):
     url = models.URLField()
     metadata = core_fields.JSONField(default=dict)
 
-    class Meta(object):
+    class Meta:
         ordering = ('name',)

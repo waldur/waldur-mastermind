@@ -9,5 +9,5 @@ class AzureConfig(AppConfig):
 
     def ready(self):
         from waldur_core.structure import SupportedServices
-        from backend import AzureBackend
+        from .backend import AzureBackend
         SupportedServices.register_backend(AzureBackend)

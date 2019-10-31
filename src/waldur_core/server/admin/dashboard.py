@@ -1,11 +1,8 @@
-from __future__ import unicode_literals
-
 from django.apps import apps
 from django.conf import settings
 from django.urls import reverse, NoReverseMatch
 from django.utils.translation import ugettext_lazy as _
 from fluent_dashboard.dashboard import modules, FluentIndexDashboard, FluentAppIndexDashboard
-import six
 
 from waldur_core import __version__
 from waldur_core.core import models as core_models, WaldurExtension
@@ -122,7 +119,7 @@ class CustomIndexDashboard(FluentIndexDashboard):
 
     def _get_link_to_model(self, model):
         result = {
-            'title': six.text_type(model._meta.verbose_name_plural).capitalize(),
+            'title': str(model._meta.verbose_name_plural).capitalize(),
             'external': True,
             'attrs': {'target': '_blank'},
         }
@@ -134,7 +131,7 @@ class CustomIndexDashboard(FluentIndexDashboard):
 
     def _get_link_to_instance(self, instance):
         result = {
-            'title': six.text_type(instance),
+            'title': str(instance),
             'external': True,
             'attrs': {'target': '_blank'},
         }

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import logging
 
 from django.conf import settings
@@ -345,7 +343,7 @@ class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
         return executors.SnapshotDeleteExecutor
 
 
-class LimitedPerTypeThrottleMixin(object):
+class LimitedPerTypeThrottleMixin:
 
     def get_limit(self, resource):
         nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})

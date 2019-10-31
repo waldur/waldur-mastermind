@@ -15,7 +15,7 @@ from . import models
 
 
 def hash_string(value, length=16):
-    return hashlib.sha256(value).hexdigest()[:length]
+    return hashlib.sha256(value.encode('utf-8')).hexdigest()[:length]
 
 
 def generate_username():
@@ -46,7 +46,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Image
         view_name = 'azure-image-detail'
         fields = ('url', 'uuid', 'publisher', 'name', 'sku', 'version')
@@ -57,7 +57,7 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
 
 class SizeSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Size
         view_name = 'azure-size-detail'
         fields = ('url', 'uuid', 'name', 'max_data_disk_count',
@@ -69,7 +69,7 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
 
 class LocationSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Location
         view_name = 'azure-location-detail'
         fields = ('url', 'uuid', 'name', 'latitude', 'longitude')
@@ -340,7 +340,7 @@ class SQLDatabaseSerializer(BaseResourceSerializer):
 
 
 class SQLDatabaseCreateSerializer(serializers.ModelSerializer):
-    class Meta(object):
+    class Meta:
         model = models.SQLDatabase
         fields = ('name', 'description')
 

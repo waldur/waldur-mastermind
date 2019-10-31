@@ -32,7 +32,7 @@ class JobViewSet(core_mixins.CreateExecutorMixin, core_views.ActionsViewSet):
     lookup_field = 'uuid'
     queryset = models.Job.objects.all().order_by('pk')
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    filter_class = filters.AnsibleJobsFilter
+    filterset_class = filters.AnsibleJobsFilter
     unsafe_methods_permissions = [structure_permissions.is_administrator]
     serializer_class = serializers.JobSerializer
     metadata_class = structure_metadata.ActionsMetadata

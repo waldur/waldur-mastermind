@@ -4,7 +4,7 @@ from . import models
 
 
 class IdentityProviderFilter(django_filters.FilterSet):
-    class Meta(object):
+    class Meta:
         model = models.IdentityProvider
         fields = ('name',)
 

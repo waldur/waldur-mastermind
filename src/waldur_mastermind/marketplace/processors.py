@@ -49,7 +49,7 @@ def copy_attributes(fields, order_item):
     return payload
 
 
-class BaseOrderItemProcessor(object):
+class BaseOrderItemProcessor:
     def __init__(self, order_item):
         self.order_item = order_item
 
@@ -166,7 +166,7 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         a switch of a plan and a change of limits."""
         if self.is_update_limit_order_item():
             try:
-                # self.update_limits_process method can execute not async
+                # self.update_limits_process method can execute not is_async
                 # because in this case an order has got only one order item.
                 self.update_limits_process(user)
             except NotImplementedError:
@@ -180,7 +180,7 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
                 signals.limit_update_failed.send(
                     sender=self.order_item.resource.__class__,
                     order_item=self.order_item,
-                    error_message=e.message
+                    error_message=str(e),
                 )
             else:
                 signals.limit_update_succeeded.send(
@@ -249,7 +249,7 @@ class DeleteResourceProcessor(BaseOrderItemProcessor):
 
         view = self.get_viewset().as_view({'delete': 'destroy'})
         delete_attributes = self.order_item.attributes
-        response = common_utils.delete_request(view, user, uuid=resource.uuid, query_params=delete_attributes)
+        response = common_utils.delete_request(view, user, uuid=resource.uuid.hex, query_params=delete_attributes)
 
         if response.status_code == status.HTTP_204_NO_CONTENT:
             with transaction.atomic():

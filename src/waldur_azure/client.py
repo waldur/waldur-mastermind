@@ -1,5 +1,3 @@
-import sys
-
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.compute.models import DiskCreateOption, LinuxConfiguration, \
@@ -14,7 +12,6 @@ from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
 from django.utils.functional import cached_property
 from msrest.exceptions import ClientException
-import six
 
 from waldur_core.structure import ServiceBackendError
 
@@ -23,14 +20,7 @@ class AzureBackendError(ServiceBackendError):
     pass
 
 
-def reraise(exc):
-    """
-    Reraise AzureBackendError while maintaining traceback.
-    """
-    six.reraise(AzureBackendError, AzureBackendError(exc.message), sys.exc_info()[2])
-
-
-class AzureClient(object):
+class AzureClient:
     def __init__(self, settings):
         self.subscription_id = str(settings.options['subscription_id'])
         self.client_id = str(settings.options['client_id'])
@@ -73,7 +63,7 @@ class AzureClient(object):
         try:
             return self.subscription_client.subscriptions.list_locations(self.subscription_id)
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def get_resource_group_locations(self):
         """
@@ -87,7 +77,7 @@ class AzureClient(object):
         try:
             provider = self.resource_client.providers.get('Microsoft.Resources')
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
         else:
             for resource in provider.resource_types:
                 if resource.resource_type == 'resourceGroups':
@@ -97,7 +87,7 @@ class AzureClient(object):
         try:
             return self.resource_client.resource_groups.list()
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_resource_group(self, location, resource_group_name):
         try:
@@ -106,19 +96,19 @@ class AzureClient(object):
                 {'location': location}
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def delete_resource_group(self, resource_group_name):
         try:
             return self.resource_client.resource_groups.delete(resource_group_name)
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_virtual_machine_sizes(self, location):
         try:
             return self.compute_client.virtual_machine_sizes.list(location)
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_virtual_machine_images(self, location):
         try:
@@ -154,19 +144,19 @@ class AzureClient(object):
                                 version.name,
                             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_all_virtual_machines(self):
         try:
             return self.compute_client.virtual_machines.list_all()
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_virtual_machines_in_group(self, resource_group_name):
         try:
             return self.compute_client.virtual_machines.list(resource_group_name)
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def get_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -175,7 +165,7 @@ class AzureClient(object):
                 vm_name
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_virtual_machine(self, location, resource_group_name,
                                vm_name, size_name, nic_id, image_reference,
@@ -217,7 +207,7 @@ class AzureClient(object):
                 },
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def delete_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -226,7 +216,7 @@ class AzureClient(object):
                 vm_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def start_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -235,7 +225,7 @@ class AzureClient(object):
                 vm_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def restart_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -244,7 +234,7 @@ class AzureClient(object):
                 vm_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def stop_virtual_machine(self, resource_group_name, vm_name):
         try:
@@ -253,7 +243,7 @@ class AzureClient(object):
                 vm_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_storage_account(self, location, resource_group_name, account_name):
         try:
@@ -267,7 +257,7 @@ class AzureClient(object):
                 }
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_disk(self, location, resource_group_name, disk_name, disk_size_gb):
         try:
@@ -283,7 +273,7 @@ class AzureClient(object):
                 }
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_network(self, location, resource_group_name, network_name, cidr):
         try:
@@ -298,7 +288,7 @@ class AzureClient(object):
                 }
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_subnet(self, resource_group_name, network_name, subnet_name, cidr):
         try:
@@ -311,7 +301,7 @@ class AzureClient(object):
                 }
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def get_network_interface(self, resource_group_name, network_interface_name):
         try:
@@ -320,7 +310,7 @@ class AzureClient(object):
                 network_interface_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_network_interface(self, location, resource_group_name,
                                  interface_name, config_name, subnet_id,
@@ -348,7 +338,7 @@ class AzureClient(object):
                 interface_parameters
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_ssh_security_group(self, location, resource_group_name, network_security_group_name):
         ssh_rule = SecurityRule(
@@ -375,7 +365,7 @@ class AzureClient(object):
                 security_group,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def get_public_ip(self, resource_group_name, public_ip_address_name):
         try:
@@ -384,13 +374,13 @@ class AzureClient(object):
                 public_ip_address_name
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_all_public_ips(self):
         try:
             return self.network_client.public_ip_addresses.list_all()
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_public_ip(self, location, resource_group_name, public_ip_address_name):
         try:
@@ -402,7 +392,7 @@ class AzureClient(object):
                 }
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def delete_public_ip(self, resource_group_name, public_ip_address_name):
         try:
@@ -411,19 +401,19 @@ class AzureClient(object):
                 public_ip_address_name
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_all_sql_servers(self):
         try:
             return self.pgsql_client.servers.list()
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_sql_servers_in_group(self, resource_group_name):
         try:
             return self.pgsql_client.servers.list_by_resource_group(resource_group_name)
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def get_sql_server(self, resource_group_name, server_name):
         try:
@@ -432,7 +422,7 @@ class AzureClient(object):
                 server_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_sql_server(self, location, resource_group_name, server_name,
                           username, password, sku=None, storage_mb=None, ssl_enforcement=None):
@@ -456,13 +446,13 @@ class AzureClient(object):
             )
             return poller.result()
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def delete_sql_server(self, resource_group_name, server_name):
         try:
             return self.pgsql_client.servers.delete(resource_group_name, server_name)
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_sql_firewall_rule(self, resource_group_name, server_name, firewall_rule_name,
                                  start_ip_address, end_ip_address):
@@ -476,7 +466,7 @@ class AzureClient(object):
             )
             return poller.result()
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def get_sql_database(self, resource_group_name, server_name, database_name):
         try:
@@ -486,7 +476,7 @@ class AzureClient(object):
                 database_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def create_sql_database(self, resource_group_name, server_name, database_name,
                             charset=None, collation=None):
@@ -499,7 +489,7 @@ class AzureClient(object):
                 collation,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def list_sql_databases_in_server(self, resource_group_name, server_name):
         try:
@@ -508,7 +498,7 @@ class AzureClient(object):
                 server_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)
 
     def delete_sql_database(self, resource_group_name, server_name, database_name):
         try:
@@ -518,4 +508,4 @@ class AzureClient(object):
                 database_name,
             )
         except ClientException as exc:
-            reraise(exc)
+            raise AzureBackendError(exc)

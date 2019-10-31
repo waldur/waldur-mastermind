@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from functools import reduce
 import importlib
 import inspect
@@ -8,14 +6,13 @@ import logging
 from django.apps import apps
 from django.conf import settings
 from django.contrib.admindocs.views import simplify_regex
-from django.urls import RegexURLResolver, RegexURLPattern
+from django.urls import URLResolver, URLPattern
 from django_filters import ModelMultipleChoiceFilter
 from rest_framework.fields import ChoiceField, ReadOnlyField, ModelField
 from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
 from rest_framework.serializers import ListSerializer, ModelSerializer
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
-import six
 
 from waldur_core.core.filters import ContentTypeFilter, MappedMultipleChoiceFilter
 from waldur_core.core.serializers import GenericRelatedField
@@ -33,12 +30,12 @@ def getdoc(obj, warning=True):
             cls = obj.im_class
             name = '{}.{}.{}'.format(cls.__module__, cls.__name__, obj.im_func.func_name)
         else:
-            name = six.text_type(obj)
+            name = str(obj)
         logger.warning("Docstring is missing for %s", name)
     return doc
 
 
-class ApiDocs(object):
+class ApiDocs:
     """ Generate RST docs for DRF endpoints from docstrings:
         - AppConfig class docstring may contain general info about an app,
           `verbose_name` in the config delivers human friendly title;
@@ -67,13 +64,15 @@ class ApiDocs(object):
 
     def get_all_view_names(self, urlpatterns, parent_pattern=None):
         for pattern in urlpatterns:
-            if isinstance(pattern, RegexURLResolver):
-                pp = None if pattern._regex == '^' else pattern
+            if isinstance(pattern, URLResolver):
+                regex = pattern.pattern.regex
+                pp = None if regex.pattern == '^' else pattern
                 for ep in self.get_all_view_names(pattern.url_patterns, parent_pattern=pp):
                     yield ep
-            elif isinstance(pattern, RegexURLPattern) and self._is_drf_view(pattern):
+            elif isinstance(pattern, URLPattern) and self._is_drf_view(pattern):
                 suffix = '?P<%s>' % api_settings.FORMAT_SUFFIX_KWARG
-                if suffix not in pattern.regex.pattern:
+                regex = pattern.pattern.regex
+                if suffix not in regex.pattern:
                     yield ApiEndpoint(pattern, parent_pattern)
 
     def _is_drf_view(self, pattern):
@@ -97,7 +96,7 @@ class ApiDocs(object):
             name = conf.verbose_name
             file = '%s.rst' % app
 
-            print '\t* %s' % file
+            print('\t* %s' % file)
 
             with open(path + '/' + file, 'w') as f:
                 doc = getdoc(conf) or name
@@ -196,7 +195,7 @@ class ApiDocs(object):
         file.write('\n'.join(['\t' + s for s in docstring.split('\n')]) + '\n')
 
 
-class ApiEndpoint(object):
+class ApiEndpoint:
     FIELDS = {
         # filter
         'BooleanFilter': 'boolean',

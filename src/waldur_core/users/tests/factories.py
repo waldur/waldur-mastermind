@@ -15,12 +15,12 @@ class InvitationBaseFactory(factory.DjangoModelFactory):
 
     @classmethod
     def get_url(cls, invitation, action=None):
-        url = 'http://testserver' + reverse('user-invitation-detail', kwargs={'uuid': invitation.uuid})
+        url = 'http://testserver' + reverse('user-invitation-detail', kwargs={'uuid': invitation.uuid.hex})
         return url if action is None else url + action + '/'
 
 
 class ProjectInvitationFactory(InvitationBaseFactory):
-    class Meta(object):
+    class Meta:
         model = models.Invitation
 
     customer = factory.SelfAttribute('project.customer')
@@ -37,7 +37,7 @@ class ProjectInvitationFactory(InvitationBaseFactory):
 
 
 class CustomerInvitationFactory(InvitationBaseFactory):
-    class Meta(object):
+    class Meta:
         model = models.Invitation
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)

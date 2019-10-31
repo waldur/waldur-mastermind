@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 from croniter import croniter
 from django.core.exceptions import ValidationError
 from django.core.validators import BaseValidator, URLValidator
@@ -45,7 +43,7 @@ def validate_name(value):
         raise ValidationError(_('Ensure that name has at least one non-whitespace character.'))
 
 
-class StateValidator(object):
+class StateValidator:
 
     def __init__(self, *valid_states):
         self.valid_states = valid_states
@@ -89,7 +87,7 @@ def validate_cidr_list(value):
 
 
 @deconstructible
-class BlacklistValidator(object):
+class BlacklistValidator:
     message = _('This value is blacklisted.')
     code = 'blacklist'
     blacklist = ()

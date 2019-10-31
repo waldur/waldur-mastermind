@@ -3,14 +3,14 @@ export PIP_NO_CACHE_DIR=off
 export PIP_DISABLE_PIP_VERSION_CHECK=on
 
 # Install Python dependencies for Waldur MasterMind from PyPI
-pip install --no-cache-dir -r docker-test/api/requirements.txt
+pip3 install --no-cache-dir -r docker-test/api/requirements.txt
 
 # Compile i18n messages
 cp packaging/settings.py src/waldur_core/server/settings.py
 django-admin compilemessages
 
 # Install Waldur MasterMind package
-pip install .
+pip3 install .
 
 # Build static assets
 mkdir -p /usr/share/waldur/static

@@ -1,8 +1,6 @@
-from __future__ import unicode_literals
-
 import base64
 from decimal import Decimal
-import StringIO
+from io import BytesIO
 
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
@@ -14,14 +12,12 @@ from django.core.validators import MinValueValidator, MaxValueValidator, RegexVa
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import python_2_unicode_compatible
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel, TimeFramedModel
 from rest_framework import exceptions as rf_exceptions
-import six
 
 from waldur_core.core import models as core_models, utils as core_utils
 from waldur_core.core.fields import JSONField
@@ -37,7 +33,6 @@ from .attribute_types import ATTRIBUTE_TYPES
 from ..common import mixins as common_mixins
 
 
-@python_2_unicode_compatible
 class ServiceProvider(core_models.UuidMixin,
                       core_models.DescribableMixin,
                       structure_models.StructureModel,
@@ -55,14 +50,14 @@ class ServiceProvider(core_models.UuidMixin,
                                  help_text=_('Notification body template. '
                                              'Django template variables can be used.'))
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Service provider')
 
     def __str__(self):
-        return six.text_type(self.customer)
+        return str(self.customer)
 
     @classmethod
     def get_url_name(cls):
@@ -81,7 +76,6 @@ class ServiceProvider(core_models.UuidMixin,
         super(ServiceProvider, self).save(*args, **kwargs)
 
 
-@python_2_unicode_compatible
 class Category(core_models.UuidMixin,
                quotas_models.QuotaModelMixin,
                TimeStampedModel):
@@ -96,20 +90,19 @@ class Category(core_models.UuidMixin,
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         offering_count = quotas_fields.QuotaField(is_backend=True)
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Category')
         verbose_name_plural = _('Categories')
         ordering = ('title',)
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
     @classmethod
     def get_url_name(cls):
         return 'marketplace-category'
 
 
-@python_2_unicode_compatible
 class CategoryColumn(models.Model):
     """
     This model is needed in order to render resources table with extra columns.
@@ -119,10 +112,10 @@ class CategoryColumn(models.Model):
     If attribute field is specified, it is possible to filter and sort resources by it's value.
     """
 
-    class Meta(object):
+    class Meta:
         ordering = ('category', 'index')
 
-    category = models.ForeignKey(Category, related_name='columns')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='columns')
     index = models.PositiveSmallIntegerField(help_text=_('Index allows to reorder columns.'))
     title = models.CharField(blank=False, max_length=255,
                              help_text=_('Title is rendered as column header.'))
@@ -132,65 +125,62 @@ class CategoryColumn(models.Model):
                               help_text=_('Widget field allows to customise table cell rendering.'))
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
     def clean(self):
         if not self.attribute and not self.widget:
             raise ValidationError(_('Either attribute or widget field should be specified.'))
 
 
-@python_2_unicode_compatible
 class Section(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
-    category = models.ForeignKey(Category, related_name='sections')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='sections')
     is_standalone = models.BooleanField(
         default=False, help_text=_('Whether section is rendered as a separate tab.'))
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
 
 InternalNameValidator = RegexValidator('^[a-zA-Z][a-zA-Z0-9_]+$')
 
 
-@python_2_unicode_compatible
 class Attribute(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255, validators=[InternalNameValidator])
     title = models.CharField(blank=False, max_length=255)
-    section = models.ForeignKey(Section, related_name='attributes')
+    section = models.ForeignKey(on_delete=models.CASCADE, to=Section, related_name='attributes')
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
     required = models.BooleanField(default=False, help_text=_('A value must be provided for the attribute.'))
     default = BetterJSONField(null=True, blank=True)
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
 
-@python_2_unicode_compatible
 class AttributeOption(models.Model):
     attribute = models.ForeignKey(Attribute, related_name='options', on_delete=models.CASCADE)
     key = models.CharField(max_length=255, validators=[InternalNameValidator])
     title = models.CharField(max_length=255)
 
-    class Meta(object):
+    class Meta:
         unique_together = ('attribute', 'key')
 
     def __str__(self):
-        return six.text_type(self.title)
+        return str(self.title)
 
 
 class ScopeMixin(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
-    content_type = models.ForeignKey(ContentType, null=True, related_name='+')
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
 
 class BaseComponent(core_models.DescribableMixin):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     name = models.CharField(max_length=150,
@@ -203,29 +193,27 @@ class BaseComponent(core_models.DescribableMixin):
                                      blank=True)
 
 
-@python_2_unicode_compatible
 class CategoryComponent(BaseComponent):
-    class Meta(object):
+    class Meta:
         unique_together = ('type', 'category')
 
-    category = models.ForeignKey(Category, related_name='components')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='components')
 
     def __str__(self):
         return '%s, category: %s' % (self.name, self.category.title)
 
 
 class CategoryComponentUsage(ScopeMixin):
-    component = models.ForeignKey(CategoryComponent)
+    component = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent)
     date = models.DateField()
     reported_usage = models.PositiveIntegerField(null=True)
     fixed_usage = models.PositiveIntegerField(null=True)
     objects = managers.MixinManager('scope')
 
     def __str__(self):
-        return 'component: %s, date: %s' % (six.text_type(self.component.name), self.date)
+        return 'component: %s, date: %s' % (str(self.component.name), self.date)
 
 
-@python_2_unicode_compatible
 class Offering(core_models.UuidMixin,
                core_models.NameMixin,
                core_models.DescribableMixin,
@@ -235,7 +223,7 @@ class Offering(core_models.UuidMixin,
                ScopeMixin,
                LoggableMixin):
 
-    class States(object):
+    class States:
         DRAFT = 1
         ACTIVE = 2
         PAUSED = 3
@@ -257,8 +245,8 @@ class Offering(core_models.UuidMixin,
     rating = models.IntegerField(null=True,
                                  validators=[MaxValueValidator(5), MinValueValidator(1)],
                                  help_text=_('Rating is value from 1 to 5.'))
-    category = models.ForeignKey(Category, related_name='offerings')
-    customer = models.ForeignKey(structure_models.Customer, related_name='+', null=True)
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='offerings')
+    customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, related_name='+', null=True)
     attributes = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Category.'))
     options = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Offering request form.'))
     geolocations = JSONField(default=list, blank=True,
@@ -287,10 +275,10 @@ class Offering(core_models.UuidMixin,
     objects = managers.OfferingManager()
     tracker = FieldTracker()
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'customer'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Offering')
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
@@ -312,7 +300,7 @@ class Offering(core_models.UuidMixin,
         pass
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
     @classmethod
     def get_url_name(cls):
@@ -331,12 +319,11 @@ class Offering(core_models.UuidMixin,
         return not self.billable and not self.shared
 
 
-@python_2_unicode_compatible
 class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
-    class Meta(object):
+    class Meta:
         unique_together = ('type', 'offering')
 
-    class BillingTypes(object):
+    class BillingTypes:
         FIXED = 'fixed'
         USAGE = 'usage'
         ONE_TIME = 'one'
@@ -350,7 +337,7 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
             (ON_PLAN_SWITCH, 'One-time on plan switch'),
         )
 
-    class LimitPeriods(object):
+    class LimitPeriods:
         MONTH = 'month'
         TOTAL = 'total'
 
@@ -361,8 +348,8 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
                     'amount over the whole active state of resource.'),
         )
 
-    offering = models.ForeignKey(Offering, related_name='components')
-    parent = models.ForeignKey(CategoryComponent, null=True, blank=True)
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='components')
+    parent = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent, null=True, blank=True)
     billing_type = models.CharField(choices=BillingTypes.CHOICES,
                                     default=BillingTypes.FIXED,
                                     max_length=5)
@@ -396,10 +383,9 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
             )
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
 
-@python_2_unicode_compatible
 class Plan(core_models.UuidMixin,
            TimeStampedModel,
            core_models.NameMixin,
@@ -414,7 +400,7 @@ class Plan(core_models.UuidMixin,
     is created via REST API. Usage-based components don't contribute to plan price.
     It is assumed that plan price is updated manually when plan component is managed via Django ORM.
     """
-    offering = models.ForeignKey(Offering, related_name='plans')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='plans')
     archived = models.BooleanField(default=False, help_text=_('Forbids creation of new resources.'))
     objects = managers.MixinManager('scope')
     backend_id = models.CharField(max_length=255, blank=True)
@@ -427,14 +413,14 @@ class Plan(core_models.UuidMixin,
     )
     tracker = FieldTracker()
 
-    class Meta(object):
+    class Meta:
         ordering = ('name',)
 
     @classmethod
     def get_url_name(cls):
         return 'marketplace-plan'
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'offering__customer'
 
     def get_estimate(self, limits=None):
@@ -454,12 +440,12 @@ class Plan(core_models.UuidMixin,
                 price = component_prices.get(key, 0)
                 limit = limits.get(key, 0)
                 factor = component_factors.get(key, 1)
-                cost += price * limit / factor
+                cost += Decimal(price) * limit / factor
 
         return cost
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
     @property
     def init_price(self):
@@ -485,16 +471,15 @@ class Plan(core_models.UuidMixin,
         return self.max_amount > usage
 
 
-@python_2_unicode_compatible
 class PlanComponent(models.Model):
-    class Meta(object):
+    class Meta:
         unique_together = ('plan', 'component')
 
     PRICE_MAX_DIGITS = 15
     PRICE_DECIMAL_PLACES = 7
 
-    plan = models.ForeignKey(Plan, related_name='components')
-    component = models.ForeignKey(OfferingComponent, related_name='components', null=True)
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, related_name='components')
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent, related_name='components', null=True)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
                                 max_digits=PRICE_MAX_DIGITS,
@@ -514,7 +499,6 @@ class PlanComponent(models.Model):
         return 'for plan: %s' % self.plan.name
 
 
-@python_2_unicode_compatible
 class Screenshot(core_models.UuidMixin,
                  structure_models.StructureModel,
                  core_models.DescribableMixin,
@@ -522,16 +506,16 @@ class Screenshot(core_models.UuidMixin,
                  core_models.NameMixin):
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
-    offering = models.ForeignKey(Offering, related_name='screenshots')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='screenshots')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'offering__customer'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Screenshot')
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
     @classmethod
     def get_url_name(cls):
@@ -539,12 +523,12 @@ class Screenshot(core_models.UuidMixin,
 
 
 class CostEstimateMixin(models.Model):
-    class Meta(object):
+    class Meta:
         abstract = True
 
     # Cost estimate is computed with respect to fixed plan components and usage-based limits
     cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
-    plan = models.ForeignKey(Plan, null=True, blank=True)
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, null=True, blank=True)
     limits = BetterJSONField(blank=True, default=dict)
 
     def init_cost(self):
@@ -553,7 +537,7 @@ class CostEstimateMixin(models.Model):
 
 
 class RequestTypeMixin(CostEstimateMixin):
-    class Types(object):
+    class Types:
         CREATE = 1
         UPDATE = 2
         TERMINATE = 3
@@ -566,7 +550,7 @@ class RequestTypeMixin(CostEstimateMixin):
 
     type = models.PositiveSmallIntegerField(choices=Types.CHOICES, default=Types.CREATE)
 
-    class Meta(object):
+    class Meta:
         abstract = True
 
     def init_cost(self):
@@ -578,27 +562,25 @@ class RequestTypeMixin(CostEstimateMixin):
                 self.cost += self.plan.switch_price
 
 
-@python_2_unicode_compatible
 class CartItem(core_models.UuidMixin, TimeStampedModel, RequestTypeMixin):
     user = models.ForeignKey(core_models.User, related_name='+', on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, related_name='+', on_delete=models.CASCADE)
     offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
     attributes = BetterJSONField(blank=True, default=dict)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
-    class Meta(object):
+    class Meta:
         ordering = ('created',)
 
     def __str__(self):
         return 'user: %s, offering: %s' % (self.user.username, self.offering.name)
 
 
-@python_2_unicode_compatible
 class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
-    class States(object):
+    class States:
         REQUESTED_FOR_APPROVAL = 1
         EXECUTING = 2
         DONE = 3
@@ -615,20 +597,20 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             (REJECTED, 'rejected'),
         )
 
-    created_by = models.ForeignKey(core_models.User, related_name='orders')
-    approved_by = models.ForeignKey(core_models.User, blank=True, null=True, related_name='+')
+    created_by = models.ForeignKey(on_delete=models.CASCADE, to=core_models.User, related_name='orders')
+    approved_by = models.ForeignKey(on_delete=models.CASCADE, to=core_models.User, blank=True, null=True, related_name='+')
     approved_at = models.DateTimeField(editable=False, null=True, blank=True)
-    project = models.ForeignKey(structure_models.Project)
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     state = FSMIntegerField(default=States.REQUESTED_FOR_APPROVAL, choices=States.CHOICES)
     total_cost = models.DecimalField(max_digits=22, decimal_places=10, null=True, blank=True)
     tracker = FieldTracker()
     _file = models.TextField(blank=True, editable=False)
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Order')
         ordering = ('created',)
 
@@ -683,7 +665,7 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
             return
 
         content = base64.b64decode(self._file)
-        return StringIO.StringIO(content)
+        return BytesIO(content)
 
     @file.setter
     def file(self, value):
@@ -721,7 +703,6 @@ class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
         return 'project: %s, created by: %s' % (self.project.name, self.created_by.username)
 
 
-@python_2_unicode_compatible
 class Resource(CostEstimateMixin,
                core_models.UuidMixin,
                TimeStampedModel,
@@ -741,7 +722,7 @@ class Resource(CostEstimateMixin,
     Eventually it is expected that core resource model is going to be superseded by
     marketplace resource model as a primary mean.
     """
-    class States(object):
+    class States:
         CREATING = 1
         OK = 2
         ERRED = 3
@@ -758,7 +739,7 @@ class Resource(CostEstimateMixin,
             (TERMINATED, 'Terminated'),
         )
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
 
@@ -825,19 +806,18 @@ class Resource(CostEstimateMixin,
         )
 
     def __str__(self):
-        return six.text_type(self.name)
+        return str(self.name)
 
 
-@python_2_unicode_compatible
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
     This model allows to track billing plan for timeframes during resource lifecycle.
     """
-    resource = models.ForeignKey(Resource, related_name='+')
-    plan = models.ForeignKey(Plan)
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='+')
+    plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan)
 
     def __str__(self):
-        return six.text_type(self.resource.name)
+        return str(self.resource.name)
 
     @property
     def current_components(self):
@@ -845,13 +825,12 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
         return self.components.filter(billing_period=core_utils.month_start(now))
 
 
-@python_2_unicode_compatible
 class OrderItem(core_models.UuidMixin,
                 core_models.ErrorMessageMixin,
                 RequestTypeMixin,
                 structure_models.StructureLoggableMixin,
                 TimeStampedModel):
-    class States(object):
+    class States:
         PENDING = 1
         EXECUTING = 2
         DONE = 3
@@ -870,20 +849,20 @@ class OrderItem(core_models.UuidMixin,
 
         TERMINAL_STATES = {DONE, ERRED}
 
-    order = models.ForeignKey(Order, related_name='items')
-    offering = models.ForeignKey(Offering)
+    order = models.ForeignKey(on_delete=models.CASCADE, to=Order, related_name='items')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering)
     attributes = BetterJSONField(blank=True, default=dict)
-    old_plan = models.ForeignKey(Plan, related_name='+', null=True, blank=True)
-    resource = models.ForeignKey(Resource, null=True, blank=True)
+    old_plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True)
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
     tracker = FieldTracker()
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'order__project__customer'
         project_path = 'order__project'
 
-    class Meta(object):
+    class Meta:
         verbose_name = _('Order item')
         ordering = ('created',)
 
@@ -954,10 +933,9 @@ class OrderItem(core_models.UuidMixin,
         return 'type: %s, created_by: %s' % (self.get_type_display(), self.order.created_by)
 
 
-@python_2_unicode_compatible
 class ComponentQuota(models.Model):
-    resource = models.ForeignKey(Resource, related_name='quotas')
-    component = models.ForeignKey(OfferingComponent,
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='quotas')
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     limit = models.PositiveIntegerField(default=-1)
     usage = models.PositiveIntegerField(default=0)
@@ -969,16 +947,15 @@ class ComponentQuota(models.Model):
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
 
-@python_2_unicode_compatible
 class ComponentUsage(TimeStampedModel,
                      core_models.DescribableMixin,
                      core_models.UuidMixin):
-    resource = models.ForeignKey(Resource, related_name='usages')
-    component = models.ForeignKey(OfferingComponent,
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='usages')
+    component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
     usage = models.PositiveIntegerField(default=0)
     date = models.DateTimeField()
-    plan_period = models.ForeignKey('ResourcePlanPeriod', related_name='components', null=True)
+    plan_period = models.ForeignKey(on_delete=models.CASCADE, to='ResourcePlanPeriod', related_name='components', null=True)
     billing_period = models.DateField()
 
     tracker = FieldTracker()
@@ -990,12 +967,11 @@ class ComponentUsage(TimeStampedModel,
         return 'resource: %s, component: %s' % (self.resource.name, self.component.name)
 
 
-@python_2_unicode_compatible
 class AggregateResourceCount(ScopeMixin):
     """
     This model allows to count current number of project or customer resources by category.
     """
-    category = models.ForeignKey(Category, related_name='+')
+    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='+')
     count = models.PositiveIntegerField(default=0)
     objects = managers.MixinManager('scope')
 
@@ -1003,18 +979,17 @@ class AggregateResourceCount(ScopeMixin):
         unique_together = ('category', 'content_type', 'object_id')
 
     def __str__(self):
-        return six.text_type(self.category.title)
+        return str(self.category.title)
 
 
-@python_2_unicode_compatible
 class OfferingFile(core_models.UuidMixin,
                    core_models.NameMixin,
                    structure_models.StructureModel,
                    TimeStampedModel):
-    offering = models.ForeignKey(Offering, related_name='files')
+    offering = models.ForeignKey(on_delete=models.CASCADE, to=Offering, related_name='files')
     file = models.FileField(upload_to='offering_files')
 
-    class Permissions(object):
+    class Permissions:
         customer_path = 'offering__customer'
 
     @classmethod

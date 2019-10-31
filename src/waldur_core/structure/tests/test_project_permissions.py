@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import collections
 import datetime
 
@@ -7,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status, test
-from six.moves import mock
+from unittest import mock
 
 from waldur_core.structure import tasks
 from waldur_core.structure.models import ProjectRole, CustomerRole, ProjectPermission

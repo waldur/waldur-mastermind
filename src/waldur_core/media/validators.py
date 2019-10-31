@@ -12,7 +12,7 @@ READ_SIZE = 5 * (1024 * 1024)   # 5MB
 
 # Based on https://github.com/mckinseyacademy/django-upload-validator/blob/master/upload_validator/__init__.py
 @deconstructible
-class FileTypeValidator(object):
+class FileTypeValidator:
     """
     File type validator for validating mimetypes and extensions
     Args:

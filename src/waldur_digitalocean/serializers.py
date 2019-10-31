@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import re
 
 from django.utils.translation import ugettext_lazy as _
@@ -31,7 +29,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
 class RegionSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Region
         fields = ('url', 'uuid', 'name')
         extra_kwargs = {
@@ -41,7 +39,7 @@ class RegionSerializer(structure_serializers.BasePropertySerializer):
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Image
         fields = ('url', 'uuid', 'name', 'distribution', 'type', 'regions',
                   'is_official', 'created_at', 'min_disk_size')
@@ -54,7 +52,7 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
 
 class SizeSerializer(structure_serializers.BasePropertySerializer):
 
-    class Meta(object):
+    class Meta:
         model = models.Size
         fields = ('url', 'uuid', 'name', 'cores', 'ram', 'disk', 'transfer', 'regions')
         extra_kwargs = {
