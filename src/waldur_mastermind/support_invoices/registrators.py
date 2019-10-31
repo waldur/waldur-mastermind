@@ -1,4 +1,5 @@
 import logging
+
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_mastermind.invoices import models as invoice_models
@@ -41,9 +42,27 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
         try:
             resource = marketplace_models.Resource.objects.get(scope=offering)
-        except marketplace_models.Resource.DoesNotExist:
-            return
+            self.create_items_for_plan(invoice, resource, offering, start, end, **kwargs)
 
+        except marketplace_models.Resource.DoesNotExist:
+            # If an offering isn't request based support offering
+            item = invoice_models.InvoiceItem.objects.create(
+                content_type=ContentType.objects.get_for_model(offering),
+                object_id=offering.id,
+                project=offering.project,
+                invoice=invoice,
+                start=start,
+                end=end,
+                details=self.get_details(offering),
+                unit_price=offering.unit_price,
+                unit=offering.unit,
+                product_code=offering.product_code,
+                article_code=offering.article_code
+            )
+            self.init_details(item)
+            return item
+
+    def create_items_for_plan(self, invoice, resource, offering, start, end, **kwargs):
         plan = resource.plan
         if not plan:
             logger.warning('Skipping support invoice creation because '
@@ -77,6 +96,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     unit = invoice_models.Units.QUANTITY
                     quantity = 1
                 elif is_usage:
+                    unit = invoice_models.Units.QUANTITY
                     quantity = resource.limits.get(offering_component.type)
 
                 item = invoice_models.InvoiceItem.objects.create(
