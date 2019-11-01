@@ -12,6 +12,7 @@ from waldur_core.core.utils import month_end
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
@@ -182,6 +183,18 @@ class UsagesTest(InvoicesBaseTest):
             self.fixture.plan_component_cpu.price * 10
         )
         self.assertEqual(self.invoice.price, expected)
+
+    def test_recurring_usage(self):
+        self.fixture.offering_component_ram.delete()
+
+        with freeze_time('2018-01-15'):
+            self._create_usage(usage=10, recurring=True)
+
+        with freeze_time('2018-02-01'):
+            create_monthly_invoices()
+            invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer, month=2, year=2018)
+            self.assertEqual(marketplace_models.ComponentUsage.objects.count(), 2)
+            self.assertEqual(invoice.price, self.fixture.plan_component_cpu.price * 10)
 
     @freeze_time('2018-01-15')
     def test_new_usage_override_old_usage(self):

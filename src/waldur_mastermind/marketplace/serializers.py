@@ -1232,6 +1232,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             'offering_name', 'offering_uuid',
             'project_name', 'project_uuid',
             'customer_name', 'customer_uuid',
+            'recurring',
         )
 
 
@@ -1284,6 +1285,7 @@ class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
     description = serializers.CharField(required=False, allow_blank=True)
+    recurring = serializers.BooleanField(default=False)
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
@@ -1333,14 +1335,25 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             amount = usage['amount']
             description = usage.get('description', '')
             component = components[usage['type']]
+            recurring = usage['recurring']
             component.validate_amount(resource, amount, now)
+
+            models.ComponentUsage.objects.filter(
+                resource=resource,
+                component=component,
+                billing_period=billing_period,
+            ).update(recurring=False)
 
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 plan_period=plan_period,
                 billing_period=billing_period,
-                defaults={'usage': amount, 'date': now, 'description': description},
+                defaults={'usage': amount,
+                          'date': now,
+                          'description': description,
+                          'recurring': recurring
+                          },
             )
 
 

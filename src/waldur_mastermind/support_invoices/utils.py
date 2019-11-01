@@ -37,7 +37,9 @@ def component_usage_register(component_usage):
         plan_component = plan.components.get(component=component_usage.component)
         item = invoice_models.InvoiceItem.objects.get(scope=component_usage.resource.scope,
                                                       details__plan_period_id=plan_period.id,
-                                                      details__plan_component_id=plan_component.id)
+                                                      details__plan_component_id=plan_component.id,
+                                                      invoice__year=component_usage.billing_period.year,
+                                                      invoice__month=component_usage.billing_period.month)
         item.quantity = component_usage.usage
         item.unit_price = plan_component.price
         item.save()

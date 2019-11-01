@@ -961,6 +961,7 @@ class ComponentUsage(TimeStampedModel,
     date = models.DateTimeField()
     plan_period = models.ForeignKey(on_delete=models.CASCADE, to='ResourcePlanPeriod', related_name='components', null=True)
     billing_period = models.DateField()
+    recurring = models.BooleanField(default=False, help_text='Reported value is reused every month until changed.')
 
     tracker = FieldTracker()
 
