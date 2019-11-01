@@ -149,6 +149,25 @@ class RequestCreateTest(BaseTest):
         description = support_models.Offering.objects.get(name='item_name').issue.description
         self.assertTrue(name in description)
 
+    def test_issue_caller_is_equal_order_created_by(self):
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, options={'order': []})
+
+        order_item = marketplace_factories.OrderItemFactory(
+            offering=offering,
+            attributes={'name': 'item_name', 'description': 'Description'}
+        )
+
+        serialized_order = core_utils.serialize_instance(order_item.order)
+        serialized_user = core_utils.serialize_instance(fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
+        support_offering = support_models.Offering.objects.get(name='item_name')
+        resource = marketplace_models.Resource.objects.get(scope=support_offering)
+        order_item = marketplace_models.OrderItem.objects.get(resource=resource)
+        issue = support_models.Issue.objects.get(resource_object_id=order_item.id)
+        self.assertEqual(issue.caller, order_item.order.created_by)
+
 
 @freeze_time('2019-01-01')
 class RequestActionBaseTest(BaseTest):
