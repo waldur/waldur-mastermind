@@ -45,9 +45,10 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
         if order_item.limits:
             components_map = order_item.offering.get_usage_components()
             for key, value in order_item.limits.items():
-                component = components_map[key]
-                description += "\n%s (%s): %s %s" % \
-                               (component.name, component.type, value, component.measured_unit)
+                component = components_map.get(key)
+                if component:
+                    description += "\n%s (%s): %s %s" % \
+                                   (component.name, component.type, value, component.measured_unit)
 
         if order_item.plan and order_item.plan.scope:
             post_data['plan'] = reverse('support-offering-plan-detail', kwargs={

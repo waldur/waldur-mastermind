@@ -1,4 +1,5 @@
 import logging
+
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_mastermind.invoices import models as invoice_models
@@ -41,15 +42,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
         try:
             resource = marketplace_models.Resource.objects.get(scope=offering)
-            plan = resource.plan
-
-            if not plan:
-                logger.warning('Skipping support invoice creation because '
-                               'billing is not enabled for offering. '
-                               'Offering ID: %s', offering.id)
-                return
-
-            self.create_items_for_plan(invoice, plan, offering, start, end, **kwargs)
+            self.create_items_for_plan(invoice, resource, offering, start, end, **kwargs)
 
         except marketplace_models.Resource.DoesNotExist:
             # If an offering isn't request based support offering
@@ -69,28 +62,42 @@ class OfferingRegistrator(registrators.BaseRegistrator):
             self.init_details(item)
             return item
 
-    def create_items_for_plan(self, invoice, plan, offering, start, end, **kwargs):
+    def create_items_for_plan(self, invoice, resource, offering, start, end, **kwargs):
+        plan = resource.plan
+        if not plan:
+            logger.warning('Skipping support invoice creation because '
+                           'billing is not enabled for offering. '
+                           'Offering ID: %s', offering.id)
+            return
+
         order_type = kwargs.get('order_type')
 
         for plan_component in plan.components.all():
             offering_component = plan_component.component
 
             is_fixed = offering_component.billing_type == BillingTypes.FIXED
+            is_usage = offering_component.billing_type == BillingTypes.USAGE
             is_one = offering_component.billing_type == BillingTypes.ONE_TIME
             is_switch = offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH
 
             if is_fixed or \
                     (is_one and order_type == OrderTypes.CREATE) or \
-                    (is_switch and order_type == OrderTypes.UPDATE):
+                    (is_switch and order_type == OrderTypes.UPDATE) or \
+                    (is_usage and offering_component.use_limit_for_billing):
                 details = self.get_component_details(offering, plan_component)
 
                 unit_price = plan_component.price
                 unit = plan.unit
+                quantity = 0
 
                 if is_fixed:
                     unit_price *= plan_component.amount
                 elif is_one or is_switch:
                     unit = invoice_models.Units.QUANTITY
+                    quantity = 1
+                elif is_usage:
+                    unit = invoice_models.Units.QUANTITY
+                    quantity = resource.limits.get(offering_component.type)
 
                 item = invoice_models.InvoiceItem.objects.create(
                     content_type=ContentType.objects.get_for_model(offering),
@@ -102,7 +109,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                     details=details,
                     unit_price=unit_price,
                     unit=unit,
-                    quantity=1 if is_one or is_switch else 0,
+                    quantity=quantity,
                     product_code=offering_component.product_code or plan.product_code,
                     article_code=offering_component.article_code or plan.article_code,
                 )

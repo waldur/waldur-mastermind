@@ -364,6 +364,10 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
         default=False,
         help_text=_('Do not allow user to specify quotas when offering is provisioned.')
     )
+    use_limit_for_billing = models.BooleanField(
+        default=False,
+        help_text=_('Charge for usage-based component is based on user-requested limit.')
+    )
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:
