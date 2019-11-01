@@ -253,6 +253,16 @@ class UsagesTest(InvoicesBaseTest):
                          self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
                          self.fixture.plan_component_cpu.price * new_amount)
 
+    def test_invoice_item_name_includes_component_name(self):
+        self._create_usage(usage=10)
+        invoice_item_name = self.invoice.items.last().name
+        self.assertTrue(self.fixture.offering_component_cpu.name in invoice_item_name)
+
+    def test_invoice_item_name_includes_resource_name(self):
+        self._create_usage(usage=10)
+        invoice_item_name = self.invoice.items.last().name
+        self.assertTrue(self.resource.name in invoice_item_name)
+
     def _switch_plan(self):
         marketplace_factories.OrderItemFactory(
             resource=self.resource,
