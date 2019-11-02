@@ -26,7 +26,7 @@ config_defaults = {
         'media_root': os.path.join(work_dir, 'media'),
         'owner_can_manage_customer': 'false',
         'secret_key': '',
-        'show_all_users': 'true',
+        'show_all_users': 'false',
         'static_root': os.path.join(data_dir, 'static'),
         'template_debug': 'false',
     },
