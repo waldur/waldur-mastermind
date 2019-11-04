@@ -12,6 +12,7 @@ from waldur_core.core.utils import month_end
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import registrators
+from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import tasks as marketplace_tasks
@@ -21,6 +22,11 @@ from waldur_mastermind.support.tests.base import override_support_settings
 from . import fixtures
 
 
+@freeze_time('2018-01-01')
+@override_support_settings(
+    ENABLED=True,
+    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
+)
 class InvoicesBaseTest(test.APITransactionTestCase):
     def setUp(self):
         super(InvoicesBaseTest, self).setUp()
@@ -47,11 +53,6 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         )
 
 
-@freeze_time('2018-01-01')
-@override_support_settings(
-    ENABLED=True,
-    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
-)
 class InvoicesTest(InvoicesBaseTest):
     def setUp(self):
         super(InvoicesTest, self).setUp()
@@ -160,11 +161,6 @@ class InvoicesTest(InvoicesBaseTest):
 
 
 @ddt
-@freeze_time('2018-01-01')
-@override_support_settings(
-    ENABLED=True,
-    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
-)
 class UsagesTest(InvoicesBaseTest):
     def setUp(self):
         super(UsagesTest, self).setUp()
@@ -187,6 +183,18 @@ class UsagesTest(InvoicesBaseTest):
             self.fixture.plan_component_cpu.price * 10
         )
         self.assertEqual(self.invoice.price, expected)
+
+    def test_recurring_usage(self):
+        self.fixture.offering_component_ram.delete()
+
+        with freeze_time('2018-01-15'):
+            self._create_usage(usage=10, recurring=True)
+
+        with freeze_time('2018-02-01'):
+            create_monthly_invoices()
+            invoice = invoices_models.Invoice.objects.get(customer=self.fixture.customer, month=2, year=2018)
+            self.assertEqual(marketplace_models.ComponentUsage.objects.count(), 2)
+            self.assertEqual(invoice.price, self.fixture.plan_component_cpu.price * 10)
 
     @freeze_time('2018-01-15')
     def test_new_usage_override_old_usage(self):
@@ -245,6 +253,16 @@ class UsagesTest(InvoicesBaseTest):
                          self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount +
                          self.fixture.plan_component_cpu.price * new_amount)
 
+    def test_invoice_item_name_includes_component_name(self):
+        self._create_usage(usage=10)
+        invoice_item_name = self.invoice.items.last().name
+        self.assertTrue(self.fixture.offering_component_cpu.name in invoice_item_name)
+
+    def test_invoice_item_name_includes_resource_name(self):
+        self._create_usage(usage=10)
+        invoice_item_name = self.invoice.items.last().name
+        self.assertTrue(self.resource.name in invoice_item_name)
+
     def _switch_plan(self):
         marketplace_factories.OrderItemFactory(
             resource=self.resource,
@@ -273,11 +291,6 @@ class UsagesTest(InvoicesBaseTest):
         return marketplace_models.ComponentUsage.objects.create(**option)
 
 
-@freeze_time('2018-01-01')
-@override_support_settings(
-    ENABLED=True,
-    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
-)
 class OneTimeTest(InvoicesBaseTest):
     def setUp(self):
         super(OneTimeTest, self).setUp()
@@ -304,11 +317,6 @@ class OneTimeTest(InvoicesBaseTest):
         self.assertEqual(self.invoice.price, expected)
 
 
-@freeze_time('2018-01-01')
-@override_support_settings(
-    ENABLED=True,
-    ACTIVE_BACKEND='waldur_mastermind.support.backend.basic:BasicBackend'
-)
 class OnPlanSwitchTest(InvoicesBaseTest):
     def setUp(self):
         super(OnPlanSwitchTest, self).setUp()
@@ -340,5 +348,26 @@ class OnPlanSwitchTest(InvoicesBaseTest):
                                                   order_type=marketplace_models.OrderItem.Types.UPDATE)
         self.invoice = self.get_invoice()
         expected = (self.fixture.plan_component_cpu.price * self.fixture.plan_component_cpu.amount +
+                    self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount)
+        self.assertEqual(self.invoice.price, expected)
+
+
+class LimitUsageTest(InvoicesBaseTest):
+    def setUp(self):
+        super(LimitUsageTest, self).setUp()
+        self.fixture.offering_component_cpu.billing_type = \
+            marketplace_models.OfferingComponent.BillingTypes.USAGE
+        self.fixture.offering_component_cpu.use_limit_for_billing = True
+        self.fixture.offering_component_cpu.save()
+        self.fixture.update_plan_prices()
+
+        self.order_item.limits = {self.fixture.offering_component_cpu.type: 16}
+        self.order_item.save()
+
+    def test_charge_is_based_on_limit(self):
+        self.order_item_process(self.order_item)
+        self.resource = self.order_item.resource
+        self.invoice = self.get_invoice()
+        expected = (self.fixture.plan_component_cpu.price * 16 +
                     self.fixture.plan_component_ram.price * self.fixture.plan_component_ram.amount)
         self.assertEqual(self.invoice.price, expected)

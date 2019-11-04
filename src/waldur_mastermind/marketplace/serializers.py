@@ -294,7 +294,9 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
-                  'limit_period', 'limit_amount', 'disable_quotas', 'product_code', 'article_code',
+                  'limit_period', 'limit_amount',
+                  'disable_quotas', 'use_limit_for_billing',
+                  'product_code', 'article_code',
                   'max_value', 'min_value')
         extra_kwargs = {
             'billing_type': {'required': True},
@@ -645,7 +647,8 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         COMPONENT_KEYS = (
             'name', 'description',
             'billing_type', 'measured_unit',
-            'limit_period', 'limit_amount', 'disable_quotas',
+            'limit_period', 'limit_amount',
+            'disable_quotas', 'use_limit_for_billing',
             'product_code', 'article_code',
         )
 
@@ -1229,6 +1232,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             'offering_name', 'offering_uuid',
             'project_name', 'project_uuid',
             'customer_name', 'customer_uuid',
+            'recurring',
         )
 
 
@@ -1281,6 +1285,7 @@ class ComponentUsageItemSerializer(serializers.Serializer):
     type = serializers.CharField()
     amount = serializers.IntegerField()
     description = serializers.CharField(required=False, allow_blank=True)
+    recurring = serializers.BooleanField(default=False)
 
 
 class ComponentUsageCreateSerializer(serializers.Serializer):
@@ -1330,14 +1335,25 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             amount = usage['amount']
             description = usage.get('description', '')
             component = components[usage['type']]
+            recurring = usage['recurring']
             component.validate_amount(resource, amount, now)
+
+            models.ComponentUsage.objects.filter(
+                resource=resource,
+                component=component,
+                billing_period=billing_period,
+            ).update(recurring=False)
 
             models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
                 plan_period=plan_period,
                 billing_period=billing_period,
-                defaults={'usage': amount, 'date': now, 'description': description},
+                defaults={'usage': amount,
+                          'date': now,
+                          'description': description,
+                          'recurring': recurring
+                          },
             )
 
 

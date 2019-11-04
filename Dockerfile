@@ -31,9 +31,7 @@ RUN cd /tmp && \
   rm gosu.asc
 
 # Install build dependencies for Waldur MasterMind from RPM repositories
-RUN yum --assumeyes install \
-    epel-release \
-    https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm \
+RUN yum --assumeyes install epel-release
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install --setopt=tsflags=nodocs \
   gcc \
@@ -45,7 +43,6 @@ RUN yum --assumeyes install --setopt=tsflags=nodocs \
   libyaml-devel \
   openldap-devel \
   openssl-devel \
-  postgresql-devel \
   python3-devel \
   python3-pip \
   xmlsec1 \

@@ -104,6 +104,32 @@ class SubmitUsageTest(test.APITransactionTestCase):
             billing_period=billing_period
         ).exists())
 
+    def test_set_recurring_to_false_for_other_usages_in_this_period(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = self.get_usage_data()
+        payload['usages'][0]['recurring'] = True
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        date = timezone.now()
+        billing_period = core_utils.month_start(date)
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.offering_component,
+            date=date,
+            billing_period=billing_period
+        )
+        self.assertTrue(usage.recurring)
+        new_plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.plan_period.resource,
+            plan=self.plan_period.plan,
+        )
+        self.plan_period = new_plan_period
+        payload = self.get_usage_data()
+        response = self.client.post('/api/marketplace-component-usages/set_usage/', payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        usage.refresh_from_db()
+        self.assertFalse(usage.recurring)
+
     def test_submit_usage_with_description(self):
         description = 'My first usage report'
         response = self.submit_usage(**self.get_valid_payload(description=description))

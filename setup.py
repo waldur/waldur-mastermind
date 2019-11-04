@@ -47,7 +47,7 @@ install_requires = [
     'pdfkit>=0.6.1',
     'Pillow>=6.2.0',
     'PrettyTable<0.8,>=0.7.1',
-    'psycopg2>=2.5.4',  # https://docs.djangoproject.com/en/2.2/ref/databases/#postgresql-notes
+    'psycopg2-binary>=2.8.4',  # https://docs.djangoproject.com/en/2.2/ref/databases/#postgresql-notes
     'pycountry>=1.20,<2.0',
     'python-cinderclient>=3.1.0',
     'python-digitalocean>=1.5',
@@ -79,7 +79,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='4.1.1',
+    version='4.1.2',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

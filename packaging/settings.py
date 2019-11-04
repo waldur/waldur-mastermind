@@ -26,7 +26,7 @@ config_defaults = {
         'media_root': os.path.join(work_dir, 'media'),
         'owner_can_manage_customer': 'false',
         'secret_key': '',
-        'show_all_users': 'true',
+        'show_all_users': 'false',
         'static_root': os.path.join(data_dir, 'static'),
         'template_debug': 'false',
     },
@@ -362,4 +362,4 @@ for extension_name in extensions:
     # optionally load extension configurations
     extension_conf_file_path = os.path.join(conf_dir, extension_name)
     if os.path.isfile(extension_conf_file_path):
-        exec(open(extension_conf_file_path).read())
+        exec(open(extension_conf_file_path, encoding='utf-8').read())

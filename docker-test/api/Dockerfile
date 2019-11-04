@@ -10,7 +10,6 @@ LABEL   summary="Waldur Mastermind REST API Image for Unit Test" \
         description="Waldur Cloud Brokerage Platform" \
         url="https://waldur.com"
 
-RUN yum --assumeyes install https://download.postgresql.org/pub/repos/yum/9.6/redhat/rhel-7-x86_64/pgdg-centos96-9.6-3.noarch.rpm
 RUN yum --assumeyes install epel-release
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install \
@@ -23,7 +22,6 @@ RUN yum --assumeyes install \
   libyaml-devel \
   openldap-devel \
   openssl-devel \
-  postgresql-devel \
   python3-devel \
   python3-pip \
   rsync \

@@ -13,5 +13,6 @@ class OfferingCreateSerializer(support_serializers.OfferingCreateSerializer):
             order_item = core_utils.deserialize_instance(order_item_serialized)
             issue_details['resource_object_id'] = order_item.id
             issue_details['resource_content_type'] = ContentType.objects.get_for_model(order_item)
+            issue_details['caller'] = order_item.order.created_by
 
         return issue_details

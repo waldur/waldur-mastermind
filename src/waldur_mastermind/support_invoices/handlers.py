@@ -1,5 +1,8 @@
+import datetime
+
 from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -109,3 +112,34 @@ def add_component_usage(sender, instance, created=False, **kwargs):
         return
 
     component_usage_register(component_usage)
+
+
+def create_recurring_usage_if_invoice_has_been_created(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    invoice = instance
+
+    now = timezone.now()
+    prev_month = (now.replace(day=1) - datetime.timedelta(days=1)).date()
+    prev_month_start = prev_month.replace(day=1)
+    usages = marketplace_models.ComponentUsage.objects.filter(
+        resource__project__customer=invoice.customer,
+        recurring=True,
+        billing_period__gte=prev_month_start
+    )
+
+    if not usages:
+        return
+
+    for usage in usages:
+        marketplace_models.ComponentUsage.objects.create(
+            resource=usage.resource,
+            component=usage.component,
+            usage=usage.usage,
+            description=usage.description,
+            date=now,
+            plan_period=usage.plan_period,
+            recurring=usage.recurring,
+            billing_period=core_utils.month_start(now),
+        )

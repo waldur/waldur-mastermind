@@ -26,6 +26,8 @@ def get_offering_items():
 def component_usage_register(component_usage):
     from waldur_mastermind.support_invoices.registrators import OfferingRegistrator
 
+    offering_component = component_usage.component
+
     plan_period = component_usage.plan_period
     if not plan_period:
         logger.warning('Skipping processing of component usage with ID %s because '
@@ -34,10 +36,12 @@ def component_usage_register(component_usage):
     plan = plan_period.plan
 
     try:
-        plan_component = plan.components.get(component=component_usage.component)
+        plan_component = plan.components.get(component=offering_component)
         item = invoice_models.InvoiceItem.objects.get(scope=component_usage.resource.scope,
                                                       details__plan_period_id=plan_period.id,
-                                                      details__plan_component_id=plan_component.id)
+                                                      details__plan_component_id=plan_component.id,
+                                                      invoice__year=component_usage.billing_period.year,
+                                                      invoice__month=component_usage.billing_period.month)
         item.quantity = component_usage.usage
         item.unit_price = plan_component.price
         item.save()
@@ -48,7 +52,6 @@ def component_usage_register(component_usage):
 
         details = OfferingRegistrator().get_component_details(offering, plan_component)
         details['plan_period_id'] = plan_period.id
-        offering_component = plan_component.component
 
         month_start = core_utils.month_start(component_usage.date)
         month_end = core_utils.month_end(component_usage.date)
@@ -71,6 +74,7 @@ def component_usage_register(component_usage):
             unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
             product_code=offering_component.product_code or plan.product_code,
             article_code=offering_component.article_code or plan.article_code,
+            name=offering.name + ' / ' + offering_component.name,
         )
 
     except marketplace_models.PlanComponent.DoesNotExist:
