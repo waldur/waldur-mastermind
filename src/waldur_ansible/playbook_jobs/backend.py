@@ -59,7 +59,10 @@ class AnsiblePlaybookBackend:
             ANSIBLE_HOST_KEY_CHECKING='False',
         )
         try:
-            output = subprocess.check_output(command, stderr=subprocess.STDOUT, env=env)  # nosec
+            output = subprocess.check_output(command,  # nosec
+                                             stderr=subprocess.STDOUT,
+                                             env=env,
+                                             encoding='utf-8')
         except subprocess.CalledProcessError as e:
             logger.info('Failed to execute command "%s".', command_str)
             job.output = e.output

@@ -30,13 +30,16 @@ def get_ip_address(request):
     """
     if 'HTTP_X_FORWARDED_FOR' in request.META:
         return request.META['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
-    else:
+    elif 'REMOTE_ADDR' in request.META:
         return request.META['REMOTE_ADDR']
 
 
 class CaptureEventContextMiddleware(MiddlewareMixin):
     def process_request(self, request):
-        context = {'ip_address': get_ip_address(request)}
+        ip_address = get_ip_address(request)
+        if not ip_address:
+            return
+        context = {'ip_address': ip_address}
 
         user = getattr(request, 'user', None)
         if user and not user.is_anonymous:

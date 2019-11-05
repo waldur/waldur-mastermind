@@ -33,7 +33,7 @@ install_requires = [
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
     'django-taggit>=1.1.0',
-    # 'Django>=2.2.7,<3.0',  # Not published yet thus installing from GIT commit via pip
+    'Django>=2.2.7,<3.0',
     'djangorestframework>=3.10.2,<3.11.0',
     'djangosaml2==0.17.2',
     'hiredis>=0.2.0',
@@ -79,7 +79,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='4.1.2',
+    version='4.1.3',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',

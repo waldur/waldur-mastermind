@@ -124,7 +124,9 @@ class BaseBatchClient(metaclass=abc.ABCMeta):
                        server, '-p', port, '-i', self.key_path, ' '.join(account_command)]
         try:
             logger.debug('Executing SSH command: %s', ' '.join(ssh_command))
-            return subprocess.check_output(ssh_command, stderr=subprocess.STDOUT)  # nosec
+            return subprocess.check_output(ssh_command,  # nosec
+                                           stderr=subprocess.STDOUT,
+                                           encoding='utf-8')
         except subprocess.CalledProcessError as e:
             logger.exception('Failed to execute command "%s".', ssh_command)
             stdout = e.output or ''
