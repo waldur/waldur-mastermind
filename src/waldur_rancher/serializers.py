@@ -191,6 +191,18 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
 
         return super(ClusterSerializer, self).validate(attrs)
 
+    def validate_nodes(self, nodes):
+        if len([node for node in nodes if 'etcd' in node['roles']]) not in [1, 3, 5]:
+            raise serializers.ValidationError(
+                'Total count of etcd nodes must be 1, 3 or 5. You have got %s nodes.' % len(nodes)
+            )
+
+        if not len([node for node in nodes if 'worker' in node['roles']]):
+            raise serializers.ValidationError('Count of workers roles must be min 1.')
+
+        if not len([node for node in nodes if 'controlplane' in node['roles']]):
+            raise serializers.ValidationError('Count of controlplane nodes must be min 1.')
+
 
 class NodeSerializer(serializers.HyperlinkedModelSerializer):
     instance = core_serializers.GenericRelatedField(
