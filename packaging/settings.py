@@ -362,4 +362,4 @@ for extension_name in extensions:
     # optionally load extension configurations
     extension_conf_file_path = os.path.join(conf_dir, extension_name)
     if os.path.isfile(extension_conf_file_path):
-        exec(open(extension_conf_file_path, encoding='utf-8').read())
+        exec(open(extension_conf_file_path, encoding='utf-8').read())  # nosec
