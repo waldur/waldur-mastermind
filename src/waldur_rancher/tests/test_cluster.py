@@ -101,6 +101,58 @@ class ClusterCreateTest(BaseClusterCreateTest):
             state_transition='begin_creating'
         )
 
+    def test_validate_etcd_node_count(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = {'nodes': [
+            {
+                'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                'storage': 1024,
+                'memory': 1,
+                'cpu': 1,
+                'roles': ['controlplane', 'etcd', 'worker'],
+            },
+            {
+                'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                'storage': 1024,
+                'memory': 1,
+                'cpu': 1,
+                'roles': ['controlplane', 'etcd', 'worker'],
+            }
+        ]}
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Total count of etcd nodes must be 1, 3 or 5.' in response.data['nodes'][0])
+
+    def test_validate_worker_node_count(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = {'nodes': [
+            {
+                'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                'storage': 1024,
+                'memory': 1,
+                'cpu': 1,
+                'roles': ['controlplane', 'etcd', ],
+            },
+        ]}
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Count of workers roles must be min 1.' in response.data['nodes'][0])
+
+    def test_validate_controlplane_node_count(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = {'nodes': [
+            {
+                'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                'storage': 1024,
+                'memory': 1,
+                'cpu': 1,
+                'roles': ['etcd', 'worker'],
+            },
+        ]}
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Count of controlplane nodes must be min 1.' in response.data['nodes'][0])
+
     def test_validate_name_uniqueness(self):
         self.client.force_authenticate(self.fixture.owner)
         self._create_request_('new-cluster')
