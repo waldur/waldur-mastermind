@@ -38,10 +38,12 @@ DEFAULT_PWD_COMMENT="******"
 
 echo "INFO: Welcome to Waldur Mastermind!"
 
-# Create user and group
-echo "INFO: Creating user waldur ${WALDUR_UID}:${WALDUR_GID} "
-groupadd -g $WALDUR_GID waldur
-useradd --home /var/lib/waldur --shell /bin/sh --system --uid $WALDUR_UID --gid $WALDUR_GID waldur
+if ! id waldur 2> /dev/null > /dev/null; then
+  # Create user and group if it does not exist yet
+  echo "INFO: Creating user waldur ${WALDUR_UID}:${WALDUR_GID} "
+  groupadd -g $WALDUR_GID waldur
+  useradd --home /var/lib/waldur --shell /bin/sh --system --uid $WALDUR_UID --gid $WALDUR_GID waldur
+fi
 
 if [ -d "/etc/waldur" ]; then
   echo "INFO: Existing configuration directory detected at /etc/waldur"
