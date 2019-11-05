@@ -295,6 +295,8 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
 
 
 def import_instance_metadata(vm):
+    if not vm:
+        return
     try:
         resource = marketplace_models.Resource.objects.get(scope=vm)
     # AttributeError can be raised by generic foreign key, WAL-2662
