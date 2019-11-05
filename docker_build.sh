@@ -61,26 +61,15 @@ TEMPLATES = [
 EOF
 PYTHONPATH="${PYTHONPATH}:/usr/src/waldur" django-admin collectstatic --noinput --settings=tmp_settings
 
-# Create user and group
-useradd --home /var/lib/waldur --shell /bin/sh --system --user-group waldur
+# Copy template files to in-docker storage
 
 # Copy configuration files
-mkdir -p /etc/waldur/
-cp packaging/etc/waldur/celery.conf /etc/waldur/celery.conf
-cp packaging/etc/waldur/core.ini /etc/waldur/core.ini
-cp packaging/etc/waldur/uwsgi.ini /etc/waldur/uwsgi.ini
-
-# Create logging directory
-mkdir -p /var/log/waldur/
-chmod 750 /var/log/waldur/
-chown waldur:waldur /var/log/waldur/
-
-# Create media assets directory
-mkdir -p /var/lib/waldur/media/
-chmod 750 /var/lib/waldur/
-chown waldur:waldur /var/lib/waldur/
+mkdir -p /etc/waldur-templates/
+cp packaging/etc/waldur/celery.conf /etc/waldur-templates/celery.conf
+cp packaging/etc/waldur/core.ini /etc/waldur-templates/core.ini
+cp packaging/etc/waldur/uwsgi.ini /etc/waldur-templates/uwsgi.ini
 
 # Copy SAML2 attributes
-mkdir -p /etc/waldur/saml2/
-cp -r packaging/etc/waldur/saml2/attribute-maps /etc/waldur/saml2/
-cp packaging/etc/waldur/saml2.conf.py.example /etc/waldur/saml2/
+mkdir -p /etc/waldur-templates/saml2/
+cp -r packaging/etc/waldur/saml2/attribute-maps /etc/waldur-templates/saml2/
+cp packaging/etc/waldur/saml2.conf.py.example /etc/waldur-templates/saml2/
