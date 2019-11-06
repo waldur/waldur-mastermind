@@ -63,7 +63,7 @@ def validate_order_item(order_item, request):
 
 def create_screenshot_thumbnail(screenshot):
     pic = screenshot.image
-    fh = storage.open(pic.name, 'r')
+    fh = storage.open(pic.name, 'rb')
     image = Image.open(fh)
     image.thumbnail(settings.WALDUR_MARKETPLACE['THUMBNAIL_SIZE'], Image.ANTIALIAS)
     fh.close()
@@ -91,7 +91,7 @@ def create_screenshot_thumbnail(screenshot):
 def create_order_pdf(order):
     logo_path = settings.WALDUR_CORE['SITE_LOGO']
     if logo_path:
-        with open(logo_path, 'r') as image_file:
+        with open(logo_path, 'rb') as image_file:
             deployment_logo = base64.b64encode(image_file.read())
     else:
         deployment_logo = None
