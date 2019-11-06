@@ -79,8 +79,11 @@ class NodeFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Node
 
+    cluster = factory.SubFactory(ClusterFactory)
+
     @classmethod
-    def get_url(cls, node, action=None):
+    def get_url(cls, node=None, action=None):
+        node = node or NodeFactory()
         url = 'http://testserver' + reverse('rancher-node-detail', kwargs={'uuid': node.uuid.hex})
         return url if action is None else url + action + '/'
 
