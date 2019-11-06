@@ -317,7 +317,8 @@ class TARAView(BaseAuthView):
             'code': validated_data['code'],
         }
 
-        auth_token = base64.b64encode('%s:%s' % (TARA_CLIENT_ID, TARA_SECRET))
+        raw_token = '%s:%s' % (TARA_CLIENT_ID, TARA_SECRET)
+        auth_token = base64.b64encode(raw_token.encode('utf-8'))
 
         headers = {
             'Authorization': 'Basic %s' % auth_token
