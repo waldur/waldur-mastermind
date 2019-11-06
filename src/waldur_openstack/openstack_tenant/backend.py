@@ -1553,17 +1553,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action()
-    def list_meters(self, resource):
-        try:
-            file_name = self._get_meters_file_name(resource.__class__)
-            with open(file_name) as meters_file:
-                meters = json.load(meters_file)
-        except (KeyError, IOError):
-            raise OpenStackBackendError("Cannot find meters for the '%s' resources" % resource.__class__.__name__)
-
-        return meters
-
-    @log_backend_action()
     def get_console_url(self, instance):
         nova = self.nova_client
         url = None
