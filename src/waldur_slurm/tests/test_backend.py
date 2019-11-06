@@ -72,7 +72,7 @@ class BackendTest(TestCase):
         backend = self.allocation.get_backend()
         backend.set_resource_limits(self.allocation)
 
-        check_output.assert_called_once_with(command, stderr=mock.ANY)
+        check_output.assert_called_once_with(command, encoding='utf-8', stderr=-2)
 
 
 class BackendMOABTest(TestCase):
