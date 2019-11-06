@@ -321,7 +321,7 @@ class TARAView(BaseAuthView):
         auth_token = base64.b64encode(raw_token.encode('utf-8'))
 
         headers = {
-            'Authorization': 'Basic %s' % auth_token
+            'Authorization': b'Basic %s' % auth_token
         }
 
         try:
