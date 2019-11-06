@@ -133,7 +133,7 @@ class WebHook(BaseHook):
     def process(self, event):
         logger.debug('Submitting web hook to URL %s, payload: %s', self.destination_url, event)
         payload = dict(
-            created=event.created,
+            created=event.created.isoformat(),
             message=event.message,
             context=event.context,
             event_type=event.event_type,

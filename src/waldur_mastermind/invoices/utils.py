@@ -88,7 +88,7 @@ def create_invoice_pdf(invoice):
     all_items = filter_invoice_items(invoice.items)
     logo_path = settings.WALDUR_CORE['SITE_LOGO']
     if logo_path:
-        with open(logo_path, 'r') as image_file:
+        with open(logo_path, 'rb') as image_file:
             deployment_logo = base64.b64encode(image_file.read())
     else:
         deployment_logo = None

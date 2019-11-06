@@ -413,7 +413,8 @@ def log_celery_task(request):
     description = None
     if isinstance(task, Task):
         try:
-            description = task.get_description(*request.args, **request.kwargs)
+            args, kwargs, embed = request._payload
+            description = task.get_description(*args, **kwargs)
         except NotImplementedError:
             pass
         except Exception as e:

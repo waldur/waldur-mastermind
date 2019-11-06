@@ -203,6 +203,8 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         if not len([node for node in nodes if 'controlplane' in node['roles']]):
             raise serializers.ValidationError('Count of controlplane nodes must be min 1.')
 
+        return nodes
+
 
 class NodeSerializer(serializers.HyperlinkedModelSerializer):
     instance = core_serializers.GenericRelatedField(
@@ -272,3 +274,11 @@ class ClusterImportSerializer(ClusterImportableSerializer):
             })
 
         return cluster
+
+
+class LinkOpenstackSerializer(serializers.Serializer):
+    instance = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-instance-detail',
+        queryset=openstack_tenant_models.Instance.objects.all(),
+        lookup_field='uuid',
+        write_only=True)

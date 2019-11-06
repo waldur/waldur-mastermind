@@ -69,7 +69,6 @@ cp packaging/etc/waldur/celery.conf /etc/waldur-templates/celery.conf
 cp packaging/etc/waldur/core.ini /etc/waldur-templates/core.ini
 cp packaging/etc/waldur/uwsgi.ini /etc/waldur-templates/uwsgi.ini
 
-# Copy SAML2 attributes
+# Copy default SAML2 configuration
 mkdir -p /etc/waldur-templates/saml2/
-cp -r packaging/etc/waldur/saml2/attribute-maps /etc/waldur-templates/saml2/
 cp packaging/etc/waldur/saml2.conf.py.example /etc/waldur-templates/saml2/

@@ -351,7 +351,7 @@ if config.get('sentry', 'dsn') != '':
 
     sentry_sdk.init(
         dsn=config.get('sentry', 'dsn'),
-        integrations=[DjangoIntegration()]
+        integrations=[DjangoIntegration()],
     )
 
 # Additional configuration files for Waldur

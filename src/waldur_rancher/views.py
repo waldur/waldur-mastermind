@@ -1,11 +1,14 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import decorators, response, status
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import views as structure_views
+from waldur_core.structure import permissions as structure_permissions
 
 from . import models, serializers, filters, executors
 
@@ -56,3 +59,18 @@ class NodeViewSet(core_views.ActionsViewSet):
     filterset_class = filters.NodeFilter
     lookup_field = 'uuid'
     disabled_actions = ['update', 'partial_update']
+    create_permissions = [structure_permissions.is_staff]
+
+    @decorators.action(detail=True, methods=['post'])
+    def link_openstack(self, request, uuid=None):
+        node = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.validated_data['instance']
+        node.content_type = ContentType.objects.get_for_model(instance)
+        node.object_id = instance.id
+        node.save()
+        return response.Response(status=status.HTTP_200_OK)
+
+    link_openstack_permissions = [structure_permissions.is_staff]
+    link_openstack_serializer_class = serializers.LinkOpenstackSerializer

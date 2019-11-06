@@ -448,7 +448,7 @@ def load_category(category_short):
     category_icon = '%s.svg' % category_short
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
     new_category.icon.save(category_icon,
-                           File(open(path + category_icon, 'r')))
+                           File(open(path + category_icon, 'rb')))
     new_category.save()
     # populate category with common section
     populate_category(category_short, new_category, common_sections)

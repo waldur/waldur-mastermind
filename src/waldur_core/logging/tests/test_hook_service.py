@@ -22,7 +22,7 @@ class TestHookService(test.APITransactionTestCase):
         self.message = 'Customer {customer_name} has been updated.'
         self.event = EventFactory(event_type=self.event_type)
         self.payload = dict(
-            created=self.event.created,
+            created=self.event.created.isoformat(),
             message=self.event.message,
             context=self.event.context,
             event_type=self.event.event_type,
