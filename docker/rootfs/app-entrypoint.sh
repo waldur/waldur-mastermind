@@ -68,9 +68,8 @@ else
   chmod 750 /var/lib/waldur/
   chown waldur:waldur /var/lib/waldur/
 
-  # Copy SAML2 attributes
+  # Copy default SAML2 configuration
   mkdir -p /etc/waldur/saml2/
-  cp -r /etc/waldur-templates/saml2/attribute-maps /etc/waldur/saml2/
   cp /etc/waldur-templates/saml2.conf.py.example /etc/waldur/saml2/
 fi
 
