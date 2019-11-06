@@ -56,6 +56,7 @@ RUN yum --assumeyes install --setopt=tsflags=nodocs \
   openssl \
   uwsgi-plugin-python36 \
   gettext \
+  which \
   && pip3 install -U pip
 
 RUN mkdir -p /usr/src/waldur
