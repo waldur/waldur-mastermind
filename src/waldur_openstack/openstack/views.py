@@ -129,6 +129,13 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.ImageFilter
 
 
+class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.VolumeType.objects.all().order_by('settings', 'name')
+    serializer_class = serializers.VolumeTypeSerializer
+    lookup_field = 'uuid'
+    filterset_class = filters.VolumeTypeFilter
+
+
 class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SecurityGroup.objects.all()
     serializer_class = serializers.SecurityGroupSerializer

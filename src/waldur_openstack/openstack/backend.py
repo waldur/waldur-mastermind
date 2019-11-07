@@ -40,6 +40,7 @@ class OpenStackBackend(BaseOpenStackBackend):
     def pull_service_properties(self):
         self.pull_flavors()
         self.pull_images()
+        self.pull_volume_types()
         self.pull_service_settings_quotas()
 
     def pull_resources(self):
@@ -140,6 +141,26 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_images(self):
         self._pull_images(models.Image, lambda image: image['visibility'] == 'public')
+
+    def pull_volume_types(self):
+        try:
+            volume_types = self.cinder_client.volume_types.list()
+        except cinder_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        with transaction.atomic():
+            cur_volume_types = self._get_current_properties(models.VolumeType)
+            for backend_type in volume_types:
+                cur_volume_types.pop(backend_type.id, None)
+                models.VolumeType.objects.update_or_create(
+                    settings=self.settings,
+                    backend_id=backend_type.id,
+                    defaults={
+                        'name': backend_type.name,
+                        'description': backend_type.description or '',
+                    })
+
+            models.VolumeType.objects.filter(backend_id__in=cur_volume_types.keys(), settings=self.settings).delete()
 
     @log_backend_action('push quotas for tenant')
     def push_tenant_quotas(self, tenant, quotas):
