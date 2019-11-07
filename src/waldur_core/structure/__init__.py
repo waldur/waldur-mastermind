@@ -22,7 +22,7 @@ class SupportedServices:
             'gitlab': {
                 'name': 'GitLab',
                 'model_name': 'gitlab.gitlabservice',
-                'backend': nodeconductor_gitlab.backend.GitLabBackend,
+                'backend': waldur_gitlab.backend.GitLabBackend,
                 'detail_view': 'gitlab-detail',
                 'list_view': 'gitlab-list',
                 'properties': {},
@@ -255,11 +255,11 @@ class SupportedServices:
             {
                 ...
                 'gitlab': {
-                    "service": nodeconductor_gitlab.models.GitLabService,
-                    "service_project_link": nodeconductor_gitlab.models.GitLabServiceProjectLink,
+                    "service": waldur_gitlab.models.GitLabService,
+                    "service_project_link": waldur_gitlab.models.GitLabServiceProjectLink,
                     "resources": [
-                        nodeconductor_gitlab.models.Group,
-                        nodeconductor_gitlab.models.Project
+                        waldur_gitlab.models.Group,
+                        waldur_gitlab.models.Project
                     ],
                 },
                 ...
@@ -341,11 +341,11 @@ class SupportedServices:
 
             >> SupportedServices.get_related_models(gitlab_models.Project)
             {
-                'service': nodeconductor_gitlab.models.GitLabService,
-                'service_project_link': nodeconductor_gitlab.models.GitLabServiceProjectLink,
+                'service': waldur_gitlab.models.GitLabService,
+                'service_project_link': waldur_gitlab.models.GitLabServiceProjectLink,
                 'resources': [
-                    nodeconductor_gitlab.models.Group,
-                    nodeconductor_gitlab.models.Project,
+                    waldur_gitlab.models.Group,
+                    waldur_gitlab.models.Project,
                 ]
             }
         """
@@ -495,8 +495,8 @@ class ServiceBackend:
 
     @staticmethod
     def mb2gb(val):
-        return val / 1024 if val else 0
+        return int(val / 1024) if val else 0
 
     @staticmethod
     def mb2tb(val):
-        return val / 1024 / 1024 if val else 0
+        return int(val / 1024 / 1024) if val else 0
