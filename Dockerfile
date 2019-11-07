@@ -57,7 +57,13 @@ RUN yum --assumeyes install --setopt=tsflags=nodocs \
   uwsgi-plugin-python36 \
   gettext \
   which \
-  && pip3 install -U pip
+  https://downloads.wkhtmltopdf.org/0.12/0.12.5/wkhtmltox-0.12.5-1.centos7.x86_64.rpm \
+  freetype \
+  liberation-serif-fonts \
+  liberation-sans-fonts \
+  liberation-mono-fonts \
+  liberation-narrow-fonts
+RUN pip3 install -U pip
 
 RUN mkdir -p /usr/src/waldur
 
