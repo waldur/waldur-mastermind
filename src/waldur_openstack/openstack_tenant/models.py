@@ -494,13 +494,7 @@ class InternalIP(openstack_base_models.Port):
         unique_together = ('backend_id', 'settings')
 
 
-class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
-    class Meta:
-        unique_together = ('settings', 'backend_id')
-        # TODO: validate behaviour in different OpenStack versions and add unique_together = ('settings', 'name')
-
-    def __str__(self):
-        return self.name
+class VolumeType(openstack_base_models.BaseVolumeType):
 
     @classmethod
     def get_url_name(cls):

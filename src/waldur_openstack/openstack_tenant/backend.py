@@ -1574,7 +1574,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def pull_volume_types(self):
         try:
             volume_types = self.cinder_client.volume_types.list()
-        except nova_exceptions.ClientException as e:
+        except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
         with transaction.atomic():

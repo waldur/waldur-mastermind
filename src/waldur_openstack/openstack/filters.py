@@ -49,6 +49,11 @@ class ImageFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.Image
 
 
+class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.VolumeType
+
+
 class NetworkFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
     tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')

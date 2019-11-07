@@ -61,3 +61,12 @@ class BaseImage(structure_models.ServiceProperty):
     @classmethod
     def get_backend_fields(cls):
         return super(BaseImage, cls).get_backend_fields() + ('min_disk', 'min_ram')
+
+
+class BaseVolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
+    class Meta:
+        unique_together = ('settings', 'backend_id')
+        abstract = True
+
+    def __str__(self):
+        return self.name

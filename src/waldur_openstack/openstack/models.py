@@ -93,6 +93,13 @@ class Image(openstack_base_models.BaseImage):
         return 'openstack-image'
 
 
+class VolumeType(openstack_base_models.BaseVolumeType):
+
+    @classmethod
+    def get_url_name(cls):
+        return 'openstack-volume-type'
+
+
 class SecurityGroup(structure_models.SubResource):
     service_project_link = models.ForeignKey(on_delete=models.CASCADE,
                                              to=OpenStackServiceProjectLink,

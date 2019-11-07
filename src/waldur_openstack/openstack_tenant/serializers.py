@@ -20,6 +20,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
+from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
 from . import models, fields
@@ -1575,22 +1576,9 @@ class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 
 
-class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
-    settings = serializers.HyperlinkedRelatedField(
-        queryset=structure_models.ServiceSettings.objects.all(),
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
-        allow_null=True,
-        required=False,
-    )
-
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
+class VolumeTypeSerializer(BaseVolumeTypeSerializer):
+    class Meta(BaseVolumeTypeSerializer.Meta):
         model = models.VolumeType
-        fields = ('url', 'uuid', 'name', 'description', 'settings')
-        extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'settings': {'lookup_field': 'uuid'},
-        }
 
 
 class SharedSettingsCustomerSerializer(serializers.Serializer):

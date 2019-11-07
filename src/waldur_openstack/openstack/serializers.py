@@ -15,6 +15,7 @@ from iptools.ipv4 import validate_cidr
 from waldur_core.core import utils as core_utils, serializers as core_serializers
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import serializers as structure_serializers, permissions as structure_permissions
+from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
 
 from . import models
 from .backend import OpenStackBackendError
@@ -124,6 +125,11 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
+
+
+class VolumeTypeSerializer(BaseVolumeTypeSerializer):
+    class Meta(BaseVolumeTypeSerializer.Meta):
+        model = models.VolumeType
 
 
 class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
