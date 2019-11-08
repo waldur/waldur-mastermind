@@ -47,7 +47,7 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
 
         self.patcher = mock.patch('waldur_mastermind.invoices.utils.pdfkit')
         mock_pdfkit = self.patcher.start()
-        mock_pdfkit.from_string.return_value = 'PDF'
+        mock_pdfkit.from_string.return_value = b'PDF'
 
     def tearDown(self):
         super(InvoiceSendNotificationTest, self).tearDown()
@@ -280,7 +280,7 @@ class InvoicePDFTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_mastermind.invoices.utils.pdfkit')
     def test_create_invoice_pdf(self, mock_pdfkit):
-        mock_pdfkit.from_string.return_value = 'pdf_content'
+        mock_pdfkit.from_string.return_value = b'pdf_content'
         utils.create_invoice_pdf(self.invoice)
         self.assertTrue(self.invoice.has_file())
 
