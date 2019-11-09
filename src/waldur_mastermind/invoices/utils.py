@@ -81,7 +81,7 @@ def get_previous_month():
 
 
 def filter_invoice_items(items):
-    return [item for item in items if item.total > 0]
+    return [item for item in items if item.total != 0]  # skip empty, but leave in credit and debit
 
 
 def create_invoice_pdf(invoice):
