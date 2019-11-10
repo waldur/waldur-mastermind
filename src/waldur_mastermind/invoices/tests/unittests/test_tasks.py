@@ -92,7 +92,7 @@ class NotificationTest(TestCase):
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.patcher = mock.patch('waldur_mastermind.invoices.utils.pdfkit')
         mock_pdfkit = self.patcher.start()
-        mock_pdfkit.from_string.return_value = 'pdf content'
+        mock_pdfkit.from_string.return_value = b'pdf content'
 
     def tearDown(self):
         super(NotificationTest, self).tearDown()

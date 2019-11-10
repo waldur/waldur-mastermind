@@ -188,7 +188,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 schedule.save()
             else:
                 executor = self._get_create_executor()
-                executor.execute(resource)
+                executor.execute(resource, is_heavy_task=True)
                 schedule.update_next_trigger_at()
                 schedule.save()
 

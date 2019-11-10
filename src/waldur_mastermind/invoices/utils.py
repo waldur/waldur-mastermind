@@ -81,7 +81,7 @@ def get_previous_month():
 
 
 def filter_invoice_items(items):
-    return [item for item in items if item.total > 0]
+    return [item for item in items if item.total != 0]  # skip empty, but leave in credit and debit
 
 
 def create_invoice_pdf(invoice):
@@ -102,7 +102,7 @@ def create_invoice_pdf(invoice):
     )
     html = render_to_string('invoices/invoice.html', context)
     pdf = pdfkit.from_string(html, False)
-    invoice.file = str(base64.b64encode(pdf.encode('utf-8')), 'utf-8')
+    invoice.file = str(base64.b64encode(pdf), 'utf-8')
     invoice.save()
 
 
