@@ -96,11 +96,13 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
-                         delete_resource_processor=processors.InstanceDeleteProcessor)
+                         delete_resource_processor=processors.InstanceDeleteProcessor,
+                         resource_model=tenant_models.Instance)
 
         manager.register(offering_type=VOLUME_TYPE,
                          create_resource_processor=processors.VolumeCreateProcessor,
-                         delete_resource_processor=processors.VolumeDeleteProcessor)
+                         delete_resource_processor=processors.VolumeDeleteProcessor,
+                         resource_model=tenant_models.Volume)
 
         signals.post_save.connect(
             handlers.synchronize_volume_metadata,
