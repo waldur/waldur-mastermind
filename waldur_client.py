@@ -177,8 +177,7 @@ class WaldurClient(object):
         return self._query_resource(endpoint, payload)
 
     def _query_resource_by_name(self, endpoint, value, extra=None):
-        # TODO: Drop inexact filtering by name when all deployments are updated.
-        payload = {'name': value, 'name_exact': value}
+        payload = {'name_exact': value}
         if extra:
             payload.update(extra)
         return self._query_resource(endpoint, payload)
@@ -570,6 +569,7 @@ class WaldurClient(object):
         if is_uuid(name):
             params['scope'] = self._build_url(self.marketplaceScopeEndpoints[offering_type] + '/' + name)
         else:
+            params['state'] = ['Creating', 'OK', 'Erred', 'Updating', 'Terminating']
             params['name_exact'] = name
 
         if project:
