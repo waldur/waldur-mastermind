@@ -938,7 +938,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         # list of nc rules, that have wrong parameters in openstack
         unsynchronized_rules = []
         # list of os rule ids, that exist in openstack and do not exist in nc
-        extra_rule_ids = backend_rules.keys()
+        extra_rule_ids = list(backend_rules.keys())
 
         for nc_rule in security_group.rules.all():
             if nc_rule.backend_id not in backend_rules:
