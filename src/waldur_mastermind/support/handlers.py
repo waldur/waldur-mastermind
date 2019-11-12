@@ -108,17 +108,29 @@ def log_offering_state_changed(sender, instance, **kwargs):
 def send_comment_added_notification(sender, instance, created=False, **kwargs):
     comment = instance
 
-    if not created or not comment.is_public:
+    # Skip notifications for private comments
+    if not comment.is_public:
+        return
+
+    # Skip notifications about comments added to an issue by caller himself
+    if comment.author.user == comment.issue.caller:
         return
 
     serialized_comment = core_utils.serialize_instance(comment)
-    transaction.on_commit(lambda:
-                          tasks.send_comment_added_notification.delay(serialized_comment))
+    if created:
+        transaction.on_commit(lambda:
+                              tasks.send_comment_added_notification.delay(serialized_comment))
+    else:
+        old_description = comment.tracker.previous('description')
+        transaction.on_commit(lambda:
+                              tasks.send_comment_updated_notification.delay(serialized_comment, old_description))
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
-    if created or set(instance.tracker.changed()) == {models.Issue.assignee.field.attname, 'modified'} or \
-            set(instance.tracker.changed()) == {'modified'}:
+    issue = instance
+
+    # Skip notification if issue just have been created in Waldur
+    if created:
         return
 
     # Skip notification if issue is not created on backend yet.
@@ -129,11 +141,22 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
     if 'backend_id' in instance.tracker.changed():
         return
 
+    # Skip notifications if assignee or modification date changed
+    changed = dict(
+        (field, instance.tracker.previous(field))
+        for field in instance.tracker.fields
+        if instance.tracker.has_changed(field) and field not in {'assignee_id', 'modified'}
+    )
+
+    if not changed:
+        return
+
     # Skip notification if issue status is ignored.
-    if 'status' in instance.tracker.changed() and \
-            models.IgnoredIssueStatus.objects.filter(name=instance.status).exists():
+    if 'status' in changed and \
+            models.IgnoredIssueStatus.objects.filter(name=issue.status).exists():
         return
 
     serialized_issue = core_utils.serialize_instance(instance)
+
     transaction.on_commit(lambda:
-                          tasks.send_issue_updated_notification.delay(serialized_issue))
+                          tasks.send_issue_updated_notification.delay(serialized_issue, changed))

@@ -1,14 +1,23 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>The issue you have created has a new comment</title>
+    <title>The comment has been updated</title>
 </head>
 <body>
 <p>
-    {{ comment.author.name }} added new comment.
+    {{ comment.author.name }} updated comment.
 </p>
 <p>
     <a href="{{ issue_url }}">[{{ issue.key }}] {{ issue.summary }}</a>
+</p>
+<p>
+    Old comment:
+</p>
+<p>
+    {{ old_description }}
+</p>
+<p>
+    New comment:
 </p>
 <p>
     {{ comment.description }}

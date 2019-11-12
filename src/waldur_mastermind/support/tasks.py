@@ -57,21 +57,42 @@ def create_issue(serialized_issue):
 
 
 @shared_task(name='waldur_mastermind.support.send_issue_updated_notification')
-def send_issue_updated_notification(serialized_issue):
+def send_issue_updated_notification(serialized_issue, changed):
     issue = core_utils.deserialize_instance(serialized_issue)
-    _send_issue_notification(issue, 'issue_updated')
+
+    _send_issue_notification(
+        issue=issue,
+        template='issue_updated',
+        extra_context={'changed': changed},
+    )
 
 
 @shared_task(name='waldur_mastermind.support.send_comment_added_notification')
 def send_comment_added_notification(serialized_comment):
     comment = core_utils.deserialize_instance(serialized_comment)
 
-    # Skip notifications about comments added to an issue by caller himself
-    if comment.author.user != comment.issue.caller:
-        _send_issue_notification(comment.issue, 'comment_added')
+    _send_issue_notification(
+        issue=comment.issue,
+        template='comment_added',
+        extra_context={'comment': comment},
+    )
 
 
-def _send_issue_notification(issue, template, receiver=None):
+@shared_task(name='waldur_mastermind.support.send_comment_updated_notification')
+def send_comment_updated_notification(serialized_comment, old_description):
+    comment = core_utils.deserialize_instance(serialized_comment)
+
+    _send_issue_notification(
+        issue=comment.issue,
+        template='comment_updated',
+        extra_context={
+            'comment': comment,
+            'old_description': old_description,
+        },
+    )
+
+
+def _send_issue_notification(issue, template, receiver=None, extra_context=None):
     if not settings.WALDUR_SUPPORT['ENABLED']:
         return
 
@@ -89,6 +110,9 @@ def _send_issue_notification(issue, template, receiver=None):
         'site_name': settings.WALDUR_CORE['SITE_NAME'],
         'issue': issue,
     }
+
+    if extra_context:
+        context.update(extra_context)
 
     try:
         notification_template = models.TemplateStatusNotification.objects.get(status=issue.status)

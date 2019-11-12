@@ -105,31 +105,26 @@ class JiraBackend(ServiceBackend):
         except StopIteration:
             return 0
 
-    @property
+    @cached_property
     def manager(self):
+        if self.settings.token:
+            if getattr(self.settings, 'email', None):
+                basic_auth = (self.settings.email, self.settings.token)
+            else:
+                basic_auth = (self.settings.username, self.settings.token)
+        else:
+            basic_auth = (self.settings.username, self.settings.password)
+
         try:
-            return getattr(self, '_manager')
-        except AttributeError:
-            try:
-                if self.settings.token:
-                    if getattr(self.settings, 'email', None):
-                        basic_auth = (self.settings.email, self.settings.token)
-                    else:
-                        basic_auth = (self.settings.username, self.settings.token)
-                else:
-                    basic_auth = (self.settings.username, self.settings.password)
-
-                self._manager = JIRA(
-                    server=self.settings.backend_url,
-                    options={'verify': self.verify},
-                    basic_auth=basic_auth,
-                    validate=False)
-            except JIRAError as e:
-                if check_captcha(e):
-                    raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
-                raise JiraBackendError(e)
-
-            return self._manager
+            return JIRA(
+                server=self.settings.backend_url,
+                options={'verify': self.verify},
+                basic_auth=basic_auth,
+                validate=False)
+        except JIRAError as e:
+            if check_captcha(e):
+                raise JiraBackendError('JIRA CAPTCHA is triggered. Please reset credentials.')
+            raise JiraBackendError(e)
 
     @reraise_exceptions
     def get_field_id_by_name(self, field_name):
