@@ -28,6 +28,16 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
         self.assertEqual(len(mail.outbox), 1)
 
+    def test_old_and_new_summary_is_rendered_in_email(self):
+        issue = factories.IssueFactory(summary='old summary')
+
+        issue.summary = 'new summary'
+        issue.save()
+
+        body = mail.outbox[0].body
+        self.assertTrue('old summary' in body)
+        self.assertTrue('new summary' in body)
+
     def test_email_notification_is_not_sent_on_issue_creation(self):
         factories.IssueFactory()
 
@@ -164,7 +174,8 @@ class CommentCreatedHandlerTest(BaseHandlerTest):
         comment.description = 'new_description'
         comment.save()
 
-        self.assertEqual(len(mail.outbox), 1)
+        # First mail is for creation, second mail is for update
+        self.assertEqual(len(mail.outbox), 2)
 
     def test_email_is_not_sent_for_own_comments(self):
         issue = factories.IssueFactory()

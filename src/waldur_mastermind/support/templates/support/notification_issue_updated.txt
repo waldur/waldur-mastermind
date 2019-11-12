@@ -1,3 +1,18 @@
 Hello!
 
-The issue you have has been updated. Please go to {{issue_url}} to see it.
+The issue you have has been updated.
+
+{% if changed.status %}
+Status has been changed from {{ changed.status }} to {{ issue.status }}.
+{% endif %}
+{% if changed.description %}
+Description has been changed from {{ changed.description }} to {{ issue.description }}.
+{% endif %}
+{% if changed.summary %}
+Summary has been changed from {{ changed.summary }} to {{ issue.summary }}.
+{% endif %}
+{% if changed.priority %}
+Priority has been changed from {{ changed.priority }} to {{ issue.priority }}.
+{% endif %}
+
+Please go to {{issue_url}} to see it.

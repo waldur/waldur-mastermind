@@ -28,8 +28,8 @@ class PriorityPullTest(test.APITransactionTestCase):
         self.priorities = [self.highest_priority, self.lowest_priority]
 
         self.backend = JiraBackend(self.fixture.service_settings)
-        self.backend._manager = mock.Mock()
-        self.backend._manager.priorities.return_value = self.priorities
+        self.backend.manager = mock.Mock()
+        self.backend.manager.priorities.return_value = self.priorities
 
     def test_create_new_priorities(self):
         self.backend.pull_priorities()

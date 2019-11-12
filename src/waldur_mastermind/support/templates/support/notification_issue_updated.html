@@ -7,6 +7,26 @@
 <p>
     Hello!
 </p>
+{% if changed.status %}
+<p>
+    Status has been changed from <strong>{{ changed.status }}</strong> to {{ issue.status }}.
+</p>
+{% endif %}
+{% if changed.description %}
+<p>
+    Description has been changed from <strong>{{ changed.description }}</strong> to {{ issue.description }}.
+</p>
+{% endif %}
+{% if changed.summary %}
+<p>
+    Summary has been changed from <strong>{{ changed.summary }}</strong> to {{ issue.summary }}.
+</p>
+{% endif %}
+{% if changed.priority %}
+<p>
+    Priority has been changed from <strong>{{ changed.priority }}</strong> to {{ issue.priority }}.
+</p>
+{% endif %}
 <p>
     Please visit <a href="{{ issue_url }}">{{ site_name }}</a> to find out more details.
 </p>
