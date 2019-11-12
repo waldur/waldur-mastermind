@@ -522,7 +522,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 offering__customer__permissions__user=self.request.user,
                 offering__customer__permissions__is_active=True,
             )
-        )
+        ).distinct()
 
     @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
