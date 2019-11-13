@@ -194,3 +194,17 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace.'
                          'update_invoice_when_resource_is_deleted',
         )
+
+        signals.post_save.connect(
+            handlers.create_offering_component_for_volume_type,
+            sender=openstack_models.VolumeType,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'create_offering_component_for_volume_type',
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_offering_component_for_volume_type,
+            sender=openstack_models.VolumeType,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'delete_offering_component_for_volume_type',
+        )
