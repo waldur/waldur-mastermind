@@ -653,10 +653,11 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
 
     def test_volume_type_quotas_are_propagated(self):
         self.quotas['gigabytes_lvmdriver-1'] = 10
+        self.quotas['gigabytes_backup'] = 30
         marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
         _, quotas, volume_type_quotas = self.mock_get_backend().push_tenant_quotas.call_args[0]
         self.assertTrue('gigabytes_lvmdriver-1' in volume_type_quotas)
-        self.assertEqual(quotas['storage'], 10)
+        self.assertEqual(quotas['storage'], 40)
 
 
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
