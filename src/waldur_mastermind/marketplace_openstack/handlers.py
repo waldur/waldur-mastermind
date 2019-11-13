@@ -482,7 +482,9 @@ def create_offering_component_for_volume_type(sender, instance, created=False, *
         defaults=dict(
             offering=offering,
             name=instance.name,
-            type=instance.name,
+            # It is expected that internal name of offering component related to volume type
+            # matches storage quota name generated in OpenStack
+            type='gigabytes_' + instance.name,
             measured_unit='GB',
             description=instance.description,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,

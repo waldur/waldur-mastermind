@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 
@@ -494,7 +495,19 @@ def update_limits(order_item):
         value = order_item.limits.get(component_type)
         if value:
             quotas[quota_name] = value
-    backend.push_tenant_quotas(tenant, quotas)
+
+    # Filter volume-type quotas.
+    volume_type_quotas = dict(
+        (key, value)
+        for (key, value) in order_item.limits.items()
+        if key.startswith('gigabytes_')
+    )
+
+    # Common storage quota should be equal to sum of all volume-type quotas.
+    if volume_type_quotas:
+        quotas['storage'] = sum(list(volume_type_quotas.values()))
+
+    backend.push_tenant_quotas(tenant, quotas, volume_type_quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
         for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
