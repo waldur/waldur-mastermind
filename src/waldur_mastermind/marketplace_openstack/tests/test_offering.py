@@ -18,6 +18,7 @@ from waldur_mastermind.marketplace_openstack.utils import merge_plans, create_of
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 
 from .. import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE
 from .utils import BaseOpenStackTest, override_plugin_settings
@@ -205,7 +206,7 @@ class TemplateOfferingTest(BaseOpenStackTest):
         # Assert
         self.assertFalse(plan.archived)
 
-    def test_when_template_name_is_updated_template_is_synchornized(self):
+    def test_when_template_name_is_updated_template_is_synchronized(self):
         # Arrange
         fixture = package_fixtures.OpenStackFixture()
         offering = marketplace_factories.OfferingFactory(
@@ -394,3 +395,31 @@ class MergePlansTest(test.APITransactionTestCase):
         self.assertEqual(self.offering.plans.get().name, 'Default')
         self.assertEqual(marketplace_models.Resource.objects.filter(offering=self.offering).count(), 2)
         self.assertEqual(marketplace_models.OrderItem.objects.filter(offering=self.offering).count(), 2)
+
+
+class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            type=PACKAGE_TYPE,
+            scope=self.fixture.openstack_service_settings
+        )
+        self.volume_type = self.fixture.volume_type
+
+    def test_offering_component_for_volume_type_is_created(self):
+        component = marketplace_models.OfferingComponent.objects.get(scope=self.volume_type)
+        self.assertEqual(component.offering, self.offering)
+        self.assertEqual(component.billing_type, marketplace_models.OfferingComponent.BillingTypes.USAGE)
+        self.assertEqual(component.name, self.volume_type.name)
+
+    def test_offering_component_name_is_updated(self):
+        self.volume_type.name = 'new name'
+        self.volume_type.save()
+        component = marketplace_models.OfferingComponent.objects.get(scope=self.volume_type)
+        self.assertEqual(component.name, self.volume_type.name)
+
+    def test_offering_component_is_deleted(self):
+        self.volume_type.delete()
+        self.assertRaises(marketplace_models.OfferingComponent.DoesNotExist,
+                          marketplace_models.OfferingComponent.objects.get,
+                          scope=self.volume_type)

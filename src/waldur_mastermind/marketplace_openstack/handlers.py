@@ -460,3 +460,36 @@ def update_invoice_when_resource_is_deleted(sender, instance, **kwargs):
 
     if instance.offering.type == PACKAGE_TYPE:
         registrators.RegistrationManager.terminate(instance)
+
+
+def create_offering_component_for_volume_type(sender, instance, created=False, **kwargs):
+    volume_type = instance
+
+    try:
+        offering = marketplace_models.Offering.objects.get(scope=volume_type.settings)
+    except marketplace_models.Offering.DoesNotExist:
+        logger.warning('Skipping synchronization of volume type with '
+                       'marketplace because offering for service settings is not have found. '
+                       'Settings ID: %s', instance.settings.id)
+        return
+
+    content_type = ContentType.objects.get_for_model(volume_type)
+
+    # It is assumed that article code and product code are filled manually via UI
+    marketplace_models.OfferingComponent.objects.update_or_create(
+        object_id=volume_type.id,
+        content_type=content_type,
+        defaults=dict(
+            offering=offering,
+            name=instance.name,
+            type=instance.name,
+            measured_unit='GB',
+            description=instance.description,
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+            use_limit_for_billing=True,
+        )
+    )
+
+
+def delete_offering_component_for_volume_type(sender, instance, **kwargs):
+    marketplace_models.OfferingComponent.objects.filter(scope=instance).delete()
