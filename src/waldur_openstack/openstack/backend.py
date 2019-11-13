@@ -1,6 +1,7 @@
 from itertools import groupby
 import logging
 import re
+from typing import Dict
 
 from cinderclient import exceptions as cinder_exceptions
 from django.db import transaction
@@ -163,13 +164,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             models.VolumeType.objects.filter(backend_id__in=cur_volume_types.keys(), settings=self.settings).delete()
 
     @log_backend_action('push quotas for tenant')
-    def push_tenant_quotas(self, tenant, quotas):
+    def push_tenant_quotas(self, tenant, quotas: Dict[str, int], volume_type_quotas: Dict[str, int] = None):
         cinder_quotas = {
             'gigabytes': self.mb2gb(quotas.get('storage')) if 'storage' in quotas else None,
             'volumes': quotas.get('volumes'),
             'snapshots': quotas.get('snapshots'),
         }
         cinder_quotas = {k: v for k, v in cinder_quotas.items() if v is not None}
+        if volume_type_quotas:
+            cinder_quotas.update(volume_type_quotas)
 
         nova_quotas = {
             'instances': quotas.get('instances'),

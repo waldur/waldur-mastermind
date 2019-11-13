@@ -79,9 +79,9 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(offering_type=PACKAGE_TYPE,
-                         create_resource_processor=processors.PackageCreateProcessor,
-                         update_resource_processor=processors.PackageUpdateProcessor,
-                         delete_resource_processor=processors.PackageDeleteProcessor,
+                         create_resource_processor=processors.TenantCreateProcessor,
+                         update_resource_processor=processors.TenantUpdateProcessor,
+                         delete_resource_processor=processors.TenantDeleteProcessor,
                          components=(
                              Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
                              # Price is stored per GiB but size is stored per MiB

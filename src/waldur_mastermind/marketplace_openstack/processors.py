@@ -13,7 +13,7 @@ from waldur_openstack.openstack_tenant import views as tenant_views
 from . import utils
 
 
-class PackageCreateProcessor(processors.CreateResourceProcessor):
+class TenantCreateProcessor(processors.CreateResourceProcessor):
     def get_serializer_class(self):
         return package_views.OpenStackPackageViewSet.create_serializer_class
 
@@ -69,7 +69,7 @@ class PackageCreateProcessor(processors.CreateResourceProcessor):
         return package_models.OpenStackPackage.objects.get(uuid=response.data['uuid']).tenant
 
 
-class PackageUpdateProcessor(processors.UpdateResourceProcessor):
+class TenantUpdateProcessor(processors.UpdateResourceProcessor):
 
     def get_serializer_class(self):
         return package_views.OpenStackPackageViewSet.change_serializer_class
@@ -104,7 +104,7 @@ class PackageUpdateProcessor(processors.UpdateResourceProcessor):
         utils.update_limits(self.order_item)
 
 
-class PackageDeleteProcessor(processors.DeleteResourceProcessor):
+class TenantDeleteProcessor(processors.DeleteResourceProcessor):
     viewset = openstack_views.TenantViewSet
 
 
