@@ -81,9 +81,6 @@ class OpenStackExtension(WaldurExtension):
                 },
             ),
             'SUBNET': {
-                # Allow cidr: 192.168.[1-255].0/24
-                'CIDR_REGEX': r'192\.168\.(?:25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?)\.0/24',
-                'CIDR_REGEX_EXPLANATION': 'Value should be 192.168.[1-254].0/24',
                 'ALLOCATION_POOL_START': '{first_octet}.{second_octet}.{third_octet}.10',
                 'ALLOCATION_POOL_END': '{first_octet}.{second_octet}.{third_octet}.200',
             },

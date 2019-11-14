@@ -1,14 +1,14 @@
 import copy
 import logging
-import re
 
 from django.conf import settings
-from django.core import validators
 from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.template.defaultfilters import slugify
 from django.utils.translation import ugettext_lazy as _
+from ipaddress import IPv4Network, AddressValueError, NetmaskValueError
 from rest_framework import serializers
 from iptools.ipv4 import validate_cidr
 
@@ -424,10 +424,40 @@ class TenantImportSerializer(serializers.HyperlinkedModelSerializer):
         return tenant
 
 
-subnet_cidr_validator = validators.RegexValidator(
-    re.compile(settings.WALDUR_OPENSTACK['SUBNET']['CIDR_REGEX']),
-    settings.WALDUR_OPENSTACK['SUBNET']['CIDR_REGEX_EXPLANATION'],
+ALLOWED_PRIVATE_NETWORKS = (
+    IPv4Network('10.0.0.0/8'),
+    IPv4Network('172.16.0.0/12'),
+    IPv4Network('192.168.0.0/16'),
 )
+
+
+# Backported from Python 3.7
+# See also: https://github.com/python/cpython/blob/3.7/Lib/ipaddress.py#L1005
+def is_subnet_of(a, b):
+    return (b.network_address <= a.network_address and
+            b.broadcast_address >= a.broadcast_address)
+
+
+def validate_private_subnet_cidr(value):
+    try:
+        network = IPv4Network(value, strict=True)
+    except (AddressValueError, NetmaskValueError, ValueError):
+        raise ValidationError(
+            message=_('Enter a valid IPv4 address.'),
+            code='invalid',
+        )
+
+    if network.prefixlen != 24:
+        raise ValidationError(
+            message=_('Network mask length should be equal to 24.'),
+            code='invalid',
+        )
+
+    if not any(is_subnet_of(network, net) for net in ALLOWED_PRIVATE_NETWORKS):
+        raise ValidationError(
+            message=_('A private network CIDR is expected.'),
+            code='invalid',
+        )
 
 
 class TenantSerializer(structure_serializers.PrivateCloudSerializer):
@@ -442,7 +472,7 @@ class TenantSerializer(structure_serializers.PrivateCloudSerializer):
         write_only=True)
     quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
     subnet_cidr = serializers.CharField(
-        validators=[subnet_cidr_validator], default='192.168.42.0/24', initial='192.168.42.0/24', write_only=True)
+        validators=[validate_private_subnet_cidr], default='192.168.42.0/24', initial='192.168.42.0/24', write_only=True)
 
     class Meta(structure_serializers.PrivateCloudSerializer.Meta):
         model = models.Tenant
@@ -671,7 +701,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
         view_name='openstack-spl-detail',
         read_only=True)
     cidr = serializers.CharField(
-        validators=[subnet_cidr_validator], required=False, initial='192.168.42.0/24', label='CIDR')
+        validators=[validate_private_subnet_cidr], required=False, initial='192.168.42.0/24', label='CIDR')
     allocation_pools = serializers.JSONField(read_only=True)
     network_name = serializers.CharField(source='network.name', read_only=True)
     tenant = serializers.HyperlinkedRelatedField(
