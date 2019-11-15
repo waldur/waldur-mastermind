@@ -7,6 +7,7 @@ from unittest import mock
 import jira
 from django.conf import settings
 from django.core import mail
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
@@ -15,16 +16,18 @@ from waldur_jira.backend import AttachmentSynchronizer, CommentSynchronizer
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories
 from waldur_mastermind.support.tests.base import load_resource
+from waldur_mastermind.support.tests.utils import override_plugin_settings
 
 
 @mock.patch('waldur_mastermind.support.serializers.ServiceDeskBackend')
+@override_plugin_settings(
+    ENABLED=True,
+    ACTIVE_BACKEND='waldur_mastermind.support.backend.atlassian:ServiceDeskBackend',
+)
+@override_settings(task_always_eager=True)
 class TestJiraWebHooks(APITransactionTestCase):
     def setUp(self):
         self.url = reverse('web-hook-receiver')
-        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
-        settings.task_always_eager = True
         backend_id = 'SNT-101'
         self.issue = factories.IssueFactory(backend_id=backend_id)
 
@@ -40,9 +43,6 @@ class TestJiraWebHooks(APITransactionTestCase):
             ('comment_delete', 'jira_comment_delete_query.json'),
         )
         [create_request(self, *r) for r in jira_requests]
-
-    def tearDown(self):
-        settings.task_always_eager = False
 
     def test_issue_update(self, mock_jira):
         self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
@@ -99,112 +99,91 @@ class TestJiraWebHooks(APITransactionTestCase):
 MockSupportUser = collections.namedtuple('MockSupportUser', ['key'])
 
 
+@override_settings(task_always_eager=True)
+@override_plugin_settings(ENABLED=True)
 class TestUpdateIssueFromJira(APITransactionTestCase):
     def setUp(self):
-        jira_backend = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND'] = jira_backend
-        settings.task_always_eager = True
         self.issue = factories.IssueFactory()
 
         backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
         self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
-        self.backend = ServiceDeskBackend()
+
         self.impact_field_id = 'customfield_10116'
-
-        path = mock.patch.object(ServiceDeskBackend, 'get_backend_issue',
-                                 new=mock.Mock(return_value=self.backend_issue))
-        path.start()
-
         self.first_response_sla = timezone.now()
-        path = mock.patch.object(ServiceDeskBackend, '_get_first_sla_field',
-                                 new=mock.Mock(return_value=self.first_response_sla))
-        path.start()
 
         def side_effect(arg):
             if arg == 'Impact':
                 return self.impact_field_id
 
-        path = mock.patch.object(ServiceDeskBackend, 'get_field_id_by_name',
-                                 new=mock.Mock(side_effect=side_effect))
-        path.start()
+        self.backend = ServiceDeskBackend()
+        self.backend.get_backend_issue = mock.Mock(return_value=self.backend_issue)
+        self.backend._get_first_sla_field = mock.Mock(return_value=self.first_response_sla)
+        self.backend.get_field_id_by_name = mock.Mock(side_effect=side_effect)
 
-    def tearDown(self):
-        mock.patch.stopall()
-        settings.task_always_eager = False
+    def update_issue_from_jira(self):
+        self.backend.update_issue_from_jira(self.issue)
+        self.issue.refresh_from_db()
 
     def test_update_issue_impact_field(self):
         impact_field_value = 'Custom Value'
         setattr(self.backend_issue.fields, self.impact_field_id, impact_field_value)
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.impact, impact_field_value)
 
     def test_update_issue_assignee(self):
         assignee = factories.SupportUserFactory(backend_id='support_user_backend_id')
         backend_assignee_user = MockSupportUser(key=assignee.backend_id)
         self.backend_issue.fields.assignee = backend_assignee_user
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.assignee.id, assignee.id)
 
     def test_update_issue_reporter(self):
         reporter = factories.SupportUserFactory(backend_id='support_user_backend_id')
         backend_reporter_user = MockSupportUser(key=reporter.backend_id)
         self.backend_issue.fields.reporter = backend_reporter_user
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.reporter.id, reporter.id)
 
     def test_update_issue_summary(self):
         expected_summary = 'Happy New Year'
         self.backend_issue.fields.summary = expected_summary
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.summary, expected_summary)
 
     def test_update_issue_link(self):
         permalink = self.backend_issue.permalink()
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.link, permalink)
 
     def test_update_first_response_sla(self):
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.first_response_sla, self.first_response_sla)
 
     def test_update_issue_resolution(self):
         expected_resolution = 'Done'
         self.backend_issue.fields.resolution = expected_resolution
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.resolution, expected_resolution)
 
     def test_resolution_is_empty_if_it_is_none(self):
         expected_resolution = None
         self.backend_issue.fields.resolution = expected_resolution
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.resolution, '')
 
     def test_update_issue_status(self):
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
+        self.update_issue_from_jira()
         self.assertEqual(self.issue.status, self.backend_issue.fields.status.name)
 
     def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(self):
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
-        self.backend.update_issue_from_jira(self.issue)
+        self.update_issue_from_jira()
+        self.update_issue_from_jira()
         self.assertEqual(len(mail.outbox), 0)
 
     def test_web_hook_does_trigger_issue_update_email_if_the_issue_was_updated(self):
-        self.backend.update_issue_from_jira(self.issue)
-        self.issue.refresh_from_db()
-        expected_resolution = 'Done'
-        self.backend_issue.fields.resolution = expected_resolution
-        self.backend.update_issue_from_jira(self.issue)
+        self.update_issue_from_jira()
+        self.backend_issue.fields.resolution = 'Done'
+        self.update_issue_from_jira()
         self.assertEqual(len(mail.outbox), 1)
 
     def test_issue_update_callback_creates_deletes_two_comments(self):

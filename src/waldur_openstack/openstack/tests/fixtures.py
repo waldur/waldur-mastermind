@@ -52,3 +52,7 @@ class OpenStackFixture(ProjectFixture):
             tenant=self.tenant,
             state=models.SecurityGroup.States.OK
         )
+
+    @cached_property
+    def volume_type(self):
+        return factories.VolumeTypeFactory(settings=self.openstack_service_settings)

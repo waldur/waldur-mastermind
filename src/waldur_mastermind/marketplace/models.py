@@ -319,7 +319,7 @@ class Offering(core_models.UuidMixin,
         return not self.billable and not self.shared
 
 
-class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
+class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent, ScopeMixin):
     class Meta:
         unique_together = ('type', 'offering')
 
@@ -368,6 +368,7 @@ class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent):
         default=False,
         help_text=_('Charge for usage-based component is based on user-requested limit.')
     )
+    objects = managers.MixinManager('scope')
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:

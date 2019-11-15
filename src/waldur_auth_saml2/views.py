@@ -110,7 +110,7 @@ class Saml2LoginView(BaseSaml2View):
             data = {
                 'binding': 'post',
                 'url': location,
-                'request': base64.b64encode(request_xml.encode('UTF-8')),
+                'request': str(base64.b64encode(request_xml.encode('UTF-8')), 'utf-8'),
             }
 
         # save session_id

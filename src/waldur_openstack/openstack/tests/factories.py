@@ -247,3 +247,22 @@ class CustomerOpenStackFactory(factory.DjangoModelFactory):
     settings = factory.SubFactory(SharedOpenStackServiceSettingsFactory)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     external_network_id = factory.LazyAttribute(lambda _: uuid.uuid4())
+
+
+class VolumeTypeFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.VolumeType
+
+    name = factory.Sequence(lambda n: 'volume_type_%s' % n)
+    backend_id = factory.Sequence(lambda n: 'backend_id_%s' % n)
+    settings = factory.SubFactory(OpenStackServiceSettingsFactory)
+
+    @classmethod
+    def get_url(cls, volume_type=None):
+        if volume_type is None:
+            volume_type = VolumeTypeFactory()
+        return 'http://testserver' + reverse('openstack-volume-type-detail', kwargs={'uuid': volume_type.uuid.hex})
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('openstack-volume-type-list')

@@ -178,6 +178,16 @@ class OfferingViewSet(BaseMarketplaceView):
         offering = self.get_object()
         resources = plugins.manager.get_importable_resources(offering)
 
+        if resources:
+            resource_viewset = plugins.manager.get_resource_viewset(offering.type)
+            serializer_class = resource_viewset.importable_resources_serializer_class
+            serializer = serializer_class(
+                instance=resources,
+                many=True,
+                context=self.get_serializer_context()
+            )
+            resources = serializer.data
+
         page = self.paginate_queryset(resources)
         return self.get_paginated_response(page)
 
@@ -522,7 +532,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                 offering__customer__permissions__user=self.request.user,
                 offering__customer__permissions__is_active=True,
             )
-        )
+        ).distinct()
 
     @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):

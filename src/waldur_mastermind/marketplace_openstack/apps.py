@@ -79,9 +79,9 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(offering_type=PACKAGE_TYPE,
-                         create_resource_processor=processors.PackageCreateProcessor,
-                         update_resource_processor=processors.PackageUpdateProcessor,
-                         delete_resource_processor=processors.PackageDeleteProcessor,
+                         create_resource_processor=processors.TenantCreateProcessor,
+                         update_resource_processor=processors.TenantUpdateProcessor,
+                         delete_resource_processor=processors.TenantDeleteProcessor,
                          components=(
                              Component(type=CORES_TYPE, name='Cores', measured_unit='cores', billing_type=FIXED),
                              # Price is stored per GiB but size is stored per MiB
@@ -96,11 +96,13 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
-                         delete_resource_processor=processors.InstanceDeleteProcessor)
+                         delete_resource_processor=processors.InstanceDeleteProcessor,
+                         resource_model=tenant_models.Instance)
 
         manager.register(offering_type=VOLUME_TYPE,
                          create_resource_processor=processors.VolumeCreateProcessor,
-                         delete_resource_processor=processors.VolumeDeleteProcessor)
+                         delete_resource_processor=processors.VolumeDeleteProcessor,
+                         resource_model=tenant_models.Volume)
 
         signals.post_save.connect(
             handlers.synchronize_volume_metadata,
@@ -191,4 +193,18 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=marketplace_models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.'
                          'update_invoice_when_resource_is_deleted',
+        )
+
+        signals.post_save.connect(
+            handlers.create_offering_component_for_volume_type,
+            sender=openstack_models.VolumeType,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'create_offering_component_for_volume_type',
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_offering_component_for_volume_type,
+            sender=openstack_models.VolumeType,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'delete_offering_component_for_volume_type',
         )

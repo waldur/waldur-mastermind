@@ -41,7 +41,7 @@ def _upload_file(manager, issue, upload_file, filename):
     headers = {'X-Atlassian-Token': 'nocheck', }
     req = Request('POST', url, headers=headers, files=files, auth=manager._session.auth)
     prepped = req.prepare()
-    prepped.body = re.sub(b'filename\*=.*', b'filename="%s"\r' % filename, prepped.body)
+    prepped.body = re.sub(b'filename\*=.*', b'filename="%s"\r' % filename.encode('utf-8'), prepped.body)
     r = manager._session.send(prepped)
 
     js = utils.json_loads(r)
