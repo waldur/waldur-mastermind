@@ -180,7 +180,7 @@ class SAFReportSerializer(serializers.Serializer):
     RMAKSULIPP = serializers.SerializerMethodField(method_name='get_vat')
     ARTPROJEKT = serializers.SerializerMethodField(method_name='get_project')
     ARTNIMI = serializers.ReadOnlyField(source='name')
-    VALI = serializers.SerializerMethodField(method_name='get_empty_field')
+    VALI = serializers.SerializerMethodField(method_name='get_vali_field')
     U_KONEDEARV = serializers.SerializerMethodField(method_name='get_empty_field')
     H_PERIOOD = serializers.SerializerMethodField(method_name='get_covered_period')
 
@@ -226,6 +226,9 @@ class SAFReportSerializer(serializers.Serializer):
 
     def get_vat(self, invoice_item):
         return settings.WALDUR_INVOICES['INVOICE_REPORTING']['SAF_PARAMS']['RMAKSULIPP']
+
+    def get_vali_field(self, invoice_item):
+        return 'Record no %s' % invoice_item.invoice.number
 
     def get_empty_field(self, invoice_item):
         return ''
