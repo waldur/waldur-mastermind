@@ -69,6 +69,7 @@ class NodeViewSet(core_views.ActionsViewSet):
         instance = serializer.validated_data['instance']
         node.content_type = ContentType.objects.get_for_model(instance)
         node.object_id = instance.id
+        node.name = instance.name
         node.save()
         return response.Response(status=status.HTTP_200_OK)
 

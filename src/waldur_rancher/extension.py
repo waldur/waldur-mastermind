@@ -22,3 +22,14 @@ class RancherExtension(WaldurExtension):
     def rest_urls():
         from .urls import register_in
         return register_in
+
+    @staticmethod
+    def celery_tasks():
+        from datetime import timedelta
+        return {
+            'waldur-rancher-update-node-states': {
+                'task': 'waldur_rancher.update_node_states',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
+        }

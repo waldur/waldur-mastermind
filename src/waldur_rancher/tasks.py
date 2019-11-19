@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 import logging
 import six
 
+from celery import shared_task
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from django.conf import settings
@@ -15,7 +16,7 @@ from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
-from . import models, exceptions
+from . import models, exceptions, signals
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,8 @@ class CreateNodeTask(core_tasks.Task):
             controlplane_role='controlplane' in node['roles'],
             etcd_role='etcd' in node['roles'],
             worker_role='worker' in node['roles'],
+            state=models.Node.States.CREATING,
+            name=instance.name,
         )
 
         resource_imported.send(
@@ -83,3 +86,45 @@ class CreateNodeTask(core_tasks.Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         return 'Create nodes for k8s cluster "%s".' % instance
+
+
+@shared_task
+def update_node(cluster_id):
+    cluster = models.Cluster.objects.get(id=cluster_id)
+    backend = cluster.get_backend()
+
+    if cluster.node_set.filter(backend_id='').exists():
+        backend_nodes = backend.get_cluster_nodes(cluster.backend_id)
+
+        for backend_node in backend_nodes:
+            if cluster.node_set.filter(name=backend_node['name']).exists():
+                node = cluster.node_set.get(name=backend_node['name'])
+                node.backend_id = backend_node['backend_id']
+                node.save()
+
+    has_changes = False
+
+    for node in cluster.node_set.exclude(backend_id=''):
+        if backend.node_is_active(node.backend_id):
+            if node.state != models.Node.States.OK:
+                node.state = models.Node.States.OK
+                node.save(update_fields=['state'])
+                has_changes = True
+        elif node.state == models.Node.States.OK:
+            node.state = models.Node.States.ERRED
+            node.save(update_fields=['state'])
+            has_changes = True
+        else:
+            pass
+
+    if has_changes:
+        signals.node_states_have_been_updated.send(
+            sender=models.Cluster,
+            instance=cluster,
+        )
+
+
+@shared_task(name='waldur_rancher.update_node_states')
+def update_node_states():
+    for cluster in models.Cluster.objects.exclude(backend_id=''):
+        update_node.delay(cluster.id)

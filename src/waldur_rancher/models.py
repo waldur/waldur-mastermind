@@ -4,10 +4,9 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
-from model_utils.models import TimeStampedModel
 
-from waldur_core.core.models import UuidMixin
 from waldur_core.structure import models as structure_models
+from waldur_core.core import models as core_models
 from waldur_core.structure.models import NewResource
 
 logger = logging.getLogger(__name__)
@@ -67,7 +66,11 @@ class Cluster(NewResource):
         return self.name
 
 
-class Node(TimeStampedModel, UuidMixin):
+class Node(core_models.UuidMixin,
+           core_models.NameMixin,
+           structure_models.StructureModel,
+           core_models.StateMixin,
+           structure_models.TimeStampedModel):
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('content_type', 'object_id')  # a virtual machine where will deploy k8s node.
@@ -75,6 +78,7 @@ class Node(TimeStampedModel, UuidMixin):
     controlplane_role = models.BooleanField(default=False)
     etcd_role = models.BooleanField(default=False)
     worker_role = models.BooleanField(default=False)
+    backend_id = models.CharField(max_length=255, blank=True)
 
     def get_node_command(self):
         roles_command = []
@@ -90,7 +94,7 @@ class Node(TimeStampedModel, UuidMixin):
         return self.cluster.node_command + ' ' + ' '.join(roles_command)
 
     class Meta:
-        unique_together = ('content_type', 'object_id')
+        unique_together = (('content_type', 'object_id'), ('cluster', 'name'))
 
     class Permissions:
         customer_path = 'cluster__service_project_link__project__customer'
@@ -100,3 +104,7 @@ class Node(TimeStampedModel, UuidMixin):
     @classmethod
     def get_url_name(cls):
         return 'rancher-node'
+
+    @property
+    def service_project_link(self):
+        return self.cluster.service_project_link
