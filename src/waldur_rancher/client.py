@@ -104,3 +104,6 @@ class RancherClient:
 
     def update_cluster(self, cluster_id, new_params):
         return self._put('clusters/{0}'.format(cluster_id), json=new_params)
+
+    def get_node(self, node_id):
+        return self._get('nodes/{0}'.format(node_id))
