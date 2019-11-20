@@ -8,6 +8,7 @@ class MarketplaceRancherConfig(AppConfig):
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager, Component
         from waldur_mastermind.marketplace import models as marketplace_models
+        from waldur_rancher.apps import RancherConfig
 
         from . import PLUGIN_NAME, processors
 
@@ -18,4 +19,4 @@ class MarketplaceRancherConfig(AppConfig):
                          components=(
                              Component(type='node', name='node', measured_unit='', billing_type=USAGE),
                          ),
-                         )
+                         service_type=RancherConfig.service_name)

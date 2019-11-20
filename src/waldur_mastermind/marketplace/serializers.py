@@ -531,10 +531,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         plans = validated_data.pop('plans', [])
         custom_components = validated_data.pop('components', [])
 
-        offering_type = validated_data.get('type')
-        service_type = plugins.manager.get_service_type(offering_type)
-        if service_type:
-            validated_data = self._create_service(service_type, validated_data)
+        validated_data = self._create_service(validated_data)
 
         offering = super(OfferingCreateSerializer, self).create(validated_data)
         create_offering_components(offering, custom_components)
@@ -544,14 +541,21 @@ class OfferingCreateSerializer(OfferingModifySerializer):
 
         return offering
 
-    def _create_service(self, service_type, validated_data):
+    def _create_service(self, validated_data):
         """
         Marketplace offering model does not accept service_attributes field as is,
         therefore we should remove it from validated_data and create service settings object.
         Then we need to specify created object and offering's scope.
         """
+        offering_type = validated_data.get('type')
+        service_type = plugins.manager.get_service_type(offering_type)
+
         name = validated_data['name']
         service_attributes = validated_data.pop('service_attributes', {})
+
+        if not service_type:
+            return validated_data
+
         if not service_attributes:
             raise ValidationError({
                 'service_attributes': _('This field is required.')
