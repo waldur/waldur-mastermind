@@ -294,6 +294,7 @@ class TenantPullExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(serialized_tenant, 'pull_tenant_quotas'),
             core_tasks.BackendMethodTask().si(serialized_tenant, 'pull_tenant_floating_ips'),
             core_tasks.BackendMethodTask().si(serialized_tenant, 'pull_tenant_security_groups'),
+            core_tasks.IndependentBackendMethodTask().si(serialized_tenant, 'pull_networks'),
             core_tasks.IndependentBackendMethodTask().si(serialized_settings, 'pull_images'),
             core_tasks.IndependentBackendMethodTask().si(serialized_settings, 'pull_flavors'),
         )

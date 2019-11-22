@@ -73,7 +73,7 @@ class JsonWidget(CopyButtonMixin, JSONEditor):
 def format_json_field(value):
     template = '<div><pre style="overflow: hidden">{0}</pre></div>'
     formatted_value = json.dumps(value, indent=True, ensure_ascii=False)
-    return template.format(formatted_value)
+    return mark_safe(template.format(formatted_value))  # nosec
 
 
 class OptionalChoiceField(forms.ChoiceField):

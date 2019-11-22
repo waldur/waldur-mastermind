@@ -63,7 +63,7 @@ class NestedNodeSerializer(serializers.HyperlinkedModelSerializer):
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
         }
-        exclude = ('cluster', 'object_id', 'content_type')
+        exclude = ('cluster', 'object_id', 'content_type', 'name')
 
 
 class ClusterSerializer(structure_serializers.BaseResourceSerializer):
@@ -229,6 +229,8 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
                 content_type=ContentType.objects.get_for_model(instance)
         ).exists():
             raise serializers.ValidationError({'instance': 'The selected instance is already in use.'})
+
+        attrs['name'] = instance.name
 
         return super(NodeSerializer, self).validate(attrs)
 

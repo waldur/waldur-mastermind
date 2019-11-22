@@ -31,39 +31,43 @@ RUN cd /tmp && \
   rm gosu.asc
 
 # Install build dependencies for Waldur MasterMind from RPM repositories
-RUN yum --assumeyes install epel-release
-RUN yum --assumeyes update && yum clean all
-RUN yum --assumeyes install --setopt=tsflags=nodocs \
-  gcc \
-  git \
-  libffi-devel \
-  libjpeg-devel \
-  libxml2-devel \
-  libxslt-devel \
-  libyaml-devel \
-  openldap-devel \
-  openssl-devel \
-  python3-devel \
-  python3-pip \
-  xmlsec1 \
-  xmlsec1-openssl \
-  zlib-devel \
-  crudini \
-  jq \
-  python2-httpie \
-  logrotate \
-  mailcap \
-  openssl \
-  uwsgi-plugin-python36 \
-  uwsgi-stats-pusher-zabbix \
-  gettext \
-  which \
-  https://downloads.wkhtmltopdf.org/0.12/0.12.5/wkhtmltox-0.12.5-1.centos7.x86_64.rpm \
-  freetype \
-  liberation-serif-fonts \
-  liberation-sans-fonts \
-  liberation-mono-fonts \
-  liberation-narrow-fonts
+RUN yum clean all && \
+    yum --assumeyes install epel-release && \
+    yum --assumeyes update && \
+    yum --assumeyes install --setopt=tsflags=nodocs \
+    gcc \
+    git \
+    libffi-devel \
+    libjpeg-devel \
+    libxml2-devel \
+    libxslt-devel \
+    libyaml-devel \
+    openldap-devel \
+    openssl-devel \
+    python3-devel \
+    python3-pip \
+    xmlsec1 \
+    xmlsec1-openssl \
+    zlib-devel \
+    crudini \
+    jq \
+    python2-httpie \
+    logrotate \
+    mailcap \
+    openssl \
+    uwsgi-plugin-python36 \
+    uwsgi-stats-pusher-zabbix \
+    gettext \
+    which \
+    https://downloads.wkhtmltopdf.org/0.12/0.12.5/wkhtmltox-0.12.5-1.centos7.x86_64.rpm \
+    freetype \
+    liberation-serif-fonts \
+    liberation-sans-fonts \
+    liberation-mono-fonts \
+    liberation-narrow-fonts && \
+    yum clean all && \
+    rm -fr /var/cache/*
+
 RUN pip3 install -U pip
 
 RUN mkdir -p /usr/src/waldur

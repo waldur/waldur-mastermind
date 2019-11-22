@@ -1,2 +1,2 @@
 include *.md *.rst
-recursive-include src *.html *.txt *.css *.svg
+recursive-include src *.html *.txt *.css *.svg *.js *.png *.jpeg *.jpg

@@ -47,6 +47,9 @@ class RancherBackend(ServiceBackend):
     def _cluster_to_backend_cluster(self, cluster):
         return {'name': cluster.name}
 
+    def _backend_node_to_node(self, backend_node):
+        return {'backend_id': backend_node['nodeId'], 'name': backend_node['hostnameOverride']}
+
     def get_clusters_for_import(self):
         cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
                            .values_list('backend_id', flat=True))
@@ -67,3 +70,12 @@ class RancherBackend(ServiceBackend):
                 cluster=cluster
             )
         return cluster
+
+    def get_cluster_nodes(self, backend_id):
+        backend_cluster = self.client.get_cluster(backend_id)
+        nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        return [self._backend_node_to_node(node) for node in nodes]
+
+    def node_is_active(self, backend_id):
+        backend_node = self.client.get_node(backend_id)
+        return backend_node['state'] == 'active'

@@ -1,11 +1,10 @@
 #!/bin/bash
 set -e
 
-: ${LOGGING_LOG_LEVEL:=INFO}
-
 echo "INFO: Running Celery Beat..."
+source /etc/waldur/celery.conf
 mkdir -p /run/waldur/celerybeat
 chown -R waldur:waldur /run/waldur/celerybeat
-su - waldur -c "celery -A waldur_core.server beat --loglevel=$LOGGING_LOG_LEVEL"
+su - waldur -c "celery -A $CELERY_APP beat --loglevel=$CELERYBEAT_LOG_LEVEL --logfile=$CELERYBEAT_LOG_FILE"
 
 exit 0

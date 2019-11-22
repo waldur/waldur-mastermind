@@ -373,7 +373,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_networks(self):
         tenants = models.Tenant.objects.exclude(backend_id='').filter(
-            state=models.Tenant.States.OK,
+            state__in=[models.Tenant.States.OK, models.Tenant.States.UPDATING],
             service_project_link__service__settings=self.settings,
         ).prefetch_related('networks')
 
