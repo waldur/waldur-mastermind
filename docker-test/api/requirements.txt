@@ -50,8 +50,10 @@ django-reversion==2.0.8
 django-taggit==1.1.0
 djangorestframework==3.10.2
 djangosaml2==0.17.2
+docker==4.1.0
 dogpile.cache==0.6.5
 entrypoints==0.3
+epicbox==1.1.0
 execnet==1.5.0
 factory-boy==2.4.1
 flake8==3.5.0

@@ -69,7 +69,34 @@ class BaseOrderItemProcessor:
         raise NotImplementedError()
 
 
-class CreateResourceProcessor(BaseOrderItemProcessor):
+class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
+    def process_order_item(self, user):
+        scope = self.send_request(user)
+
+        with transaction.atomic():
+            resource = models.Resource(
+                project=self.order_item.order.project,
+                offering=self.order_item.offering,
+                plan=self.order_item.plan,
+                limits=self.order_item.limits,
+                attributes=self.order_item.attributes,
+                name=self.order_item.attributes.get('name') or '',
+                scope=scope,
+            )
+            resource.init_cost()
+            resource.save()
+            resource.init_quotas()
+            self.order_item.resource = resource
+            self.order_item.save(update_fields=['resource'])
+
+    def send_request(self, user):
+        """
+        This method should send request to backend.
+        """
+        raise NotImplementedError
+
+
+class CreateResourceProcessor(AbstractCreateResourceProcessor):
     """
     This class implements order processing using internal API requests.
 
@@ -94,29 +121,14 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
         serializer = serializer_class(data=post_data, context=context)
         serializer.is_valid(raise_exception=True)
 
-    def process_order_item(self, user):
+    def send_request(self, user):
         post_data = self.get_post_data()
         view = self.get_viewset().as_view({'post': 'create'})
         response = common_utils.create_request(view, user, post_data)
         if response.status_code != status.HTTP_201_CREATED:
             raise serializers.ValidationError(response.data)
 
-        with transaction.atomic():
-            scope = self.get_scope_from_response(response)
-            resource = models.Resource(
-                project=self.order_item.order.project,
-                offering=self.order_item.offering,
-                plan=self.order_item.plan,
-                limits=self.order_item.limits,
-                attributes=self.order_item.attributes,
-                name=self.order_item.attributes.get('name') or '',
-                scope=scope,
-            )
-            resource.init_cost()
-            resource.save()
-            resource.init_quotas()
-            self.order_item.resource = resource
-            self.order_item.save(update_fields=['resource'])
+        return self.get_scope_from_response(response)
 
     def get_serializer_class(self):
         """
@@ -145,7 +157,7 @@ class CreateResourceProcessor(BaseOrderItemProcessor):
         raise NotImplementedError
 
 
-class UpdateResourceProcessor(BaseOrderItemProcessor):
+class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
     def is_update_limit_order_item(self):
         if 'old_limits' in self.order_item.attributes.keys():
             return True
@@ -193,20 +205,13 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         if not resource:
             raise serializers.ValidationError('Resource is not found.')
 
-        view = self.get_view()
-        payload = self.get_post_data()
-        response = common_utils.create_request(view, user, payload)
+        self.send_request(user)
+        self.order_item.resource.set_state_updating()
+        self.order_item.resource.save(update_fields=['state'])
 
-        if response.status_code == status.HTTP_202_ACCEPTED:
-            self.order_item.resource.set_state_updating()
-            self.order_item.resource.save(update_fields=['state'])
-        else:
-            raise serializers.ValidationError(response.data)
-
-    def get_serializer_class(self):
+    def send_request(self, user):
         """
-        This method should return DRF serializer class which
-        validates request data to update existing resource.
+        This method should send request to backend.
         """
         raise NotImplementedError
 
@@ -215,6 +220,28 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         This method should return related resource of order item.
         """
         return self.order_item.resource.scope
+
+    def update_limits_process(self, user):
+        """
+        This method implements limits update processing.
+        """
+        raise NotImplementedError
+
+
+class UpdateResourceProcessor(AbstractUpdateResourceProcessor):
+    def send_request(self, user):
+        view = self.get_view()
+        payload = self.get_post_data()
+        response = common_utils.create_request(view, user, payload)
+        if response.status_code != status.HTTP_202_ACCEPTED:
+            raise serializers.ValidationError(response.data)
+
+    def get_serializer_class(self):
+        """
+        This method should return DRF serializer class which
+        validates request data to update existing resource.
+        """
+        raise NotImplementedError
 
     def get_view(self):
         """
@@ -229,48 +256,53 @@ class UpdateResourceProcessor(BaseOrderItemProcessor):
         """
         raise NotImplementedError
 
-    def update_limits_process(self, user):
-        """
-        This method implements limits update processing.
-        """
-        raise NotImplementedError
 
-
-class DeleteResourceProcessor(BaseOrderItemProcessor):
-    viewset = NotImplementedError
-
+class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
     def validate_order_item(self, request):
         pass
-
-    def process_order_item(self, user):
-        resource = self.get_resource()
-        if not resource:
-            raise serializers.ValidationError('Resource is not found.')
-
-        view = self.get_viewset().as_view({'delete': 'destroy'})
-        delete_attributes = self.order_item.attributes
-        response = common_utils.delete_request(view, user, uuid=resource.uuid.hex, query_params=delete_attributes)
-
-        if response.status_code == status.HTTP_204_NO_CONTENT:
-            with transaction.atomic():
-                self.order_item.resource.set_state_terminated()
-                self.order_item.resource.save(update_fields=['state'])
-
-                self.order_item.state = models.OrderItem.States.DONE
-                self.order_item.save(update_fields=['state'])
-
-        elif response.status_code == status.HTTP_202_ACCEPTED:
-            with transaction.atomic():
-                self.order_item.resource.set_state_terminating()
-                self.order_item.resource.save(update_fields=['state'])
-        else:
-            raise serializers.ValidationError(response.data)
 
     def get_resource(self):
         """
         This method should return related resource of order item.
         """
         return self.order_item.resource.scope
+
+    def send_request(self, user, resource):
+        """
+        This method should send request to backend.
+        """
+        raise NotImplementedError
+
+    def process_order_item(self, user):
+        resource = self.get_resource()
+        if not resource:
+            raise serializers.ValidationError('Resource is not found.')
+
+        done = self.send_request(user, resource)
+
+        if done:
+            with transaction.atomic():
+                self.order_item.resource.set_state_terminated()
+                self.order_item.resource.save(update_fields=['state'])
+
+                self.order_item.state = models.OrderItem.States.DONE
+                self.order_item.save(update_fields=['state'])
+        else:
+            with transaction.atomic():
+                self.order_item.resource.set_state_terminating()
+                self.order_item.resource.save(update_fields=['state'])
+
+
+class DeleteResourceProcessor(AbstractDeleteResourceProcessor):
+    viewset = NotImplementedError
+
+    def send_request(self, user, resource):
+        view = self.get_viewset().as_view({'delete': 'destroy'})
+        delete_attributes = self.order_item.attributes
+        response = common_utils.delete_request(view, user, uuid=resource.uuid.hex, query_params=delete_attributes)
+        if response.status_code not in (status.HTTP_204_NO_CONTENT, status.HTTP_202_ACCEPTED):
+            raise serializers.ValidationError(response.data)
+        return response.status_code == status.HTTP_204_NO_CONTENT
 
     def get_viewset(self):
         """
