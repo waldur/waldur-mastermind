@@ -5,27 +5,23 @@ from .utils import DockerExecutorMixin
 """
 It is expected that offering plugin_options field is dict with following structure:
 
-create:
-    image: python:3.7-alpine
-    script:
-        import os
-        print("Creating resource ", os.environ.get('RESOURCE_NAME'))
-
-update:
-    image: python:3.7-alpine
-    script:
-        import os
-        print("Updating resource ", os.environ.get('RESOURCE_NAME'))
-
-delete:
-    image: python:3.7-alpine
-    script:
-        import os
-        print("Deleting resource ", os.environ.get('RESOURCE_NAME'))
+image: python:3.7-alpine
 
 environ:
     USERNAME: admin
     PASSWORD: secret
+
+create:
+    import os
+    print("Creating resource ", os.environ.get('RESOURCE_NAME'))
+
+update:
+    import os
+    print("Updating resource ", os.environ.get('RESOURCE_NAME'))
+
+delete:
+    import os
+    print("Deleting resource ", os.environ.get('RESOURCE_NAME'))
 """
 
 

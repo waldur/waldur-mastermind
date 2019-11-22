@@ -40,15 +40,14 @@ class DockerExecutorMixin:
         if isinstance(options.get('environ'), dict):
             environment.update(options['environ'])
 
-        hook = options[self.hook_type]
-        image = hook['image']
+        image = options['image']
         command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(image)
 
         try:
             self.order_item.output = execute_script(
                 image=image,
                 command=command,
-                src=hook['script'],
+                src=options[self.hook_type],
                 environment=environment
             )
             self.order_item.save(update_fields=['output'])
@@ -56,9 +55,10 @@ class DockerExecutorMixin:
             raise rf_serializers.ValidationError(str(exc))
 
     def validate_order_item(self, request):
-        options = self.order_item.offering.plugin_options.get(self.hook_type)
-        if not options:
-            raise rf_serializers.ValidationError('Script options are not defined.')
+        options = self.order_item.offering.plugin_options
+
+        if self.hook_type not in options:
+            raise rf_serializers.ValidationError('Script is not defined.')
 
         command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(options['image'])
         if not command:
