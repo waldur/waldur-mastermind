@@ -863,6 +863,7 @@ class OrderItem(core_models.UuidMixin,
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
+    output = models.TextField(blank=True)
     tracker = FieldTracker()
 
     class Permissions:

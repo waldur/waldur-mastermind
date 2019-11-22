@@ -45,12 +45,13 @@ class DockerExecutorMixin:
         command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(image)
 
         try:
-            execute_script(
+            self.order_item.output = execute_script(
                 image=image,
                 command=command,
                 src=hook['script'],
                 environment=environment
             )
+            self.order_item.save(update_fields=['output'])
         except DockerException as exc:
             raise rf_serializers.ValidationError(str(exc))
 
