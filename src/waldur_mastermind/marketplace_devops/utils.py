@@ -2,7 +2,7 @@ import json
 
 from django.conf import settings
 import epicbox
-from rest_framework import serializers
+from rest_framework import serializers as rf_serializers
 
 from . import serializers
 
@@ -34,8 +34,8 @@ class PythonScriptMixin:
             stdin=stdin,
         )
         if result['exit_code'] != 0:
-            raise serializers.ValidationError(result['stderr'])
+            raise rf_serializers.ValidationError(result['stderr'])
 
     def validate_order_item(self, request):
         if self.script_name not in self.order_item.offering.plugin_options:
-            raise serializers.ValidationError('Processing script is not defined.')
+            raise rf_serializers.ValidationError('Processing script is not defined.')
