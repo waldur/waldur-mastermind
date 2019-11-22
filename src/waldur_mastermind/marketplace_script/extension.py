@@ -1,7 +1,7 @@
 from waldur_core.core import WaldurExtension
 
 
-class MarketplaceDevOpsExtension(WaldurExtension):
+class MarketplaceScriptExtension(WaldurExtension):
 
     class Settings:
         WALDUR_MARKETPLACE_DEVOPS = {
@@ -11,7 +11,7 @@ class MarketplaceDevOpsExtension(WaldurExtension):
 
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.marketplace_devops'
+        return 'waldur_mastermind.marketplace_script'
 
     @staticmethod
     def is_assembly():

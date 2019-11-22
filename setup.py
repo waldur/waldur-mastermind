@@ -138,7 +138,7 @@ setup(
             'waldur_rancher = waldur_rancher.extension:RancherExtension',
             'waldur_marketplace_rancher = waldur_mastermind.marketplace_rancher.extension:MarketplaceRancherExtension',
             'waldur_rancher_invoices = waldur_mastermind.rancher_invoices.extension:RancherInvoicesExtension',
-            'waldur_marketplace_devops = waldur_mastermind.marketplace_devops.extension:MarketplaceDevOpsExtension',
+            'waldur_marketplace_script = waldur_mastermind.marketplace_script.extension:MarketplaceScriptExtension',
         ),
     },
     include_package_data=True,

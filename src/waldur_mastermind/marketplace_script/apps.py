@@ -1,9 +1,9 @@
 from django.apps import AppConfig
 
 
-class MarketplaceDevOpsConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_devops'
-    verbose_name = 'Marketplace DevOps'
+class MarketplaceScriptConfig(AppConfig):
+    name = 'waldur_mastermind.marketplace_script'
+    verbose_name = 'Marketplace Script'
 
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager
