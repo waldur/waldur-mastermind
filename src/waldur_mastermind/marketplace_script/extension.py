@@ -4,9 +4,17 @@ from waldur_core.core import WaldurExtension
 class MarketplaceScriptExtension(WaldurExtension):
 
     class Settings:
-        WALDUR_MARKETPLACE_DEVOPS = {
-            'DOCKER_URL': None,
-            'DOCKER_IMAGE_NAME': 'python:3.7-alpine',
+        WALDUR_MARKETPLACE_SCRIPT = {
+            'DOCKER_CLIENT': {
+                'base_url': None,
+            },
+            'DOCKER_RUN_OPTIONS': {
+                'mem_limit': '64m',
+            },
+            'DOCKER_IMAGES': {
+                'python:3.7-alpine': 'python',
+                'alpine:3.10.0': 'sh',
+            },
         }
 
     @staticmethod

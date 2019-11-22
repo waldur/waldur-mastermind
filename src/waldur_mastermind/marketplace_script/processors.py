@@ -1,15 +1,15 @@
 from waldur_mastermind.marketplace import processors
 
-from .utils import PythonScriptMixin
+from .utils import DockerExecutorMixin
 
 
-class CreateProcessor(PythonScriptMixin, processors.AbstractCreateResourceProcessor):
+class CreateProcessor(DockerExecutorMixin, processors.AbstractCreateResourceProcessor):
     script_name = 'create_script'
 
 
-class UpdateProcessor(PythonScriptMixin, processors.AbstractUpdateResourceProcessor):
+class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProcessor):
     script_name = 'update_script'
 
 
-class DeleteProcessor(PythonScriptMixin, processors.AbstractDeleteResourceProcessor):
+class DeleteProcessor(DockerExecutorMixin, processors.AbstractDeleteResourceProcessor):
     script_name = 'delete_script'

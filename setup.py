@@ -37,7 +37,6 @@ install_requires = [
     'djangorestframework>=3.10.2,<3.11.0',
     'djangosaml2==0.17.2',
     'docker>=4.1',
-    'epicbox>=1.0',
     'hiredis>=0.2.0',
     'influxdb>=4.1.0',
     'iptools>=0.6.1',
