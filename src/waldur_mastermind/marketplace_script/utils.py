@@ -44,7 +44,7 @@ class DockerExecutorMixin:
             execute_script(
                 image=image,
                 command=command,
-                src=options['src'],
+                src=options['script'],
                 environment=environment
             )
         except DockerException as exc:

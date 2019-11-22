@@ -4,12 +4,12 @@ from .utils import DockerExecutorMixin
 
 
 class CreateProcessor(DockerExecutorMixin, processors.AbstractCreateResourceProcessor):
-    script_name = 'create_script'
+    script_name = 'create'
 
 
 class UpdateProcessor(DockerExecutorMixin, processors.AbstractUpdateResourceProcessor):
-    script_name = 'update_script'
+    script_name = 'update'
 
 
 class DeleteProcessor(DockerExecutorMixin, processors.AbstractDeleteResourceProcessor):
-    script_name = 'delete_script'
+    script_name = 'delete'
