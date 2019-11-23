@@ -20,7 +20,7 @@ def execute_script(image, command, src, **kwargs):
         return client.containers.run(
             image=image,
             command=[command, 'script'],
-            auto_remove=True,
+            remove=True,
             working_dir="/work",
             volumes={
                 docker_script.name: {
