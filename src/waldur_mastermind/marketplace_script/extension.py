@@ -13,10 +13,10 @@ class MarketplaceScriptExtension(WaldurExtension):
             'DOCKER_RUN_OPTIONS': {
                 'mem_limit': '64m',
             },
-            # Key is image name, value is command to execute script.
+            # Key is command to execute script, value is image name.
             'DOCKER_IMAGES': {
-                'python:3.7-alpine': 'python',
-                'alpine:3.10.0': 'sh',
+                'python': 'python:3.7-alpine',
+                'sh': 'alpine:3.10.0',
             },
         }
 

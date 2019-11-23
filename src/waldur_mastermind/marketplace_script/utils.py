@@ -1,3 +1,4 @@
+import logging
 import tempfile
 
 import docker
@@ -6,6 +7,9 @@ from docker.errors import DockerException
 from rest_framework import serializers as rf_serializers
 
 from . import serializers
+
+
+logger = logging.getLogger(__name__)
 
 
 def execute_script(image, command, src, **kwargs):
@@ -40,19 +44,28 @@ class DockerExecutorMixin:
         if isinstance(options.get('environ'), dict):
             environment.update(options['environ'])
 
-        image = options['image']
-        command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(image)
+        language = options['language']
+        image = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(language)
+        logger.debug('About to execute marketplace script via Docker. '
+                     'Hook type is %s. Order item ID is %s.',
+                     self.hook_type, self.order_item.id)
 
         try:
             self.order_item.output = execute_script(
                 image=image,
-                command=command,
+                command=language,
                 src=options[self.hook_type],
                 environment=environment
             )
             self.order_item.save(update_fields=['output'])
         except DockerException as exc:
+            logger.exception('Unable to execute marketplace script via Docker. '
+                             'Hook type is %s. Order item ID is %s.',
+                             self.hook_type, self.order_item.id)
             raise rf_serializers.ValidationError(str(exc))
+        logger.debug('Successfully executed marketplace script via Docker.'
+                     'Hook type is %s. Order item ID is %s.',
+                     self.hook_type, self.order_item.id)
 
     def validate_order_item(self, request):
         options = self.order_item.offering.plugin_options
@@ -60,6 +73,6 @@ class DockerExecutorMixin:
         if self.hook_type not in options:
             raise rf_serializers.ValidationError('Script is not defined.')
 
-        command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(options['image'])
+        command = settings.WALDUR_MARKETPLACE_SCRIPT['DOCKER_IMAGES'].get(options['language'])
         if not command:
             raise rf_serializers.ValidationError('Docker image is not allowed.')

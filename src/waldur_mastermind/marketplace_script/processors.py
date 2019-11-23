@@ -5,7 +5,7 @@ from .utils import DockerExecutorMixin
 """
 It is expected that offering plugin_options field is dict with following structure:
 
-image: python:3.7-alpine
+language: python
 
 environ:
     USERNAME: admin
