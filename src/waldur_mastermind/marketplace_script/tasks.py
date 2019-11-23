@@ -20,7 +20,7 @@ def pull_resource(resource_id):
     resource = models.Resource.objects.get(id=resource_id)
     options = resource.offering.plugin_options
 
-    serializer = serializers.OrderItemSerializer(instance=resource)
+    serializer = serializers.ResourceSerializer(instance=resource)
     environment = {key.upper(): str(value) for key, value in serializer.data}
     if isinstance(options.get('environ'), dict):
         environment.update(options['environ'])
