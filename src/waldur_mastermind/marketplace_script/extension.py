@@ -27,3 +27,14 @@ class MarketplaceScriptExtension(WaldurExtension):
     @staticmethod
     def is_assembly():
         return True
+
+    @staticmethod
+    def celery_tasks():
+        from datetime import timedelta
+        return {
+            'waldur-marketplace-script-pull-resources': {
+                'task': 'waldur_marketplace_script.pull_resources',
+                'schedule': timedelta(hours=1),
+                'args': (),
+            },
+        }

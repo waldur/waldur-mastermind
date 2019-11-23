@@ -22,6 +22,10 @@ update:
 delete:
     import os
     print("Deleting resource ", os.environ.get('RESOURCE_NAME'))
+
+pull:
+    import os
+    print("Pulling resource ", os.environ.get('RESOURCE_NAME'))
 """
 
 
