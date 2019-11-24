@@ -326,7 +326,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
         fields = ('url', 'uuid', 'created', 'name', 'description', 'full_description', 'terms_of_service',
                   'customer', 'customer_uuid', 'customer_name',
                   'category', 'category_uuid', 'category_title',
-                  'rating', 'attributes', 'options', 'components', 'geolocations',
+                  'rating', 'attributes', 'options', 'components', 'geolocations', 'plugin_options',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
                   'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason')
@@ -341,6 +341,31 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
             'category': {'lookup_field': 'uuid', 'view_name': 'marketplace-category-detail'},
         }
+
+    def get_fields(self):
+        fields = super(OfferingDetailsSerializer, self).get_fields()
+        if not self.can_see_plugin_options():
+            # Plugin options may contain sensitive information therefore
+            # it should be exposed to privileged user exclusively
+            del fields['plugin_options']
+        return fields
+
+    def can_see_plugin_options(self):
+        user = None
+        try:
+            request = self.context['request']
+            user = request.user
+        except (KeyError, AttributeError):
+            pass
+
+        offering = None
+        if isinstance(self.instance, list):
+            if len(self.instance) == 1:
+                offering = self.instance[0]
+        else:
+            offering = self.instance
+
+        return offering and user and structure_permissions._has_owner_access(user, offering.customer)
 
     def get_order_item_count(self, offering):
         try:
