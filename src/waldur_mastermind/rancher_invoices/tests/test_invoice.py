@@ -85,8 +85,7 @@ class InvoiceTest(test.APITransactionTestCase):
 
         create_node_task = tasks.CreateNodeTask()
         create_node_task.execute(
-            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0],
-            node=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['nodes'][0],
+            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0].node_set.first(),
             user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['user'].id,
         )
         self.assertTrue(self.cluster.node_set.filter(cluster=self.cluster).exists())
