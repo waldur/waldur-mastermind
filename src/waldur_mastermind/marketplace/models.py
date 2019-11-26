@@ -249,6 +249,8 @@ class Offering(core_models.UuidMixin,
     customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, related_name='+', null=True)
     attributes = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Category.'))
     options = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Offering request form.'))
+    plugin_options = BetterJSONField(blank=True, default=dict,
+                                     help_text=_('Data used by specific plugin, such as credentials and hooks.'))
     geolocations = JSONField(default=list, blank=True,
                              help_text=_('List of latitudes and longitudes. For example: '
                                          '[{"latitude": 123, "longitude": 345}, {"latitude": 456, "longitude": 678}]'))
@@ -861,6 +863,7 @@ class OrderItem(core_models.UuidMixin,
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, null=True, blank=True)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
+    output = models.TextField(blank=True)
     tracker = FieldTracker()
 
     class Permissions:

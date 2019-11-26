@@ -36,6 +36,7 @@ install_requires = [
     'Django>=2.2.7,<3.0',
     'djangorestframework>=3.10.2,<3.11.0',
     'djangosaml2==0.17.2',
+    'docker>=4.1',
     'hiredis>=0.2.0',
     'influxdb>=4.1.0',
     'iptools>=0.6.1',
@@ -79,7 +80,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='4.1.8',
+    version='4.1.9',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
@@ -136,6 +137,7 @@ setup(
             'waldur_rancher = waldur_rancher.extension:RancherExtension',
             'waldur_marketplace_rancher = waldur_mastermind.marketplace_rancher.extension:MarketplaceRancherExtension',
             'waldur_rancher_invoices = waldur_mastermind.rancher_invoices.extension:RancherInvoicesExtension',
+            'waldur_marketplace_script = waldur_mastermind.marketplace_script.extension:MarketplaceScriptExtension',
         ),
     },
     include_package_data=True,
