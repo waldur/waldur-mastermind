@@ -22,31 +22,32 @@ logger = logging.getLogger(__name__)
 
 
 class CreateNodeTask(core_tasks.Task):
-    def execute(self, instance, node, user_id):
-        cluster = instance
+    def execute(self, instance, user_id):
+        node = instance
         content_type = ContentType.objects.get_for_model(openstack_tenant_models.Instance)
-        flavor = node['flavor']
-        storage = node['storage']
-        image = node['image']
-        subnet = node['subnet']
-        roles = node['roles']
-        group = node['group']
-        tenant_spl = node['tenant_service_project_link']
+        flavor = node.initial_data['flavor']
+        storage = node.initial_data['storage']
+        image = node.initial_data['image']
+        subnet = node.initial_data['subnet']
+        group = node.initial_data['group']
+        tenant_spl = node.initial_data['tenant_service_project_link']
         user = auth.get_user_model().objects.get(pk=user_id)
 
         roles_command = []
-        if 'controlplane' in roles:
+
+        if node.controlplane_role:
             roles_command.append('--controlplane')
 
-        if 'etcd' in roles:
+        if node.etcd_role:
             roles_command.append('--etcd')
 
-        if 'worker' in roles:
+        if node.worker_role:
             roles_command.append('--worker')
-        node_command = cluster.node_command + ' ' + ' '.join(roles_command)
+
+        node_command = node.cluster.node_command + ' ' + ' '.join(roles_command)
 
         post_data = {
-            'name': cluster.name + '_rancher_node',
+            'name': node.name,
             'flavor': reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor}),
             'image': reverse('openstacktenant-image-detail', kwargs={'uuid': image}),
             'service_project_link': reverse('openstacktenant-spl-detail', kwargs={'pk': tenant_spl}),
@@ -67,16 +68,11 @@ class CreateNodeTask(core_tasks.Task):
 
         instance_uuid = response.data['uuid']
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
-        models.Node.objects.create(
-            cluster=cluster,
-            object_id=instance.id,
-            content_type=content_type,
-            controlplane_role='controlplane' in node['roles'],
-            etcd_role='etcd' in node['roles'],
-            worker_role='worker' in node['roles'],
-            state=models.Node.States.CREATING,
-            name=instance.name,
-        )
+        node.content_type = content_type
+        node.object_id = instance.id
+        node.content_type = content_type
+        node.state = models.Node.States.CREATING
+        node.save()
 
         resource_imported.send(
             sender=instance.__class__,

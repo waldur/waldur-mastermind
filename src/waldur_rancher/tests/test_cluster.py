@@ -64,6 +64,8 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.subnet = openstack_tenant_factories.SubNetFactory(
             network=network,
             settings=instance_spl.service.settings)
+        self.flavor = openstack_tenant_factories.FlavorFactory(
+            settings=instance_spl.service.settings)
         self.fixture.settings.options['base_subnet_name'] = self.subnet.name
         self.fixture.settings.save()
 
@@ -251,7 +253,7 @@ class ClusterImportableResourcesTest(BaseProjectImportTest):
         returned_backend_ids = [item['backend_id'] for item in response.data]
         expected_backend_ids = [item['id'] for item in backend_clusters]
         self.assertEqual(sorted(returned_backend_ids), sorted(expected_backend_ids))
-        get_projects_mock.assert_called()
+        self.assertEqual(get_projects_mock.call_count, 1)
 
 
 class ClusterImportResourceTest(BaseProjectImportTest):

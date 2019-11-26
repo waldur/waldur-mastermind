@@ -1,7 +1,7 @@
 from celery import chain
 
 from waldur_core.core import executors as core_executors
-from waldur_core.core import tasks as core_tasks
+from waldur_core.core import tasks as core_tasks, utils as core_utils
 
 from . import tasks
 
@@ -9,21 +9,21 @@ from . import tasks
 class ClusterCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, nodes, user):
+    def get_task_signature(cls, instance, serialized_instance, user):
         _tasks = [core_tasks.BackendMethodTask().si(
             serialized_instance,
             'create_cluster',
-            state_transition='begin_creating').set(countdown=30)]
-        _tasks += cls.create_nodes(serialized_instance, nodes, user)
+            state_transition='begin_creating')]
+        _tasks += cls.create_nodes(instance.node_set.all(), user)
         return chain(*_tasks)
 
     @classmethod
-    def create_nodes(cls, serialized_cluster, nodes, user):
+    def create_nodes(cls, nodes, user):
         _tasks = []
         for node in nodes:
+            serialized_instance = core_utils.serialize_instance(node)
             _tasks.append(tasks.CreateNodeTask().si(
-                serialized_cluster,
-                node=node,
+                serialized_instance,
                 user_id=user.id,
             ))
         return _tasks
@@ -59,3 +59,12 @@ class ClusterUpdateExecutor(core_executors.UpdateExecutor):
                 serialized_instance,
                 state_transition='begin_updating'
             )
+
+
+class NodeCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, user):
+        return tasks.CreateNodeTask().si(
+            serialized_instance,
+            user_id=user.id,
+        )

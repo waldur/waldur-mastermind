@@ -42,57 +42,68 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertTrue(mock_executors.ClusterCreateExecutor.execute.called)
         create_node_task = tasks.CreateNodeTask()
         create_node_task.execute(
-            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0],
-            node=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['nodes'][0],
+            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0].node_set.first(),
             user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['user'].id,
         )
         self.assertTrue(cluster.node_set.filter(cluster=cluster).exists())
-        node = cluster.node_set.get(cluster=cluster)
+        node = cluster.node_set.first()
         self.assertTrue(node.controlplane_role)
         self.assertTrue(node.etcd_role)
         self.assertTrue(node.worker_role)
 
-    def test_staff_can_create_node(self):
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_staff_can_create_node(self, mock_tasks):
         self.client.force_authenticate(self.fixture.staff)
         cluster = self.fixture.cluster
-        instance = self._create_new_test_instance(customer=self.fixture.customer)
         response = self.client.post(self.node_url,
                                     {'cluster': factories.ClusterFactory.get_url(cluster),
-                                     'instance': structure_factories.TestNewInstanceFactory.get_url(instance),
+                                     'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                                     'storage': 1024,
+                                     'memory': 1,
+                                     'cpu': 1,
+                                     'roles': ['controlplane', 'etcd', 'worker'],
                                      })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(cluster.node_set.filter(object_id=instance.id).exists())
+        self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
     def test_others_cannot_create_node(self):
         self.client.force_authenticate(self.fixture.owner)
         cluster = self.fixture.cluster
-        instance = self._create_new_test_instance(customer=self.fixture.customer)
         response = self.client.post(self.node_url,
                                     {'cluster': factories.ClusterFactory.get_url(cluster),
-                                     'instance': structure_factories.TestNewInstanceFactory.get_url(instance),
+                                     'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                                     'storage': 1024,
+                                     'memory': 1,
+                                     'cpu': 1,
+                                     'roles': ['controlplane', 'etcd', 'worker'],
                                      })
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_user_cannot_create_node_if_instance_is_not_available(self):
+    def test_staff_cannot_create_node_if_cpu_has_not_been_specified(self):
         self.client.force_authenticate(self.fixture.staff)
         cluster = self.fixture.cluster
-        instance = structure_factories.TestNewInstanceFactory()
-        payload = {'cluster': factories.ClusterFactory.get_url(cluster),
-                   'instance': structure_factories.TestNewInstanceFactory.get_url(instance),
-                   }
-        instance.delete()
-        response = self.client.post(self.node_url, payload)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('Can\'t restore object from' in response.data['instance'][0])
-
-    def test_validate_if_instance_is_already_in_use(self):
-        self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.node_url,
-                                    {'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
-                                     'instance': structure_factories.TestNewInstanceFactory.get_url(self.fixture.instance),
+                                    {'cluster': factories.ClusterFactory.get_url(cluster),
+                                     'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                                     'storage': 1024,
+                                     'memory': 1,
+                                     'roles': ['controlplane', 'etcd', 'worker'],
                                      })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('The selected instance is already in use.' in response.data['instance'][0])
+
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_create_node_if_flavor_has_been_specified(self, mock_tasks):
+        self.client.force_authenticate(self.fixture.staff)
+        cluster = self.fixture.cluster
+        response = self.client.post(self.node_url,
+                                    {'cluster': factories.ClusterFactory.get_url(cluster),
+                                     'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                                     'storage': 1024,
+                                     'flavor': openstack_tenant_factories.FlavorFactory.get_url(self.flavor),
+                                     'roles': ['controlplane', 'etcd', 'worker'],
+                                     })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
     def test_linking_rancher_nodes_with_openStack_instance(self):
         self.client.force_authenticate(self.fixture.staff)
