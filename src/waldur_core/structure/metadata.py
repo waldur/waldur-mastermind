@@ -154,6 +154,8 @@ class ActionsMetadata(SimpleMetadata):
         """
         serializer = view.get_serializer(resource)
         fields = OrderedDict()
+        if not hasattr(serializer, 'fields'):
+            return fields
         if not isinstance(serializer, view.serializer_class) or action_name == 'update':
             fields = self.get_fields(serializer.fields)
         return fields
