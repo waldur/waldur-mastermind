@@ -172,10 +172,7 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
                 }
             ]
         """
-        # XXX: DRF does not support forms generation for list serializers.
-        #      Thats why we use different serializer in view.
-        serializer = serializers.SecurityGroupRuleListUpdateSerializer(
-            data=request.data, context=self.get_serializer_context())
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
@@ -184,7 +181,7 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
             {'status': _('Rules update was successfully scheduled.')}, status=status.HTTP_202_ACCEPTED)
 
     set_rules_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
-    set_rules_serializer_class = serializers.SecurityGroupRuleUpdateSerializer
+    set_rules_serializer_class = serializers.SecurityGroupRuleListUpdateSerializer
 
 
 class FloatingIPViewSet(structure_views.BaseResourceViewSet):
