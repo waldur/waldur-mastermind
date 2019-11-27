@@ -212,7 +212,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def _backend_issue_to_issue(self, backend_issue, issue):
         issue.key = backend_issue.key
         issue.backend_id = backend_issue.key
-        issue.resolution = backend_issue.fields.resolution or ''
+        issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
         issue.status = backend_issue.fields.status.name or ''
         issue.link = backend_issue.permalink()
         issue.priority = backend_issue.fields.priority.name

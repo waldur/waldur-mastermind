@@ -139,11 +139,13 @@ class NetworkSerializer(structure_serializers.BasePropertySerializer):
 class SubNetSerializer(structure_serializers.BasePropertySerializer):
     dns_nameservers = serializers.JSONField(read_only=True)
     allocation_pools = serializers.JSONField(read_only=True)
+    network_name = serializers.ReadOnlyField(source='network.name')
 
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.SubNet
         fields = ('url', 'uuid', 'name',
-                  'cidr', 'gateway_ip', 'allocation_pools', 'ip_version', 'enable_dhcp', 'dns_nameservers', 'network')
+                  'cidr', 'gateway_ip', 'allocation_pools', 'ip_version', 'enable_dhcp',
+                  'dns_nameservers', 'network', 'network_name')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'settings': {'lookup_field': 'uuid'},

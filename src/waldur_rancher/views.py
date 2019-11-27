@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, response, status
 
@@ -37,12 +38,16 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
         cluster = serializer.save()
         user = self.request.user
         nodes = serializer.validated_data.get('node_set')
-        executors.ClusterCreateExecutor.execute(
+
+        for node_data in nodes:
+            node_data['cluster'] = cluster
+            models.Node.objects.create(**node_data)
+
+        transaction.on_commit(lambda: executors.ClusterCreateExecutor.execute(
             cluster,
-            nodes=nodes,
             user=user,
             is_heavy_task=True,
-        )
+        ))
 
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Cluster.States.OK),
@@ -56,10 +61,20 @@ class NodeViewSet(core_views.ActionsViewSet):
     queryset = models.Node.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     serializer_class = serializers.NodeSerializer
+    create_serializer_class = serializers.CreateNodeSerializer
     filterset_class = filters.NodeFilter
     lookup_field = 'uuid'
     disabled_actions = ['update', 'partial_update']
     create_permissions = [structure_permissions.is_staff]
+
+    def perform_create(self, serializer):
+        node = serializer.save()
+        user = self.request.user
+        transaction.on_commit(lambda: executors.NodeCreateExecutor.execute(
+            node,
+            user=user,
+            is_heavy_task=True,
+        ))
 
     @decorators.action(detail=True, methods=['post'])
     def link_openstack(self, request, uuid=None):

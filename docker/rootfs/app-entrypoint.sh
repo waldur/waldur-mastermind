@@ -71,15 +71,6 @@ else
   # Copy default SAML2 configuration
   mkdir -p /etc/waldur/saml2/
   cp /etc/waldur-templates/saml2.conf.py.example /etc/waldur/saml2/
-fi
-
-if [ -d "/opnd" ]; then
-  echo "INFO: Custom configuration directory mount detected as /opnd"
-  echo "INFO: NB! Skipping ENV variables processing and using supplied configuration files!"
-  echo "INFO: Linking /etc/waldur -> /opnd"
-  rm -rf /etc/waldur
-  ln -s /opnd /etc/waldur
-else
 
   echo "INFO: Processing required ENV variables..."
   if [ -z "$GLOBAL_SECRET_KEY" ]; then

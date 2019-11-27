@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
@@ -79,6 +80,9 @@ class Node(core_models.UuidMixin,
     etcd_role = models.BooleanField(default=False)
     worker_role = models.BooleanField(default=False)
     backend_id = models.CharField(max_length=255, blank=True)
+    initial_data = JSONField(blank=True,
+                             default=dict,
+                             help_text=_('Initial data for instance creating.'))
 
     def get_node_command(self):
         roles_command = []

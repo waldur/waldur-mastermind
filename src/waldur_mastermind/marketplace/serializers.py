@@ -344,7 +344,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
 
     def get_fields(self):
         fields = super(OfferingDetailsSerializer, self).get_fields()
-        if not self.can_see_plugin_options():
+        if not self.can_see_plugin_options() and 'plugin_options' in fields:
             # Plugin options may contain sensitive information therefore
             # it should be exposed to privileged user exclusively
             del fields['plugin_options']

@@ -107,7 +107,7 @@ def create_order_pdf(order):
     )
     html = render_to_string('marketplace/order.html', context)
     pdf = pdfkit.from_string(html, False)
-    order.file = base64.b64encode(pdf)
+    order.file = str(base64.b64encode(pdf), 'utf-8')
     order.save()
 
 
