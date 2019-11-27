@@ -137,15 +137,12 @@ def send_issue_updated_notification(sender, instance, created=False, **kwargs):
     if not instance.backend_id:
         return
 
-    # Skip notification if issue just has been created on backend.
-    if 'backend_id' in instance.tracker.changed():
-        return
-
     # Skip notifications if assignee or modification date changed
+    tracked_fields = ('summary', 'description', 'status', 'priority')
     changed = dict(
         (field, instance.tracker.previous(field))
         for field in instance.tracker.fields
-        if instance.tracker.has_changed(field) and field not in {'assignee_id', 'modified'}
+        if instance.tracker.has_changed(field) and field in tracked_fields
     )
 
     if not changed:
