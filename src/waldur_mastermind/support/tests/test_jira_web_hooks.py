@@ -97,6 +97,7 @@ class TestJiraWebHooks(APITransactionTestCase):
 
 
 MockSupportUser = collections.namedtuple('MockSupportUser', ['key'])
+MockResolution = collections.namedtuple('MockResolution', ['name'])
 
 
 @override_settings(task_always_eager=True)
@@ -160,10 +161,10 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.assertEqual(self.issue.first_response_sla, self.first_response_sla)
 
     def test_update_issue_resolution(self):
-        expected_resolution = 'Done'
+        expected_resolution = MockResolution(name='Done')
         self.backend_issue.fields.resolution = expected_resolution
         self.update_issue_from_jira()
-        self.assertEqual(self.issue.resolution, expected_resolution)
+        self.assertEqual(self.issue.resolution, expected_resolution.name)
 
     def test_resolution_is_empty_if_it_is_none(self):
         expected_resolution = None
@@ -182,7 +183,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
 
     def test_web_hook_does_trigger_issue_update_email_if_the_issue_was_updated(self):
         self.update_issue_from_jira()
-        self.backend_issue.fields.resolution = 'Done'
+        self.backend_issue.fields.summary = 'New summary'
         self.update_issue_from_jira()
         self.assertEqual(len(mail.outbox), 1)
 
