@@ -477,6 +477,8 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
 
         elif builtin_components:
             valid_types = {component.type for component in builtin_components}
+            if self.instance:
+                valid_types.update(set(self.instance.components.all().values_list('type', flat=True)))
             fixed_types = {component.type
                            for component in plugins.manager.get_components(offering_type)
                            if component.billing_type == models.OfferingComponent.BillingTypes.FIXED}
@@ -532,8 +534,8 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 offering=offering,
                 type=key
             ).update(
-                min_value=values['min'],
-                max_value=values['max']
+                min_value=values.get('min'),
+                max_value=values.get('max'),
             )
 
 
