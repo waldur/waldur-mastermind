@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
+from rest_framework.fields import get_attribute
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import serializers as structure_serializers
@@ -189,14 +190,23 @@ class ClusterImportableSerializer(serializers.Serializer):
 
     name = serializers.CharField(read_only=True)
     backend_id = serializers.CharField(source="id", read_only=True)
-    kubernetes_version = serializers.CharField(
-        source="rancherKubernetesEngineConfig.kubernetesVersion",
-        read_only=True)
-    created_ts = serializers.IntegerField(read_only=True)
-    nodes = serializers.ListField(
-        source="appliedSpec.rancherKubernetesEngineConfig.nodes",
-        required=False,
-        read_only=True)
+    extra = serializers.SerializerMethodField()
+
+    def get_extra(self, cluster):
+        return [
+            {
+                'name': 'Kubernetes version',
+                'value': get_attribute(cluster, 'rancherKubernetesEngineConfig.kubernetesVersion'),
+            },
+            {
+                'name': 'Number of nodes',
+                'value': len(get_attribute(cluster, 'appliedSpec.rancherKubernetesEngineConfig.nodes')),
+            },
+            {
+                'name': 'Created at',
+                'value': get_attribute(cluster, 'created'),
+            },
+        ]
 
 
 class ClusterImportSerializer(ClusterImportableSerializer):
