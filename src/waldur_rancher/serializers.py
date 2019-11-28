@@ -189,14 +189,23 @@ class ClusterImportableSerializer(serializers.Serializer):
 
     name = serializers.CharField(read_only=True)
     backend_id = serializers.CharField(source="id", read_only=True)
-    kubernetes_version = serializers.CharField(
-        source="rancherKubernetesEngineConfig.kubernetesVersion",
-        read_only=True)
-    created_ts = serializers.IntegerField(read_only=True)
-    nodes = serializers.ListField(
-        source="appliedSpec.rancherKubernetesEngineConfig.nodes",
-        required=False,
-        read_only=True)
+    extra = serializers.SerializerMethodField()
+
+    def get_extra(self, cluster):
+        return [
+            {
+                'name': 'Kubernetes version',
+                'value': cluster['rancherKubernetesEngineConfig']['kubernetesVersion'],
+            },
+            {
+                'name': 'Number of nodes',
+                'value': len(cluster['appliedSpec']['rancherKubernetesEngineConfig']['nodes']),
+            },
+            {
+                'name': 'Created at',
+                'value': cluster['created'],
+            },
+        ]
 
 
 class ClusterImportSerializer(ClusterImportableSerializer):
