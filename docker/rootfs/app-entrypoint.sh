@@ -138,16 +138,16 @@ fi
 if [[ ! -d "/var/log/waldur" ]] ; then
   echo "INFO: Create logging directory"
   mkdir -p /var/log/waldur/
-  chmod 750 /var/log/waldur/
-  chown waldur:waldur /var/log/waldur/
 fi
+chmod 750 /var/log/waldur/
+chown -R waldur:waldur /var/log/waldur/
 
 if [[ ! -d "/var/lib/waldur/media" ]] ; then
   echo "INFO: Create media assets directory"
   mkdir -p /var/lib/waldur/media/
-  chmod 750 /var/lib/waldur/
-  chown waldur:waldur /var/lib/waldur/
 fi
+chmod 750 /var/lib/waldur/
+chown -R waldur:waldur /var/lib/waldur/
 
 echo "INFO: Spawning $@"
 exec /usr/local/bin/tini -- "$@"
