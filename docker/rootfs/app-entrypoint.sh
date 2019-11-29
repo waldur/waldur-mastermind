@@ -46,27 +46,13 @@ if ! id waldur 2> /dev/null > /dev/null; then
   useradd --home /var/lib/waldur --shell /bin/sh --system --uid $WALDUR_UID --gid $WALDUR_GID waldur
 fi
 
-if [ -d "/etc/waldur" ]; then
-  echo "INFO: Existing configuration directory detected at /etc/waldur"
-  echo "INFO: Spawning $@"
-  exec /usr/local/bin/tini -- "$@"
-else
+if [[ ! -d "/etc/waldur" ]] ; then
   echo "INFO: Creating new /etc/waldur folder structure"
   # Copy configuration files
   mkdir -p /etc/waldur/
   cp /etc/waldur-templates/celery.conf /etc/waldur/celery.conf
   cp /etc/waldur-templates/waldur/core.ini /etc/waldur/core.ini
   cp /etc/waldur-templates/uwsgi.ini /etc/waldur/uwsgi.ini
-
-  # Create logging directory
-  mkdir -p /var/log/waldur/
-  chmod 750 /var/log/waldur/
-  chown waldur:waldur /var/log/waldur/
-
-  # Create media assets directory
-  mkdir -p /var/lib/waldur/media/
-  chmod 750 /var/lib/waldur/
-  chown waldur:waldur /var/lib/waldur/
 
   # Copy default SAML2 configuration
   mkdir -p /etc/waldur/saml2/
@@ -147,6 +133,20 @@ EOF
   crudini --set /etc/waldur/core.ini events log_file
   crudini --del /etc/waldur/uwsgi.ini uwsgi logto
 
+fi
+
+if [[ ! -d "/var/log/waldur" ]] ; then
+  echo "INFO: Create logging directory"
+  mkdir -p /var/log/waldur/
+  chmod 750 /var/log/waldur/
+  chown waldur:waldur /var/log/waldur/
+fi
+
+if [[ ! -d "/var/lib/waldur/media" ]] ; then
+  echo "INFO: Create media assets directory"
+  mkdir -p /var/lib/waldur/media/
+  chmod 750 /var/lib/waldur/
+  chown waldur:waldur /var/lib/waldur/
 fi
 
 echo "INFO: Spawning $@"
