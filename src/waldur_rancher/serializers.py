@@ -192,18 +192,21 @@ class ClusterImportableSerializer(serializers.Serializer):
     extra = serializers.SerializerMethodField()
 
     def get_extra(self, cluster):
+        spec = cluster.get('appliedSpec', {})
+        config = spec.get('rancherKubernetesEngineConfig', {})
+        backend_nodes = config.get('nodes', [])
         return [
             {
                 'name': 'Kubernetes version',
-                'value': cluster['rancherKubernetesEngineConfig']['kubernetesVersion'],
+                'value': config.get('kubernetesVersion'),
             },
             {
                 'name': 'Number of nodes',
-                'value': len(cluster['appliedSpec']['rancherKubernetesEngineConfig']['nodes']),
+                'value': len(backend_nodes),
             },
             {
                 'name': 'Created at',
-                'value': cluster['created'],
+                'value': spec.get('created'),
             },
         ]
 
