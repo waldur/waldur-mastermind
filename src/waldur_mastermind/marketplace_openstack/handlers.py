@@ -481,7 +481,7 @@ def create_offering_component_for_volume_type(sender, instance, created=False, *
         content_type=content_type,
         defaults=dict(
             offering=offering,
-            name=instance.name,
+            name='Storage (%s)' % instance.name,
             # It is expected that internal name of offering component related to volume type
             # matches storage quota name generated in OpenStack
             type='gigabytes_' + instance.name,

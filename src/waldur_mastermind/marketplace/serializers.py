@@ -329,7 +329,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations', 'plugin_options',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason')
+                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason', 'enable_dynamic_components')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -348,6 +348,9 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
             # Plugin options may contain sensitive information therefore
             # it should be exposed to privileged user exclusively
             del fields['plugin_options']
+        method = self.context['view'].request.method
+        if method == 'GET':
+            fields['components'] = serializers.SerializerMethodField('get_filtered_components')
         return fields
 
     def can_see_plugin_options(self):
@@ -376,6 +379,14 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
     def get_quotas(self, offering):
         if offering.scope and hasattr(offering.scope, 'quotas'):
             return BasicQuotaSerializer(offering.scope.quotas, many=True, context=self.context).data
+
+    def get_filtered_components(self, offering):
+        qs = offering.components
+        if not offering.enable_dynamic_components:
+            builtin_components = plugins.manager.get_components(offering.type)
+            valid_types = {component.type for component in builtin_components}
+            qs = offering.components.filter(type__in=valid_types)
+        return OfferingComponentSerializer(qs, many=True, context=self.context).data
 
 
 class OfferingComponentLimitSerializer(serializers.Serializer):
@@ -477,6 +488,8 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
 
         elif builtin_components:
             valid_types = {component.type for component in builtin_components}
+            if self.instance and self.instance.enable_dynamic_components:
+                valid_types.update(set(self.instance.components.all().values_list('type', flat=True)))
             fixed_types = {component.type
                            for component in plugins.manager.get_components(offering_type)
                            if component.billing_type == models.OfferingComponent.BillingTypes.FIXED}
@@ -532,8 +545,8 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
                 offering=offering,
                 type=key
             ).update(
-                min_value=values['min'],
-                max_value=values['max']
+                min_value=values.get('min'),
+                max_value=values.get('max'),
             )
 
 

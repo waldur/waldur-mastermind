@@ -66,8 +66,14 @@ class RancherBackend(ServiceBackend):
         cluster.save()
         backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
         for node in backend_nodes:
+            roles = node.get('role', [])
             models.Node.objects.create(
-                cluster=cluster
+                backend_id=node.get('nodeId'),
+                name=node.get('hostnameOverride'),
+                cluster=cluster,
+                controlplane_role='controlplane' in roles,
+                etcd_role='etcd' in roles,
+                worker_role='worker' in roles,
             )
         return cluster
 

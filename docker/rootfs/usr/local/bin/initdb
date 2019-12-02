@@ -4,4 +4,7 @@ set -e
 echo "INFO: Initializing database..."
 gosu waldur sh -c "waldur migrate --noinput"
 
+echo "INFO: Recalculating quotas..."
+gosu waldur sh -c "waldur recalculatequotas"
+
 exit 0

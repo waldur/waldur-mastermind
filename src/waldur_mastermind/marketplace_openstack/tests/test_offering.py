@@ -410,14 +410,14 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         component = marketplace_models.OfferingComponent.objects.get(scope=self.volume_type)
         self.assertEqual(component.offering, self.offering)
         self.assertEqual(component.billing_type, marketplace_models.OfferingComponent.BillingTypes.USAGE)
-        self.assertEqual(component.name, self.volume_type.name)
+        self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
         self.assertEqual(component.type, 'gigabytes_' + self.volume_type.name)
 
     def test_offering_component_name_is_updated(self):
         self.volume_type.name = 'new name'
         self.volume_type.save()
         component = marketplace_models.OfferingComponent.objects.get(scope=self.volume_type)
-        self.assertEqual(component.name, self.volume_type.name)
+        self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
 
     def test_offering_component_is_deleted(self):
         self.volume_type.delete()
