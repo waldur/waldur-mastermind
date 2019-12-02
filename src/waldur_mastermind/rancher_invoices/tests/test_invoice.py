@@ -43,7 +43,9 @@ class InvoiceTest(test.APITransactionTestCase):
             plan=self.plan,
             component=self.offering_component,
         )
-        openstack_tenant_factories.FlavorFactory(settings=self.fixture.spl.service.settings)
+        openstack_tenant_factories.FlavorFactory(settings=self.fixture.spl.service.settings,
+                                                 ram=1024 * 8,
+                                                 cores=8)
         image = openstack_tenant_factories.ImageFactory(settings=self.fixture.spl.service.settings)
         openstack_tenant_factories.SecurityGroupFactory(name='default',
                                                         settings=self.fixture.spl.service.settings)

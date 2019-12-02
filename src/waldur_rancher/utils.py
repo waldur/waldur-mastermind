@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings as conf_settings
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
@@ -72,6 +73,20 @@ def expand_added_nodes(nodes, cluster_spl, cluster_name):
 
             if not flavors:
                 raise serializers.ValidationError('No matching flavor found.')
+
+        # validate flavor
+        requirements = list(filter(lambda x: x[0] in list(roles),
+                                   conf_settings.WALDUR_RANCHER['ROLE_REQUIREMENT'].items()))
+        cpu_requirements = max([t[1]['CPU'] for t in requirements])
+        ram_requirements = max([t[1]['RAM'] for t in requirements])
+
+        if flavor.cores < cpu_requirements:
+            raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
+                                              % (flavor, cpu_requirements))
+
+        if flavor.ram < ram_requirements:
+            raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
+                                              % (flavor, ram_requirements))
 
         try:
             base_image_name = cluster_spl.service.settings.get_option('base_image_name')

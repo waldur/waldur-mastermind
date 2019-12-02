@@ -6,7 +6,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.models import ServiceSettings
 from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant.models import OpenStackTenantServiceProjectLink
+from waldur_openstack.openstack_tenant.models import OpenStackTenantServiceProjectLink, Flavor
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures
@@ -64,12 +64,14 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.subnet = openstack_tenant_factories.SubNetFactory(
             network=network,
             settings=instance_spl.service.settings)
-        self.flavor = openstack_tenant_factories.FlavorFactory(
-            settings=instance_spl.service.settings)
+        self.flavor = Flavor.objects.get(settings=instance_spl.service.settings)
+        self.flavor.ram = 1024 * 8
+        self.flavor.cores = 8
+        self.flavor.save()
         self.fixture.settings.options['base_subnet_name'] = self.subnet.name
         self.fixture.settings.save()
 
-    def _create_request_(self, name, disk=1024, memory=1, cpu=1, add_payload=None):
+    def _create_request_(self, name, disk=1024, memory=1, cpu=2, add_payload=None):
         add_payload = add_payload or {}
         payload = {'name': name,
                    'service_project_link':
@@ -87,9 +89,6 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
 
 
 class ClusterCreateTest(BaseClusterCreateTest):
-    def setUp(self):
-        super(ClusterCreateTest, self).setUp()
-
     @mock.patch('waldur_rancher.executors.core_tasks')
     def test_create_cluster(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
