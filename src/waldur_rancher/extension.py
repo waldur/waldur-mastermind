@@ -11,7 +11,12 @@ class RancherExtension(WaldurExtension):
                                                 'runcmd:\n'
                                                 '  - curl -fsSL '
                                                 'https://get.docker.com -o get-docker.sh; sh get-docker.sh\n'
-                                                '  - [ sh, -c, "{command}" ]\n'
+                                                '  - [ sh, -c, "{command}" ]\n',
+            'ROLE_REQUIREMENT': {
+                'controllplane': {'CPU': 2, 'RAM': 4096},
+                'etcd': {'CPU': 2, 'RAM': 4096},
+                'worker': {'CPU': 1, 'RAM': 1024},
+            }
         }
 
     @staticmethod

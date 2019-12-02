@@ -105,6 +105,22 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_do_not_create_node_if_flavor_does_not_meet_requirements(self, mock_tasks):
+        self.flavor.cores = 1
+        self.flavor.ram = 1024
+        self.flavor.save()
+        self.client.force_authenticate(self.fixture.staff)
+        cluster = self.fixture.cluster
+        response = self.client.post(self.node_url,
+                                    {'cluster': factories.ClusterFactory.get_url(cluster),
+                                     'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                                     'storage': 1024,
+                                     'flavor': openstack_tenant_factories.FlavorFactory.get_url(self.flavor),
+                                     'roles': ['controlplane', 'etcd', 'worker'],
+                                     })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_linking_rancher_nodes_with_openStack_instance(self):
         self.client.force_authenticate(self.fixture.staff)
         node = factories.NodeFactory()

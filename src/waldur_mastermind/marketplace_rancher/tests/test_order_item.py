@@ -21,7 +21,9 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         service_settings = spl.service.settings
         offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME, scope=service_settings)
 
-        openstack_tenant_factories.FlavorFactory(settings=self.fixture.spl.service.settings)
+        openstack_tenant_factories.FlavorFactory(settings=self.fixture.spl.service.settings,
+                                                 ram=1024 * 8,
+                                                 cores=8)
         image = openstack_tenant_factories.ImageFactory(settings=self.fixture.spl.service.settings)
         openstack_tenant_factories.SecurityGroupFactory(name='default',
                                                         settings=self.fixture.spl.service.settings)
