@@ -140,7 +140,7 @@ EXAMPLES = '''
           - floating_ip: 192.101.13.124
             subnet: vpc-1-tm-sub-net-2
         project: OpenStack Project
-        offering: VPC
+        offering: Instance in Tenant
         security_groups:
           - web
 
@@ -156,7 +156,7 @@ EXAMPLES = '''
         image: CentOS 7 x86_64
         name: Build instance
         project: OpenStack Project
-        offering: VPC
+        offering: Instance in Tenant
         ssh_key: ssh1.pub
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
@@ -179,7 +179,7 @@ EXAMPLES = '''
         image: CentOS 7 x86_64
         name: Build instance
         project: OpenStack Project
-        offering: VPC
+        offering: Instance in Tenant
         ssh_key: ssh1.pub
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
@@ -205,7 +205,7 @@ EXAMPLES = '''
           - floating_ip: 192.101.13.124
             subnet: vpc-1-tm-sub-net-2
         project: OpenStack Project
-        offering: VPC
+        offering: Instance in Tenant
         security_groups:
           - web
 
@@ -217,7 +217,7 @@ EXAMPLES = '''
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         project: OpenStack Project
-        offering: VPC
+        offering: Instance in Tenant
         name: Warehouse instance
         image: CentOS 7
         flavor: m1.small

@@ -20,15 +20,15 @@ Configure an Ansible playbook with parameters
 .. code-block:: yaml
 
   name: Trigger master instance
-  waldur_os_instance:
+  waldur_marketplace_os_instance:
     access_token: "{{ access_token }}"
     api_url: "{{ api_url }}"
     flavor: m1.micro
     floating_ip: auto
-    image: CentOS 7
+    image: CentOS 7 x86_64
     name: "{{ instance_name }}"
     project: "OpenStack Project"
-    provider: VPC
+    offering: Instance in Tenant
     ssh_key: ssh1.pub
     subnet: vpc-1-tm-sub-net-2
     system_volume_size: 40
@@ -39,7 +39,7 @@ Pass parameters to an Ansible playbook
 .. code-block:: bash
 
     ANSIBLE_LIBRARY=/usr/share/ansible-waldur/ ansible \
-        -m waldur_os_get_instance \
+        -m waldur_marketplace_os_instance \
         -a "api_url=https://waldur.example.com/api/ access_token=9036194e1ac54cada3248a8c6b203bf7 name=instance-name project='Project name'" \
         localhost
 
