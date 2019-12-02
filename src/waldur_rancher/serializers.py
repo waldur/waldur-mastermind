@@ -189,7 +189,11 @@ class ClusterImportableSerializer(serializers.Serializer):
 
     name = serializers.CharField(read_only=True)
     backend_id = serializers.CharField(source="id", read_only=True)
+    type = serializers.SerializerMethodField()
     extra = serializers.SerializerMethodField()
+
+    def get_type(self, cluster):
+        return 'Rancher.Cluster'
 
     def get_extra(self, cluster):
         spec = cluster.get('appliedSpec', {})
@@ -197,16 +201,12 @@ class ClusterImportableSerializer(serializers.Serializer):
         backend_nodes = config.get('nodes', [])
         return [
             {
-                'name': 'Kubernetes version',
-                'value': config.get('kubernetesVersion'),
-            },
-            {
                 'name': 'Number of nodes',
                 'value': len(backend_nodes),
             },
             {
                 'name': 'Created at',
-                'value': spec.get('created'),
+                'value': cluster.get('created'),
             },
         ]
 

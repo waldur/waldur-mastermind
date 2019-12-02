@@ -34,18 +34,20 @@ class RancherClient:
         except requests.RequestException as e:
             raise RancherException(e)
 
+        data = None
+        if response.content:
+            data = response.json()
+
         status_code = response.status_code
         if status_code in (requests.codes.ok,
                            requests.codes.created,
                            requests.codes.accepted,
                            requests.codes.no_content):
-            if response.content:
-                data = response.json()
-                if isinstance(data, dict) and 'value' in data:
-                    return data['value']
-                return data
+            if isinstance(data, dict) and 'value' in data:
+                return data['value']
+            return data
         else:
-            raise RancherException(response.content)
+            raise RancherException(data)
 
     def _get(self, endpoint, **kwargs):
         return self._request('get', endpoint, **kwargs)
