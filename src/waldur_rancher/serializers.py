@@ -141,11 +141,17 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         related_models=VirtualMachine.get_all_models(),
         required=True,
     )
+    resource_type = serializers.SerializerMethodField()
+    state = serializers.ReadOnlyField(source='get_state_display')
+    service_name = serializers.ReadOnlyField(source='service_project_link.service.settings.name')
+    service_uuid = serializers.ReadOnlyField(source='service_project_link.service.uuid')
 
     class Meta:
         model = models.Node
-        fields = ('uuid', 'url', 'created', 'modified', 'cluster', 'instance', 'controlplane_role', 'etcd_role',
-                  'worker_role', 'get_node_command')
+        fields = ('uuid', 'url', 'created', 'modified', 'name',
+                  'service_name', 'service_uuid',
+                  'resource_type', 'state', 'cluster', 'instance',
+                  'controlplane_role', 'etcd_role', 'worker_role', 'get_node_command')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
@@ -163,6 +169,9 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         attrs['name'] = instance.name
 
         return super(NodeSerializer, self).validate(attrs)
+
+    def get_resource_type(self, obj):
+        return 'Rancher.Node'
 
 
 class CreateNodeSerializer(BaseNodeSerializer):

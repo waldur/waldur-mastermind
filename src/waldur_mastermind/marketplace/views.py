@@ -235,6 +235,7 @@ class OfferingViewSet(BaseMarketplaceView):
                 sender=resource.__class__,
                 instance=resource,
                 plan=plan,
+                offering=plan.offering,
             )
 
         if resource_viewset.import_resource_executor:
