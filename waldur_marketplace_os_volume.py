@@ -83,7 +83,7 @@ EXAMPLES = '''
         api_url: https://waldur.example.com:8000/api
         name: test volume
         project: OpenStack Project
-        offering: VPC
+        offering: Volume in Tenant
         size: 40
         state: present
 
