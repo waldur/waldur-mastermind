@@ -4,11 +4,10 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
 
-from waldur_core.core import models as core_models
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
-from waldur_mastermind.marketplace.utils import import_resource_metadata, format_list
+from waldur_mastermind.marketplace.utils import import_resource_metadata, format_list, get_resource_state
 from waldur_mastermind.marketplace_openstack import (
     INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
     RAM_TYPE, STORAGE_TYPE, CORES_TYPE
@@ -58,22 +57,6 @@ def get_category_and_name_for_offering_type(offering_type, service_settings):
         category = get_offering_category_for_volume()
         name = get_offering_name_for_volume(service_settings)
         return category, name
-
-
-def get_resource_state(state):
-    SrcStates = core_models.StateMixin.States
-    DstStates = marketplace_models.Resource.States
-    mapping = {
-        SrcStates.CREATION_SCHEDULED: DstStates.CREATING,
-        SrcStates.CREATING: DstStates.CREATING,
-        SrcStates.UPDATE_SCHEDULED: DstStates.UPDATING,
-        SrcStates.UPDATING: DstStates.UPDATING,
-        SrcStates.DELETION_SCHEDULED: DstStates.TERMINATING,
-        SrcStates.DELETING: DstStates.TERMINATING,
-        SrcStates.OK: DstStates.OK,
-        SrcStates.ERRED: DstStates.ERRED,
-    }
-    return mapping.get(state, DstStates.ERRED)
 
 
 def create_offering_components(offering):

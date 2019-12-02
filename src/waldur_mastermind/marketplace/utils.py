@@ -12,7 +12,8 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions, serializers
 
-from waldur_core.core import utils as core_utils
+from waldur_core.core import utils as core_utils, models as core_models
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models, plugins
 
@@ -246,3 +247,19 @@ def create_offering_components(offering, custom_components=None):
     if custom_components:
         for component_data in custom_components:
             models.OfferingComponent.objects.create(offering=offering, **component_data)
+
+
+def get_resource_state(state):
+    SrcStates = core_models.StateMixin.States
+    DstStates = marketplace_models.Resource.States
+    mapping = {
+        SrcStates.CREATION_SCHEDULED: DstStates.CREATING,
+        SrcStates.CREATING: DstStates.CREATING,
+        SrcStates.UPDATE_SCHEDULED: DstStates.UPDATING,
+        SrcStates.UPDATING: DstStates.UPDATING,
+        SrcStates.DELETION_SCHEDULED: DstStates.TERMINATING,
+        SrcStates.DELETING: DstStates.TERMINATING,
+        SrcStates.OK: DstStates.OK,
+        SrcStates.ERRED: DstStates.ERRED,
+    }
+    return mapping.get(state, DstStates.ERRED)

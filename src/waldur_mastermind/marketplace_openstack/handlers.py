@@ -9,6 +9,7 @@ from django.db import transaction
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.utils import get_resource_state
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
@@ -358,7 +359,7 @@ def create_resource_of_volume_if_instance_created(sender, instance, created=Fals
 def create_marketplace_resource_for_imported_resources(sender, instance, offering=None, plan=None, **kwargs):
     resource = marketplace_models.Resource(
         project=instance.service_project_link.project,
-        state=utils.get_resource_state(instance.state),
+        state=get_resource_state(instance.state),
         name=instance.name,
         scope=instance,
         created=instance.created,
