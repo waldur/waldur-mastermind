@@ -16,6 +16,8 @@ class ChangePlaybookParameterInline(admin.TabularInline):
     readonly_fields = ('name', 'description', 'required', 'default')
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_staff:
+            return True
         return False
 
     def has_add_permission(self, request, obj=None):

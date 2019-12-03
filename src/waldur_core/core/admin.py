@@ -436,6 +436,8 @@ class UpdateOnlyModelAdmin:
         return False
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_staff:
+            return True
         return False
 
 
@@ -456,6 +458,8 @@ class ReadOnlyAdminMixin:
         return False
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_staff:
+            return True
         return False
 
     def save_model(self, request, obj, form, change):
