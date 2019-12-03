@@ -390,7 +390,7 @@ class TemplateStatusNotification(models.Model):
 
 
 class SupportCustomer(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     backend_id = models.CharField(max_length=255, unique=True)
 
 
