@@ -90,6 +90,8 @@ class ConnectedResourceMixin:
             return fields
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_staff:
+            return True
         if obj and obj.has_connected_resources:
             return False
         return True

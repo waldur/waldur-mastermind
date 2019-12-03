@@ -18,6 +18,8 @@ class ProfileAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
+        if request.user.is_staff:
+            return True
         return False
 
     def get_extra_actions(self):
