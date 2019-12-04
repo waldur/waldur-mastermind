@@ -273,10 +273,6 @@ class Offering(core_models.UuidMixin,
 
     billable = models.BooleanField(default=True, help_text=_('Purchase and usage is invoiced.'))
     backend_id = models.CharField(max_length=255, blank=True)
-    enable_dynamic_components = models.BooleanField(
-        default=False,
-        help_text=_('For example, allow to use offering components related to volume types.'),
-    )
 
     objects = managers.OfferingManager()
     tracker = FieldTracker()

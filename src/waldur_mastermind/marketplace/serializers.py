@@ -329,7 +329,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations', 'plugin_options',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason', 'enable_dynamic_components')
+                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
@@ -381,11 +381,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
             return BasicQuotaSerializer(offering.scope.quotas, many=True, context=self.context).data
 
     def get_filtered_components(self, offering):
-        qs = offering.components
-        if not offering.enable_dynamic_components:
-            builtin_components = plugins.manager.get_components(offering.type)
-            valid_types = {component.type for component in builtin_components}
-            qs = offering.components.filter(type__in=valid_types)
+        qs = plugins.manager.get_filtered_components(offering)
         return OfferingComponentSerializer(qs, many=True, context=self.context).data
 
 
@@ -488,8 +484,9 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
 
         elif builtin_components:
             valid_types = {component.type for component in builtin_components}
-            if self.instance and self.instance.enable_dynamic_components:
-                valid_types.update(set(self.instance.components.all().values_list('type', flat=True)))
+            if self.instance:
+                qs = plugins.manager.get_filtered_components(self.instance)
+                valid_types.update(set(qs.values_list('type', flat=True)))
             fixed_types = {component.type
                            for component in plugins.manager.get_components(offering_type)
                            if component.billing_type == models.OfferingComponent.BillingTypes.FIXED}

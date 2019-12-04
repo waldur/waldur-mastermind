@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 from django.conf import settings
-from django.db.models import signals
+from django.db.models import Q, signals
 
 
 def get_secret_attributes():
@@ -13,6 +13,7 @@ class MarketplaceOpenStackConfig(AppConfig):
     verbose_name = 'Marketplace OpenStack'
 
     def ready(self):
+        from django.contrib.contenttypes.models import ContentType
         from waldur_core.quotas import models as quota_models
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
@@ -32,7 +33,8 @@ class MarketplaceOpenStackConfig(AppConfig):
         from . import (
             filters, handlers, processors,
             INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
-            RAM_TYPE, CORES_TYPE, STORAGE_TYPE, AVAILABLE_LIMITS
+            RAM_TYPE, CORES_TYPE, STORAGE_TYPE, AVAILABLE_LIMITS,
+            STORAGE_MODE_DYNAMIC,
         )
 
         marketplace_filters.ExternalOfferingFilterBackend.register(filters.VpcExternalFilter())
@@ -77,6 +79,16 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.synchronize_plan_component',
         )
 
+        def get_filtered_components(offering):
+            if offering.plugin_options.get('storage_mode') == STORAGE_MODE_DYNAMIC:
+                content_type = ContentType.objects.get_for_model(openstack_models.VolumeType)
+                return offering.components.filter(
+                    Q(type__in=(CORES_TYPE, RAM_TYPE)) |
+                    Q(content_type=content_type)
+                )
+            else:
+                return offering.components.filter(type__in=AVAILABLE_LIMITS)
+
         FIXED = marketplace_models.OfferingComponent.BillingTypes.FIXED
         manager.register(offering_type=PACKAGE_TYPE,
                          create_resource_processor=processors.TenantCreateProcessor,
@@ -92,7 +104,8 @@ class MarketplaceOpenStackConfig(AppConfig):
                          service_type=OpenStackConfig.service_name,
                          secret_attributes=get_secret_attributes,
                          available_limits=AVAILABLE_LIMITS,
-                         resource_model=openstack_models.Tenant)
+                         resource_model=openstack_models.Tenant,
+                         get_filtered_components=get_filtered_components)
 
         manager.register(offering_type=INSTANCE_TYPE,
                          create_resource_processor=processors.InstanceCreateProcessor,
