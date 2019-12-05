@@ -29,44 +29,26 @@ class PluginManager:
     def __init__(self):
         self.backends = {}
 
-    def register(self, offering_type,
-                 create_resource_processor,
-                 update_resource_processor=None,
-                 delete_resource_processor=None,
-                 components=None,
-                 service_type=None,
-                 can_terminate_order_item=False,
-                 secret_attributes=None,
-                 available_limits=None,
-                 resource_model=None):
+    def register(self, offering_type, **kwargs):
         """
 
         :param offering_type: string which consists of application name and model name,
                               for example Support.OfferingTemplate
-        :param create_resource_processor: class which receives order item
-        :param update_resource_processor: class which receives order item
-        :param delete_resource_processor: class which receives order item
-        :param components: tuple available plan components, for example
+        :key create_resource_processor: class which receives order item
+        :key update_resource_processor: class which receives order item
+        :key delete_resource_processor: class which receives order item
+        :key components: tuple available plan components, for example
                            Component(type='storage', name='Storage', measured_unit='GB')
-        :param service_type: optional string indicates service type to be used
-        :param can_terminate_order_item: optional boolean indicates whether order item can be terminated
-        :param secret_attributes: optional list of strings each of which corresponds to secret attribute key,
+        :key service_type: optional string indicates service type to be used
+        :key can_terminate_order_item: optional boolean indicates whether order item can be terminated
+        :key secret_attributes: optional list of strings each of which corresponds to secret attribute key,
         for example, VPC username and password.
-        :param available_limits: optional list of strings each of which corresponds to offering component type,
+        :key available_limits: optional list of strings each of which corresponds to offering component type,
         which supports user-defined limits, such as VPC RAM and vCPU.
-        :param resource_model: optional Django model class which corresponds to resource.
+        :key resource_model: optional Django model class which corresponds to resource.
+        :key get_filtered_components: optional function to filter out enabled offering components.
         """
-        self.backends[offering_type] = {
-            'create_resource_processor': create_resource_processor,
-            'update_resource_processor': update_resource_processor,
-            'delete_resource_processor': delete_resource_processor,
-            'components': components,
-            'service_type': service_type,
-            'can_terminate_order_item': can_terminate_order_item,
-            'secret_attributes': secret_attributes,
-            'available_limits': available_limits,
-            'resource_model': resource_model,
-        }
+        self.backends[offering_type] = kwargs
 
     def get_offering_types(self):
         """
@@ -102,7 +84,7 @@ class PluginManager:
         """
         Returns true if order item can be terminated.
         """
-        return self.backends.get(offering_type, {}).get('can_terminate_order_item')
+        return self.backends.get(offering_type, {}).get('can_terminate_order_item') or False
 
     def get_secret_attributes(self, offering_type):
         """
@@ -150,6 +132,13 @@ class PluginManager:
         Return a processor class for given offering type and order item type.
         """
         return self.backends.get(offering_type, {}).get(processor_type)
+
+    def get_filtered_components(self, offering):
+        hook = self.backends.get(offering.type, {}).get('get_filtered_components')
+        if hook:
+            return hook(offering)
+        else:
+            return offering.components
 
 
 manager = PluginManager()
