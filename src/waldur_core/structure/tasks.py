@@ -1,3 +1,4 @@
+import functools
 from datetime import timedelta
 import logging
 
@@ -12,6 +13,19 @@ from waldur_core.quotas.exceptions import QuotaValidationError
 from waldur_core.structure import SupportedServices, models, utils, ServiceBackendError, models as structure_models
 
 logger = logging.getLogger(__name__)
+
+
+def reraise_exceptions(func):
+    @functools.wraps(func)
+    def wrapped(self, service_settings, *args, **kwargs):
+        try:
+            return func(self, service_settings, *args, **kwargs)
+        except Exception as e:
+            raise e.__class__(
+                '%s, Service settings: %s, %s' % (e, service_settings.name, service_settings.type)
+            )
+
+    return wrapped
 
 
 @shared_task(name='waldur_core.structure.detect_vm_coordinates_batch')
@@ -174,6 +188,7 @@ class ServicePropertiesPullTask(BackgroundPullTask):
 
 class ServiceResourcesPullTask(BackgroundPullTask):
 
+    @reraise_exceptions
     def pull(self, service_settings):
         backend = service_settings.get_backend()
         backend.pull_resources()
