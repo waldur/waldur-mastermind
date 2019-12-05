@@ -176,7 +176,12 @@ class ServiceResourcesPullTask(BackgroundPullTask):
 
     def pull(self, service_settings):
         backend = service_settings.get_backend()
-        backend.pull_resources()
+        try:
+            backend.pull_resources()
+        except Exception as e:
+            raise e.__class__(
+                '%s, Service settings: %s, %s' % (e, service_settings.name, service_settings.type)
+            )
 
 
 class ServiceSubResourcesPullTask(BackgroundPullTask):
