@@ -125,7 +125,11 @@ class QuotaModelMixin(models.Model):
 
     def get_or_create_quota(self, quota_name_or_field):
         if isinstance(quota_name_or_field, str):
-            quota_name_or_field = getattr(self.Quotas, quota_name_or_field)
+            try:
+                quota_name_or_field = getattr(self.Quotas, quota_name_or_field)
+            except AttributeError:
+                quota, _ = self.quotas.get_or_create(name=quota_name_or_field)
+                return quota
         quota, _ = quota_name_or_field.get_or_create_quota(self)
         return quota
 

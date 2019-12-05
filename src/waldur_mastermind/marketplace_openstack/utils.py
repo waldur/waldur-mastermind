@@ -3,9 +3,10 @@ import logging
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.db import transaction
+from rest_framework import exceptions
 
 from waldur_core.core.utils import serialize_instance
-from waldur_core.structure import models as structure_models
+from waldur_core.structure import models as structure_models, ServiceBackend
 from waldur_mastermind.marketplace import models as marketplace_models, plugins
 from waldur_mastermind.marketplace.utils import import_resource_metadata, format_list, get_resource_state
 from waldur_mastermind.marketplace_openstack import (
@@ -20,6 +21,7 @@ from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 logger = logging.getLogger(__name__)
+TenantQuotas = openstack_models.Tenant.Quotas
 
 
 def get_offering_category_for_tenant():
@@ -429,7 +431,6 @@ def get_offering(offering_type, service_settings):
 
 
 def import_usage(resource):
-    TenantQuotas = openstack_models.Tenant.Quotas
     QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
 
     if not resource.scope:
@@ -447,7 +448,6 @@ def import_usage(resource):
 
 
 def import_limits(resource):
-    TenantQuotas = openstack_models.Tenant.Quotas
     QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
 
     if not resource.scope:
@@ -464,32 +464,39 @@ def import_limits(resource):
     resource.save(update_fields=['limits'])
 
 
-def update_limits(order_item):
-    tenant = order_item.resource.scope
-    backend = tenant.get_backend()
-    quotas_map = {
-        CORES_TYPE: 'vcpu',
-        RAM_TYPE: 'ram',
-        STORAGE_TYPE: 'storage',
+def map_limits_to_quotas(limits):
+    quotas = {
+        CORES_TYPE: limits.get(TenantQuotas.vcpu.name),
+        RAM_TYPE: limits.get(TenantQuotas.ram.name),
+        STORAGE_TYPE: limits.get(TenantQuotas.storage.name),
     }
-    quotas = {}
-    for component_type, quota_name in quotas_map.items():
-        value = order_item.limits.get(component_type)
-        if value:
-            quotas[quota_name] = value
+
+    quotas = {k: v for k, v in quotas.items() if v is not None}
 
     # Filter volume-type quotas.
     volume_type_quotas = dict(
         (key, value)
-        for (key, value) in order_item.limits.items()
-        if key.startswith('gigabytes_')
+        for (key, value) in limits.items()
+        if key.startswith('gigabytes_') and value is not None
     )
 
     # Common storage quota should be equal to sum of all volume-type quotas.
     if volume_type_quotas:
-        quotas['storage'] = sum(list(volume_type_quotas.values()))
+        if 'storage' in quotas:
+            raise exceptions.ValidationError(
+                'You should either specify general-purpose storage quota '
+                'or volume-type specific storage quota.')
+        quotas['storage'] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
+        quotas.update(volume_type_quotas)
 
-    backend.push_tenant_quotas(tenant, quotas, volume_type_quotas)
+    return quotas
+
+
+def update_limits(order_item):
+    tenant = order_item.resource.scope
+    backend = tenant.get_backend()
+    quotas = map_limits_to_quotas(order_item.limits)
+    backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
         for target in structure_models.ServiceSettings.objects.filter(scope=tenant):

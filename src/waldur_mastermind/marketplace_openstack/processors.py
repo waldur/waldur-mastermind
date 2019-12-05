@@ -48,20 +48,13 @@ class TenantCreateProcessor(processors.CreateResourceProcessor):
             'availability_zone',
         )
 
-        TenantQuotas = openstack_models.Tenant.Quotas
-
-        limits = {
-            TenantQuotas.vcpu.name: order_item.limits.get(CORES_TYPE),
-            TenantQuotas.ram.name: order_item.limits.get(RAM_TYPE),
-            TenantQuotas.storage.name: order_item.limits.get(STORAGE_TYPE),
-        }
-        limits = {k: v for (k, v) in limits.items() if v}
+        quotas = utils.map_limits_to_quotas(order_item.limits)
 
         return dict(
             project=project_url,
             service_project_link=spl_url,
             template=template.uuid.hex,
-            limits=limits,
+            quotas=quotas,
             **processors.copy_attributes(fields, order_item)
         )
 
