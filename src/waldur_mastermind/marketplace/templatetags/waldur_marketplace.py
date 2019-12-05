@@ -1,4 +1,5 @@
 from django import template
+from django.conf import settings
 
 from waldur_mastermind.marketplace import plugins
 
@@ -21,3 +22,21 @@ def get_invoice_item_component_amount(item, component):
         return limit / factor
 
     return component.amount
+
+
+@register.simple_tag
+def plan_details(plan):
+    context = {'plan': plan, 'components': []}
+
+    for component in plan.components.all():
+        offering_component = component.component
+
+        if offering_component.billing_type == offering_component.BillingTypes.USAGE:
+            continue
+
+        context['components'].append({'name': offering_component.name,
+                                      'amount': component.amount,
+                                      'price': component.price})
+
+    plan_template = template.Template(settings.WALDUR_MARKETPLACE.get('PLAN_TEMPLATE'))
+    return plan_template.render(template.Context(context, autoescape=False))

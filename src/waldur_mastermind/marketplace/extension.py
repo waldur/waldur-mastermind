@@ -20,7 +20,13 @@ class MarketplaceExtension(WaldurExtension):
             'ORDER_ITEM_LINK_TEMPLATE': 'https://www.example.com/#/projects/{project_uuid}/'
                                         'marketplace-order-item-details/{order_item_uuid}/',
             'PUBLIC_RESOURCES_LINK_TEMPLATE': 'https://www.example.com/#/organizations/{organization_uuid}/'
-                                        'marketplace-public-resources/'
+                                        'marketplace-public-resources/',
+            'PLAN_TEMPLATE': 'Plan: {{ plan.name }}'
+                             '{% for component in components %}\n'
+                             '{{component.name}}; '
+                             'amount: {{component.amount}}; '
+                             'price: {{component.price|floatformat }};'
+                             '{% endfor %}'
         }
 
     @staticmethod
