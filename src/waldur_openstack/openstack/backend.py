@@ -164,13 +164,22 @@ class OpenStackBackend(BaseOpenStackBackend):
             models.VolumeType.objects.filter(backend_id__in=cur_volume_types.keys(), settings=self.settings).delete()
 
     @log_backend_action('push quotas for tenant')
-    def push_tenant_quotas(self, tenant, quotas: Dict[str, int], volume_type_quotas: Dict[str, int] = None):
+    def push_tenant_quotas(self, tenant, quotas: Dict[str, int]):
         cinder_quotas = {
             'gigabytes': self.mb2gb(quotas.get('storage')) if 'storage' in quotas else None,
             'volumes': quotas.get('volumes'),
             'snapshots': quotas.get('snapshots'),
         }
+
         cinder_quotas = {k: v for k, v in cinder_quotas.items() if v is not None}
+
+        # Filter volume-type quotas.
+        volume_type_quotas = dict(
+            (key, value)
+            for (key, value) in quotas.items()
+            if key.startswith('gigabytes_') and value is not None
+        )
+
         if volume_type_quotas:
             cinder_quotas.update(volume_type_quotas)
 

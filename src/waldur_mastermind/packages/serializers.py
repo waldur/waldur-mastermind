@@ -96,7 +96,7 @@ def _has_access_to_package(user, spl):
 
 
 class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
-    limits = serializers.JSONField(required=False, default=dict)
+    quotas = serializers.JSONField(required=False, default=dict)
     template = serializers.SlugRelatedField(
         slug_field='uuid',
         write_only=True,
@@ -104,7 +104,7 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     skip_connection_extnet = serializers.BooleanField(default=False)
 
     class Meta(openstack_serializers.TenantSerializer.Meta):
-        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', 'limits')
+        fields = openstack_serializers.TenantSerializer.Meta.fields + ('template', 'skip_connection_extnet', 'quotas')
 
     def _validate_service_project_link(self, spl):
         # TODO: Drop permission check after migration to marketplace is completed [WAL-1901]
@@ -143,11 +143,11 @@ class OpenStackPackageCreateSerializer(openstack_serializers.TenantSerializer):
     def create(self, validated_data):
         """ Create tenant and service settings from it """
         template = validated_data.pop('template')
-        limits = validated_data.pop('limits')
+        quotas = validated_data.pop('quotas')
         tenant = super(OpenStackPackageCreateSerializer, self).create(validated_data)
         _set_tenant_quotas(tenant, template)
-        if limits:
-            _apply_quotas(tenant, limits)
+        if quotas:
+            _apply_quotas(tenant, quotas)
         _set_tenant_extra_configuration(tenant, template)
 
         # service settings are created on tenant creation

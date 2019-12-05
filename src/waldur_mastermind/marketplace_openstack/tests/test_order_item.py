@@ -1,6 +1,7 @@
+from unittest import mock
+
 from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
-from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -201,6 +202,30 @@ class TenantCreateTest(BaseOpenStackTest):
 
         order_item.order.refresh_from_db()
         self.assertEqual(order_item.order.state, marketplace_models.Order.States.DONE)
+
+    def test_volume_type_limits_are_propagated(self):
+        create_offering_components(self.offering)
+
+        marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type='gigabytes_llvm',
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+        )
+
+        response = self.create_order(limits={
+            'cores': 2,
+            'ram': 1024 * 10,
+            'gigabytes_llvm': 10,
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data['uuid'])
+        serialized_order = core_utils.serialize_instance(order)
+        serialized_user = core_utils.serialize_instance(self.fixture.staff)
+        marketplace_tasks.process_order(serialized_order, serialized_user)
+
+        tenant = order.items.get().resource.scope
+        self.assertEqual(tenant.quotas.get(name='gigabytes_llvm').limit, 10)
 
 
 class TenantMutateTest(test.APITransactionTestCase):
@@ -652,12 +677,13 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
         self.assertEqual(self.order_item.error_message, 'foo')
 
     def test_volume_type_quotas_are_propagated(self):
+        del self.quotas['storage']
         self.quotas['gigabytes_lvmdriver-1'] = 10
         self.quotas['gigabytes_backup'] = 30
         marketplace_utils.process_order_item(self.order_item, self.fixture.staff)
-        _, quotas, volume_type_quotas = self.mock_get_backend().push_tenant_quotas.call_args[0]
-        self.assertTrue('gigabytes_lvmdriver-1' in volume_type_quotas)
-        self.assertEqual(quotas['storage'], 40)
+        _, quotas = self.mock_get_backend().push_tenant_quotas.call_args[0]
+        self.assertTrue('gigabytes_lvmdriver-1' in quotas)
+        self.assertEqual(quotas['storage'], 40 * 1024)
 
 
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
