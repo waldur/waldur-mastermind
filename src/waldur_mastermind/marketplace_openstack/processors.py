@@ -3,7 +3,6 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import processors, signals
-from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE, STORAGE_TYPE
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import views as package_views
 from waldur_openstack.openstack import models as openstack_models
