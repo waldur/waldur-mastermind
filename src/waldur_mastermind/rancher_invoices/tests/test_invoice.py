@@ -68,7 +68,7 @@ class InvoiceTest(test.APITransactionTestCase):
             attributes={'name': 'name',
                         'nodes': [{
                             'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.fixture.subnet),
-                            'storage': 1024,
+                            'system_volume_size': 1024,
                             'memory': 1,
                             'cpu': 1,
                             'roles': ['controlplane', 'etcd', 'worker']
