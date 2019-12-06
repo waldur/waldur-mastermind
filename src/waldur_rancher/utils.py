@@ -145,7 +145,7 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
         ]
 
         for quota_name in ['storage', 'vcpu', 'ram']:
-            requested = sum([node['initial_data'][quota_name] for node in nodes])
+            requested = sum(get_node_quota(quota_name, node) for node in nodes)
 
             for source in quota_sources:
                 try:
@@ -156,6 +156,15 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
                                 name=quota_name, usage=quota.usage + requested, limit=quota.limit))
                 except ObjectDoesNotExist:
                     pass
+
+
+def get_node_quota(quota_name, node):
+    conf = node['initial_data']
+    if quota_name == 'storage':
+        data_volumes = conf.get('data_volumes', [])
+        return conf['system_volume_size'] + sum(volume['size'] for volume in data_volumes)
+    else:
+        return conf[quota_name]
 
 
 def format_disk_id(index):
