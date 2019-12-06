@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core import validators as django_validators
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
@@ -37,7 +39,35 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
-class BaseNodeSerializer(serializers.HyperlinkedModelSerializer):
+class DataVolumeSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                           serializers.Serializer):
+    size = serializers.IntegerField()
+    volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=openstack_tenant_models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+    mount_point = serializers.ChoiceField(
+        choices=lambda: settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES'])
+
+    def get_filtered_field_names(self):
+        return ('volume_type',)
+
+    def validate(self, attrs):
+        size = attrs['size']
+        mount_point = attrs['mount_point']
+        min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
+        if size < min_size * 1024:
+            raise serializers.ValidationError('Volume %s capacity should be at least %s GB' %
+                                              (mount_point, min_size))
+        return attrs
+
+
+class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                         serializers.HyperlinkedModelSerializer):
+    ROLE_CHOICES = ('controlplane', 'etcd', 'worker')
     subnet = serializers.HyperlinkedRelatedField(
         view_name='openstacktenant-subnet-detail',
         queryset=openstack_tenant_models.SubNet.objects.all(),
@@ -53,13 +83,44 @@ class BaseNodeSerializer(serializers.HyperlinkedModelSerializer):
         write_only=True,
         required=False,
     )
-    storage = serializers.IntegerField(write_only=True)
+    system_volume_size = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        validators=[django_validators.MinValueValidator(
+            lambda: settings.WALDUR_RANCHER['SYSTEM_VOLUME_MIN_SIZE'])],
+    )
+    system_volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=openstack_tenant_models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
+    data_volumes = DataVolumeSerializer(many=True, write_only=True, required=False)
     memory = serializers.IntegerField(write_only=True, required=False)
     cpu = serializers.IntegerField(write_only=True, required=False)
-    roles = serializers.MultipleChoiceField(choices=['controlplane', 'etcd', 'worker'], write_only=True)
+    roles = serializers.MultipleChoiceField(choices=ROLE_CHOICES, write_only=True)
 
     class Meta(object):
         model = models.Node
+
+    def get_filtered_field_names(self):
+        return ('subnet', 'flavor', 'system_volume_type')
+
+    def validate(self, attrs):
+        if attrs.get('flavor'):
+            if attrs.get('cpu') or attrs.get('memory'):
+                raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
+        else:
+            if not attrs.get('cpu') or not attrs.get('memory'):
+                raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
+
+        mount_points = [volume['mount_point'] for volume in attrs['volumes']]
+        if len(set(mount_points)) != len(mount_points):
+            raise serializers.ValidationError('Each mount point can be specified once at most.')
+
+        return attrs
 
 
 class NestedNodeSerializer(BaseNodeSerializer):

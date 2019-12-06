@@ -743,6 +743,17 @@ class InstanceAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
         model = models.InstanceAvailabilityZone
 
 
+class DataVolumeSerializer(serializers.Serializer):
+    size = serializers.IntegerField()
+    volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+
+
 class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     service = serializers.HyperlinkedRelatedField(
         source='service_project_link.service',
@@ -779,8 +790,16 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     )
 
     system_volume_size = serializers.IntegerField(min_value=1024, write_only=True)
+    system_volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
     data_volume_size = serializers.IntegerField(min_value=1024, required=False, write_only=True)
-
+    data_volumes = DataVolumeSerializer(many=True, required=False, write_only=True)
     volumes = NestedVolumeSerializer(many=True, required=False, read_only=True)
     action_details = serializers.JSONField(read_only=True)
 
@@ -789,10 +808,11 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
-            'flavor', 'image', 'system_volume_size', 'data_volume_size',
-            'security_groups', 'internal_ips', 'flavor_disk', 'flavor_name',
-            'floating_ips', 'volumes', 'runtime_state', 'action', 'action_details', 'internal_ips_set',
+            'image', 'flavor', 'flavor_disk', 'flavor_name',
+            'system_volume_size', 'system_volume_type', 'data_volume_size', 'volumes', 'data_volumes',
+            'security_groups', 'internal_ips', 'floating_ips', 'internal_ips_set',
             'availability_zone', 'availability_zone_name',
+            'runtime_state', 'action', 'action_details',
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
             'flavor', 'image', 'system_volume_size', 'data_volume_size',
@@ -922,7 +942,13 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         system_volume_size = validated_data['system_volume_size']
         data_volume_size = validated_data.get('data_volume_size', 0)
-        validated_data['disk'] = data_volume_size + system_volume_size
+        total_disk = data_volume_size + system_volume_size
+
+        data_volumes = validated_data.get('data_volumes', [])
+        if data_volumes:
+            total_disk += sum(volume['size'] for volume in data_volumes)
+
+        validated_data['disk'] = total_disk
 
         instance = super(InstanceSerializer, self).create(validated_data)
 
@@ -948,6 +974,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             image_name=image.name,
             bootable=True,
             availability_zone=volume_availability_zone,
+            type=validated_data.get('system_volume_type'),
         )
         volumes.append(system_volume)
 
@@ -957,6 +984,16 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 service_project_link=spl,
                 size=data_volume_size,
                 availability_zone=volume_availability_zone,
+            )
+            volumes.append(data_volume)
+
+        for index, volume in enumerate(data_volumes):
+            data_volume = models.Volume.objects.create(
+                name='{0}-data-{1}'.format(instance.name[:140], index + 2),  # volume name cannot be longer than 150 symbols
+                service_project_link=spl,
+                size=volume['size'],
+                availability_zone=volume_availability_zone,
+                type=volume.get('volume_type'),
             )
             volumes.append(data_volume)
 
