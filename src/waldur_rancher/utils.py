@@ -38,7 +38,7 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
         roles = node.pop('roles')
         system_volume_size = node.pop('system_volume_size', None)
         system_volume_type = node.pop('system_volume_type', None)
-        data_volumes = node.pop('volumes', [])
+        data_volumes = node.pop('data_volumes', [])
 
         tenant_settings = subnet.settings
         project = rancher_spl.project
