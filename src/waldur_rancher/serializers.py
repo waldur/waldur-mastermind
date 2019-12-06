@@ -49,11 +49,15 @@ class DataVolumeSerializer(structure_serializers.PermissionFieldFilteringMixin,
         allow_null=True,
         required=False,
     )
-    mount_point = serializers.ChoiceField(
-        choices=lambda: settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES'])
+
+    def get_fields(self):
+        fields = super(DataVolumeSerializer, self).get_fields()
+        fields['mount_point'] = serializers.ChoiceField(
+            choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES']
+        )
 
     def get_filtered_field_names(self):
-        return ('volume_type',)
+        return ['volume_type']
 
     def validate(self, attrs):
         size = attrs['size']
