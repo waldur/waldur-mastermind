@@ -368,7 +368,7 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
                              serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Volume
-        fields = ('instance', 'device')
+        fields = ['instance']
         extra_kwargs = dict(
             instance={
                 'required': True,
@@ -406,13 +406,6 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
                 raise serializers.ValidationError(
                     _('Volume cannot be attached to virtual machine related to the other availability zone.'))
         return instance
-
-    def validate(self, attrs):
-        instance = attrs['instance']
-        device = attrs.get('device')
-        if device and instance.volumes.filter(device=device).exists():
-            raise serializers.ValidationError({'device': _('The supplied device path (%s) is in use.') % device})
-        return attrs
 
 
 class SnapshotRestorationSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
