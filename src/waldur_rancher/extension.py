@@ -55,4 +55,5 @@ class RancherExtension(WaldurExtension):
             'ROLE_REQUIREMENT',
             'MOUNT_POINT_CHOICES',
             'MOUNT_POINT_MIN_SIZE',
+            'SYSTEM_VOLUME_MIN_SIZE',
         ]
