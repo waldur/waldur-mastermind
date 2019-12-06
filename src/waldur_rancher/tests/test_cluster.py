@@ -78,7 +78,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
                        factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
                    'nodes': [{
                        'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                       'storage': disk,
+                       'system_volume_size': disk,
                        'memory': memory,
                        'cpu': cpu,
                        'roles': ['controlplane', 'etcd', 'worker'],
@@ -107,14 +107,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {'nodes': [
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['controlplane', 'etcd', 'worker'],
             },
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['controlplane', 'etcd', 'worker'],
@@ -129,7 +129,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {'nodes': [
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['controlplane', 'etcd', ],
@@ -144,7 +144,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {'nodes': [
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['etcd', 'worker'],

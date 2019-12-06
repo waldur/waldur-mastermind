@@ -55,6 +55,7 @@ class DataVolumeSerializer(structure_serializers.PermissionFieldFilteringMixin,
         fields['mount_point'] = serializers.ChoiceField(
             choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES']
         )
+        return fields
 
     def get_filtered_field_names(self):
         return ['volume_type']
@@ -120,7 +121,7 @@ class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
             if not attrs.get('cpu') or not attrs.get('memory'):
                 raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
 
-        mount_points = [volume['mount_point'] for volume in attrs['volumes']]
+        mount_points = [volume['mount_point'] for volume in attrs['data_volumes']]
         if len(set(mount_points)) != len(mount_points):
             raise serializers.ValidationError('Each mount point can be specified once at most.')
 
