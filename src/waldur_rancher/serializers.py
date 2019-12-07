@@ -249,11 +249,12 @@ class CreateNodeSerializer(BaseNodeSerializer):
         }
 
     def validate(self, attrs):
+        attrs = super(CreateNodeSerializer, self).validate(attrs)
         cluster = attrs.get('cluster')
         spl = cluster.service_project_link
         node = attrs
         utils.expand_added_nodes([node], spl, cluster.name)
-        return super(CreateNodeSerializer, self).validate(attrs)
+        return attrs
 
 
 class ClusterImportableSerializer(serializers.Serializer):
