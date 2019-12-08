@@ -99,3 +99,22 @@ class SetErredProvisioningResourcesTaskTest(TestCase):
 
         self.assertEqual(ok_vm.state, models.TestNewInstance.States.CREATING)
         self.assertEqual(ok_volume.state, models.TestVolume.States.CREATING)
+
+
+class ExceptionTest(TestCase):
+    def test_exception_must_include_setting_name_and_type(self):
+        service_settings = factories.ServiceSettingsFactory()
+
+        class Backend:
+            def pull_resources(self):
+                raise KeyError('test error')
+
+        backend = Backend()
+        service_settings.get_backend = lambda: backend
+        task = tasks.ServiceResourcesPullTask()
+        error_message = '\'test error\', Service settings: %s, %s' % (service_settings.name, service_settings.type)
+        self.assertRaisesRegex(
+            KeyError,
+            error_message,
+            task.pull,
+            service_settings)

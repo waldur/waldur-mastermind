@@ -68,6 +68,7 @@ class RancherBackend(ServiceBackend):
         for node in backend_nodes:
             roles = node.get('role', [])
             models.Node.objects.create(
+                state=models.Node.States.OK,
                 backend_id=node.get('nodeId'),
                 name=node.get('hostnameOverride'),
                 cluster=cluster,

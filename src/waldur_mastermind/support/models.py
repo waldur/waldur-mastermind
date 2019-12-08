@@ -48,9 +48,9 @@ class Issue(core_models.UuidMixin,
     resolution = models.CharField(max_length=255, blank=True)
     priority = models.CharField(max_length=255, blank=True)
 
-    caller = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='created_issues',
+    caller = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='created_issues', blank=True, null=True,
                                help_text=_('Waldur user who has reported the issue.'),
-                               on_delete=models.PROTECT)
+                               on_delete=models.SET_NULL)
     reporter = models.ForeignKey('SupportUser', related_name='reported_issues', blank=True, null=True,
                                  help_text=_('Help desk user who have created the issue that is reported by caller.'),
                                  on_delete=models.PROTECT)
@@ -390,7 +390,7 @@ class TemplateStatusNotification(models.Model):
 
 
 class SupportCustomer(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     backend_id = models.CharField(max_length=255, unique=True)
 
 

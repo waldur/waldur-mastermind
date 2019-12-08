@@ -117,6 +117,8 @@ class RequestCreateTest(BaseTest):
             offering=offering,
             attributes={'name': 'item_name', 'description': 'Description'}
         )
+        offering_component = marketplace_factories.OfferingComponentFactory(name='CORES')
+        marketplace_factories.PlanComponentFactory(component=offering_component, plan=order_item.plan)
 
         serialized_order = core_utils.serialize_instance(order_item.order)
         serialized_user = core_utils.serialize_instance(fixture.staff)
@@ -141,7 +143,10 @@ class RequestCreateTest(BaseTest):
     def test_description_formatting(self):
         self.submit_order_item()
         offering = support_models.Offering.objects.get(name='item_name')
+        resource = marketplace_models.Resource.objects.get(scope=offering)
         self.assertTrue('Order item' in offering.issue.description)
+        self.assertTrue(resource.plan.name in offering.issue.description)
+        self.assertTrue(resource.plan.components.first().component.name in offering.issue.description)
 
     def test_service_provider_name_is_propagated(self):
         order_item = self.submit_order_item()
@@ -181,7 +186,9 @@ class RequestActionBaseTest(BaseTest):
             state=marketplace_models.Offering.States.ACTIVE,
             type=PLUGIN_NAME)
 
-        self.request = support_factories.OfferingFactory(template=self.offering.scope, project=self.project)
+        self.request = support_factories.OfferingFactory(template=self.offering.scope,
+                                                         project=self.project,
+                                                         name='test_request')
         self.current_plan = marketplace_factories.PlanFactory(offering=self.offering, unit_price=10)
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
@@ -249,7 +256,10 @@ class RequestDeleteTest(RequestActionBaseTest):
 
     def test_description_formatting(self):
         issue = self.get_issue()
+        resource = issue.resource.resource
         self.assertTrue('Terminate resource' in issue.description)
+        self.assertTrue(resource.plan.name in issue.description)
+        self.assertTrue(resource.uuid.hex in issue.description)
 
     def get_issue(self):
         response = self.request_resource_termination()
@@ -382,7 +392,9 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
 
     def test_description_formatting(self):
         issue = self.get_issue()
+        resource = issue.resource.resource
         self.assertTrue('Switch plan for resource' in issue.description)
+        self.assertTrue(resource.uuid.hex in issue.description)
 
     def request_switch_plan(self, user=None, add_payload=None):
         user = user or self.user

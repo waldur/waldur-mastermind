@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
+from model_utils import FieldTracker
 
 from waldur_core.structure import models as structure_models
 from waldur_core.core import models as core_models
@@ -55,6 +56,7 @@ class Cluster(NewResource):
     """
     node_command = models.CharField(max_length=1024, blank=True,
                                     help_text='Rancher generated node installation command base.')
+    tracker = FieldTracker()
 
     class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
