@@ -4,9 +4,8 @@ from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
-from waldur_core.structure.models import ServiceSettings
 from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant.models import OpenStackTenantServiceProjectLink, Flavor
+from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures
