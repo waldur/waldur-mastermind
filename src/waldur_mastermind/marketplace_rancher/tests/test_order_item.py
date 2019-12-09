@@ -35,6 +35,8 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
             order=order,
             offering=offering,
             attributes={'name': 'name',
+                        'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
+                            self.fixture.spl.service.settings),
                         'nodes': [{
                             'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.fixture.subnet),
                             'system_volume_size': 1024,
