@@ -525,5 +525,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
             if event_type == self.Event.COMMENT_DELETE:
                 backend.delete_comment_from_jira(comment)
+                backend.update_attachment_from_jira(issue)
 
         return validated_data
