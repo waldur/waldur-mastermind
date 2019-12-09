@@ -1,7 +1,6 @@
 from unittest import mock
 from rest_framework import status, test
 
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures, test_cluster
