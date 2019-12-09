@@ -46,11 +46,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             project=self.fixture.project, service=openstack_service)
         self.tenant = openstack_factories.TenantFactory(service_project_link=openstack_spl)
 
-        settings = ServiceSettings.objects.get(scope=self.tenant)
-        project = self.fixture.project
-        instance_spl = OpenStackTenantServiceProjectLink.objects.get(
-            project=project,
-            service__settings=settings)
+        instance_spl = self.fixture.tenant_spl
 
         openstack_tenant_factories.FlavorFactory(settings=instance_spl.service.settings)
         image = openstack_tenant_factories.ImageFactory(settings=instance_spl.service.settings)
