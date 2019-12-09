@@ -29,7 +29,36 @@ def get_unique_node_name(name, instance_spl, cluster_spl):
     return new_name
 
 
-def expand_added_nodes(nodes, rancher_spl, cluster_name):
+def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
+    project = rancher_spl.project
+
+    try:
+        tenant_spl = openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.get(
+            project=project,
+            service__settings=tenant_settings)
+    except ObjectDoesNotExist:
+        raise serializers.ValidationError(
+            'Service project link for service %s and project %s is not found.' % (
+                tenant_settings.name, project.name
+            ))
+
+    try:
+        base_image_name = rancher_spl.service.settings.get_option('base_image_name')
+        image = openstack_tenant_models.Image.objects.get(
+            name=base_image_name,
+            settings=tenant_settings)
+    except ObjectDoesNotExist:
+        raise serializers.ValidationError('No matching image found.')
+
+    try:
+        group = openstack_tenant_models.SecurityGroup.objects.get(
+            name='default',
+            settings=tenant_settings)
+    except ObjectDoesNotExist:
+        raise serializers.ValidationError('Default security group is not found.')
+
+    validate_quotas(nodes, tenant_spl)
+
     for node in nodes:
         memory = node.pop('memory', None)
         cpu = node.pop('cpu', None)
@@ -40,9 +69,6 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
         system_volume_type = node.pop('system_volume_type', None)
         data_volumes = node.pop('data_volumes', [])
 
-        tenant_settings = subnet.settings
-        project = rancher_spl.project
-
         for volume in data_volumes:
             volume_type = volume.get('volume_type')
             if volume_type and volume_type.settings != tenant_settings:
@@ -51,62 +77,13 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
                         volume_type.name, tenant_settings.name,
                     ))
 
-        if flavor:
-            if flavor.settings != tenant_settings:
-                raise serializers.ValidationError(
-                    'Flavor %s should belong to the service se ttings %s.' % (
-                        flavor.name, tenant_settings.name,
-                    ))
-
-        if not flavor:
-            flavors = openstack_tenant_models.Flavor.objects.filter(
-                cores__gte=cpu,
-                ram__gte=memory,
-                settings=tenant_settings). \
-                order_by('cores', 'ram')
-            flavor = flavors[0]
-
-            if not flavors:
-                raise serializers.ValidationError('No matching flavor found.')
-
-        # validate flavor
-        requirements = list(filter(lambda x: x[0] in list(roles),
-                                   settings.WALDUR_RANCHER['ROLE_REQUIREMENT'].items()))
-        cpu_requirements = max([t[1]['CPU'] for t in requirements])
-        ram_requirements = max([t[1]['RAM'] for t in requirements])
-
-        if flavor.cores < cpu_requirements:
-            raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
-                                              % (flavor, cpu_requirements))
-
-        if flavor.ram < ram_requirements:
-            raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
-                                              % (flavor, ram_requirements))
-
-        try:
-            tenant_spl = openstack_tenant_models.OpenStackTenantServiceProjectLink.objects.get(
-                project=project,
-                service__settings=tenant_settings)
-        except ObjectDoesNotExist:
+        if subnet.settings != tenant_settings:
             raise serializers.ValidationError(
-                'Service project link for service %s and project %s is not found.' % (
-                    tenant_settings.name, project.name
+                'Subnet %s should belong to the service settings %s.' % (
+                    subnet.name, tenant_settings.name,
                 ))
 
-        try:
-            base_image_name = rancher_spl.service.settings.get_option('base_image_name')
-            image = openstack_tenant_models.Image.objects.get(
-                name=base_image_name,
-                settings=tenant_settings)
-        except ObjectDoesNotExist:
-            raise serializers.ValidationError('No matching image found.')
-
-        try:
-            group = openstack_tenant_models.SecurityGroup.objects.get(
-                name='default',
-                settings=tenant_settings)
-        except ObjectDoesNotExist:
-            raise serializers.ValidationError('No matching group found.')
+        flavor = validate_flavor(flavor, cpu, memory, roles, tenant_settings)
 
         node['initial_data'] = {
             'flavor': flavor.uuid.hex,
@@ -117,7 +94,7 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
             'tenant_service_project_link': tenant_spl.id,
             'group': group.uuid.hex,
             'system_volume_size': system_volume_size,
-            'system_volume_type': system_volume_type,
+            'system_volume_type': system_volume_type and system_volume_type.uuid.hex,
             'data_volumes': [{
                 'size': volume['size'],
                 'volume_type': volume.get('volume_type') and volume.get('volume_type').uuid.hex,
@@ -131,31 +108,60 @@ def expand_added_nodes(nodes, rancher_spl, cluster_name):
         if 'worker' in list(roles):
             node['worker_role'] = True
 
-        name = cluster_name + '_rancher_node'
-        unique_name = get_unique_node_name(name, tenant_spl.id, rancher_spl)
-        node['name'] = unique_name
+        node['name'] = get_unique_node_name(cluster_name + '_rancher_node', tenant_spl, rancher_spl)
 
-        # check quotas
-        quota_sources = [
-            tenant_spl,
-            tenant_spl.project,
-            tenant_spl.customer,
-            tenant_spl.service,
-            tenant_spl.service.settings
-        ]
 
-        for quota_name in ['storage', 'vcpu', 'ram']:
-            requested = sum(get_node_quota(quota_name, node) for node in nodes)
+def validate_flavor(flavor, cpu, memory, roles, tenant_settings):
+    if not flavor:
+        flavor = openstack_tenant_models.Flavor.objects.filter(
+            cores__gte=cpu,
+            ram__gte=memory,
+            settings=tenant_settings). \
+            order_by('cores', 'ram').first()
 
-            for source in quota_sources:
-                try:
-                    quota = source.quotas.get(name=quota_name)
-                    if quota.limit != -1 and (quota.usage + requested > quota.limit):
-                        raise quotas_exceptions.QuotaValidationError(
-                            _('"%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.') % dict(
-                                name=quota_name, usage=quota.usage + requested, limit=quota.limit))
-                except ObjectDoesNotExist:
-                    pass
+    if not flavor:
+        raise serializers.ValidationError('No matching flavor found.')
+
+    if flavor.settings != tenant_settings:
+        raise serializers.ValidationError(
+            'Flavor %s should belong to the service settings %s.' % (
+                flavor.name, tenant_settings.name,
+            ))
+
+    requirements = list(filter(lambda x: x[0] in list(roles),
+                               settings.WALDUR_RANCHER['ROLE_REQUIREMENT'].items()))
+    cpu_requirements = max([t[1]['CPU'] for t in requirements])
+    ram_requirements = max([t[1]['RAM'] for t in requirements])
+    if flavor.cores < cpu_requirements:
+        raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
+                                          % (flavor, cpu_requirements))
+    if flavor.ram < ram_requirements:
+        raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
+                                          % (flavor, ram_requirements))
+
+    return flavor
+
+
+def validate_quotas(nodes, tenant_spl):
+    quota_sources = [
+        tenant_spl,
+        tenant_spl.project,
+        tenant_spl.customer,
+        tenant_spl.service,
+        tenant_spl.service.settings
+    ]
+    for quota_name in ['storage', 'vcpu', 'ram']:
+        requested = sum(get_node_quota(quota_name, node) for node in nodes)
+
+        for source in quota_sources:
+            try:
+                quota = source.quotas.get(name=quota_name)
+                if quota.limit != -1 and (quota.usage + requested > quota.limit):
+                    raise quotas_exceptions.QuotaValidationError(
+                        _('"%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.') % dict(
+                            name=quota_name, usage=quota.usage + requested, limit=quota.limit))
+            except ObjectDoesNotExist:
+                pass
 
 
 def get_node_quota(quota_name, node):

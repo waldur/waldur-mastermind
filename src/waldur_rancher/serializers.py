@@ -6,8 +6,10 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
+from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 from . import models, validators, exceptions, utils
@@ -156,18 +158,28 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         allow_null=True,
         required=False,
     )
+
+    tenant_settings = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.ServiceSettings.objects.filter(
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name),
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+    )
+
     name = serializers.CharField(max_length=150, validators=[validators.ClusterNameValidator])
     nodes = NestedNodeSerializer(many=True, source='node_set')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'node_command', 'nodes',
+            'node_command', 'nodes', 'tenant_settings',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'node_command',
         )
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + ('nodes',)
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'nodes', 'tenant_settings',
+        )
         extra_kwargs = dict(
             cluster={
                 'view_name': 'rancher-cluster-detail',
@@ -184,7 +196,8 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         nodes = attrs.get('node_set')
         name = attrs.get('name')
         spl = attrs.get('service_project_link')
-        utils.expand_added_nodes(nodes, spl, name)
+        tenant_settings = attrs.get('tenant_settings')
+        utils.expand_added_nodes(nodes, spl, tenant_settings, name)
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
@@ -253,7 +266,7 @@ class CreateNodeSerializer(BaseNodeSerializer):
         cluster = attrs.get('cluster')
         spl = cluster.service_project_link
         node = attrs
-        utils.expand_added_nodes([node], spl, cluster.name)
+        utils.expand_added_nodes([node], spl, cluster.tenant_settings, cluster.name)
         return attrs
 
 

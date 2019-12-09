@@ -40,7 +40,10 @@ class CreateNodeTask(core_tasks.Task):
             'service_project_link': reverse('openstacktenant-spl-detail', kwargs={'pk': tenant_spl}),
             'system_volume_size': system_volume_size,
             'system_volume_type': system_volume_type and reverse('openstacktenant-volume-type-detail', kwargs={'uuid': system_volume_type}),
-            'data_volumes': data_volumes,
+            'data_volumes': [{
+                'size': volume['size'],
+                'volume_type': volume.get('volume_type') and reverse('openstacktenant-volume-type-detail', kwargs={'uuid': volume.get('volume_type')}),
+            } for volume in data_volumes],
             'security_groups': [{'url': reverse('openstacktenant-sgp-detail', kwargs={'uuid': group})}],
             'internal_ips_set': [
                 {
