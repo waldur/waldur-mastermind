@@ -36,8 +36,6 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
             'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
             'system_volume_size': 1024,
-            'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
-                self.fixture.tenant_spl.service.settings),
             'memory': 1,
             'cpu': 1,
             'roles': ['controlplane', 'etcd', 'worker'],
@@ -61,23 +59,23 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertTrue(node.etcd_role)
         self.assertTrue(node.worker_role)
 
-    def create_cluster(self, user):
+    def create_node(self, user):
         self.client.force_authenticate(user)
         return self.client.post(self.node_url, self.payload)
 
     @mock.patch('waldur_rancher.executors.tasks')
     def test_staff_can_create_node(self, mock_tasks):
-        response = self.create_cluster(self.fixture.staff)
+        response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
     def test_others_cannot_create_node(self):
-        response = self.create_cluster(self.fixture.owner)
+        response = self.create_node(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_cannot_create_node_if_cpu_has_not_been_specified(self):
         del self.payload['cpu']
-        response = self.create_cluster(self.fixture.staff)
+        response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @mock.patch('waldur_rancher.executors.tasks')
@@ -85,7 +83,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         del self.payload['cpu']
         del self.payload['memory']
         self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(self.flavor)
-        response = self.create_cluster(self.fixture.staff)
+        response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
@@ -96,8 +94,9 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.flavor.save()
 
         del self.payload['cpu']
+        del self.payload['memory']
         self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(self.flavor)
-        response = self.create_cluster(self.fixture.staff)
+        response = self.create_node(self.fixture.staff)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
