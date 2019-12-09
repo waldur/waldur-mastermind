@@ -76,6 +76,8 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         payload = {'name': name,
                    'service_project_link':
                        factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
+                   'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
+                       self.fixture.tenant_spl.service.settings),
                    'nodes': [{
                        'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
                        'system_volume_size': disk,

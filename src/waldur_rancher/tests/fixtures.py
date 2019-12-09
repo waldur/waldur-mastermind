@@ -26,15 +26,22 @@ class RancherFixture(ProjectFixture):
         return factories.RancherServiceProjectLinkFactory(service=self.service, project=self.project)
 
     @cached_property
+    def tenant_spl(self):
+        settings = structure_factories.ServiceSettingsFactory(customer=self.customer)
+        service = structure_factories.TestServiceFactory(customer=self.customer, settings=settings)
+        return structure_factories.TestServiceProjectLinkFactory(service=service, project=self.project)
+
+    @cached_property
     def cluster(self):
-        return factories.ClusterFactory(service_project_link=self.spl, state=models.Cluster.States.OK)
+        return factories.ClusterFactory(
+            service_project_link=self.spl,
+            state=models.Cluster.States.OK,
+            tenant_settings=self.tenant_spl.service.settings,
+        )
 
     @cached_property
     def instance(self):
-        settings = structure_factories.ServiceSettingsFactory(customer=self.customer)
-        service = structure_factories.TestServiceFactory(customer=self.customer, settings=settings)
-        spl = structure_factories.TestServiceProjectLinkFactory(service=service, project=self.project)
-        return structure_factories.TestNewInstanceFactory(service_project_link=spl)
+        return structure_factories.TestNewInstanceFactory(service_project_link=self.tenant_spl)
 
     @cached_property
     def node(self):
