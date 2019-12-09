@@ -57,8 +57,6 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
     except ObjectDoesNotExist:
         raise serializers.ValidationError('Default security group is not found.')
 
-    validate_quotas(nodes, tenant_spl)
-
     for node in nodes:
         memory = node.pop('memory', None)
         cpu = node.pop('cpu', None)
@@ -109,6 +107,8 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
             node['worker_role'] = True
 
         node['name'] = get_unique_node_name(cluster_name + '_rancher_node', tenant_spl, rancher_spl)
+
+    validate_quotas(nodes, tenant_spl)
 
 
 def validate_flavor(flavor, cpu, memory, roles, tenant_settings):
