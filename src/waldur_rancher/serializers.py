@@ -1,11 +1,15 @@
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core import validators as django_validators
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
+from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 from . import models, validators, exceptions, utils
@@ -37,7 +41,40 @@ class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkS
         }
 
 
-class BaseNodeSerializer(serializers.HyperlinkedModelSerializer):
+class DataVolumeSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                           serializers.Serializer):
+    size = serializers.IntegerField()
+    volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=openstack_tenant_models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+    )
+
+    def get_fields(self):
+        fields = super(DataVolumeSerializer, self).get_fields()
+        fields['mount_point'] = serializers.ChoiceField(
+            choices=settings.WALDUR_RANCHER['MOUNT_POINT_CHOICES']
+        )
+        return fields
+
+    def get_filtered_field_names(self):
+        return ['volume_type']
+
+    def validate(self, attrs):
+        size = attrs['size']
+        mount_point = attrs['mount_point']
+        min_size = settings.WALDUR_RANCHER['MOUNT_POINT_MIN_SIZE'][mount_point]
+        if size < min_size * 1024:
+            raise serializers.ValidationError('Volume %s capacity should be at least %s GB' %
+                                              (mount_point, min_size))
+        return attrs
+
+
+class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
+                         serializers.HyperlinkedModelSerializer):
+    ROLE_CHOICES = ('controlplane', 'etcd', 'worker')
     subnet = serializers.HyperlinkedRelatedField(
         view_name='openstacktenant-subnet-detail',
         queryset=openstack_tenant_models.SubNet.objects.all(),
@@ -53,13 +90,30 @@ class BaseNodeSerializer(serializers.HyperlinkedModelSerializer):
         write_only=True,
         required=False,
     )
-    storage = serializers.IntegerField(write_only=True)
+    system_volume_size = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        validators=[django_validators.MinValueValidator(
+            lambda: settings.WALDUR_RANCHER['SYSTEM_VOLUME_MIN_SIZE'])],
+    )
+    system_volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=openstack_tenant_models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
+    data_volumes = DataVolumeSerializer(many=True, write_only=True, required=False)
     memory = serializers.IntegerField(write_only=True, required=False)
     cpu = serializers.IntegerField(write_only=True, required=False)
-    roles = serializers.MultipleChoiceField(choices=['controlplane', 'etcd', 'worker'], write_only=True)
+    roles = serializers.MultipleChoiceField(choices=ROLE_CHOICES, write_only=True)
 
     class Meta(object):
         model = models.Node
+
+    def get_filtered_field_names(self):
+        return ('subnet', 'flavor', 'system_volume_type')
 
 
 class NestedNodeSerializer(BaseNodeSerializer):
@@ -90,18 +144,28 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         allow_null=True,
         required=False,
     )
+
+    tenant_settings = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.ServiceSettings.objects.filter(
+            type=openstack_tenant_apps.OpenStackTenantConfig.service_name),
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+    )
+
     name = serializers.CharField(max_length=150, validators=[validators.ClusterNameValidator])
     nodes = NestedNodeSerializer(many=True, source='node_set')
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'node_command', 'nodes',
+            'node_command', 'nodes', 'tenant_settings',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
             'node_command',
         )
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + ('nodes',)
+        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
+            'nodes', 'tenant_settings',
+        )
         extra_kwargs = dict(
             cluster={
                 'view_name': 'rancher-cluster-detail',
@@ -118,7 +182,8 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         nodes = attrs.get('node_set')
         name = attrs.get('name')
         spl = attrs.get('service_project_link')
-        utils.expand_added_nodes(nodes, spl, name)
+        tenant_settings = attrs.get('tenant_settings')
+        utils.expand_added_nodes(nodes, spl, tenant_settings, name)
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
@@ -177,17 +242,18 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 class CreateNodeSerializer(BaseNodeSerializer):
     class Meta:
         model = models.Node
-        fields = ('cluster', 'roles', 'storage', 'memory', 'cpu', 'subnet', 'flavor')
+        fields = ('cluster', 'roles', 'system_volume_size', 'memory', 'cpu', 'subnet', 'flavor')
         extra_kwargs = {
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
         }
 
     def validate(self, attrs):
+        attrs = super(CreateNodeSerializer, self).validate(attrs)
         cluster = attrs.get('cluster')
         spl = cluster.service_project_link
         node = attrs
-        utils.expand_added_nodes([node], spl, cluster.name)
-        return super(CreateNodeSerializer, self).validate(attrs)
+        utils.expand_added_nodes([node], spl, cluster.tenant_settings, cluster.name)
+        return attrs
 
 
 class ClusterImportableSerializer(serializers.Serializer):

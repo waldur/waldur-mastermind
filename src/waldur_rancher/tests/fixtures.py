@@ -2,7 +2,7 @@ from django.utils.functional import cached_property
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
-from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories
 from .. import models
@@ -26,15 +26,24 @@ class RancherFixture(ProjectFixture):
         return factories.RancherServiceProjectLinkFactory(service=self.service, project=self.project)
 
     @cached_property
+    def tenant_spl(self):
+        settings = openstack_tenant_factories.OpenStackTenantServiceSettingsFactory(customer=self.customer)
+        service = openstack_tenant_factories.OpenStackTenantServiceFactory(
+            customer=self.customer, settings=settings)
+        return openstack_tenant_factories.OpenStackTenantServiceProjectLinkFactory(
+            service=service, project=self.project)
+
+    @cached_property
     def cluster(self):
-        return factories.ClusterFactory(service_project_link=self.spl, state=models.Cluster.States.OK)
+        return factories.ClusterFactory(
+            service_project_link=self.spl,
+            state=models.Cluster.States.OK,
+            tenant_settings=self.tenant_spl.service.settings,
+        )
 
     @cached_property
     def instance(self):
-        settings = structure_factories.ServiceSettingsFactory(customer=self.customer)
-        service = structure_factories.TestServiceFactory(customer=self.customer, settings=settings)
-        spl = structure_factories.TestServiceProjectLinkFactory(service=service, project=self.project)
-        return structure_factories.TestNewInstanceFactory(service_project_link=spl)
+        return openstack_tenant_factories.InstanceFactory(service_project_link=self.tenant_spl)
 
     @cached_property
     def node(self):
