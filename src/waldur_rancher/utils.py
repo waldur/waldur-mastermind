@@ -67,21 +67,14 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
         system_volume_type = node.pop('system_volume_type', None)
         data_volumes = node.pop('data_volumes', [])
 
-        for volume in data_volumes:
-            volume_type = volume.get('volume_type')
-            if volume_type and volume_type.settings != tenant_settings:
-                raise serializers.ValidationError(
-                    'Volume type %s should belong to the service settings %s.' % (
-                        volume_type.name, tenant_settings.name,
-                    ))
-
         if subnet.settings != tenant_settings:
             raise serializers.ValidationError(
                 'Subnet %s should belong to the service settings %s.' % (
                     subnet.name, tenant_settings.name,
                 ))
 
-        flavor = validate_flavor(flavor, cpu, memory, roles, tenant_settings)
+        validate_data_volumes(data_volumes, tenant_settings)
+        flavor = validate_flavor(flavor, roles, tenant_settings, cpu, memory)
 
         node['initial_data'] = {
             'flavor': flavor.uuid.hex,
@@ -111,7 +104,28 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
     validate_quotas(nodes, tenant_spl)
 
 
-def validate_flavor(flavor, cpu, memory, roles, tenant_settings):
+def validate_data_volumes(data_volumes, tenant_settings):
+    for volume in data_volumes:
+        volume_type = volume.get('volume_type')
+        if volume_type and volume_type.settings != tenant_settings:
+            raise serializers.ValidationError(
+                'Volume type %s should belong to the service settings %s.' % (
+                    volume_type.name, tenant_settings.name,
+                ))
+
+    mount_points = [volume['mount_point'] for volume in data_volumes]
+    if len(set(mount_points)) != len(mount_points):
+        raise serializers.ValidationError('Each mount point can be specified once at most.')
+
+
+def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
+    if flavor:
+        if cpu or memory:
+            raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
+    else:
+        if not cpu or not memory:
+            raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
+
     if not flavor:
         flavor = openstack_tenant_models.Flavor.objects.filter(
             cores__gte=cpu,

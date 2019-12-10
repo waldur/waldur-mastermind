@@ -115,20 +115,6 @@ class BaseNodeSerializer(structure_serializers.PermissionFieldFilteringMixin,
     def get_filtered_field_names(self):
         return ('subnet', 'flavor', 'system_volume_type')
 
-    def validate(self, attrs):
-        if attrs.get('flavor'):
-            if attrs.get('cpu') or attrs.get('memory'):
-                raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
-        else:
-            if not attrs.get('cpu') or not attrs.get('memory'):
-                raise serializers.ValidationError('Either flavor or cpu and memory should be specified.')
-
-        mount_points = [volume['mount_point'] for volume in attrs.get('data_volumes', [])]
-        if len(set(mount_points)) != len(mount_points):
-            raise serializers.ValidationError('Each mount point can be specified once at most.')
-
-        return attrs
-
 
 class NestedNodeSerializer(BaseNodeSerializer):
     instance = core_serializers.GenericRelatedField(
