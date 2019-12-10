@@ -133,6 +133,7 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
         'image',
         'size',
         'availability_zone',
+        'type',
     )
 
 
