@@ -799,6 +799,14 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         write_only=True,
     )
     data_volume_size = serializers.IntegerField(min_value=1024, required=False, write_only=True)
+    data_volume_type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
     data_volumes = DataVolumeSerializer(many=True, required=False, write_only=True)
     volumes = NestedVolumeSerializer(many=True, required=False, read_only=True)
     action_details = serializers.JSONField(read_only=True)
@@ -809,7 +817,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         model = models.Instance
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
             'image', 'flavor', 'flavor_disk', 'flavor_name',
-            'system_volume_size', 'system_volume_type', 'data_volume_size', 'volumes', 'data_volumes',
+            'system_volume_size', 'system_volume_type', 'data_volume_size',
+            'data_volume_type', 'volumes', 'data_volumes',
             'security_groups', 'internal_ips', 'floating_ips', 'internal_ips_set',
             'availability_zone', 'availability_zone_name',
             'runtime_state', 'action', 'action_details',
@@ -984,6 +993,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 service_project_link=spl,
                 size=data_volume_size,
                 availability_zone=volume_availability_zone,
+                type=validated_data.get('data_volume_type'),
             )
             volumes.append(data_volume)
 
