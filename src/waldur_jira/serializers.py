@@ -475,6 +475,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         if event_type in self.Event.ISSUE_ACTIONS:
             if not issue and create_issue:
                 backend.create_issue_from_jira(project, key)
+                backend.update_attachment_from_jira(issue)
 
             if event_type == self.Event.ISSUE_UPDATE:
                 if old_jira:
@@ -499,13 +500,8 @@ class WebHookReceiverSerializer(serializers.Serializer):
                         backend.update_issue_from_jira(issue)
 
                 else:
-                    new_attachment = filter(lambda x: x['fieldId'] == 'attachment',
-                                            validated_data['changelog']['items'])
-
-                    if new_attachment:
-                        backend.update_attachment_from_jira(issue)
-
                     backend.update_issue_from_jira(issue)
+                    backend.update_attachment_from_jira(issue)
 
             if event_type == self.Event.ISSUE_DELETE:
                 backend.delete_issue_from_jira(issue)
@@ -521,11 +517,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
             if not comment and create_comment:
                 backend.create_comment_from_jira(issue, comment_backend_id)
+                backend.update_attachment_from_jira(issue)
 
             if event_type == self.Event.COMMENT_UPDATE:
                 backend.update_comment_from_jira(comment)
+                backend.update_attachment_from_jira(issue)
 
             if event_type == self.Event.COMMENT_DELETE:
                 backend.delete_comment_from_jira(comment)
+                backend.update_attachment_from_jira(issue)
 
         return validated_data

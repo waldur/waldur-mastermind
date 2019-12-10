@@ -8,6 +8,7 @@ class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
         'name',
         'description',
         'nodes',
+        'tenant_settings',
     )
 
 

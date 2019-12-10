@@ -4,9 +4,8 @@ from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
-from waldur_core.structure.models import ServiceSettings
 from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant.models import OpenStackTenantServiceProjectLink, Flavor
+from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures
@@ -46,11 +45,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             project=self.fixture.project, service=openstack_service)
         self.tenant = openstack_factories.TenantFactory(service_project_link=openstack_spl)
 
-        settings = ServiceSettings.objects.get(scope=self.tenant)
-        project = self.fixture.project
-        instance_spl = OpenStackTenantServiceProjectLink.objects.get(
-            project=project,
-            service__settings=settings)
+        instance_spl = self.fixture.tenant_spl
 
         openstack_tenant_factories.FlavorFactory(settings=instance_spl.service.settings)
         image = openstack_tenant_factories.ImageFactory(settings=instance_spl.service.settings)
@@ -76,9 +71,11 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         payload = {'name': name,
                    'service_project_link':
                        factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
+                   'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
+                       self.fixture.tenant_spl.service.settings),
                    'nodes': [{
                        'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                       'storage': disk,
+                       'system_volume_size': disk,
                        'memory': memory,
                        'cpu': cpu,
                        'roles': ['controlplane', 'etcd', 'worker'],
@@ -107,14 +104,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {'nodes': [
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['controlplane', 'etcd', 'worker'],
             },
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['controlplane', 'etcd', 'worker'],
@@ -129,7 +126,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {'nodes': [
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['controlplane', 'etcd', ],
@@ -144,7 +141,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {'nodes': [
             {
                 'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                'storage': 1024,
+                'system_volume_size': 1024,
                 'memory': 1,
                 'cpu': 1,
                 'roles': ['etcd', 'worker'],

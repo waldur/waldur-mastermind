@@ -112,7 +112,9 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
         'internal_ips_set',
         'floating_ips',
         'system_volume_size',
+        'system_volume_type',
         'data_volume_size',
+        'data_volume_type',
         'volumes',
         'ssh_public_key',
         'user_data',
@@ -133,6 +135,7 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
         'image',
         'size',
         'availability_zone',
+        'type',
     )
 
 

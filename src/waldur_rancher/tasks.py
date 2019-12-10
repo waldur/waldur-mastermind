@@ -1,12 +1,10 @@
 from __future__ import unicode_literals
 
 import logging
-import six
 
 from celery import shared_task
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
-from django.conf import settings
 from rest_framework import status
 from rest_framework.reverse import reverse
 
@@ -16,7 +14,7 @@ from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
-from . import models, exceptions, signals
+from . import models, exceptions, signals, utils
 
 logger = logging.getLogger(__name__)
 
@@ -26,45 +24,39 @@ class CreateNodeTask(core_tasks.Task):
         node = instance
         content_type = ContentType.objects.get_for_model(openstack_tenant_models.Instance)
         flavor = node.initial_data['flavor']
-        storage = node.initial_data['storage']
+        system_volume_size = node.initial_data['system_volume_size']
+        system_volume_type = node.initial_data.get('system_volume_type')
+        data_volumes = node.initial_data.get('data_volumes', [])
         image = node.initial_data['image']
         subnet = node.initial_data['subnet']
         group = node.initial_data['group']
         tenant_spl = node.initial_data['tenant_service_project_link']
         user = auth.get_user_model().objects.get(pk=user_id)
 
-        roles_command = []
-
-        if node.controlplane_role:
-            roles_command.append('--controlplane')
-
-        if node.etcd_role:
-            roles_command.append('--etcd')
-
-        if node.worker_role:
-            roles_command.append('--worker')
-
-        node_command = node.cluster.node_command + ' ' + ' '.join(roles_command)
-
         post_data = {
             'name': node.name,
             'flavor': reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor}),
             'image': reverse('openstacktenant-image-detail', kwargs={'uuid': image}),
             'service_project_link': reverse('openstacktenant-spl-detail', kwargs={'pk': tenant_spl}),
-            'system_volume_size': storage,
+            'system_volume_size': system_volume_size,
+            'system_volume_type': system_volume_type and reverse('openstacktenant-volume-type-detail', kwargs={'uuid': system_volume_type}),
+            'data_volumes': [{
+                'size': volume['size'],
+                'volume_type': volume.get('volume_type') and reverse('openstacktenant-volume-type-detail', kwargs={'uuid': volume.get('volume_type')}),
+            } for volume in data_volumes],
             'security_groups': [{'url': reverse('openstacktenant-sgp-detail', kwargs={'uuid': group})}],
             'internal_ips_set': [
                 {
                     'subnet': reverse('openstacktenant-subnet-detail', kwargs={'uuid': subnet})
                 }
             ],
-            'user_data': settings.WALDUR_RANCHER['RANCHER_NODE_CLOUD_INIT_TEMPLATE'].format(command=node_command)
+            'user_data': utils.format_node_cloud_config(node),
         }
         view = InstanceViewSet.as_view({'post': 'create'})
         response = common_utils.create_request(view, user, post_data)
 
         if response.status_code != status.HTTP_201_CREATED:
-            six.reraise(exceptions.RancherException, response.data)
+            raise exceptions.RancherException(response.data)
 
         instance_uuid = response.data['uuid']
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)

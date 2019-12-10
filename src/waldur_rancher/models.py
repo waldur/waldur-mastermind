@@ -57,6 +57,12 @@ class Cluster(NewResource):
     node_command = models.CharField(max_length=1024, blank=True,
                                     help_text='Rancher generated node installation command base.')
     tracker = FieldTracker()
+    tenant_settings = models.ForeignKey(
+        to=structure_models.ServiceSettings,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
