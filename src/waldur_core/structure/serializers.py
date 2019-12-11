@@ -1279,6 +1279,12 @@ class BaseServiceProjectLinkSerializer(PermissionFieldFilteringMixin,
         lookup_field='uuid')
 
     service_name = serializers.ReadOnlyField(source='service.settings.name')
+    settings = serializers.HyperlinkedRelatedField(
+        source='service.settings',
+        view_name='servicesettings-detail',
+        lookup_field='uuid',
+        read_only=True,
+    )
     quotas = quotas_serializers.BasicQuotaSerializer(many=True, read_only=True)
 
     class Meta:
@@ -1286,7 +1292,7 @@ class BaseServiceProjectLinkSerializer(PermissionFieldFilteringMixin,
         fields = (
             'url',
             'project', 'project_name', 'project_uuid',
-            'service', 'service_uuid', 'service_name', 'quotas',
+            'service', 'service_uuid', 'service_name', 'quotas', 'settings',
         )
         related_paths = ('project', 'service')
         extra_kwargs = {
