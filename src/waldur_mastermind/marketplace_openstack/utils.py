@@ -466,9 +466,9 @@ def import_limits(resource):
 
 def map_limits_to_quotas(limits):
     quotas = {
-        CORES_TYPE: limits.get(TenantQuotas.vcpu.name),
-        RAM_TYPE: limits.get(TenantQuotas.ram.name),
-        STORAGE_TYPE: limits.get(TenantQuotas.storage.name),
+        TenantQuotas.vcpu.name: limits.get(CORES_TYPE),
+        TenantQuotas.ram.name: limits.get(RAM_TYPE),
+        TenantQuotas.storage.name: limits.get(STORAGE_TYPE),
     }
 
     quotas = {k: v for k, v in quotas.items() if v is not None}

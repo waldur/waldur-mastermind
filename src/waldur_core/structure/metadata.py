@@ -136,6 +136,8 @@ class ActionsMetadata(SimpleMetadata):
                 continue
             if not hasattr(callback, 'detail'):
                 continue
+            if not callback.detail:
+                continue
             if key in disabled_actions:
                 continue
             actions[key] = callback

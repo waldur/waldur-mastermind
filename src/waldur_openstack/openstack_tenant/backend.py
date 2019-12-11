@@ -1577,6 +1577,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
+        default_volume_type_id = None
+        try:
+            default_volume_type_id = self.cinder_client.volume_types.default().id
+        except cinder_exceptions.NotFound:
+            pass
+        except cinder_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
         with transaction.atomic():
             cur_volume_types = self._get_current_properties(models.VolumeType)
             for backend_type in volume_types:
@@ -1587,6 +1595,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     defaults={
                         'name': backend_type.name,
                         'description': backend_type.description or '',
+                        'is_default': backend_type.id == default_volume_type_id,
                     })
 
             models.VolumeType.objects.filter(backend_id__in=cur_volume_types.keys(), settings=self.settings).delete()
