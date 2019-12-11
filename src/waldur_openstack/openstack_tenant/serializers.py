@@ -1621,6 +1621,7 @@ class ConsoleLogSerializer(serializers.Serializer):
 class VolumeTypeSerializer(BaseVolumeTypeSerializer):
     class Meta(BaseVolumeTypeSerializer.Meta):
         model = models.VolumeType
+        fields = BaseVolumeTypeSerializer.Meta.fields + ('is_default',)
 
 
 class SharedSettingsCustomerSerializer(serializers.Serializer):

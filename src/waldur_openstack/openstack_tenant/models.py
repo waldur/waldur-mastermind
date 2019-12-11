@@ -496,6 +496,8 @@ class InternalIP(openstack_base_models.Port):
 
 class VolumeType(openstack_base_models.BaseVolumeType):
 
+    is_default = models.BooleanField(default=False)
+
     @classmethod
     def get_url_name(cls):
         return 'openstacktenant-volume-type'
