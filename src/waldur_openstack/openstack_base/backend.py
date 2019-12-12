@@ -255,7 +255,7 @@ class BaseOpenStackBackend(ServiceBackend):
                 neutron_exceptions.NeutronClientException) as e:
             raise OpenStackBackendError(e)
 
-        return {
+        quotas = {
             Tenant.Quotas.ram: nova_quotas.ram,
             Tenant.Quotas.vcpu: nova_quotas.cores,
             Tenant.Quotas.storage: self.gb2mb(cinder_quotas.gigabytes),
@@ -268,6 +268,12 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.network_count: neutron_quotas['network'],
             Tenant.Quotas.subnet_count: neutron_quotas['subnet'],
         }
+
+        for name, value in cinder_quotas._info.items():
+            if name.startswith('gigabytes_'):
+                quotas[name] = value
+
+        return quotas
 
     def get_tenant_quotas_usage(self, tenant_backend_id):
         nova = self.nova_client
@@ -304,7 +310,7 @@ class BaseOpenStackBackend(ServiceBackend):
         snapshots_size = sum(self.gb2mb(v.size) for v in snapshots)
         storage = volumes_size + snapshots_size
 
-        return {
+        quotas = {
             Tenant.Quotas.ram: ram,
             Tenant.Quotas.vcpu: vcpu,
             Tenant.Quotas.storage: storage,
@@ -320,6 +326,13 @@ class BaseOpenStackBackend(ServiceBackend):
             Tenant.Quotas.network_count: len(networks),
             Tenant.Quotas.subnet_count: len(subnets),
         }
+
+        for volume in volumes:
+            key = 'gigabytes_' + volume.volume_type
+            quotas.setdefault(key, 0)
+            quotas[key] += volume.size
+
+        return quotas
 
     def _normalize_security_group_rule(self, rule):
         if rule['protocol'] is None:
