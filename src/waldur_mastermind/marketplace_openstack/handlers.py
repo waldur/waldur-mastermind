@@ -195,6 +195,7 @@ def create_offerings_for_volume_and_instance(tenant):
             category=category,
             # OpenStack instance and volume offerings are charged as a part of its tenant
             billable=False,
+            parent=parent_offering,
         )
 
         fields = (
