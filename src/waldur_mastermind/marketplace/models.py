@@ -247,6 +247,8 @@ class Offering(core_models.UuidMixin,
                                  help_text=_('Rating is value from 1 to 5.'))
     category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='offerings')
     customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer, related_name='+', null=True)
+    # Volume offering is linked with VPC offering via parent field
+    parent = models.ForeignKey(on_delete=models.CASCADE, to='Offering', null=True, blank=True)
     attributes = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Category.'))
     options = BetterJSONField(blank=True, default=dict, help_text=_('Fields describing Offering request form.'))
     plugin_options = BetterJSONField(blank=True, default=dict,
