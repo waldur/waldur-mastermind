@@ -328,6 +328,9 @@ class BaseOpenStackBackend(ServiceBackend):
         }
 
         for volume in volumes:
+            if not volume.volume_type:
+                # skip volumes in calculation that have undefined volume type
+                continue
             key = 'gigabytes_' + volume.volume_type
             quotas.setdefault(key, 0)
             quotas[key] += volume.size
