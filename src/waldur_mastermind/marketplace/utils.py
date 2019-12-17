@@ -10,7 +10,7 @@ from django.core.files.storage import default_storage as storage
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions, serializers
+from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils, models as core_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -46,7 +46,9 @@ def process_order_item(order_item, user):
         order_item.set_state_executing()
         order_item.save(update_fields=['state'])
         processor(order_item).process_order_item(user)
-    except exceptions.APIException as e:
+    except Exception as e:
+        # Here it is necessary to catch all exceptions.
+        # If this is not done, then the order will remain in the executed status.
         order_item.error_message = str(e)
         order_item.set_state_erred()
         order_item.save(update_fields=['state', 'error_message'])

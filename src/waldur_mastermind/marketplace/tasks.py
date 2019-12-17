@@ -6,13 +6,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Sum, Q
 from django.utils import timezone
+from rest_framework import status
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace.utils import process_order_item
 
-from . import utils, models
+from . import utils, models, views, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -173,3 +175,14 @@ def send_notifications_about_usages():
 
         if customer.serviceprovider.enable_notifications and emails:
             core_utils.broadcast_mail('marketplace', 'notification_usages', warning, emails)
+
+
+@shared_task(name='marketplace.terminate_resource')
+def terminate_resource(serialized_resource, serialized_user):
+    resource = core_utils.deserialize_instance(serialized_resource)
+    user = core_utils.deserialize_instance(serialized_user)
+    view = views.ResourceViewSet.as_view({'post': 'terminate'})
+    response = create_request(view, user, {}, uuid=resource.uuid.hex)
+
+    if response.status_code != status.HTTP_200_OK:
+        raise exceptions.ResourceTerminateException(response.rendered_content)

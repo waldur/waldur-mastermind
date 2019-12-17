@@ -9,11 +9,12 @@ from django.utils.translation import ugettext_lazy as _, ungettext
 from waldur_core.core.admin import JsonWidget
 
 from waldur_core.core import admin as core_admin
-from waldur_core.core.admin import format_json_field
+from waldur_core.core.admin import format_json_field, ExecutorAdminAction
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
+from django.core.exceptions import ValidationError
 from waldur_core.structure.models import ServiceSettings, SharedServiceSettings, PrivateServiceSettings
 
-from . import models, tasks
+from . import models, tasks, executors
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
@@ -275,6 +276,25 @@ class ResourceForm(ModelForm):
                 offering=self.instance.offering)
 
 
+class SharedOfferingFilter(admin.SimpleListFilter):
+    title = _('shared offerings')
+    parameter_name = 'shared_offering'
+
+    def lookups(self, request, model_admin):
+        options = []
+
+        for offering in models.Offering.objects.filter(shared=True):
+            options.append([offering.pk, offering.name])
+
+        return options
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(offering_id=self.value())
+        else:
+            return queryset
+
+
 class ResourceAdmin(admin.ModelAdmin):
     form = ResourceForm
     list_display = ('name', 'project', 'state', 'category', 'created')
@@ -282,6 +302,7 @@ class ResourceAdmin(admin.ModelAdmin):
         'state',
         ('project', RelatedOnlyDropdownFilter),
         ('offering', RelatedOnlyDropdownFilter),
+        SharedOfferingFilter
     )
     readonly_fields = ('state', 'scope_link', 'project_link', 'offering_link',
                                 'plan_link', 'formatted_attributes', 'formatted_limits')
@@ -323,6 +344,22 @@ class ResourceAdmin(admin.ModelAdmin):
 
     formatted_limits.allow_tags = True
     formatted_limits.short_description = 'Limits'
+
+    class TerminateResources(ExecutorAdminAction):
+        executor = executors.TerminateResourceExecutor
+        short_description = 'Terminate resources'
+        confirmation_description = 'The selected resources and related objects will be deleted. Back up your data.'
+        confirmation = True
+
+        def validate(self, resource):
+            if resource.state not in (models.Resource.States.OK, models.Resource.States.ERRED):
+                raise ValidationError(_('Resource has to be in OK or ERRED state.'))
+
+        def get_execute_params(self, request, instance):
+            return {'user': request.user}
+
+    terminate_resources = TerminateResources()
+    actions = ['terminate_resources']
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)

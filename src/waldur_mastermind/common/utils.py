@@ -37,10 +37,10 @@ def get_request(view, user, **extra):
     return view(request, **extra)
 
 
-def create_request(view, user, post_data):
+def create_request(view, user, post_data, **kwargs):
     factory = APIRequestFactory()
     request = factory.post('/', data=json.dumps(post_data), **get_headers(user))
-    return view(request)
+    return view(request, **kwargs)
 
 
 def delete_request(view, user, query_params='', **extra):
