@@ -1,0 +1,2 @@
+class ResourceTerminateException(Exception):
+    pass

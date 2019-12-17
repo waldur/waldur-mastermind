@@ -1,6 +1,6 @@
-from collections import defaultdict
 import copy
 import json
+from collections import defaultdict
 
 from django import forms
 from django.conf import settings
@@ -13,6 +13,7 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
 from django.shortcuts import get_object_or_404
+from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.functional import cached_property
 from django.utils.html import format_html_join
@@ -286,6 +287,7 @@ class ExecutorAdminAction:
         class PullSecurityGroups(ExecutorAdminAction):
             executor = executors.TenantPullSecurityGroupsExecutor  # define executor
             short_description = 'Pull security groups'  # description for admin page
+            confirmation = True # if your action requires a confirmation else set False
 
             def validate(self, tenant):
                 if tenant.state != Tenant.States.OK:
@@ -295,8 +297,39 @@ class ExecutorAdminAction:
 
     """
     executor = NotImplemented
+    short_description = ''
+    confirmation_template = 'admin/action_confirmation.html'
+    confirmation_description = ''
+    confirmation = False
 
     def __call__(self, admin_class, request, queryset):
+        if self.confirmation and not request.POST.get('confirmed'):
+            return self.confirmation_response(admin_class, request, queryset)
+        else:
+            return self.execute(admin_class, request, queryset)
+
+    def confirmation_response(self, admin_class, request, queryset):
+        opts = admin_class.model._meta
+        app_label = opts.app_label
+        object_name = str(opts.verbose_name)
+        context = {
+            **admin_class.admin_site.each_context(request),
+            'title': _("Are you sure?"),
+            'object_name': object_name,
+            'queryset': queryset,
+            'opts': opts,
+            'app_label': app_label,
+            'action_name': self.get_action_name(admin_class),
+            'confirmation_description': self.confirmation_description,
+            'description': self.short_description,
+        }
+        request.current_app = admin_class.admin_site.name
+        context.update(
+            media=admin_class.media,
+        )
+        return TemplateResponse(request, self.confirmation_template, context, )
+
+    def execute(self, admin_class, request, queryset):
         errors = defaultdict(list)
         successfully_executed = []
         for instance in queryset:
@@ -305,7 +338,8 @@ class ExecutorAdminAction:
             except ValidationError as e:
                 errors[str(e)].append(instance)
             else:
-                self.executor.execute(instance)
+                params = self.get_execute_params(request, instance)
+                self.executor.execute(instance, **params)
                 successfully_executed.append(instance)
 
         if successfully_executed:
@@ -323,9 +357,20 @@ class ExecutorAdminAction:
             )
             admin_class.message_user(request, message, level=messages.ERROR)
 
+    def get_action_name(self, admin_class):
+
+        for action_name in admin_class.actions:
+            action_obj = getattr(admin_class, action_name, None)
+            if isinstance(action_obj, self.__class__) and action_obj.confirmation:
+                return action_name
+
     def validate(self, instance):
         """ Raise validation error if action cannot be performed for given instance """
         pass
+
+    def get_execute_params(self, request, instance):
+        """ Returns additional parameters for the executor """
+        return {}
 
 
 class ExtraActionsMixin:

@@ -6,8 +6,8 @@ from rest_framework import test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
-from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace import tasks
+from waldur_mastermind.marketplace import tasks, exceptions, models
+
 from . import factories
 
 
@@ -63,3 +63,22 @@ class NotificationTest(test.APITransactionTestCase):
         self.assertEqual(mail.outbox[0].to[0], admin.email)
         self.assertTrue(resource.name in mail.outbox[0].body)
         self.assertTrue(resource.name in mail.outbox[0].subject)
+
+
+class TerminateResource(test.APITransactionTestCase):
+    def setUp(self):
+        fixture = structure_fixtures.UserFixture()
+        self.user = fixture.staff
+        offering = factories.OfferingFactory()
+        self.resource = factories.ResourceFactory(offering=offering)
+        factories.OrderItemFactory(resource=self.resource,
+                                   type=models.OrderItem.Types.TERMINATE,
+                                   state=models.OrderItem.States.EXECUTING)
+
+    def test_raise_exception_if_order_item_has_not_been_created(self):
+        self.assertRaises(
+            exceptions.ResourceTerminateException,
+            tasks.terminate_resource,
+            core_utils.serialize_instance(self.resource),
+            core_utils.serialize_instance(self.user)
+        )
