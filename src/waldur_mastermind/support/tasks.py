@@ -53,7 +53,14 @@ def pull_priorities():
 @shared_task(name='waldur_mastermind.support.create_issue')
 def create_issue(serialized_issue):
     issue = core_utils.deserialize_instance(serialized_issue)
-    backend.get_active_backend().create_issue(issue)
+    try:
+        backend.get_active_backend().create_issue(issue)
+    except Exception as e:
+        issue.error_message = str(e)
+        issue.save(update_fields=['error_message'])
+    else:
+        issue.error_message = ''
+        issue.save(update_fields=['error_message'])
 
 
 @shared_task(name='waldur_mastermind.support.send_issue_updated_notification')

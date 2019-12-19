@@ -306,6 +306,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
     report = serializers.JSONField(required=False)
     template_uuid = serializers.ReadOnlyField(source='template.uuid')
     resource_type = serializers.SerializerMethodField()
+    error_message = serializers.ReadOnlyField(source='issue.error_message')
 
     class Meta:
         model = models.Offering
@@ -313,7 +314,7 @@ class OfferingSerializer(structure_serializers.PermissionFieldFilteringMixin,
                   'state', 'type_label', 'unit_price',
                   'unit', 'created', 'modified', 'issue', 'issue_name', 'issue_link',
                   'issue_key', 'issue_description', 'issue_uuid', 'issue_status',
-                  'project_name', 'project_uuid', 'product_code', 'article_code', 'report')
+                  'project_name', 'project_uuid', 'product_code', 'article_code', 'report', 'error_message')
         read_only_fields = ('type_label', 'issue', 'unit_price', 'unit', 'state', 'product_code', 'article_code')
         protected_fields = ('project', 'type', 'template', 'plan')
         extra_kwargs = dict(
