@@ -435,32 +435,25 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
 
 
 class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
+
     class Meta:
         model = models.Volume
         fields = ['type']
-        extra_kwargs = dict(
-            instance={
-                'required': True,
-                'allow_null': False,
-                'view_name': 'openstacktenant-volume-type-detail',
-                'lookup_field': 'uuid',
-            }
-        )
 
-    def get_fields(self):
-        fields = super(VolumeRetypeSerializer, self).get_fields()
-        volume = self.instance
-        if volume:
-            fields['type'].display_name_field = 'name'
-            fields['type'].query_params = {
-                'settings_uuid': volume.service_project_link.service.settings.uuid.hex,
-            }
-        return fields
+    type = serializers.HyperlinkedRelatedField(
+        view_name='openstacktenant-volume-type-detail',
+        queryset=models.VolumeType.objects.all(),
+        lookup_field='uuid',
+        allow_null=False,
+        required=True,
+    )
 
     def validate_type(self, type):
         volume = self.instance
         if type.settings != volume.service_project_link.service.settings:
             raise serializers.ValidationError(_('Volume and type should belong to the same service.'))
+        if type == volume.type:
+            raise serializers.ValidationError(_('Volume already has requested type.'))
         return type
 
 
