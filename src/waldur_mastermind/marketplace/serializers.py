@@ -1293,7 +1293,7 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
 class ImportResourceSerializer(serializers.Serializer):
     backend_id = serializers.CharField()
     project = serializers.SlugRelatedField(queryset=structure_models.Project.objects.all(), slug_field='uuid')
-    plan = serializers.SlugRelatedField(queryset=models.Plan.objects.all(), slug_field='uuid')
+    plan = serializers.SlugRelatedField(queryset=models.Plan.objects.all(), slug_field='uuid', required=False)
 
     def get_fields(self):
         fields = super(ImportResourceSerializer, self).get_fields()

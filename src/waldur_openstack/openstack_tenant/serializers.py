@@ -16,7 +16,7 @@ from waldur_core.core import (serializers as core_serializers,
                               utils as core_utils,
                               signals as core_signals)
 from waldur_core.quotas import serializers as quotas_serializers
-from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure import serializers as structure_serializers, SupportedServices
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
@@ -193,18 +193,44 @@ class VolumeImportableSerializer(core_serializers.AugmentedSerializerMixin,
         queryset=models.OpenStackTenantServiceProjectLink.objects.all(),
         write_only=True)
 
-    instance_name = serializers.ReadOnlyField(source='instance.name')
-    instance_uuid = serializers.ReadOnlyField(source='instance.uuid')
+    type = serializers.SerializerMethodField()
+    extra = serializers.SerializerMethodField()
+
+    def get_type(self, obj):
+        return SupportedServices.get_name_for_model(models.Volume)
+
+    def get_extra(self, volume):
+        return [
+            {
+                'name': 'Is bootable',
+                'value': volume.bootable,
+            },
+            {
+                'name': 'Size',
+                'value': volume.size,
+            },
+            {
+                'name': 'Description',
+                'value': volume.description,
+            },
+            {
+                'name': 'Device',
+                'value': volume.device,
+            },
+            {
+                'name': 'Runtime state',
+                'value': volume.runtime_state,
+            },
+        ]
 
     def get_filtered_field_names(self):
         return 'service_project_link',
 
     class Meta:
         model = models.Volume
-        model_fields = ('name', 'description', 'size', 'bootable', 'device',
-                        'runtime_state', 'instance_name', 'instance_uuid')
-        fields = ('service_project_link', 'backend_id') + model_fields
-        read_only_fields = model_fields + ('backend_id',)
+        model_fields = ('name',)
+        fields = ('service_project_link', 'backend_id', 'type', 'extra',) + model_fields
+        read_only_fields = model_fields + ('backend_id', 'type', 'extra')
 
 
 class VolumeImportSerializer(VolumeImportableSerializer):
@@ -490,6 +516,8 @@ class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
         return super(SnapshotSerializer, self).validate(attrs)
 
 
+# XXX: Consider either dropping or adapting to VolumeSerializer.
+# XXX: Unclear when import can be triggered from HomePort
 class SnapshotImportableSerializer(core_serializers.AugmentedSerializerMixin,
                                    serializers.HyperlinkedModelSerializer):
     service_project_link = serializers.HyperlinkedRelatedField(
@@ -497,6 +525,10 @@ class SnapshotImportableSerializer(core_serializers.AugmentedSerializerMixin,
         queryset=models.OpenStackTenantServiceProjectLink.objects.all(),
         write_only=True)
     source_volume_name = serializers.ReadOnlyField(source='source_volume.name')
+    type = serializers.SerializerMethodField()
+
+    def get_type(self, obj):
+        return SupportedServices.get_name_for_model(models.Instance)
 
     def get_filtered_field_names(self):
         return 'service_project_link',
@@ -505,8 +537,8 @@ class SnapshotImportableSerializer(core_serializers.AugmentedSerializerMixin,
         model = models.Snapshot
         model_fields = ('name', 'description', 'size', 'action', 'action_details',
                         'metadata', 'runtime_state', 'state', 'source_volume_name', 'source_volume_name')
-        fields = ('service_project_link', 'backend_id') + model_fields
-        read_only_fields = model_fields + ('backend_id',)
+        fields = ('service_project_link', 'backend_id', 'type') + model_fields
+        read_only_fields = model_fields + ('backend_id', 'type')
         extra_kwargs = dict(
             source_volume={'lookup_field': 'uuid', 'view_name': 'openstacktenant-volume-detail'},
         )
@@ -1573,15 +1605,45 @@ class InstanceImportableSerializer(core_serializers.AugmentedSerializerMixin, se
         view_name='openstacktenant-spl-detail',
         queryset=models.OpenStackTenantServiceProjectLink.objects.all(),
         write_only=True)
+    type = serializers.SerializerMethodField()
+    extra = serializers.SerializerMethodField()
+
+    def get_extra(self, instance):
+        return [
+            {
+                'name': 'Description',
+                'value': instance.description,
+            },
+            {
+                'name': 'Runtime state',
+                'value': instance.runtime_state,
+            },
+            {
+                'name': 'Flavor',
+                'value': instance.flavor_name,
+            },
+            {
+                'name': 'RAM (MBs)',
+                'value': instance.ram,
+            },
+            {
+                'name': 'Cores',
+                'value': instance.cores,
+            },
+
+        ]
+
+    def get_type(self, obj):
+        return SupportedServices.get_name_for_model(models.Instance)
 
     def get_filtered_field_names(self):
         return 'service_project_link',
 
     class Meta:
         model = models.Instance
-        model_fields = ('name', 'description', 'state', 'runtime_state', 'flavor_name', 'size', 'ram', 'cores')
-        fields = ('service_project_link', 'backend_id') + model_fields
-        read_only_fields = model_fields + ('backend_id',)
+        model_fields = ('name',)
+        fields = ('service_project_link', 'backend_id', 'type', 'extra') + model_fields
+        read_only_fields = model_fields + ('backend_id', 'type', 'extra')
 
 
 class InstanceImportSerializer(InstanceImportableSerializer):
