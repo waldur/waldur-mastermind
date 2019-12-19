@@ -336,7 +336,9 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.mock_jira().issue_type.return_value = IssueType({'server': ''}, None,
                                                              raw={'name': 'Service Request', 'id': '1'})
 
-        issue = factories.IssueFactory(reporter=None, backend_id=None)
+        issue_type = settings.WALDUR_SUPPORT['ISSUE']['types'][0]
+        factories.RequestTypeFactory(issue_type_name=issue_type)
+        issue = factories.IssueFactory(reporter=None, backend_id=None, type=issue_type)
         factories.SupportCustomerFactory(user=issue.caller)
         ServiceDeskBackend().create_issue(issue)
         self.assertEqual(models.RequestType.objects.count(), 1)

@@ -239,7 +239,7 @@ class Saml2LogoutView(BaseSaml2View):
             return logout_failed(_('You are not logged in any IdP/AA.'))
 
         # Logout is supported only from 1 IdP
-        binding, http_info = result.values()[0]
+        binding, http_info = list(result.values())[0]
         return HttpResponseRedirect(get_location(http_info))
 
 

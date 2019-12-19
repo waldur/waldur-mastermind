@@ -11,7 +11,7 @@ from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
 from waldur_core.structure import admin as structure_admin
 
-from . import models, backend
+from . import models, backend, executors
 from .backend.basic import BasicBackend
 
 User = get_user_model()
@@ -46,6 +46,13 @@ class OfferingAdmin(admin.ModelAdmin):
     fields = ('name', 'unit_price', 'unit', 'template', 'issue',
               'project', 'state', 'product_code', 'article_code', 'report')
     form = OfferingAdminForm
+    actions = ('create_issue',)
+
+    class CreateIssueAction(core_admin.ExecutorAdminAction):
+        executor = executors.OfferingIssueCreateExecutor
+        short_description = _('Create issue')
+
+    create_issue = CreateIssueAction()
 
     def issue_key(self, offering):
         return offering.issue and offering.issue.key or 'N/A'

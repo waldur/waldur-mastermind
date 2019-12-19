@@ -55,6 +55,10 @@ class ResourceActionEventLogger(EventLogger):
             'resource_extend_volume_succeeded',
             'resource_extend_volume_failed',
 
+            'resource_retype_scheduled',
+            'resource_retype_succeeded',
+            'resource_retype_failed',
+
             'resource_unassign_floating_ip_scheduled',
             'resource_unassign_floating_ip_succeeded',
             'resource_unassign_floating_ip_failed',

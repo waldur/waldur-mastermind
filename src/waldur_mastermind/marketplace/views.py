@@ -204,7 +204,7 @@ class OfferingViewSet(BaseMarketplaceView):
         marketplace_serializer = self.get_serializer(data=request.data)
         marketplace_serializer.is_valid(raise_exception=True)
 
-        plan = marketplace_serializer.validated_data['plan']
+        plan = marketplace_serializer.validated_data.get('plan', None)
         project = marketplace_serializer.validated_data['project']
         backend_id = marketplace_serializer.validated_data['backend_id']
 
@@ -235,7 +235,7 @@ class OfferingViewSet(BaseMarketplaceView):
                 sender=resource.__class__,
                 instance=resource,
                 plan=plan,
-                offering=plan.offering,
+                offering=offering,
             )
 
         if resource_viewset.import_resource_executor:

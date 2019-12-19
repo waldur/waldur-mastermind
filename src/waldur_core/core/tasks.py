@@ -458,7 +458,7 @@ class PollRuntimeStateTask(Task):
 
 
 class PollBackendCheckTask(Task):
-    max_retries = 60
+    max_retries = 600
     default_retry_delay = 5
 
     @classmethod

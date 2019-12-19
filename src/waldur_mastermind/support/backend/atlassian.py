@@ -12,6 +12,7 @@ from django.db import transaction
 from jira import Comment
 from jira.utils import json_loads
 
+from waldur_core.structure import ServiceBackendError
 from waldur_jira.backend import reraise_exceptions, JiraBackend
 from waldur_mastermind.support import models
 from waldur_mastermind.support.exceptions import SupportUserInactive
@@ -73,7 +74,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def create_issue(self, issue):
         if not issue.caller.email:
-            return
+            raise ServiceBackendError('Issue is not created because caller user does not have email.')
 
         self.create_user(issue.caller)
 
@@ -86,8 +87,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             self.pull_request_types()
 
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
-            logger.debug('Not exists a RequestType for this issue type %s', issue.type)
-            return
+            raise ServiceBackendError('Issue is not created because corresponding request type is not found.')
 
         args['requestTypeId'] = models.RequestType.objects.filter(issue_type_name=issue.type).first().backend_id
         backend_issue = self.manager.create_customer_request(args)
@@ -109,7 +109,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if existing_support_user:
             active_user = [u for u in existing_support_user if u.active]
             if not active_user:
-                raise SupportUserInactive()
+                raise SupportUserInactive('Issue is not created because caller user is disabled.')
 
             logger.debug('Skipping user %s creation because it already exists', user.email)
             backend_customer = active_user[0]
