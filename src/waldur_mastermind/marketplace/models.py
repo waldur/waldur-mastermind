@@ -143,7 +143,7 @@ class Section(TimeStampedModel):
         return str(self.title)
 
 
-InternalNameValidator = RegexValidator('^[a-zA-Z][a-zA-Z0-9_]+$')
+InternalNameValidator = RegexValidator('^[a-zA-Z0-9_]+$')
 
 
 class Attribute(TimeStampedModel):
