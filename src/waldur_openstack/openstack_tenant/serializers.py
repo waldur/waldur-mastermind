@@ -434,6 +434,36 @@ class VolumeAttachSerializer(structure_serializers.PermissionFieldFilteringMixin
         return instance
 
 
+class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.Volume
+        fields = ['type']
+        extra_kwargs = dict(
+            instance={
+                'required': True,
+                'allow_null': False,
+                'view_name': 'openstacktenant-volume-type-detail',
+                'lookup_field': 'uuid',
+            }
+        )
+
+    def get_fields(self):
+        fields = super(VolumeRetypeSerializer, self).get_fields()
+        volume = self.instance
+        if volume:
+            fields['type'].display_name_field = 'name'
+            fields['type'].query_params = {
+                'settings_uuid': volume.service_project_link.service.settings.uuid.hex,
+            }
+        return fields
+
+    def validate_type(self, type):
+        volume = self.instance
+        if type.settings != volume.service_project_link.service.settings:
+            raise serializers.ValidationError(_('Volume and type should belong to the same service.'))
+        return type
+
+
 class SnapshotRestorationSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(write_only=True, help_text=_('New volume name.'))
     description = serializers.CharField(required=False, help_text=_('New volume description.'))

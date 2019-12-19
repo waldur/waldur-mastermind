@@ -269,6 +269,22 @@ class VolumeViewSet(structure_views.ImportableResourceViewSet):
                          core_validators.RuntimeStateValidator('in-use'),
                          core_validators.StateValidator(models.Volume.States.OK)]
 
+    @decorators.action(detail=True, methods=['post'])
+    def retype(self, request, uuid=None):
+        """ Retype detached volume """
+        volume = self.get_object()
+        serializer = self.get_serializer(volume, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        executors.VolumeRetypeExecutor().execute(volume)
+        return response.Response({'status': _('retype was scheduled')}, status=status.HTTP_202_ACCEPTED)
+
+    retype_validators = [core_validators.RuntimeStateValidator('available'),
+                         core_validators.StateValidator(models.Volume.States.OK)]
+
+    retype_serializer_class = serializers.VolumeRetypeSerializer
+
     importable_resources_backend_method = 'get_volumes_for_import'
     importable_resources_serializer_class = serializers.VolumeImportableSerializer
     import_resource_serializer_class = serializers.VolumeImportSerializer

@@ -724,6 +724,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action()
+    def retype_volume(self, volume):
+        cinder = self.cinder_client
+        try:
+            cinder.volumes.retype(volume.backend_id, volume.type.name, 'on-demand')
+        except cinder_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
     def create_snapshot(self, snapshot, force=True):
         kwargs = {
             'name': snapshot.name,
