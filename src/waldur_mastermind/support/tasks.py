@@ -58,6 +58,9 @@ def create_issue(serialized_issue):
     except Exception as e:
         issue.error_message = str(e)
         issue.save(update_fields=['error_message'])
+    else:
+        issue.error_message = ''
+        issue.save(update_fields=['error_message'])
 
 
 @shared_task(name='waldur_mastermind.support.send_issue_updated_notification')
