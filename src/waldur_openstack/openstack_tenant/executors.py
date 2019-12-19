@@ -208,6 +208,16 @@ class VolumeDetachExecutor(core_executors.ActionExecutor):
         )
 
 
+class VolumeRetypeExecutor(core_executors.ActionExecutor):
+    action = 'Retype'
+
+    @classmethod
+    def get_task_signature(cls, volume, serialized_volume, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_volume, 'retype_volume',
+            state_transition='begin_updating')
+
+
 class SnapshotCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
