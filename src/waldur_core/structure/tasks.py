@@ -3,14 +3,13 @@ from datetime import timedelta
 import logging
 
 from celery import shared_task
-from django.core import exceptions
 from django.db import transaction
 from django.db.utils import DatabaseError
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils, tasks as core_tasks, models as core_models
 from waldur_core.quotas.exceptions import QuotaValidationError
-from waldur_core.structure import SupportedServices, models, utils, ServiceBackendError, models as structure_models
+from waldur_core.structure import SupportedServices, models, ServiceBackendError, models as structure_models
 
 logger = logging.getLogger(__name__)
 
@@ -26,33 +25,6 @@ def reraise_exceptions(func):
             )
 
     return wrapped
-
-
-@shared_task(name='waldur_core.structure.detect_vm_coordinates_batch')
-def detect_vm_coordinates_batch(serialized_virtual_machines):
-    for vm in serialized_virtual_machines:
-        detect_vm_coordinates.delay(vm)
-
-
-@shared_task(name='waldur_core.structure.detect_vm_coordinates')
-def detect_vm_coordinates(serialized_virtual_machine):
-
-    try:
-        vm = core_utils.deserialize_instance(serialized_virtual_machine)
-    except exceptions.ObjectDoesNotExist:
-        logger.warning('Missing virtual machine %s.', serialized_virtual_machine)
-        return
-
-    try:
-        coordinates = vm.detect_coordinates()
-    except utils.GeoIpException as e:
-        logger.warning('Unable to detect coordinates for virtual machines %s: %s.', serialized_virtual_machine, e)
-        return
-
-    if coordinates:
-        vm.latitude = coordinates.latitude
-        vm.longitude = coordinates.longitude
-        vm.save(update_fields=['latitude', 'longitude'])
 
 
 @shared_task(name='waldur_core.structure.check_expired_permissions')

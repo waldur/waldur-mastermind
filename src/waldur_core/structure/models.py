@@ -25,7 +25,7 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
-from waldur_core.core.models import CoordinatesMixin, AbstractFieldTracker
+from waldur_core.core.models import AbstractFieldTracker
 from waldur_core.core.shims import TaggableManager
 from waldur_core.core.validators import validate_name, validate_cidr_list
 from waldur_core.media.validators import CertificateValidator
@@ -37,7 +37,9 @@ from waldur_core.media.models import ImageModelMixin
 from waldur_core.structure.managers import StructureManager, filter_queryset_for_user, \
     ServiceSettingsManager, PrivateServiceSettingsManager, SharedServiceSettingsManager
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
-from waldur_core.structure.utils import get_coordinates_by_ip, sort_dependencies
+from waldur_core.structure.utils import sort_dependencies
+from waldur_geo_ip.utils import get_coordinates_by_ip
+from waldur_geo_ip.mixins import IPCoordinatesMixin
 
 
 def validate_service_type(service_type):
@@ -1173,7 +1175,7 @@ class NewResource(ResourceMixin, core_models.StateMixin):
         abstract = True
 
 
-class VirtualMachine(CoordinatesMixin, core_models.RuntimeStateMixin, NewResource):
+class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, NewResource):
 
     def __init__(self, *args, **kwargs):
         AbstractFieldTracker().finalize_class(self.__class__, 'tracker')

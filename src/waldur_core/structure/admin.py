@@ -24,10 +24,10 @@ from waldur_core.core.admin import (
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.core.models import User
-from waldur_core.core.tasks import send_task
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.quotas.admin import QuotaInline
 from waldur_core.structure import models, SupportedServices, executors, utils
+from waldur_geo_ip import tasks as geo_ip_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -631,8 +631,7 @@ class VirtualMachineAdmin(ResourceAdmin):
     actions = ['detect_coordinates']
 
     def detect_coordinates(self, request, queryset):
-        send_task('structure', 'detect_vm_coordinates_batch')([core_utils.serialize_instance(vm) for vm in queryset])
-
+        geo_ip_tasks.detect_vm_coordinates_batch.delay([core_utils.serialize_instance(vm) for vm in queryset])
         tasks_scheduled = queryset.count()
         message = ungettext(
             'Coordinates detection has been scheduled for one virtual machine.',
