@@ -1,0 +1,2 @@
+class GeoIpException(Exception):
+    pass

@@ -1,45 +1,16 @@
 import collections
 import logging
 
-from django.conf import settings
 from django.db import models
 from django.utils.lru_cache import lru_cache
 from django.utils.topological_sort import stable_topological_sort
 from django.utils.translation import ugettext_lazy as _
 from rest_framework.exceptions import ValidationError
-import requests
 
 from . import SupportedServices
 
 logger = logging.getLogger(__name__)
-Coordinates = collections.namedtuple('Coordinates', ('latitude', 'longitude'))
 FieldInfo = collections.namedtuple('FieldInfo', 'fields fields_required extra_fields_required extra_fields_default')
-
-
-class GeoIpException(Exception):
-    pass
-
-
-def get_coordinates_by_ip(ip_address):
-    if not settings.IPSTACK_ACCESS_KEY:
-        raise GeoIpException("IPSTACK_ACCESS_KEY is empty.")
-
-    url = 'http://api.ipstack.com/{}?access_key={}&output=json&legacy=1'.format(
-        ip_address,
-        settings.IPSTACK_ACCESS_KEY)
-
-    try:
-        response = requests.get(url)
-    except requests.exceptions.RequestException as e:
-        raise GeoIpException("Request to geoip API %s failed: %s" % (url, e))
-
-    if response.ok:
-        data = response.json()
-        return Coordinates(latitude=data['latitude'],
-                           longitude=data['longitude'])
-    else:
-        params = (url, response.status_code, response.text)
-        raise GeoIpException("Request to geoip API %s failed: %s %s" % params)
 
 
 @lru_cache(maxsize=1)

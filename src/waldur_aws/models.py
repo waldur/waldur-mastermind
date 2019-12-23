@@ -7,7 +7,7 @@ from waldur_core.core.models import RuntimeStateMixin
 from waldur_core.quotas.fields import CounterQuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.utils import get_coordinates_by_ip
+from waldur_geo_ip.utils import get_coordinates_by_ip
 
 
 class AWSService(structure_models.Service):

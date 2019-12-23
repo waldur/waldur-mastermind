@@ -6,9 +6,7 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from waldur_core.core import utils
 from waldur_core.core.models import StateMixin
-from waldur_core.core.tasks import send_task
 from waldur_core.structure import SupportedServices, signals
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import (Customer, CustomerPermission, Project, ProjectPermission,
@@ -267,19 +265,6 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
             event_type='resource_deletion_scheduled',
             event_context={'resource': instance},
         )
-
-
-def detect_vm_coordinates(sender, instance, name, source, target, **kwargs):
-    # Check if geolocation is enabled
-    if not settings.WALDUR_CORE.get('ENABLE_GEOIP', True):
-        return
-
-    # VM already has coordinates
-    if instance.latitude is not None and instance.longitude is not None:
-        return
-
-    if target == StateMixin.States.OK:
-        send_task('structure', 'detect_vm_coordinates')(utils.serialize_instance(instance))
 
 
 def connect_customer_to_shared_service_settings(sender, instance, created=False, **kwargs):

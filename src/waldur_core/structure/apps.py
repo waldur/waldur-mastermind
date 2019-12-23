@@ -8,7 +8,7 @@ class StructureConfig(AppConfig):
     verbose_name = 'Structure'
 
     def ready(self):
-        from waldur_core.core.models import CoordinatesMixin, User
+        from waldur_core.core.models import User
         from waldur_core.structure.executors import check_cleanup_executors
         from waldur_core.structure.models import ResourceMixin, SubResource, Service, TagMixin, VirtualMachine, \
             ServiceProjectLink
@@ -146,14 +146,6 @@ class StructureConfig(AppConfig):
                 dispatch_uid='waldur_core.structure.handlers.delete_service_settings_on_scope_delete_{}_{}'.format(
                     model.__name__, index),
             )
-
-            if issubclass(model, CoordinatesMixin):
-                fsm_signals.post_transition.connect(
-                    handlers.detect_vm_coordinates,
-                    sender=model,
-                    dispatch_uid='waldur_core.structure.handlers.detect_vm_coordinates_{}_{}'.format(
-                        model.__name__, index),
-                )
 
         for index, model in enumerate(VirtualMachine.get_all_models()):
             signals.post_save.connect(

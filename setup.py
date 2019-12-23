@@ -138,6 +138,7 @@ setup(
             'waldur_marketplace_rancher = waldur_mastermind.marketplace_rancher.extension:MarketplaceRancherExtension',
             'waldur_rancher_invoices = waldur_mastermind.rancher_invoices.extension:RancherInvoicesExtension',
             'waldur_marketplace_script = waldur_mastermind.marketplace_script.extension:MarketplaceScriptExtension',
+            'waldur_geo_ip = waldur_geo_ip.extension:GeoIPExtension',
         ),
     },
     include_package_data=True,
