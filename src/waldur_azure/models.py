@@ -6,6 +6,7 @@ from waldur_core.core import models as core_models
 from waldur_core.quotas.fields import CounterQuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
+from waldur_geo_ip.mixins import CoordinatesMixin
 
 
 class AzureService(structure_models.Service):
@@ -31,7 +32,7 @@ class AzureServiceProjectLink(structure_models.ServiceProjectLink):
         return 'azure-spl'
 
 
-class Location(core_models.CoordinatesMixin,
+class Location(CoordinatesMixin,
                structure_models.ServiceProperty):
 
     enabled = models.BooleanField(

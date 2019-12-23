@@ -84,17 +84,6 @@ class ErrorMessageMixin(models.Model):
     error_message = models.TextField(blank=True)
 
 
-class CoordinatesMixin(models.Model):
-    """
-    Mixin to add a latitude and longitude fields
-    """
-    class Meta:
-        abstract = True
-
-    latitude = models.FloatField(null=True, blank=True)
-    longitude = models.FloatField(null=True, blank=True)
-
-
 class ScheduleMixin(models.Model):
     """
     Mixin to add a standardized "schedule" fields.

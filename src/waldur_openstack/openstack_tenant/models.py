@@ -12,8 +12,9 @@ from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas import models as quotas_models, fields as quotas_fields
 from waldur_core.structure import models as structure_models, utils as structure_utils
-from waldur_openstack.openstack_base import models as openstack_base_models
+from waldur_geo_ip.utils import get_coordinates_by_ip
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack_base import models as openstack_base_models
 
 logger = logging.getLogger(__name__)
 
@@ -335,7 +336,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
         else:
             hostname = urlparse(settings.backend_url).hostname
             if hostname:
-                return structure_utils.get_coordinates_by_ip(hostname)
+                return get_coordinates_by_ip(hostname)
 
     def get_quota_deltas(self):
         return {
