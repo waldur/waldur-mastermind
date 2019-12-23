@@ -18,6 +18,8 @@ from waldur_core.core import (serializers as core_serializers,
 from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import serializers as structure_serializers, SupportedServices
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.permissions import _has_admin_access
+from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_base.serializers import BaseVolumeTypeSerializer
@@ -867,6 +869,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     action_details = serializers.JSONField(read_only=True)
 
     availability_zone_name = serializers.CharField(source='availability_zone.name', read_only=True)
+    tenant_uuid = serializers.SerializerMethodField()
 
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
@@ -876,7 +879,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             'data_volume_type', 'volumes', 'data_volumes',
             'security_groups', 'internal_ips', 'floating_ips', 'internal_ips_set',
             'availability_zone', 'availability_zone_name',
-            'runtime_state', 'action', 'action_details',
+            'runtime_state', 'action', 'action_details', 'tenant_uuid',
         )
         protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
             'flavor', 'image', 'system_volume_size', 'data_volume_size',
@@ -902,6 +905,23 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             floating_ip_field.display_name_field = 'address'
 
         return fields
+
+    def get_tenant_uuid(self, instance):
+        service_settings = instance.service_project_link.service.settings
+        tenant = service_settings.scope
+        if not tenant:
+            return
+        if not isinstance(tenant, openstack_models.Tenant):
+            return
+        try:
+            request = self.context['request']
+            user = request.user
+        except (KeyError, AttributeError):
+            return
+        project = tenant.service_project_link.project
+        if not _has_admin_access(user, project):
+            return
+        return tenant.uuid.hex
 
     @staticmethod
     def eager_load(queryset, request):
