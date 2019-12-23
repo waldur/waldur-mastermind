@@ -41,7 +41,7 @@ def reraise_exceptions(func):
         try:
             return func(self, *args, **kwargs)
         except JIRAError as e:
-            JiraBackendError(e)
+            raise JiraBackendError(e)
 
     return wrapped
 

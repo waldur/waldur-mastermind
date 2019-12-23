@@ -180,7 +180,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 key = issue.caller.email
 
             args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [{
-                "name": key,  # will be equal to issue.caller.email for non-support users
+                "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
                 "key": key,
             }]
             return args
