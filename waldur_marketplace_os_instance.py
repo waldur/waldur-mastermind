@@ -34,6 +34,9 @@ options:
   data_volume_size:
     description:
       - The size of the data volume in GB. Data volume is not created if value is empty.
+  data_volume_type:
+    description:
+      - UUID or name of data volume type.
   delete_volumes:
     description:
       - If true, delete volumes when deleting instance.
@@ -105,6 +108,9 @@ options:
     description:
       - The size of the system volume in GBs.
         It is required if is state is 'present'.
+  system_volume_type:
+    description:
+      - UUID or name of system volume type.
   timeout:
     default: 600
     description:
@@ -131,6 +137,7 @@ EXAMPLES = '''
         access_token: b83557fd8e2066e98f27dee8f3b3433cdc4183ce
         api_url: https://waldur.example.com:8000/api
         data_volume_size: 100
+        data_volume_type: lvm
         flavor: m1.micro
         image: Ubuntu 16.04 x86_64
         name: Warehouse instance
@@ -160,6 +167,7 @@ EXAMPLES = '''
         ssh_key: ssh1.pub
         subnet: vpc-1-tm-sub-net-2
         system_volume_size: 40
+        system_volume_type: lvm
         user_data: |-
             #cloud-config
             chpasswd:
@@ -364,6 +372,8 @@ def send_request_to_waldur(client, module):
                 user_data=module.params.get('user_data'),
                 tags=module.params.get('tags'),
                 check_mode=module.check_mode,
+                system_volume_type=module.params.get('system_volume_type'),
+                data_volume_type=module.params.get('data_volume_type'),
             )
             has_changed = True
 
@@ -389,6 +399,8 @@ def main():
             subnet=dict(type='list', default=None),
             system_volume_size=dict(type='int', default=None),
             user_data=dict(type='str', default=None),
+            system_volume_type=dict(type='str', default=None),
+            data_volume_type=dict(type='str', default=None),
         ),
         mutually_exclusive=[
             ['subnet', 'networks'],
