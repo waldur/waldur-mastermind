@@ -61,6 +61,7 @@ class WaldurClient(object):
         Tenant = 'openstack-tenants'
         TenantSecurityGroup = 'openstack-security-groups'
         Volume = 'openstacktenant-volumes'
+        VolumeType = 'openstacktenant-volume-types'
         OpenStackPackage = 'openstack-packages'
         MarketplaceOffering = 'marketplace-offerings'
         MarketplacePlan = 'marketplace-plans'
@@ -256,6 +257,9 @@ class WaldurClient(object):
 
     def _get_subnet(self, identifier):
         return self._get_resource(self.Endpoints.Subnet, identifier)
+
+    def _get_volume_type(self, identifier, settings_uuid):
+        return self._get_property(self.Endpoints.VolumeType, identifier, settings_uuid)
 
     def _networks_to_payload(self, networks):
         """
@@ -1071,6 +1075,7 @@ class WaldurClient(object):
                       project,
                       offering,
                       size,
+                      volume_type=None,
                       description=None,
                       tags=None,
                       wait=True,
@@ -1083,6 +1088,7 @@ class WaldurClient(object):
         :param project: uuid or name of the project to add the volume to.
         :param provider: uuid or name of the provider to use.
         :param size: size of the volume in GBs.
+        :param type: uuid or name of volume type.
         :param description: arbitrary text.
         :param tags: list of tags to add to the volume.
         :param wait: defines whether the client has to wait for volume provisioning.
@@ -1090,6 +1096,9 @@ class WaldurClient(object):
         :param timeout: a maximum amount of time to wait for volume provisioning.
         :return: volume as a dictionary.
         """
+
+        offering = self._get_offering(offering, project)
+        settings_uuid = offering['scope_uuid']
 
         # Collect attributes
         attributes = {
@@ -1100,10 +1109,13 @@ class WaldurClient(object):
             attributes.update({'description': description})
         if tags:
             attributes.update({'tags': tags})
+        if volume_type:
+            volume_type = self._get_volume_type(volume_type, settings_uuid)
+            attributes.update({'type': volume_type['url']})
 
         return self._create_scope_via_marketplace(
             name,
-            offering,
+            offering['uuid'],
             project,
             attributes,
             scope_endpoint=self.Endpoints.Volume,

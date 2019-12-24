@@ -53,6 +53,9 @@ options:
     description:
       - The size of the volume in GBs.
         It is required if is state is 'present'.
+  type:
+    description:
+      - UUID or name of volume type.
   state:
     choices:
       - present
@@ -85,7 +88,8 @@ EXAMPLES = '''
         project: OpenStack Project
         offering: Volume in Tenant
         size: 40
-        state: present
+        type: lvm
+        state: present    
 
 - name: remove volume
   hosts: localhost
@@ -117,6 +121,8 @@ def send_request_to_waldur(client, module):
     project = module.params['project']
     offering = module.params['offering']
     size = module.params['size']
+    volume_type = module.params['type']
+    
     try:
         volume = client.get_volume_via_marketplace(name, project)
     except (ObjectDoesNotExist, MultipleObjectsReturned):
@@ -139,6 +145,7 @@ def send_request_to_waldur(client, module):
             project=project,
             offering=offering,
             size=size,
+            volume_type=volume_type,
             description=module.params.get('description'),
             tags=module.params.get('tags'),
             wait=module.params['wait'],
@@ -154,6 +161,7 @@ def main():
         project=dict(type='str', default=None),
         offering=dict(type='str', default=None),
         size=dict(type='int', default=None),
+        type=dict(type='str', default=None),
     )
     module = AnsibleModule(argument_spec=fields)
 
