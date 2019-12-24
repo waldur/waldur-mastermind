@@ -976,7 +976,9 @@ class WaldurClient(object):
             security_groups=None,
             tags=None,
             user_data=None,
-            check_mode=False):
+            check_mode=False,
+            system_volume_type=None,
+            data_volume_type=None):
         """
         Create OpenStack instance from passed parameters via marketplace.
 
@@ -990,12 +992,14 @@ class WaldurClient(object):
         :param flavor_min_ram: min ram size (MB).
         :param image: uuid or name of the image to use.
         :param system_volume_size: size of the system volume in GB.
+        :param system_volume_type: UUID or name of system volume type.
         :param interval: interval of instance state polling in seconds.
         :param timeout: a maximum amount of time to wait for instance provisioning.
         :param wait: defines whether the client has to wait for instance provisioning.
         :param ssh_key: uuid or name of the ssh key to add to the instance.
         :param data_volume_size: size of the data volume in GB.
             No data volume is going to be created if empty.
+        :param data_volume_type: UUID or name of data volume type.
         :param security_groups: list of security groups to add to the instance.
         :param tags: list of tags to add to the instance.
         :param user_data: additional data that will be added to the instance.
@@ -1037,6 +1041,12 @@ class WaldurClient(object):
             attributes.update({'ssh_public_key': ssh_key['url']})
         if description:
             attributes['description'] = description
+        if system_volume_type:
+            volume_type = self._get_volume_type(system_volume_type, settings_uuid)
+            attributes.update({'system_volume_type': volume_type['url']})
+        if data_volume_type:
+            volume_type = self._get_volume_type(data_volume_type, settings_uuid)
+            attributes.update({'data_volume_type': volume_type['url']})
 
         instance = self._create_scope_via_marketplace(
             name,
