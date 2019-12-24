@@ -15,11 +15,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offeringcomponent',
             name='content_type',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType'),
+            field=models.ForeignKey(null=True, blank=True, on_delete=django.db.models.deletion.CASCADE, related_name='+', to='contenttypes.ContentType'),
         ),
         migrations.AddField(
             model_name='offeringcomponent',
             name='object_id',
-            field=models.PositiveIntegerField(null=True),
+            field=models.PositiveIntegerField(null=True, blank=True),
         ),
     ]

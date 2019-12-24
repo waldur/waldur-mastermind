@@ -174,8 +174,9 @@ class ScopeMixin(models.Model):
     class Meta:
         abstract = True
 
-    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
-    object_id = models.PositiveIntegerField(null=True)
+    content_type = models.ForeignKey(
+        to=ContentType, on_delete=models.CASCADE, null=True, blank=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True, blank=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
 
