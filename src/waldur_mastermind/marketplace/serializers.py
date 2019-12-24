@@ -1470,6 +1470,15 @@ def get_marketplace_resource_uuid(serializer, scope):
         return
 
 
+def get_marketplace_plan_uuid(serializer, scope):
+    try:
+        resource = models.Resource.objects.get(scope=scope)
+        if resource.plan:
+            return resource.plan.uuid
+    except ObjectDoesNotExist:
+        return
+
+
 def get_marketplace_resource_state(serializer, scope):
     try:
         return models.Resource.objects.get(scope=scope).get_state_display()
@@ -1499,6 +1508,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+
+    fields['marketplace_plan_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_plan_uuid', get_marketplace_plan_uuid)
 
     fields['marketplace_resource_state'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_state', get_marketplace_resource_state)
