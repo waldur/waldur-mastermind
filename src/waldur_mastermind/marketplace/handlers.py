@@ -119,8 +119,14 @@ def update_category_offerings_count(sender, **kwargs):
 def update_aggregate_resources_count_when_resource_is_updated(sender, instance, created=False, **kwargs):
     def apply_change(delta):
         for field in ('project', 'customer'):
+            try:
+                scope = getattr(instance, field)
+            except ObjectDoesNotExist:
+                # When project is deleted, all its resources are deleted via cascade.
+                # Therefore it is okay if project does not exists.
+                continue
             counter, _ = models.AggregateResourceCount.objects.get_or_create(
-                scope=getattr(instance, field),
+                scope=scope,
                 category=instance.offering.category,
             )
             if delta == 1:
