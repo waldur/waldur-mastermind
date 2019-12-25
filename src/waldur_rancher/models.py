@@ -71,6 +71,9 @@ class Cluster(NewResource):
     def get_url_name(cls):
         return 'rancher-cluster'
 
+    def get_access_url(self):
+        return self.service_project_link.service.settings.backend_url
+
     def __str__(self):
         return self.name
 
