@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, response, status
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -11,7 +12,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import views as structure_views
 from waldur_core.structure import permissions as structure_permissions
 
-from . import models, serializers, filters, executors
+from . import models, serializers, filters, executors, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,19 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     importable_resources_backend_method = 'get_clusters_for_import'
     importable_resources_serializer_class = serializers.ClusterImportableSerializer
     import_resource_serializer_class = serializers.ClusterImportSerializer
+
+    @decorators.action(detail=True, methods=['get'])
+    def kubeconfig_file(self, request, uuid=None):
+        cluster = self.get_object()
+        backend = cluster.get_backend()
+        try:
+            config = backend.get_kubeconfig_file(cluster)
+        except exceptions.RancherException:
+            raise ValidationError('Unable to get kubeconfig file.')
+
+        return response.Response({'config': config}, status=status.HTTP_200_OK)
+
+    kubeconfig_file_validators = [core_validators.StateValidator(models.Cluster.States.OK)]
 
 
 class NodeViewSet(core_views.ActionsViewSet):

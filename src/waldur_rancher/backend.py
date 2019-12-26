@@ -26,6 +26,9 @@ class RancherBackend(ServiceBackend):
     def host(self):
         return self.settings.backend_url.strip('/')
 
+    def get_kubeconfig_file(self, cluster):
+        return self.client.get_kubeconfig_file(cluster.backend_id)
+
     def create_cluster(self, cluster):
         backend_cluster = self.client.create_cluster(cluster.name)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
