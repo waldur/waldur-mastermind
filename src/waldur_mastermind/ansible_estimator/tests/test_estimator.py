@@ -110,7 +110,7 @@ class EstimatorTest(APITransactionTestCase):
             'ssh_public_key': self.internal_key_url,
             'flavor': self.flavor_url,
             'image': self.image_url,
-            'name': 'Valid name',
+            'name': 'valid-name',
             'system_volume_size': self.image.min_disk,
             'internal_ips_set': [
                 {'subnet': self.subnet_url}
