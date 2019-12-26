@@ -99,7 +99,7 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
         if 'worker' in list(roles):
             node['worker_role'] = True
 
-        node['name'] = get_unique_node_name(cluster_name + '_rancher_node', tenant_spl, rancher_spl)
+        node['name'] = get_unique_node_name(cluster_name + '-rancher-node', tenant_spl, rancher_spl)
 
     validate_quotas(nodes, tenant_spl)
 

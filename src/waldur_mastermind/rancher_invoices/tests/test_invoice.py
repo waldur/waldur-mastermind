@@ -25,7 +25,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self.mocked_get_backend = self.patcher.start()
         self.mocked_get_backend().get_cluster_nodes.return_value = [
             {'backend_id': 'node_backend_id',
-             'name': 'name_rancher_node'}]
+             'name': 'name-rancher-node'}]
 
         service = rancher_factories.RancherServiceFactory(customer=self.fixture.customer)
         spl = rancher_factories.RancherServiceProjectLinkFactory(project=self.fixture.project, service=service)
@@ -154,7 +154,7 @@ class InvoiceTest(test.APITransactionTestCase):
             name='second node'
         )
         self.mocked_get_backend().get_cluster_nodes.return_value = [
-            {'backend_id': 'node_backend_id', 'name': 'name_rancher_node'},
+            {'backend_id': 'node_backend_id', 'name': 'name-rancher-node'},
             {'backend_id': 'second_node_backend_id', 'name': 'second node'}
         ]
         tasks.update_node(self.cluster.id)
@@ -195,7 +195,7 @@ class InvoiceTest(test.APITransactionTestCase):
             name='second node'
         )
         self.mocked_get_backend().get_cluster_nodes.return_value = [
-            {'backend_id': 'node_backend_id', 'name': 'name_rancher_node'},
+            {'backend_id': 'node_backend_id', 'name': 'name-rancher-node'},
             {'backend_id': 'second_node_backend_id', 'name': 'second node'}
         ]
         tasks.update_node(self.cluster.id)

@@ -371,7 +371,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
     def test_instance_is_created_when_order_item_is_processed(self):
         order_item = self.trigger_instance_creation()
         self.assertEqual(order_item.state, marketplace_models.OrderItem.States.EXECUTING)
-        self.assertTrue(openstack_tenant_models.Instance.objects.filter(name='Virtual machine').exists())
+        self.assertTrue(openstack_tenant_models.Instance.objects.filter(name='virtual-machine').exists())
 
     def test_availability_zone_is_passed_to_plugin(self):
         availability_zone = openstack_tenant_factories.InstanceAvailabilityZoneFactory(
@@ -422,7 +422,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         attributes = {
             'flavor': openstack_tenant_factories.FlavorFactory.get_url(flavor),
             'image': openstack_tenant_factories.ImageFactory.get_url(image),
-            'name': 'Virtual machine',
+            'name': 'virtual-machine',
             'system_volume_size': image.min_disk,
             'internal_ips_set': [{'subnet': subnet_url}],
             'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(

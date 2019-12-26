@@ -16,7 +16,7 @@ def _instance_data(user, instance=None):
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
     subnet = factories.SubNetFactory(settings=instance.service_project_link.service.settings)
     return {
-        'name': 'test_host',
+        'name': 'test-host',
         'description': 'test description',
         'flavor': factories.FlavorFactory.get_url(flavor),
         'image': factories.ImageFactory.get_url(image),

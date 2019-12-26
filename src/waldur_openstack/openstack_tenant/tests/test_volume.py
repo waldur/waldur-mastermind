@@ -393,7 +393,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
         url = factories.InstanceFactory.get_list_url()
 
         payload = {
-            'name': 'Test instance',
+            'name': 'test-instance',
             'image': self.image_url,
             'service_project_link': self.spl_url,
             'flavor': flavor_url,
