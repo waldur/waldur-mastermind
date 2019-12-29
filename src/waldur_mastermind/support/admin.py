@@ -40,7 +40,7 @@ class OfferingAdminForm(forms.ModelForm):
 
 
 class OfferingAdmin(admin.ModelAdmin):
-    list_display = ('template', 'name', 'unit_price', 'unit', 'state',
+    list_display = ('template', 'name', 'project', 'unit_price', 'unit', 'state',
                     'created', 'modified', 'issue_key')
     search_fields = ('name', 'template__name', 'issue__key')
     fields = ('name', 'unit_price', 'unit', 'template', 'issue',
