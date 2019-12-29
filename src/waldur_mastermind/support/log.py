@@ -1,4 +1,5 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
+from waldur_core.structure.models import Project
 from waldur_core.structure.permissions import _get_project
 
 from . import models
@@ -71,7 +72,8 @@ class OfferingEventLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         offering = event_context['offering']
-        return {offering, offering.project, offering.project.customer}
+        project = Project.all_objects.get(id=offering.project_id)  # handle case when project is already deleted
+        return {offering, project, project.customer}
 
 
 event_logger.register('waldur_issue', IssueEventLogger)
