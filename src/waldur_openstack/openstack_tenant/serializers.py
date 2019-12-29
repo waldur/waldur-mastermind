@@ -768,6 +768,41 @@ def _validate_instance_floating_ips(floating_ips_with_subnets, settings, instanc
         raise serializers.ValidationError(ugettext('It is impossible to use subnet %s twice.') % duplicates[0])
 
 
+def _validate_instance_name(data, max_len=255):
+    """Copy paste from https://github.com/openstack/neutron-lib/blob/master/neutron_lib/api/validators/dns.py#L23"""
+
+    DNS_LABEL_REGEX = '^([a-z0-9-]{1,63})$'
+
+    try:
+        # A trailing period is allowed to indicate that a name is fully
+        # qualified per RFC 1034 (page 7).
+        trimmed = data[:-1] if data.endswith('.') else data
+        if len(trimmed) > max_len:
+            raise TypeError(
+                _("'%(trimmed)s' exceeds the %(maxlen)s character FQDN "
+                  "limit") % {'trimmed': trimmed, 'maxlen': max_len})
+        labels = trimmed.split('.')
+        for label in labels:
+            if not label:
+                raise TypeError(_("Encountered an empty component"))
+            if label.endswith('-') or label.startswith('-'):
+                raise TypeError(
+                    _("Name '%s' must not start or end with a hyphen") % label)
+            if not re.match(DNS_LABEL_REGEX, label):
+                raise TypeError(
+                    _("Name '%s' must be 1-63 characters long, each of "
+                      "which can only be alphanumeric or a hyphen") % label)
+        # RFC 1123 hints that a TLD can't be all numeric. last is a TLD if
+        # it's an FQDN.
+        if len(labels) > 1 and re.match("^[0-9]+$", labels[-1]):
+            raise TypeError(
+                _("TLD '%s' must not be all numeric") % labels[-1])
+    except TypeError as e:
+        msg = _("'%(data)s' not a valid PQDN or FQDN. Reason: %(reason)s") % {
+            'data': data, 'reason': e}
+        raise serializers.ValidationError({'name': msg})
+
+
 def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
     """ Connect floating IP to instance via specified subnet.
         If floating IP is not defined - take exist free one or create a new one.
@@ -961,6 +996,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         _validate_instance_internal_ips(internal_ips, settings)
         subnets = [internal_ip.subnet for internal_ip in internal_ips]
         _validate_instance_floating_ips(attrs.get('floating_ips', []), settings, subnets)
+        _validate_instance_name(attrs.get('name'))
 
         availability_zone = attrs.get('availability_zone')
         if availability_zone and availability_zone.settings != settings:

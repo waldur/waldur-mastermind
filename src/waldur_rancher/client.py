@@ -109,3 +109,7 @@ class RancherClient:
 
     def get_node(self, node_id):
         return self._get('nodes/{0}'.format(node_id))
+
+    def get_kubeconfig_file(self, cluster_id):
+        data = self._post('clusters/{0}'.format(cluster_id), params={'action': 'generateKubeconfig'})
+        return data['config']

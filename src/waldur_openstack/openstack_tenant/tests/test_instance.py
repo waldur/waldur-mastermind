@@ -83,7 +83,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             'service_project_link': factories.OpenStackTenantServiceProjectLinkFactory.get_url(self.openstack_spl),
             'flavor': factories.FlavorFactory.get_url(self.flavor),
             'image': factories.ImageFactory.get_url(self.image),
-            'name': 'Valid name',
+            'name': 'valid-name',
             'system_volume_size': self.image.min_disk,
             'internal_ips_set': [{'subnet': subnet_url}],
         }
@@ -387,6 +387,20 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
         response = self.client.post(self.url, data)
 
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @data('kt-experimental-ubuntu-18.04', 'vm_name', 'VM')
+    def test_not_create_instance_with_invalid_name(self, name):
+        data = self.get_valid_data()
+        data['name'] = name
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data('test', 'vm-name', 'vm')
+    def test_create_instance_with_valid_name(self, name):
+        data = self.get_valid_data()
+        data['name'] = name
+        response = self.client.post(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 

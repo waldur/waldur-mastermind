@@ -9,10 +9,12 @@ from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
+from waldur_core.core import validators as core_validators
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import GenericRelatedField
@@ -21,6 +23,7 @@ from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models, SupportedServices
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
@@ -1173,7 +1176,7 @@ class ResourceSerializer(BaseItemSerializer):
             'customer_uuid', 'customer_name',
             'offering_uuid', 'offering_name',
             'backend_metadata', 'is_usage_based', 'name',
-            'current_usages',
+            'current_usages', 'can_terminate',
         )
         read_only_fields = ('backend_metadata', 'scope', 'current_usages')
 
@@ -1194,6 +1197,28 @@ class ResourceSerializer(BaseItemSerializer):
     offering_name = serializers.ReadOnlyField(source='offering.name')
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source='offering.is_usage_based')
+    can_terminate = serializers.SerializerMethodField()
+
+    def get_can_terminate(self, resource):
+        view = self.context['view']
+        try:
+            permissions.user_can_terminate_resource(view.request, view, resource)
+        except APIException:
+            return False
+        for validator in [
+            core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
+            structure_utils.check_customer_blocked
+        ]:
+            try:
+                validator(resource)
+            except APIException:
+                return False
+        if models.OrderItem.objects.filter(
+            resource=resource,
+            state__in=(models.OrderItem.States.PENDING, models.OrderItem.States.EXECUTING)
+        ).exists():
+            return False
+        return True
 
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
@@ -1470,6 +1495,15 @@ def get_marketplace_resource_uuid(serializer, scope):
         return
 
 
+def get_marketplace_plan_uuid(serializer, scope):
+    try:
+        resource = models.Resource.objects.get(scope=scope)
+        if resource.plan:
+            return resource.plan.uuid
+    except ObjectDoesNotExist:
+        return
+
+
 def get_marketplace_resource_state(serializer, scope):
     try:
         return models.Resource.objects.get(scope=scope).get_state_display()
@@ -1499,6 +1533,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+
+    fields['marketplace_plan_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_plan_uuid', get_marketplace_plan_uuid)
 
     fields['marketplace_resource_state'] = serializers.SerializerMethodField()
     setattr(sender, 'get_marketplace_resource_state', get_marketplace_resource_state)

@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 
+from waldur_core.structure.models import Project
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -24,13 +25,14 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         ).distinct()
 
     def get_customer(self, source):
-        return source.project.customer
+        project = Project.all_objects.get(id=source.project_id)
+        return project.customer
 
     def _find_item(self, source, now):
         offering = source
         result = utils.get_offering_items().filter(
             object_id=offering.id,
-            invoice__customer=offering.project.customer,
+            invoice__customer=self.get_customer(offering),
             invoice__state=invoice_models.Invoice.States.PENDING,
             invoice__year=now.year,
             invoice__month=now.month,

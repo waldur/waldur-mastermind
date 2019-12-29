@@ -1,5 +1,6 @@
 from functools import reduce
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import F, Sum
 
@@ -193,7 +194,11 @@ class CounterQuotaField(QuotaField):
         scope.set_quota_usage(self.name, current_usage)
 
     def add_usage(self, target_instance, delta):
-        scope = self._get_scope(target_instance)
+        try:
+            scope = self._get_scope(target_instance)
+        except ObjectDoesNotExist:
+            # ignore as scope has been deleted
+            return
         delta *= self.get_delta(target_instance)
         if self.is_connected_to_scope(scope):
             scope.add_quota_usage(self.name, delta, validate=True)
