@@ -9,6 +9,7 @@ import types
 import uuid
 
 from django.apps import apps
+from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_core.logging import models
 from waldur_core.logging.log import EventLoggerAdapter
@@ -225,10 +226,26 @@ class LoggableMixin:
 
         context = {}
         for field in self.get_log_fields():
-            if not hasattr(self, field):
-                continue
+            field_class = None
+            try:
+                if not hasattr(self, field):
+                    continue
+            except ObjectDoesNotExist:
+                # the related object has been deleted
+                # a hack to check if the id reference exists to field_id, which means that object is soft-deleted
+                id_field = "%s_id" % field
+                if hasattr(self.__class__, id_field):
+                    field_class = getattr(self.__class__, field).field.related_model
+                else:
+                    continue
 
-            value = getattr(self, field)
+            if field_class is not None:
+                # XXX: Consider a better approach. Or figure out why
+                # XXX: isinstance(field_class, SoftDeletableModel) doesn't work.
+                # assume that field_class is instance of SoftDeletableModel
+                value = field_class.all_objects.get(id=getattr(self, id_field))
+            else:
+                value = getattr(self, field)
 
             if entity_name:
                 name = "{}_{}".format(entity_name, field)

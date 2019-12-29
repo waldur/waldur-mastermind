@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import transaction
 
 from waldur_core.logging.loggers import EventLogger, event_logger
+from waldur_core.structure.models import Project
 
 from . import models, tasks
 
@@ -22,7 +23,8 @@ class MarketplaceOrderLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         order = event_context['order']
-        return {order, order.project, order.project.customer}
+        project = Project.all_objects.get(id=order.project_id)  # handle case when project is already deleted
+        return {order, project, project.customer}
 
 
 class MarketplaceResourceLogger(EventLogger):
@@ -72,7 +74,8 @@ class MarketplaceResourceLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         resource = event_context['resource']
-        return {resource, resource.project, resource.project.customer}
+        project = Project.all_objects.get(id=resource.project_id)  # handle case when project is already deleted
+        return {resource, project, project.customer}
 
 
 event_logger.register('marketplace_order', MarketplaceOrderLogger)
