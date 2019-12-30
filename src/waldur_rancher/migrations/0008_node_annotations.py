@@ -54,11 +54,11 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='node',
             name='ram_allocated',
-            field=models.IntegerField(blank=True, null=True),
+            field=models.IntegerField(blank=True, null=True, help_text='Allocated RAM in Mi.'),
         ),
         migrations.AddField(
             model_name='node',
             name='ram_total',
-            field=models.IntegerField(blank=True, null=True),
+            field=models.IntegerField(blank=True, null=True, help_text='Total RAM in Mi.'),
         ),
     ]

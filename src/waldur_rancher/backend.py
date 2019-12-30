@@ -123,10 +123,13 @@ class RancherBackend(ServiceBackend):
         node.annotations = backend_node['annotations']
         node.docker_version = backend_node['info']['os']['dockerVersion']
         node.k8s_version = backend_node['info']['kubernetes']['kubeletVersion']
-        node.cpu_allocated = core_utils.parse_int(backend_node['requested']['cpu']) / 1000
+        node.cpu_allocated = \
+            core_utils.parse_int(backend_node['requested']['cpu']) / 1000  # convert data from 380m to 0.38
         node.cpu_total = backend_node['allocatable']['cpu']
-        node.ram_allocated = core_utils.parse_int(backend_node['requested']['memory'])
-        node.ram_total = core_utils.parse_int(backend_node['allocatable']['memory'])
+        node.ram_allocated = \
+            int(core_utils.parse_int(backend_node['requested']['memory']) / 2 ** 20)  # convert data to Mi
+        node.ram_total = \
+            int(core_utils.parse_int(backend_node['allocatable']['memory']) / 2 ** 20)  # convert data to Mi
         node.pods_allocated = backend_node['requested']['pods']
         node.pods_total = backend_node['allocatable']['pods']
         node.runtime_state = backend_node['state']
