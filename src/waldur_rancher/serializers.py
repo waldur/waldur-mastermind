@@ -210,10 +210,11 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source='get_state_display')
     service_name = serializers.ReadOnlyField(source='service_project_link.service.settings.name')
     service_uuid = serializers.ReadOnlyField(source='service_project_link.service.uuid')
+    project_uuid = serializers.ReadOnlyField(source='service_project_link.project.uuid')
 
     class Meta:
         model = models.Node
-        fields = ('uuid', 'url', 'created', 'modified', 'name', 'backend_id',
+        fields = ('uuid', 'url', 'created', 'modified', 'name', 'backend_id', 'project_uuid',
                   'service_name', 'service_uuid', 'resource_type', 'state', 'cluster', 'instance',
                   'controlplane_role', 'etcd_role', 'worker_role', 'get_node_command', 'k8s_version',
                   'docker_version', 'cpu_allocated', 'cpu_total', 'ram_allocated', 'ram_total', 'pods_allocated',
