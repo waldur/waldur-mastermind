@@ -1,34 +1,10 @@
 import datetime
-import re
 
 from django.utils.functional import cached_property
 
+from waldur_core.core import utils as core_utils
+
 from .base import BaseReportLine
-
-SLURM_UNIT_PATTERN = re.compile('(\d+)([KMGTP]?)')
-
-SLURM_UNITS = {
-    'K': 2**10,
-    'M': 2**20,
-    'G': 2**30,
-    'T': 2**40,
-}
-
-
-def parse_int(value):
-    """
-    Convert 5K to 5000.
-    """
-    match = re.match(SLURM_UNIT_PATTERN, value)
-    if not match:
-        return 0
-    value = int(match.group(1))
-    unit = match.group(2)
-    if unit:
-        factor = SLURM_UNITS[unit]
-    else:
-        factor = 1
-    return factor * value
 
 
 def parse_duration(value):
@@ -81,4 +57,4 @@ class SlurmReportLine(BaseReportLine):
     def parse_field(self, field):
         if field not in self._resources:
             return 0
-        return parse_int(self._resources[field])
+        return core_utils.parse_int(self._resources[field])

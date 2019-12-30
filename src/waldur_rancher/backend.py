@@ -1,5 +1,6 @@
 from django.utils.functional import cached_property
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import ServiceBackend
 
 from .client import RancherClient
@@ -46,6 +47,7 @@ class RancherBackend(ServiceBackend):
     def _backend_cluster_to_cluster(self, backend_cluster, cluster):
         cluster.backend_id = backend_cluster['id']
         cluster.name = backend_cluster['name']
+        cluster.runtime_state = backend_cluster['state']
 
     def _cluster_to_backend_cluster(self, cluster):
         return {'name': cluster.name}
@@ -64,22 +66,44 @@ class RancherBackend(ServiceBackend):
         cluster = models.Cluster(
             backend_id=backend_id,
             service_project_link=service_project_link,
-            state=models.Cluster.States.OK)
+            state=models.Cluster.States.OK,
+            runtime_state=backend_cluster['state'])
+        self.pull_cluster(cluster, backend_cluster)
+        return cluster
+
+    def pull_cluster(self, cluster, backend_cluster=None):
+        backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
         backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
-        for node in backend_nodes:
-            roles = node.get('role', [])
-            models.Node.objects.create(
-                state=models.Node.States.OK,
-                backend_id=node.get('nodeId'),
-                name=node.get('hostnameOverride'),
+
+        for backend_node in backend_nodes:
+            roles = backend_node.get('role', [])
+
+            # If the node has not been requested from Waldur, so it will be created
+            node, created = models.Node.objects.get_or_create(
+                name=backend_node.get('hostnameOverride'),
                 cluster=cluster,
-                controlplane_role='controlplane' in roles,
-                etcd_role='etcd' in roles,
-                worker_role='worker' in roles,
+                defaults=dict(
+                    state=models.Node.States.OK,
+                    backend_id=backend_node.get('nodeId'),
+                    controlplane_role='controlplane' in roles,
+                    etcd_role='etcd' in roles,
+                    worker_role='worker' in roles
+                )
             )
-        return cluster
+
+            if not node.backend_id:
+                # If the node has been requested from Waldur, but it has not been synchronized
+                node.state = models.Node.States.OK
+                node.backend_id = backend_node.get('nodeId')
+                node.controlplane_role = 'controlplane' in roles
+                node.etcd_role = 'etcd' in roles
+                node.worker_role = 'worker' in roles
+                node.save()
+
+            # Update details in all cases.
+            self.update_node_details(node)
 
     def get_cluster_nodes(self, backend_id):
         backend_cluster = self.client.get_cluster(backend_id)
@@ -89,3 +113,26 @@ class RancherBackend(ServiceBackend):
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
         return backend_node['state'] == 'active'
+
+    def update_node_details(self, node):
+        if not node.backend_id:
+            return
+
+        backend_node = self.client.get_node(node.backend_id)
+        node.labels = backend_node['labels']
+        node.annotations = backend_node['annotations']
+        node.docker_version = backend_node['info']['os']['dockerVersion']
+        node.k8s_version = backend_node['info']['kubernetes']['kubeletVersion']
+        node.cpu_allocated = core_utils.parse_int(backend_node['requested']['cpu']) / 1000
+        node.cpu_total = backend_node['allocatable']['cpu']
+        node.ram_allocated = core_utils.parse_int(backend_node['requested']['memory'])
+        node.ram_total = core_utils.parse_int(backend_node['allocatable']['memory'])
+        node.pods_allocated = backend_node['requested']['pods']
+        node.pods_total = backend_node['allocatable']['pods']
+        node.runtime_state = backend_node['state']
+
+        if backend_node['state'] == 'active':
+            node.state = models.Node.States.OK
+        else:
+            node.state = models.Node.States.ERRED
+        return node.save()
