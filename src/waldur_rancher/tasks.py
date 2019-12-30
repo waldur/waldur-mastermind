@@ -77,7 +77,7 @@ class CreateNodeTask(core_tasks.Task):
 
 
 @shared_task
-def update_node(cluster_id):
+def update_nodes(cluster_id):
     cluster = models.Cluster.objects.get(id=cluster_id)
     backend = cluster.get_backend()
 
@@ -93,17 +93,12 @@ def update_node(cluster_id):
     has_changes = False
 
     for node in cluster.node_set.exclude(backend_id=''):
-        if backend.node_is_active(node.backend_id):
-            if node.state != models.Node.States.OK:
-                node.state = models.Node.States.OK
-                node.save(update_fields=['state'])
-                has_changes = True
-        elif node.state == models.Node.States.OK:
-            node.state = models.Node.States.ERRED
-            node.save(update_fields=['state'])
+        old_state = node.state
+        backend.update_node_details(node)
+        node.refresh_from_db()
+
+        if old_state != node.state:
             has_changes = True
-        else:
-            pass
 
     if has_changes:
         signals.node_states_have_been_updated.send(
@@ -112,7 +107,7 @@ def update_node(cluster_id):
         )
 
 
-@shared_task(name='waldur_rancher.update_node_states')
-def update_node_states():
+@shared_task(name='waldur_rancher.update_clusters_nodes')
+def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
-        update_node.delay(cluster.id)
+        update_nodes.delay(cluster.id)

@@ -56,6 +56,7 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     importable_resources_backend_method = 'get_clusters_for_import'
     importable_resources_serializer_class = serializers.ClusterImportableSerializer
     import_resource_serializer_class = serializers.ClusterImportSerializer
+    pull_executor = executors.ClusterPullExecutor
 
     @decorators.action(detail=True, methods=['get'])
     def kubeconfig_file(self, request, uuid=None):

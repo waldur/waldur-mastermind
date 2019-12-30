@@ -1,0 +1,162 @@
+{
+  "hostname": "k8s-node",
+  "actions": {
+    "drain": "https://192.168.0.0/v3/nodes/cluster_id:node_id?action=drain",
+    "cordon": "https://192.168.0.0/v3/nodes/cluster_id:node_id?action=cordon"
+  },
+  "nodeName": "k8s-node",
+  "imported": true,
+  "creatorId": null,
+  "capacity": {
+    "hugepages-2Mi": "0",
+    "cpu": "1",
+    "ephemeral-storage": "39269648Ki",
+    "pods": "110",
+    "memory": "1016156Ki"
+  },
+  "transitioningMessage": "",
+  "uuid": "c3099a76-053b-11ea-873c-0242ac110002",
+  "type": "node",
+  "id": "cluster_id:node_id",
+  "worker": true,
+  "created": "2019-11-12T11:01:22Z",
+  "namespaceId": null,
+  "requested": {
+    "memory": "8002Mi",
+    "cpu": "380m",
+    "pods": "8"
+  },
+  "customConfig": {
+    "type": "/v3/schemas/customConfig",
+    "address": "10.0.2.15"
+  },
+  "controlPlane": true,
+  "etcd": true,
+  "info": {
+    "kubernetes": {
+      "kubeletVersion": "v1.14.6",
+      "kubeProxyVersion": "v1.14.6"
+    },
+    "cpu": {
+      "count": 1
+    },
+    "os": {
+      "dockerVersion": "19.3.4",
+      "operatingSystem": "CentOS Linux 7 (Core)",
+      "kernelVersion": "3.10.0-693.21.1.el7.x86_64"
+    },
+    "memory": {
+      "memTotalKiB": 1016156
+    }
+  },
+  "externalIpAddress": "10.0.2.15",
+  "createdTS": 1573556482000,
+  "nodePoolId": "",
+  "baseType": "node",
+  "transitioning": "no",
+  "annotations": {
+    "flannel.alpha.coreos.com/public-ip": "10.0.2.15",
+    "flannel.alpha.coreos.com/backend-type": "vxlan",
+    "rke.cattle.io/internal-ip": "10.0.2.15",
+    "flannel.alpha.coreos.com/kube-subnet-manager": "true",
+    "volumes.kubernetes.io/controller-managed-attach-detach": "true",
+    "rke.cattle.io/external-ip": "10.0.2.15",
+    "flannel.alpha.coreos.com/backend-data": "",
+    "node.alpha.kubernetes.io/ttl": "0"
+  },
+  "links": {
+    "remove": "https://192.168.0.0/v3/nodes/cluster_id:node_id",
+    "self": "https://192.168.0.0/v3/nodes/cluster_id:node_id",
+    "update": "https://192.168.0.0/v3/nodes/cluster_id:node_id"
+  },
+  "state": "active",
+  "requestedHostname": "k8s-node",
+  "allocatable": {
+    "hugepages-2Mi": "0",
+    "cpu": "1",
+    "ephemeral-storage": "36190907537",
+    "pods": "110",
+    "memory": "16163180Ki"
+  },
+  "labels": {
+    "beta.kubernetes.io/arch": "amd64",
+    "beta.kubernetes.io/os": "linux",
+    "node-role.kubernetes.io/etcd": "true",
+    "node-role.kubernetes.io/controlplane": "true",
+    "kubernetes.io/arch": "amd64",
+    "node-role.kubernetes.io/worker": "true",
+    "kubernetes.io/hostname": "k8s-node",
+    "kubernetes.io/os": "linux"
+  },
+  "conditions": [
+    {
+      "type": "Initialized",
+      "status": "True"
+    },
+    {
+      "type": "Registered",
+      "message": "registered with kubernetes",
+      "status": "True"
+    },
+    {
+      "type": "Provisioned",
+      "status": "True"
+    },
+    {
+      "type": "MemoryPressure",
+      "message": "kubelet has sufficient memory available",
+      "lastHeartbeatTime": "2019-11-12T11:07:47Z",
+      "status": "False",
+      "lastHeartbeatTimeTS": 1573556867000,
+      "reason": "KubeletHasSufficientMemory",
+      "lastTransitionTimeTS": 1573556725000,
+      "lastTransitionTime": "2019-11-12T11:05:25Z"
+    },
+    {
+      "type": "DiskPressure",
+      "message": "kubelet has no disk pressure",
+      "lastHeartbeatTime": "2019-11-12T11:07:47Z",
+      "status": "False",
+      "lastHeartbeatTimeTS": 1573556867000,
+      "reason": "KubeletHasNoDiskPressure",
+      "lastTransitionTimeTS": 1573556725000,
+      "lastTransitionTime": "2019-11-12T11:05:25Z"
+    },
+    {
+      "type": "PIDPressure",
+      "message": "kubelet has sufficient PID available",
+      "lastHeartbeatTime": "2019-11-12T11:07:47Z",
+      "status": "False",
+      "lastHeartbeatTimeTS": 1573556867000,
+      "reason": "KubeletHasSufficientPID",
+      "lastTransitionTimeTS": 1573556725000,
+      "lastTransitionTime": "2019-11-12T11:05:25Z"
+    },
+    {
+      "type": "Ready",
+      "message": "kubelet is posting ready status",
+      "lastHeartbeatTime": "2019-11-12T11:07:47Z",
+      "status": "True",
+      "lastHeartbeatTimeTS": 1573556867000,
+      "reason": "KubeletReady",
+      "lastTransitionTimeTS": 1573556777000,
+      "lastTransitionTime": "2019-11-12T11:06:17Z"
+    }
+  ],
+  "ipAddress": "10.0.2.15",
+  "name": "",
+  "clusterId": "cluster_id",
+  "nodeTemplateId": null,
+  "sshUser": "root",
+  "unschedulable": false,
+  "limits": {
+    "memory": "190Mi",
+    "cpu": "10m"
+  },
+  "podCidr": "10.42.0.0/24",
+  "dockerInfo": {
+    "debug": false,
+    "experimentalBuild": false,
+    "type": "/v3/schemas/dockerInfo"
+  }
+}

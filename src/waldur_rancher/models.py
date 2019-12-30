@@ -63,6 +63,7 @@ class Cluster(NewResource):
         null=True,
         blank=True,
     )
+    runtime_state = models.CharField(max_length=255, blank=True)
 
     class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
@@ -94,6 +95,17 @@ class Node(core_models.UuidMixin,
     initial_data = JSONField(blank=True,
                              default=dict,
                              help_text=_('Initial data for instance creating.'))
+    runtime_state = models.CharField(max_length=255, blank=True)
+    k8s_version = models.CharField(max_length=255, blank=True)
+    docker_version = models.CharField(max_length=255, blank=True)
+    cpu_allocated = models.FloatField(blank=True, null=True)
+    cpu_total = models.IntegerField(blank=True, null=True)
+    ram_allocated = models.IntegerField(blank=True, null=True, help_text='Allocated RAM in Mi.')
+    ram_total = models.IntegerField(blank=True, null=True, help_text='Total RAM in Mi.')
+    pods_allocated = models.IntegerField(blank=True, null=True)
+    pods_total = models.IntegerField(blank=True, null=True)
+    labels = JSONField(blank=True, default=dict)
+    annotations = JSONField(blank=True, default=dict)
 
     def get_node_command(self):
         roles_command = []

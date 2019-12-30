@@ -386,3 +386,29 @@ def decode_jwt_token(encoded_data, api_secret_code=None):
 
 def normalize_unicode(data):
     return unicodedata.normalize(u'NFKD', data).encode('ascii', 'ignore').decode('utf8')
+
+
+UNIT_PATTERN = re.compile('(\d+)([KMGTP]?)')
+
+UNITS = {
+    'K': 2**10,
+    'M': 2**20,
+    'G': 2**30,
+    'T': 2**40,
+}
+
+
+def parse_int(value):
+    """
+    Convert 5K to 5000.
+    """
+    match = re.match(UNIT_PATTERN, value)
+    if not match:
+        return 0
+    value = int(match.group(1))
+    unit = match.group(2)
+    if unit:
+        factor = UNITS[unit]
+    else:
+        factor = 1
+    return factor * value
