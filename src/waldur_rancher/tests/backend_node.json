@@ -22,7 +22,7 @@
   "created": "2019-11-12T11:01:22Z",
   "namespaceId": null,
   "requested": {
-    "memory": "100Mi",
+    "memory": "8002Mi",
     "cpu": "380m",
     "pods": "8"
   },
@@ -76,7 +76,7 @@
     "cpu": "1",
     "ephemeral-storage": "36190907537",
     "pods": "110",
-    "memory": "913756Ki"
+    "memory": "16163180Ki"
   },
   "labels": {
     "beta.kubernetes.io/arch": "amd64",
