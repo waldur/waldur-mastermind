@@ -42,8 +42,8 @@ class RancherExtension(WaldurExtension):
     def celery_tasks():
         from datetime import timedelta
         return {
-            'waldur-rancher-update-node-states': {
-                'task': 'waldur_rancher.update_node_states',
+            'waldur-rancher-update-clusters-nodes': {
+                'task': 'waldur_rancher.update_clusters_nodes',
                 'schedule': timedelta(hours=24),
                 'args': (),
             },

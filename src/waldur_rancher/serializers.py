@@ -158,10 +158,10 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'node_command', 'nodes', 'tenant_settings',
+            'node_command', 'nodes', 'tenant_settings', 'runtime_state',
         )
         read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'node_command',
+            'node_command', 'runtime_state',
         )
         protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
             'nodes', 'tenant_settings',
@@ -213,10 +213,14 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.Node
-        fields = ('uuid', 'url', 'created', 'modified', 'name',
-                  'service_name', 'service_uuid',
-                  'resource_type', 'state', 'cluster', 'instance',
-                  'controlplane_role', 'etcd_role', 'worker_role', 'get_node_command')
+        fields = ('uuid', 'url', 'created', 'modified', 'name', 'backend_id',
+                  'service_name', 'service_uuid', 'resource_type', 'state', 'cluster', 'instance',
+                  'controlplane_role', 'etcd_role', 'worker_role', 'get_node_command', 'k8s_version',
+                  'docker_version', 'cpu_allocated', 'cpu_total', 'ram_allocated', 'ram_total', 'pods_allocated',
+                  'pods_total', 'labels', 'annotations', 'runtime_state')
+        read_only_fields = ('backend_id', 'k8s_version', 'docker_version', 'cpu_allocated', 'cpu_total',
+                            'ram_allocated', 'ram_total', 'pods_allocated', 'pods_total', 'labels', 'annotations',
+                            'runtime_state')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'rancher-node-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}

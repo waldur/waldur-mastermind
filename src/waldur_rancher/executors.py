@@ -68,3 +68,11 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
             serialized_instance,
             user_id=user.id,
         )
+
+
+class ClusterPullExecutor(core_executors.ActionExecutor):
+
+    @classmethod
+    def get_task_signature(cls, cluster, serialized_cluster, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_cluster, 'pull_cluster', state_transition='begin_updating')

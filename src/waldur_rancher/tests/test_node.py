@@ -1,4 +1,7 @@
+import json
 from unittest import mock
+
+import pkg_resources
 from rest_framework import status, test
 
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
@@ -122,3 +125,49 @@ class NodeDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+
+class NodeDetailsUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        super(NodeDetailsUpdateTest, self).setUp()
+        self.fixture = fixtures.RancherFixture()
+        self.fixture.node.backend_id = 'backend_id'
+        self.fixture.node.save()
+
+        self.patcher_client = mock.patch('waldur_rancher.backend.RancherBackend.client')
+        self.mock_client = self.patcher_client.start()
+        self.mock_client.get_node.return_value = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode())
+        self.mock_client.get_cluster.return_value = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
+
+    def _check_node_fields(self, node):
+        node.refresh_from_db()
+        self.assertEqual(node.docker_version, '19.3.4')
+        self.assertEqual(node.k8s_version, 'v1.14.6')
+        self.assertEqual(node.cpu_allocated, 0.38)
+        self.assertEqual(node.cpu_total, 1)
+        self.assertEqual(node.ram_allocated, 104857600)
+        self.assertEqual(node.ram_total, 935686144)
+        self.assertEqual(node.pods_allocated, 8)
+        self.assertEqual(node.pods_total, 110)
+        self.assertEqual(node.state, models.Node.States.OK)
+
+    def test_update_node_details(self):
+        tasks.update_nodes(self.fixture.cluster.id)
+        self._check_node_fields(self.fixture.node)
+
+    def test_pull_cluster_import_new_node(self):
+        backend = self.fixture.node.cluster.get_backend()
+        backend.pull_cluster(self.fixture.node.cluster)
+        self.assertEqual(self.fixture.cluster.node_set.count(), 2)
+        node = self.fixture.cluster.node_set.get(name='k8s-cluster')
+        self._check_node_fields(node)
+
+    def test_pull_cluster_update_node(self):
+        backend = self.fixture.node.cluster.get_backend()
+        self.fixture.node.name = 'k8s-cluster'
+        self.fixture.node.backend_id = ''
+        self.fixture.node.save()
+        backend.pull_cluster(self.fixture.node.cluster)
+        self._check_node_fields(self.fixture.node)
