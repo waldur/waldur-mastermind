@@ -252,4 +252,16 @@ class CustomerResourceFilter(BaseFilterBackend):
         return queryset
 
 
+class ServiceProviderOfferingFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        customer_uuid = request.query_params.get('service_provider_uuid')
+
+        if customer_uuid and is_uuid_like(customer_uuid):
+            customers = models.Resource.objects.filter(offering__customer__uuid=customer_uuid)\
+                .values_list('project__customer_id', flat=True)
+            queryset = queryset.filter(pk__in=customers)
+        return queryset
+
+
 structure_filters.ExternalCustomerFilterBackend.register(CustomerResourceFilter())
+structure_filters.ExternalCustomerFilterBackend.register(ServiceProviderOfferingFilter())
