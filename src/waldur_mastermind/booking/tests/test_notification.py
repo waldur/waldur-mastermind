@@ -28,7 +28,9 @@ class NotificationsTest(test.APITransactionTestCase):
         serialized_user = core_utils.serialize_instance(fixture.staff)
         marketplace_tasks.process_order(serialized_order, serialized_user)
 
-        self.resource = marketplace_models.Resource.objects.filter(name='item_name').exists()
+        self.resource = marketplace_models.Resource.objects.get(name='booking')
+        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.save()
 
     @freeze_time('2019-01-02')
     def test_send_notification_message_one_day_before_event(self):

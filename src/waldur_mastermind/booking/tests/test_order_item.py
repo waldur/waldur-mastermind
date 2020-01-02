@@ -29,7 +29,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
 
         self.assertTrue(marketplace_models.Resource.objects.filter(name='item_name').exists())
         resource = marketplace_models.Resource.objects.get(name='item_name')
-        self.assertEqual(resource.state, marketplace_models.Resource.States.OK)
+        self.assertEqual(resource.state, marketplace_models.Resource.States.CREATING)
 
 
 class OrderCreateTest(test.APITransactionTestCase):
