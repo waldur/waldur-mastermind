@@ -317,7 +317,10 @@ class Offering(core_models.UuidMixin,
 
     @cached_property
     def is_usage_based(self):
-        return self.components.filter(billing_type=OfferingComponent.BillingTypes.USAGE).exists()
+        return self.components.filter(
+            billing_type=OfferingComponent.BillingTypes.USAGE,
+            use_limit_for_billing=False,
+        ).exists()
 
     @property
     def is_private(self):
