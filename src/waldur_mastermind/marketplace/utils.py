@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 import os
 
+from django.core.exceptions import ObjectDoesNotExist
 import pdfkit
 from PIL import Image
 from django.conf import settings
@@ -13,7 +14,6 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils, models as core_models
-from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models, plugins
 
@@ -253,7 +253,7 @@ def create_offering_components(offering, custom_components=None):
 
 def get_resource_state(state):
     SrcStates = core_models.StateMixin.States
-    DstStates = marketplace_models.Resource.States
+    DstStates = models.Resource.States
     mapping = {
         SrcStates.CREATION_SCHEDULED: DstStates.CREATING,
         SrcStates.CREATING: DstStates.CREATING,
@@ -265,3 +265,87 @@ def get_resource_state(state):
         SrcStates.ERRED: DstStates.ERRED,
     }
     return mapping.get(state, DstStates.ERRED)
+
+
+def get_marketplace_offering_uuid(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.uuid
+    except ObjectDoesNotExist:
+        return
+
+
+def get_marketplace_offering_name(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.name
+    except ObjectDoesNotExist:
+        return
+
+
+def get_marketplace_category_uuid(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.category.uuid
+    except ObjectDoesNotExist:
+        return
+
+
+def get_marketplace_category_name(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.category.title
+    except ObjectDoesNotExist:
+        return
+
+
+def get_marketplace_resource_uuid(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).uuid
+    except ObjectDoesNotExist:
+        return
+
+
+def get_marketplace_plan_uuid(serializer, scope):
+    try:
+        resource = models.Resource.objects.get(scope=scope)
+        if resource.plan:
+            return resource.plan.uuid
+    except ObjectDoesNotExist:
+        return
+
+
+def get_marketplace_resource_state(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).get_state_display()
+    except ObjectDoesNotExist:
+        return
+
+
+def get_is_usage_based(serializer, scope):
+    try:
+        return models.Resource.objects.get(scope=scope).offering.is_usage_based
+    except ObjectDoesNotExist:
+        return
+
+
+def add_marketplace_offering(sender, fields, **kwargs):
+    fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
+
+    fields['marketplace_offering_name'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_offering_name', get_marketplace_offering_name)
+
+    fields['marketplace_category_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_category_uuid', get_marketplace_category_uuid)
+
+    fields['marketplace_category_name'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_category_name', get_marketplace_category_name)
+
+    fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+
+    fields['marketplace_plan_uuid'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_plan_uuid', get_marketplace_plan_uuid)
+
+    fields['marketplace_resource_state'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_marketplace_resource_state', get_marketplace_resource_state)
+
+    fields['is_usage_based'] = serializers.SerializerMethodField()
+    setattr(sender, 'get_is_usage_based', get_is_usage_based)

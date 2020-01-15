@@ -30,11 +30,10 @@ from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.marketplace.permissions import check_availability_of_auto_approving
 from waldur_mastermind.marketplace.plugins import manager
-from waldur_mastermind.marketplace.utils import validate_order_item, validate_limits, create_offering_components
 from waldur_mastermind.support import serializers as support_serializers
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 
-from . import models, attribute_types, plugins, permissions, tasks
+from . import models, attribute_types, plugins, permissions, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -577,7 +576,7 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         validated_data = self._create_service(validated_data)
 
         offering = super(OfferingCreateSerializer, self).create(validated_data)
-        create_offering_components(offering, custom_components)
+        utils.create_offering_components(offering, custom_components)
         if limits:
             self._update_limits(offering, limits)
         self._create_plans(offering, plans)
@@ -865,7 +864,7 @@ class BaseItemSerializer(core_serializers.AugmentedSerializerMixin,
 
         limits = attrs.get('limits')
         if limits:
-            validate_limits(limits, offering)
+            utils.validate_limits(limits, offering)
         return attrs
 
 
@@ -1074,7 +1073,7 @@ def create_order(project, user, items, request):
             order_item = order.add_item(**params)
         except ValidationError as e:
             raise rf_exceptions.ValidationError(e)
-        validate_order_item(order_item, request)
+        utils.validate_order_item(order_item, request)
 
     order.init_total_cost()
     order.save()
@@ -1460,90 +1459,6 @@ def add_service_provider(sender, fields, **kwargs):
     setattr(sender, 'get_is_service_provider', get_is_service_provider)
 
 
-def get_marketplace_offering_uuid(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).offering.uuid
-    except ObjectDoesNotExist:
-        return
-
-
-def get_marketplace_offering_name(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).offering.name
-    except ObjectDoesNotExist:
-        return
-
-
-def get_marketplace_category_uuid(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).offering.category.uuid
-    except ObjectDoesNotExist:
-        return
-
-
-def get_marketplace_category_name(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).offering.category.title
-    except ObjectDoesNotExist:
-        return
-
-
-def get_marketplace_resource_uuid(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).uuid
-    except ObjectDoesNotExist:
-        return
-
-
-def get_marketplace_plan_uuid(serializer, scope):
-    try:
-        resource = models.Resource.objects.get(scope=scope)
-        if resource.plan:
-            return resource.plan.uuid
-    except ObjectDoesNotExist:
-        return
-
-
-def get_marketplace_resource_state(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).get_state_display()
-    except ObjectDoesNotExist:
-        return
-
-
-def get_is_usage_based(serializer, scope):
-    try:
-        return models.Resource.objects.get(scope=scope).offering.is_usage_based
-    except ObjectDoesNotExist:
-        return
-
-
-def add_marketplace_offering(sender, fields, **kwargs):
-    fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
-
-    fields['marketplace_offering_name'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_offering_name', get_marketplace_offering_name)
-
-    fields['marketplace_category_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_category_uuid', get_marketplace_category_uuid)
-
-    fields['marketplace_category_name'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_category_name', get_marketplace_category_name)
-
-    fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
-
-    fields['marketplace_plan_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_plan_uuid', get_marketplace_plan_uuid)
-
-    fields['marketplace_resource_state'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_resource_state', get_marketplace_resource_state)
-
-    fields['is_usage_based'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_is_usage_based', get_is_usage_based)
-
-
 class ResourceTerminateSerializer(serializers.Serializer):
     attributes = serializers.JSONField(label=_('Termination attributes'), required=False)
 
@@ -1555,11 +1470,5 @@ core_signals.pre_serializer_fields.connect(
 
 core_signals.pre_serializer_fields.connect(
     sender=support_serializers.OfferingSerializer,
-    receiver=add_marketplace_offering,
+    receiver=utils.add_marketplace_offering,
 )
-
-for resource_serializer in SupportedServices.get_resource_serializers():
-    core_signals.pre_serializer_fields.connect(
-        sender=resource_serializer,
-        receiver=add_marketplace_offering,
-    )
