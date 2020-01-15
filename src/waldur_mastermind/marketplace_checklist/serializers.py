@@ -8,7 +8,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Question
-        fields = ('description', 'category_uuid')
+        fields = ('uuid', 'description', 'category_uuid')
 
 
 class ChecklistSerializer(serializers.ModelSerializer):
@@ -22,6 +22,7 @@ class ChecklistSerializer(serializers.ModelSerializer):
 class AnswerSerializer(serializers.ModelSerializer):
     project_uuid = serializers.ReadOnlyField(source='project.uuid')
     question_uuid = serializers.ReadOnlyField(source='question.uuid')
+    checklist_uuid = serializers.ReadOnlyField(source='question.checklist.uuid')
 
     class Meta:
         model = models.Answer

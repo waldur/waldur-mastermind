@@ -11,16 +11,30 @@ class Checklist(core_models.UuidMixin,
                 core_models.NameMixin,
                 core_models.DescribableMixin,
                 TimeStampedModel):
-    pass
+
+    def __str__(self):
+        return self.name
 
 
 class Question(core_models.UuidMixin, core_models.DescribableMixin):
-    checklist = models.ForeignKey(to=Checklist, on_delete=models.CASCADE)
+    checklist = models.ForeignKey(
+        to=Checklist,
+        on_delete=models.CASCADE,
+        related_name='questions',
+    )
     order = models.PositiveIntegerField(default=0)
-    category = models.ForeignKey(to=Category, on_delete=models.CASCADE)
+    category = models.ForeignKey(
+        to=Category,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ('checklist', 'order',)
+
+    def __str__(self):
+        return self.description
 
 
 class Answer(StructureModel, TimeStampedModel):

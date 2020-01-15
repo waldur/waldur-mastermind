@@ -41,8 +41,8 @@ class Migration(migrations.Migration):
                 ('description', models.CharField(blank=True, max_length=500, verbose_name='description')),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('order', models.PositiveIntegerField(default=0)),
-                ('category', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='marketplace.Category')),
-                ('checklist', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='marketplace_checklist.Checklist')),
+                ('category', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='marketplace.Category')),
+                ('checklist', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='marketplace_checklist.Checklist', related_name='questions',)),
             ],
             options={
                 'ordering': ('checklist', 'order'),
