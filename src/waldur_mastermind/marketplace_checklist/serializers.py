@@ -3,6 +3,12 @@ from rest_framework import serializers
 from . import models
 
 
+class ChecklistSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Checklist
+        fields = ('uuid', 'name', 'description')
+
+
 class QuestionSerializer(serializers.ModelSerializer):
     category_uuid = serializers.ReadOnlyField(source='category.uuid')
 
@@ -11,19 +17,14 @@ class QuestionSerializer(serializers.ModelSerializer):
         fields = ('uuid', 'description', 'category_uuid')
 
 
-class ChecklistSerializer(serializers.ModelSerializer):
-    questions = QuestionSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = models.Checklist
-        fields = ('uuid', 'name', 'description', 'questions')
-
-
-class AnswerSerializer(serializers.ModelSerializer):
-    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+class AnswerListSerializer(serializers.ModelSerializer):
     question_uuid = serializers.ReadOnlyField(source='question.uuid')
-    checklist_uuid = serializers.ReadOnlyField(source='question.checklist.uuid')
 
     class Meta:
         model = models.Answer
-        fields = ('project_uuid', 'question_uuid', 'value')
+        fields = ('question_uuid', 'value')
+
+
+class AnswerSubmitSerializer(serializers.Serializer):
+    question_uuid = serializers.UUIDField()
+    value = serializers.NullBooleanField()

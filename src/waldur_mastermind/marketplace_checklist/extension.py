@@ -12,6 +12,6 @@ class MarketplaceChecklistExtension(WaldurExtension):
         return True
 
     @staticmethod
-    def rest_urls():
-        from .urls import register_in
-        return register_in
+    def django_urls():
+        from .urls import urlpatterns
+        return urlpatterns
