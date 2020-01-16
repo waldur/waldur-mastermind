@@ -33,6 +33,6 @@ def register_in(router):
 
 
 urlpatterns = [
-    url(r'^api/customers/(?P<uuid>[^/.]+)/offerings/$', views.CustomerOfferingViewSet.as_view()),
+    url(r'^api/customers/(?P<uuid>[a-f0-9]+)/offerings/$', views.CustomerOfferingViewSet.as_view()),
     url(r'^api/marketplace-plugins/$', views.PluginViewSet.as_view()),
 ]
