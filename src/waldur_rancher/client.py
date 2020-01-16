@@ -99,7 +99,7 @@ class RancherClient:
 
     def get_node_command(self, cluster_id):
         cluster_list = self.list_cluster_registration_tokens()
-        cluster = filter(lambda x: x['clusterId'] == cluster_id, cluster_list)
+        cluster = list(filter(lambda x: x['clusterId'] == cluster_id, cluster_list))
         if cluster:
             node_command = cluster[0]['nodeCommand']
             return node_command
