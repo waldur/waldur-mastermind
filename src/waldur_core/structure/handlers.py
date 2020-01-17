@@ -7,10 +7,13 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core.models import StateMixin
+from waldur_core.core import utils as core_utils
 from waldur_core.structure import SupportedServices, signals
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import (Customer, CustomerPermission, Project, ProjectPermission,
                                           Service, ServiceSettings, CustomerRole)
+
+from . import tasks
 
 logger = logging.getLogger(__name__)
 
@@ -415,3 +418,11 @@ def log_spl_delete(sender, instance, **kwargs):
         event_context={
             'spl': instance,
         })
+
+
+def change_email_has_been_requested(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    request_serialized = core_utils.serialize_instance(instance)
+    transaction.on_commit(lambda: tasks.send_change_email_notification.delay(request_serialized))

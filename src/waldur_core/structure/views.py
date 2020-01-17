@@ -5,10 +5,12 @@ from functools import partial
 
 from django.conf import settings as django_settings
 from django.contrib import auth
+from django.core import exceptions as django_exceptions
 from django.db import transaction, IntegrityError
 from django.db.models import Q
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as rf_filters
 from rest_framework import mixins, views, viewsets, status
@@ -505,6 +507,43 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return Response({'detail': _('Password has been successfully updated.')},
                         status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def change_email(self, request, uuid=None):
+        user = self.get_object()
+
+        serializer = serializers.UserEmailChangeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        try:
+            user.create_request_for_update_email(email)
+        except django_exceptions.ValidationError as error:
+            raise ValidationError(error.message_dict)
+
+        return Response({'detail': _('The change email request has been successfully created.')},
+                        status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def confirm_email(self, request, uuid=None):
+        code = request.data.get('code')
+        if code:
+            try:
+                requested_email = core_models.ChangeEmailRequest.objects.get(user=self.get_object())
+
+                if code != requested_email.get_confirmation_code():
+                    raise ValidationError(_('The confirmation code is wrong.'))
+
+                if requested_email.modified + django_settings.WALDUR_CORE['EMAIL_CHANGE_MAX_AGE'] < timezone.now():
+                    raise ValidationError(_('Request has expired.'))
+
+                requested_email.confirm_email()
+                return Response({'detail': _('Email has been successfully updated.')},
+                                status=status.HTTP_200_OK)
+            except core_models.ChangeEmailRequest.DoesNotExist:
+                raise ValidationError(_('Request is not found.'))
+
+        raise ValidationError(_('The confirmation code is required.'))
 
 
 class BasePermissionViewSet(viewsets.ModelViewSet):

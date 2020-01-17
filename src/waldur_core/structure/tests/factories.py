@@ -47,8 +47,9 @@ class UserFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('user-detail', kwargs={'uuid': user.uuid.hex}) + 'password/'
 
     @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('user-list')
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('user-list')
+        return url if action is None else url + action + '/'
 
 
 class SshPublicKeyFactory(factory.DjangoModelFactory):
