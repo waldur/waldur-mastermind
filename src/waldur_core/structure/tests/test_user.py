@@ -1,17 +1,21 @@
 from unittest import mock
 import unittest
 
+from django.conf import settings
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
 from rest_framework import test
 
 from waldur_core.core.models import User
+from waldur_core.core import utils as core_utils
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.serializers import PasswordSerializer
 from waldur_core.structure.tests import factories
+
 from . import fixtures
+from .. import tasks
 
 
 class UserPermissionApiTest(test.APITransactionTestCase):
@@ -143,16 +147,18 @@ class UserPermissionApiTest(test.APITransactionTestCase):
     def test_user_can_change_his_account_email(self):
         data = {
             'email': 'example@example.com',
+            'phone_number': '123456789',
         }
 
-        self._ensure_user_can_change_field(self.users['owner'], 'email', data)
+        self._ensure_user_can_change_field(self.users['owner'], 'phone_number', data)
 
     def test_user_cannot_change_other_account_email(self):
         data = {
             'email': 'example@example.com',
+            'phone_number': '123456789',
         }
 
-        self._ensure_user_cannot_change_field(self.users['owner'], 'email', data)
+        self._ensure_user_cannot_change_field(self.users['owner'], 'phone_number', data)
 
     def test_user_cannot_make_himself_support(self):
         user = factories.UserFactory(agreement_date=timezone.now())
@@ -492,7 +498,7 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.url = factories.UserFactory.get_url(self.user)
 
         self.invalid_payload = {
-            'email': 'updatedmail@example.com',
+            'phone_number': '123456789'
         }
         self.valid_payload = dict(agree_with_policy=True, **self.invalid_payload)
 
@@ -513,7 +519,7 @@ class UserUpdateTest(test.APITransactionTestCase):
         self.assertEquals(response.status_code, status.HTTP_200_OK)
 
         self.user.refresh_from_db()
-        self.assertEquals(self.user.email, self.valid_payload['email'])
+        self.assertEquals(self.user.phone_number, self.valid_payload['phone_number'])
 
     def test_if_user_accepts_policy_agreement_data_is_updated(self):
         response = self.client.put(self.url, self.valid_payload)
@@ -521,15 +527,6 @@ class UserUpdateTest(test.APITransactionTestCase):
 
         self.user.refresh_from_db()
         self.assertAlmostEqual(self.user.agreement_date, timezone.now())
-
-    def test_email_should_be_unique_and_error_should_be_specific_for_field(self):
-        email = self.invalid_payload['email']
-        factories.UserFactory(email=email)
-
-        response = self.client.put(self.url, self.valid_payload)
-
-        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEquals(response.data['email'], ['User with email "%s" already exists.' % email])
 
     def test_token_lifetime_cannot_be_less_than_60_seconds(self):
         self.valid_payload['token_lifetime'] = 59
@@ -551,6 +548,124 @@ class UserUpdateTest(test.APITransactionTestCase):
         # Assert
         self.user.refresh_from_db()
         self.assertNotEqual(self.user.organization, 'New org')
+
+
+class UserConfirmEmailTest(test.APITransactionTestCase):
+    def setUp(self):
+        fixture = fixtures.UserFixture()
+        self.user = fixture.user
+        self.client.force_authenticate(self.user)
+        self.url = factories.UserFactory.get_url(self.user, 'change_email')
+
+        self.valid_payload = {
+            'email': 'updatedmail@example.com',
+        }
+
+    def test_if_user_update_email_so_change_email_request_will_be_created(self):
+        self.assertFalse(getattr(self.user, 'changeemailrequest', False))
+        response = self.client.post(self.url, self.valid_payload)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertNotEqual(self.user.email, self.valid_payload['email'])
+        self.assertTrue(self.user.changeemailrequest)
+
+    def test_user_cannot_update_email_if_this_email_exists(self):
+        other_user = factories.UserFactory()
+        valid_payload = {
+            'email': other_user.email,
+        }
+        response = self.client.post(self.url, valid_payload)
+        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_confirm_email(self):
+        self.client.post(self.url, self.valid_payload)
+        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+        url = factories.UserFactory.get_url(self.user, 'confirm_email')
+        response = self.client.post(url, {'code': self.user.changeemailrequest.get_confirmation_code()})
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+
+    def test_email_validate(self):
+        self.valid_payload['email'] = 'invalid_email'
+        response = self.client.post(self.url, self.valid_payload)
+        self.assertFalse(hasattr(self.user, 'changeemailrequest'))
+        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEquals(response.data['email'], ['Enter a valid email address.'])
+
+    def test_if_two_users_created_requests_with_equal_emails_then_first_confirmed_request_will_be_executed_second_will_be_deleted(self):
+        self.client.post(self.url, self.valid_payload)
+        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+
+        other_user = factories.UserFactory()
+        self.client.force_authenticate(other_user)
+        other_url = factories.UserFactory.get_url(other_user, 'change_email')
+        self.client.post(other_url, self.valid_payload)
+        self.assertEqual(self.valid_payload['email'], other_user.changeemailrequest.email)
+
+        self.client.force_authenticate(self.user)
+        confirm_url = factories.UserFactory.get_url(self.user, 'confirm_email')
+        response = self.client.post(confirm_url, {'code': self.user.changeemailrequest.get_confirmation_code()})
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(other_user)
+        other_confirm_url = factories.UserFactory.get_url(other_user, 'confirm_email')
+        response = self.client.post(other_confirm_url, {'code': other_user.changeemailrequest.get_confirmation_code()})
+        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEquals(response.data[0], 'Request is not found.')
+
+    @freeze_time('2017-01-19')
+    def test_validate_email_change_max_age(self):
+        self.client.post(self.url, self.valid_payload)
+        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+        url = factories.UserFactory.get_url(self.user, 'confirm_email')
+
+        with freeze_time('2017-01-21'):
+            response = self.client.post(url, {'code': self.user.changeemailrequest.get_confirmation_code()})
+            self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEquals(response.data[0], 'Request has expired.')
+
+    def test_other_user_can_not_confirm_email(self):
+        self.client.post(self.url, self.valid_payload)
+        self.assertEqual(self.valid_payload['email'], self.user.changeemailrequest.email)
+        other_user = factories.UserFactory()
+        self.client.force_authenticate(other_user)
+        url = factories.UserFactory.get_url(self.user, 'confirm_email')
+        response = self.client.post(url, {'code': self.user.changeemailrequest.get_confirmation_code()})
+        self.assertEquals(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_email_should_be_unique_and_error_should_be_specific_for_field(self):
+        email = self.valid_payload['email']
+        factories.UserFactory(email=email)
+
+        response = self.client.post(self.url, self.valid_payload)
+
+        self.assertEquals(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEquals(response.data['email'], ['User with email "%s" already exists.' % email])
+
+    @mock.patch('waldur_core.structure.handlers.tasks')
+    def test_send_mail_notification(self, mock_tasks):
+        response = self.client.post(self.url, self.valid_payload)
+        self.assertEquals(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(mock_tasks.send_change_email_notification.delay.call_count, 1)
+        self.assertEqual(mock_tasks.send_change_email_notification.delay.call_args[0][0],
+                         core_utils.serialize_instance(self.user.changeemailrequest))
+
+    @mock.patch('waldur_core.structure.handlers.tasks.core_utils.broadcast_mail')
+    def test_send_change_email_notification_task(self, mock_mail):
+        self.client.post(self.url, self.valid_payload)
+        self.assertTrue(self.user.changeemailrequest)
+        request_serialized = core_utils.serialize_instance(self.user.changeemailrequest)
+        tasks.send_change_email_notification(request_serialized)
+
+        link = settings.WALDUR_CORE['EMAIL_CHANGE_URL']\
+            .format(code=self.user.changeemailrequest.get_confirmation_code())
+        context = {'request': self.user.changeemailrequest, 'link': link}
+        mock_mail.assert_called_once_with(
+            'structure',
+            'change_email_request',
+            context,
+            [self.user.changeemailrequest.email]
+        )
 
 
 @mock.patch('waldur_core.structure.handlers.event_logger')

@@ -13,13 +13,15 @@ from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.db import models
+from django.core.signing import Signer
+from django.db import models, transaction
 from django.utils import timezone as django_timezone
 from django.utils.encoding import force_text
 from django.utils.lru_cache import lru_cache
 from django.utils.translation import ugettext_lazy as _
 from django_fsm import transition, FSMIntegerField
 from model_utils import FieldTracker
+from model_utils.models import TimeStampedModel
 import pytz
 from reversion import revisions as reversion
 from reversion.models import Version
@@ -216,11 +218,42 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
         if self.email and User.objects.filter(email=self.email).exclude(id=self.id).exists():
             raise ValidationError({'email': _('User with email "%s" already exists.') % self.email})
 
+    @transaction.atomic
+    def create_request_for_update_email(self, email):
+        if User.objects.filter(email=email).exclude(id=self.id).exists():
+            raise ValidationError({'email': _('User with email "%s" already exists.') % email})
+
+        ChangeEmailRequest.objects.filter(user=self).delete()
+        change_request = ChangeEmailRequest.objects.create(
+            user=self,
+            email=email,
+        )
+        return change_request
+
     def __str__(self):
         if self.full_name:
             return '%s (%s)' % (self.get_username(), self.full_name)
 
         return self.get_username()
+
+
+class ChangeEmailRequest(TimeStampedModel):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    email = models.EmailField()
+
+    class Meta:
+        verbose_name = _('change email request')
+        verbose_name_plural = _('change email requests')
+
+    def get_confirmation_code(self):
+        signer = Signer()
+        return signer.sign(self.email)
+
+    @transaction.atomic
+    def confirm_email(self):
+        self.user.email = self.email
+        self.user.save()
+        ChangeEmailRequest.objects.filter(email=self.email).delete()
 
 
 def validate_ssh_public_key(ssh_key):

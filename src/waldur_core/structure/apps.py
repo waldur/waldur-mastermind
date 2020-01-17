@@ -8,7 +8,7 @@ class StructureConfig(AppConfig):
     verbose_name = 'Structure'
 
     def ready(self):
-        from waldur_core.core.models import User
+        from waldur_core.core.models import User, ChangeEmailRequest
         from waldur_core.structure.executors import check_cleanup_executors
         from waldur_core.structure.models import ResourceMixin, SubResource, Service, TagMixin, VirtualMachine, \
             ServiceProjectLink
@@ -222,3 +222,9 @@ class StructureConfig(AppConfig):
                     spl_model.__name__, index
                 ),
             )
+
+        signals.post_save.connect(
+            handlers.change_email_has_been_requested,
+            sender=ChangeEmailRequest,
+            dispatch_uid='waldur_core.structure.handlers.change_email_has_been_requested',
+        )

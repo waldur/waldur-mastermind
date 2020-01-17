@@ -1,8 +1,9 @@
 import functools
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
 from celery import shared_task
+from django.conf import settings
 from django.db import transaction
 from django.db.utils import DatabaseError
 from django.utils import timezone
@@ -255,3 +256,11 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
                 logger.warning('Switching resource %s to erred state, '
                                'because provisioning has timed out.',
                                core_utils.serialize_instance(resource))
+
+
+@shared_task
+def send_change_email_notification(request_serialized):
+    request = core_utils.deserialize_instance(request_serialized)
+    link = settings.WALDUR_CORE['EMAIL_CHANGE_URL'].format(code=request.get_confirmation_code())
+    context = {'request': request, 'link': link}
+    core_utils.broadcast_mail('structure', 'change_email_request', context, [request.email])
