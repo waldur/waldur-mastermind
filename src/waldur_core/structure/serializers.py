@@ -330,6 +330,7 @@ class CustomerSerializer(ProtectedMediaSerializerMixin,
             'image',
             'country', 'country_name', 'vat_code', 'is_company',
             'type', 'postal', 'address', 'bank_name', 'bank_account',
+            'latitude', 'longitude',
             'default_tax_percent', 'accounting_start_date',
         )
         protected_fields = ('agreement_number',)

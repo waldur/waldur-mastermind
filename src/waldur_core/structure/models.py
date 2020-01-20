@@ -39,7 +39,7 @@ from waldur_core.structure.managers import StructureManager, filter_queryset_for
 from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
 from waldur_core.structure.utils import sort_dependencies
 from waldur_geo_ip.utils import get_coordinates_by_ip
-from waldur_geo_ip.mixins import IPCoordinatesMixin
+from waldur_geo_ip.mixins import IPCoordinatesMixin, CoordinatesMixin
 
 
 def validate_service_type(service_type):
@@ -347,6 +347,7 @@ class Customer(core_models.UuidMixin,
                StructureLoggableMixin,
                ImageModelMixin,
                TimeStampedModel,
+               CoordinatesMixin,
                StructureModel):
     class Permissions:
         customer_path = 'self'

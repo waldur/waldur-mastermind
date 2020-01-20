@@ -1,11 +1,13 @@
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
+from rest_framework.generics import get_object_or_404
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
-from waldur_core.structure.models import Project
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import is_administrator
 
 from . import models, serializers
@@ -21,6 +23,31 @@ class QuestionsView(ListModelMixin, GenericViewSet):
 
     def get_queryset(self):
         return models.Question.objects.filter(checklist__uuid=self.kwargs['checklist_uuid'])
+
+
+class StatsView(APIView):
+    def get(self, request, checklist_uuid, format=None):
+        if not request.user.is_staff and not request.user.is_support:
+            raise PermissionDenied()
+
+        checklist = get_object_or_404(models.Checklist, uuid=checklist_uuid)
+        total_questions = checklist.questions.count()
+        points = []
+        for customer in Customer.objects.all():
+            projects_count = customer.projects.count()
+            positive_count = models.Answer.objects.filter(
+                project__in=customer.projects.all(),
+                question__checklist=checklist,
+                value=True,
+            ).count()
+            points.append(dict(
+                name=customer.name,
+                uuid=customer.uuid,
+                latitude=customer.latitude,
+                longitude=customer.longitude,
+                score=round(100 * positive_count / max(1, projects_count * total_questions), 2)
+            ))
+        return Response(points)
 
 
 class AnswersListView(ListModelMixin, GenericViewSet):
