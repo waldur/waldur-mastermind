@@ -5,13 +5,6 @@ class RancherExtension(WaldurExtension):
 
     class Settings:
         WALDUR_RANCHER = {
-            'RANCHER_NODE_CLOUD_INIT_TEMPLATE':
-                '#cloud-config\n'
-                'packages: \n'
-                '  - curl\n'
-                'runcmd:\n'
-                '  - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh\n'
-                '  - [ sh, -c, "{command}" ]\n',
             'ROLE_REQUIREMENT': {
                 'controllplane': {'CPU': 2, 'RAM': 4096},
                 'etcd': {'CPU': 2, 'RAM': 4096},
