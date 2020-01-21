@@ -50,6 +50,31 @@ class StatsView(APIView):
         return Response(points)
 
 
+class ProjectStatsView(APIView):
+    def get(self, request, project_uuid, format=None):
+        try:
+            project = Project.objects.get(uuid=project_uuid)
+        except Project.DoesNotExist:
+            raise ValidationError(_('Project does not exist.'))
+
+        is_administrator(request, self, project)
+
+        checklists = []
+        for checklist in models.Checklist.objects.all():
+            qs = models.Answer.objects.filter(
+                project=project,
+                question__checklist=checklist
+            )
+            checklists.append(dict(
+                name=checklist.name,
+                uuid=checklist.uuid,
+                positive_count=qs.filter(value=True).count(),
+                negative_count=qs.filter(value=False).count(),
+                unknown_count=qs.filter(value=None).count(),
+            ))
+        return Response(checklists)
+
+
 class AnswersListView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.AnswerListSerializer
 
