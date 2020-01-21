@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class CoordinatesMixin(models.Model):
     """
-    Mixin to add a latitude and longitude fields                            `
+    Mixin to add a latitude and longitude fields
     """
     class Meta:
         abstract = True

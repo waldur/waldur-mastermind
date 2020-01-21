@@ -208,10 +208,12 @@ def format_node_command(node):
 
 def format_node_cloud_config(node):
     node_command = format_node_command(node)
-    user_data = settings.WALDUR_RANCHER['RANCHER_NODE_CLOUD_INIT_TEMPLATE'].format(command=node_command)
-    data_volumes = sorted(node.initial_data.get('data_volumes'))
+    config_template = node.service_project_link.service.settings.get_option('cloud_init_template')
+    user_data = config_template.format(command=node_command)
+    data_volumes = node.initial_data.get('data_volumes')
 
     if data_volumes:
+        data_volumes = sorted(data_volumes)
         conf = yaml.parse(user_data)
 
         # First volume is reserved for system volume, other volumes are data volumes

@@ -408,6 +408,11 @@ def import_volume_metadata(resource):
         resource.backend_metadata['instance_uuid'] = None
         resource.backend_metadata['instance_name'] = None
 
+    if volume.type:
+        resource.backend_metadata['type_name'] = volume.type.name
+    else:
+        resource.backend_metadata['type_name'] = None
+
     resource.save(update_fields=['backend_metadata'])
 
 

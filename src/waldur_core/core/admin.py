@@ -43,6 +43,37 @@ class ReadonlyTextWidget(forms.TextInput):
         return render_to_readonly(self.format_value(value))
 
 
+class ReadOnlyAdminMixin:
+    """
+    Disables all editing capabilities.
+    Please ensure that readonly_fields is specified in derived class.
+    """
+    change_form_template = 'admin/core/readonly_change_form.html'
+
+    def get_actions(self, request):
+        actions = super(ReadOnlyAdminMixin, self).get_actions(request)
+        if 'delete_selected' in actions:
+            del actions['delete_selected']
+        return actions
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        if request.user.is_staff:
+            return True
+        return False
+
+    def save_model(self, request, obj, form, change):
+        pass
+
+    def delete_model(self, request, obj):
+        pass
+
+    def save_related(self, request, form, formsets, change):
+        pass
+
+
 class CopyButtonMixin:
     class Media:
         js = (
@@ -227,6 +258,10 @@ class SshPublicKeyAdmin(admin.ModelAdmin):
     readonly_fields = ('user', 'name', 'fingerprint', 'public_key')
 
 
+class ChangeEmailRequestAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ('user', 'email', 'created')
+
+
 class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
     error_messages = {
         'invalid_login': _("Please enter the correct %(username)s and password "
@@ -262,6 +297,8 @@ admin_site = CustomAdminSite.clone_default()
 admin.site = admin_site
 admin.site.register(models.User, UserAdmin)
 admin.site.register(models.SshPublicKey, SshPublicKeyAdmin)
+admin.site.register(models.ChangeEmailRequest, ChangeEmailRequestAdmin)
+
 
 # TODO: Extract common classes to admin_utils module and remove hack.
 # This hack is needed because admin is imported several times.
@@ -484,37 +521,6 @@ class UpdateOnlyModelAdmin:
         if request.user.is_staff:
             return True
         return False
-
-
-class ReadOnlyAdminMixin:
-    """
-    Disables all editing capabilities.
-    Please ensure that readonly_fields is specified in derived class.
-    """
-    change_form_template = 'admin/core/readonly_change_form.html'
-
-    def get_actions(self, request):
-        actions = super(ReadOnlyAdminMixin, self).get_actions(request)
-        if 'delete_selected' in actions:
-            del actions['delete_selected']
-        return actions
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        if request.user.is_staff:
-            return True
-        return False
-
-    def save_model(self, request, obj, form, change):
-        pass
-
-    def delete_model(self, request, obj):
-        pass
-
-    def save_related(self, request, form, formsets, change):
-        pass
 
 
 class GBtoMBWidget(widgets.AdminIntegerFieldWidget):

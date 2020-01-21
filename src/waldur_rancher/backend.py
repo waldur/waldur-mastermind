@@ -8,6 +8,17 @@ from . import models
 
 
 class RancherBackend(ServiceBackend):
+
+    DEFAULTS = {
+        'cloud_init_template':
+            '#cloud-config\n'
+            'packages: \n'
+            '  - curl\n'
+            'runcmd:\n'
+            '  - curl -fsSL https://get.docker.com -o get-docker.sh; sh get-docker.sh\n'
+            '  - [ sh, -c, "{command}" ]\n'
+    }
+
     def __init__(self, settings):
         """
         :type settings: :class:`waldur_core.structure.models.ServiceSettings`

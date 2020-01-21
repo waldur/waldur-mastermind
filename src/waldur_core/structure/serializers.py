@@ -330,6 +330,7 @@ class CustomerSerializer(ProtectedMediaSerializerMixin,
             'image',
             'country', 'country_name', 'vat_code', 'is_company',
             'type', 'postal', 'address', 'bank_name', 'bank_account',
+            'latitude', 'longitude',
             'default_tax_percent', 'accounting_start_date',
         )
         protected_fields = ('agreement_number',)
@@ -657,7 +658,7 @@ class ProjectPermissionLogSerializer(ProjectPermissionSerializer):
         view_name = 'project_permission_log-detail'
 
 
-class UserSerializer(serializers.HyperlinkedModelSerializer):
+class UserSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
     email = serializers.EmailField()
     agree_with_policy = serializers.BooleanField(write_only=True, required=False,
                                                  help_text=_('User must agree with the policy to register.'))
@@ -667,6 +668,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
     token = serializers.ReadOnlyField(source='auth_token.key')
     customer_permissions = serializers.SerializerMethodField()
     project_permissions = serializers.SerializerMethodField()
+    requested_email = serializers.SerializerMethodField()
 
     def get_customer_permissions(self, user):
         permissions = models.CustomerPermission.objects.filter(user=user, is_active=True).select_related('customer')
@@ -679,6 +681,13 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         serializer = BasicProjectPermissionSerializer(instance=permissions, many=True,
                                                       context=self.context)
         return serializer.data
+
+    def get_requested_email(self, user):
+        try:
+            requested_email = core_models.ChangeEmailRequest.objects.get(user=user)
+            return requested_email.email
+        except core_models.ChangeEmailRequest.DoesNotExist:
+            pass
 
     class Meta:
         model = User
@@ -700,6 +709,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
             'competence',
             'customer_permissions',
             'project_permissions',
+            'requested_email',
         )
         read_only_fields = (
             'uuid',
@@ -713,6 +723,7 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
+        protected_fields = ('email',)
 
     def get_fields(self):
         fields = super(UserSerializer, self).get_fields()
@@ -776,9 +787,14 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         try:
             user = User(id=getattr(self.instance, 'id', None), **attrs)
             user.clean()
+
         except django_exceptions.ValidationError as error:
             raise exceptions.ValidationError(error.message_dict)
         return attrs
+
+
+class UserEmailChangeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
 
 
 class CreationTimeStatsSerializer(serializers.Serializer):
