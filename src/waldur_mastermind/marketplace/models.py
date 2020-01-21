@@ -121,7 +121,7 @@ class CategoryColumn(models.Model):
                              help_text=_('Title is rendered as column header.'))
     attribute = models.CharField(blank=True, max_length=255,
                                  help_text=_('Resource attribute is rendered as table cell.'))
-    widget = models.CharField(blank=True, max_length=255,
+    widget = models.CharField(blank=True, null=True, max_length=255,
                               help_text=_('Widget field allows to customise table cell rendering.'))
 
     def __str__(self):

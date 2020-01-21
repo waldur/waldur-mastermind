@@ -226,7 +226,7 @@ def archive_offering(sender, instance, **kwargs):
 
 def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
     volume = instance
-    if not created and not set(volume.tracker.changed()) & {'size', 'instance_id'}:
+    if not created and not set(volume.tracker.changed()) & {'size', 'instance_id', 'type_id'}:
         return
 
     try:
