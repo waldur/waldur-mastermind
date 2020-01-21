@@ -48,6 +48,10 @@ category_columns = {
             'title': 'Attached to',
             'widget': 'attached_instance',
         },
+        {
+            'title': 'Type',
+            'attribute': 'type_name',
+        }
     ],
     'vm': [
         {
