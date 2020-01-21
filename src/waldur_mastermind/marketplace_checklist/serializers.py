@@ -14,7 +14,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Question
-        fields = ('uuid', 'description', 'category_uuid')
+        fields = ('uuid', 'description', 'solution', 'category_uuid')
 
 
 class AnswerListSerializer(serializers.ModelSerializer):
