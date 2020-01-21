@@ -27,6 +27,7 @@ from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.media.models import get_upload_path
+from waldur_pid import mixins as pid_mixins
 
 from . import managers, plugins
 from .attribute_types import ATTRIBUTE_TYPES
@@ -222,7 +223,8 @@ class Offering(core_models.UuidMixin,
                structure_models.StructureModel,
                TimeStampedModel,
                ScopeMixin,
-               LoggableMixin):
+               LoggableMixin,
+               pid_mixins.DataciteMixin):
 
     class States:
         DRAFT = 1

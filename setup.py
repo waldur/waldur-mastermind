@@ -140,6 +140,7 @@ setup(
             'waldur_vmware = waldur_vmware.extension:VMwareExtension',
             'waldur_zabbix = waldur_zabbix.extension:ZabbixExtension',
             'waldur_zabbix_openstack = waldur_mastermind.zabbix_openstack.extension:ZabbixOpenStackExtension',
+            'waldur_pid = waldur_pid.extension:PIDExtension',
         ),
     },
     include_package_data=True,
