@@ -218,8 +218,20 @@ class OfferingAdmin(admin.ModelAdmin):
     activate.short_description = _('Activate offerings')
 
     def datacite_registration(self, request, queryset):
-        for offering in queryset.filter(datacite_doi=''):
+        queryset = queryset.filter(datacite_doi='')
+
+        for offering in queryset.all():
             pid_utils.create_doi(offering)
+
+        count = queryset.count()
+        message = ungettext(
+            'One offering has been scheduled for datacite registration.',
+            '%(count)d offerings have been scheduled for datacite registration.',
+            count
+        )
+        message = message % {'count': count}
+
+        self.message_user(request, message)
 
     datacite_registration.short_description = _('Datacite registration of offerings')
 
