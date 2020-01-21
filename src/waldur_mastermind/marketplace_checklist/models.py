@@ -29,6 +29,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         null=True,
         blank=True,
     )
+    solution = models.TextField(blank=True, null=True)  # It is shown when No or N/A answer is chosen
 
     class Meta:
         ordering = ('checklist', 'order',)

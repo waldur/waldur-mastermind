@@ -5,7 +5,7 @@ from . import models
 
 class QuestionInline(admin.TabularInline):
     model = models.Question
-    fields = ('order', 'description', 'category')
+    fields = ('order', 'description', 'solution', 'category')
 
 
 class ChecklistAdmin(admin.ModelAdmin):
