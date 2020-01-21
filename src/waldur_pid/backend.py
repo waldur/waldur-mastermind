@@ -1,6 +1,5 @@
 import logging
 import requests
-import json
 
 from django.conf import settings
 
@@ -18,9 +17,9 @@ class DataciteBackend(ServiceBackend):
             'Content-Type': 'application/vnd.api+json',
         }
         response = requests.post(
-            'https://api.test.datacite.org/dois',
+            self.settings['API_URL'],
             headers=headers,
-            data=json.dumps(data),
+            json=data,
             auth=(self.settings['REPOSITORY_ID'], self.settings['PASSWORD'])
         )
 
@@ -43,6 +42,5 @@ class DataciteBackend(ServiceBackend):
                 response.text
             ))
         else:
-            response_data = json.loads(response.text)
-            instance.datacite_doi = response_data['data']['id']
+            instance.datacite_doi = response.json()['data']['id']
             instance.save()

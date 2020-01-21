@@ -13,6 +13,7 @@ from waldur_core.core.admin import format_json_field, ExecutorAdminAction
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from django.core.exceptions import ValidationError
 from waldur_core.structure.models import ServiceSettings, SharedServiceSettings, PrivateServiceSettings
+from waldur_pid import utils as pid_utils
 
 from . import models, tasks, executors
 
@@ -194,7 +195,7 @@ class OfferingAdmin(admin.ModelAdmin):
         if obj.scope:
             return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope)
 
-    actions = ['activate']
+    actions = ['activate', 'datacite_registration']
 
     def activate(self, request, queryset):
         valid_states = [models.Offering.States.DRAFT, models.Offering.States.PAUSED]
@@ -215,6 +216,12 @@ class OfferingAdmin(admin.ModelAdmin):
         self.message_user(request, message)
 
     activate.short_description = _('Activate offerings')
+
+    def datacite_registration(self, request, queryset):
+        for offering in queryset.filter(datacite_doi=''):
+            pid_utils.create_doi(offering)
+
+    datacite_registration.short_description = _('Datacite registration of offerings')
 
 
 class OrderItemInline(admin.TabularInline):
