@@ -6,3 +6,18 @@ class DataciteMixin(models.Model):
         abstract = True
 
     datacite_doi = models.CharField(max_length=255, blank=True)
+
+    def get_datacite_title(self):
+        raise NotImplementedError
+
+    def get_datacite_creators_name(self):
+        raise NotImplementedError
+
+    def get_datacite_description(self):
+        raise NotImplementedError
+
+    def get_datacite_publication_year(self):
+        raise NotImplementedError
+
+    def get_datacite_url(self):
+        raise NotImplementedError

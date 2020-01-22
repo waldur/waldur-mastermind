@@ -328,6 +328,21 @@ class Offering(core_models.UuidMixin,
     def is_private(self):
         return not self.billable and not self.shared
 
+    def get_datacite_title(self):
+        return self.name
+
+    def get_datacite_creators_name(self):
+        return self.customer.name
+
+    def get_datacite_description(self):
+        return self.description
+
+    def get_datacite_publication_year(self):
+        return self.created.year
+
+    def get_datacite_url(self):
+        return settings.WALDUR_MARKETPLACE['OFFERING_LINK_TEMPLATE'].format(offering_uuid=self.uuid.hex)
+
 
 class OfferingComponent(common_mixins.ProductCodeMixin, BaseComponent, ScopeMixin):
     class Meta:

@@ -188,7 +188,7 @@ class OfferingAdmin(admin.ModelAdmin):
               'description', 'native_description', 'full_description',
               'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
               'shared', 'billable', 'allowed_customers', 'type', 'scope_link', 'vendor_details',
-              'paused_reason')
+              'paused_reason', 'datacite_doi')
     readonly_fields = ('rating', 'scope_link')
 
     def scope_link(self, obj):
@@ -233,7 +233,7 @@ class OfferingAdmin(admin.ModelAdmin):
 
         self.message_user(request, message)
 
-    datacite_registration.short_description = _('Datacite registration of offerings')
+    datacite_registration.short_description = _('Register in Datacite')
 
 
 class OrderItemInline(admin.TabularInline):

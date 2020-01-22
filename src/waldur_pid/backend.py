@@ -16,6 +16,11 @@ class DataciteBackend(ServiceBackend):
         headers = {
             'Content-Type': 'application/vnd.api+json',
         }
+
+        if not self.settings['API_URL']:
+            logger.error('API_URL is not defined.')
+            return
+
         response = requests.post(
             self.settings['API_URL'],
             headers=headers,
@@ -30,7 +35,22 @@ class DataciteBackend(ServiceBackend):
             'data': {
                 'type': 'dois',
                 'attributes': {
-                    'doi': self.settings['PREFIX']
+                    'prefix': self.settings['PREFIX'],
+                    'event': 'publish',
+                    'creators': [{
+                        'name': instance.get_datacite_creators_name()
+                    }],
+                    'titles': [{
+                        'title': instance.get_datacite_title()
+                    }],
+                    'descriptions': [{'description': instance.get_datacite_description()}],
+                    'publisher': self.settings['PUBLISHER'],
+                    'publicationYear': instance.get_datacite_publication_year(),
+                    'types': {
+                        'resourceTypeGeneral': 'Service'
+                    },
+                    'url': instance.get_datacite_url(),
+                    'schemaVersion': 'http://datacite.org/schema/kernel-4'
                 }
             }
         }

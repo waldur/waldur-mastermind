@@ -331,7 +331,7 @@ class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
                   'rating', 'attributes', 'options', 'components', 'geolocations', 'plugin_options',
                   'state', 'native_name', 'native_description', 'vendor_details',
                   'thumbnail', 'order_item_count', 'plans', 'screenshots', 'type', 'shared', 'billable',
-                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason')
+                  'scope', 'scope_uuid', 'files', 'quotas', 'paused_reason', 'datacite_doi')
         related_paths = {
             'customer': ('uuid', 'name'),
             'category': ('uuid', 'title'),
