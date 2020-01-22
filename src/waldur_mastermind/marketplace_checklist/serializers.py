@@ -4,9 +4,11 @@ from . import models
 
 
 class ChecklistSerializer(serializers.ModelSerializer):
+    questions_count = serializers.ReadOnlyField(source='questions.count')
+
     class Meta:
         model = models.Checklist
-        fields = ('uuid', 'name', 'description')
+        fields = ('uuid', 'name', 'description', 'questions_count')
 
 
 class QuestionSerializer(serializers.ModelSerializer):
