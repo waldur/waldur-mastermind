@@ -65,12 +65,17 @@ class ProjectStatsView(APIView):
                 project=project,
                 question__checklist=checklist
             )
+            positive_count = qs.filter(value=True).count()
+            negative_count = qs.filter(value=False).count()
+            unknown_count = qs.filter(value=None).count()
+            score = positive_count / checklist.questions.count()
             checklists.append(dict(
                 name=checklist.name,
                 uuid=checklist.uuid,
-                positive_count=qs.filter(value=True).count(),
-                negative_count=qs.filter(value=False).count(),
-                unknown_count=qs.filter(value=None).count(),
+                positive_count=positive_count,
+                negative_count=negative_count,
+                unknown_count=unknown_count,
+                score=round(100 * score, 2),
             ))
         return Response(checklists)
 
