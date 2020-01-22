@@ -52,7 +52,7 @@ install_requires = [
     'pycountry>=1.20,<2.0',
     'python-cinderclient>=3.1.0',
     'python-digitalocean>=1.5',
-    'python-freeipa>=0.2.2',
+    'python-freeipa==0.2.5',
     'python-glanceclient>=2.8.0',
     'python-keystoneclient>=3.13.0',
     'python-neutronclient>=6.5.0',
@@ -80,7 +80,7 @@ test_requires = [
 
 setup(
     name='waldur-mastermind',
-    version='4.3.7',
+    version='4.3.8',
     author='OpenNode Team',
     author_email='info@opennodecloud.com',
     url='http://waldur.com',
