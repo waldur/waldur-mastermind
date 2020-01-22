@@ -55,12 +55,16 @@ class DataciteBackend(ServiceBackend):
             }
         }
         response = self.post(data)
-        if response.status_code != 201:
+
+        if response is None:
+            return
+
+        if response.status_code == 201:
+            instance.datacite_doi = response.json()['data']['id']
+            instance.save()
+        else:
             logger.error('Creating Datacite DOI for %s has failed. Status code: %s, message: %s.' % (
                 instance,
                 response.status_code,
                 response.text
             ))
-        else:
-            instance.datacite_doi = response.json()['data']['id']
-            instance.save()

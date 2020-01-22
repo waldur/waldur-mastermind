@@ -9,7 +9,7 @@ class PIDExtension(WaldurExtension):
                 'REPOSITORY_ID': '',
                 'PASSWORD': '',
                 'PREFIX': '',
-                'API_URL': '',
+                'API_URL': 'https://example.com',
                 'PUBLISHER': 'Waldur'
             }
         }
