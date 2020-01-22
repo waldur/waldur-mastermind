@@ -36,7 +36,7 @@ class DataciteBackend(ServiceBackend):
         }
         response = self.post(data)
         if response.status_code != 201:
-            logger.error('Create doi for %s is fail. Status code: %s, message: %s.' % (
+            logger.error('Creating Datacite DOI for %s has failed. Status code: %s, message: %s.' % (
                 instance,
                 response.status_code,
                 response.text
