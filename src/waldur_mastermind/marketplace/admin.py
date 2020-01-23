@@ -13,6 +13,7 @@ from waldur_core.core.admin import format_json_field, ExecutorAdminAction
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from django.core.exceptions import ValidationError
 from waldur_core.structure.models import ServiceSettings, SharedServiceSettings, PrivateServiceSettings
+from waldur_pid import utils as pid_utils
 
 from . import models, tasks, executors
 
@@ -187,14 +188,14 @@ class OfferingAdmin(admin.ModelAdmin):
               'description', 'native_description', 'full_description',
               'rating', 'thumbnail', 'attributes', 'options', 'geolocations',
               'shared', 'billable', 'allowed_customers', 'type', 'scope_link', 'vendor_details',
-              'paused_reason')
+              'paused_reason', 'datacite_doi')
     readonly_fields = ('rating', 'scope_link')
 
     def scope_link(self, obj):
         if obj.scope:
             return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(obj.scope), obj.scope)
 
-    actions = ['activate']
+    actions = ['activate', 'datacite_registration']
 
     def activate(self, request, queryset):
         valid_states = [models.Offering.States.DRAFT, models.Offering.States.PAUSED]
@@ -215,6 +216,24 @@ class OfferingAdmin(admin.ModelAdmin):
         self.message_user(request, message)
 
     activate.short_description = _('Activate offerings')
+
+    def datacite_registration(self, request, queryset):
+        queryset = queryset.filter(datacite_doi='')
+
+        for offering in queryset.all():
+            pid_utils.create_doi(offering)
+
+        count = queryset.count()
+        message = ungettext(
+            'One offering has been scheduled for datacite registration.',
+            '%(count)d offerings have been scheduled for datacite registration.',
+            count
+        )
+        message = message % {'count': count}
+
+        self.message_user(request, message)
+
+    datacite_registration.short_description = _('Register in Datacite')
 
 
 class OrderItemInline(admin.TabularInline):

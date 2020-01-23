@@ -6,6 +6,7 @@ MEDIA_ROOT = '/tmp/'  # nosec
 INSTALLED_APPS += (  # noqa: F405
     'waldur_core.quotas.tests',
     'waldur_core.structure.tests',
+    'waldur_pid.tests',
 )
 
 ROOT_URLCONF = 'waldur_core.structure.tests.urls'
