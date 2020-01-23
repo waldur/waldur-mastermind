@@ -75,7 +75,7 @@ class ProjectStatsView(APIView):
                 positive_count=positive_count,
                 negative_count=negative_count,
                 unknown_count=unknown_count,
-                score=round(100 * positive_count / total, 2),
+                score=round(100 * positive_count / total, 2) if total > 0 else 100,  # consider empty lists as fully compliant
             ))
         return Response(checklists)
 
