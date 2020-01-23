@@ -1,0 +1,2 @@
+class DataciteException(Exception):
+    pass

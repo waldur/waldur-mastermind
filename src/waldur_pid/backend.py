@@ -5,6 +5,8 @@ from django.conf import settings
 
 from waldur_core.structure import ServiceBackend
 
+from . import exceptions
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,8 +20,7 @@ class DataciteBackend(ServiceBackend):
         }
 
         if not self.settings['API_URL']:
-            logger.error('API_URL is not defined.')
-            return
+            raise exceptions.DataciteException('API_URL is not defined.')
 
         response = requests.post(
             self.settings['API_URL'],
@@ -55,9 +56,6 @@ class DataciteBackend(ServiceBackend):
             }
         }
         response = self.post(data)
-
-        if response is None:
-            return
 
         if response.status_code == 201:
             instance.datacite_doi = response.json()['data']['id']
