@@ -71,6 +71,12 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    def test_poll_node_after_it_has_been_created(self, mock_core_tasks):
+        response = self.create_node(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(mock_core_tasks.PollRuntimeStateTask.return_value.si.call_count, 1)
+
     def test_others_cannot_create_node(self):
         response = self.create_node(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

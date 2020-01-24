@@ -26,6 +26,12 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 user_id=user.id,
             ))
+            _tasks.append(core_tasks.PollRuntimeStateTask().si(
+                serialized_instance,
+                backend_pull_method='update_node_details',
+                success_state='active',
+                erred_state=None
+            ))
         return _tasks
 
 
@@ -64,9 +70,17 @@ class ClusterUpdateExecutor(core_executors.UpdateExecutor):
 class NodeCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
-        return tasks.CreateNodeTask().si(
-            serialized_instance,
-            user_id=user.id,
+        return chain(
+            tasks.CreateNodeTask().si(
+                serialized_instance,
+                user_id=user.id,
+            ),
+            core_tasks.PollRuntimeStateTask().si(
+                serialized_instance,
+                backend_pull_method='update_node_details',
+                success_state='active',
+                erred_state=None
+            )
         )
 
 
