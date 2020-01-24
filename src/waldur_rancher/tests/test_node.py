@@ -75,7 +75,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def test_poll_node_after_it_has_been_created(self, mock_core_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(mock_core_tasks.PollRuntimeStateTask.si.call_count, 1)
+        self.assertEqual(mock_core_tasks.PollRuntimeStateTask.return_value.si.call_count, 1)
 
     def test_others_cannot_create_node(self):
         response = self.create_node(self.fixture.owner)
