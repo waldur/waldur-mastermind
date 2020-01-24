@@ -3,29 +3,7 @@ from celery import chain
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks, utils as core_utils
 
-from . import tasks, models
-
-
-class PollNodeStateTask(core_tasks.Task):
-    max_retries = 1200
-    default_retry_delay = 5
-
-    @classmethod
-    def get_description(cls, instance, backend_pull_method, *args, **kwargs):
-        return 'Poll node "%s" with method "%s"' % (instance, backend_pull_method)
-
-    def get_backend(self, instance):
-        return instance.get_backend()
-
-    def execute(self, instance, backend_pull_method):
-        backend = self.get_backend(instance)
-        getattr(backend, backend_pull_method)(instance)
-        instance.refresh_from_db()
-
-        if not instance.runtime_state:
-            self.retry()
-
-        return instance
+from . import tasks
 
 
 class ClusterCreateExecutor(core_executors.CreateExecutor):
@@ -55,7 +33,7 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 user_id=user.id,
             ))
-            _tasks.append(PollNodeStateTask().si(
+            _tasks.append(tasks.PollNodeStateTask().si(
                 serialized_instance,
                 backend_pull_method='update_node_details',
             ))
@@ -97,9 +75,15 @@ class ClusterUpdateExecutor(core_executors.UpdateExecutor):
 class NodeCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
-        return tasks.CreateNodeTask().si(
-            serialized_instance,
-            user_id=user.id,
+        return chain(
+            tasks.CreateNodeTask().si(
+                serialized_instance,
+                user_id=user.id,
+            ),
+            tasks.PollNodeStateTask().si(
+                serialized_instance,
+                backend_pull_method='update_node_details',
+            )
         )
 
 
