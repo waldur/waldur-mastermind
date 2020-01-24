@@ -293,16 +293,24 @@ class OfferingOptionsSerializer(serializers.Serializer):
 
 
 class OfferingComponentSerializer(serializers.ModelSerializer):
+    factor = serializers.SerializerMethodField()
+
     class Meta:
         model = models.OfferingComponent
         fields = ('billing_type', 'type', 'name', 'description', 'measured_unit',
                   'limit_period', 'limit_amount',
                   'disable_quotas', 'use_limit_for_billing',
                   'product_code', 'article_code',
-                  'max_value', 'min_value')
+                  'max_value', 'min_value', 'factor')
         extra_kwargs = {
             'billing_type': {'required': True},
         }
+
+    def get_factor(self, offering_component):
+        builtin_components = plugins.manager.get_components(offering_component.offering.type)
+        for c in builtin_components:
+            if c.type == offering_component.type:
+                return c.factor
 
 
 class OfferingDetailsSerializer(ProtectedMediaSerializerMixin,
