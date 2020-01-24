@@ -26,13 +26,6 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 user_id=user.id,
             ))
-
-        for node in nodes:
-            serialized_instance = core_utils.serialize_instance(node)
-            _tasks.append(tasks.CreateNodeTask().si(
-                serialized_instance,
-                user_id=user.id,
-            ))
             _tasks.append(tasks.PollNodeStateTask().si(
                 serialized_instance,
                 backend_pull_method='update_node_details',
