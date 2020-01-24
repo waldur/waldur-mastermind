@@ -111,25 +111,3 @@ def update_nodes(cluster_id):
 def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
         update_nodes.delay(cluster.id)
-
-
-class PollNodeStateTask(core_tasks.Task):
-    max_retries = 1200
-    default_retry_delay = 5
-
-    @classmethod
-    def get_description(cls, instance, backend_pull_method, *args, **kwargs):
-        return 'Poll node "%s" with method "%s"' % (instance, backend_pull_method)
-
-    def get_backend(self, instance):
-        return instance.get_backend()
-
-    def execute(self, instance, backend_pull_method):
-        backend = self.get_backend(instance)
-        getattr(backend, backend_pull_method)(instance)
-        instance.refresh_from_db()
-
-        if not instance.runtime_state:
-            self.retry()
-
-        return instance
