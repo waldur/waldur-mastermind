@@ -21,7 +21,7 @@ install_requires = [
     'Celery>=4.3.0',
     'croniter>=0.3.4',
     'defusedxml>=0.4.1',
-    # 'django-admin-tools==0.8.2',  # Not published yet thus installing from GIT commit via pip
+    'django-admin-tools==0.9.0',
     'django-auth-ldap>=2.0.0',
     'django-defender>=0.6.2',
     'django-filter==2.2',
@@ -33,7 +33,7 @@ install_requires = [
     'django-rest-swagger==2.1.2',
     'django-reversion==2.0.8',
     'django-taggit>=1.1.0',
-    'Django>=2.2.7,<3.0',
+    'Django>=2.2.9,<3.0',
     'djangorestframework>=3.10.2,<3.11.0',
     'djangosaml2==0.17.2',
     'docker>=4.1',
