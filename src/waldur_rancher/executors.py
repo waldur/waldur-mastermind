@@ -75,9 +75,11 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 user_id=user.id,
             ),
-            tasks.PollNodeStateTask().si(
+            core_tasks.PollRuntimeStateTask.si(
                 serialized_instance,
                 backend_pull_method='update_node_details',
+                success_state='active',
+                erred_state=None
             )
         )
 
