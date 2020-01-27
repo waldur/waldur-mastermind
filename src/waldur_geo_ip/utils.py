@@ -20,9 +20,9 @@ def get_coordinates_by_ip(ip_address):
     if not settings.IPSTACK_ACCESS_KEY:
         raise exceptions.GeoIpException("IPSTACK_ACCESS_KEY is empty.")
 
-    url = 'https://api.ipstack.com/{}?access_key={}&output=json&legacy=1'.format(
+    url = 'http://api.ipstack.com/{}?access_key={}&output=json&legacy=1'.format(
         ip_address,
-        settings.IPSTACK_ACCESS_KEY)
+        settings.IPSTACK_ACCESS_KEY)  # We don't use https, because current plan does not support HTTPS Encryption
 
     try:
         response = requests.get(url)
@@ -31,11 +31,15 @@ def get_coordinates_by_ip(ip_address):
 
     if response.ok:
         data = response.json()
-        return Coordinates(latitude=data['latitude'],
-                           longitude=data['longitude'])
-    else:
-        params = (url, response.status_code, response.text)
-        raise exceptions.GeoIpException("Request to geoip API %s failed: %s %s" % params)
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+
+        if latitude and longitude:
+            return Coordinates(latitude=latitude,
+                               longitude=longitude)
+
+    params = (url, response.status_code, response.text)
+    raise exceptions.GeoIpException("Request to geoip API %s failed: %s %s" % params)
 
 
 def detect_coordinates(instance):

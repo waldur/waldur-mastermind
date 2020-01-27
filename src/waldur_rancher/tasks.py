@@ -114,10 +114,10 @@ def update_clusters_nodes():
 
 class PollRuntimeStateNodeTask(core_tasks.Task):
     max_retries = 1200
-    default_retry_delay = 15
+    default_retry_delay = 30
 
     @classmethod
-    def get_description(cls, node):
+    def get_description(cls, node, *args, **kwargs):
         return 'Poll node "%s"' % node.name
 
     def execute(self, node):

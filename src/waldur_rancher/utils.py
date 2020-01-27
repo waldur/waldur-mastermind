@@ -24,7 +24,7 @@ def get_unique_node_name(name, instance_spl, cluster_spl):
 
     while new_name in names:
         i += 1
-        new_name = '%s_%s' % (name, i)
+        new_name = '%s-%s' % (name, i)
 
     return new_name
 
