@@ -1213,6 +1213,8 @@ class ResourceSerializer(BaseItemSerializer):
             permissions.user_can_terminate_resource(view.request, view, resource)
         except APIException:
             return False
+        except ObjectDoesNotExist:
+            return False
         for validator in [
             core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
             structure_utils.check_customer_blocked
