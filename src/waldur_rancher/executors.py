@@ -26,12 +26,7 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 user_id=user.id,
             ))
-            _tasks.append(core_tasks.PollRuntimeStateTask().si(
-                serialized_instance,
-                backend_pull_method='update_node_details',
-                success_state='active',
-                erred_state=None
-            ))
+            _tasks.append(tasks.PollRuntimeStateNodeTask().si(serialized_instance))
         return _tasks
 
 
@@ -75,12 +70,7 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
                 serialized_instance,
                 user_id=user.id,
             ),
-            core_tasks.PollRuntimeStateTask().si(
-                serialized_instance,
-                backend_pull_method='update_node_details',
-                success_state='active',
-                erred_state=None
-            )
+            tasks.PollRuntimeStateNodeTask().si(serialized_instance)
         )
 
 

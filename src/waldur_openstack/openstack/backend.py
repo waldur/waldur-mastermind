@@ -145,7 +145,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def pull_volume_types(self):
         try:
-            volume_types = self.cinder_client.volume_types.list()
+            volume_types = self.cinder_client.volume_types.list(is_public=True)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 

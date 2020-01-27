@@ -62,7 +62,6 @@ class CreateNodeTask(core_tasks.Task):
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
-        node.content_type = content_type
         node.state = models.Node.States.CREATING
         node.save()
 
@@ -111,3 +110,21 @@ def update_nodes(cluster_id):
 def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
         update_nodes.delay(cluster.id)
+
+
+class PollRuntimeStateNodeTask(core_tasks.Task):
+    max_retries = 1200
+    default_retry_delay = 30
+
+    @classmethod
+    def get_description(cls, node, *args, **kwargs):
+        return 'Poll node "%s"' % node.name
+
+    def execute(self, node):
+        update_nodes(node.cluster_id)
+        node.refresh_from_db()
+
+        if not node.backend_id:
+            self.retry()
+
+        return node

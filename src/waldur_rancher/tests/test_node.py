@@ -71,11 +71,32 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
-    @mock.patch('waldur_rancher.executors.core_tasks')
-    def test_poll_node_after_it_has_been_created(self, mock_core_tasks):
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_poll_node_after_it_has_been_created(self, mock_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(mock_core_tasks.PollRuntimeStateTask.return_value.si.call_count, 1)
+        self.assertEqual(mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1)
+
+    @mock.patch('waldur_rancher.backend.RancherBackend.update_node_details')
+    @mock.patch('waldur_rancher.backend.RancherBackend.client')
+    @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
+    def test_pulling_if_node_has_been_created(self, mock_retry, mock_client, mock_update_node_details):
+        backend_cluster = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
+        backend_node = backend_cluster['appliedSpec']['rancherKubernetesEngineConfig']['nodes'][0]
+        self.fixture.node.name = backend_node['hostnameOverride']
+        self.fixture.node.save()
+        mock_client.get_cluster.return_value = backend_cluster
+        tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
+        self.assertEqual(mock_retry.call_count, 0)
+        self.fixture.node.refresh_from_db()
+        self.assertEqual(self.fixture.node.backend_id, backend_node['nodeId'])
+
+    @mock.patch('waldur_rancher.tasks.update_nodes')
+    @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
+    def test_pulling_if_node_has_not_been_created(self, mock_retry, mock_update_nodes):
+        tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
+        self.assertEqual(mock_retry.call_count, 1)
 
     def test_others_cannot_create_node(self):
         response = self.create_node(self.fixture.owner)
