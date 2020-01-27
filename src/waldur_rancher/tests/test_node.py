@@ -4,7 +4,6 @@ from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
-from waldur_core.core import tasks as core_tasks
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures, test_cluster
@@ -79,30 +78,25 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1)
 
     @mock.patch('waldur_rancher.backend.RancherBackend.update_node_details')
-    @mock.patch('waldur_core.core.tasks.PollRuntimeStateTask.retry')
-    def test_1(self, mock_update_node_details, mock_retry):
-        tasks.PollRuntimeStateNodeTask().execute(
-            self.fixture.node,
-            backend_pull_method='update_node_details',
-            success_state='active',
-            erred_state=None
-        )
-        self.assertEqual(mock_update_node_details.call_count, 1)
-        self.assertEqual(mock_retry.call_count, 1)
-
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
-    def test_2(self, mock_client):
-        self.fixture.node.backend_id = 'backend_id'
+    @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
+    def test_pulling_if_node_has_been_created(self, mock_retry, mock_client, mock_update_node_details):
+        backend_cluster = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
+        backend_node = backend_cluster['appliedSpec']['rancherKubernetesEngineConfig']['nodes'][0]
+        self.fixture.node.name = backend_node['hostnameOverride']
         self.fixture.node.save()
-        mock_client.get_node.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode())
-        tasks.PollRuntimeStateNodeTask().execute(
-            self.fixture.node,
-            backend_pull_method='update_node_details',
-            success_state='active',
-            erred_state=None
-        )
-        self.assertEqual(self.fixture.node.runtime_state, 'active')
+        mock_client.get_cluster.return_value = backend_cluster
+        tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
+        self.assertEqual(mock_retry.call_count, 0)
+        self.fixture.node.refresh_from_db()
+        self.assertEqual(self.fixture.node.backend_id, backend_node['nodeId'])
+
+    @mock.patch('waldur_rancher.tasks.update_nodes')
+    @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
+    def test_pulling_if_node_has_not_been_created(self, mock_retry, mock_update_nodes):
+        tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
+        self.assertEqual(mock_retry.call_count, 1)
 
     def test_others_cannot_create_node(self):
         response = self.create_node(self.fixture.owner)

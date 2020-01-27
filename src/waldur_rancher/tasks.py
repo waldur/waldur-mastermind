@@ -75,11 +75,6 @@ class CreateNodeTask(core_tasks.Task):
         return 'Create nodes for k8s cluster "%s".' % instance
 
 
-class PollRuntimeStateNodeTask(core_tasks.PollRuntimeStateTask):
-    def get_backend(self, instance):
-        return instance.cluster.get_backend()
-
-
 @shared_task
 def update_nodes(cluster_id):
     cluster = models.Cluster.objects.get(id=cluster_id)
@@ -115,3 +110,21 @@ def update_nodes(cluster_id):
 def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
         update_nodes.delay(cluster.id)
+
+
+class PollRuntimeStateNodeTask(core_tasks.Task):
+    max_retries = 1200
+    default_retry_delay = 15
+
+    @classmethod
+    def get_description(cls, node):
+        return 'Poll node "%s"' % node.name
+
+    def execute(self, node):
+        update_nodes(node.cluster_id)
+        node.refresh_from_db()
+
+        if not node.backend_id:
+            self.retry()
+
+        return node
