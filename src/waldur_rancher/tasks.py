@@ -62,7 +62,6 @@ class CreateNodeTask(core_tasks.Task):
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
-        node.content_type = content_type
         node.state = models.Node.States.CREATING
         node.save()
 
@@ -74,6 +73,11 @@ class CreateNodeTask(core_tasks.Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         return 'Create nodes for k8s cluster "%s".' % instance
+
+
+class PollRuntimeStateNodeTask(core_tasks.PollRuntimeStateTask):
+    def get_backend(self, instance):
+        return instance.cluster.get_backend()
 
 
 @shared_task

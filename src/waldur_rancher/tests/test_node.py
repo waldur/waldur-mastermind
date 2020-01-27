@@ -4,6 +4,7 @@ from unittest import mock
 import pkg_resources
 from rest_framework import status, test
 
+from waldur_core.core import tasks as core_tasks
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories, fixtures, test_cluster
@@ -71,11 +72,37 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
-    @mock.patch('waldur_rancher.executors.core_tasks')
-    def test_poll_node_after_it_has_been_created(self, mock_core_tasks):
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_poll_node_after_it_has_been_created(self, mock_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(mock_core_tasks.PollRuntimeStateTask.return_value.si.call_count, 1)
+        self.assertEqual(mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1)
+
+    @mock.patch('waldur_rancher.backend.RancherBackend.update_node_details')
+    @mock.patch('waldur_core.core.tasks.PollRuntimeStateTask.retry')
+    def test_1(self, mock_update_node_details, mock_retry):
+        tasks.PollRuntimeStateNodeTask().execute(
+            self.fixture.node,
+            backend_pull_method='update_node_details',
+            success_state='active',
+            erred_state=None
+        )
+        self.assertEqual(mock_update_node_details.call_count, 1)
+        self.assertEqual(mock_retry.call_count, 1)
+
+    @mock.patch('waldur_rancher.backend.RancherBackend.client')
+    def test_2(self, mock_client):
+        self.fixture.node.backend_id = 'backend_id'
+        self.fixture.node.save()
+        mock_client.get_node.return_value = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode())
+        tasks.PollRuntimeStateNodeTask().execute(
+            self.fixture.node,
+            backend_pull_method='update_node_details',
+            success_state='active',
+            erred_state=None
+        )
+        self.assertEqual(self.fixture.node.runtime_state, 'active')
 
     def test_others_cannot_create_node(self):
         response = self.create_node(self.fixture.owner)
