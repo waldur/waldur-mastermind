@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.utils.functional import cached_property
 
 from waldur_core.core import utils as core_utils
@@ -125,29 +126,58 @@ class RancherBackend(ServiceBackend):
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == 'active'
+        return backend_node['state'] == settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
 
     def update_node_details(self, node):
         if not node.backend_id:
             return
 
         backend_node = self.client.get_node(node.backend_id)
-        node.labels = backend_node['labels']
-        node.annotations = backend_node['annotations']
-        node.docker_version = backend_node['info']['os']['dockerVersion']
-        node.k8s_version = backend_node['info']['kubernetes']['kubeletVersion']
-        node.cpu_allocated = \
-            core_utils.parse_int(backend_node['requested']['cpu']) / 1000  # convert data from 380m to 0.38
-        node.cpu_total = backend_node['allocatable']['cpu']
-        node.ram_allocated = \
-            int(core_utils.parse_int(backend_node['requested']['memory']) / 2 ** 20)  # convert data to Mi
-        node.ram_total = \
-            int(core_utils.parse_int(backend_node['allocatable']['memory']) / 2 ** 20)  # convert data to Mi
-        node.pods_allocated = backend_node['requested']['pods']
-        node.pods_total = backend_node['allocatable']['pods']
-        node.runtime_state = backend_node['state']
 
-        if backend_node['state'] == 'active':
+        # rancher can skip return of some fields when node is being created,
+        # so avoid crashing by supporting missing values
+
+        def get_backend_node_field(*args, default=None):
+            value = backend_node
+
+            for arg in args:
+                if isinstance(value, dict):
+                    value = value.get(arg)
+                else:
+                    return default
+
+            return value
+
+        node.labels = get_backend_node_field('labels')
+        node.annotations = get_backend_node_field('annotations')
+        node.docker_version = get_backend_node_field('info', 'os', 'dockerVersion')
+        node.k8s_version = get_backend_node_field('info', 'kubernetes', 'kubeletVersion')
+
+        cpu_allocated = get_backend_node_field('requested', 'cpu')
+
+        if cpu_allocated:
+            node.cpu_allocated = \
+                core_utils.parse_int(cpu_allocated) / 1000  # convert data from 380m to 0.38
+
+        node.cpu_total = get_backend_node_field('allocatable', 'cpu')
+
+        ram_allocated = get_backend_node_field('requested', 'memory')
+
+        if ram_allocated:
+            node.ram_allocated = \
+                int(core_utils.parse_int(ram_allocated) / 2 ** 20)  # convert data to Mi
+
+        ram_total = get_backend_node_field('allocatable', 'memory')
+
+        if ram_total:
+            node.ram_total = \
+                int(core_utils.parse_int(ram_total) / 2 ** 20)  # convert data to Mi
+
+        node.pods_allocated = get_backend_node_field('requested', 'pods')
+        node.pods_total = get_backend_node_field('allocatable', 'pods')
+        node.runtime_state = get_backend_node_field('state', default='')
+
+        if node.runtime_state == settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
             node.state = models.Node.States.OK
         else:
             node.state = models.Node.States.ERRED

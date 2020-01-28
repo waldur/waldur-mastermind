@@ -20,6 +20,7 @@ class RancherExtension(WaldurExtension):
                 '/var/lib/etcd': 10,
             },
             'SYSTEM_VOLUME_MIN_SIZE': 64,
+            'ACTIVE_NODE_STATE': 'active',
         }
 
     @staticmethod
