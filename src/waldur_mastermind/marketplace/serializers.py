@@ -502,7 +502,7 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
             if self.instance:
                 # Temporarily switch plugin options
                 old_options = self.instance.plugin_options
-                self.instance.plugin_options = attrs['plugin_options']
+                self.instance.plugin_options = attrs.get('plugin_options')
                 try:
                     qs = plugins.manager.get_filtered_components(self.instance)
                 finally:
