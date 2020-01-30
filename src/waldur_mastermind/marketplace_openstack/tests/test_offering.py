@@ -13,7 +13,8 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.management.commands.load_categories import load_category
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE
+from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE, STORAGE_MODE_FIXED, \
+    STORAGE_MODE_DYNAMIC
 from waldur_mastermind.marketplace_openstack.utils import merge_plans, create_offering_components
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
@@ -424,3 +425,38 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.assertRaises(marketplace_models.OfferingComponent.DoesNotExist,
                           marketplace_models.OfferingComponent.objects.get,
                           scope=self.volume_type)
+
+    def test_switch_from_fixed_to_dynamic_billing(self):
+        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_FIXED}
+        url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        new_options = {
+            'plugin_options': {
+                'storage_mode': STORAGE_MODE_DYNAMIC
+            },
+            'plans': [
+                {
+                    'name': 'small',
+                    'description': 'CPU 1',
+                    'prices': {
+                        'gigabytes_' + self.volume_type.name: 10
+                    },
+                }
+            ]
+        }
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(url, new_options)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.plugin_options['storage_mode'], STORAGE_MODE_DYNAMIC)
+
+    def test_switch_from_dynamic_to_fixed_billing(self):
+        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_DYNAMIC}
+        url = marketplace_factories.OfferingFactory.get_url(self.offering)
+        new_options = {'plugin_options': {'storage_mode': STORAGE_MODE_FIXED}}
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(url, new_options)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.plugin_options['storage_mode'], STORAGE_MODE_FIXED)

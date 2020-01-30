@@ -500,7 +500,13 @@ class OfferingModifySerializer(OfferingDetailsSerializer):
         elif builtin_components:
             valid_types = {component.type for component in builtin_components}
             if self.instance:
-                qs = plugins.manager.get_filtered_components(self.instance)
+                # Temporarily switch plugin options
+                old_options = self.instance.plugin_options
+                self.instance.plugin_options = attrs.get('plugin_options')
+                try:
+                    qs = plugins.manager.get_filtered_components(self.instance)
+                finally:
+                    self.instance.plugin_options = old_options
                 valid_types.update(set(qs.values_list('type', flat=True)))
             fixed_types = {component.type
                            for component in plugins.manager.get_components(offering_type)
