@@ -185,7 +185,7 @@ LOGGING = {
             'level': 'ERROR',
         },
         # Write logs to file
-        # See also: https://docs.python.org/2/library/logging.handlers.html#watchedfilehandler
+        # See also: https://docs.python.org/3/library/logging.handlers.html#watchedfilehandler
         'file': {
             'class': 'logging.handlers.WatchedFileHandler',
             'filename': '/dev/null',
@@ -201,7 +201,7 @@ LOGGING = {
             'level': config.get('events', 'log_level').upper(),
         },
         # Forward logs to syslog
-        # See also: https://docs.python.org/2/library/logging.handlers.html#sysloghandler
+        # See also: https://docs.python.org/3/library/logging.handlers.html#sysloghandler
         'syslog': {
             'class': 'logging.handlers.SysLogHandler',
             'filters': ['is-not-event'],

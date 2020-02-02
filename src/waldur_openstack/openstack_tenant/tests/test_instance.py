@@ -389,14 +389,14 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('kt-experimental-ubuntu-18.04', 'vm_name', 'VM')
+    @data('kt-experimental-ubuntu-18.04', 'vm_name')
     def test_not_create_instance_with_invalid_name(self, name):
         data = self.get_valid_data()
         data['name'] = name
         response = self.client.post(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('test', 'vm-name', 'vm')
+    @data('test', 'vm-name', 'vm', 'VM')
     def test_create_instance_with_valid_name(self, name):
         data = self.get_valid_data()
         data['name'] = name

@@ -72,7 +72,7 @@ LOGGING = {
     # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#handlers
     'handlers': {
         # Write logs to file
-        # See also: https://docs.python.org/2/library/logging.handlers.html#watchedfilehandler
+        # See also: https://docs.python.org/3/library/logging.handlers.html#watchedfilehandler
         #'file': {
         #    'class': 'logging.handlers.WatchedFileHandler',
         #    'filename': '/path/to/logfile.log',
@@ -85,7 +85,7 @@ LOGGING = {
         #    'filters': ['is-event'],
         #},
         # Forward logs to syslog (non-events only)
-        # See also: https://docs.python.org/2/library/logging.handlers.html#sysloghandler
+        # See also: https://docs.python.org/3/library/logging.handlers.html#sysloghandler
         #'syslog': {
         #    'class': 'logging.handlers.SysLogHandler',
         #    'address': '/dev/log',  # /var/log/syslog on OS X
@@ -94,13 +94,13 @@ LOGGING = {
         #    'formatter': 'message-only',
         #},
         # Send logs to stderr
-        # See also: https://docs.python.org/2/library/logging.handlers.html#streamhandler
+        # See also: https://docs.python.org/3/library/logging.handlers.html#streamhandler
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
         # Discard logs
-        # See also: https://docs.python.org/2/library/logging.handlers.html#nullhandler
+        # See also: https://docs.python.org/3/library/logging.handlers.html#nullhandler
         #'null': {
         #    'class': 'logging.NullHandler',
         #,

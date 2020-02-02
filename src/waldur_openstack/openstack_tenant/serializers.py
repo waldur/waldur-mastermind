@@ -771,8 +771,11 @@ def _validate_instance_floating_ips(floating_ips_with_subnets, settings, instanc
 def _validate_instance_name(data, max_len=255):
     """Copy paste from https://github.com/openstack/neutron-lib/blob/master/neutron_lib/api/validators/dns.py#L23"""
 
-    DNS_LABEL_REGEX = '^([a-z0-9-]{1,63})$'
+    # allow data to be lowercase. Internally OpenStack allows more flexibility
+    # with hostnames as sanitizing happens, but we are more strict and want to preserve name <-> hostname mapping
+    # https://github.com/openstack/nova/blob/e80300ac20388890539a7f709e526a0a5ba8e63d/nova/utils.py#L388
 
+    DNS_LABEL_REGEX = '^([a-zA-Z0-9-]{1,63})$'
     try:
         # A trailing period is allowed to indicate that a name is fully
         # qualified per RFC 1034 (page 7).
