@@ -396,7 +396,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('test', 'vm-name', 'vm')
+    @data('test', 'vm-name', 'vm', 'VM')
     def test_create_instance_with_valid_name(self, name):
         data = self.get_valid_data()
         data['name'] = name
