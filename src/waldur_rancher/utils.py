@@ -144,14 +144,15 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
 
     requirements = list(filter(lambda x: x[0] in list(roles),
                                settings.WALDUR_RANCHER['ROLE_REQUIREMENT'].items()))
-    cpu_requirements = max([t[1]['CPU'] for t in requirements])
-    ram_requirements = max([t[1]['RAM'] for t in requirements])
-    if flavor.cores < cpu_requirements:
-        raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
-                                          % (flavor, cpu_requirements))
-    if flavor.ram < ram_requirements:
-        raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
-                                          % (flavor, ram_requirements))
+    if requirements:
+        cpu_requirements = max([t[1]['CPU'] for t in requirements])
+        ram_requirements = max([t[1]['RAM'] for t in requirements])
+        if flavor.cores < cpu_requirements:
+            raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
+                                              % (flavor, cpu_requirements))
+        if flavor.ram < ram_requirements:
+            raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
+                                              % (flavor, ram_requirements))
 
     return flavor
 
