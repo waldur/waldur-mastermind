@@ -135,3 +135,6 @@ class Node(core_models.UuidMixin,
     @property
     def service_project_link(self):
         return self.cluster.service_project_link
+
+    def __str__(self):
+        return self.name
