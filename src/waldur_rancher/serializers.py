@@ -255,7 +255,7 @@ class CreateNodeSerializer(BaseNodeSerializer):
     class Meta:
         model = models.Node
         fields = ('cluster', 'roles', 'system_volume_size', 'system_volume_type',
-                  'memory', 'cpu', 'subnet', 'flavor')
+                  'memory', 'cpu', 'subnet', 'flavor', 'data_volumes')
         extra_kwargs = {
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'}
         }
