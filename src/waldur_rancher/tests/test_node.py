@@ -72,6 +72,32 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
     @mock.patch('waldur_rancher.executors.tasks')
+    def test_use_data_volumes(self, mock_tasks):
+        volume_type = openstack_tenant_factories.VolumeTypeFactory(
+            settings=self.fixture.tenant_spl.service.settings
+        )
+        self.payload = {
+            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
+            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            'system_volume_size': 1024,
+            'memory': 1,
+            'cpu': 1,
+            'roles': ['controlplane', 'etcd', 'worker'],
+            'data_volumes': [
+                {
+                    'size': 12 * 1024,
+                    'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(volume_type),
+                    'mount_point': '/var/lib/etcd',
+                }
+            ]
+        }
+        response = self.create_node(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.fixture.cluster.node_set.count(), 2)
+        node = self.fixture.cluster.node_set.exclude(name='').get()
+        self.assertEqual(len(node.initial_data['data_volumes']), 1)
+
+    @mock.patch('waldur_rancher.executors.tasks')
     def test_poll_node_after_it_has_been_created(self, mock_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
