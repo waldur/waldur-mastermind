@@ -127,6 +127,30 @@ class ClusterCreateTest(BaseClusterCreateTest):
         cluster = models.Cluster.objects.get(name='new-cluster')
         self.assertEqual(len(cluster.node_set.first().initial_data['data_volumes']), 1)
 
+    def test_node_name_uniqueness(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = {'nodes': [
+            {
+                'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                'system_volume_size': 1024,
+                'memory': 1,
+                'cpu': 1,
+                'roles': ['controlplane', 'etcd', 'worker'],
+            },
+            {
+                'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                'system_volume_size': 1024,
+                'memory': 1,
+                'cpu': 1,
+                'roles': ['worker'],
+            }
+        ]}
+        response = self._create_request_('new-cluster', add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        self.assertNotEquals(cluster.node_set.all()[0].name, cluster.node_set.all()[1].name)
+
     def test_validate_etcd_node_count(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = {'nodes': [

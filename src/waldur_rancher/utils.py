@@ -10,16 +10,20 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from . import models
 
 
-def get_unique_node_name(name, instance_spl, cluster_spl):
+def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
+    existing_names = existing_names or []
+    # This has a potential risk of race condition when requests to create nodes come exactly at the same time.
+    # But we consider this use case highly unrealistic and avoid creation of additional complexity
+    # to protect against it
     names_instances = openstack_tenant_models.Instance.objects.filter(service_project_link=instance_spl)\
         .values_list('name', flat=True)
     names_nodes = models.Node.objects.filter(cluster__service_project_link=cluster_spl).values_list('name', flat=True)
-    names = list(names_instances) + list(names_nodes)
+    names = list(names_instances) + list(names_nodes) + existing_names
 
     if name not in names:
         return name
 
-    i = 1
+    i = 0
     new_name = name
 
     while new_name in names:
@@ -99,7 +103,8 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
         if 'worker' in list(roles):
             node['worker_role'] = True
 
-        node['name'] = get_unique_node_name(cluster_name + '-rancher-node', tenant_spl, rancher_spl)
+        node['name'] = get_unique_node_name(cluster_name + '-rancher-node', tenant_spl, rancher_spl,
+                                            existing_names=[n['name'] for n in nodes if n.get('name')])
 
     validate_quotas(nodes, tenant_spl)
 
