@@ -8,7 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.reverse import reverse
 
-from waldur_core.core import tasks as core_tasks
+from waldur_core.core import tasks as core_tasks, utils as core_utils
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -118,6 +118,7 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
 
     @classmethod
     def get_description(cls, node, *args, **kwargs):
+        node = core_utils.deserialize_instance(node)
         return 'Poll node "%s"' % node.name
 
     def execute(self, node):

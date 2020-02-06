@@ -10,16 +10,20 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from . import models
 
 
-def get_unique_node_name(name, instance_spl, cluster_spl):
+def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
+    existing_names = existing_names or []
+    # This has a potential risk of race condition when requests to create nodes come exactly at the same time.
+    # But we consider this use case highly unrealistic and avoid creation of additional complexity
+    # to protect against it
     names_instances = openstack_tenant_models.Instance.objects.filter(service_project_link=instance_spl)\
         .values_list('name', flat=True)
     names_nodes = models.Node.objects.filter(cluster__service_project_link=cluster_spl).values_list('name', flat=True)
-    names = list(names_instances) + list(names_nodes)
+    names = list(names_instances) + list(names_nodes) + existing_names
 
     if name not in names:
         return name
 
-    i = 1
+    i = 0
     new_name = name
 
     while new_name in names:
@@ -99,7 +103,8 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
         if 'worker' in list(roles):
             node['worker_role'] = True
 
-        node['name'] = get_unique_node_name(cluster_name + '-rancher-node', tenant_spl, rancher_spl)
+        node['name'] = get_unique_node_name(cluster_name + '-rancher-node', tenant_spl, rancher_spl,
+                                            existing_names=[n['name'] for n in nodes if n.get('name')])
 
     validate_quotas(nodes, tenant_spl)
 
@@ -144,14 +149,15 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
 
     requirements = list(filter(lambda x: x[0] in list(roles),
                                settings.WALDUR_RANCHER['ROLE_REQUIREMENT'].items()))
-    cpu_requirements = max([t[1]['CPU'] for t in requirements])
-    ram_requirements = max([t[1]['RAM'] for t in requirements])
-    if flavor.cores < cpu_requirements:
-        raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
-                                          % (flavor, cpu_requirements))
-    if flavor.ram < ram_requirements:
-        raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
-                                          % (flavor, ram_requirements))
+    if requirements:
+        cpu_requirements = max([t[1]['CPU'] for t in requirements])
+        ram_requirements = max([t[1]['RAM'] for t in requirements])
+        if flavor.cores < cpu_requirements:
+            raise serializers.ValidationError('Flavor %s does not meet requirements. CPU requirement is %s'
+                                              % (flavor, cpu_requirements))
+        if flavor.ram < ram_requirements:
+            raise serializers.ValidationError('Flavor %s does not meet requirements. RAM requirement is %s'
+                                              % (flavor, ram_requirements))
 
     return flavor
 

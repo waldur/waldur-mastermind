@@ -1,17 +1,14 @@
 from datetime import date, timedelta
 from decimal import Decimal
 import logging
-import warnings
 
 from django.conf import settings as django_settings
 from django.db import connections, DatabaseError
 from django.utils import timezone
 import pyzabbix
-import requests
 from requests.exceptions import RequestException
-from requests.packages.urllib3 import exceptions
 
-from waldur_core.core.utils import datetime_to_timestamp, timestamp_to_datetime
+from waldur_core.core.utils import datetime_to_timestamp, timestamp_to_datetime, QuietSession
 from waldur_core.structure import ServiceBackend, ServiceBackendError, log_backend_action
 from waldur_core.structure.utils import update_pulled_fields
 
@@ -36,21 +33,6 @@ pyzabbix.logger.addFilter(ZabbixLogsFilter())
 
 class ZabbixBackendError(ServiceBackendError):
     pass
-
-
-class QuietSession(requests.Session):
-    """Session class that suppresses warning about unsafe TLS sessions and clogging the logs.
-    Inspired by: https://github.com/kennethreitz/requests/issues/2214#issuecomment-110366218
-    """
-    def request(self, *args, **kwargs):
-        if not kwargs.get('verify', self.verify):
-            with warnings.catch_warnings():
-                if hasattr(exceptions, 'InsecurePlatformWarning'):  # urllib3 1.10 and lower does not have this warning
-                    warnings.simplefilter('ignore', exceptions.InsecurePlatformWarning)
-                warnings.simplefilter('ignore', exceptions.InsecureRequestWarning)
-                return super(QuietSession, self).request(*args, **kwargs)
-        else:
-            return super(QuietSession, self).request(*args, **kwargs)
 
 
 class ZabbixBackend(ServiceBackend):
