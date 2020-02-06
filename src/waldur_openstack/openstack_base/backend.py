@@ -19,6 +19,7 @@ from neutronclient.v2_0 import client as neutron_client
 from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
+from waldur_core.core.utils import QuietSession
 
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.exceptions import SerializableBackendError
@@ -46,7 +47,11 @@ class OpenStackSession(dict):
         self.keystone_session = ks_session
         if not self.keystone_session:
             auth_plugin = v3.Password(**credentials)
-            self.keystone_session = keystone_session.Session(auth=auth_plugin, verify=verify_ssl)
+            session = None
+            if not verify_ssl:
+                session = QuietSession()
+                session.verify = False
+            self.keystone_session = keystone_session.Session(auth=auth_plugin, verify=verify_ssl, session=session)
 
         try:
             # This will eagerly sign in throwing AuthorizationFailure on bad credentials
