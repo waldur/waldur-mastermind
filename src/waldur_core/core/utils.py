@@ -10,6 +10,7 @@ import re
 import time
 import unicodedata
 import uuid
+import warnings
 
 from django.apps import apps
 from django.conf import settings
@@ -28,6 +29,8 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.encoding import force_text
 import jwt
+import requests
+from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
 
@@ -412,3 +415,18 @@ def parse_int(value):
     else:
         factor = 1
     return factor * value
+
+
+class QuietSession(requests.Session):
+    """Session class that suppresses warning about unsafe TLS sessions and clogging the logs.
+    Inspired by: https://github.com/kennethreitz/requests/issues/2214#issuecomment-110366218
+    """
+    def request(self, *args, **kwargs):
+        if not kwargs.get('verify', self.verify):
+            with warnings.catch_warnings():
+                if hasattr(exceptions, 'InsecurePlatformWarning'):  # urllib3 1.10 and lower does not have this warning
+                    warnings.simplefilter('ignore', exceptions.InsecurePlatformWarning)
+                warnings.simplefilter('ignore', exceptions.InsecureRequestWarning)
+                return super(QuietSession, self).request(*args, **kwargs)
+        else:
+            return super(QuietSession, self).request(*args, **kwargs)
