@@ -781,7 +781,7 @@ class BackupCreateExecutor(core_executors.CreateExecutor):
         serialized_snapshots = [core_utils.serialize_instance(snapshot) for snapshot in backup.snapshots.all()]
 
         _tasks = [core_tasks.StateTransitionTask().si(serialized_backup, state_transition='begin_creating')]
-        for index, serialized_snapshot in enumerate(serialized_snapshots):
+        for serialized_snapshot in serialized_snapshots:
             _tasks.append(tasks.ThrottleProvisionTask().si(
                 serialized_snapshot, 'create_snapshot', force=True, state_transition='begin_creating'))
             _tasks.append(core_tasks.PollRuntimeStateTask().si(
