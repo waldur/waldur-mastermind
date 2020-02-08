@@ -7,8 +7,8 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
 
-from waldur_core.structure import models as structure_models
 from waldur_core.core import models as core_models
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import NewResource
 
 logger = logging.getLogger(__name__)
@@ -138,3 +138,46 @@ class Node(core_models.UuidMixin,
 
     def __str__(self):
         return self.name
+
+
+class RancherUser(models.Model):
+    user = models.ForeignKey(core_models.User, on_delete=models.PROTECT)
+    clusters = models.ManyToManyField(Cluster, through='RancherUserClusterLink')
+    settings = models.ForeignKey('structure.ServiceSettings', on_delete=models.PROTECT)
+    backend_id = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    @staticmethod
+    def make_random_password():
+        return core_models.User.objects.make_random_password()
+
+    class Meta:
+        unique_together = (('user', 'settings'),)
+
+    def __str__(self):
+        return self.user.username
+
+
+class ClusterRole(models.CharField):
+    CLUSTER_OWNER = 'owner'
+    CLUSTER_MEMBER = 'member'
+
+    CHOICES = (
+        (CLUSTER_OWNER, 'Cluster owner'),
+        (CLUSTER_MEMBER, 'Cluster member'),
+    )
+
+    def __init__(self, *args, **kwargs):
+        kwargs['max_length'] = 30
+        kwargs['choices'] = self.CHOICES
+        super(ClusterRole, self).__init__(*args, **kwargs)
+
+
+class RancherUserClusterLink(models.Model):
+    user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
+    backend_id = models.CharField(max_length=255, blank=True)
+    role = ClusterRole(db_index=True)
+
+    class Meta:
+        unique_together = (('user', 'cluster', 'role'),)

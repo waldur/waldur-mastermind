@@ -14,6 +14,8 @@ from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
+from waldur_rancher.utils import SyncUser
+
 from . import models, exceptions, signals, utils
 
 logger = logging.getLogger(__name__)
@@ -129,3 +131,22 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
             self.retry()
 
         return node
+
+
+@shared_task(name='waldur_rancher.notify_create_user')
+def notify_create_user(id, password, url):
+    user = models.RancherUser.objects.get(id=id)
+    email = user.user.email
+
+    context = {
+        'rancher_url': url,
+        'user': user,
+        'password': password,
+    }
+
+    core_utils.broadcast_mail('rancher', 'notification_create_user', context, [email])
+
+
+@shared_task(name='waldur_rancher.sync_users')
+def sync_users():
+    SyncUser.run()

@@ -7,6 +7,106 @@ from .exceptions import RancherException
 logger = logging.getLogger(__name__)
 
 
+class GlobalRoleId:
+    admin = 'admin'
+    authn_manage = 'authn-manage'
+    catalogs_manage = 'catalogs-manage'
+    catalogs_use = 'catalogs-use'
+    clusters_create = 'clusters-create'
+    kontainerdrivers_manage = 'kontainerdrivers-manage'
+    nodedrivers_manage = 'nodedrivers-manage'
+    podsecuritypolicytemplates_manage = 'podsecuritypolicytemplates-manage'
+    roles_manage = 'roles-manage'
+    settings_manage = 'settings-manage'
+    user = 'user'
+    user_base = 'user-base'
+    users_manage = 'users-manage'
+
+
+class ClusterRoleId:
+    admin = 'admin'
+    backups_manage = 'backups-manage'
+    cluster_admin = 'cluster-admin'
+    cluster_member = 'cluster-member'
+    cluster_owner = 'cluster-owner'
+    clustercatalogs_manage = 'clustercatalogs-manage'
+    clustercatalogs_view = 'clustercatalogs-view'
+    clusterroletemplatebindings_manage = 'clusterroletemplatebindings-manage'
+    clusterroletemplatebindings_view = 'clusterroletemplatebindings-view'
+    configmaps_manage = 'configmaps-manage'
+    configmaps_view = 'configmaps-view'
+    create_ns = 'create-ns'
+    edit = 'edit'
+    ingress_manage = 'ingress-manage'
+    ingress_view = 'ingress-view'
+    nodes_manage = 'nodes-manage'
+    nodes_view = 'nodes-view'
+    persistentvolumeclaims_manage = 'persistentvolumeclaims-manage'
+    persistentvolumeclaims_view = 'persistentvolumeclaims-view'
+    project_member = 'project-member'
+    project_monitoring_readonly = 'project-monitoring-readonly'
+    project_owner = 'project-owner'
+    projectcatalogs_manage = 'projectcatalogs-manage'
+    projectcatalogs_view = 'projectcatalogs-view'
+    projectroletemplatebindings_manage = 'projectroletemplatebindings-manage'
+    projectroletemplatebindings_view = 'projectroletemplatebindings-view'
+    projects_create = 'projects-create'
+    projects_view = 'projects-view'
+    read_only = 'read-only'
+    secrets_manage = 'secrets-manage'
+    secrets_view = 'secrets-view'
+    serviceaccounts_manage = 'serviceaccounts-manage'
+    serviceaccounts_view = 'serviceaccounts-view'
+    services_manage = 'services-manage'
+    services_view = 'services-view'
+    storage_manage = 'storage-manage'
+    view = 'view'
+    workloads_manage = 'workloads-manage'
+    workloads_view = 'workloads-view'
+
+
+class ProjectRoleId:
+    admin = 'admin'
+    backups_manage = 'backups-manage'
+    cluster_admin = 'cluster-admin'
+    cluster_member = 'cluster-member'
+    cluster_owner = 'cluster-owner'
+    clustercatalogs_manage = 'clustercatalogs-manage'
+    clustercatalogs_view = 'clustercatalogs-view'
+    clusterroletemplatebindings_manage = 'clusterroletemplatebindings-manage'
+    clusterroletemplatebindings_view = 'clusterroletemplatebindings-view'
+    configmaps_manage = 'configmaps-manage'
+    configmaps_view = 'configmaps-view'
+    create_ns = 'create-ns'
+    edit = 'edit'
+    ingress_manage = 'ingress-manage'
+    ingress_view = 'ingress-view'
+    nodes_manage = 'nodes-manage'
+    nodes_view = 'nodes-view'
+    persistentvolumeclaims_manage = 'persistentvolumeclaims-manage'
+    persistentvolumeclaims_view = 'persistentvolumeclaims-view'
+    project_member = 'project-member'
+    project_monitoring_readonly = 'project-monitoring-readonly'
+    project_owner = 'project-owner'
+    projectcatalogs_manage = 'projectcatalogs-manage'
+    projectcatalogs_view = 'projectcatalogs-view'
+    projectroletemplatebindings_manage = 'projectroletemplatebindings-manage'
+    projectroletemplatebindings_view = 'projectroletemplatebindings-view'
+    projects_create = 'projects-create'
+    projects_view = 'projects-view'
+    read_only = 'read-only'
+    secrets_manage = 'secrets-manage'
+    secrets_view = 'secrets-view'
+    serviceaccounts_manage = 'serviceaccounts-manage'
+    serviceaccounts_view = 'serviceaccounts-view'
+    services_manage = 'services-manage'
+    services_view = 'services-view'
+    storage_manage = 'storage-manage'
+    view = 'view'
+    workloads_manage = 'workloads-manage'
+    workloads_view = 'workloads-view'
+
+
 class RancherClient:
     """
     Rancher API client.
@@ -85,7 +185,7 @@ class RancherClient:
         return self._get('clusters/{0}'.format(cluster_id))
 
     def create_cluster(self, cluster_name):
-        return self._post('clusters', json={"name": cluster_name, "rancherKubernetesEngineConfig": {}})
+        return self._post('clusters', json={'name': cluster_name, 'rancherKubernetesEngineConfig': {}})
 
     def delete_cluster(self, cluster_id):
         return self._delete('clusters/{0}'.format(cluster_id))
@@ -95,7 +195,7 @@ class RancherClient:
 
     def create_cluster_registration_token(self, cluster_id):
         return self._post('clusterregistrationtoken',
-                          json={"type": "clusterRegistrationToken", "clusterId": cluster_id})
+                          json={'type': 'clusterRegistrationToken', 'clusterId': cluster_id})
 
     def get_node_command(self, cluster_id):
         cluster_list = self.list_cluster_registration_tokens()
@@ -113,3 +213,53 @@ class RancherClient:
     def get_kubeconfig_file(self, cluster_id):
         data = self._post('clusters/{0}'.format(cluster_id), params={'action': 'generateKubeconfig'})
         return data['config']
+
+    def list_users(self):
+        return self._get('users')['data']
+
+    def create_user(self, name, username, password, mustChangePassword=True):
+        return self._post('users', json={
+            'name': name,
+            'mustChangePassword': mustChangePassword,
+            'password': password,
+            'username': username,
+        })
+
+    def enable_user(self, user_id):
+        return self._put('users/{0}'.format(user_id), json={
+            'enabled': True,
+        })
+
+    def disable_user(self, user_id):
+        return self._put('users/{0}'.format(user_id), json={
+            'enabled': False,
+        })
+
+    def create_global_role(self, user_id, role):
+        return self._post('globalrolebindings', json={
+            'globalRoleId': role,
+            'userId': user_id,
+        })
+
+    def delete_global_role(self, role_id):
+        return self._delete('globalrolebindings/{0}'.format(role_id))
+
+    def create_cluster_role(self, user_id, cluster_id, role):
+        return self._post('clusterroletemplatebindings', json={
+            'roleTemplateId': role,
+            'clusterId': cluster_id,
+            'userId': user_id,
+        })
+
+    def create_project_role(self, user_id, project_id, role):
+        return self._post('projectroletemplatebindings', json={
+            'roleTemplateId': role,
+            'projectId': project_id,
+            'userId': user_id,
+        })
+
+    def delete_user(self, user_id):
+        return self._delete('users/{0}'.format(user_id))
+
+    def delete_cluster_role(self, cluster_role_id):
+        return self._delete('clusterroletemplatebindings/{0}'.format(cluster_role_id))
