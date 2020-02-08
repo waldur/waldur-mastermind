@@ -1,13 +1,20 @@
-from django.core.exceptions import ObjectDoesNotExist
-from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
-from rest_framework import serializers
 import yaml
+from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.utils.translation import ugettext_lazy as _
+import logging
+from rest_framework import serializers
 
+from waldur_core.core.models import User
 from waldur_core.quotas import exceptions as quotas_exceptions
+from waldur_core.structure.models import ProjectRole, ServiceSettings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
+from waldur_rancher.backend import RancherBackend
 
-from . import models
+from . import models, exceptions
+
+logger = logging.getLogger(__name__)
 
 
 def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
@@ -236,3 +243,188 @@ def format_node_cloud_config(node):
         user_data = yaml.dump(conf)
 
     return user_data
+
+
+class SyncUser:
+    @staticmethod
+    def get_users():
+        result = {}
+
+        def add_to_result():
+            if user not in result.keys():
+                result[user] = {}
+
+            if service_settings not in result[user].keys():
+                result[user][service_settings] = []
+
+            result[user][service_settings].append([cluster, role])
+
+        for cluster in models.Cluster.objects.all():
+            service_settings = cluster.service_project_link.service.settings
+            project = cluster.service_project_link.project
+            users = project.get_users()
+            owners = project.customer.get_owners()
+
+            for user in users:
+                role = 'manager' if project.has_user(user, ProjectRole.MANAGER) \
+                    else 'admin' if project.has_user(user, ProjectRole.ADMINISTRATOR) else None
+                add_to_result()
+
+            for user in owners:
+                role = 'owner'
+                add_to_result()
+
+        return result
+
+    @staticmethod
+    def create_users(add_users):
+        count_created = 0
+        count_activated = 0
+        for user in add_users:
+            for service_settings in add_users[user].keys():
+                try:
+                    with transaction.atomic():
+                        rancher_user, created = models.RancherUser.objects.get_or_create(
+                            settings=service_settings,
+                            user=user,
+                        )
+                        backend = RancherBackend(service_settings)
+
+                        if created:
+                            backend.create_user(rancher_user)
+                            count_created += 1
+                        else:
+                            backend.activate_user(rancher_user)
+                            count_activated += 1
+                except exceptions.RancherException as e:
+                    logger.error('Error creating or activating user %s. %s' % (user, e))
+
+        return count_created, count_activated
+
+    @staticmethod
+    def block_users(rancher_users):
+        count = 0
+
+        for user in rancher_users:
+            try:
+                with transaction.atomic():
+                    backend = RancherBackend(user.settings)
+                    backend.block_user(user)
+                    count += 1
+            except exceptions.RancherException as e:
+                logger.error('Error blocking user %s. %s' % (user, e))
+        return count
+
+    @staticmethod
+    def update_users_roles(users):
+        count = 0
+
+        for user in users:
+            for service_settings in users[user]:
+                has_change = False
+                rancher_user = models.RancherUser.objects.get(user=user, settings=service_settings)
+                current_links = models.RancherUserClusterLink.objects.filter(user=rancher_user)
+                actual_links = users[user][service_settings]
+                current_links_set = {(link.cluster.id, link.role) for link in current_links}
+
+                actual_links_set = set()
+
+                for link in actual_links:
+                    role = models.ClusterRole.CLUSTER_OWNER if link[1] in ['owner', 'manager'] \
+                        else models.ClusterRole.CLUSTER_MEMBER if link[1] in ['admin'] else None
+                    actual_links_set.add((link[0].id, role))
+
+                remove_links = current_links_set - actual_links_set
+                add_links = actual_links_set - current_links_set
+
+                backend = RancherBackend(service_settings)
+
+                for link in remove_links:
+                    cluster_id = link[0]
+                    role = link[1]
+                    rancher_user_cluster_link = models.RancherUserClusterLink.objects.get(
+                        user=rancher_user,
+                        role=role,
+                        cluster_id=cluster_id
+                    )
+
+                    try:
+                        with transaction.atomic():
+                            backend.delete_cluster_role(rancher_user_cluster_link)
+
+                        has_change = True
+                    except exceptions.RancherException as e:
+                        logger.error('Error deleting role %s. %s' % (rancher_user_cluster_link.id, e))
+
+                for link in add_links:
+                    cluster_id = link[0]
+                    role = link[1]
+
+                    try:
+                        with transaction.atomic():
+                            rancher_user_cluster_link = models.RancherUserClusterLink.objects.create(
+                                user=rancher_user,
+                                role=role,
+                                cluster_id=cluster_id
+                            )
+                            backend.create_cluster_role(rancher_user_cluster_link)
+
+                        has_change = True
+                    except exceptions.RancherException as e:
+                        logger.error('Error creating role. User ID: %s, cluster ID: %s, role: %s. %s' %
+                                     (rancher_user.id, cluster_id, role, e))
+
+                if has_change:
+                    count += 1
+
+        return count
+
+    @classmethod
+    def run(cls):
+        result = {}
+        actual_users = cls.get_users()
+        current_users = models.RancherUser.objects.filter(is_active=True)
+        current_users_set = {(user.user.uuid.hex, user.settings.uuid.hex) for user in current_users}
+        actual_users_set = set()
+
+        for user in actual_users:
+            for service_settings in actual_users[user]:
+                actual_users_set.add((user.uuid.hex, service_settings.uuid.hex))
+
+        # Delete users
+        remove_rancher_users_set = current_users_set - actual_users_set
+        remove_rancher_users = []
+
+        for user in remove_rancher_users_set:
+            user_uuid = user[0]
+            settings_uuid = user[1]
+            remove_rancher_users.append(
+                models.RancherUser.objects.get(user__uuid=user_uuid, settings__uuid=settings_uuid)
+            )
+
+        result['blocked'] = cls.block_users(remove_rancher_users)
+
+        # Create users
+        add_users_set = actual_users_set - current_users_set
+        add_users = {}
+
+        for user in add_users_set:
+            user_uuid = user[0]
+            settings_uuid = user[1]
+            user = User.objects.get(uuid=user_uuid)
+            service_settings = ServiceSettings.objects.get(uuid=settings_uuid)
+
+            if user not in add_users.keys():
+                add_users[user] = {}
+
+            if service_settings not in add_users[user].keys():
+                add_users[user][service_settings] = []
+
+            add_users[user][service_settings].extend(actual_users[user][service_settings])
+
+        result['created'], result['activated'] = cls.create_users(add_users)
+
+        # Update user's roles
+        result['updated'] = cls.update_users_roles(actual_users)
+
+        return result

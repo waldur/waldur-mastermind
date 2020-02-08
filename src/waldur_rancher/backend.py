@@ -1,11 +1,10 @@
-from django.conf import settings
+from django.conf import settings as conf_settings
 from django.utils.functional import cached_property
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import ServiceBackend
 
-from .client import RancherClient
-from . import models
+from . import models, signals, client
 
 
 class RancherBackend(ServiceBackend):
@@ -33,9 +32,9 @@ class RancherBackend(ServiceBackend):
         """
         Construct Rancher REST API client using credentials specified in the service settings.
         """
-        client = RancherClient(self.host, verify_ssl=False)
-        client.login(self.settings.username, self.settings.password)
-        return client
+        rancher_client = client.RancherClient(self.host, verify_ssl=False)
+        rancher_client.login(self.settings.username, self.settings.password)
+        return rancher_client
 
     @cached_property
     def host(self):
@@ -126,7 +125,7 @@ class RancherBackend(ServiceBackend):
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
+        return backend_node['state'] == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
 
     def update_node_details(self, node):
         if not node.backend_id:
@@ -177,8 +176,69 @@ class RancherBackend(ServiceBackend):
         node.pods_total = get_backend_node_field('allocatable', 'pods')
         node.runtime_state = get_backend_node_field('state', default='')
 
-        if node.runtime_state == settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
+        if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
             node.state = models.Node.States.OK
         else:
             node.state = models.Node.States.ERRED
         return node.save()
+
+    def create_user(self, user):
+        if user.backend_id:
+            return
+
+        password = models.RancherUser.make_random_password()
+        response = self.client.create_user(
+            name=user.user.username,
+            username=user.user.username,
+            password=password
+        )
+        user_id = response['id']
+        user.backend_id = user_id
+        user.save()
+        self.client.create_global_role(user.backend_id, client.GlobalRoleId.user_base)
+        signals.rancher_user_has_been_synchronized.send(
+            sender=models.RancherUser,
+            instance=user,
+            password=password,
+        )
+
+    def delete_user(self, user):
+        if user.backend_id:
+            self.client.delete_user(user_id=user.backend_id)
+
+        user.delete()
+
+    def block_user(self, user):
+        if user.is_active:
+            self.client.disable_user(user.backend_id)
+            user.is_active = False
+            user.save()
+
+    def activate_user(self, user):
+        if not user.is_active:
+            self.client.enable_user(user.backend_id)
+            user.is_active = True
+            user.save()
+
+    def create_cluster_role(self, link):
+        role = None
+
+        if link.role == models.ClusterRole.CLUSTER_OWNER:
+            role = client.ClusterRoleId.cluster_owner
+
+        if link.role == models.ClusterRole.CLUSTER_MEMBER:
+            role = client.ClusterRoleId.cluster_member
+
+        response = self.client.create_cluster_role(
+            link.user.backend_id,
+            link.cluster.backend_id,
+            role)
+        link_id = response['id']
+        link.backend_id = link_id
+        link.save()
+
+    def delete_cluster_role(self, link):
+        if link.backend_id:
+            self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+
+        link.delete()
