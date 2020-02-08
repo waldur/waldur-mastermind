@@ -10,5 +10,12 @@ class RancherConfig(AppConfig):
         from waldur_core.structure import SupportedServices
 
         from .backend import RancherBackend
+        from . import handlers, models, signals as rancher_signals
 
         SupportedServices.register_backend(RancherBackend)
+
+        rancher_signals.rancher_user_has_been_synchronized.connect(
+            handlers.notify_create_user,
+            sender=models.RancherUser,
+            dispatch_uid='waldur_rancher.notify_create_user',
+        )

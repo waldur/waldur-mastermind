@@ -41,6 +41,11 @@ class RancherExtension(WaldurExtension):
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
+            'waldur-rancher-sync-users': {
+                'task': 'waldur_rancher.sync_users',
+                'schedule': timedelta(hours=24),
+                'args': (),
+            },
         }
 
     @staticmethod
