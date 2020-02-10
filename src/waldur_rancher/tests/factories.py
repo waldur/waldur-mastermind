@@ -90,3 +90,11 @@ class NodeFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('rancher-node-list')
+
+
+class RancherUserFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.RancherUser
+
+    user = factory.SubFactory(structure_factories.UserFactory)
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
