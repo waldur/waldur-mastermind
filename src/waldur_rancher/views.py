@@ -105,3 +105,15 @@ class NodeViewSet(core_views.ActionsViewSet):
 
     link_openstack_permissions = [structure_permissions.is_staff]
     link_openstack_serializer_class = serializers.LinkOpenstackSerializer
+
+    @decorators.action(detail=True, methods=['post'])
+    def unlink_openstack(self, request, uuid=None):
+        node = self.get_object()
+        if not node.content_type or not node.object_id:
+            raise ValidationError('Node is not linked to any OpenStack instance yet.')
+        node.content_type = None
+        node.object_id = None
+        node.save()
+        return response.Response(status=status.HTTP_200_OK)
+
+    unlink_openstack_permissions = [structure_permissions.is_staff]
