@@ -94,6 +94,8 @@ class NodeViewSet(core_views.ActionsViewSet):
     @decorators.action(detail=True, methods=['post'])
     def link_openstack(self, request, uuid=None):
         node = self.get_object()
+        if node.content_type and node.object_id:
+            raise ValidationError('Node is already linked.')
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         instance = serializer.validated_data['instance']
