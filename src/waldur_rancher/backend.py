@@ -1,7 +1,8 @@
 from django.conf import settings as conf_settings
+from django.db.models import Q
 from django.utils.functional import cached_property
 
-from waldur_core.core import utils as core_utils
+from waldur_core.core import utils as core_utils, models as core_models
 from waldur_core.structure import ServiceBackend
 
 from . import models, signals, client
@@ -117,6 +118,36 @@ class RancherBackend(ServiceBackend):
 
             # Update details in all cases.
             self.update_node_details(node)
+
+    def pull_cluster_runtime_state(self, cluster):
+        backend_cluster = self.client.get_cluster(cluster.backend_id)
+        self._backend_cluster_to_cluster(backend_cluster, cluster)
+        cluster.save()
+
+    def check_cluster_creating(self, cluster):
+        self.pull_cluster_runtime_state(cluster)
+
+        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
+            cluster.state = models.Cluster.States.OK
+            cluster.save()
+            return
+
+        for node in cluster.node_set.filter(Q(controlplane_role=True) | Q(etcd_role=True)):
+            controlplane_role = etcd_role = False
+            if node.instance.state not in [core_models.StateMixin.States.ERRED,
+                                           core_models.StateMixin.States.DELETING,
+                                           core_models.StateMixin.States.DELETION_SCHEDULED]:
+                if node.controlplane_role:
+                    controlplane_role = True
+                if node.etcd_role:
+                    etcd_role = True
+                if controlplane_role and etcd_role:
+                    return
+
+        cluster.error_message = 'The cluster is not connected with any non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
+        cluster.runtime_state = 'error'
+        cluster.state = core_models.StateMixin.States.ERRED
+        cluster.save()
 
     def get_cluster_nodes(self, backend_id):
         backend_cluster = self.client.get_cluster(backend_id)
