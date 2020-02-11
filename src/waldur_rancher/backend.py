@@ -196,7 +196,7 @@ class RancherBackend(ServiceBackend):
         user.backend_id = user_id
         user.save()
         self.client.create_global_role(user.backend_id, client.GlobalRoleId.user_base)
-        signals.rancher_user_has_been_synchronized.send(
+        signals.rancher_user_created.send(
             sender=models.RancherUser,
             instance=user,
             password=password,

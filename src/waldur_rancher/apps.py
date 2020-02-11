@@ -14,7 +14,7 @@ class RancherConfig(AppConfig):
 
         SupportedServices.register_backend(RancherBackend)
 
-        rancher_signals.rancher_user_has_been_synchronized.connect(
+        rancher_signals.rancher_user_created.connect(
             handlers.notify_create_user,
             sender=models.RancherUser,
             dispatch_uid='waldur_rancher.notify_create_user',
