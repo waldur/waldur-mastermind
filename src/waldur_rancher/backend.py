@@ -142,9 +142,13 @@ class RancherBackend(ServiceBackend):
                 if node.etcd_role:
                     etcd_role = True
                 if controlplane_role and etcd_role:
+                    # We make a return if one or more VMs with 'controlplane' and 'etcd' roles exist
+                    # and they haven't a state 'error' or 'delete'.
+                    # Here 'return' means that cluster state checking must be retry later.
                     return
 
-        cluster.error_message = 'The cluster is not connected with any non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
+        cluster.error_message = 'The cluster is not connected with any ' \
+                                'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
         cluster.runtime_state = 'error'
         cluster.state = core_models.StateMixin.States.ERRED
         cluster.save()
@@ -166,32 +170,34 @@ class RancherBackend(ServiceBackend):
 
         # rancher can skip return of some fields when node is being created,
         # so avoid crashing by supporting missing values
-
-        def get_backend_node_field(*args, default=None):
+        def get_backend_node_field(*args):
             value = backend_node
 
             for arg in args:
                 if isinstance(value, dict):
                     value = value.get(arg)
                 else:
-                    return default
+                    return
 
             return value
 
-        node.labels = get_backend_node_field('labels')
-        node.annotations = get_backend_node_field('annotations')
-        node.docker_version = get_backend_node_field('info', 'os', 'dockerVersion')
-        node.k8s_version = get_backend_node_field('info', 'kubernetes', 'kubeletVersion')
+        def update_node_field(*args, field):
+            value = get_backend_node_field(*args)
+            if value:
+                setattr(node, field, value)
 
+        update_node_field('labels', field='labels')
+        update_node_field('annotations', field='annotations')
+        update_node_field('info', 'os', 'dockerVersion', field='docker_version')
+        update_node_field('info', 'kubernetes', 'kubeletVersion', field='k8s_version')
         cpu_allocated = get_backend_node_field('requested', 'cpu')
 
         if cpu_allocated:
             node.cpu_allocated = \
                 core_utils.parse_int(cpu_allocated) / 1000  # convert data from 380m to 0.38
 
-        node.cpu_total = get_backend_node_field('allocatable', 'cpu')
-
         ram_allocated = get_backend_node_field('requested', 'memory')
+        update_node_field('allocatable', 'cpu', field='cpu_total')
 
         if ram_allocated:
             node.ram_allocated = \
@@ -203,9 +209,9 @@ class RancherBackend(ServiceBackend):
             node.ram_total = \
                 int(core_utils.parse_int(ram_total) / 2 ** 20)  # convert data to Mi
 
-        node.pods_allocated = get_backend_node_field('requested', 'pods')
-        node.pods_total = get_backend_node_field('allocatable', 'pods')
-        node.runtime_state = get_backend_node_field('state', default='')
+        update_node_field('requested', 'pods', field='pods_allocated')
+        update_node_field('allocatable', 'pods', field='pods_total')
+        update_node_field('state', field='runtime_state')
 
         if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
             node.state = models.Node.States.OK

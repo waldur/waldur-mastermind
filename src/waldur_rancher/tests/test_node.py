@@ -210,6 +210,14 @@ class NodeDetailsUpdateTest(test.APITransactionTestCase):
         tasks.update_nodes(self.fixture.cluster.id)
         self._check_node_fields(self.fixture.node)
 
+    def test_update_node_if_key_does_not_exists(self):
+        backend_node = json.loads(
+            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode())
+        backend_node.pop('annotations')
+        self.mock_client.get_node.return_value = backend_node
+        tasks.update_nodes(self.fixture.cluster.id)
+        self._check_node_fields(self.fixture.node)
+
     def test_pull_cluster_import_new_node(self):
         backend = self.fixture.node.cluster.get_backend()
         backend.pull_cluster(self.fixture.node.cluster)
