@@ -21,6 +21,7 @@ class RancherExtension(WaldurExtension):
             },
             'SYSTEM_VOLUME_MIN_SIZE': 64,
             'ACTIVE_NODE_STATE': 'active',
+            'ACTIVE_CLUSTER_STATE': 'active',
         }
 
     @staticmethod

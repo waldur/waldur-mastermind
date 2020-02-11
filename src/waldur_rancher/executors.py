@@ -1,12 +1,14 @@
 from celery import chain
 
+from django.conf import settings
+
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks, utils as core_utils
 
 from . import tasks
 
 
-class ClusterCreateExecutor(core_executors.CreateExecutor):
+class ClusterCreateExecutor(core_executors.BaseExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
@@ -15,6 +17,12 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             'create_cluster',
             state_transition='begin_creating')]
         _tasks += cls.create_nodes(instance.node_set.all(), user)
+        _tasks += [core_tasks.PollRuntimeStateTask().si(
+            serialized_instance,
+            backend_pull_method='check_cluster_creating',
+            success_state=settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE'],
+            erred_state='error'
+        )]
         return chain(*_tasks)
 
     @classmethod
