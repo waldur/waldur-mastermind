@@ -302,7 +302,7 @@ WALDUR_CORE = {
     'INVITATION_DISABLE_MULTIPLE_ROLES': False,
     'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS': [],
     'ATTACHMENT_LINK_MAX_AGE': timedelta(hours=1),
-    'EMAIL_CHANGE_URL': 'https://example.com/#/change_email/{code}/',
+    'EMAIL_CHANGE_URL': 'https://example.com/#/user_email_change/{code}/',
     'EMAIL_CHANGE_MAX_AGE': timedelta(days=1),
 }
 
