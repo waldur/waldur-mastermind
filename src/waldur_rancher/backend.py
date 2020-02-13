@@ -1,9 +1,13 @@
 from django.conf import settings as conf_settings
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
 
 from waldur_core.core import utils as core_utils, models as core_models
 from waldur_core.structure import ServiceBackend
+from waldur_core.structure.models import ServiceSettings
+from waldur_core.structure.utils import update_pulled_fields
+from waldur_mastermind.common.utils import parse_datetime
 
 from . import models, signals, client
 
@@ -40,6 +44,9 @@ class RancherBackend(ServiceBackend):
     @cached_property
     def host(self):
         return self.settings.backend_url.strip('/')
+
+    def pull_service_properties(self):
+        self.pull_catalogs()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -279,3 +286,125 @@ class RancherBackend(ServiceBackend):
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
 
         link.delete()
+
+    def pull_catalogs(self):
+        self.pull_global_catalogs()
+        self.pull_cluster_catalogs()
+        # TODO: Implement Rancher project catalogs synchronization
+
+    def pull_global_catalogs(self):
+        remote_catalogs = self.client.list_global_catalogs()
+        self.pull_catalogs_for_scope(remote_catalogs, self.settings)
+
+    def pull_cluster_catalogs(self):
+        remote_catalogs = self.client.list_cluster_catalogs()
+        for cluster in models.Cluster.objects.filter(service_project_link__service__settings=self.settings):
+            self.pull_catalogs_for_scope(remote_catalogs, cluster)
+
+    def pull_catalogs_for_scope(self, remote_catalogs, scope):
+        content_type = ContentType.objects.get_for_model(scope)
+        local_catalogs = models.Catalog.objects.filter(
+            content_type=content_type,
+            object_id=scope.id,
+        )
+
+        remote_catalog_map = {
+            catalog['id']: self.remote_catalog_to_local(catalog, content_type, scope.id)
+            for catalog in remote_catalogs
+        }
+        local_catalog_map = {
+            catalog.id: catalog
+            for catalog in local_catalogs
+        }
+        remote_catalog_ids = set(remote_catalog_map.keys())
+        local_catalog_ids = set(local_catalog_map.keys())
+
+        stale_catalogs = local_catalog_ids - remote_catalog_ids
+
+        new_catalogs = [
+            remote_catalog_map[catalog_id]
+            for catalog_id in remote_catalog_ids - local_catalog_ids
+        ]
+
+        existing_catalogs = remote_catalog_ids & local_catalog_ids
+        pulled_fields = {
+            'name', 'description', 'catalog_url', 'branch',
+            'commit', 'username', 'password', 'runtime_state',
+        }
+        for catalog_id in existing_catalogs:
+            local_catalog = local_catalog_map[catalog_id]
+            remote_catalog = remote_catalog_map[catalog_id]
+            update_pulled_fields(local_catalog, remote_catalog, pulled_fields)
+
+        models.Catalog.objects.bulk_create(new_catalogs)
+        local_catalogs.filter(id__in=stale_catalogs).delete()
+
+    def remote_catalog_to_local(self, remote_catalog, content_type, object_id):
+        return models.Catalog(
+            content_type=content_type,
+            object_id=object_id,
+            backend_id=remote_catalog['id'],
+            name=remote_catalog['name'],
+            description=remote_catalog['description'],
+            created=parse_datetime(remote_catalog['created']),
+            catalog_url=remote_catalog['url'],
+            branch=remote_catalog['branch'],
+            commit=remote_catalog.get('commit', ''),
+            username=remote_catalog.get('username', ''),
+            password=remote_catalog.get('password', ''),
+            runtime_state=remote_catalog['state'],
+        )
+
+    def refresh_catalog(self, catalog):
+        if isinstance(catalog.scope, ServiceSettings):
+            return self.client.refresh_global_catalog(catalog.backend_id)
+        elif isinstance(catalog.scope, models.Cluster):
+            return self.client.refresh_cluster_catalog(catalog.backend_id)
+        else:
+            return self.client.refresh_project_catalog(catalog.backend_id)
+
+    def delete_catalog(self, catalog):
+        if isinstance(catalog.scope, ServiceSettings):
+            return self.client.delete_global_catalog(catalog.backend_id)
+        elif isinstance(catalog.scope, models.Cluster):
+            return self.client.delete_cluster_catalog(catalog.backend_id)
+        else:
+            return self.client.delete_project_catalog(catalog.backend_id)
+
+    def get_catalog_spec(self, catalog):
+        spec = {
+            'name': catalog.name,
+            'description': catalog.description,
+            'url': catalog.catalog_url,
+            'branch': catalog.branch,
+        }
+        if catalog.username:
+            spec['username'] = catalog.username
+        if catalog.password:
+            spec['password'] = catalog.password
+        return spec
+
+    def create_catalog(self, catalog):
+        spec = self.get_catalog_spec(catalog)
+
+        if isinstance(catalog.scope, ServiceSettings):
+            remote_catalog = self.client.create_global_catalog(spec)
+        elif isinstance(catalog.scope, models.Cluster):
+            spec['clusterId'] = catalog.scope.backend_id
+            remote_catalog = self.client.create_cluster_catalog(spec)
+        else:
+            spec['projectId'] = catalog.scope.backend_id
+            remote_catalog = self.client.create_project_catalog(spec)
+
+        catalog.backend_id = remote_catalog['id']
+        catalog.runtime_state = remote_catalog['state']
+        catalog.save()
+
+    def update_catalog(self, catalog):
+        spec = self.get_catalog_spec(catalog)
+        if isinstance(catalog.scope, ServiceSettings):
+            return self.client.update_global_catalog(catalog.backend_id, spec)
+        elif isinstance(catalog.scope, models.Cluster):
+            return self.client.update_cluster_catalog(catalog.backend_id, spec)
+        else:
+            return self.client.update_project_catalog(catalog.backend_id, spec)

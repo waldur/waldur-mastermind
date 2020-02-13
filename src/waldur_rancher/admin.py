@@ -31,8 +31,16 @@ class RancherUserAdmin(core_admin.ExtraActionsMixin, core_admin.ReadOnlyAdminMix
         return redirect(reverse('admin:waldur_rancher_rancheruser_changelist'))
 
 
+class CatalogAdmin(admin.ModelAdmin):
+    list_display = ('name', 'scope_type', 'scope_name', 'catalog_url')
+
+    def scope_name(self, obj):
+        return obj.scope.name
+
+
 admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
 admin.site.register(models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Cluster)
 admin.site.register(models.Node)
 admin.site.register(models.RancherUser, RancherUserAdmin)
+admin.site.register(models.Catalog, CatalogAdmin)

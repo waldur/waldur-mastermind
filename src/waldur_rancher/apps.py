@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db.models import signals
 
 
 class RancherConfig(AppConfig):
@@ -18,4 +19,10 @@ class RancherConfig(AppConfig):
             handlers.notify_create_user,
             sender=models.RancherUser,
             dispatch_uid='waldur_rancher.notify_create_user',
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_catalog_when_cluster_is_deleted,
+            sender=models.Cluster,
+            dispatch_uid='waldur_rancher.delete_catalog_when_cluster_is_deleted',
         )
