@@ -9,3 +9,5 @@ def register_in(router):
                     basename='rancher-cluster')
     router.register(r'rancher-nodes', views.NodeViewSet,
                     basename='rancher-node')
+    router.register(r'rancher-catalogs', views.CatalogViewSet,
+                    basename='rancher-catalog')

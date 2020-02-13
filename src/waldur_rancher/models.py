@@ -9,7 +9,7 @@ from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.models import NewResource
+from waldur_core.structure.models import NewResource, ServiceSettings
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +181,32 @@ class RancherUserClusterLink(models.Model):
 
     class Meta:
         unique_together = (('user', 'cluster', 'role'),)
+
+
+class Catalog(core_models.UuidMixin,
+              core_models.NameMixin,
+              core_models.DescribableMixin,
+              structure_models.TimeStampedModel,
+              core_models.RuntimeStateMixin):
+    # Rancher supports global, cluster and project scope
+    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
+    object_id = models.PositiveIntegerField(null=True)
+    scope = GenericForeignKey('content_type', 'object_id')
+    backend_id = models.CharField(max_length=255, blank=True)
+    catalog_url = models.URLField()
+    branch = models.CharField(max_length=255)
+    commit = models.CharField(max_length=40, blank=True)
+    username = models.CharField(max_length=255, blank=True)
+    password = models.CharField(max_length=255, blank=True)
+
+    def get_backend(self):
+        return self.scope.get_backend()
+
+    @property
+    def scope_type(self):
+        if isinstance(self.scope, ServiceSettings):
+            return 'global'
+        elif isinstance(self.scope, Cluster):
+            return 'cluster'
+        else:
+            return 'project'

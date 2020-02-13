@@ -330,3 +330,26 @@ class LinkOpenstackSerializer(serializers.Serializer):
         queryset=openstack_tenant_models.Instance.objects.all(),
         lookup_field='uuid',
         write_only=True)
+
+
+class CatalogSerializer(serializers.HyperlinkedModelSerializer):
+    scope = core_serializers.GenericRelatedField()
+
+    class Meta:
+        model = models.Catalog
+        fields = ('uuid', 'url', 'created', 'modified', 'name', 'description',
+                  'catalog_url', 'branch', 'commit', 'runtime_state', 'scope', 'scope_type')
+        read_only_fields = ('runtime_state', 'commit')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid', 'view_name': 'rancher-catalog-detail'},
+        }
+
+
+class CatalogCreateSerializer(CatalogSerializer):
+    class Meta(CatalogSerializer.Meta):
+        fields = CatalogSerializer.Meta.fields + ('username', 'password')
+
+
+class CatalogUpdateSerializer(CatalogCreateSerializer):
+    class Meta(CatalogSerializer.Meta):
+        read_only_fields = CatalogSerializer.Meta.read_only_fields + ('scope',)
