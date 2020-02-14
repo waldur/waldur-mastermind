@@ -34,11 +34,23 @@ class SecurityGroupDeleteExecutor(core_executors.DeleteExecutor):
 
     @classmethod
     def get_task_signature(cls, security_group, serialized_security_group, **kwargs):
+        state_transition_task = core_tasks.StateTransitionTask().si(
+            serialized_security_group,
+            state_transition='begin_deleting'
+        )
+        detach_task = core_tasks.BackendMethodTask().si(
+            serialized_security_group,
+            'detach_security_group_from_all_instances'
+        )
+        delete_task = core_tasks.BackendMethodTask().si(
+            serialized_security_group,
+            'delete_security_group'
+        )
+        _tasks = [state_transition_task]
         if security_group.backend_id:
-            return core_tasks.BackendMethodTask().si(
-                serialized_security_group, 'delete_security_group', state_transition='begin_deleting')
-        else:
-            return core_tasks.StateTransitionTask().si(serialized_security_group, state_transition='begin_deleting')
+            _tasks.append(detach_task)
+            _tasks.append(delete_task)
+        return chain(*_tasks)
 
 
 class PushSecurityGroupRulesExecutor(core_executors.ActionExecutor):
