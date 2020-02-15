@@ -76,10 +76,6 @@ class Allocation(structure_models.NewResource):
     def batch_service(self):
         return get_batch_service(self.service_project_link.service.settings)
 
-    @property
-    def backend_id(self):
-        return self.get_backend().get_allocation_name(self)
-
 
 class AllocationUsage(models.Model):
     class Permissions:
