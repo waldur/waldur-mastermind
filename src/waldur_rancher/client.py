@@ -190,6 +190,9 @@ class RancherClient:
     def delete_cluster(self, cluster_id):
         return self._delete('clusters/{0}'.format(cluster_id))
 
+    def delete_node(self, node_id):
+        return self._delete('nodes/{0}'.format(node_id))
+
     def list_cluster_registration_tokens(self):
         return self._get('clusterregistrationtokens', params={'limit': -1})['data']
 

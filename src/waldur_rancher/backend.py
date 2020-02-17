@@ -59,7 +59,16 @@ class RancherBackend(ServiceBackend):
         cluster.save()
 
     def delete_cluster(self, cluster):
-        self.client.delete_cluster(cluster.backend_id)
+        if cluster.backend_id:
+            self.client.delete_cluster(cluster.backend_id)
+
+        cluster.delete()
+
+    def delete_node(self, node):
+        if node.backend_id:
+            self.client.delete_node(node.backend_id)
+
+        node.delete()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
