@@ -411,6 +411,8 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
 
         shared_tenant = instance.service_project_link.service.settings.scope
         if shared_tenant:
+            serialized_tenant = core_utils.serialize_instance(shared_tenant)
+            _tasks.append(core_tasks.PollStateTask().si(serialized_tenant))
             _tasks.append(openstack_executors.TenantPullFloatingIPsExecutor.as_signature(shared_tenant))
 
         return _tasks
@@ -503,15 +505,8 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         for volume in instance.volumes.all():
             if volume.backend_id:
                 serialized_volume = core_utils.serialize_instance(volume)
-                _tasks.append(core_tasks.BackendMethodTask().si(
-                    serialized_volume,
-                    'delete_volume',
-                    state_transition='begin_deleting'
-                ))
-                _tasks.append(core_tasks.PollBackendCheckTask().si(
-                    serialized_volume,
-                    'is_volume_deleted'
-                ))
+                _tasks.append(core_tasks.PollStateTask().si(serialized_volume))
+                _tasks.append(VolumeDeleteExecutor.as_signature(volume))
 
         _tasks += [tasks.DeleteIncompleteInstanceTask().si(serialized_instance)]
 
@@ -563,8 +558,9 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
 
         shared_tenant = instance.service_project_link.service.settings.scope
         if shared_tenant and isinstance(shared_tenant, openstack_models.Tenant):
-            if shared_tenant.state == openstack_models.Tenant.States.OK:
-                _tasks.append(openstack_executors.TenantPullFloatingIPsExecutor.as_signature(shared_tenant))
+            serialized_tenant = core_utils.serialize_instance(shared_tenant)
+            _tasks.append(core_tasks.PollStateTask().si(serialized_tenant))
+            _tasks.append(openstack_executors.TenantPullFloatingIPsExecutor.as_signature(shared_tenant))
 
         return _tasks
 

@@ -457,6 +457,15 @@ class PollRuntimeStateTask(Task):
         return instance
 
 
+class PollStateTask(Task):
+    max_retries = 1200
+    default_retry_delay = 5
+
+    def execute(self, instance, *args, **kwargs):
+        if instance.state not in (models.StateMixin.States.OK, models.StateMixin.States.ERRED):
+            self.retry()
+
+
 class PollBackendCheckTask(Task):
     max_retries = 600
     default_retry_delay = 5
