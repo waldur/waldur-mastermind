@@ -21,7 +21,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
 from waldur_rancher.apps import RancherConfig
 
-from . import models, serializers, filters, executors, exceptions
+from . import models, serializers, filters, executors, exceptions, validators
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,6 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
     queryset = models.Cluster.objects.all()
     serializer_class = serializers.ClusterSerializer
     filterset_class = filters.ClusterFilter
-    delete_executor = executors.ClusterDeleteExecutor
     update_executor = executors.ClusterUpdateExecutor
 
     def perform_create(self, serializer):
@@ -59,8 +58,22 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
             is_heavy_task=True,
         ))
 
+    def destroy(self, request, *args, **kwargs):
+        user = self.request.user
+        instance = self.get_object()
+        executors.ClusterDeleteExecutor.execute(
+            instance,
+            user=user,
+            is_heavy_task=True,
+        )
+        return response.Response(
+            {'detail': _('Deletion was scheduled.')}, status=status.HTTP_202_ACCEPTED)
+
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Cluster.States.OK),
+    ]
+    destroy_validators = structure_views.ImportableResourceViewSet.destroy_validators + [
+        validators.all_cluster_related_vms_can_be_deleted,
     ]
     importable_resources_backend_method = 'get_clusters_for_import'
     importable_resources_serializer_class = serializers.ClusterImportableSerializer
@@ -90,6 +103,9 @@ class NodeViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     disabled_actions = ['update', 'partial_update']
     create_permissions = [structure_permissions.is_staff]
+    destroy_validators = [
+        validators.related_vm_can_be_deleted,
+    ]
 
     def perform_create(self, serializer):
         node = serializer.save()
@@ -99,6 +115,16 @@ class NodeViewSet(core_views.ActionsViewSet):
             user=user,
             is_heavy_task=True,
         ))
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = self.request.user
+        executors.NodeDeleteExecutor.execute(
+            instance,
+            user=user,
+            is_heavy_task=True,
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
 
     @decorators.action(detail=True, methods=['post'])
     def link_openstack(self, request, uuid=None):

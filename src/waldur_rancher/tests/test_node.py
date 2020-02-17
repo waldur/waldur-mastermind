@@ -173,11 +173,13 @@ class NodeDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.RancherFixture()
         self.cluster_name = self.fixture.cluster.name
         self.url = factories.NodeFactory.get_url(self.fixture.node)
+        self.fixture.node.instance.runtime_state = self.fixture.node.instance.RuntimeStates.SHUTOFF
+        self.fixture.node.instance.save()
 
     def test_delete_node(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
 
 class NodeDetailsUpdateTest(test.APITransactionTestCase):

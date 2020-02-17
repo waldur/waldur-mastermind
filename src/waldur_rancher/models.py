@@ -107,6 +107,8 @@ class Node(core_models.UuidMixin,
     labels = JSONField(blank=True, default=dict)
     annotations = JSONField(blank=True, default=dict)
 
+    tracker = FieldTracker()
+
     def get_node_command(self):
         roles_command = []
         if self.controlplane_role:
