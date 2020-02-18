@@ -348,6 +348,7 @@ class SyncUser:
                     try:
                         with transaction.atomic():
                             backend.delete_cluster_role(rancher_user_cluster_link)
+                            rancher_user_cluster_link.delete()
 
                         has_change = True
                     except exceptions.RancherException as e:

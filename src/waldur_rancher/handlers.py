@@ -25,7 +25,11 @@ def delete_catalog_when_cluster_is_deleted(sender, instance, **kwargs):
 def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs):
     try:
         content_type = ContentType.objects.get_for_model(instance)
-        node = models.Node.objects.get(object_id=instance.id, content_type=content_type)
+        node = models.Node.objects.get(
+            object_id=instance.id,
+            content_type=content_type,
+            state=models.Node.States.DELETING
+        )
         backend = node.cluster.get_backend()
         backend.delete_node(node)
     except ObjectDoesNotExist:

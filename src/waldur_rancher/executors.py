@@ -1,15 +1,13 @@
 from celery import chain
 
-from django.conf import settings
-
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks, utils as core_utils
 from waldur_core.core.models import StateMixin
 
-from . import tasks
+from . import tasks, models
 
 
-class ClusterCreateExecutor(core_executors.BaseExecutor):
+class ClusterCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
@@ -21,7 +19,7 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
         _tasks += [core_tasks.PollRuntimeStateTask().si(
             serialized_instance,
             backend_pull_method='check_cluster_creating',
-            success_state=settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE'],
+            success_state=models.Cluster.RuntimeStates.ACTIVE,
             erred_state='error'
         )]
         return chain(*_tasks)
@@ -39,7 +37,7 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
         return _tasks
 
 
-class ClusterDeleteExecutor(core_executors.DeleteExecutor):
+class ClusterDeleteExecutor(core_executors.ErrorExecutorMixin, core_executors.BaseExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
@@ -53,6 +51,19 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
                 serialized_instance,
                 'delete_cluster',
                 state_transition='begin_deleting')
+
+    @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        instance.schedule_deleting()
+        instance.save(update_fields=['state'])
+
+    @classmethod
+    def get_success_signature(cls, instance, serialized_instance, **kwargs):
+        if instance.node_set.count():
+            """Removal occurs in handlers"""
+            return core_tasks.StateTransitionTask().si(serialized_instance, state_transition='begin_deleting')
+        else:
+            return super(ClusterDeleteExecutor, cls).get_success_signature(instance, serialized_instance, **kwargs)
 
 
 class ClusterUpdateExecutor(core_executors.UpdateExecutor):
@@ -71,7 +82,9 @@ class ClusterUpdateExecutor(core_executors.UpdateExecutor):
             )
 
 
-class NodeCreateExecutor(core_executors.CreateExecutor):
+class NodeCreateExecutor(core_executors.ErrorExecutorMixin, core_executors.BaseExecutor):
+    """CreateExecutor is not used here because the get_success_signature method is not needed,
+    because PollRuntimeStateNodeTask sets states"""
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
         return chain(
@@ -82,14 +95,27 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
             tasks.PollRuntimeStateNodeTask().si(serialized_instance)
         )
 
+    @classmethod
+    def pre_apply(cls, instance, **kwargs):
+        instance.begin_creating()
+        instance.save()
 
-class NodeDeleteExecutor(core_executors.BaseExecutor):
+
+class NodeDeleteExecutor(core_executors.ErrorExecutorMixin, core_executors.BaseExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
-        return tasks.DeleteNodeTask().si(
-            serialized_instance,
-            user_id=user.id,
-        )
+        node = instance
+
+        if node.instance:
+            return tasks.DeleteNodeTask().si(
+                serialized_instance,
+                user_id=user.id,
+            )
+        else:
+            return core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'delete_node',
+                state_transition='begin_deleting')
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
@@ -99,6 +125,16 @@ class NodeDeleteExecutor(core_executors.BaseExecutor):
         """
         instance.state = StateMixin.States.DELETION_SCHEDULED
         instance.save(update_fields=['state'])
+
+    @classmethod
+    def get_success_signature(cls, instance, serialized_instance, **kwargs):
+        node = instance
+
+        if node.instance:
+            """Removal occurs in handlers"""
+            return core_tasks.StateTransitionTask().si(serialized_instance, state_transition='begin_deleting')
+        else:
+            return core_tasks.DeletionTask().si(serialized_instance)
 
 
 class ClusterPullExecutor(core_executors.ActionExecutor):

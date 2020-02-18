@@ -299,8 +299,9 @@ class ClusterDeleteTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
     def test_if_instance_has_been_deleted_so_node_and_cluster_should_be_deleted(self, mock_client):
-        self.fixture.cluster.state = models.Node.States.DELETING
+        self.fixture.cluster.state = models.Cluster.States.DELETING
         self.fixture.cluster.save()
+        self.fixture.node.state = models.Node.States.DELETING
         self.fixture.node.backend_id = 'backend_id'
         self.fixture.node.save()
         self.fixture.instance.delete()

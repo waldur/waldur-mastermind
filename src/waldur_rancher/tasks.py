@@ -9,11 +9,11 @@ from rest_framework import status
 from rest_framework.reverse import reverse
 
 from waldur_core.core import tasks as core_tasks, utils as core_utils
+from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
-
 from waldur_rancher.utils import SyncUser
 
 from . import models, exceptions, signals, utils, views
@@ -64,7 +64,10 @@ class CreateNodeTask(core_tasks.Task):
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
+
+        # Set state here, because this task can be called from ClusterCreateExecutor and NodeCreateExecutor
         node.state = models.Node.States.CREATING
+
         node.save()
 
         resource_imported.send(
@@ -81,16 +84,11 @@ class DeleteNodeTask(core_tasks.Task):
     def execute(self, instance, user_id):
         node = instance
         user = auth.get_user_model().objects.get(pk=user_id)
+        view = InstanceViewSet.as_view({'delete': 'destroy'})
+        response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
 
-        if node.instance:
-            view = InstanceViewSet.as_view({'delete': 'destroy'})
-            response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
-
-            if response.status_code != status.HTTP_202_ACCEPTED:
-                raise exceptions.RancherException(response.data)
-        else:
-            backend = node.cluster.get_backend()
-            backend.delete_node(node)
+        if response.status_code != status.HTTP_202_ACCEPTED:
+            raise exceptions.RancherException(response.data)
 
 
 @shared_task
@@ -143,8 +141,13 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
 
-        if not node.backend_id:
+        if node.state == models.Node.States.CREATING:
             self.retry()
+
+        if node.state == models.Node.States.ERRED:
+            raise RuntimeStateException(
+                '%s (PK: %s) runtime state become erred: %s' % (
+                    node.__class__.__name__, node.pk, 'error'))
 
         return node
 

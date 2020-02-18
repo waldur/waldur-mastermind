@@ -62,13 +62,9 @@ class RancherBackend(ServiceBackend):
         if cluster.backend_id:
             self.client.delete_cluster(cluster.backend_id)
 
-        cluster.delete()
-
     def delete_node(self, node):
         if node.backend_id:
             self.client.delete_node(node.backend_id)
-
-        node.delete()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
@@ -143,9 +139,7 @@ class RancherBackend(ServiceBackend):
     def check_cluster_creating(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
-        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
-            cluster.state = models.Cluster.States.OK
-            cluster.save()
+        if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
             return
 
         for node in cluster.node_set.filter(Q(controlplane_role=True) | Q(etcd_role=True)):
@@ -166,8 +160,6 @@ class RancherBackend(ServiceBackend):
         cluster.error_message = 'The cluster is not connected with any ' \
                                 'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
         cluster.runtime_state = 'error'
-        cluster.state = core_models.StateMixin.States.ERRED
-        cluster.save()
 
     def get_cluster_nodes(self, backend_id):
         backend_cluster = self.client.get_cluster(backend_id)
@@ -176,7 +168,7 @@ class RancherBackend(ServiceBackend):
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
+        return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
 
     def update_node_details(self, node):
         if not node.backend_id:
@@ -229,8 +221,10 @@ class RancherBackend(ServiceBackend):
         update_node_field('allocatable', 'pods', field='pods_total')
         update_node_field('state', field='runtime_state')
 
-        if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
+        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
             node.state = models.Node.States.OK
+        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING:
+            node.state = models.Node.States.CREATING
         else:
             node.state = models.Node.States.ERRED
         return node.save()
@@ -254,12 +248,6 @@ class RancherBackend(ServiceBackend):
             instance=user,
             password=password,
         )
-
-    def delete_user(self, user):
-        if user.backend_id:
-            self.client.delete_user(user_id=user.backend_id)
-
-        user.delete()
 
     def block_user(self, user):
         if user.is_active:
@@ -293,8 +281,6 @@ class RancherBackend(ServiceBackend):
     def delete_cluster_role(self, link):
         if link.backend_id:
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
-
-        link.delete()
 
     def pull_catalogs(self):
         self.pull_global_catalogs()
