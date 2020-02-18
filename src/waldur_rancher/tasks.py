@@ -83,6 +83,8 @@ class CreateNodeTask(core_tasks.Task):
 class DeleteNodeTask(core_tasks.Task):
     def execute(self, instance, user_id):
         node = instance
+        node.begin_deleting()
+        node.save()
         user = auth.get_user_model().objects.get(pk=user_id)
         view = InstanceViewSet.as_view({'delete': 'destroy'})
         response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
@@ -174,6 +176,11 @@ def sync_users():
 class DeleteClusterNodesTask(core_tasks.Task):
     def execute(self, instance, user_id):
         cluster = instance
+
+        # State 'DELETING' must be set here, because if the nodes do not have virtual machines,
+        # then deleting them can work faster than get_success_signature.
+        cluster.begin_deleting()
+        cluster.save()
         view = views.NodeViewSet.as_view({'delete': 'destroy'})
         user = auth.get_user_model().objects.get(pk=user_id)
 

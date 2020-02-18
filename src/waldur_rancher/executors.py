@@ -61,7 +61,7 @@ class ClusterDeleteExecutor(core_executors.ErrorExecutorMixin, core_executors.Ba
     def get_success_signature(cls, instance, serialized_instance, **kwargs):
         if instance.node_set.count():
             """Removal occurs in handlers"""
-            return core_tasks.StateTransitionTask().si(serialized_instance, state_transition='begin_deleting')
+            return
         else:
             return super(ClusterDeleteExecutor, cls).get_success_signature(instance, serialized_instance, **kwargs)
 
@@ -132,7 +132,7 @@ class NodeDeleteExecutor(core_executors.ErrorExecutorMixin, core_executors.BaseE
 
         if node.instance:
             """Removal occurs in handlers"""
-            return core_tasks.StateTransitionTask().si(serialized_instance, state_transition='begin_deleting')
+            return
         else:
             return core_tasks.DeletionTask().si(serialized_instance)
 
