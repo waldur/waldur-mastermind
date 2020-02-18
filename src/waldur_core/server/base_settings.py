@@ -2,6 +2,7 @@
 Django base settings for Waldur Core.
 """
 from datetime import timedelta
+import locale
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
 import warnings
@@ -10,6 +11,13 @@ from celery.schedules import crontab
 
 from waldur_core.core import WaldurExtension
 from waldur_core.server.admin.settings import *  # noqa: F403
+
+encoding = locale.getpreferredencoding()
+if encoding.lower() != 'utf-8':
+    raise Exception("""Your system's preferred encoding is `{}`, but Waldur requires `UTF-8`.
+Fix it by setting the LC_* and LANG environment settings. Example:
+LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+""".format(encoding))
 
 ADMINS = ()
 
@@ -302,7 +310,7 @@ WALDUR_CORE = {
     'INVITATION_DISABLE_MULTIPLE_ROLES': False,
     'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS': [],
     'ATTACHMENT_LINK_MAX_AGE': timedelta(hours=1),
-    'EMAIL_CHANGE_URL': 'https://example.com/#/change_email/{code}/',
+    'EMAIL_CHANGE_URL': 'https://example.com/#/user_email_change/{code}/',
     'EMAIL_CHANGE_MAX_AGE': timedelta(days=1),
 }
 

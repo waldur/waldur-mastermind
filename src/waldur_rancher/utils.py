@@ -27,11 +27,8 @@ def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
     names_nodes = models.Node.objects.filter(cluster__service_project_link=cluster_spl).values_list('name', flat=True)
     names = list(names_instances) + list(names_nodes) + existing_names
 
-    if name not in names:
-        return name
-
-    i = 0
-    new_name = name
+    i = 1
+    new_name = '%s-%s' % (name, i)
 
     while new_name in names:
         i += 1

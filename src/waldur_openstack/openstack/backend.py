@@ -1033,6 +1033,34 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
         security_group.decrease_backend_quotas_usage()
 
+    def detach_security_group_from_all_instances(self, security_group):
+        connected_instances = self.get_instances_connected_to_security_groups(security_group)
+        for instance_id in connected_instances:
+            self.detach_security_group_from_instance(security_group.backend_id, instance_id)
+
+    def get_instances_connected_to_security_groups(self, security_group):
+        nova = self.nova_client
+        try:
+            instances = nova.servers.list()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        connected_instances = set()
+        for instance in instances:
+            for group in instance.security_groups:
+                if security_group.name == group['name']:
+                    connected_instances.add(instance.id)
+        return connected_instances
+
+    def detach_security_group_from_instance(self, group_id, server_id):
+        nova = self.nova_client
+        try:
+            nova.servers.remove_security_group(server_id, group_id)
+        except nova_exceptions.ClientException:
+            logger.exception('Failed to remove security group %s from instance %s', group_id, server_id)
+        else:
+            logger.info('Removed security group %s from instance %s', group_id, server_id)
+
     @log_backend_action()
     def update_security_group(self, security_group):
         neutron = self.neutron_client

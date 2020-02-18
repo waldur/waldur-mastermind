@@ -2,6 +2,7 @@ from django.utils.functional import cached_property
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_core.core.models import StateMixin
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
 from . import factories
@@ -43,7 +44,10 @@ class RancherFixture(ProjectFixture):
 
     @cached_property
     def instance(self):
-        return openstack_tenant_factories.InstanceFactory(service_project_link=self.tenant_spl)
+        return openstack_tenant_factories.InstanceFactory(
+            service_project_link=self.tenant_spl,
+            state=StateMixin.States.OK,
+        )
 
     @cached_property
     def node(self):
@@ -51,5 +55,6 @@ class RancherFixture(ProjectFixture):
         return models.Node.objects.create(
             cluster=self.cluster,
             object_id=self.instance.id,
-            content_type=content_type
+            content_type=content_type,
+            state=models.Node.States.OK,
         )

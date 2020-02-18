@@ -64,7 +64,7 @@ class BackendTest(TestCase):
         self.allocation.save()
 
         template = 'sacctmgr --parsable2 --noheader --immediate' \
-                   ' modify account %s set GrpTRESMins=cpu=%d,gres/gpu=%d,mem=%d'
+                   ' modify account %s set GrpTRES=cpu=%d,gres/gpu=%d,mem=%d'
         context = (self.account, self.allocation.cpu_limit, self.allocation.gpu_limit, self.allocation.ram_limit)
         command = ['ssh', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no',
                    'root@localhost', '-p', '22', '-i', '/etc/waldur/id_rsa', template % context]

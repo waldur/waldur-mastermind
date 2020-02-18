@@ -7,6 +7,10 @@ LABEL   summary="Waldur Mastermind REST API Image" \
         description="Waldur Cloud Brokerage Platform" \
         url="https://waldur.com"
 
+# CentOS 7 docker image does not define preferred locale.
+# That's why ANSI_X3.4-1968 encoding is used by default.
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+
 # Add tini
 ENV TINI_VERSION v0.16.1
 RUN cd /tmp && \

@@ -38,5 +38,8 @@ COPY waldur-test /usr/bin/waldur-test
 # Copy script to execute command as another user
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# set UTF-8 locale as default
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/bin/bash"]

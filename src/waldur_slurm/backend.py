@@ -65,6 +65,9 @@ class SlurmBackend(ServiceBackend):
             description=allocation.name,
             organization=project_account,
         )
+        allocation.backend_id = allocation_account
+        allocation.save()
+
         self.set_resource_limits(allocation)
 
         freeipa_profiles = {

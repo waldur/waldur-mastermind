@@ -190,6 +190,9 @@ class RancherClient:
     def delete_cluster(self, cluster_id):
         return self._delete('clusters/{0}'.format(cluster_id))
 
+    def delete_node(self, node_id):
+        return self._delete('nodes/{0}'.format(node_id))
+
     def list_cluster_registration_tokens(self):
         return self._get('clusterregistrationtokens', params={'limit': -1})['data']
 
@@ -263,3 +266,48 @@ class RancherClient:
 
     def delete_cluster_role(self, cluster_role_id):
         return self._delete('clusterroletemplatebindings/{0}'.format(cluster_role_id))
+
+    def list_global_catalogs(self):
+        return self._get('catalogs', params={'limit': -1})['data']
+
+    def list_cluster_catalogs(self):
+        return self._get('clustercatalogs', params={'limit': -1})['data']
+
+    def list_project_catalogs(self):
+        return self._get('projectcatalogs', params={'limit': -1})['data']
+
+    def refresh_global_catalog(self, catalog_id):
+        return self._post('catalogs/{0}'.format(catalog_id), params={'action': 'refresh'})
+
+    def refresh_cluster_catalog(self, catalog_id):
+        return self._post('clustercatalogs/{0}'.format(catalog_id), params={'action': 'refresh'})
+
+    def refresh_project_catalog(self, catalog_id):
+        return self._post('projectcatalogs/{0}'.format(catalog_id), params={'action': 'refresh'})
+
+    def delete_global_catalog(self, catalog_id):
+        return self._delete('catalogs/{0}'.format(catalog_id))
+
+    def delete_cluster_catalog(self, catalog_id):
+        return self._delete('clustercatalogs/{0}'.format(catalog_id))
+
+    def delete_project_catalog(self, catalog_id):
+        return self._delete('projectcatalogs/{0}'.format(catalog_id))
+
+    def create_global_catalog(self, spec):
+        return self._post('catalogs', json=spec)
+
+    def create_cluster_catalog(self, spec):
+        return self._post('clustercatalogs', json=spec)
+
+    def create_project_catalog(self, spec):
+        return self._post('projectcatalogs', json=spec)
+
+    def update_global_catalog(self, catalog_id, spec):
+        return self._put('catalogs/{0}'.format(catalog_id), json=spec)
+
+    def update_cluster_catalog(self, catalog_id, spec):
+        return self._put('clustercatalogs/{0}'.format(catalog_id), json=spec)
+
+    def update_project_catalog(self, catalog_id, spec):
+        return self._put('projectcatalogs/{0}'.format(catalog_id), json=spec)

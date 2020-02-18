@@ -1,8 +1,13 @@
 from django.conf import settings as conf_settings
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.utils.functional import cached_property
 
-from waldur_core.core import utils as core_utils
+from waldur_core.core import utils as core_utils, models as core_models
 from waldur_core.structure import ServiceBackend
+from waldur_core.structure.models import ServiceSettings
+from waldur_core.structure.utils import update_pulled_fields
+from waldur_mastermind.common.utils import parse_datetime
 
 from . import models, signals, client
 
@@ -40,6 +45,9 @@ class RancherBackend(ServiceBackend):
     def host(self):
         return self.settings.backend_url.strip('/')
 
+    def pull_service_properties(self):
+        self.pull_catalogs()
+
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
 
@@ -51,7 +59,16 @@ class RancherBackend(ServiceBackend):
         cluster.save()
 
     def delete_cluster(self, cluster):
-        self.client.delete_cluster(cluster.backend_id)
+        if cluster.backend_id:
+            self.client.delete_cluster(cluster.backend_id)
+
+        cluster.delete()
+
+    def delete_node(self, node):
+        if node.backend_id:
+            self.client.delete_node(node.backend_id)
+
+        node.delete()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
@@ -118,6 +135,40 @@ class RancherBackend(ServiceBackend):
             # Update details in all cases.
             self.update_node_details(node)
 
+    def pull_cluster_runtime_state(self, cluster):
+        backend_cluster = self.client.get_cluster(cluster.backend_id)
+        self._backend_cluster_to_cluster(backend_cluster, cluster)
+        cluster.save()
+
+    def check_cluster_creating(self, cluster):
+        self.pull_cluster_runtime_state(cluster)
+
+        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
+            cluster.state = models.Cluster.States.OK
+            cluster.save()
+            return
+
+        for node in cluster.node_set.filter(Q(controlplane_role=True) | Q(etcd_role=True)):
+            controlplane_role = etcd_role = False
+            if node.instance.state not in [core_models.StateMixin.States.ERRED,
+                                           core_models.StateMixin.States.DELETING,
+                                           core_models.StateMixin.States.DELETION_SCHEDULED]:
+                if node.controlplane_role:
+                    controlplane_role = True
+                if node.etcd_role:
+                    etcd_role = True
+                if controlplane_role and etcd_role:
+                    # We make a return if one or more VMs with 'controlplane' and 'etcd' roles exist
+                    # and they haven't a state 'error' or 'delete'.
+                    # Here 'return' means that cluster state checking must be retry later.
+                    return
+
+        cluster.error_message = 'The cluster is not connected with any ' \
+                                'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
+        cluster.runtime_state = 'error'
+        cluster.state = core_models.StateMixin.States.ERRED
+        cluster.save()
+
     def get_cluster_nodes(self, backend_id):
         backend_cluster = self.client.get_cluster(backend_id)
         nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
@@ -135,32 +186,34 @@ class RancherBackend(ServiceBackend):
 
         # rancher can skip return of some fields when node is being created,
         # so avoid crashing by supporting missing values
-
-        def get_backend_node_field(*args, default=None):
+        def get_backend_node_field(*args):
             value = backend_node
 
             for arg in args:
                 if isinstance(value, dict):
                     value = value.get(arg)
                 else:
-                    return default
+                    return
 
             return value
 
-        node.labels = get_backend_node_field('labels')
-        node.annotations = get_backend_node_field('annotations')
-        node.docker_version = get_backend_node_field('info', 'os', 'dockerVersion')
-        node.k8s_version = get_backend_node_field('info', 'kubernetes', 'kubeletVersion')
+        def update_node_field(*args, field):
+            value = get_backend_node_field(*args)
+            if value:
+                setattr(node, field, value)
 
+        update_node_field('labels', field='labels')
+        update_node_field('annotations', field='annotations')
+        update_node_field('info', 'os', 'dockerVersion', field='docker_version')
+        update_node_field('info', 'kubernetes', 'kubeletVersion', field='k8s_version')
         cpu_allocated = get_backend_node_field('requested', 'cpu')
 
         if cpu_allocated:
             node.cpu_allocated = \
                 core_utils.parse_int(cpu_allocated) / 1000  # convert data from 380m to 0.38
 
-        node.cpu_total = get_backend_node_field('allocatable', 'cpu')
-
         ram_allocated = get_backend_node_field('requested', 'memory')
+        update_node_field('allocatable', 'cpu', field='cpu_total')
 
         if ram_allocated:
             node.ram_allocated = \
@@ -172,9 +225,9 @@ class RancherBackend(ServiceBackend):
             node.ram_total = \
                 int(core_utils.parse_int(ram_total) / 2 ** 20)  # convert data to Mi
 
-        node.pods_allocated = get_backend_node_field('requested', 'pods')
-        node.pods_total = get_backend_node_field('allocatable', 'pods')
-        node.runtime_state = get_backend_node_field('state', default='')
+        update_node_field('requested', 'pods', field='pods_allocated')
+        update_node_field('allocatable', 'pods', field='pods_total')
+        update_node_field('state', field='runtime_state')
 
         if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
             node.state = models.Node.States.OK
@@ -196,7 +249,7 @@ class RancherBackend(ServiceBackend):
         user.backend_id = user_id
         user.save()
         self.client.create_global_role(user.backend_id, client.GlobalRoleId.user_base)
-        signals.rancher_user_has_been_synchronized.send(
+        signals.rancher_user_created.send(
             sender=models.RancherUser,
             instance=user,
             password=password,
@@ -242,3 +295,125 @@ class RancherBackend(ServiceBackend):
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
 
         link.delete()
+
+    def pull_catalogs(self):
+        self.pull_global_catalogs()
+        self.pull_cluster_catalogs()
+        # TODO: Implement Rancher project catalogs synchronization
+
+    def pull_global_catalogs(self):
+        remote_catalogs = self.client.list_global_catalogs()
+        self.pull_catalogs_for_scope(remote_catalogs, self.settings)
+
+    def pull_cluster_catalogs(self):
+        remote_catalogs = self.client.list_cluster_catalogs()
+        for cluster in models.Cluster.objects.filter(service_project_link__service__settings=self.settings):
+            self.pull_catalogs_for_scope(remote_catalogs, cluster)
+
+    def pull_catalogs_for_scope(self, remote_catalogs, scope):
+        content_type = ContentType.objects.get_for_model(scope)
+        local_catalogs = models.Catalog.objects.filter(
+            content_type=content_type,
+            object_id=scope.id,
+        )
+
+        remote_catalog_map = {
+            catalog['id']: self.remote_catalog_to_local(catalog, content_type, scope.id)
+            for catalog in remote_catalogs
+        }
+        local_catalog_map = {
+            catalog.id: catalog
+            for catalog in local_catalogs
+        }
+        remote_catalog_ids = set(remote_catalog_map.keys())
+        local_catalog_ids = set(local_catalog_map.keys())
+
+        stale_catalogs = local_catalog_ids - remote_catalog_ids
+
+        new_catalogs = [
+            remote_catalog_map[catalog_id]
+            for catalog_id in remote_catalog_ids - local_catalog_ids
+        ]
+
+        existing_catalogs = remote_catalog_ids & local_catalog_ids
+        pulled_fields = {
+            'name', 'description', 'catalog_url', 'branch',
+            'commit', 'username', 'password', 'runtime_state',
+        }
+        for catalog_id in existing_catalogs:
+            local_catalog = local_catalog_map[catalog_id]
+            remote_catalog = remote_catalog_map[catalog_id]
+            update_pulled_fields(local_catalog, remote_catalog, pulled_fields)
+
+        models.Catalog.objects.bulk_create(new_catalogs)
+        local_catalogs.filter(id__in=stale_catalogs).delete()
+
+    def remote_catalog_to_local(self, remote_catalog, content_type, object_id):
+        return models.Catalog(
+            content_type=content_type,
+            object_id=object_id,
+            backend_id=remote_catalog['id'],
+            name=remote_catalog['name'],
+            description=remote_catalog['description'],
+            created=parse_datetime(remote_catalog['created']),
+            catalog_url=remote_catalog['url'],
+            branch=remote_catalog['branch'],
+            commit=remote_catalog.get('commit', ''),
+            username=remote_catalog.get('username', ''),
+            password=remote_catalog.get('password', ''),
+            runtime_state=remote_catalog['state'],
+        )
+
+    def refresh_catalog(self, catalog):
+        if isinstance(catalog.scope, ServiceSettings):
+            return self.client.refresh_global_catalog(catalog.backend_id)
+        elif isinstance(catalog.scope, models.Cluster):
+            return self.client.refresh_cluster_catalog(catalog.backend_id)
+        else:
+            return self.client.refresh_project_catalog(catalog.backend_id)
+
+    def delete_catalog(self, catalog):
+        if isinstance(catalog.scope, ServiceSettings):
+            return self.client.delete_global_catalog(catalog.backend_id)
+        elif isinstance(catalog.scope, models.Cluster):
+            return self.client.delete_cluster_catalog(catalog.backend_id)
+        else:
+            return self.client.delete_project_catalog(catalog.backend_id)
+
+    def get_catalog_spec(self, catalog):
+        spec = {
+            'name': catalog.name,
+            'description': catalog.description,
+            'url': catalog.catalog_url,
+            'branch': catalog.branch,
+        }
+        if catalog.username:
+            spec['username'] = catalog.username
+        if catalog.password:
+            spec['password'] = catalog.password
+        return spec
+
+    def create_catalog(self, catalog):
+        spec = self.get_catalog_spec(catalog)
+
+        if isinstance(catalog.scope, ServiceSettings):
+            remote_catalog = self.client.create_global_catalog(spec)
+        elif isinstance(catalog.scope, models.Cluster):
+            spec['clusterId'] = catalog.scope.backend_id
+            remote_catalog = self.client.create_cluster_catalog(spec)
+        else:
+            spec['projectId'] = catalog.scope.backend_id
+            remote_catalog = self.client.create_project_catalog(spec)
+
+        catalog.backend_id = remote_catalog['id']
+        catalog.runtime_state = remote_catalog['state']
+        catalog.save()
+
+    def update_catalog(self, catalog):
+        spec = self.get_catalog_spec(catalog)
+        if isinstance(catalog.scope, ServiceSettings):
+            return self.client.update_global_catalog(catalog.backend_id, spec)
+        elif isinstance(catalog.scope, models.Cluster):
+            return self.client.update_cluster_catalog(catalog.backend_id, spec)
+        else:
+            return self.client.update_project_catalog(catalog.backend_id, spec)
