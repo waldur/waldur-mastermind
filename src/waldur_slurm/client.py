@@ -66,7 +66,7 @@ class SlurmClient(BaseBatchClient):
         return self._execute_command(['remove', 'account', 'where', 'name=%s' % name])
 
     def set_resource_limits(self, account, quotas):
-        quota = 'GrpTRESMins=cpu=%d,gres/gpu=%d,mem=%d' % (quotas.cpu, quotas.gpu, quotas.ram)
+        quota = 'GrpTRES=cpu=%d,gres/gpu=%d,mem=%d' % (quotas.cpu, quotas.gpu, quotas.ram)
         return self._execute_command(['modify', 'account', account, 'set', quota])
 
     def get_association(self, user, account):
