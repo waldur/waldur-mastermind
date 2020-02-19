@@ -48,12 +48,14 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
         cluster = serializer.save()
         user = self.request.user
         nodes = serializer.validated_data.get('node_set')
+        cluster_url = reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
+        cluster['initial_data']['nodes'] = []
 
         for node_data in nodes:
-            node_data['cluster'] = cluster
-            cluster_url = reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
             node_data['initial_data']['rest_initial_data']['cluster'] = cluster_url
-            models.Node.objects.create(**node_data)
+            cluster['initial_data']['nodes'].append(node_data['initial_data']['rest_initial_data'])
+
+        cluster.save()
 
         transaction.on_commit(lambda: executors.ClusterCreateExecutor.execute(
             cluster,

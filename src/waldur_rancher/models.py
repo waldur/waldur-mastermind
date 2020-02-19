@@ -68,6 +68,9 @@ class Cluster(NewResource):
         blank=True,
     )
     runtime_state = models.CharField(max_length=255, blank=True)
+    initial_data = JSONField(blank=True,
+                             default=dict,
+                             help_text=_('Initial data for instance creating.'))
 
     class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))

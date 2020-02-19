@@ -1,13 +1,14 @@
 import logging
 
+from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core.models import StateMixin
-from waldur_core.core import utils as core_utils
+from waldur_mastermind.common import utils as common_utils
 
-from . import tasks, models
+from . import tasks, models, views
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +83,15 @@ def retry_create_node_if_related_instance_has_been_deleted(sender, instance, **k
             content_type=content_type,
             state=models.Node.States.UPDATING
         )
-        backend = node.cluster.get_backend()
-        backend.delete_node(node)
-        tasks.RetryNodeTask().run(core_utils.serialize_instance(node))
+
+        with transaction.atomic():
+            backend = node.cluster.get_backend()
+            backend.delete_node(node)
+            post_data = node['initial_data']['rest_initial_data']
+            user_id = node['initial_data']['rest_user_id']
+            node.delete()
+            user = auth.get_user_model().objects.get(pk=user_id)
+            view = views.NodeViewSet.as_view({'post': 'create'})
+            common_utils.create_request(view, user, post_data)
     except ObjectDoesNotExist:
         pass

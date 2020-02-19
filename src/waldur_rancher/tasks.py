@@ -209,17 +209,15 @@ class DeleteClusterNodesTask(core_tasks.Task):
 
 class RequestCreateNode(core_tasks.Task):
     def execute(self, instance, user_id):
-        from waldur_rancher import executors
-
         cluster = instance
         user = auth.get_user_model().objects.get(pk=user_id)
+        view = views.NodeViewSet.as_view({'post': 'create'})
 
-        for node in cluster.node_set.all():
-            executors.NodeCreateExecutor.execute(
-                node,
-                user=user,
-                is_heavy_task=True,
-            )
+        for post_data in cluster['initial_data']['nodes']:
+            response = common_utils.create_request(view, user, post_data)
+
+            if response.status_code != status.HTTP_201_CREATED:
+                raise exceptions.RancherException(response.data)
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
