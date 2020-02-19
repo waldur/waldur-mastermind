@@ -5,6 +5,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
 from waldur_core.core.models import StateMixin
+from waldur_core.core import utils as core_utils
 
 from . import tasks, models
 
@@ -71,3 +72,18 @@ def set_error_state_for_cluster_if_related_node_deleting_is_failed(sender, insta
             node.cluster.state = models.Cluster.States.ERRED
             node.cluster.error_message = 'Deleting one or a more nodes have failed.'
             node.cluster.save()
+
+
+def retry_create_node_if_related_instance_has_been_deleted(sender, instance, **kwargs):
+    try:
+        content_type = ContentType.objects.get_for_model(instance)
+        node = models.Node.objects.get(
+            object_id=instance.id,
+            content_type=content_type,
+            state=models.Node.States.UPDATING
+        )
+        backend = node.cluster.get_backend()
+        backend.delete_node(node)
+        tasks.RetryNodeTask().run(core_utils.serialize_instance(node))
+    except ObjectDoesNotExist:
+        pass

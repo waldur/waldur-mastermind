@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, response, status
@@ -50,6 +51,8 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
 
         for node_data in nodes:
             node_data['cluster'] = cluster
+            cluster_url = reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
+            node_data['initial_data']['rest_initial_data']['cluster'] = cluster_url
             models.Node.objects.create(**node_data)
 
         transaction.on_commit(lambda: executors.ClusterCreateExecutor.execute(
@@ -154,6 +157,22 @@ class NodeViewSet(core_views.ActionsViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     unlink_openstack_permissions = [structure_permissions.is_staff]
+
+    @decorators.action(detail=True, methods=['post'])
+    def retry(self, request, uuid=None):
+        node = self.get_object()
+        user = self.request.user
+        executors.NodeRetryExecutor.execute(
+            node,
+            user=user,
+            is_heavy_task=True,
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+
+    retry_validators = [
+        core_validators.StateValidator(models.Cluster.States.ERRED),
+    ]
 
 
 class CatalogViewSet(core_views.ActionsViewSet):

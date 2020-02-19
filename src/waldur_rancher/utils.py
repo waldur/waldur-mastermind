@@ -37,7 +37,7 @@ def get_unique_node_name(name, instance_spl, cluster_spl, existing_names=None):
     return new_name
 
 
-def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
+def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name, rest_initial_data, user_id):
     project = rancher_spl.project
 
     try:
@@ -97,7 +97,9 @@ def expand_added_nodes(nodes, rancher_spl, tenant_settings, cluster_name):
             'data_volumes': [{
                 'size': volume['size'],
                 'volume_type': volume.get('volume_type') and volume.get('volume_type').uuid.hex,
-            } for volume in data_volumes]
+            } for volume in data_volumes],
+            'rest_initial_data': rest_initial_data[nodes.index(node)],
+            'rest_user_id': user_id
         }
 
         if 'controlplane' in list(roles):
@@ -426,3 +428,7 @@ class SyncUser:
         result['updated'] = cls.update_users_roles(actual_users)
 
         return result
+
+
+def f():
+    pass

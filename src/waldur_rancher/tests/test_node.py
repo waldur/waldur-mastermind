@@ -166,6 +166,16 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         node.refresh_from_db()
         self.assertEqual(node.instance, instance)
 
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_retry_node_creating(self, mock_tasks):
+        self.create_node(self.fixture.staff)
+        node = models.Node.objects.get(name='cluster-1-rancher-node-1')
+        url = factories.NodeFactory.get_url(node, 'retry')
+        node.set_erred()
+        node.save()
+        response = self.client.post(url)
+        response
+
 
 class NodeDeleteTest(test.APITransactionTestCase):
     def setUp(self):

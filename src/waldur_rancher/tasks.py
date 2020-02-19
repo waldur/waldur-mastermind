@@ -114,6 +114,15 @@ def update_nodes(cluster_id):
         backend.update_node_details(node)
         node.refresh_from_db()
 
+        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+            node.state = models.Node.States.OK
+        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING:
+            node.state = models.Node.States.CREATING
+        else:
+            node.state = models.Node.States.ERRED
+
+        node.save()
+
         if old_state != node.state:
             has_changes = True
 
@@ -143,15 +152,16 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
 
-        if node.state == models.Node.States.CREATING:
-            self.retry()
-
-        if node.state == models.Node.States.ERRED:
+        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+            return
+        elif node.runtime_state == models.Node.RuntimeStates.ERRED:
             raise RuntimeStateException(
                 '%s (PK: %s) runtime state become erred: %s' % (
                     node.__class__.__name__, node.pk, 'error'))
+        else:
+            self.retry()
 
-        return node
+        return
 
 
 @shared_task(name='waldur_rancher.notify_create_user')
@@ -195,3 +205,47 @@ class DeleteClusterNodesTask(core_tasks.Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         return 'Delete nodes for k8s cluster "%s".' % instance
+
+
+class RequestCreateNode(core_tasks.Task):
+    def execute(self, instance, user_id):
+        from waldur_rancher import executors
+
+        cluster = instance
+        user = auth.get_user_model().objects.get(pk=user_id)
+
+        for node in cluster.node_set.all():
+            executors.NodeCreateExecutor.execute(
+                node,
+                user=user,
+                is_heavy_task=True,
+            )
+
+    @classmethod
+    def get_description(cls, instance, *args, **kwargs):
+        return 'Delete nodes for k8s cluster "%s".' % instance
+
+
+class RetryNodeTask(core_tasks.Task):
+    def execute(self, instance):
+        node = instance
+        post_data = node['initial_data'].get('rest_initial_data')
+        user_id = node['initial_data'].get('rest_user_id')
+
+        if not post_data or not user_id:
+            raise exceptions.RancherException('Re-creating the node is not possible.')
+
+        view = views.NodeViewSet.as_view({'post': 'create'})
+        user = auth.get_user_model().objects.get(pk=user_id)
+        response = common_utils.create_request(view, user, post_data=post_data)
+
+        if response.status_code != status.HTTP_201_CREATED:
+            node.error_message = 'Node creating\'s an error: %s.' % response.data
+            node.set_erred()
+            node.save()
+        else:
+            node.delete()
+
+    @classmethod
+    def get_description(cls, instance, *args, **kwargs):
+        return 'Retry create node for k8s cluster "%s".' % instance.cluster

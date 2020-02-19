@@ -79,7 +79,13 @@ class RancherBackend(ServiceBackend):
         return {'name': cluster.name}
 
     def _backend_node_to_node(self, backend_node):
-        return {'backend_id': backend_node['nodeId'], 'name': backend_node['hostnameOverride']}
+        return {
+            'backend_id': backend_node['id'],
+            'name': backend_node['requestedHostname'],
+            'controlplane_role': backend_node.get('controlPlane', False),
+            'etcd_role': backend_node.get('etcd', False),
+            'worker_role': backend_node.get('worker', False),
+        }
 
     def get_clusters_for_import(self):
         cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
@@ -101,31 +107,27 @@ class RancherBackend(ServiceBackend):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
-        backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        backend_nodes = self.get_cluster_nodes(cluster.backend_id)
 
         for backend_node in backend_nodes:
-            roles = backend_node.get('role', [])
-
             # If the node has not been requested from Waldur, so it will be created
             node, created = models.Node.objects.get_or_create(
-                name=backend_node.get('hostnameOverride'),
+                name=backend_node['name'],
                 cluster=cluster,
                 defaults=dict(
-                    state=models.Node.States.OK,
-                    backend_id=backend_node.get('nodeId'),
-                    controlplane_role='controlplane' in roles,
-                    etcd_role='etcd' in roles,
-                    worker_role='worker' in roles
+                    backend_id=backend_node['backend_id'],
+                    controlplane_role=backend_node['controlplane_role'],
+                    etcd_role=backend_node['etcd_role'],
+                    worker_role=backend_node['worker_role'],
                 )
             )
 
             if not node.backend_id:
                 # If the node has been requested from Waldur, but it has not been synchronized
-                node.state = models.Node.States.OK
-                node.backend_id = backend_node.get('nodeId')
-                node.controlplane_role = 'controlplane' in roles
-                node.etcd_role = 'etcd' in roles
-                node.worker_role = 'worker' in roles
+                node.backend_id = backend_node['backend_id']
+                node.controlplane_role = backend_node['controlplane_role']
+                node.etcd_role = backend_node['etcd_role']
+                node.worker_role = backend_node['worker_role'],
                 node.save()
 
             # Update details in all cases.
@@ -162,8 +164,7 @@ class RancherBackend(ServiceBackend):
         cluster.runtime_state = 'error'
 
     def get_cluster_nodes(self, backend_id):
-        backend_cluster = self.client.get_cluster(backend_id)
-        nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        nodes = self.client.get_cluster_nodes(backend_id)
         return [self._backend_node_to_node(node) for node in nodes]
 
     def node_is_active(self, backend_id):
@@ -220,13 +221,6 @@ class RancherBackend(ServiceBackend):
         update_node_field('requested', 'pods', field='pods_allocated')
         update_node_field('allocatable', 'pods', field='pods_total')
         update_node_field('state', field='runtime_state')
-
-        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
-            node.state = models.Node.States.OK
-        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING:
-            node.state = models.Node.States.CREATING
-        else:
-            node.state = models.Node.States.ERRED
         return node.save()
 
     def create_user(self, user):
