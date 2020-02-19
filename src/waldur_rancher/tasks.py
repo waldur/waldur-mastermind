@@ -207,7 +207,7 @@ class DeleteClusterNodesTask(core_tasks.Task):
         return 'Delete nodes for k8s cluster "%s".' % instance
 
 
-class RequestCreateNode(core_tasks.Task):
+class RequestNodeCreation(core_tasks.Task):
     def execute(self, instance, user_id):
         cluster = instance
         user = auth.get_user_model().objects.get(pk=user_id)

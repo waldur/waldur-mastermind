@@ -15,7 +15,7 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
             serialized_instance,
             'create_cluster',
             state_transition='begin_creating')]
-        _tasks += tasks.RequestCreateNode().si(
+        _tasks += tasks.RequestNodeCreation().si(
             serialized_instance,
             user_id=user.id,
         )
