@@ -5,9 +5,9 @@ from django.utils.translation import ungettext
 from waldur_core.core.admin import JsonWidget
 
 from waldur_core.core.admin import ExecutorAdminAction
-from waldur_core.core.tasks import send_task
 from waldur_core.structure import admin as structure_admin
-from . import executors
+
+from . import executors, tasks
 from .models import ZabbixServiceProjectLink, ZabbixService, Host, SlaHistory, SlaHistoryEvent, ITService
 
 
@@ -40,7 +40,8 @@ class HostAdmin(structure_admin.ResourceAdmin):
 
     # TODO: Rewrite with executor.
     def pull_sla(self, request, queryset):
-        send_task('zabbix', 'pull_sla')([host.uuid.hex for host in queryset])
+        for host in queryset:
+            tasks.pull_sla.delay(host.uuid.hex)
 
         tasks_scheduled = queryset.count()
         message = ungettext(
