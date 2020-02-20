@@ -12,7 +12,7 @@ from waldur_core.structure.models import ProjectRole, ServiceSettings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_rancher.backend import RancherBackend
 
-from . import models, exceptions
+from . import models, exceptions, signals
 
 logger = logging.getLogger(__name__)
 
@@ -430,5 +430,26 @@ class SyncUser:
         return result
 
 
-def f():
-    pass
+def update_cluster_nodes_states(cluster_id):
+    cluster = models.Cluster.objects.get(id=cluster_id)
+    has_changes = False
+
+    for node in cluster.node_set.exclude(backend_id=''):
+        old_state = node.state
+
+        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+            node.state = models.Node.States.OK
+        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING:
+            node.state = models.Node.States.CREATING
+        elif node.runtime_state:
+            node.state = models.Node.States.ERRED
+
+        if old_state != node.state:
+            node.save()
+            has_changes = True
+
+    if has_changes:
+        signals.node_states_have_been_updated.send(
+            sender=models.Cluster,
+            instance=cluster,
+        )

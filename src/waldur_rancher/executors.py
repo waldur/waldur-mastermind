@@ -103,14 +103,13 @@ class NodeDeleteExecutor(core_executors.ErrorExecutorMixin, core_executors.BaseE
         else:
             return core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'delete_node',
-                state_transition='begin_deleting')
+                'delete_node')
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         # We can start deleting a node even if it does not have the status OK or Erred,
         # because a virtual machine could already be created.
-        instance.state = StateMixin.States.DELETION_SCHEDULED
+        instance.state = StateMixin.States.DELETING
         instance.save(update_fields=['state'])
 
     @classmethod

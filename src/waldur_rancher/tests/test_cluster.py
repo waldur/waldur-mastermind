@@ -85,6 +85,16 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         payload.update(add_payload)
         return self.client.post(self.url, payload)
 
+    def _create_cluster_(self, name, add_payload=None):
+        self.client.force_authenticate(self.fixture.owner)
+        self._create_request_(name, add_payload=add_payload)
+        cluster = models.Cluster.objects.get(name=name)
+        tasks.RequestNodeCreation().execute(
+            cluster,
+            user_id=self.fixture.owner.id
+        )
+        return cluster
+
 
 class ClusterCreateTest(BaseClusterCreateTest):
     @mock.patch('waldur_rancher.executors.core_tasks')
@@ -100,9 +110,30 @@ class ClusterCreateTest(BaseClusterCreateTest):
             state_transition='begin_creating'
         )
 
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_if_cluster_has_been_created_so_task_for_node_creating_must_be_called(self, mock_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        self._create_request_('new-cluster')
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        mock_tasks.RequestNodeCreation.return_value.si.assert_called_once_with(
+            'waldur_rancher.cluster:%s' % cluster.id,
+            user_id=self.fixture.owner.id
+        )
+
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_task_for_node_creating(self, mock_tasks, mock_core_tasks):
+        self.client.force_authenticate(self.fixture.owner)
+        self._create_request_('new-cluster')
+        cluster = models.Cluster.objects.get(name='new-cluster')
+        tasks.RequestNodeCreation().execute(
+            cluster,
+            user_id=self.fixture.owner.id
+        )
+        self.assertEqual(cluster.node_set.count(), 1)
+
     @mock.patch('waldur_rancher.executors.core_tasks')
     def test_use_data_volumes(self, mock_core_tasks):
-        self.client.force_authenticate(self.fixture.owner)
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
             settings=self.fixture.tenant_spl.service.settings
         )
@@ -122,13 +153,12 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 ]
             }
         ]}
-        response = self._create_request_('new-cluster', add_payload=payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
-        cluster = models.Cluster.objects.get(name='new-cluster')
+        cluster = self._create_cluster_('new-cluster', add_payload=payload)
         self.assertEqual(len(cluster.node_set.first().initial_data['data_volumes']), 1)
 
-    def test_node_name_uniqueness(self):
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_node_name_uniqueness(self, mock_tasks, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
         payload = {'nodes': [
             {
@@ -146,10 +176,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 'roles': ['worker'],
             }
         ]}
-        response = self._create_request_('new-cluster', add_payload=payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Cluster.objects.filter(name='new-cluster').exists())
-        cluster = models.Cluster.objects.get(name='new-cluster')
+        cluster = self._create_cluster_('new-cluster', add_payload=payload)
         self.assertNotEquals(cluster.node_set.all()[0].name, cluster.node_set.all()[1].name)
 
     def test_validate_etcd_node_count(self):
@@ -204,7 +231,9 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue('Count of controlplane nodes must be min 1.' in response.data['nodes'][0])
 
-    def test_validate_name_uniqueness(self):
+    @mock.patch('waldur_rancher.executors.core_tasks')
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_validate_name_uniqueness(self, mock_tasks, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
         self._create_request_('new-cluster')
         response = self._create_request_('new-cluster')
@@ -214,6 +243,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.owner)
         response = self._create_request_('new_cluster')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Name must consist of lower case alphanumeric characters or \'-\'' in response.data['name'][0])
 
 
 class ClusterUpdateTest(test.APITransactionTestCase):
@@ -290,7 +320,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         )
 
     @mock.patch('waldur_rancher.tasks.common_utils.delete_request')
-    def test_if_node_is_deleted_so_instance_deleting_should_be_requested(self, mock_delete_request):
+    def test_node_deleting_task(self, mock_delete_request):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         self.assertEqual(mock_delete_request.call_count, 1)

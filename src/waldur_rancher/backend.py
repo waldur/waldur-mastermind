@@ -8,7 +8,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 
-from . import models, signals, client
+from . import models, signals, client, utils
 
 
 class RancherBackend(ServiceBackend):
@@ -60,10 +60,14 @@ class RancherBackend(ServiceBackend):
     def delete_cluster(self, cluster):
         if cluster.backend_id:
             self.client.delete_cluster(cluster.backend_id)
+            cluster.backend_id = ''
+            cluster.save()
 
     def delete_node(self, node):
         if node.backend_id:
             self.client.delete_node(node.backend_id)
+            node.backend_id = ''
+            node.save()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
@@ -126,11 +130,14 @@ class RancherBackend(ServiceBackend):
                 node.backend_id = backend_node['backend_id']
                 node.controlplane_role = backend_node['controlplane_role']
                 node.etcd_role = backend_node['etcd_role']
-                node.worker_role = backend_node['worker_role'],
+                node.worker_role = backend_node['worker_role']
                 node.save()
 
             # Update details in all cases.
             self.update_node_details(node)
+
+        # Update nodes states.
+        utils.update_cluster_nodes_states(cluster.id)
 
     def pull_cluster_runtime_state(self, cluster):
         backend_cluster = self.client.get_cluster(cluster.backend_id)
@@ -274,6 +281,8 @@ class RancherBackend(ServiceBackend):
     def delete_cluster_role(self, link):
         if link.backend_id:
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+            link.backend_id = ''
+            link.save()
 
     def pull_catalogs(self):
         self.pull_global_catalogs()

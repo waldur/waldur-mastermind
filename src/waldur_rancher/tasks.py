@@ -16,7 +16,7 @@ from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, signals, utils, views
+from . import models, exceptions, utils, views
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +83,6 @@ class CreateNodeTask(core_tasks.Task):
 class DeleteNodeTask(core_tasks.Task):
     def execute(self, instance, user_id):
         node = instance
-        node.begin_deleting()
-        node.save()
         user = auth.get_user_model().objects.get(pk=user_id)
         view = InstanceViewSet.as_view({'delete': 'destroy'})
         response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
@@ -107,36 +105,15 @@ def update_nodes(cluster_id):
                 node.backend_id = backend_node['backend_id']
                 node.save()
 
-    has_changes = False
-
     for node in cluster.node_set.exclude(backend_id=''):
-        old_state = node.state
         backend.update_node_details(node)
-        node.refresh_from_db()
-
-        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
-            node.state = models.Node.States.OK
-        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING:
-            node.state = models.Node.States.CREATING
-        else:
-            node.state = models.Node.States.ERRED
-
-        node.save()
-
-        if old_state != node.state:
-            has_changes = True
-
-    if has_changes:
-        signals.node_states_have_been_updated.send(
-            sender=models.Cluster,
-            instance=cluster,
-        )
 
 
 @shared_task(name='waldur_rancher.update_clusters_nodes')
 def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
         update_nodes.delay(cluster.id)
+        utils.update_cluster_nodes_states(cluster.id)
 
 
 class PollRuntimeStateNodeTask(core_tasks.Task):
@@ -154,12 +131,12 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
 
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
             return
-        elif node.runtime_state == models.Node.RuntimeStates.ERRED:
+        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING or not node.runtime_state:
+            self.retry()
+        elif node.runtime_state:
             raise RuntimeStateException(
                 '%s (PK: %s) runtime state become erred: %s' % (
                     node.__class__.__name__, node.pk, 'error'))
-        else:
-            self.retry()
 
         return
 
@@ -186,11 +163,6 @@ def sync_users():
 class DeleteClusterNodesTask(core_tasks.Task):
     def execute(self, instance, user_id):
         cluster = instance
-
-        # State 'DELETING' must be set here, because if the nodes do not have virtual machines,
-        # then deleting them can work faster than get_success_signature.
-        cluster.begin_deleting()
-        cluster.save()
         view = views.NodeViewSet.as_view({'delete': 'destroy'})
         user = auth.get_user_model().objects.get(pk=user_id)
 
@@ -213,7 +185,7 @@ class RequestNodeCreation(core_tasks.Task):
         user = auth.get_user_model().objects.get(pk=user_id)
         view = views.NodeViewSet.as_view({'post': 'create'})
 
-        for post_data in cluster['initial_data']['nodes']:
+        for post_data in cluster.initial_data['nodes']:
             response = common_utils.create_request(view, user, post_data)
 
             if response.status_code != status.HTTP_201_CREATED:
