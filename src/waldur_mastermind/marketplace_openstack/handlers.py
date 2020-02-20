@@ -10,15 +10,17 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import get_resource_state
+from waldur_mastermind.marketplace_openstack.utils import import_limits
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils, tasks
+from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils
 
 logger = logging.getLogger(__name__)
+States = marketplace_models.Resource.States
 
 
 def create_template_for_plan(sender, instance, created=False, **kwargs):
@@ -500,13 +502,21 @@ def delete_offering_component_for_volume_type(sender, instance, **kwargs):
 
 
 def synchronize_limits_when_storage_mode_is_switched(sender, instance, created=False, **kwargs):
+    offering = instance
+
     if created:
         return
 
-    if instance.type != PACKAGE_TYPE:
+    if offering.type != PACKAGE_TYPE:
         return
 
-    if not instance.tracker.has_changed('plugin_options'):
+    if not offering.tracker.has_changed('plugin_options'):
         return
 
-    transaction.on_commit(lambda: tasks.synchronize_limits.delay(instance.uuid.hex))
+    resources = marketplace_models.Resource.objects\
+        .filter(offering=offering)\
+        .exclude(state__in=(States.TERMINATED, States.TERMINATING))
+
+    for resource in resources:
+        import_limits(resource)
+        registrators.RegistrationManager.register(resource)

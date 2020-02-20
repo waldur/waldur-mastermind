@@ -453,14 +453,12 @@ def import_usage(resource):
 
 
 def import_limits(resource):
-    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+    tenant = resource.scope
 
-    if not resource.scope:
+    if not tenant:
         return
 
-    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'limit')
-    limits = {row['name']: row['limit'] for row in rows}
-
+    limits = {row['name']: row['limit'] for row in tenant.quotas.values('name', 'limit')}
     storage_mode = resource.offering.plugin_options.get('storage_mode')
 
     resource.limits = {
