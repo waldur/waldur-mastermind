@@ -16,7 +16,7 @@ from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
-from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils
+from . import INSTANCE_TYPE, PACKAGE_TYPE, VOLUME_TYPE, RAM_TYPE, STORAGE_TYPE, utils, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -497,3 +497,16 @@ def create_offering_component_for_volume_type(sender, instance, created=False, *
 
 def delete_offering_component_for_volume_type(sender, instance, **kwargs):
     marketplace_models.OfferingComponent.objects.filter(scope=instance).delete()
+
+
+def synchronize_limits_when_storage_mode_is_switched(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if instance.type != PACKAGE_TYPE:
+        return
+
+    if not instance.tracker.has_changed('plugin_options'):
+        return
+
+    transaction.on_commit(lambda: tasks.synchronize_limits.delay(instance.uuid.hex))
