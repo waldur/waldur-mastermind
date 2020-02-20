@@ -47,6 +47,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'console_type': _('The type of remote console. '
                           'The valid values are novnc, xvpvnc, rdp-html5, '
                           'spice-html5, serial, and webmks.'),
+        'config_drive': _('Indicates whether a config drive enables metadata injection'),
     }
 
     # Expose service settings quotas as service quotas as a temporary workaround.

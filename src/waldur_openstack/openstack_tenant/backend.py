@@ -902,6 +902,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             if instance.user_data:
                 server_create_parameters['userdata'] = instance.user_data
 
+            if self.settings.options.get('config_drive', False) is True:
+                server_create_parameters['config_drive'] = True
+
             server = nova.servers.create(**server_create_parameters)
             instance.backend_id = server.id
             instance.save()
