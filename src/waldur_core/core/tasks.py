@@ -1,12 +1,8 @@
-import hashlib
-import json
 import logging
 from uuid import uuid4
 
-from celery.execute import send_task as send_celery_task
 from celery.task import Task as CeleryTask
 from celery.worker.request import Request
-from django.core.cache import cache
 from django.db import IntegrityError, models as django_models
 from django.db.models import ObjectDoesNotExist
 from django_fsm import TransitionNotAllowed
