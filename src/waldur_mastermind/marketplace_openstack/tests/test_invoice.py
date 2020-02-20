@@ -11,7 +11,8 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import signals as marketplace_signals
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE
+from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAGE_TYPE, STORAGE_MODE_DYNAMIC, \
+    STORAGE_MODE_FIXED
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages import serializers as packages_serializers
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
@@ -162,7 +163,7 @@ class InvoiceTest(BaseOpenStackTest):
 
 @override_plugin_settings(BILLING_ENABLED=True)
 @freeze_time('2019-09-10')
-class MarketplaceInvoiceTest(test.APITransactionTestCase):
+class MarketplaceInvoiceBaseTest(test.APITransactionTestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=PACKAGE_TYPE)
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
@@ -192,6 +193,8 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             state=marketplace_models.Resource.States.OK,
         )
 
+
+class MarketplaceInvoiceTest(MarketplaceInvoiceBaseTest):
     def test_when_resource_is_created_invoice_is_updated(self):
         marketplace_signals.resource_creation_succeeded.send(
             sender=self.resource.__class__,
@@ -250,3 +253,52 @@ class MarketplaceInvoiceTest(test.APITransactionTestCase):
             )
         invoice_item = invoices_models.InvoiceItem.objects.get(scope=self.resource)
         self.assertEqual(invoice_item.end.day, 18)
+
+
+class StorageModeTest(MarketplaceInvoiceBaseTest):
+    def setUp(self):
+        # Arrange
+        super(StorageModeTest, self).setUp()
+        fixture = package_fixtures.OpenStackFixture()
+        tenant = fixture.openstack_tenant
+        offering_component = marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type='gigabytes_gpfs'
+        )
+
+        marketplace_models.PlanComponent.objects.create(
+            component=offering_component,
+            plan=self.plan,
+            price=10,
+        )
+
+        self.resource.scope = tenant
+        self.resource.save()
+        tenant.set_quota_limit('storage', 30 * 1024)
+        tenant.set_quota_limit('gigabytes_gpfs', 100 * 1024)
+
+    def test_when_storage_mode_is_switched_to_dynamic_limits_are_updated(self):
+        # Act
+        with freeze_time('2019-09-20'):
+            self.offering.plugin_options['storage_mode'] = STORAGE_MODE_DYNAMIC
+            self.offering.save()
+
+        # Assert
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), 100 * 1024)
+
+        invoice_item = invoices_models.InvoiceItem.objects.filter(scope=self.resource).get()
+        self.assertTrue('100 GB gpfs storage' in invoice_item.name)
+
+    def test_when_storage_mode_is_switched_to_fixed_limits_are_updated(self):
+        # Act
+        with freeze_time('2019-09-20'):
+            self.offering.plugin_options['storage_mode'] = STORAGE_MODE_FIXED
+            self.offering.save()
+
+        # Assert
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), None)
+
+        invoice_item = invoices_models.InvoiceItem.objects.filter(scope=self.resource).get()
+        self.assertTrue('30 GB storage' in invoice_item.name)

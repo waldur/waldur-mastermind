@@ -55,11 +55,26 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         )
         self.init_details(item)
 
+    def format_storage_description(self, source):
+        if STORAGE_TYPE in source.limits:
+            return '{disk} GB storage'.format(
+                disk=int(mb_to_gb(source.limits.get(STORAGE_TYPE, 0)))
+            )
+        else:
+            parts = []
+            for (k, v) in source.limits.items():
+                if k.startswith('gigabytes_'):
+                    parts.append('{size} GB {type} storage'.format(
+                        size=int(mb_to_gb(v)),
+                        type=k.replace('gigabytes_', '')
+                    ))
+            return ' - '.join(parts)
+
     def get_name(self, source):
-        return '{resource} ({offering} / VPC {cores} CPU - {ram} GB RAM - {disk} GB storage)'.format(
+        return '{resource} ({offering} / VPC {cores} CPU - {ram} GB RAM - {storage})'.format(
             resource=source.name,
             offering=source.offering.name,
             cores=source.limits.get(CORES_TYPE),
             ram=int(mb_to_gb(source.limits.get(RAM_TYPE, 0))),
-            disk=int(mb_to_gb(source.limits.get(STORAGE_TYPE, 0))),
+            storage=self.format_storage_description(source),
         )

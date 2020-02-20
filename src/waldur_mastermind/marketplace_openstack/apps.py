@@ -221,3 +221,10 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_openstack.'
                          'delete_offering_component_for_volume_type',
         )
+
+        signals.post_save.connect(
+            handlers.synchronize_limits_when_storage_mode_is_switched,
+            sender=marketplace_models.Offering,
+            dispatch_uid='waldur_mastermind.marketpace_openstack.'
+                         'synchronize_limits_when_storage_mode_is_switched',
+        )

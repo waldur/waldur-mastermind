@@ -11,8 +11,8 @@ from waldur_mastermind.marketplace import models as marketplace_models, plugins
 from waldur_mastermind.marketplace.utils import import_resource_metadata, format_list, get_resource_state
 from waldur_mastermind.marketplace_openstack import (
     INSTANCE_TYPE, VOLUME_TYPE, PACKAGE_TYPE,
-    RAM_TYPE, STORAGE_TYPE, CORES_TYPE
-)
+    RAM_TYPE, STORAGE_TYPE, CORES_TYPE,
+    STORAGE_MODE_DYNAMIC, STORAGE_MODE_FIXED)
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.serializers import _apply_quotas
 from waldur_openstack.openstack import apps as openstack_apps
@@ -453,19 +453,28 @@ def import_usage(resource):
 
 
 def import_limits(resource):
-    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
+    tenant = resource.scope
 
-    if not resource.scope:
+    if not tenant:
         return
 
-    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'limit')
-    limits = {row['name']: row['limit'] for row in rows}
+    limits = {row['name']: row['limit'] for row in tenant.quotas.values('name', 'limit')}
+    storage_mode = resource.offering.plugin_options.get('storage_mode')
 
     resource.limits = {
         CORES_TYPE: limits.get(TenantQuotas.vcpu.name, 0),
         RAM_TYPE: limits.get(TenantQuotas.ram.name, 0),
-        STORAGE_TYPE: limits.get(TenantQuotas.storage.name, 0),
     }
+
+    if storage_mode == STORAGE_MODE_FIXED:
+        resource.limits[STORAGE_TYPE] = limits.get(TenantQuotas.storage.name, 0)
+    elif storage_mode == STORAGE_MODE_DYNAMIC:
+        volume_type_limits = {
+            k: v for (k, v) in limits.items()
+            if k.startswith('gigabytes_')
+        }
+        resource.limits.update(volume_type_limits)
+
     resource.save(update_fields=['limits'])
 
 
