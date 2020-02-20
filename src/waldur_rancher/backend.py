@@ -1,4 +1,3 @@
-from django.conf import settings as conf_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property

@@ -171,7 +171,6 @@ class NodeViewSet(core_views.ActionsViewSet):
         )
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
-
     retry_validators = [
         core_validators.StateValidator(models.Cluster.States.ERRED),
     ]
