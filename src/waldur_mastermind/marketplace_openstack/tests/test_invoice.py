@@ -6,7 +6,6 @@ from rest_framework import test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import signals as marketplace_signals
