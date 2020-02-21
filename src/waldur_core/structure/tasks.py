@@ -261,6 +261,6 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
 @shared_task
 def send_change_email_notification(request_serialized):
     request = core_utils.deserialize_instance(request_serialized)
-    link = settings.WALDUR_CORE['EMAIL_CHANGE_URL'].format(code=request.get_confirmation_code())
+    link = settings.WALDUR_CORE['EMAIL_CHANGE_URL'].format(code=request.uuid.hex)
     context = {'request': request, 'link': link}
     core_utils.broadcast_mail('structure', 'change_email_request', context, [request.email])
