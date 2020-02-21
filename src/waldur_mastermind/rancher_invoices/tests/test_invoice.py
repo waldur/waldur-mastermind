@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
 from waldur_rancher import models as rancher_models
-from waldur_rancher import tasks, models
+from waldur_rancher import tasks, models, utils
 
 from waldur_rancher.tests import factories as rancher_factories
 from waldur_rancher.tests.utils import backend_node_response
@@ -94,10 +94,9 @@ class InvoiceTest(test.APITransactionTestCase):
         self.cluster.backend_id = 'cluster_backend_id'
         self.cluster.save()
 
-        create_node_task = tasks.CreateNodeTask()
-        create_node_task.execute(
-            mock_executors.ClusterCreateExecutor.execute.mock_calls[0][1][0].node_set.first(),
-            user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['user'].id,
+        tasks.RequestNodeCreation().execute(
+            self.cluster,
+            user_id=self.fixture.staff.id,
         )
         self.assertTrue(self.cluster.node_set.filter(cluster=self.cluster).exists())
 
@@ -111,6 +110,7 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         invoices_tasks.create_monthly_invoices()
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
 
     @freeze_time('2019-01-01')
     @mock.patch('waldur_rancher.views.executors')
@@ -175,6 +175,7 @@ class InvoiceTest(test.APITransactionTestCase):
             {'backend_id': 'second_node_backend_id', 'name': 'second node'}
         ]
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(marketplace_models.ComponentUsage.objects.filter(
             resource=self.resource,
             component=self.offering_component,
@@ -216,6 +217,7 @@ class InvoiceTest(test.APITransactionTestCase):
             {'backend_id': 'second_node_backend_id', 'name': 'second node'}
         ]
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(marketplace_models.ComponentUsage.objects.filter(
             resource=self.resource,
             component=self.offering_component,
@@ -228,6 +230,7 @@ class InvoiceTest(test.APITransactionTestCase):
         return_value['state'] = 'error'
         self.mock_client.get_node.return_value = return_value
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(marketplace_models.ComponentUsage.objects.filter(
             resource=self.resource,
             component=self.offering_component,
