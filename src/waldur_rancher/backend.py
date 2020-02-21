@@ -60,14 +60,10 @@ class RancherBackend(ServiceBackend):
     def delete_cluster(self, cluster):
         if cluster.backend_id:
             self.client.delete_cluster(cluster.backend_id)
-            cluster.backend_id = ''
-            cluster.save()
 
     def delete_node(self, node):
         if node.backend_id:
             self.client.delete_node(node.backend_id)
-            node.backend_id = ''
-            node.save()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
@@ -281,8 +277,6 @@ class RancherBackend(ServiceBackend):
     def delete_cluster_role(self, link):
         if link.backend_id:
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
-            link.backend_id = ''
-            link.save()
 
     def pull_catalogs(self):
         self.pull_global_catalogs()

@@ -4,6 +4,7 @@ from unittest import mock
 import pkg_resources
 from ddt import data, ddt
 from rest_framework import status, test
+from django.contrib.contenttypes.models import ContentType
 
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 
@@ -168,6 +169,35 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         node.refresh_from_db()
         self.assertEqual(node.instance, instance)
+
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_retry_node_creating(self, mock_tasks):
+        self.create_node(self.fixture.staff)
+        node = models.Node.objects.get(name='cluster-1-rancher-node-1')
+        url = factories.NodeFactory.get_url(node, 'retry')
+        node.set_erred()
+        node.save()
+        self.client.post(url)
+        self.assertEqual(mock_tasks.RetryNodeTask.return_value.si.call_count, 1)
+        tasks.RetryNodeTask().execute(node)
+        self.assertNotEquals(node.cluster.node_set.first(), node)
+
+    @mock.patch('waldur_rancher.executors.tasks')
+    def test_retry_node_creating_if_related_instance_exists(self, mock_tasks):
+        self.create_node(self.fixture.staff)
+        node = models.Node.objects.get(name='cluster-1-rancher-node-1')
+        instance = openstack_tenant_factories.InstanceFactory()
+        node.object_id = instance.id
+        node.content_type = ContentType.objects.get_for_model(instance)
+        url = factories.NodeFactory.get_url(node, 'retry')
+        node.set_erred()
+        node.save()
+        self.client.post(url)
+        self.assertEqual(mock_tasks.DeleteNodeTask.return_value.si.call_count, 1)
+        node.state = models.Node.States.UPDATING
+        node.save()
+        instance.delete()
+        self.assertNotEquals(node.cluster.node_set.first(), node)
 
 
 class NodeDeleteTest(test.APITransactionTestCase):

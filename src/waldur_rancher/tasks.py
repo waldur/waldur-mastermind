@@ -5,6 +5,7 @@ import logging
 from celery import shared_task
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from rest_framework import status
 from rest_framework.reverse import reverse
 
@@ -199,22 +200,21 @@ class RequestNodeCreation(core_tasks.Task):
 class RetryNodeTask(core_tasks.Task):
     def execute(self, instance):
         node = instance
-        post_data = node['initial_data'].get('rest_initial_data')
-        user_id = node['initial_data'].get('rest_user_id')
+        post_data = node.initial_data.get('rest_initial_data')
+        user_id = node.initial_data.get('rest_user_id')
 
         if not post_data or not user_id:
             raise exceptions.RancherException('Re-creating the node is not possible.')
 
         view = views.NodeViewSet.as_view({'post': 'create'})
         user = auth.get_user_model().objects.get(pk=user_id)
-        response = common_utils.create_request(view, user, post_data=post_data)
 
-        if response.status_code != status.HTTP_201_CREATED:
-            node.error_message = 'Node creating\'s an error: %s.' % response.data
-            node.set_erred()
-            node.save()
-        else:
+        with transaction.atomic():
             node.delete()
+            response = common_utils.create_request(view, user, post_data=post_data)
+
+            if response.status_code != status.HTTP_201_CREATED:
+                raise exceptions.RancherException('Node recreating is fail: %s.' % response.data)
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):

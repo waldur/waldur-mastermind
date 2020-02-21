@@ -87,13 +87,13 @@ def retry_create_node_if_related_instance_has_been_deleted(sender, instance, **k
         )
 
         with transaction.atomic():
-            backend = node.cluster.get_backend()
-            backend.delete_node(node)
-            post_data = node['initial_data']['rest_initial_data']
-            user_id = node['initial_data']['rest_user_id']
             node.delete()
+            post_data = node.initial_data['rest_initial_data']
+            user_id = node.initial_data['rest_user_id']
             user = auth.get_user_model().objects.get(pk=user_id)
             view = views.NodeViewSet.as_view({'post': 'create'})
             common_utils.create_request(view, user, post_data)
+            backend = node.cluster.get_backend()
+            backend.delete_node(node)
     except ObjectDoesNotExist:
         pass
