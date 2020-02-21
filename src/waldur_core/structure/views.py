@@ -17,7 +17,7 @@ from rest_framework import filters as rf_filters
 from rest_framework import mixins, views, viewsets, status
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
-from rest_framework.decorators import action, permission_classes as rf_permission_classes
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, NotFound, APIException, ValidationError
 from rest_framework.response import Response
 from reversion.models import Version
