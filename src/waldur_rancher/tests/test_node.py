@@ -173,7 +173,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch('waldur_rancher.executors.tasks')
     def test_retry_node_creating(self, mock_tasks):
         self.create_node(self.fixture.staff)
-        node = models.Node.objects.get(name='cluster-1-rancher-node-1')
+        node = self.fixture.cluster.node_set.filter(name__contains='node-1').first()
         url = factories.NodeFactory.get_url(node, 'retry')
         node.set_erred()
         node.save()
@@ -185,7 +185,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch('waldur_rancher.executors.tasks')
     def test_retry_node_creating_if_related_instance_exists(self, mock_tasks):
         self.create_node(self.fixture.staff)
-        node = models.Node.objects.get(name='cluster-1-rancher-node-1')
+        node = self.fixture.cluster.node_set.filter(name__contains='node-1').first()
         instance = openstack_tenant_factories.InstanceFactory()
         node.object_id = instance.id
         node.content_type = ContentType.objects.get_for_model(instance)
