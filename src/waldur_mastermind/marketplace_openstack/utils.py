@@ -442,7 +442,7 @@ def import_usage(resource):
         return
 
     usages = {row['name']: row['usage'] for row in tenant.quotas.values('name', 'usage')}
-    storage_mode = resource.offering.plugin_options.get('storage_mode')
+    storage_mode = resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
 
     resource.current_usages = {
         CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
@@ -473,7 +473,7 @@ def import_limits(resource, field='limit'):
         return
 
     limits = {row['name']: row[field] for row in tenant.quotas.values('name', field)}
-    storage_mode = resource.offering.plugin_options.get('storage_mode')
+    storage_mode = resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
 
     resource.limits = {
         CORES_TYPE: limits.get(TenantQuotas.vcpu.name, 0),
