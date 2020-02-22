@@ -613,7 +613,6 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         other_confirm_url = factories.UserFactory.get_url(other_user, 'confirm_email')
         response = self.client.post(other_confirm_url, {'code': other_user.changeemailrequest.uuid.hex})
         self.assertEquals(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEquals(response.data[0], 'Request is not found.')
 
     @freeze_time('2017-01-19')
     def test_validate_email_change_max_age(self):
