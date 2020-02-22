@@ -1,4 +1,3 @@
-from django.conf import settings as conf_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
@@ -9,7 +8,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 
-from . import models, signals, client
+from . import models, signals, client, utils
 
 
 class RancherBackend(ServiceBackend):
@@ -62,13 +61,9 @@ class RancherBackend(ServiceBackend):
         if cluster.backend_id:
             self.client.delete_cluster(cluster.backend_id)
 
-        cluster.delete()
-
     def delete_node(self, node):
         if node.backend_id:
             self.client.delete_node(node.backend_id)
-
-        node.delete()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
@@ -83,7 +78,13 @@ class RancherBackend(ServiceBackend):
         return {'name': cluster.name}
 
     def _backend_node_to_node(self, backend_node):
-        return {'backend_id': backend_node['nodeId'], 'name': backend_node['hostnameOverride']}
+        return {
+            'backend_id': backend_node['id'],
+            'name': backend_node['requestedHostname'],
+            'controlplane_role': backend_node.get('controlPlane', False),
+            'etcd_role': backend_node.get('etcd', False),
+            'worker_role': backend_node.get('worker', False),
+        }
 
     def get_clusters_for_import(self):
         cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
@@ -105,35 +106,34 @@ class RancherBackend(ServiceBackend):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
-        backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        backend_nodes = self.get_cluster_nodes(cluster.backend_id)
 
         for backend_node in backend_nodes:
-            roles = backend_node.get('role', [])
-
             # If the node has not been requested from Waldur, so it will be created
             node, created = models.Node.objects.get_or_create(
-                name=backend_node.get('hostnameOverride'),
+                name=backend_node['name'],
                 cluster=cluster,
                 defaults=dict(
-                    state=models.Node.States.OK,
-                    backend_id=backend_node.get('nodeId'),
-                    controlplane_role='controlplane' in roles,
-                    etcd_role='etcd' in roles,
-                    worker_role='worker' in roles
+                    backend_id=backend_node['backend_id'],
+                    controlplane_role=backend_node['controlplane_role'],
+                    etcd_role=backend_node['etcd_role'],
+                    worker_role=backend_node['worker_role'],
                 )
             )
 
             if not node.backend_id:
                 # If the node has been requested from Waldur, but it has not been synchronized
-                node.state = models.Node.States.OK
-                node.backend_id = backend_node.get('nodeId')
-                node.controlplane_role = 'controlplane' in roles
-                node.etcd_role = 'etcd' in roles
-                node.worker_role = 'worker' in roles
+                node.backend_id = backend_node['backend_id']
+                node.controlplane_role = backend_node['controlplane_role']
+                node.etcd_role = backend_node['etcd_role']
+                node.worker_role = backend_node['worker_role']
                 node.save()
 
             # Update details in all cases.
             self.update_node_details(node)
+
+        # Update nodes states.
+        utils.update_cluster_nodes_states(cluster.id)
 
     def pull_cluster_runtime_state(self, cluster):
         backend_cluster = self.client.get_cluster(cluster.backend_id)
@@ -143,9 +143,7 @@ class RancherBackend(ServiceBackend):
     def check_cluster_creating(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
-        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
-            cluster.state = models.Cluster.States.OK
-            cluster.save()
+        if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
             return
 
         for node in cluster.node_set.filter(Q(controlplane_role=True) | Q(etcd_role=True)):
@@ -166,17 +164,14 @@ class RancherBackend(ServiceBackend):
         cluster.error_message = 'The cluster is not connected with any ' \
                                 'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
         cluster.runtime_state = 'error'
-        cluster.state = core_models.StateMixin.States.ERRED
-        cluster.save()
 
     def get_cluster_nodes(self, backend_id):
-        backend_cluster = self.client.get_cluster(backend_id)
-        nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
+        nodes = self.client.get_cluster_nodes(backend_id)
         return [self._backend_node_to_node(node) for node in nodes]
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
+        return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
 
     def update_node_details(self, node):
         if not node.backend_id:
@@ -228,11 +223,6 @@ class RancherBackend(ServiceBackend):
         update_node_field('requested', 'pods', field='pods_allocated')
         update_node_field('allocatable', 'pods', field='pods_total')
         update_node_field('state', field='runtime_state')
-
-        if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
-            node.state = models.Node.States.OK
-        else:
-            node.state = models.Node.States.ERRED
         return node.save()
 
     def create_user(self, user):
@@ -254,12 +244,6 @@ class RancherBackend(ServiceBackend):
             instance=user,
             password=password,
         )
-
-    def delete_user(self, user):
-        if user.backend_id:
-            self.client.delete_user(user_id=user.backend_id)
-
-        user.delete()
 
     def block_user(self, user):
         if user.is_active:
@@ -293,8 +277,6 @@ class RancherBackend(ServiceBackend):
     def delete_cluster_role(self, link):
         if link.backend_id:
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
-
-        link.delete()
 
     def pull_catalogs(self):
         self.pull_global_catalogs()
