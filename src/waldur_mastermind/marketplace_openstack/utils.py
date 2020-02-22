@@ -450,7 +450,7 @@ def import_usage(resource):
     }
 
     if storage_mode == STORAGE_MODE_FIXED:
-        resource.current_usages[STORAGE_TYPE] = usages.get(TenantQuotas.storage.name, 0),
+        resource.current_usages[STORAGE_TYPE] = usages.get(TenantQuotas.storage.name, 0)
     elif storage_mode == STORAGE_MODE_DYNAMIC:
         volume_type_usages = {
             k: v for (k, v) in usages.items()
