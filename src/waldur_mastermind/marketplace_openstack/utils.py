@@ -436,30 +436,44 @@ def get_offering(offering_type, service_settings):
 
 
 def import_usage(resource):
-    QuotaNames = [TenantQuotas.vcpu.name, TenantQuotas.ram.name, TenantQuotas.storage.name]
-
-    if not resource.scope:
-        return
-
-    rows = resource.scope.quotas.filter(name__in=QuotaNames).values('name', 'usage')
-    usages = {row['name']: row['usage'] for row in rows}
-
-    resource.current_usages = {
-        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
-        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0),
-        STORAGE_TYPE: usages.get(TenantQuotas.storage.name, 0),
-    }
-    resource.save(update_fields=['current_usages'])
-
-
-def import_limits(resource):
     tenant = resource.scope
 
     if not tenant:
         return
 
-    limits = {row['name']: row['limit'] for row in tenant.quotas.values('name', 'limit')}
-    storage_mode = resource.offering.plugin_options.get('storage_mode')
+    usages = {row['name']: row['usage'] for row in tenant.quotas.values('name', 'usage')}
+    storage_mode = resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+
+    resource.current_usages = {
+        CORES_TYPE: usages.get(TenantQuotas.vcpu.name, 0),
+        RAM_TYPE: usages.get(TenantQuotas.ram.name, 0),
+    }
+
+    if storage_mode == STORAGE_MODE_FIXED:
+        resource.current_usages[STORAGE_TYPE] = usages.get(TenantQuotas.storage.name, 0)
+    elif storage_mode == STORAGE_MODE_DYNAMIC:
+        volume_type_usages = {
+            k: v for (k, v) in usages.items()
+            if k.startswith('gigabytes_')
+        }
+        resource.current_usages.update(volume_type_usages)
+
+    resource.save(update_fields=['current_usages'])
+
+
+def import_limits(resource, field='limit'):
+    """
+    Import resource quotas as marketplace limits.
+    :param resource: Marketplace resource
+    :param field: either 'limit' or 'usage'
+    """
+    tenant = resource.scope
+
+    if not tenant:
+        return
+
+    limits = {row['name']: row[field] for row in tenant.quotas.values('name', field)}
+    storage_mode = resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
 
     resource.limits = {
         CORES_TYPE: limits.get(TenantQuotas.vcpu.name, 0),

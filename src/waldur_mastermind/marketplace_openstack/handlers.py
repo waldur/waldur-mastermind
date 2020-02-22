@@ -10,7 +10,6 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import get_resource_state
-from waldur_mastermind.marketplace_openstack.utils import import_limits
 from waldur_mastermind.packages import models as package_models
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.apps import OpenStackConfig
@@ -518,5 +517,6 @@ def synchronize_limits_when_storage_mode_is_switched(sender, instance, created=F
         .exclude(state__in=(States.TERMINATED, States.TERMINATING))
 
     for resource in resources:
-        import_limits(resource)
+        utils.import_limits(resource, field='usage')
+        utils.import_usage(resource)
         registrators.RegistrationManager.register(resource)

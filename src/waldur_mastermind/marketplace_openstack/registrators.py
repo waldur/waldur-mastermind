@@ -63,7 +63,7 @@ class MarketplaceItemRegistrator(BaseRegistrator):
         else:
             parts = []
             for (k, v) in source.limits.items():
-                if k.startswith('gigabytes_'):
+                if k.startswith('gigabytes_') and v:
                     parts.append('{size} GB {type} storage'.format(
                         size=int(mb_to_gb(v)),
                         type=k.replace('gigabytes_', '')
