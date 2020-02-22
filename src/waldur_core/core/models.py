@@ -13,7 +13,6 @@ from django.contrib.postgres.fields import JSONField as BetterJSONField
 from django.core import validators
 from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
-from django.core.signing import Signer
 from django.db import models, transaction
 from django.utils import timezone as django_timezone
 from django.utils.encoding import force_text
@@ -237,23 +236,13 @@ class User(LoggableMixin, UuidMixin, DescribableMixin, AbstractBaseUser, UserDet
         return self.get_username()
 
 
-class ChangeEmailRequest(TimeStampedModel):
+class ChangeEmailRequest(UuidMixin, TimeStampedModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     email = models.EmailField()
 
     class Meta:
         verbose_name = _('change email request')
         verbose_name_plural = _('change email requests')
-
-    def get_confirmation_code(self):
-        signer = Signer()
-        return signer.sign(self.email)
-
-    @transaction.atomic
-    def confirm_email(self):
-        self.user.email = self.email
-        self.user.save()
-        ChangeEmailRequest.objects.filter(email=self.email).delete()
 
 
 def validate_ssh_public_key(ssh_key):

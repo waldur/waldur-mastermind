@@ -224,7 +224,11 @@ class VolumeRetypeExecutor(core_executors.ActionExecutor):
                 backend_pull_method='pull_volume_runtime_state',
                 success_state='available',
                 erred_state='error',
-            ).set(countdown=10)
+            ).set(countdown=10),
+            core_tasks.BackendMethodTask().si(
+                serialized_volume,
+                'pull_volume',
+            ),
         )
 
 

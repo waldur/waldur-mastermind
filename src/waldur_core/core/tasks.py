@@ -1,12 +1,8 @@
-import hashlib
-import json
 import logging
 from uuid import uuid4
 
-from celery.execute import send_task as send_celery_task
 from celery.task import Task as CeleryTask
 from celery.worker.request import Request
-from django.core.cache import cache
 from django.db import IntegrityError, models as django_models
 from django.db.models import ObjectDoesNotExist
 from django_fsm import TransitionNotAllowed
@@ -19,35 +15,6 @@ logger = logging.getLogger(__name__)
 
 class StateChangeError(RuntimeError):
     pass
-
-
-def send_task(app_label, task_name):
-    """ A helper function to deal with waldur_core "high-level" tasks.
-        Define high-level task with explicit name using a pattern:
-        waldur_core.<app_label>.<task_name>
-
-        .. code-block:: python
-            @shared_task(name='waldur_core.openstack.provision_instance')
-            def provision_instance_fn(instance_uuid, backend_flavor_id)
-                pass
-
-        Call it by name:
-
-        .. code-block:: python
-            send_task('openstack', 'provision_instance')(instance_uuid, backend_flavor_id)
-
-        Which is identical to:
-
-        .. code-block:: python
-            provision_instance_fn.delay(instance_uuid, backend_flavor_id)
-
-    """
-
-    def delay(*args, **kwargs):
-        full_task_name = 'waldur_core.%s.%s' % (app_label, task_name)
-        send_celery_task(full_task_name, args, kwargs, countdown=2)
-
-    return delay
 
 
 class Task(CeleryTask):
@@ -338,73 +305,6 @@ class BackgroundTask(CeleryTask):
             # It is expected by Celery that apply_async return AsyncResult, otherwise celerybeat dies
             return self.AsyncResult(options.get('task_id') or str(uuid4()))
         return super(BackgroundTask, self).apply_async(args=args, kwargs=kwargs, **options)
-
-
-class PenalizedBackgroundTask(BackgroundTask):
-    """
-    Background task, which applies penalties in case of failed execution.
-    It uses cache memory for tracking results of previous task executions.
-    The following values are stored to the cache memory:
-        - counter - the task will be skipped till the counter gets 0.
-        - penalty - shows how much runs the task will skip in case of failed execution.
-
-    For example,
-    1 run: Cache state: Empty; Result: failed
-    2 run: Cache state: counter = 1, penalty = 1; Result: skipped
-    3 run: Cache state: counter = 0, penalty = 1; Result: failed
-    4 run: Cache state: counter = 2, penalty = 2; Result: skipped
-    5 run: Cache state: counter = 1, penalty = 2; Result: skipped
-    6 run: Cache state: counter = 0, penalty = 2; Result: success
-    7 run: Cache state: Empty; Result: success
-
-    NB! Ensure that CACHE_LIFETIME is longer than time between the task executions.
-    """
-
-    MAX_PENALTY = 3
-    CACHE_LIFETIME = 24 * 60 * 60
-
-    def _get_cache_key(self, args, kwargs):
-        """ Returns key to be used in cache """
-        hash_input = json.dumps({'name': self.name, 'args': args, 'kwargs': kwargs}, sort_keys=True)
-        # md5 is used for internal caching, not need to care about security
-        return hashlib.md5(hash_input).hexdigest()  # nosec
-
-    def apply_async(self, args=None, kwargs=None, **options):
-        """
-        Checks whether task must be skipped and decreases the counter in that case.
-        """
-        key = self._get_cache_key(args, kwargs)
-        counter, penalty = cache.get(key, (0, 0))
-        if not counter:
-            return super(PenalizedBackgroundTask, self).apply_async(args=args, kwargs=kwargs, **options)
-
-        cache.set(key, (counter - 1, penalty), self.CACHE_LIFETIME)
-        logger.info('The task %s will not be executed due to the penalty.' % self.name)
-        return self.AsyncResult(options.get('task_id') or str(uuid4()))
-
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        """
-        Increases penalty for the task and resets the counter.
-        """
-        key = self._get_cache_key(args, kwargs)
-        _, penalty = cache.get(key, (0, 0))
-        if penalty < self.MAX_PENALTY:
-            penalty += 1
-
-        logger.debug('The task %s is penalized and will be executed on %d run.' % (self.name, penalty))
-        cache.set(key, (penalty, penalty), self.CACHE_LIFETIME)
-        return super(PenalizedBackgroundTask, self).on_failure(exc, task_id, args, kwargs, einfo)
-
-    def on_success(self, retval, task_id, args, kwargs):
-        """
-        Clears cache for the task.
-        """
-        key = self._get_cache_key(args, kwargs)
-        if cache.get(key) is not None:
-            cache.delete(key)
-            logger.debug('Penalty for the task %s has been removed.' % self.name)
-
-        return super(PenalizedBackgroundTask, self).on_success(retval, task_id, args, kwargs)
 
 
 def log_celery_task(request):
