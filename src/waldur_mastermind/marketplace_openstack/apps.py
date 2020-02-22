@@ -80,7 +80,8 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         def get_filtered_components(offering):
-            if offering.plugin_options.get('storage_mode') == STORAGE_MODE_DYNAMIC:
+            storage_mode = (offering.plugin_options or {}).get('storage_mode')
+            if storage_mode == STORAGE_MODE_DYNAMIC:
                 content_type = ContentType.objects.get_for_model(openstack_models.VolumeType)
                 return offering.components.filter(
                     Q(type__in=(CORES_TYPE, RAM_TYPE)) |
