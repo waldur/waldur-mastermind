@@ -52,3 +52,9 @@ class RancherConfig(AppConfig):
             sender=models.Node,
             dispatch_uid='waldur_rancher.set_error_state_for_cluster_if_related_node_deleting_is_failed',
         )
+
+        signals.post_delete.connect(
+            handlers.retry_create_node_if_related_instance_has_been_deleted,
+            sender=Instance,
+            dispatch_uid='waldur_rancher.retry_create_node_if_related_instance_has_been_deleted',
+        )

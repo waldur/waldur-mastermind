@@ -6,10 +6,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, response, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
@@ -47,10 +48,14 @@ class ClusterViewSet(structure_views.ImportableResourceViewSet):
         cluster = serializer.save()
         user = self.request.user
         nodes = serializer.validated_data.get('node_set')
+        cluster_url = reverse('rancher-cluster-detail', kwargs={'uuid': cluster.uuid.hex})
+        cluster.initial_data['nodes'] = []
 
         for node_data in nodes:
-            node_data['cluster'] = cluster
-            models.Node.objects.create(**node_data)
+            node_data['initial_data']['rest_initial_data']['cluster'] = cluster_url
+            cluster.initial_data['nodes'].append(node_data['initial_data']['rest_initial_data'])
+
+        cluster.save()
 
         transaction.on_commit(lambda: executors.ClusterCreateExecutor.execute(
             cluster,
@@ -102,10 +107,22 @@ class NodeViewSet(core_views.ActionsViewSet):
     filterset_class = filters.NodeFilter
     lookup_field = 'uuid'
     disabled_actions = ['update', 'partial_update']
-    create_permissions = [structure_permissions.is_staff]
     destroy_validators = [
         validators.related_vm_can_be_deleted,
     ]
+
+    def check_create_permissions(request, view, obj=None):
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        cluster = serializer.validated_data['cluster']
+
+        if user.is_staff or not structure_permissions.is_owner(request, view, obj=cluster):
+            return
+
+        raise PermissionDenied()
+
+    create_permissions = [check_create_permissions]
 
     def perform_create(self, serializer):
         node = serializer.save()
@@ -154,6 +171,21 @@ class NodeViewSet(core_views.ActionsViewSet):
         return response.Response(status=status.HTTP_200_OK)
 
     unlink_openstack_permissions = [structure_permissions.is_staff]
+
+    @decorators.action(detail=True, methods=['post'])
+    def retry(self, request, uuid=None):
+        node = self.get_object()
+        user = self.request.user
+        executors.NodeRetryExecutor.execute(
+            node,
+            user=user,
+            is_heavy_task=True,
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    retry_validators = [
+        core_validators.StateValidator(models.Cluster.States.ERRED),
+    ]
 
 
 class CatalogViewSet(core_views.ActionsViewSet):

@@ -1,0 +1,175 @@
+[
+  {
+    "allocatable": {
+      "cpu": "2",
+      "ephemeral-storage": "60845793999",
+      "hugepages-2Mi": "0",
+      "memory": "3948388Ki",
+      "pods": "110"
+    },
+    "annotations": {
+      "flannel.alpha.coreos.com/backend-data": "{\"VtepMAC\":\"4e:be:10:6f:7d:c3\"}",
+      "flannel.alpha.coreos.com/backend-type": "vxlan",
+      "flannel.alpha.coreos.com/kube-subnet-manager": "true",
+      "flannel.alpha.coreos.com/public-ip": "192.168.42.72",
+      "node.alpha.kubernetes.io/ttl": "0",
+      "projectcalico.org/IPv4IPIPTunnelAddr": "10.42.0.1",
+      "rke.cattle.io/external-ip": "192.168.42.72",
+      "rke.cattle.io/internal-ip": "192.168.42.72",
+      "volumes.kubernetes.io/controller-managed-attach-detach": "true"
+    },
+    "baseType": "node",
+    "capacity": {
+      "cpu": "2",
+      "ephemeral-storage": "66021912Ki",
+      "hugepages-2Mi": "0",
+      "memory": "4050788Ki",
+      "pods": "110"
+    },
+    "clusterId": "c-b5svz",
+    "conditions": [
+      {
+        "status": "True",
+        "type": "Initialized"
+      },
+      {
+        "message": "registered with kubernetes",
+        "status": "True",
+        "type": "Registered"
+      },
+      {
+        "status": "True",
+        "type": "Provisioned"
+      },
+      {
+        "lastHeartbeatTime": "2020-02-19T14:37:34Z",
+        "lastHeartbeatTimeTS": 1582123054000,
+        "lastTransitionTime": "2020-02-19T14:45:24Z",
+        "lastTransitionTimeTS": 1582123524000,
+        "message": "Kubelet stopped posting node status.",
+        "reason": "NodeStatusUnknown",
+        "status": "Unknown",
+        "type": "MemoryPressure"
+      },
+      {
+        "lastHeartbeatTime": "2020-02-19T14:37:34Z",
+        "lastHeartbeatTimeTS": 1582123054000,
+        "lastTransitionTime": "2020-02-19T14:45:24Z",
+        "lastTransitionTimeTS": 1582123524000,
+        "message": "Kubelet stopped posting node status.",
+        "reason": "NodeStatusUnknown",
+        "status": "Unknown",
+        "type": "DiskPressure"
+      },
+      {
+        "lastHeartbeatTime": "2020-02-19T14:37:34Z",
+        "lastHeartbeatTimeTS": 1582123054000,
+        "lastTransitionTime": "2020-02-19T14:45:24Z",
+        "lastTransitionTimeTS": 1582123524000,
+        "message": "Kubelet stopped posting node status.",
+        "reason": "NodeStatusUnknown",
+        "status": "Unknown",
+        "type": "PIDPressure"
+      },
+      {
+        "lastHeartbeatTime": "2020-02-19T14:37:34Z",
+        "lastHeartbeatTimeTS": 1582123054000,
+        "lastTransitionTime": "2020-02-19T14:45:24Z",
+        "lastTransitionTimeTS": 1582123524000,
+        "message": "Kubelet stopped posting node status.",
+        "reason": "NodeStatusUnknown",
+        "status": "Unknown",
+        "type": "Ready"
+      }
+    ],
+    "controlPlane": true,
+    "created": "2020-02-19T08:54:08Z",
+    "createdTS": 1582102448000,
+    "creatorId": null,
+    "customConfig": {
+      "address": "192.168.42.72",
+      "type": "/v3/schemas/customConfig"
+    },
+    "dockerInfo": {
+      "debug": false,
+      "experimentalBuild": false,
+      "type": "/v3/schemas/dockerInfo"
+    },
+    "etcd": true,
+    "externalIpAddress": "192.168.42.72",
+    "hostname": "cluster1-rancher-node-1",
+    "id": "c-b5svz:m-297756c9c2d0",
+    "imported": true,
+    "info": {
+      "cpu": {
+        "count": 2
+      },
+      "kubernetes": {
+        "kubeProxyVersion": "v1.16.6",
+        "kubeletVersion": "v1.16.6"
+      },
+      "memory": {
+        "memTotalKiB": 4050788
+      },
+      "os": {
+        "dockerVersion": "19.3.6",
+        "kernelVersion": "4.9.0-8-amd64",
+        "operatingSystem": "Debian GNU/Linux 9 (stretch)"
+      }
+    },
+    "ipAddress": "192.168.42.72",
+    "labels": {
+      "beta.kubernetes.io/arch": "amd64",
+      "beta.kubernetes.io/os": "linux",
+      "kubernetes.io/arch": "amd64",
+      "kubernetes.io/hostname": "cluster1-rancher-node-1",
+      "kubernetes.io/os": "linux",
+      "node-role.kubernetes.io/controlplane": "true",
+      "node-role.kubernetes.io/etcd": "true",
+      "node-role.kubernetes.io/worker": "true"
+    },
+    "links": {
+      "remove": "…/v3/nodes/c-b5svz:m-297756c9c2d0",
+      "self": "…/v3/nodes/c-b5svz:m-297756c9c2d0",
+      "update": "…/v3/nodes/c-b5svz:m-297756c9c2d0"
+    },
+    "name": "",
+    "namespaceId": null,
+    "nodeName": "cluster1-rancher-node-1",
+    "nodePoolId": "",
+    "nodeTemplateId": null,
+    "podCidr": "10.42.0.0/24",
+    "podCidrs": [
+      "10.42.0.0/24"
+    ],
+    "requested": {
+      "cpu": "250m",
+      "pods": "3"
+    },
+    "requestedHostname": "cluster1-rancher-node-1",
+    "sshUser": "root",
+    "state": "active",
+    "taints": [
+      {
+        "effect": "NoSchedule",
+        "key": "node.kubernetes.io/unreachable",
+        "timeAdded": "2020-02-19T14:45:26Z",
+        "timeAddedTS": 1582123526000,
+        "type": "/v3/schemas/taint"
+      },
+      {
+        "effect": "NoExecute",
+        "key": "node.kubernetes.io/unreachable",
+        "timeAdded": "2020-02-20T13:30:04Z",
+        "timeAddedTS": 1582205404000,
+        "type": "/v3/schemas/taint"
+      }
+    ],
+    "transitioning": "error",
+    "transitioningMessage": "Kubelet stopped posting node status.",
+    "type": "node",
+    "unschedulable": false,
+    "uuid": "64022fa4-52f5-11ea-89ee-fa163e1a1783",
+    "worker": true
+  }
+]

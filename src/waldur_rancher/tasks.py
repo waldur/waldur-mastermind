@@ -5,18 +5,19 @@ import logging
 from celery import shared_task
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from rest_framework import status
 from rest_framework.reverse import reverse
 
 from waldur_core.core import tasks as core_tasks, utils as core_utils
+from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
-
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, signals, utils, views
+from . import models, exceptions, utils, views
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,10 @@ class CreateNodeTask(core_tasks.Task):
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
+
+        # Set state here, because this task can be called from ClusterCreateExecutor and NodeCreateExecutor
         node.state = models.Node.States.CREATING
+
         node.save()
 
         resource_imported.send(
@@ -81,16 +85,11 @@ class DeleteNodeTask(core_tasks.Task):
     def execute(self, instance, user_id):
         node = instance
         user = auth.get_user_model().objects.get(pk=user_id)
+        view = InstanceViewSet.as_view({'delete': 'destroy'})
+        response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
 
-        if node.instance:
-            view = InstanceViewSet.as_view({'delete': 'destroy'})
-            response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
-
-            if response.status_code != status.HTTP_202_ACCEPTED:
-                raise exceptions.RancherException(response.data)
-        else:
-            backend = node.cluster.get_backend()
-            backend.delete_node(node)
+        if response.status_code != status.HTTP_202_ACCEPTED:
+            raise exceptions.RancherException(response.data)
 
 
 @shared_task
@@ -107,27 +106,15 @@ def update_nodes(cluster_id):
                 node.backend_id = backend_node['backend_id']
                 node.save()
 
-    has_changes = False
-
     for node in cluster.node_set.exclude(backend_id=''):
-        old_state = node.state
         backend.update_node_details(node)
-        node.refresh_from_db()
-
-        if old_state != node.state:
-            has_changes = True
-
-    if has_changes:
-        signals.node_states_have_been_updated.send(
-            sender=models.Cluster,
-            instance=cluster,
-        )
 
 
 @shared_task(name='waldur_rancher.update_clusters_nodes')
 def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
         update_nodes.delay(cluster.id)
+        utils.update_cluster_nodes_states(cluster.id)
 
 
 class PollRuntimeStateNodeTask(core_tasks.Task):
@@ -143,10 +130,16 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
 
-        if not node.backend_id:
+        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+            return
+        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING or not node.runtime_state:
             self.retry()
+        elif node.runtime_state:
+            raise RuntimeStateException(
+                '%s (PK: %s) runtime state become erred: %s' % (
+                    node.__class__.__name__, node.pk, 'error'))
 
-        return node
+        return
 
 
 @shared_task(name='waldur_rancher.notify_create_user')
@@ -185,3 +178,44 @@ class DeleteClusterNodesTask(core_tasks.Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         return 'Delete nodes for k8s cluster "%s".' % instance
+
+
+class RequestNodeCreation(core_tasks.Task):
+    def execute(self, instance, user_id):
+        cluster = instance
+        user = auth.get_user_model().objects.get(pk=user_id)
+        view = views.NodeViewSet.as_view({'post': 'create'})
+
+        for post_data in cluster.initial_data['nodes']:
+            response = common_utils.create_request(view, user, post_data)
+
+            if response.status_code != status.HTTP_201_CREATED:
+                raise exceptions.RancherException(response.data)
+
+    @classmethod
+    def get_description(cls, instance, *args, **kwargs):
+        return 'Delete nodes for k8s cluster "%s".' % instance
+
+
+class RetryNodeTask(core_tasks.Task):
+    def execute(self, instance):
+        node = instance
+        post_data = node.initial_data.get('rest_initial_data')
+        user_id = node.initial_data.get('rest_user_id')
+
+        if not post_data or not user_id:
+            raise exceptions.RancherException('Re-creating the node is not possible.')
+
+        view = views.NodeViewSet.as_view({'post': 'create'})
+        user = auth.get_user_model().objects.get(pk=user_id)
+
+        with transaction.atomic():
+            node.delete()
+            response = common_utils.create_request(view, user, post_data=post_data)
+
+            if response.status_code != status.HTTP_201_CREATED:
+                raise exceptions.RancherException('Node recreating is fail: %s.' % response.data)
+
+    @classmethod
+    def get_description(cls, instance, *args, **kwargs):
+        return 'Retry create node for k8s cluster "%s".' % instance.cluster
