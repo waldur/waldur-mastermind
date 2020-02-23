@@ -10,6 +10,10 @@ LABEL   summary="Waldur Mastermind REST API Image for Unit Test" \
         description="Waldur Cloud Brokerage Platform" \
         url="https://waldur.com"
 
+# set UTF-8 locale as default
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+RUN localedef -i en_US -f UTF-8 en_US.UTF-8
+
 RUN yum --assumeyes install epel-release
 RUN yum --assumeyes update && yum clean all
 RUN yum --assumeyes install \
@@ -23,23 +27,15 @@ RUN yum --assumeyes install \
   openldap-devel \
   openssl-devel \
   python3-devel \
-  python3-pip \
   rsync \
   xmlsec1 \
   zlib-devel
-
-# Install Python dependencies for Waldur MasterMind from PyPI
-COPY requirements.txt /tmp/
-RUN pip3 install -r /tmp/requirements.txt
 
 # Copy unit test runner script
 COPY waldur-test /usr/bin/waldur-test
 
 # Copy script to execute command as another user
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-
-# set UTF-8 locale as default
-ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/bin/bash"]

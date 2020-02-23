@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -x
 
-[ -d pip-cache ] || mkdir pip-cache
-
 docker --version
 docker-compose --version
 

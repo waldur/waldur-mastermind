@@ -1,16 +1,13 @@
-# Sane defaults for pip
-export PIP_NO_CACHE_DIR=off
-export PIP_DISABLE_PIP_VERSION_CHECK=on
+# Installing Python package manager
+pip3 install poetry
+poetry config virtualenvs.create false
 
 # Install Python dependencies for Waldur MasterMind from PyPI
-pip3 install --no-cache-dir -r docker-test/api/requirements.txt
+poetry install --no-dev
 
 # Compile i18n messages
 cp packaging/settings.py src/waldur_core/server/settings.py
 django-admin compilemessages
-
-# Install Waldur MasterMind package
-pip3 install .
 
 # Build static assets
 mkdir -p /usr/share/waldur/static

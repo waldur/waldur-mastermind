@@ -4,29 +4,13 @@ set -e
 echo '[+] Copying source code'
 cp -r /mnt /tmp
 
-echo '[+] Copying pip cache from host to guest'
-rsync \
-    --archive \
-    --recursive \
-    --ignore-existing \
-    --chown root:root \
-    /tmp/pip-cache/ \
-    /root/.cache/pip/
+echo '[+] Installing Python package manager'
+pip3 install poetry
+poetry config virtualenvs.create false
 
 echo '[+] Installing Python package under test'
 cd /tmp/mnt
-pip3 --cache-dir=/root/.cache/pip/ install --editable .[test]
-
-echo '[+] Copying pip cache from guest to host'
-rsync \
-    --archive \
-    --recursive \
-    --ignore-existing \
-    --chown user:user \
-    /root/.cache/pip/ \
-    /tmp/pip-cache/
-
-chown -R user:user /tmp/pip-cache
+poetry install
 
 echo '[+] Running Python linter'
 python3 -m flake8 --ignore E501 --exclude=*migrations* src/
