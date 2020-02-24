@@ -15,16 +15,16 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='slurmpackage',
             name='cpu_price',
-            field=models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for CPU hour'),
+            field=models.DecimalField(decimal_places=10, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for CPU hour'),
         ),
         migrations.AlterField(
             model_name='slurmpackage',
             name='gpu_price',
-            field=models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for GPU hour'),
+            field=models.DecimalField(decimal_places=10, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for GPU hour'),
         ),
         migrations.AlterField(
             model_name='slurmpackage',
             name='ram_price',
-            field=models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for GB RAM'),
+            field=models.DecimalField(decimal_places=10, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price for GB RAM'),
         ),
     ]

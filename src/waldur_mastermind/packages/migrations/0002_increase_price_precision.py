@@ -15,6 +15,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='packagecomponent',
             name='price',
-            field=models.DecimalField(decimal_places=7, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price per unit'),
+            field=models.DecimalField(decimal_places=10, default=0, max_digits=22, validators=[django.core.validators.MinValueValidator(Decimal('0'))], verbose_name='Price per unit'),
         ),
     ]
