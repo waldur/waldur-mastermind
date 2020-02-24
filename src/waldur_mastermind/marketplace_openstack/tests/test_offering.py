@@ -18,7 +18,6 @@ from waldur_mastermind.marketplace_openstack import RAM_TYPE, CORES_TYPE, STORAG
 from waldur_mastermind.marketplace_openstack.utils import merge_plans, create_offering_components
 from waldur_mastermind.packages import models as package_models
 from waldur_mastermind.packages.tests import fixtures as package_fixtures
-from waldur_mastermind.packages.tests.utils import override_plugin_settings as override_packages_plugin_settings
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 
@@ -52,7 +51,6 @@ class VpcExternalFilterTest(BaseOpenStackTest):
         self.assertEqual(1, len(response.data))
 
 
-@override_packages_plugin_settings(BILLING_ENABLED=True)
 class TemplateOfferingTest(BaseOpenStackTest):
     def test_template_for_plan_is_created(self):
         fixture = package_fixtures.OpenStackFixture()
@@ -229,7 +227,6 @@ class TemplateOfferingTest(BaseOpenStackTest):
         self.assertEqual(plan.name, template.name)
 
 
-@override_packages_plugin_settings(BILLING_ENABLED=True)
 class PlanComponentsTest(test.APITransactionTestCase):
     prices = {
         'cores': 10,
