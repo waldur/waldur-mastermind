@@ -6,7 +6,7 @@ from django.utils.translation import ugettext_lazy as _
 
 PRICE_MAX_DIGITS = 22
 
-PRICE_DECIMAL_PLACES = 7
+PRICE_DECIMAL_PLACES = 10
 
 
 class UnitPriceMixin(models.Model):
