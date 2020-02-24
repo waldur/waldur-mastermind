@@ -10,7 +10,6 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack import models as openstack_models, apps as openstack_apps
 from waldur_mastermind.common import mixins as common_mixins
-
 from waldur_mastermind.common.utils import quantize_price
 
 
@@ -100,8 +99,6 @@ class PackageTemplate(core_models.UuidMixin,
 
 
 class PackageComponent(models.Model):
-    PRICE_MAX_DIGITS = 14
-    PRICE_DECIMAL_PLACES = 10
 
     class Meta:
         unique_together = ('type', 'template')
@@ -115,7 +112,9 @@ class PackageComponent(models.Model):
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(default=0, max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES,
+    price = models.DecimalField(default=0,
+                                max_digits=common_mixins.PRICE_MAX_DIGITS,
+                                decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit'))
     template = models.ForeignKey(on_delete=models.CASCADE, to=PackageTemplate, related_name='components')

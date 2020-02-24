@@ -4,6 +4,10 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
+PRICE_MAX_DIGITS = 22
+
+PRICE_DECIMAL_PLACES = 7
+
 
 class UnitPriceMixin(models.Model):
     """

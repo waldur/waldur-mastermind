@@ -505,15 +505,12 @@ class PlanComponent(models.Model):
     class Meta:
         unique_together = ('plan', 'component')
 
-    PRICE_MAX_DIGITS = 15
-    PRICE_DECIMAL_PLACES = 7
-
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, related_name='components')
     component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent, related_name='components', null=True)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
-                                max_digits=PRICE_MAX_DIGITS,
-                                decimal_places=PRICE_DECIMAL_PLACES,
+                                max_digits=common_mixins.PRICE_MAX_DIGITS,
+                                decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit per billing period.'))
     tracker = FieldTracker()
