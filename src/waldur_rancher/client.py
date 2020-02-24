@@ -184,9 +184,6 @@ class RancherClient:
     def get_cluster(self, cluster_id):
         return self._get('clusters/{0}'.format(cluster_id))
 
-    def get_cluster_nodes(self, cluster_id):
-        return self._get('clusters/{0}/nodes'.format(cluster_id))['data']
-
     def create_cluster(self, cluster_name):
         return self._post('clusters', json={'name': cluster_name, 'rancherKubernetesEngineConfig': {}})
 

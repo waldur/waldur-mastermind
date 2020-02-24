@@ -42,10 +42,6 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
 
 
 class Cluster(NewResource):
-
-    class RuntimeStates:
-        ACTIVE = 'active'
-
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)
 
@@ -68,9 +64,6 @@ class Cluster(NewResource):
         blank=True,
     )
     runtime_state = models.CharField(max_length=255, blank=True)
-    initial_data = JSONField(blank=True,
-                             default=dict,
-                             help_text=_('Initial data for instance creating.'))
 
     class Meta:
         unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
@@ -91,11 +84,6 @@ class Node(core_models.UuidMixin,
            structure_models.StructureModel,
            core_models.StateMixin,
            structure_models.TimeStampedModel):
-
-    class RuntimeStates:
-        ACTIVE = 'active'
-        REGISTERING = 'registering'
-
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('content_type', 'object_id')  # a virtual machine where will deploy k8s node.
