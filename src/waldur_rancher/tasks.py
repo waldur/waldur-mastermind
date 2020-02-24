@@ -194,7 +194,7 @@ class RequestNodeCreation(core_tasks.Task):
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
-        return 'Delete nodes for k8s cluster "%s".' % instance
+        return 'Create nodes for k8s cluster "%s".' % instance
 
 
 class RetryNodeTask(core_tasks.Task):

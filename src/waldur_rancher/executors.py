@@ -11,21 +11,22 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
-        _tasks = [core_tasks.BackendMethodTask().si(
-            serialized_instance,
-            'create_cluster',
-            state_transition='begin_creating')]
-        _tasks += tasks.RequestNodeCreation().si(
-            serialized_instance,
-            user_id=user.id,
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                'create_cluster',
+                state_transition='begin_creating'),
+            tasks.RequestNodeCreation().si(
+                serialized_instance,
+                user_id=user.id,
+            ),
+            core_tasks.PollRuntimeStateTask().si(
+                serialized_instance,
+                backend_pull_method='check_cluster_creating',
+                success_state=models.Cluster.RuntimeStates.ACTIVE,
+                erred_state='error'
+            )
         )
-        _tasks += [core_tasks.PollRuntimeStateTask().si(
-            serialized_instance,
-            backend_pull_method='check_cluster_creating',
-            success_state=models.Cluster.RuntimeStates.ACTIVE,
-            erred_state='error'
-        )]
-        return chain(*_tasks)
 
 
 class ClusterDeleteExecutor(core_executors.ErrorExecutorMixin, core_executors.BaseExecutor):
