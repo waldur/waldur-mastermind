@@ -23,9 +23,6 @@ States = marketplace_models.Resource.States
 
 
 def create_template_for_plan(sender, instance, created=False, **kwargs):
-    if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
-        return
-
     plan = instance
 
     if plan.scope:
@@ -64,9 +61,6 @@ PLAN_FIELDS = {'name', 'archived', 'product_code', 'article_code'}
 
 
 def update_template_for_plan(sender, instance, created=False, **kwargs):
-    if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
-        return
-
     plan = instance
 
     if plan.offering.type != PACKAGE_TYPE:
@@ -89,9 +83,6 @@ def update_template_for_plan(sender, instance, created=False, **kwargs):
 
 
 def update_plan_for_template(sender, instance, created=False, **kwargs):
-    if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
-        return
-
     template = instance
 
     if created:
@@ -112,9 +103,6 @@ def update_plan_for_template(sender, instance, created=False, **kwargs):
 
 
 def synchronize_plan_component(sender, instance, created=False, **kwargs):
-    if not settings.WALDUR_PACKAGES['BILLING_ENABLED']:
-        return
-
     component = instance
 
     if not created and not set(instance.tracker.changed()) & {'amount', 'price'}:

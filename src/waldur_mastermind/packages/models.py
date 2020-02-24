@@ -100,11 +100,6 @@ class PackageTemplate(core_models.UuidMixin,
 
 
 class PackageComponent(models.Model):
-    # Decimal precision should be the same as for PlanComponent.
-    # Otherwise plan component synchronization fails when PackageComponent is saved if price is big enough.
-    # But it is left as is because this functionality is disabled by default.
-    # Essentially packages application is deprecated as it's price
-    # tracking functionality is superseded by marketplace-openstack.
     PRICE_MAX_DIGITS = 14
     PRICE_DECIMAL_PLACES = 10
 
