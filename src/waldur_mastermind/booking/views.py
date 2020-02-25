@@ -1,13 +1,16 @@
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework import views
 from rest_framework import serializers as rf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_mastermind.booking.utils import get_offering_bookings
 from waldur_mastermind.marketplace import filters as marketplace_filters
 from waldur_mastermind.marketplace import models
 
@@ -85,3 +88,12 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)
     ]
+
+
+class OfferingBookingsViewSet(views.APIView):
+    def get(self, request, uuid):
+        offerings = models.Offering.objects.all().filter_for_user(request.user)
+        offering = get_object_or_404(offerings, uuid=uuid)
+        bookings = get_offering_bookings(offering)
+        serializer = serializers.BookingSerializer(instance=bookings, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
