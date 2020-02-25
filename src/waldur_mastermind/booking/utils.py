@@ -1,7 +1,7 @@
 import datetime
-
-from django.utils.dateparse import parse_datetime
 import logging
+
+from dateutil.parser import parse as parse_datetime
 
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -29,6 +29,18 @@ def is_interval_in_schedules(interval, schedules):
                 return True
 
     return False
+
+
+def get_offering_bookings(offering):
+    schedules = marketplace_models.Resource.objects.filter(
+        offering=offering,
+        state=marketplace_models.Resource.States.OK
+    ).values_list('attributes__schedules', flat=True)
+    return [
+        TimePeriod(period['start'], period['end'])
+        for schedule in schedules if schedule
+        for period in schedule if period
+    ]
 
 
 def get_info_about_upcoming_bookings():

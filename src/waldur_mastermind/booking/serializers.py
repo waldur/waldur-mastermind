@@ -1,5 +1,7 @@
 import copy
 
+from rest_framework import serializers
+
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
 
@@ -9,3 +11,8 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
         fields = marketplace_serializers.ResourceSerializer.Meta.fields + ('url',)
         extra_kwargs = copy.copy(marketplace_serializers.ResourceSerializer.Meta.extra_kwargs)
         extra_kwargs['url'] = {'lookup_field': 'uuid', 'read_only': True}
+
+
+class BookingSerializer(serializers.Serializer):
+    start = serializers.DateTimeField()
+    end = serializers.DateTimeField()
