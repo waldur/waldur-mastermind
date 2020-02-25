@@ -65,9 +65,6 @@ class Cluster(NewResource):
     )
     runtime_state = models.CharField(max_length=255, blank=True)
 
-    class Meta:
-        unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
-
     @classmethod
     def get_url_name(cls):
         return 'rancher-cluster'
