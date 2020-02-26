@@ -90,7 +90,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             return super(ServiceDeskBackend, self).create_issue(issue)
 
         args = self._issue_to_dict(issue)
-        args['serviceDeskId'] = self.manager.service_desk(self.project_settings['key'])
+        args['serviceDeskId'] = self.manager.waldur_service_desk(self.project_settings['key'])
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             self.pull_request_types()
 
@@ -313,7 +313,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     @reraise_exceptions
     def pull_request_types(self):
-        service_desk_id = self.manager.service_desk(self.project_settings['key'])
+        service_desk_id = self.manager.waldur_service_desk(self.project_settings['key'])
         backend_request_types = self.manager.request_types(service_desk_id)
         with transaction.atomic():
             backend_request_type_map = {

@@ -85,4 +85,22 @@ def add_attachment(manager, issue, path):
         return _upload_file(manager, issue, f, filename)
 
 
+def service_desk(manager, id):
+    """In Jira v8.7.1 / SD 4.7.1 a service desk id must is an integer. So it needs to use this workaround."""
+    try:
+        return manager.service_desk(id)
+    except JIRAError as e:
+        if 'java.lang.NumberFormatException' in e.text:
+            service_desks = [sd for sd in manager.service_desks() if sd.projectKey == 'WAL']
+            if len(service_desks):
+                return service_desks[0]
+            else:
+                msg = 'The Service Desk with ID {id} does not exist.'.format(id=id)
+                raise JIRAError(text=msg, status_code=404)
+        else:
+            raise e
+
+
 JIRA.waldur_add_attachment = add_attachment
+JIRA.waldur_service_desk = service_desk
+
