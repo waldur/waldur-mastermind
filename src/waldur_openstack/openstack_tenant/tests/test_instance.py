@@ -589,6 +589,19 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         # Assert
         self.assertIsInstance(signature, Signature)
 
+    @mock.patch('waldur_openstack.openstack_tenant.views.executors.InstanceDeleteExecutor')
+    def test_force_delete_instance(self, mock_delete_executor):
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+
+        url = factories.InstanceFactory.get_url(self.instance, 'force_destroy')
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(mock_delete_executor.execute.call_count, 1)
+
 
 class InstanceCreateBackupSchedule(test.APITransactionTestCase):
     action_name = 'create_backup_schedule'

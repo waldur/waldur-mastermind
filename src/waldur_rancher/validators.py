@@ -14,7 +14,7 @@ ClusterNameValidator = RegexValidator(
 
 
 def related_vm_can_be_deleted(node):
-    validators = InstanceViewSet.destroy_validators
+    validators = InstanceViewSet.force_destroy_validators
 
     for validator in validators:
         if node.instance:
