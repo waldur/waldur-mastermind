@@ -106,11 +106,12 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @mock.patch('waldur_rancher.backend.RancherBackend.update_node_details')
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
     @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
-    def test_pulling_if_node_has_been_created(self, mock_retry, mock_client, mock_update_node_details):
+    def test_not_pulling_if_node_has_been_created(self, mock_retry, mock_client, mock_update_node_details):
         backend_cluster = json.loads(
             pkg_resources.resource_stream(__name__, 'backend_cluster.json').read().decode())
         backend_node = backend_cluster['appliedSpec']['rancherKubernetesEngineConfig']['nodes'][0]
         self.fixture.node.name = backend_node['hostnameOverride']
+        self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
         self.fixture.node.save()
         mock_client.get_cluster.return_value = backend_cluster
         tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
