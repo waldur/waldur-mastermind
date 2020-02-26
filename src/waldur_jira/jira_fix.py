@@ -103,4 +103,3 @@ def service_desk(manager, id):
 
 JIRA.waldur_add_attachment = add_attachment
 JIRA.waldur_service_desk = service_desk
-
