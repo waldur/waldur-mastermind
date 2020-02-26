@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.reverse import reverse
 
 from waldur_core.core import tasks as core_tasks, utils as core_utils
+from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -143,8 +144,16 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
 
-        if not node.backend_id:
+        if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+            return
+        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING or not node.runtime_state:
             self.retry()
+        elif node.runtime_state:
+            raise RuntimeStateException(
+                '%s (PK: %s) runtime state become erred: %s' % (
+                    node.__class__.__name__, node.pk, 'error'))
+
+
 
         return node
 

@@ -81,6 +81,11 @@ class Node(core_models.UuidMixin,
            structure_models.StructureModel,
            core_models.StateMixin,
            structure_models.TimeStampedModel):
+
+    class RuntimeStates:
+        ACTIVE = 'active'
+        REGISTERING = 'registering'
+
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey('content_type', 'object_id')  # a virtual machine where will deploy k8s node.
