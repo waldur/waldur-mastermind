@@ -143,7 +143,6 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
     def execute(self, node):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
-        print("NODE", node.runtime_state)
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
             return
         elif node.runtime_state == models.Node.RuntimeStates.REGISTERING or not node.runtime_state:
