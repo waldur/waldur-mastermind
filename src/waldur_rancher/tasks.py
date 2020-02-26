@@ -153,8 +153,6 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
                 '%s (PK: %s) runtime state become erred: %s' % (
                     node.__class__.__name__, node.pk, 'error'))
 
-
-
         return node
 
 
