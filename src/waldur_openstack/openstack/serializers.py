@@ -37,6 +37,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'tenant_name': '',
         'availability_zone': _('Default availability zone for provisioned instances'),
+        'console_type': _('The type of remote console. '
+                          'The valid values are novnc, xvpvnc, rdp-html5, '
+                          'spice-html5, serial, and webmks.'),
         'volume_availability_zone_name': _('Default availability zone name for provisioned volumes'),
         'valid_availability_zones': _('Optional dictionary where key is Nova availability '
                                       'zone name and value is Cinder availability zone name.'),
