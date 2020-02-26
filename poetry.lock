@@ -1731,6 +1731,20 @@ requests = "*"
 
 [[package]]
 category = "main"
+description = "Lightweight FreeIPA client"
+name = "python-freeipa"
+optional = false
+python-versions = "*"
+version = "0.2.5"
+
+[package.dependencies]
+requests = "*"
+
+[package.extras]
+tests = ["responses"]
+
+[[package]]
+category = "main"
 description = "OpenStack Image API Client Library"
 name = "python-glanceclient"
 optional = false
@@ -2173,7 +2187,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "47b58fa07af72c221f916f402027d389b4c4835ac7f018cc2c966c0d5121b89f"
+content-hash = "84b6037ecb7bbb67b09721343362f1e5c5cfbb5b58f877825c02cecfb845ba9d"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2987,6 +3001,10 @@ python-dateutil = [
 python-digitalocean = [
     {file = "python-digitalocean-1.13.2.macosx-10.13-x86_64.tar.gz", hash = "sha256:06391cf0b253c8b4a5a10b3a4b7b7808b890a1d1e3b43d5ce3b5293a9c77af6b"},
     {file = "python-digitalocean-1.13.2.tar.gz", hash = "sha256:7c8ac24e3e9570d6fa99adc520b9067c8819c267069bb7691e0bccaadbcd8d40"},
+]
+python-freeipa = [
+    {file = "python-freeipa-0.2.5.tar.gz", hash = "sha256:8cae49651177975bd8cf0df73a5ae91b715469217cbae109fd9f51944117e636"},
+    {file = "python_freeipa-0.2.5-py2.py3-none-any.whl", hash = "sha256:7fd28f3c2ff8dd0acd3c52a89d64f2bdcb1565375f5f3c9c09f3668aaef579cd"},
 ]
 python-glanceclient = [
     {file = "python-glanceclient-2.11.1.tar.gz", hash = "sha256:4c06dd38d8c95ef5e0bae72133f067da6ee7b710a10b677855beabd3cc7af50e"},
