@@ -54,11 +54,11 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.OpenStackService
-        required_fields = 'backend_url', 'username', 'password', 'console_type'
+        required_fields = 'backend_url', 'username', 'password',
         extra_field_options = {
             'backend_url': {
                 'label': 'API URL',
-                'default_value': 'http://keystone.example.com:5000/v2.0',
+                'default_value': 'http://keystone.example.com:5000/v3',
             },
             'username': {
                 'default_value': 'admin',
