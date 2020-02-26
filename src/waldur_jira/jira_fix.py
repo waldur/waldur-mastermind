@@ -86,7 +86,10 @@ def add_attachment(manager, issue, path):
 
 
 def service_desk(manager, id):
-    """In Jira v8.7.1 / SD 4.7.1 a service desk id must is an integer. So it needs to use this workaround."""
+    """In Jira v8.7.1 / SD 4.7.1 a Service Desk ID must be an integer.
+    We use a hackish workaround to make it work till Atlassian resolves bug
+    https://jira.atlassian.com/browse/JSDSERVER-4877.
+    """
     try:
         return manager.service_desk(id)
     except JIRAError as e:
