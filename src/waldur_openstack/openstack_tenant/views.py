@@ -626,6 +626,19 @@ class InstanceViewSet(structure_views.ImportableResourceViewSet):
     console_log_serializer_class = serializers.ConsoleLogSerializer
     console_log_permissions = [structure_permissions.is_administrator]
 
+    @decorators.action(detail=True, methods=['delete'])
+    def force_destroy(self, request, uuid=None):
+        """This action completely repeats 'destroy', with the exclusion of validators.
+           Destroy's validators require stopped VM. This requirement has expired.
+           But for compatibility with old documentation, it must be left.
+        """
+        return self.destroy(request, uuid)
+
+    force_destroy_validators = [_has_backups,
+                                core_validators.StateValidator(models.Instance.States.OK,
+                                                               models.Instance.States.ERRED)]
+    force_destroy_serializer_class = destroy_serializer_class
+
 
 class BackupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.Backup.objects.all().order_by('name')

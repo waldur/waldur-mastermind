@@ -83,7 +83,7 @@ class DeleteNodeTask(core_tasks.Task):
         user = auth.get_user_model().objects.get(pk=user_id)
 
         if node.instance:
-            view = InstanceViewSet.as_view({'delete': 'destroy'})
+            view = InstanceViewSet.as_view({'delete': 'force_destroy'})
             response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
 
             if response.status_code != status.HTTP_202_ACCEPTED:
