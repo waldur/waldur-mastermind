@@ -525,6 +525,18 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'detail': _('The change email request has been successfully created.')},
                         status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'])
+    def cancel_change_email(self, request, uuid=None):
+        user = self.get_object()
+        count = core_models.ChangeEmailRequest.objects.filter(user=user).delete()[0]
+
+        if count:
+            msg = _('The change email request has been successfully deleted.')
+        else:
+            msg = _('The change email request has not been found.')
+
+        return Response({'detail': msg}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'])
     def confirm_email(self, request):
         code = request.data.get('code')
