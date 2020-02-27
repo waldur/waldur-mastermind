@@ -7,6 +7,10 @@ deploy:
   on:
     branch: develop
 
+install:
+- pip install poetry.
+- poetry install
+
 - provider: script
   script: bash docker_push.sh $TRAVIS_TAG
   on:
