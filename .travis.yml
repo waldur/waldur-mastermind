@@ -3,6 +3,9 @@ language: python
 services:
 - docker
 
+install:
+- echo "Everything is described in Dockerfile. Overriding default install script."
+
 deploy:
 - provider: script
   script: bash docker_push.sh
