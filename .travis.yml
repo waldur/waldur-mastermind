@@ -6,6 +6,9 @@ services:
 install:
 - echo "Everything is described in Dockerfile. Overriding default install script."
 
+script:
+- echo "No need to run tests, they are run externally."
+
 deploy:
 - provider: script
   script: bash docker_push.sh
