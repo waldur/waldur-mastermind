@@ -10,6 +10,7 @@ LABEL   summary="Waldur Mastermind REST API Image" \
 # CentOS 7 docker image does not define preferred locale.
 # That's why ANSI_X3.4-1968 encoding is used by default.
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 
 # Add tini
 ENV TINI_VERSION v0.16.1
@@ -49,13 +50,9 @@ RUN yum clean all && \
     openldap-devel \
     openssl-devel \
     python3-devel \
-    python3-pip \
     xmlsec1 \
     xmlsec1-openssl \
     zlib-devel \
-    crudini \
-    jq \
-    python2-httpie \
     logrotate \
     mailcap \
     openssl \
@@ -71,8 +68,6 @@ RUN yum clean all && \
     liberation-narrow-fonts && \
     yum clean all && \
     rm -fr /var/cache/*
-
-RUN pip3 install -U pip
 
 RUN mkdir -p /usr/src/waldur
 
