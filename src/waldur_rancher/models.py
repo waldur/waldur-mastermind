@@ -214,3 +214,29 @@ class Catalog(core_models.UuidMixin,
             return 'cluster'
         else:
             return 'project'
+
+    def __str__(self):
+        return self.name
+
+
+class Project(core_models.UuidMixin,
+              core_models.NameMixin,
+              core_models.DescribableMixin,
+              structure_models.TimeStampedModel,
+              core_models.RuntimeStateMixin):
+    backend_id = models.CharField(max_length=255, blank=True)
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True, related_name='+')
+
+    def __str__(self):
+        return self.name
+
+
+class Namespace(core_models.UuidMixin,
+                core_models.NameMixin,
+                structure_models.TimeStampedModel,
+                core_models.RuntimeStateMixin):
+    backend_id = models.CharField(max_length=255, blank=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, related_name='+')
+
+    def __str__(self):
+        return self.name
