@@ -202,6 +202,24 @@ class TenantChangeCredentialsTest(TestCase):
         self.assertEqual(service_settings.username, new_username)
 
 
+class ConfigDriveUpdateTest(TestCase):
+
+    def test_service_settings_config_drive_is_updated(self):
+        # Arrange
+        tenant = openstack_factories.TenantFactory()
+        service_settings = structure_models.ServiceSettings.objects.get(
+            scope=tenant,
+            type=apps.OpenStackTenantConfig.service_name)
+
+        # Act
+        tenant.service_project_link.service.settings.options['config_drive'] = True
+        tenant.service_project_link.service.settings.save()
+
+        # Assert
+        service_settings.refresh_from_db()
+        self.assertEqual(service_settings.options['config_drive'], True)
+
+
 class NetworkHandlerTest(BaseServicePropertyTest):
 
     def test_network_create(self):
