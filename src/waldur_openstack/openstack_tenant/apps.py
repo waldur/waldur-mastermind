@@ -203,6 +203,13 @@ class OpenStackTenantConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.copy_config_drive_to_openstacktenant_service_settings,
+            sender=ServiceSettings,
+            dispatch_uid='openstack_tenant.handlers.'
+                         'copy_config_drive_to_openstacktenant_service_settings',
+        )
+
+        signals.post_save.connect(
             handlers.create_service_from_tenant,
             sender=Tenant,
             dispatch_uid='openstack_tenant.handlers.create_service_from_tenant',

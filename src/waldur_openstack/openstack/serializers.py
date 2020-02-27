@@ -50,6 +50,7 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'dns_nameservers': _('Default value for new subnets DNS name servers. Should be defined as list.'),
         'flavor_exclude_regex': _('Flavors matching this regex expression will not be pulled from the backend.'),
         'create_ha_routers': _('Create highly available Neutron routers.'),
+        'config_drive': _('Indicates whether a config drive enables metadata injection'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):

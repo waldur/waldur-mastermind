@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction, IntegrityError
 
@@ -400,6 +401,18 @@ def copy_flavor_exclude_regex_to_openstacktenant_service_settings(sender, instan
     admin_settings = tenant.service_project_link.service.settings
     instance.options['flavor_exclude_regex'] = admin_settings.options.get('flavor_exclude_regex', '')
     instance.save(update_fields=['options'])
+
+
+def copy_config_drive_to_openstacktenant_service_settings(sender, instance, created=False, **kwargs):
+    if instance.type != openstack_apps.OpenStackConfig.service_name:
+        return
+
+    tenants = openstack_models.Tenant.objects.filter(service_project_link__service__settings=instance)
+    ctype = ContentType.objects.get_for_model(openstack_models.Tenant)
+    tenant_settings = structure_models.ServiceSettings.objects.filter(object_id__in=tenants.values_list('id'), content_type=ctype)
+    for item in tenant_settings:
+        item.options['config_drive'] = instance.options.get('config_drive', False)
+        item.save(update_fields=['options'])
 
 
 def create_service_from_tenant(sender, instance, created=False, **kwargs):
