@@ -225,7 +225,7 @@ class Project(core_models.UuidMixin,
               structure_models.TimeStampedModel,
               core_models.RuntimeStateMixin):
     backend_id = models.CharField(max_length=255, blank=True)
-    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True)
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True, related_name='+')
 
     def __str__(self):
         return self.name
@@ -236,7 +236,7 @@ class Namespace(core_models.UuidMixin,
                 structure_models.TimeStampedModel,
                 core_models.RuntimeStateMixin):
     backend_id = models.CharField(max_length=255, blank=True)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, related_name='+')
 
     def __str__(self):
         return self.name

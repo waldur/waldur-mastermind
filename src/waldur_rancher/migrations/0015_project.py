@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('runtime_state', models.CharField(blank=True, max_length=150, verbose_name='runtime state')),
                 ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('cluster', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='waldur_rancher.Cluster')),
+                ('cluster', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='waldur_rancher.Cluster', related_name='+')),
             ],
             options={
                 'abstract': False,
