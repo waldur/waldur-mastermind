@@ -38,9 +38,19 @@ class CatalogAdmin(admin.ModelAdmin):
         return obj.scope.name
 
 
+class ProjectAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'cluster', 'runtime_state')
+
+
+class NamespaceAdmin(admin.ModelAdmin):
+    list_display = ('name', 'project', 'runtime_state')
+
+
 admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
 admin.site.register(models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Cluster)
 admin.site.register(models.Node)
 admin.site.register(models.RancherUser, RancherUserAdmin)
 admin.site.register(models.Catalog, CatalogAdmin)
+admin.site.register(models.Project, ProjectAdmin)
+admin.site.register(models.Namespace, NamespaceAdmin)

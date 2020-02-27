@@ -47,6 +47,8 @@ class RancherBackend(ServiceBackend):
 
     def pull_service_properties(self):
         self.pull_catalogs()
+        self.pull_projects()
+        self.pull_namespaces()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -417,3 +419,108 @@ class RancherBackend(ServiceBackend):
             return self.client.update_cluster_catalog(catalog.backend_id, spec)
         else:
             return self.client.update_project_catalog(catalog.backend_id, spec)
+
+    def pull_projects(self):
+        remote_projects = self.client.list_projects()
+        local_projects = models.Project.objects.filter(
+            cluster__service_project_link__service__settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(
+            service_project_link__service__settings=self.settings)
+
+        local_cluster_map = {
+            cluster.backend_id: cluster
+            for cluster in local_clusters
+        }
+        remote_project_map = {
+            project['id']: self.remote_project_to_local(project, local_cluster_map)
+            for project in remote_projects
+        }
+        local_project_map = {
+            project.id: project
+            for project in local_projects
+        }
+        remote_project_ids = set(remote_project_map.keys())
+        local_project_ids = set(local_project_map.keys())
+
+        stale_projects = local_project_ids - remote_project_ids
+
+        new_projects = [
+            remote_project_map[project_id]
+            for project_id in remote_project_ids - local_project_ids
+        ]
+
+        existing_projects = remote_project_ids & local_project_ids
+        pulled_fields = {
+            'name', 'description', 'runtime_state', 'cluster',
+        }
+        for project_id in existing_projects:
+            local_project = local_project_map[project_id]
+            remote_project = remote_project_map[project_id]
+            update_pulled_fields(local_project, remote_project, pulled_fields)
+
+        models.Project.objects.bulk_create(new_projects)
+        local_projects.filter(id__in=stale_projects).delete()
+
+    def remote_project_to_local(self, remote_project, local_cluster_map):
+        return models.Project(
+            backend_id=remote_project['id'],
+            name=remote_project['name'],
+            description=remote_project['description'],
+            created=parse_datetime(remote_project['created']),
+            runtime_state=remote_project['state'],
+            cluster=local_cluster_map.get(remote_project['clusterId'])
+        )
+
+    def pull_namespaces(self):
+        local_clusters = models.Cluster.objects.filter(
+            service_project_link__service__settings=self.settings)
+        for cluster in local_clusters:
+            self.pull_cluster_namespaces(cluster)
+
+    def pull_cluster_namespaces(self, cluster):
+        remote_namespaces = self.client.list_namespaces(cluster.backend_id)
+        local_namespaces = models.Namespace.objects.filter(project__cluster=cluster)
+        local_projects = models.Project.objects.filter(cluster=cluster)
+
+        local_project_map = {
+            project.backend_id: project
+            for project in local_projects
+        }
+        remote_namespace_map = {
+            namespace['id']: self.remote_namespace_to_local(namespace, local_project_map)
+            for namespace in remote_namespaces
+        }
+        local_namespace_map = {
+            namespace.id: namespace
+            for namespace in local_namespaces
+        }
+        remote_namespace_ids = set(remote_namespace_map.keys())
+        local_namespace_ids = set(local_namespace_map.keys())
+
+        stale_namespaces = local_namespace_ids - remote_namespace_ids
+
+        new_namespaces = [
+            remote_namespace_map[namespace_id]
+            for namespace_id in remote_namespace_ids - local_namespace_ids
+        ]
+
+        existing_namespaces = remote_namespace_ids & local_namespace_ids
+        pulled_fields = {
+            'name', 'runtime_state', 'project',
+        }
+        for namespace_id in existing_namespaces:
+            local_namespace = local_namespace_map[namespace_id]
+            remote_namespace = remote_namespace_map[namespace_id]
+            update_pulled_fields(local_namespace, remote_namespace, pulled_fields)
+
+        models.Namespace.objects.bulk_create(new_namespaces)
+        local_namespaces.filter(id__in=stale_namespaces).delete()
+
+    def remote_namespace_to_local(self, remote_namespace, local_project_map):
+        return models.Namespace(
+            backend_id=remote_namespace['id'],
+            name=remote_namespace['name'],
+            created=parse_datetime(remote_namespace['created']),
+            runtime_state=remote_namespace['state'],
+            project=local_project_map.get(remote_namespace['projectId'])
+        )

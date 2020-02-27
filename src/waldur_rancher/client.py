@@ -311,3 +311,9 @@ class RancherClient:
 
     def update_project_catalog(self, catalog_id, spec):
         return self._put('projectcatalogs/{0}'.format(catalog_id), json=spec)
+
+    def list_projects(self):
+        return self._get('projects', params={'limit': -1})['data']
+
+    def list_namespaces(self, cluster_id):
+        return self._get(f'cluster/{cluster_id}/namespaces', params={'limit': -1})['data']
