@@ -46,6 +46,10 @@ class NamespaceAdmin(admin.ModelAdmin):
     list_display = ('name', 'project', 'runtime_state')
 
 
+class TemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description', 'catalog', 'runtime_state')
+
+
 admin.site.register(models.RancherService, structure_admin.ServiceAdmin)
 admin.site.register(models.RancherServiceProjectLink, structure_admin.ServiceProjectLinkAdmin)
 admin.site.register(models.Cluster)
@@ -54,3 +58,4 @@ admin.site.register(models.RancherUser, RancherUserAdmin)
 admin.site.register(models.Catalog, CatalogAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.Namespace, NamespaceAdmin)
+admin.site.register(models.Template, TemplateAdmin)

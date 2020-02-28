@@ -2,7 +2,7 @@ import logging
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.fields import JSONField
+from django.contrib.postgres.fields import JSONField, ArrayField
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from model_utils import FieldTracker
@@ -41,7 +41,29 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
         return 'rancher-spl'
 
 
-class Cluster(NewResource):
+class BackendMixin(models.Model):
+    """
+    Mixin to add standard backend_id field.
+    """
+    class Meta:
+        abstract = True
+
+    backend_id = models.CharField(max_length=255, blank=True)
+
+
+class SettingsMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    settings = models.ForeignKey(
+        to='structure.ServiceSettings',
+        on_delete=models.CASCADE,
+        related_name='+',
+        null=True,
+    )
+
+
+class Cluster(SettingsMixin, NewResource):
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)
 
@@ -80,6 +102,7 @@ class Node(core_models.UuidMixin,
            core_models.NameMixin,
            structure_models.StructureModel,
            core_models.StateMixin,
+           BackendMixin,
            structure_models.TimeStampedModel):
 
     class RuntimeStates:
@@ -93,7 +116,6 @@ class Node(core_models.UuidMixin,
     controlplane_role = models.BooleanField(default=False)
     etcd_role = models.BooleanField(default=False)
     worker_role = models.BooleanField(default=False)
-    backend_id = models.CharField(max_length=255, blank=True)
     initial_data = JSONField(blank=True,
                              default=dict,
                              help_text=_('Initial data for instance creating.'))
@@ -144,11 +166,10 @@ class Node(core_models.UuidMixin,
         return self.name
 
 
-class RancherUser(models.Model):
+class RancherUser(BackendMixin):
     user = models.ForeignKey(core_models.User, on_delete=models.PROTECT)
     clusters = models.ManyToManyField(Cluster, through='RancherUserClusterLink')
     settings = models.ForeignKey('structure.ServiceSettings', on_delete=models.PROTECT)
-    backend_id = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
 
     @staticmethod
@@ -177,10 +198,9 @@ class ClusterRole(models.CharField):
         super(ClusterRole, self).__init__(*args, **kwargs)
 
 
-class RancherUserClusterLink(models.Model):
+class RancherUserClusterLink(BackendMixin):
     user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    backend_id = models.CharField(max_length=255, blank=True)
     role = ClusterRole(db_index=True)
 
     class Meta:
@@ -191,12 +211,13 @@ class Catalog(core_models.UuidMixin,
               core_models.NameMixin,
               core_models.DescribableMixin,
               structure_models.TimeStampedModel,
+              BackendMixin,
+              SettingsMixin,
               core_models.RuntimeStateMixin):
     # Rancher supports global, cluster and project scope
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
-    backend_id = models.CharField(max_length=255, blank=True)
     catalog_url = models.URLField()
     branch = models.CharField(max_length=255)
     commit = models.CharField(max_length=40, blank=True)
@@ -223,8 +244,9 @@ class Project(core_models.UuidMixin,
               core_models.NameMixin,
               core_models.DescribableMixin,
               structure_models.TimeStampedModel,
+              BackendMixin,
+              SettingsMixin,
               core_models.RuntimeStateMixin):
-    backend_id = models.CharField(max_length=255, blank=True)
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True, related_name='+')
 
     def __str__(self):
@@ -234,9 +256,25 @@ class Project(core_models.UuidMixin,
 class Namespace(core_models.UuidMixin,
                 core_models.NameMixin,
                 structure_models.TimeStampedModel,
+                BackendMixin,
+                SettingsMixin,
                 core_models.RuntimeStateMixin):
-    backend_id = models.CharField(max_length=255, blank=True)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, related_name='+')
 
     def __str__(self):
         return self.name
+
+
+class Template(core_models.UuidMixin,
+               core_models.NameMixin,
+               core_models.UiDescribableMixin,
+               structure_models.TimeStampedModel,
+               BackendMixin,
+               SettingsMixin,
+               core_models.RuntimeStateMixin):
+    catalog = models.ForeignKey(Catalog, on_delete=models.CASCADE, null=True, related_name='+')
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True, related_name='+')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, related_name='+')
+    project_url = models.URLField(blank=True)
+    default_version = models.CharField(max_length=255)
+    versions = ArrayField(models.CharField(max_length=255))
