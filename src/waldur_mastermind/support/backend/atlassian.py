@@ -130,7 +130,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def get_users(self):
         users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
-        return [models.SupportUser(name=user.displayName, backend_id=user.key) for user in users]
+        return [models.SupportUser(name=user.displayName, backend_id=self.get_user_id(user)) for user in users]
 
     def _get_custom_fields(self, issue):
         args = {}
@@ -223,20 +223,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         issue.resolution_date = backend_issue.fields.resolutiondate or None
 
         def get_support_user_by_field(fields, field_name):
-            support_user = None
             backend_user = getattr(fields, field_name, None)
 
             if backend_user:
-                try:
-                    support_user_backend_key = getattr(backend_user, 'key', None)
-                    if support_user_backend_key:
-                        support_user, _ = models.SupportUser.objects.get_or_create(backend_id=support_user_backend_key)
-
-                except TypeError:
-                    # except TypeError because 'item in self.raw' in here jira/resources.py:173
-                    pass
-
-            return support_user
+                return self.get_or_create_support_user(backend_user)
 
         impact_field_id = self.get_field_id_by_name(self.issue_settings['impact_field'])
         impact = getattr(backend_issue.fields, impact_field_id, None)
@@ -251,24 +241,31 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if reporter:
             issue.reporter = reporter
 
-    def _get_author(self, resource):
-        backend_id = resource.raw.get('author', {}).get('key')
-        author, _ = models.SupportUser.objects.get_or_create(backend_id=backend_id)
-        return author
+    def get_or_create_support_user(self, user):
+        user_id = self.get_user_id(user)
+        if user_id:
+            author, _ = models.SupportUser.objects.get_or_create(backend_id=user_id)
+            return author
+
+    def get_user_id(self, user):
+        try:
+            return user.key
+        except AttributeError:
+            return user.accountId
+        except TypeError:
+            return
 
     def _backend_comment_to_comment(self, backend_comment, comment):
         comment.update_message(backend_comment.body)
-        author = self._get_author(backend_comment)
-        comment.author = author
+        comment.author = self.get_or_create_support_user(backend_comment.author)
         internal = self._get_property('comment', backend_comment.id, 'sd.public.comment')
         comment.is_public = not internal.get('value', {}).get('internal', False)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
-        author = self._get_author(backend_attachment)
         attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
         attachment.file_size = backend_attachment.size
         attachment.created = dateutil.parser.parse(backend_attachment.created)
-        attachment.author = author
+        attachment.author = self.get_or_create_support_user(backend_attachment.author)
 
     @reraise_exceptions
     def pull_request_types(self):
