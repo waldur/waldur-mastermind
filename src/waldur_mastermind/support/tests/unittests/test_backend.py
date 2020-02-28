@@ -215,7 +215,7 @@ class CommentUpdateTest(BaseBackendTest):
         super(CommentUpdateTest, self).setUp()
         self.mocked_jira.comment.return_value = mock.Mock(**{
             'body': '[Alice Lebowski]: New comment description',
-            'raw': {'author': {'key': 'alice@lebowski.com'}},
+            'author': mock.Mock(**{'key': 'alice@lebowski.com'}),
         })
         self.mocked_jira._session.get.return_value.json.return_value = {
             'value': {
