@@ -1,7 +1,7 @@
 import datetime
-
-from django.utils.dateparse import parse_datetime
 import logging
+
+from dateutil.parser import parse as parse_datetime
 
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -29,6 +29,26 @@ def is_interval_in_schedules(interval, schedules):
                 return True
 
     return False
+
+
+def get_offering_bookings(offering):
+    """
+    OK means that booking request has been accepted.
+    CREATING means that booking request has been made but not yet confirmed.
+    If it is rejected, the time slot could be freed up.
+    But it is more end-user friendly if choices that you see are
+    always available (if some time slots at risk, better to conceal them).
+    """
+    States = marketplace_models.Resource.States
+    schedules = marketplace_models.Resource.objects.filter(
+        offering=offering,
+        state__in=(States.OK, States.CREATING),
+    ).values_list('attributes__schedules', flat=True)
+    return [
+        TimePeriod(period['start'], period['end'])
+        for schedule in schedules if schedule
+        for period in schedule if period
+    ]
 
 
 def get_info_about_upcoming_bookings():

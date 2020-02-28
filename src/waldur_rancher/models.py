@@ -42,10 +42,6 @@ class RancherServiceProjectLink(structure_models.ServiceProjectLink):
 
 
 class Cluster(NewResource):
-
-    class RuntimeStates:
-        ACTIVE = 'active'
-
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)
 
@@ -68,12 +64,6 @@ class Cluster(NewResource):
         blank=True,
     )
     runtime_state = models.CharField(max_length=255, blank=True)
-    initial_data = JSONField(blank=True,
-                             default=dict,
-                             help_text=_('Initial data for instance creating.'))
-
-    class Meta:
-        unique_together = (('service_project_link', 'backend_id'), ('service_project_link', 'name'))
 
     @classmethod
     def get_url_name(cls):
@@ -224,3 +214,29 @@ class Catalog(core_models.UuidMixin,
             return 'cluster'
         else:
             return 'project'
+
+    def __str__(self):
+        return self.name
+
+
+class Project(core_models.UuidMixin,
+              core_models.NameMixin,
+              core_models.DescribableMixin,
+              structure_models.TimeStampedModel,
+              core_models.RuntimeStateMixin):
+    backend_id = models.CharField(max_length=255, blank=True)
+    cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True, related_name='+')
+
+    def __str__(self):
+        return self.name
+
+
+class Namespace(core_models.UuidMixin,
+                core_models.NameMixin,
+                structure_models.TimeStampedModel,
+                core_models.RuntimeStateMixin):
+    backend_id = models.CharField(max_length=255, blank=True)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, related_name='+')
+
+    def __str__(self):
+        return self.name

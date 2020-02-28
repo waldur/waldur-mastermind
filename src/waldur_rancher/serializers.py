@@ -183,9 +183,18 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         nodes = attrs.get('node_set')
         name = attrs.get('name')
         spl = attrs.get('service_project_link')
+
+        clusters = models.Cluster.objects.filter(
+            service_project_link__service__settings=spl.service.settings,
+            name=name
+        )
+        if self.instance:
+            clusters = clusters.exclude(id=self.instance.id)
+        if clusters.exists():
+            raise serializers.ValidationError(_('Name is not unique.'))
+
         tenant_settings = attrs.get('tenant_settings')
-        utils.expand_added_nodes(nodes, spl, tenant_settings, name,
-                                 self.initial_data['nodes'], self.context['request'].user.id)
+        utils.expand_added_nodes(nodes, spl, tenant_settings, name)
         return super(ClusterSerializer, self).validate(attrs)
 
     def validate_nodes(self, nodes):
@@ -266,8 +275,7 @@ class CreateNodeSerializer(BaseNodeSerializer):
         cluster = attrs.get('cluster')
         spl = cluster.service_project_link
         node = attrs
-        utils.expand_added_nodes([node], spl, cluster.tenant_settings, cluster.name,
-                                 [self.initial_data], self.context['request'].user.id)
+        utils.expand_added_nodes([node], spl, cluster.tenant_settings, cluster.name)
         return attrs
 
 

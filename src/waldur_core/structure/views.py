@@ -29,7 +29,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.utils import datetime_to_timestamp, sort_dict
+from waldur_core.core.utils import datetime_to_timestamp, sort_dict, is_uuid_like
 from waldur_core.logging import models as logging_models
 from waldur_core.quotas.models import QuotaModelMixin, Quota
 from waldur_core.structure import (
@@ -525,10 +525,22 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'detail': _('The change email request has been successfully created.')},
                         status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'])
+    def cancel_change_email(self, request, uuid=None):
+        user = self.get_object()
+        count = core_models.ChangeEmailRequest.objects.filter(user=user).delete()[0]
+
+        if count:
+            msg = _('The change email request has been successfully deleted.')
+        else:
+            msg = _('The change email request has not been found.')
+
+        return Response({'detail': msg}, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'])
     def confirm_email(self, request):
         code = request.data.get('code')
-        if not code:
+        if not code or not is_uuid_like(code):
             raise ValidationError(_('The confirmation code is required.'))
 
         change_request = get_object_or_404(core_models.ChangeEmailRequest, uuid=code)

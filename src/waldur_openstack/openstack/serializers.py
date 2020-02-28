@@ -37,6 +37,9 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'tenant_name': '',
         'availability_zone': _('Default availability zone for provisioned instances'),
+        'console_type': _('The type of remote console. '
+                          'The valid values are novnc, xvpvnc, rdp-html5, '
+                          'spice-html5, serial, and webmks.'),
         'volume_availability_zone_name': _('Default availability zone name for provisioned volumes'),
         'valid_availability_zones': _('Optional dictionary where key is Nova availability '
                                       'zone name and value is Cinder availability zone name.'),
@@ -47,15 +50,16 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
         'dns_nameservers': _('Default value for new subnets DNS name servers. Should be defined as list.'),
         'flavor_exclude_regex': _('Flavors matching this regex expression will not be pulled from the backend.'),
         'create_ha_routers': _('Create highly available Neutron routers.'),
+        'config_drive': _('Indicates whether a config drive enables metadata injection'),
     }
 
     class Meta(structure_serializers.BaseServiceSerializer.Meta):
         model = models.OpenStackService
-        required_fields = 'backend_url', 'username', 'password', 'console_type'
+        required_fields = 'backend_url', 'username', 'password',
         extra_field_options = {
             'backend_url': {
                 'label': 'API URL',
-                'default_value': 'http://keystone.example.com:5000/v2.0',
+                'default_value': 'http://keystone.example.com:5000/v3',
             },
             'username': {
                 'default_value': 'admin',

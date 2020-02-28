@@ -17,7 +17,6 @@ services:
       context: api
     volumes:
       - ../:/mnt
-      - ./pip-cache/:/tmp/pip-cache/
     links:
       - db
 

@@ -1,3 +1,4 @@
+from django.conf import settings as conf_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
@@ -8,7 +9,7 @@ from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 
-from . import models, signals, client, utils
+from . import models, signals, client
 
 
 class RancherBackend(ServiceBackend):
@@ -46,6 +47,8 @@ class RancherBackend(ServiceBackend):
 
     def pull_service_properties(self):
         self.pull_catalogs()
+        self.pull_projects()
+        self.pull_namespaces()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -61,9 +64,13 @@ class RancherBackend(ServiceBackend):
         if cluster.backend_id:
             self.client.delete_cluster(cluster.backend_id)
 
+        cluster.delete()
+
     def delete_node(self, node):
         if node.backend_id:
             self.client.delete_node(node.backend_id)
+
+        node.delete()
 
     def update_cluster(self, cluster):
         backend_cluster = self._cluster_to_backend_cluster(cluster)
@@ -78,13 +85,7 @@ class RancherBackend(ServiceBackend):
         return {'name': cluster.name}
 
     def _backend_node_to_node(self, backend_node):
-        return {
-            'backend_id': backend_node['id'],
-            'name': backend_node['requestedHostname'],
-            'controlplane_role': backend_node.get('controlPlane', False),
-            'etcd_role': backend_node.get('etcd', False),
-            'worker_role': backend_node.get('worker', False),
-        }
+        return {'backend_id': backend_node['nodeId'], 'name': backend_node['hostnameOverride']}
 
     def get_clusters_for_import(self):
         cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
@@ -106,34 +107,35 @@ class RancherBackend(ServiceBackend):
         backend_cluster = backend_cluster or self.client.get_cluster(cluster.backend_id)
         self._backend_cluster_to_cluster(backend_cluster, cluster)
         cluster.save()
-        backend_nodes = self.get_cluster_nodes(cluster.backend_id)
+        backend_nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
 
         for backend_node in backend_nodes:
+            roles = backend_node.get('role', [])
+
             # If the node has not been requested from Waldur, so it will be created
             node, created = models.Node.objects.get_or_create(
-                name=backend_node['name'],
+                name=backend_node.get('hostnameOverride'),
                 cluster=cluster,
                 defaults=dict(
-                    backend_id=backend_node['backend_id'],
-                    controlplane_role=backend_node['controlplane_role'],
-                    etcd_role=backend_node['etcd_role'],
-                    worker_role=backend_node['worker_role'],
+                    state=models.Node.States.OK,
+                    backend_id=backend_node.get('nodeId'),
+                    controlplane_role='controlplane' in roles,
+                    etcd_role='etcd' in roles,
+                    worker_role='worker' in roles
                 )
             )
 
             if not node.backend_id:
                 # If the node has been requested from Waldur, but it has not been synchronized
-                node.backend_id = backend_node['backend_id']
-                node.controlplane_role = backend_node['controlplane_role']
-                node.etcd_role = backend_node['etcd_role']
-                node.worker_role = backend_node['worker_role']
+                node.state = models.Node.States.OK
+                node.backend_id = backend_node.get('nodeId')
+                node.controlplane_role = 'controlplane' in roles
+                node.etcd_role = 'etcd' in roles
+                node.worker_role = 'worker' in roles
                 node.save()
 
             # Update details in all cases.
             self.update_node_details(node)
-
-        # Update nodes states.
-        utils.update_cluster_nodes_states(cluster.id)
 
     def pull_cluster_runtime_state(self, cluster):
         backend_cluster = self.client.get_cluster(cluster.backend_id)
@@ -143,7 +145,9 @@ class RancherBackend(ServiceBackend):
     def check_cluster_creating(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
-        if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
+        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
+            cluster.state = models.Cluster.States.OK
+            cluster.save()
             return
 
         for node in cluster.node_set.filter(Q(controlplane_role=True) | Q(etcd_role=True)):
@@ -164,14 +168,17 @@ class RancherBackend(ServiceBackend):
         cluster.error_message = 'The cluster is not connected with any ' \
                                 'non-failed VM\'s with \'controlplane\' or \'etcd\' roles.'
         cluster.runtime_state = 'error'
+        cluster.state = core_models.StateMixin.States.ERRED
+        cluster.save()
 
     def get_cluster_nodes(self, backend_id):
-        nodes = self.client.get_cluster_nodes(backend_id)
+        backend_cluster = self.client.get_cluster(backend_id)
+        nodes = backend_cluster.get('appliedSpec', {}).get('rancherKubernetesEngineConfig', {}).get('nodes', [])
         return [self._backend_node_to_node(node) for node in nodes]
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
+        return backend_node['state'] == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
 
     def update_node_details(self, node):
         if not node.backend_id:
@@ -223,6 +230,11 @@ class RancherBackend(ServiceBackend):
         update_node_field('requested', 'pods', field='pods_allocated')
         update_node_field('allocatable', 'pods', field='pods_total')
         update_node_field('state', field='runtime_state')
+
+        if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
+            node.state = models.Node.States.OK
+        else:
+            node.state = models.Node.States.ERRED
         return node.save()
 
     def create_user(self, user):
@@ -244,6 +256,12 @@ class RancherBackend(ServiceBackend):
             instance=user,
             password=password,
         )
+
+    def delete_user(self, user):
+        if user.backend_id:
+            self.client.delete_user(user_id=user.backend_id)
+
+        user.delete()
 
     def block_user(self, user):
         if user.is_active:
@@ -277,6 +295,8 @@ class RancherBackend(ServiceBackend):
     def delete_cluster_role(self, link):
         if link.backend_id:
             self.client.delete_cluster_role(cluster_role_id=link.backend_id)
+
+        link.delete()
 
     def pull_catalogs(self):
         self.pull_global_catalogs()
@@ -399,3 +419,108 @@ class RancherBackend(ServiceBackend):
             return self.client.update_cluster_catalog(catalog.backend_id, spec)
         else:
             return self.client.update_project_catalog(catalog.backend_id, spec)
+
+    def pull_projects(self):
+        remote_projects = self.client.list_projects()
+        local_projects = models.Project.objects.filter(
+            cluster__service_project_link__service__settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(
+            service_project_link__service__settings=self.settings)
+
+        local_cluster_map = {
+            cluster.backend_id: cluster
+            for cluster in local_clusters
+        }
+        remote_project_map = {
+            project['id']: self.remote_project_to_local(project, local_cluster_map)
+            for project in remote_projects
+        }
+        local_project_map = {
+            project.id: project
+            for project in local_projects
+        }
+        remote_project_ids = set(remote_project_map.keys())
+        local_project_ids = set(local_project_map.keys())
+
+        stale_projects = local_project_ids - remote_project_ids
+
+        new_projects = [
+            remote_project_map[project_id]
+            for project_id in remote_project_ids - local_project_ids
+        ]
+
+        existing_projects = remote_project_ids & local_project_ids
+        pulled_fields = {
+            'name', 'description', 'runtime_state', 'cluster',
+        }
+        for project_id in existing_projects:
+            local_project = local_project_map[project_id]
+            remote_project = remote_project_map[project_id]
+            update_pulled_fields(local_project, remote_project, pulled_fields)
+
+        models.Project.objects.bulk_create(new_projects)
+        local_projects.filter(id__in=stale_projects).delete()
+
+    def remote_project_to_local(self, remote_project, local_cluster_map):
+        return models.Project(
+            backend_id=remote_project['id'],
+            name=remote_project['name'],
+            description=remote_project['description'],
+            created=parse_datetime(remote_project['created']),
+            runtime_state=remote_project['state'],
+            cluster=local_cluster_map.get(remote_project['clusterId'])
+        )
+
+    def pull_namespaces(self):
+        local_clusters = models.Cluster.objects.filter(
+            service_project_link__service__settings=self.settings)
+        for cluster in local_clusters:
+            self.pull_cluster_namespaces(cluster)
+
+    def pull_cluster_namespaces(self, cluster):
+        remote_namespaces = self.client.list_namespaces(cluster.backend_id)
+        local_namespaces = models.Namespace.objects.filter(project__cluster=cluster)
+        local_projects = models.Project.objects.filter(cluster=cluster)
+
+        local_project_map = {
+            project.backend_id: project
+            for project in local_projects
+        }
+        remote_namespace_map = {
+            namespace['id']: self.remote_namespace_to_local(namespace, local_project_map)
+            for namespace in remote_namespaces
+        }
+        local_namespace_map = {
+            namespace.id: namespace
+            for namespace in local_namespaces
+        }
+        remote_namespace_ids = set(remote_namespace_map.keys())
+        local_namespace_ids = set(local_namespace_map.keys())
+
+        stale_namespaces = local_namespace_ids - remote_namespace_ids
+
+        new_namespaces = [
+            remote_namespace_map[namespace_id]
+            for namespace_id in remote_namespace_ids - local_namespace_ids
+        ]
+
+        existing_namespaces = remote_namespace_ids & local_namespace_ids
+        pulled_fields = {
+            'name', 'runtime_state', 'project',
+        }
+        for namespace_id in existing_namespaces:
+            local_namespace = local_namespace_map[namespace_id]
+            remote_namespace = remote_namespace_map[namespace_id]
+            update_pulled_fields(local_namespace, remote_namespace, pulled_fields)
+
+        models.Namespace.objects.bulk_create(new_namespaces)
+        local_namespaces.filter(id__in=stale_namespaces).delete()
+
+    def remote_namespace_to_local(self, remote_namespace, local_project_map):
+        return models.Namespace(
+            backend_id=remote_namespace['id'],
+            name=remote_namespace['name'],
+            created=parse_datetime(remote_namespace['created']),
+            runtime_state=remote_namespace['state'],
+            project=local_project_map.get(remote_namespace['projectId'])
+        )

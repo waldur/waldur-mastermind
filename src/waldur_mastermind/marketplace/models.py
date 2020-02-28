@@ -208,8 +208,8 @@ class CategoryComponent(BaseComponent):
 class CategoryComponentUsage(ScopeMixin):
     component = models.ForeignKey(on_delete=models.CASCADE, to=CategoryComponent)
     date = models.DateField()
-    reported_usage = models.PositiveIntegerField(null=True)
-    fixed_usage = models.PositiveIntegerField(null=True)
+    reported_usage = models.BigIntegerField(null=True)
+    fixed_usage = models.BigIntegerField(null=True)
     objects = managers.MixinManager('scope')
 
     def __str__(self):
@@ -505,15 +505,12 @@ class PlanComponent(models.Model):
     class Meta:
         unique_together = ('plan', 'component')
 
-    PRICE_MAX_DIGITS = 15
-    PRICE_DECIMAL_PLACES = 7
-
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, related_name='components')
     component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent, related_name='components', null=True)
     amount = models.PositiveIntegerField(default=0)
     price = models.DecimalField(default=0,
-                                max_digits=PRICE_MAX_DIGITS,
-                                decimal_places=PRICE_DECIMAL_PLACES,
+                                max_digits=common_mixins.PRICE_MAX_DIGITS,
+                                decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
                                 validators=[MinValueValidator(Decimal('0'))],
                                 verbose_name=_('Price per unit per billing period.'))
     tracker = FieldTracker()
@@ -968,8 +965,8 @@ class ComponentQuota(models.Model):
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='quotas')
     component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
-    limit = models.PositiveIntegerField(default=-1)
-    usage = models.PositiveIntegerField(default=0)
+    limit = models.BigIntegerField(default=-1)
+    usage = models.BigIntegerField(default=0)
 
     class Meta:
         unique_together = ('resource', 'component')
@@ -984,7 +981,7 @@ class ComponentUsage(TimeStampedModel,
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource, related_name='usages')
     component = models.ForeignKey(on_delete=models.CASCADE, to=OfferingComponent,
                                   limit_choices_to={'billing_type': OfferingComponent.BillingTypes.USAGE})
-    usage = models.PositiveIntegerField(default=0)
+    usage = models.BigIntegerField(default=0)
     date = models.DateTimeField()
     plan_period = models.ForeignKey(on_delete=models.CASCADE, to='ResourcePlanPeriod', related_name='components', null=True)
     billing_period = models.DateField()

@@ -130,7 +130,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
         except get_user_model().DoesNotExist:
             return username
         raise forms.ValidationError(
-            self.error_messages['duplicate_username'],
+            _('Username is not unique.'),
             code='duplicate_username',
         )
 

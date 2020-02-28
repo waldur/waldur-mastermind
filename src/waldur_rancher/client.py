@@ -184,9 +184,6 @@ class RancherClient:
     def get_cluster(self, cluster_id):
         return self._get('clusters/{0}'.format(cluster_id))
 
-    def get_cluster_nodes(self, cluster_id):
-        return self._get('clusters/{0}/nodes'.format(cluster_id))['data']
-
     def create_cluster(self, cluster_name):
         return self._post('clusters', json={'name': cluster_name, 'rancherKubernetesEngineConfig': {}})
 
@@ -314,3 +311,9 @@ class RancherClient:
 
     def update_project_catalog(self, catalog_id, spec):
         return self._put('projectcatalogs/{0}'.format(catalog_id), json=spec)
+
+    def list_projects(self):
+        return self._get('projects', params={'limit': -1})['data']
+
+    def list_namespaces(self, cluster_id):
+        return self._get(f'cluster/{cluster_id}/namespaces', params={'limit': -1})['data']

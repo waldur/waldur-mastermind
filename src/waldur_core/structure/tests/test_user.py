@@ -667,6 +667,16 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
             [self.user.changeemailrequest.email]
         )
 
+    def test_cancel_change_email(self):
+        self.client.post(self.url, self.valid_payload)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.changeemailrequest)
+
+        cancel_url = factories.UserFactory.get_url(self.user, 'cancel_change_email')
+        self.client.post(cancel_url)
+        self.user.refresh_from_db()
+        self.assertFalse(getattr(self.user, 'changeemailrequest', False))
+
 
 @mock.patch('waldur_core.structure.handlers.event_logger')
 class NotificationsProfileChangesTest(test.APITransactionTestCase):

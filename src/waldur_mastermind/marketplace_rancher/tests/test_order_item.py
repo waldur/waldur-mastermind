@@ -1,5 +1,3 @@
-import mock
-
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
@@ -17,8 +15,7 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
 
-    @mock.patch('waldur_rancher.views.executors')
-    def test_resource_is_created_when_order_item_is_processed(self, mock_executors):
+    def test_resource_is_created_when_order_item_is_processed(self):
         service = rancher_factories.RancherServiceFactory(customer=self.fixture.customer)
         spl = rancher_factories.RancherServiceProjectLinkFactory(project=self.fixture.project, service=service)
         service_settings = spl.service.settings

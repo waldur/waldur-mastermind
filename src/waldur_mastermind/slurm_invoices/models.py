@@ -21,9 +21,6 @@ class SlurmPackage(common_mixins.ProductCodeMixin,
     class Permissions:
         customer_path = 'service_settings__customer'
 
-    PRICE_MAX_DIGITS = 14
-    PRICE_DECIMAL_PLACES = 10
-
     service_settings = models.OneToOneField(structure_models.ServiceSettings,
                                             related_name='+',
                                             limit_choices_to={'type': 'SLURM'},
@@ -31,18 +28,18 @@ class SlurmPackage(common_mixins.ProductCodeMixin,
 
     cpu_price = models.DecimalField(default=0,
                                     verbose_name=_('Price for CPU hour'),
-                                    max_digits=PRICE_MAX_DIGITS,
-                                    decimal_places=PRICE_DECIMAL_PLACES,
+                                    max_digits=common_mixins.PRICE_MAX_DIGITS,
+                                    decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
                                     validators=[MinValueValidator(Decimal('0'))])
 
     gpu_price = models.DecimalField(default=0,
                                     verbose_name=_('Price for GPU hour'),
-                                    max_digits=PRICE_MAX_DIGITS,
-                                    decimal_places=PRICE_DECIMAL_PLACES,
+                                    max_digits=common_mixins.PRICE_MAX_DIGITS,
+                                    decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
                                     validators=[MinValueValidator(Decimal('0'))])
 
     ram_price = models.DecimalField(default=0,
                                     verbose_name=_('Price for GB RAM'),
-                                    max_digits=PRICE_MAX_DIGITS,
-                                    decimal_places=PRICE_DECIMAL_PLACES,
+                                    max_digits=common_mixins.PRICE_MAX_DIGITS,
+                                    decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
                                     validators=[MinValueValidator(Decimal('0'))])

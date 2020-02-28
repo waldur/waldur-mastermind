@@ -5,21 +5,13 @@
 *.egg-info
 *.pyc
 *.mo
-db.sqlite3
-*.rpm
 .DS_Store
 src/waldur_core/server/settings.py
 
+# Editor artifacts
 /.idea
 /.project
 /.pydevproject
-/.settings
-/.sublime
-
-
-# Editor artifacts
-# vim
-*.sw*
 
 # Testing artifacts
 
@@ -27,6 +19,7 @@ TEST-*.xml
 coverage.xml
 test_report.xml
 .cache/
+.pytest_cache/
 
 # documentation
 docs/_build/

@@ -7,6 +7,7 @@ from django.contrib import admin
 from django.forms.models import BaseInlineFormSet
 from django.utils.translation import ugettext_lazy as _
 
+from waldur_mastermind.common import mixins as common_mixins
 from waldur_core.core import admin as core_admin
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.packages import models, utils
@@ -76,7 +77,7 @@ class PackageComponentForm(forms.ModelForm):
         monthly_price = self.cleaned_data['monthly_price']
         amount = self.cleaned_data['amount']
 
-        price_min = 10 ** -models.PackageComponent.PRICE_DECIMAL_PLACES
+        price_min = 10 ** -common_mixins.PRICE_DECIMAL_PLACES
         monthly_price_min = price_min * 30 * amount
         if monthly_price < monthly_price_min and monthly_price != 0:
             raise forms.ValidationError(_('Monthly price for "%(type)s" should be greater than %(min)s or equal to 0') % {
@@ -84,7 +85,7 @@ class PackageComponentForm(forms.ModelForm):
                 'min': monthly_price_min,
             })
 
-        price_max = 10 ** (models.PackageComponent.PRICE_MAX_DIGITS - models.PackageComponent.PRICE_DECIMAL_PLACES)
+        price_max = 10 ** (common_mixins.PRICE_MAX_DIGITS - common_mixins.PRICE_DECIMAL_PLACES)
         monthly_price_max = price_max * 30 * amount
         if monthly_price > monthly_price_max:
             raise forms.ValidationError(_('Monthly price for "%(type)s" should be lower than %(max)s') % {

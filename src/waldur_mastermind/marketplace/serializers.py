@@ -28,6 +28,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.tasks import connect_shared_settings
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common import exceptions
+from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.marketplace.permissions import check_availability_of_auto_approving
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.support import serializers as support_serializers
@@ -146,8 +147,8 @@ class CategorySerializer(ProtectedMediaSerializerMixin,
 
 PriceSerializer = serializers.DecimalField(
     min_value=0,
-    max_digits=models.PlanComponent.PRICE_MAX_DIGITS,
-    decimal_places=models.PlanComponent.PRICE_DECIMAL_PLACES,
+    max_digits=common_mixins.PRICE_MAX_DIGITS,
+    decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
 )
 
 
