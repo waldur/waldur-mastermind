@@ -371,7 +371,8 @@ class ClusterImportResourceTest(BaseProjectImportTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_backend_cluster_cannot_be_imported_if_it_is_registered_in_waldur(self):
-        cluster = factories.ClusterFactory(service_project_link=self.fixture.spl)
+        cluster = factories.ClusterFactory(settings=self.fixture.settings,
+                                           service_project_link=self.fixture.spl)
 
         payload = {
             'backend_id': cluster.backend_id,

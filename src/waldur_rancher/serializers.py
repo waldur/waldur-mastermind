@@ -184,8 +184,10 @@ class ClusterSerializer(structure_serializers.BaseResourceSerializer):
         name = attrs.get('name')
         spl = attrs.get('service_project_link')
 
+        attrs['settings'] = spl.service.settings
+
         clusters = models.Cluster.objects.filter(
-            service_project_link__service__settings=spl.service.settings,
+            settings=spl.service.settings,
             name=name
         )
         if self.instance:
@@ -248,8 +250,8 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         instance = attrs.get('instance')
 
         if models.Node.objects.filter(
-                object_id=instance.id,
-                content_type=ContentType.objects.get_for_model(instance)
+            object_id=instance.id,
+            content_type=ContentType.objects.get_for_model(instance)
         ).exists():
             raise serializers.ValidationError({'instance': 'The selected instance is already in use.'})
 
@@ -318,7 +320,7 @@ class ClusterImportSerializer(ClusterImportableSerializer):
         backend_id = validated_data['backend_id']
 
         if models.Cluster.objects.filter(
-            service_project_link__service__settings=service_project_link.service.settings,
+            settings=service_project_link.service.settings,
             backend_id=backend_id
         ).exists():
             raise serializers.ValidationError({'backend_id': _('Cluster has been imported already.')})

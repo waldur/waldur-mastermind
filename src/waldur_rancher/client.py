@@ -317,3 +317,6 @@ class RancherClient:
 
     def list_namespaces(self, cluster_id):
         return self._get(f'cluster/{cluster_id}/namespaces', params={'limit': -1})['data']
+
+    def list_templates(self):
+        return self._get('templates', params={'limit': -1})['data']

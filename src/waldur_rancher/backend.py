@@ -49,6 +49,7 @@ class RancherBackend(ServiceBackend):
         self.pull_catalogs()
         self.pull_projects()
         self.pull_namespaces()
+        self.pull_templates()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -88,7 +89,7 @@ class RancherBackend(ServiceBackend):
         return {'backend_id': backend_node['nodeId'], 'name': backend_node['hostnameOverride']}
 
     def get_clusters_for_import(self):
-        cur_clusters = set(models.Cluster.objects.filter(service_project_link__service__settings=self.settings)
+        cur_clusters = set(models.Cluster.objects.filter(settings=self.settings)
                            .values_list('backend_id', flat=True))
         backend_clusters = self.client.list_clusters()
         return filter(lambda c: c['id'] not in cur_clusters, backend_clusters)
@@ -99,7 +100,9 @@ class RancherBackend(ServiceBackend):
             backend_id=backend_id,
             service_project_link=service_project_link,
             state=models.Cluster.States.OK,
-            runtime_state=backend_cluster['state'])
+            runtime_state=backend_cluster['state'],
+            settings=self.settings,
+        )
         self.pull_cluster(cluster, backend_cluster)
         return cluster
 
@@ -309,7 +312,7 @@ class RancherBackend(ServiceBackend):
 
     def pull_cluster_catalogs(self):
         remote_catalogs = self.client.list_cluster_catalogs()
-        for cluster in models.Cluster.objects.filter(service_project_link__service__settings=self.settings):
+        for cluster in models.Cluster.objects.filter(settings=self.settings):
             self.pull_catalogs_for_scope(remote_catalogs, cluster)
 
     def pull_catalogs_for_scope(self, remote_catalogs, scope):
@@ -364,6 +367,7 @@ class RancherBackend(ServiceBackend):
             username=remote_catalog.get('username', ''),
             password=remote_catalog.get('password', ''),
             runtime_state=remote_catalog['state'],
+            settings=self.settings,
         )
 
     def refresh_catalog(self, catalog):
@@ -422,10 +426,8 @@ class RancherBackend(ServiceBackend):
 
     def pull_projects(self):
         remote_projects = self.client.list_projects()
-        local_projects = models.Project.objects.filter(
-            cluster__service_project_link__service__settings=self.settings)
-        local_clusters = models.Cluster.objects.filter(
-            service_project_link__service__settings=self.settings)
+        local_projects = models.Project.objects.filter(settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
 
         local_cluster_map = {
             cluster.backend_id: cluster
@@ -468,12 +470,12 @@ class RancherBackend(ServiceBackend):
             description=remote_project['description'],
             created=parse_datetime(remote_project['created']),
             runtime_state=remote_project['state'],
-            cluster=local_cluster_map.get(remote_project['clusterId'])
+            cluster=local_cluster_map.get(remote_project['clusterId']),
+            settings=self.settings,
         )
 
     def pull_namespaces(self):
-        local_clusters = models.Cluster.objects.filter(
-            service_project_link__service__settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
         for cluster in local_clusters:
             self.pull_cluster_namespaces(cluster)
 
@@ -522,5 +524,75 @@ class RancherBackend(ServiceBackend):
             name=remote_namespace['name'],
             created=parse_datetime(remote_namespace['created']),
             runtime_state=remote_namespace['state'],
-            project=local_project_map.get(remote_namespace['projectId'])
+            project=local_project_map.get(remote_namespace['projectId']),
+            settings=self.settings,
+        )
+
+    def pull_templates(self):
+        remote_templates = self.client.list_templates()
+        local_templates = models.Template.objects.filter(settings=self.settings)
+        local_catalogs = models.Catalog.objects.filter(settings=self.settings)
+        local_clusters = models.Cluster.objects.filter(settings=self.settings)
+        local_projects = models.Project.objects.filter(settings=self.settings)
+
+        local_catalog_map = {
+            catalog.backend_id: catalog
+            for catalog in local_catalogs
+        }
+        local_cluster_map = {
+            cluster.backend_id: cluster
+            for cluster in local_clusters
+        }
+        local_project_map = {
+            project.id: project
+            for project in local_projects
+        }
+        local_template_map = {
+            template.id: template
+            for template in local_templates
+        }
+        remote_template_map = {
+            template['id']: self.remote_template_to_local(
+                template, local_catalog_map, local_cluster_map, local_project_map)
+            for template in remote_templates
+        }
+        remote_template_ids = set(remote_template_map.keys())
+        local_template_ids = set(local_template_map.keys())
+
+        stale_templates = local_template_ids - remote_template_ids
+
+        new_templates = [
+            remote_template_map[template_id]
+            for template_id in remote_template_ids - local_template_ids
+        ]
+
+        existing_templates = remote_template_ids & local_template_ids
+        pulled_fields = {
+            'name', 'description', 'runtime_state', 'project_url', 'icon_url',
+            'default_version', 'versions', 'catalog', 'cluster', 'project',
+        }
+        for template_id in existing_templates:
+            local_template = local_template_map[template_id]
+            remote_template = remote_template_map[template_id]
+            update_pulled_fields(local_template, remote_template, pulled_fields)
+
+        models.Template.objects.bulk_create(new_templates)
+        local_templates.filter(id__in=stale_templates).delete()
+
+    def remote_template_to_local(self, remote_template, local_catalog_map,
+                                 local_cluster_map, local_project_map):
+        return models.Template(
+            backend_id=remote_template['id'],
+            name=remote_template['name'],
+            description=remote_template['description'],
+            created=parse_datetime(remote_template['created']),
+            runtime_state=remote_template['state'],
+            icon_url=remote_template['links']['icon'],
+            project_url=remote_template.get('projectURL', ''),
+            default_version=remote_template['defaultVersion'],
+            versions=list(remote_template['versionLinks'].keys()),
+            catalog=local_catalog_map.get(remote_template['catalogId']),
+            cluster=local_cluster_map.get(remote_template['clusterId']),
+            project=local_project_map.get(remote_template['projectId']),
+            settings=self.settings,
         )
