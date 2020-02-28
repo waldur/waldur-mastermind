@@ -207,7 +207,7 @@ description = "Python multiprocessing fork with improvements and bugfixes"
 name = "billiard"
 optional = false
 python-versions = "*"
-version = "3.6.2.0"
+version = "3.6.3.0"
 
 [[package]]
 category = "main"
@@ -289,8 +289,8 @@ category = "main"
 description = "Command Line Interface Formulation Framework"
 name = "cliff"
 optional = false
-python-versions = "*"
-version = "2.18.0"
+python-versions = ">=3.6"
+version = "3.0.0"
 
 [package.dependencies]
 PrettyTable = ">=0.7.2,<0.8"
@@ -390,11 +390,15 @@ description = "A utility for manipulating ini files"
 name = "crudini"
 optional = false
 python-versions = "*"
-version = "0.9"
+version = "0.9.3"
 
 [package.dependencies]
 iniparse = ">=0.3.2"
 
+[package.source]
+reference = "235aa6e4f3f0bd26daa452300ab3a56a89730f9e"
+type = "git"
+url = "https://github.com/pixelb/crudini"
 [[package]]
 category = "main"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -738,21 +742,10 @@ description = "Git Object Database"
 name = "gitdb"
 optional = false
 python-versions = ">=3.4"
-version = "4.0.1"
-
-[package.dependencies]
-smmap = ">=3.0.1,<4"
-
-[[package]]
-category = "dev"
-description = "A mirror package for gitdb"
-name = "gitdb2"
-optional = false
-python-versions = "*"
 version = "4.0.2"
 
 [package.dependencies]
-gitdb = ">=4.0.1"
+smmap = ">=3.0.1,<4"
 
 [[package]]
 category = "dev"
@@ -760,10 +753,10 @@ description = "Python Git Library"
 name = "gitpython"
 optional = false
 python-versions = ">=3.4"
-version = "3.0.8"
+version = "3.1.0"
 
 [package.dependencies]
-gitdb2 = ">=3"
+gitdb = ">=4.0.1,<5"
 
 [[package]]
 category = "main"
@@ -921,7 +914,7 @@ description = "JSON Matching Expressions"
 name = "jmespath"
 optional = false
 python-versions = "*"
-version = "0.9.4"
+version = "0.9.5"
 
 [[package]]
 category = "main"
@@ -1187,6 +1180,15 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 version = "3.1.0"
 
+[package.dependencies]
+[package.dependencies.cryptography]
+optional = true
+version = "*"
+
+[package.dependencies.pyjwt]
+optional = true
+version = ">=1.0.0"
+
 [package.extras]
 rsa = ["cryptography"]
 signals = ["blinker"]
@@ -1276,7 +1278,7 @@ description = "Oslo Configuration API"
 name = "oslo.config"
 optional = false
 python-versions = ">=3.6"
-version = "8.0.0"
+version = "8.0.1"
 
 [package.dependencies]
 PyYAML = ">=3.12"
@@ -1319,7 +1321,7 @@ description = "oslo.log library"
 name = "oslo.log"
 optional = false
 python-versions = ">=3.6"
-version = "4.0.0"
+version = "4.0.1"
 
 [package.dependencies]
 debtcollector = ">=1.19.0"
@@ -1360,7 +1362,7 @@ description = "Oslo Utility library"
 name = "oslo.utils"
 optional = false
 python-versions = ">=3.6"
-version = "4.0.0"
+version = "4.1.0"
 
 [package.dependencies]
 debtcollector = ">=1.2.0"
@@ -2187,7 +2189,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "c4e3b391bb3653122646586c49e3d7979f8a12a4d284257b27240e3a8a8e41f4"
+content-hash = "8912523d38bf934a1593924865c7011b0901e3b81dad296249c6878b5560e46e"
 python-versions = "^3.6"
 
 [metadata.files]
@@ -2266,8 +2268,8 @@ bandit = [
     {file = "bandit-1.4.0.tar.gz", hash = "sha256:cb977045497f83ec3a02616973ab845c829cdab8144ce2e757fe031104a9abd4"},
 ]
 billiard = [
-    {file = "billiard-3.6.2.0-py3-none-any.whl", hash = "sha256:26fd494dc3251f8ce1f5559744f18aeed427fdaf29a75d7baae26752a5d3816f"},
-    {file = "billiard-3.6.2.0.tar.gz", hash = "sha256:f4e09366653aa3cb3ae8ed16423f9ba1665ff426f087bcdbbed86bf3664fe02c"},
+    {file = "billiard-3.6.3.0-py3-none-any.whl", hash = "sha256:bff575450859a6e0fbc2f9877d9b715b0bbc07c3565bb7ed2280526a0cdf5ede"},
+    {file = "billiard-3.6.3.0.tar.gz", hash = "sha256:d91725ce6425f33a97dfa72fb6bfef0e47d4652acd98a032bd1a7fbf06d5fa6a"},
 ]
 celery = [
     {file = "celery-4.3.0-py2.py3-none-any.whl", hash = "sha256:528e56767ae7e43a16cfef24ee1062491f5754368d38fcfffa861cdb9ef219be"},
@@ -2312,8 +2314,8 @@ chardet = [
     {file = "chardet-3.0.4.tar.gz", hash = "sha256:84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae"},
 ]
 cliff = [
-    {file = "cliff-2.18.0-py2.py3-none-any.whl", hash = "sha256:4a2d5dd015d0051e65308fda7936f2e54077cd9ba3f792cc9b61c18758af7deb"},
-    {file = "cliff-2.18.0.tar.gz", hash = "sha256:4893742290d4728324a164c4f4dfeafe5f7ec61a6b49c99d76cece98730667f2"},
+    {file = "cliff-3.0.0-py3-none-any.whl", hash = "sha256:c34ade07f7226b8f15af775413f6f305717fde577009887e1c56fa8ac5a8c9ed"},
+    {file = "cliff-3.0.0.tar.gz", hash = "sha256:89e86767ba575c6b9f55a0b9d39918c5e665367744d754475a93ffac15377ec1"},
 ]
 cmd2 = [
     {file = "cmd2-0.8.9-py2.py3-none-any.whl", hash = "sha256:ce779b8bcb6aab05569d6c728eaa093c442bb7478a4998f23f1339e845a33090"},
@@ -2371,9 +2373,7 @@ coverage = [
 croniter = [
     {file = "croniter-0.3.5.zip", hash = "sha256:ecd5cda855668ae11ed5ea341e9c2145bbab88bfd0763666951cfe15bab23f50"},
 ]
-crudini = [
-    {file = "crudini-0.9.tar.gz", hash = "sha256:10512a5a2f7b54b42e48a1d00f0c6398947c2ba6c264b9fdef86677f0e949fd3"},
-]
+crudini = []
 cryptography = [
     {file = "cryptography-2.8-cp27-cp27m-macosx_10_6_intel.whl", hash = "sha256:fb81c17e0ebe3358486cd8cc3ad78adbae58af12fc2bf2bc0bb84e8090fa5ce8"},
     {file = "cryptography-2.8-cp27-cp27m-manylinux1_x86_64.whl", hash = "sha256:44ff04138935882fef7c686878e1c8fd80a723161ad6a98da31e14b7553170c2"},
@@ -2505,16 +2505,12 @@ future = [
     {file = "future-0.18.2.tar.gz", hash = "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"},
 ]
 gitdb = [
-    {file = "gitdb-4.0.1-py2.py3-none-any.whl", hash = "sha256:24572287933a9e5bf45260cd7a5629e5b3b190ec3c2c6a5d5e4125dd06ff4027"},
-    {file = "gitdb-4.0.1.tar.gz", hash = "sha256:d82c6b76ce8496c5209adf1c0ab969a6e1a8a31510ceb5f57a206fc7c77c0fea"},
-]
-gitdb2 = [
-    {file = "gitdb2-4.0.2-py3-none-any.whl", hash = "sha256:a1c974e5fab8c2c90192c1367c81cbc54baec04244bda1816e9c8ab377d1cba3"},
-    {file = "gitdb2-4.0.2.tar.gz", hash = "sha256:0986cb4003de743f2b3aba4c828edd1ab58ce98e1c4a8acf72ef02760d4beb4e"},
+    {file = "gitdb-4.0.2-py3-none-any.whl", hash = "sha256:284a6a4554f954d6e737cddcff946404393e030b76a282c6640df8efd6b3da5e"},
+    {file = "gitdb-4.0.2.tar.gz", hash = "sha256:598e0096bb3175a0aab3a0b5aedaa18a9a25c6707e0eca0695ba1a0baf1b2150"},
 ]
 gitpython = [
-    {file = "GitPython-3.0.8-py3-none-any.whl", hash = "sha256:a43a5d88a5bbc3cf32bb5223e4b4e68fd716db5e9996cad6e561bbfee6e5f4af"},
-    {file = "GitPython-3.0.8.tar.gz", hash = "sha256:620b3c729bbc143b498cfea77e302999deedc55faec5b1067086c9ef90e101bc"},
+    {file = "GitPython-3.1.0-py3-none-any.whl", hash = "sha256:43da89427bdf18bf07f1164c6d415750693b4d50e28fc9b68de706245147b9dd"},
+    {file = "GitPython-3.1.0.tar.gz", hash = "sha256:e426c3b587bd58c482f0b7fe6145ff4ac7ae6c82673fc656f489719abca6f4cb"},
 ]
 hiredis = [
     {file = "hiredis-0.2.0-cp27-cp27m-manylinux1_i686.whl", hash = "sha256:71303245ea72cd85e72705ad237eb9d3847cdeff45f4ec81b0fa08ef4941610f"},
@@ -2577,8 +2573,8 @@ jira = [
     {file = "jira-2.0.0.tar.gz", hash = "sha256:e2a94adff98e45b29ded030adc76103eab34fa7d4d57303f211f572bedba0e93"},
 ]
 jmespath = [
-    {file = "jmespath-0.9.4-py2.py3-none-any.whl", hash = "sha256:3720a4b1bd659dd2eecad0666459b9788813e032b83e7ba58578e48254e0a0e6"},
-    {file = "jmespath-0.9.4.tar.gz", hash = "sha256:bde2aef6f44302dfb30320115b17d030798de8c4110e28d5cf6cf91a7a31074c"},
+    {file = "jmespath-0.9.5-py2.py3-none-any.whl", hash = "sha256:695cb76fa78a10663425d5b73ddc5714eb711157e52704d69be03b1a02ba4fec"},
+    {file = "jmespath-0.9.5.tar.gz", hash = "sha256:cca55c8d153173e21baa59983015ad0daf603f9cb799904ff057bfb8ff8dc2d9"},
 ]
 jsonpatch = [
     {file = "jsonpatch-1.25-py2.py3-none-any.whl", hash = "sha256:cc3a7241010a1fd3f50145a3b33be2c03c1e679faa19934b628bb07d0f64819e"},
@@ -2773,8 +2769,8 @@ osc-lib = [
     {file = "osc_lib-2.0.0-py2.py3-none-any.whl", hash = "sha256:93b8e83b61daebd77b563cc59874ebc753297541b471382e71f3f670c53abb28"},
 ]
 "oslo.config" = [
-    {file = "oslo.config-8.0.0-py2.py3-none-any.whl", hash = "sha256:817e219656011db526b310b9a7c6e142fc007c897c2306be47d89dd164a0f771"},
-    {file = "oslo.config-8.0.0.tar.gz", hash = "sha256:40166ea3ff1df49750f896cc60cadcf196b5e7e99b1b8783ed61e8df5d8be7ef"},
+    {file = "oslo.config-8.0.1-py3-none-any.whl", hash = "sha256:32d21b3a70a1d356b03459667c3082c8cd4c0483ef98eb9e8f937b49ccb6df0f"},
+    {file = "oslo.config-8.0.1.tar.gz", hash = "sha256:b605addc284f7090167e5325de371a2437ba3e78d72c3ceb18091aa6e1744fc5"},
 ]
 "oslo.context" = [
     {file = "oslo.context-3.0.0-py2.py3-none-any.whl", hash = "sha256:c65a0761affff7e7b2fb7eb272045aa07524b45ccb9fa6c2ef5d7b546f5c609f"},
@@ -2785,16 +2781,16 @@ osc-lib = [
     {file = "oslo.i18n-4.0.0.tar.gz", hash = "sha256:2c6db1d4930ff49aaa7732d6d165fcf1454dc064fdab0a31144cb6d7d738bd61"},
 ]
 "oslo.log" = [
-    {file = "oslo.log-4.0.0-py2.py3-none-any.whl", hash = "sha256:0557b552b9cd285e95396b394b9365c3534092c4456fe2ba58f3f8d59b1d78d3"},
-    {file = "oslo.log-4.0.0.tar.gz", hash = "sha256:bd7d774076deb758cd59befaf4b34b34575fc1c1a85e6869b2e2abdadf611b17"},
+    {file = "oslo.log-4.0.1-py3-none-any.whl", hash = "sha256:b8096df4aaa5e224002fb9016427b0235fec96c379e727c8d8effc29d8b0f697"},
+    {file = "oslo.log-4.0.1.tar.gz", hash = "sha256:3b33d31657eb55c639ea010548a2e8bfad8a0117fc37f4799833ee4c8742df02"},
 ]
 "oslo.serialization" = [
     {file = "oslo.serialization-3.0.0-py3-none-any.whl", hash = "sha256:34a745effb815da0b6527b392c62e154e2ed1c01a559089fddc42f559acfefe9"},
     {file = "oslo.serialization-3.0.0.tar.gz", hash = "sha256:25b3903593f2d7a5c6fe87a650e31cb564098b12a10c4847c5890b68e2651b59"},
 ]
 "oslo.utils" = [
-    {file = "oslo.utils-4.0.0-py2.py3-none-any.whl", hash = "sha256:05ed64b42ed570c5a137f4d47ee27d3cf89b1e5a6306ce09a50f8df2a9590ae0"},
-    {file = "oslo.utils-4.0.0.tar.gz", hash = "sha256:5f8ce9ad432991a648f1239e33754d7998de99fa90c7b8ba0758d4e60b4076f9"},
+    {file = "oslo.utils-4.1.0-py3-none-any.whl", hash = "sha256:eb1f9627ffc9981ba0a4b93225669ef70d1a3114534af734748682bd5ed3ebcf"},
+    {file = "oslo.utils-4.1.0.tar.gz", hash = "sha256:ebbbe0a3bdea22a2e5e0144e6b38d1afdebd2072850e478ff24bb75bd1a14784"},
 ]
 packaging = [
     {file = "packaging-20.1-py2.py3-none-any.whl", hash = "sha256:170748228214b70b672c581a3dd610ee51f733018650740e98c7df862a583f73"},
