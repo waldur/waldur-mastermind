@@ -29,7 +29,8 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
     @classmethod
     def create_nodes(cls, nodes, user):
         _tasks = []
-        for node in nodes:
+        # schedule first controlplane nodes so that Rancher would be able to register other nodes
+        for node in nodes.order_by('-controlplane_role'):
             serialized_instance = core_utils.serialize_instance(node)
             _tasks.append(tasks.CreateNodeTask().si(
                 serialized_instance,

@@ -150,7 +150,7 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         elif node.runtime_state:
             raise RuntimeStateException(
                 '%s (PK: %s) runtime state become erred: %s' % (
-                    node.__class__.__name__, node.pk, 'error'))
+                    node.__class__.__name__, node.pk, node.runtime_state))
 
         return node
 
