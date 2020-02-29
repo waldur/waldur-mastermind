@@ -145,7 +145,8 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         node.refresh_from_db()
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
             return
-        elif node.runtime_state == models.Node.RuntimeStates.REGISTERING or not node.runtime_state:
+        elif node.runtime_state in [models.Node.RuntimeStates.REGISTERING,
+                                    models.Node.RuntimeStates.UNAVAILABLE] or not node.runtime_state:
             self.retry()
         elif node.runtime_state:
             raise RuntimeStateException(

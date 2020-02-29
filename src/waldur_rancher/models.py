@@ -108,6 +108,7 @@ class Node(core_models.UuidMixin,
     class RuntimeStates:
         ACTIVE = 'active'
         REGISTERING = 'registering'
+        UNAVAILABLE = 'unavailable'
 
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True, related_name='+')
     object_id = models.PositiveIntegerField(null=True)
