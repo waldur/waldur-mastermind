@@ -99,9 +99,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
                            'memory': memory,
                            'cpu': cpu,
                            'roles': ['worker'],
-                       },
-                        ],
-                   }
+                       }, ]}
         payload.update(add_payload)
         return self.client.post(self.url, payload)
 
