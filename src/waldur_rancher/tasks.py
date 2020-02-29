@@ -132,8 +132,8 @@ def update_clusters_nodes():
 
 
 class PollRuntimeStateNodeTask(core_tasks.Task):
-    max_retries = 1200
-    default_retry_delay = 30
+    max_retries = 600
+    default_retry_delay = 10
 
     @classmethod
     def get_description(cls, node, *args, **kwargs):
@@ -150,7 +150,7 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         elif node.runtime_state:
             raise RuntimeStateException(
                 '%s (PK: %s) runtime state become erred: %s' % (
-                    node.__class__.__name__, node.pk, 'error'))
+                    node.__class__.__name__, node.pk, node.runtime_state))
 
         return node
 

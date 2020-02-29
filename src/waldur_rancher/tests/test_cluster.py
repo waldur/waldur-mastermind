@@ -62,7 +62,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             settings=instance_spl.service.settings)
         self.flavor = Flavor.objects.get(settings=instance_spl.service.settings)
         self.flavor.ram = 1024 * 8
-        self.flavor.cores = 8
+        self.flavor.cores = 2
         self.flavor.save()
         self.fixture.settings.options['base_subnet_name'] = self.subnet.name
         self.fixture.settings.save()
@@ -74,14 +74,32 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
                        factories.RancherServiceProjectLinkFactory.get_url(self.fixture.spl),
                    'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
                        self.fixture.tenant_spl.service.settings),
-                   'nodes': [{
-                       'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-                       'system_volume_size': disk,
-                       'memory': memory,
-                       'cpu': cpu,
-                       'roles': ['controlplane', 'etcd', 'worker'],
-                   }],
-                   }
+                   'nodes': [
+                       {
+                           'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                           'system_volume_size': disk,
+                           'memory': memory,
+                           'cpu': cpu,
+                           'roles': ['worker'],
+                       }, {
+                           'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                           'system_volume_size': disk,
+                           'memory': memory,
+                           'cpu': cpu,
+                           'roles': ['controlplane', 'worker'],
+                       }, {
+                           'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                           'system_volume_size': disk,
+                           'memory': memory,
+                           'cpu': cpu,
+                           'roles': ['controlplane', 'etcd'],
+                       }, {
+                           'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+                           'system_volume_size': disk,
+                           'memory': memory,
+                           'cpu': cpu,
+                           'roles': ['worker'],
+                       }, ]}
         payload.update(add_payload)
         return self.client.post(self.url, payload)
 

@@ -56,10 +56,6 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2]['user'].id,
         )
         self.assertTrue(cluster.node_set.filter(cluster=cluster).exists())
-        node = cluster.node_set.first()
-        self.assertTrue(node.controlplane_role)
-        self.assertTrue(node.etcd_role)
-        self.assertTrue(node.worker_role)
 
     def create_node(self, user):
         self.client.force_authenticate(user)
