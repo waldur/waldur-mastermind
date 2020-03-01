@@ -1,7 +1,10 @@
+import logging
+
 from django.conf import settings as conf_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
+from waldur_rancher.exceptions import RancherException
 
 from waldur_core.core import utils as core_utils, models as core_models
 from waldur_core.structure import ServiceBackend
@@ -10,6 +13,9 @@ from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
 
 from . import models, signals, client
+
+
+logger = logging.getLogger(__name__)
 
 
 class RancherBackend(ServiceBackend):
@@ -63,14 +69,25 @@ class RancherBackend(ServiceBackend):
 
     def delete_cluster(self, cluster):
         if cluster.backend_id:
-            self.client.delete_cluster(cluster.backend_id)
+            try:
+                self.client.delete_cluster(cluster.backend_id)
+            except RancherException as e:
+                if 'status' in e.args[0] and e.args[0]['status'] == 404:
+                    logger.warning('Cluster %s is not present in the backend ' % cluster.backend_id)
+                else:
+                    raise RancherException(e.args[0])
 
         cluster.delete()
 
     def delete_node(self, node):
         if node.backend_id:
-            self.client.delete_node(node.backend_id)
-
+            try:
+                self.client.delete_node(node.backend_id)
+            except RancherException as e:
+                if 'status' in e.args[0] and e.args[0]['status'] == 404:
+                    logger.warning('Node %s is not present in the backend ' % node.backend_id)
+                else:
+                    raise RancherException(e.args[0])
         node.delete()
 
     def update_cluster(self, cluster):
