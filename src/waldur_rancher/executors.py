@@ -50,6 +50,8 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
         if instance.node_set.count():
+            instance.begin_deleting()
+            instance.save()
             return tasks.DeleteClusterNodesTask().si(
                 serialized_instance,
                 user_id=user.id,
