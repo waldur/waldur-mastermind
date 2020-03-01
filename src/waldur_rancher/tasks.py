@@ -185,7 +185,7 @@ class DeleteClusterNodesTask(core_tasks.Task):
             response = common_utils.delete_request(view, user, uuid=node.uuid.hex)
 
             if response.status_code != status.HTTP_202_ACCEPTED:
-                node.error_message = 'Instance deleting\'s an error: %s.' % response.data
+                node.error_message = 'Error when deleting: %s %s.' % (response.status_code, response.data)
                 node.set_erred()
                 node.save()
 

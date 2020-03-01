@@ -43,6 +43,11 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
 class ClusterDeleteExecutor(core_executors.DeleteExecutor):
 
     @classmethod
+    def get_success_signature(cls, instance, serialized_instance, **kwargs):
+        # deletion of Cluster object is performed in handlers.py
+        return None
+
+    @classmethod
     def get_task_signature(cls, instance, serialized_instance, user):
         if instance.node_set.count():
             return tasks.DeleteClusterNodesTask().si(

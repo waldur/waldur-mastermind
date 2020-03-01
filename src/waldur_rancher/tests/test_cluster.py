@@ -293,7 +293,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
 
     @mock.patch('waldur_rancher.executors.core_tasks')
     @mock.patch('waldur_rancher.executors.tasks')
-    def test_if_cluster_is_deleted_so_node_deleting_should_be_requested(self, mock_tasks, mock_core_tasks):
+    def test_on_cluster_deletion_node_deletion_is_requested(self, mock_tasks, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -308,7 +308,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         )
 
     @mock.patch('waldur_rancher.tasks.common_utils.delete_request')
-    def test_if_node_is_deleted_so_instance_deleting_should_be_requested(self, mock_delete_request):
+    def test_on_node_deletion_instance_deletion_is_requested(self, mock_delete_request):
         mock_delete_request.return_value = Response(status=status.HTTP_202_ACCEPTED)
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         self.assertEqual(mock_delete_request.call_count, 1)
@@ -316,7 +316,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.assertEqual(mock_delete_request.call_args[1], {'uuid': self.fixture.node.instance.uuid.hex})
 
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
-    def test_if_instance_has_been_deleted_so_node_and_cluster_should_be_deleted(self, mock_client):
+    def test_if_instance_has_been_deleted_node_and_cluster_are_deleted(self, mock_client):
         self.fixture.cluster.state = models.Node.States.DELETING
         self.fixture.cluster.save()
         self.fixture.node.backend_id = 'backend_id'
