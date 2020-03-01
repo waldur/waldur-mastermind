@@ -105,7 +105,7 @@ class NodeDeleteExecutor(core_executors.BaseExecutor):
         We can start deleting a node even if it does not have the status OK or Erred,
         because a virtual machine could already be created.
         """
-        instance.state = StateMixin.States.DELETION_SCHEDULED
+        instance.state = StateMixin.States.DELETING
         instance.save(update_fields=['state'])
 
 
