@@ -3,7 +3,7 @@ from celery import chain
 from django.conf import settings
 
 from waldur_core.core import executors as core_executors
-from waldur_core.core import tasks as core_tasks, utils as core_utils
+from waldur_core.core import tasks as core_tasks
 from waldur_core.core.models import StateMixin
 
 from . import tasks
@@ -31,12 +31,7 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
         _tasks = []
         # schedule first controlplane nodes so that Rancher would be able to register other nodes
         for node in nodes.order_by('-controlplane_role'):
-            serialized_instance = core_utils.serialize_instance(node)
-            _tasks.append(tasks.CreateNodeTask().si(
-                serialized_instance,
-                user_id=user.id,
-            ))
-            _tasks.append(tasks.PollRuntimeStateNodeTask().si(serialized_instance))
+            _tasks.append(NodeCreateExecutor.as_signature(node, user_id=user.id))
         return _tasks
 
 
@@ -52,10 +47,12 @@ class ClusterDeleteExecutor(core_executors.DeleteExecutor):
         if instance.node_set.count():
             instance.begin_deleting()
             instance.save()
-            return tasks.DeleteClusterNodesTask().si(
-                serialized_instance,
-                user_id=user.id,
-            )
+            _tasks = []
+
+            for node in instance.node_set.all():
+                _tasks.append(NodeDeleteExecutor.as_signature(node, user_id=user.id))
+
+            return chain(*_tasks)
         else:
             return core_tasks.BackendMethodTask().si(
                 serialized_instance,
@@ -81,11 +78,11 @@ class ClusterUpdateExecutor(core_executors.UpdateExecutor):
 
 class NodeCreateExecutor(core_executors.CreateExecutor):
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, user):
+    def get_task_signature(cls, instance, serialized_instance, user_id):
         return chain(
             tasks.CreateNodeTask().si(
                 serialized_instance,
-                user_id=user.id,
+                user_id=user_id,
             ),
             tasks.PollRuntimeStateNodeTask().si(serialized_instance)
         )
@@ -93,10 +90,10 @@ class NodeCreateExecutor(core_executors.CreateExecutor):
 
 class NodeDeleteExecutor(core_executors.BaseExecutor):
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, user):
+    def get_task_signature(cls, instance, serialized_instance, user_id):
         return tasks.DeleteNodeTask().si(
             serialized_instance,
-            user_id=user.id,
+            user_id=user_id,
         )
 
     @classmethod

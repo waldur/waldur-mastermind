@@ -291,17 +291,12 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @mock.patch('waldur_rancher.executors.core_tasks')
+    @mock.patch('waldur_rancher.executors.chain')
     @mock.patch('waldur_rancher.executors.tasks')
-    def test_on_cluster_deletion_node_deletion_is_requested(self, mock_tasks, mock_core_tasks):
+    def test_on_cluster_deletion_node_deletion_is_requested(self, mock_tasks, mock_chain):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_tasks.DeleteClusterNodesTask.return_value.si.assert_called_once_with(
-            'waldur_rancher.cluster:%s' % self.fixture.cluster.id,
-            user_id=self.fixture.owner.id
-        )
-        tasks.DeleteClusterNodesTask().execute(self.fixture.cluster, user_id=self.fixture.owner.id)
         mock_tasks.DeleteNodeTask.return_value.si.assert_called_once_with(
             'waldur_rancher.node:%s' % self.fixture.node.id,
             user_id=self.fixture.owner.id

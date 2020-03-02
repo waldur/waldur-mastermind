@@ -112,7 +112,7 @@ class NodeViewSet(core_views.ActionsViewSet):
         user = self.request.user
         transaction.on_commit(lambda: executors.NodeCreateExecutor.execute(
             node,
-            user=user,
+            user_id=user.id,
             is_heavy_task=True,
         ))
 
@@ -121,7 +121,7 @@ class NodeViewSet(core_views.ActionsViewSet):
         user = self.request.user
         executors.NodeDeleteExecutor.execute(
             instance,
-            user=user,
+            user_id=user.id,
             is_heavy_task=True,
         )
         return response.Response(status=status.HTTP_202_ACCEPTED)
