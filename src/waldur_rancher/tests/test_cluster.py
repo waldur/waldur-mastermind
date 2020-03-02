@@ -308,7 +308,9 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         tasks.DeleteNodeTask().execute(self.fixture.node, user_id=self.fixture.owner.id)
         self.assertEqual(mock_delete_request.call_count, 1)
         self.assertEqual(mock_delete_request.call_args[0][1], self.fixture.owner)
-        self.assertEqual(mock_delete_request.call_args[1], {'uuid': self.fixture.node.instance.uuid.hex})
+        self.assertEqual(mock_delete_request.call_args[1],
+                         {'uuid': self.fixture.node.instance.uuid.hex,
+                          'query_params': {'delete_volumes': True}})
 
     @mock.patch('waldur_rancher.backend.RancherBackend.client')
     def test_if_instance_has_been_deleted_node_and_cluster_are_deleted(self, mock_client):
@@ -317,7 +319,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.fixture.node.backend_id = 'backend_id'
         self.fixture.node.save()
         self.fixture.instance.delete()
-        self.assertRaises(models.Cluster.DoesNotExist, self.fixture.cluster.refresh_from_db)
+    self.assertRaises(models.Cluster.DoesNotExist, self.fixture.cluster.refresh_from_db)
         self.assertRaises(models.Node.DoesNotExist, self.fixture.node.refresh_from_db)
         mock_client.delete_cluster.assert_called_once_with(self.fixture.cluster.backend_id)
         mock_client.delete_node.assert_called_once_with(self.fixture.node.backend_id)

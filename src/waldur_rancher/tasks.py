@@ -17,7 +17,7 @@ from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, utils
+from . import models, exceptions, signals, utils
 
 logger = logging.getLogger(__name__)
 
@@ -108,22 +108,10 @@ def update_nodes(cluster_id):
                 node = cluster.node_set.get(name=backend_node['name'])
                 node.backend_id = backend_node['backend_id']
                 node.save()
-    # TODO: Refactor, move to handlers for Rancher node status updates
-    # has_changes = False
-    #
+
     for node in cluster.node_set.exclude(backend_id=''):
-        # old_state = node.state
         backend.update_node_details(node)
         node.refresh_from_db()
-    #
-    #     if old_state != node.state:
-    #         has_changes = True
-    #
-    # if has_changes:
-    #     signals.node_states_have_been_updated.send(
-    #         sender=models.Cluster,
-    #         instance=cluster,
-    #     )
 
 
 @shared_task(name='waldur_rancher.update_clusters_nodes')
@@ -145,6 +133,10 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
+            signals.node_states_have_been_updated.send(
+                     sender=models.Cluster,
+                     instance=node.cluster,
+                 )
             return
         elif node.runtime_state in [models.Node.RuntimeStates.REGISTERING,
                                     models.Node.RuntimeStates.UNAVAILABLE] or not node.runtime_state:
