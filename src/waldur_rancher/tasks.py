@@ -133,10 +133,7 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
-            signals.node_states_have_been_updated.send(
-                     sender=models.Cluster,
-                     instance=node.cluster,
-                 )
+            signals.node_states_have_been_updated.send(sender=models.Cluster, instance=node.cluster)
             return
         elif node.runtime_state in [models.Node.RuntimeStates.REGISTERING,
                                     models.Node.RuntimeStates.UNAVAILABLE] or not node.runtime_state:

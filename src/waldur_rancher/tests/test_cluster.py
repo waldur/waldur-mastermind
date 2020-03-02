@@ -319,7 +319,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
         self.fixture.node.backend_id = 'backend_id'
         self.fixture.node.save()
         self.fixture.instance.delete()
-    self.assertRaises(models.Cluster.DoesNotExist, self.fixture.cluster.refresh_from_db)
+        self.assertRaises(models.Cluster.DoesNotExist, self.fixture.cluster.refresh_from_db)
         self.assertRaises(models.Node.DoesNotExist, self.fixture.node.refresh_from_db)
         mock_client.delete_cluster.assert_called_once_with(self.fixture.cluster.backend_id)
         mock_client.delete_node.assert_called_once_with(self.fixture.node.backend_id)
