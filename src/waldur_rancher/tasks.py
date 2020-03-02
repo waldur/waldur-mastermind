@@ -17,7 +17,7 @@ from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, signals, utils, views
+from . import models, exceptions, signals, utils
 
 logger = logging.getLogger(__name__)
 
@@ -173,22 +173,3 @@ def notify_create_user(id, password, url):
 @shared_task(name='waldur_rancher.sync_users')
 def sync_users():
     SyncUser.run()
-
-
-class DeleteClusterNodesTask(core_tasks.Task):
-    def execute(self, instance, user_id):
-        cluster = instance
-        view = views.NodeViewSet.as_view({'delete': 'destroy'})
-        user = auth.get_user_model().objects.get(pk=user_id)
-
-        for node in cluster.node_set.all():
-            response = common_utils.delete_request(view, user, uuid=node.uuid.hex)
-
-            if response.status_code != status.HTTP_202_ACCEPTED:
-                node.error_message = 'Error when deleting: %s %s.' % (response.status_code, response.data)
-                node.set_erred()
-                node.save()
-
-    @classmethod
-    def get_description(cls, instance, *args, **kwargs):
-        return 'Delete nodes for k8s cluster "%s".' % instance
