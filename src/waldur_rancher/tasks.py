@@ -17,7 +17,7 @@ from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, signals, utils
+from . import models, exceptions, utils
 
 logger = logging.getLogger(__name__)
 
