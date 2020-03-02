@@ -85,7 +85,8 @@ class DeleteNodeTask(core_tasks.Task):
 
         if node.instance:
             view = InstanceViewSet.as_view({'delete': 'force_destroy'})
-            response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex)
+            response = common_utils.delete_request(view, user, uuid=node.instance.uuid.hex,
+                                                   query_params={'delete_volumes': True})
 
             if response.status_code != status.HTTP_202_ACCEPTED:
                 raise exceptions.RancherException(response.data)
@@ -107,22 +108,22 @@ def update_nodes(cluster_id):
                 node = cluster.node_set.get(name=backend_node['name'])
                 node.backend_id = backend_node['backend_id']
                 node.save()
-
-    has_changes = False
-
+    # TODO: Refactor, move to handlers for Rancher node status updates
+    # has_changes = False
+    #
     for node in cluster.node_set.exclude(backend_id=''):
-        old_state = node.state
+        # old_state = node.state
         backend.update_node_details(node)
         node.refresh_from_db()
-
-        if old_state != node.state:
-            has_changes = True
-
-    if has_changes:
-        signals.node_states_have_been_updated.send(
-            sender=models.Cluster,
-            instance=cluster,
-        )
+    #
+    #     if old_state != node.state:
+    #         has_changes = True
+    #
+    # if has_changes:
+    #     signals.node_states_have_been_updated.send(
+    #         sender=models.Cluster,
+    #         instance=cluster,
+    #     )
 
 
 @shared_task(name='waldur_rancher.update_clusters_nodes')

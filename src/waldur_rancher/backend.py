@@ -255,10 +255,6 @@ class RancherBackend(ServiceBackend):
         update_node_field('allocatable', 'pods', field='pods_total')
         update_node_field('state', field='runtime_state')
 
-        if node.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']:
-            node.state = models.Node.States.OK
-        else:
-            node.state = models.Node.States.ERRED
         return node.save()
 
     def create_user(self, user):
