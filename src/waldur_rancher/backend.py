@@ -1,16 +1,19 @@
+import io
 import logging
 
 from django.conf import settings as conf_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
-from waldur_rancher.exceptions import RancherException
 
+from waldur_core.media import magic
 from waldur_core.core import utils as core_utils, models as core_models
 from waldur_core.structure import ServiceBackend
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.utils import update_pulled_fields
 from waldur_mastermind.common.utils import parse_datetime
+from waldur_rancher.enums import GlobalRoles, ClusterRoles
+from waldur_rancher.exceptions import RancherException
 
 from . import models, signals, client
 
@@ -56,6 +59,7 @@ class RancherBackend(ServiceBackend):
         self.pull_projects()
         self.pull_namespaces()
         self.pull_templates()
+        self.pull_template_icons()
 
     def get_kubeconfig_file(self, cluster):
         return self.client.get_kubeconfig_file(cluster.backend_id)
@@ -270,7 +274,7 @@ class RancherBackend(ServiceBackend):
         user_id = response['id']
         user.backend_id = user_id
         user.save()
-        self.client.create_global_role(user.backend_id, client.GlobalRoleId.user_base)
+        self.client.create_global_role(user.backend_id, GlobalRoles.user_base)
         signals.rancher_user_created.send(
             sender=models.RancherUser,
             instance=user,
@@ -299,10 +303,10 @@ class RancherBackend(ServiceBackend):
         role = None
 
         if link.role == models.ClusterRole.CLUSTER_OWNER:
-            role = client.ClusterRoleId.cluster_owner
+            role = ClusterRoles.cluster_owner
 
         if link.role == models.ClusterRole.CLUSTER_MEMBER:
-            role = client.ClusterRoleId.cluster_member
+            role = ClusterRoles.cluster_member
 
         response = self.client.create_cluster_role(
             link.user.backend_id,
@@ -321,7 +325,7 @@ class RancherBackend(ServiceBackend):
     def pull_catalogs(self):
         self.pull_global_catalogs()
         self.pull_cluster_catalogs()
-        # TODO: Implement Rancher project catalogs synchronization
+        self.pull_project_catalogs()
 
     def pull_global_catalogs(self):
         remote_catalogs = self.client.list_global_catalogs()
@@ -330,6 +334,11 @@ class RancherBackend(ServiceBackend):
     def pull_cluster_catalogs(self):
         remote_catalogs = self.client.list_cluster_catalogs()
         for cluster in models.Cluster.objects.filter(settings=self.settings):
+            self.pull_catalogs_for_scope(remote_catalogs, cluster)
+
+    def pull_project_catalogs(self):
+        remote_catalogs = self.client.list_project_catalogs()
+        for cluster in models.Project.objects.filter(settings=self.settings):
             self.pull_catalogs_for_scope(remote_catalogs, cluster)
 
     def pull_catalogs_for_scope(self, remote_catalogs, scope):
@@ -344,7 +353,7 @@ class RancherBackend(ServiceBackend):
             for catalog in remote_catalogs
         }
         local_catalog_map = {
-            catalog.id: catalog
+            catalog.backend_id: catalog
             for catalog in local_catalogs
         }
         remote_catalog_ids = set(remote_catalog_map.keys())
@@ -455,7 +464,7 @@ class RancherBackend(ServiceBackend):
             for project in remote_projects
         }
         local_project_map = {
-            project.id: project
+            project.backend_id: project
             for project in local_projects
         }
         remote_project_ids = set(remote_project_map.keys())
@@ -510,7 +519,7 @@ class RancherBackend(ServiceBackend):
             for namespace in remote_namespaces
         }
         local_namespace_map = {
-            namespace.id: namespace
+            namespace.backend_id: namespace
             for namespace in local_namespaces
         }
         remote_namespace_ids = set(remote_namespace_map.keys())
@@ -561,11 +570,11 @@ class RancherBackend(ServiceBackend):
             for cluster in local_clusters
         }
         local_project_map = {
-            project.id: project
+            project.backend_id: project
             for project in local_projects
         }
         local_template_map = {
-            template.id: template
+            template.backend_id: template
             for template in local_templates
         }
         remote_template_map = {
@@ -613,3 +622,17 @@ class RancherBackend(ServiceBackend):
             project=local_project_map.get(remote_template['projectId']),
             settings=self.settings,
         )
+
+    def pull_template_icons(self):
+        for template in models.Template.objects.filter(settings=self.settings):
+            content = self.client.get_template_icon(template.backend_id)
+            mime_type = magic.from_buffer(content[:1024], mime=True)
+            extension = {
+                'image/svg+xml': 'svg',
+                'image/png': 'png',
+                'image/jpeg': 'jpeg',
+                'image/webp': 'webp',
+            }.get(mime_type)
+            if not extension:
+                continue
+            template.icon.save(f'{template.uuid}.{extension}', io.BytesIO(content))

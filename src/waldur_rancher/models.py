@@ -247,11 +247,17 @@ class Project(core_models.UuidMixin,
               structure_models.TimeStampedModel,
               BackendMixin,
               SettingsMixin,
+              structure_models.StructureModel,
               core_models.RuntimeStateMixin):
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE, null=True, related_name='+')
 
     def __str__(self):
         return self.name
+
+    class Permissions:
+        customer_path = 'cluster__service_project_link__project__customer'
+        project_path = 'cluster__service_project_link__project'
+        service_path = 'cluster__service_project_link__service'
 
 
 class Namespace(core_models.UuidMixin,
@@ -279,3 +285,4 @@ class Template(core_models.UuidMixin,
     project_url = models.URLField(blank=True)
     default_version = models.CharField(max_length=255)
     versions = ArrayField(models.CharField(max_length=255))
+    icon = models.FileField(upload_to='rancher_icons', blank=True, null=True)

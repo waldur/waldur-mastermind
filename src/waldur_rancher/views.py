@@ -194,8 +194,8 @@ class CatalogViewSet(core_views.ActionsViewSet):
         settings_subquery = self.get_filtered_subquery(
             models.ServiceSettings.objects.filter(type=RancherConfig.service_name))
         clusters_subquery = self.get_filtered_subquery(models.Cluster.objects.all())
-        # TODO: Implement project-level catalogs
-        visible_scopes = settings_subquery | clusters_subquery
+        projects_subquery = self.get_filtered_subquery(models.Project.objects.all())
+        visible_scopes = settings_subquery | clusters_subquery | projects_subquery
         return self.queryset.filter(visible_scopes)
 
     def get_filtered_subquery(self, queryset):
@@ -225,8 +225,7 @@ class CatalogViewSet(core_views.ActionsViewSet):
         if isinstance(scope, ServiceSettings):
             if scope.type != RancherConfig.service_name:
                 raise ValidationError('Invalid provider detected.')
-        elif not isinstance(scope, models.Cluster):
-            # TODO: Implement project-level catalog
+        elif not isinstance(scope, (models.Cluster, models.Project)):
             raise ValidationError('Invalid scope provided.')
 
         catalog = serializer.save()
