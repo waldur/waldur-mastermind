@@ -30,6 +30,8 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
     def create_nodes(cls, nodes, user):
         _tasks = []
         # schedule first controlplane nodes so that Rancher would be able to register other nodes
+        # TODO: need to assure that also etcd is registered - probably parallel Node creation can be a solution
+        # TODO: need to validate once controlled deployment is working
         for node in nodes.order_by('-controlplane_role'):
             _tasks.append(NodeCreateExecutor.as_signature(node, user_id=user.id))
         return _tasks
