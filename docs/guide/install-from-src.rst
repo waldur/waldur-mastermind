@@ -1,8 +1,9 @@
 Installation from source
 ------------------------
 
-Additional requirements:
+**Prerequisites**
 
+- Linux OS: Ubuntu or CentOS. If you use Windows 10, you should install Linux either via `Virtualbox <https://www.freecodecamp.org/news/how-to-install-ubuntu-with-oracle-virtualbox/>`_ or `Windows Subsystem for Linux  <https://docs.microsoft.com/en-us/windows/wsl/install-win10/>`_.
 - ``git``
 - ``redis`` and ``hiredis`` library
 - ``virtualenv``
