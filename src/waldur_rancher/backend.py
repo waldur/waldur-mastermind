@@ -1,7 +1,6 @@
 import io
 import logging
 
-from django.conf import settings as conf_settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
@@ -169,7 +168,7 @@ class RancherBackend(ServiceBackend):
     def check_cluster_creating(self, cluster):
         self.pull_cluster_runtime_state(cluster)
 
-        if cluster.runtime_state == conf_settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE']:
+        if cluster.runtime_state == models.Cluster.RuntimeStates.ACTIVE:
             cluster.state = models.Cluster.States.OK
             cluster.save()
             return
@@ -202,7 +201,7 @@ class RancherBackend(ServiceBackend):
 
     def node_is_active(self, backend_id):
         backend_node = self.client.get_node(backend_id)
-        return backend_node['state'] == conf_settings.WALDUR_RANCHER['ACTIVE_NODE_STATE']
+        return backend_node['state'] == models.Node.RuntimeStates.ACTIVE
 
     def update_node_details(self, node):
         if not node.backend_id:

@@ -1,12 +1,10 @@
 from celery import chain
 
-from django.conf import settings
-
 from waldur_core.core import executors as core_executors
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core.models import StateMixin
 
-from . import tasks
+from . import tasks, models
 
 
 class ClusterCreateExecutor(core_executors.BaseExecutor):
@@ -21,7 +19,7 @@ class ClusterCreateExecutor(core_executors.BaseExecutor):
         _tasks += [core_tasks.PollRuntimeStateTask().si(
             serialized_instance,
             backend_pull_method='check_cluster_creating',
-            success_state=settings.WALDUR_RANCHER['ACTIVE_CLUSTER_STATE'],
+            success_state=models.Cluster.RuntimeStates.ACTIVE,
             erred_state='error'
         )]
         return chain(*_tasks)

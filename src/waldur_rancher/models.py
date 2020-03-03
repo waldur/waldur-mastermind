@@ -64,6 +64,10 @@ class SettingsMixin(models.Model):
 
 
 class Cluster(SettingsMixin, NewResource):
+
+    class RuntimeStates:
+        ACTIVE = 'active'
+
     service_project_link = models.ForeignKey(
         RancherServiceProjectLink, related_name='k8s_clusters', on_delete=models.PROTECT)
 
