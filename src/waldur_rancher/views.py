@@ -10,9 +10,11 @@ from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, response, status
 from rest_framework.exceptions import ValidationError
+from rest_framework.views import APIView
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import views as structure_views
 from waldur_core.structure import permissions as structure_permissions
@@ -278,3 +280,70 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.TemplateFilter
     lookup_field = 'uuid'
+
+
+class TemplateVersionView(APIView):
+    def get(self, request, template_uuid, version):
+        queryset = models.Template.objects.all()
+        queryset = filter_queryset_for_user(queryset, request.user)
+        template = get_object_or_404(queryset, uuid=template_uuid)
+        client = template.settings.get_backend().client
+        details = client.get_template_version_details(template.backend_id, version)
+        readme = client.get_template_version_readme(template.backend_id, version)
+        app_readme = client.get_template_version_app_readme(template.backend_id, version)
+        return response.Response({
+            'questions': details.get('questions'),
+            'readme': readme,
+            'app_readme': app_readme,
+        })
+
+
+class ApplicationViewSet(APIView):
+    def get(self, request):
+        project_uuid = request.query_params.get('project_uuid')
+        if not project_uuid or not is_uuid_like(project_uuid):
+            raise ValidationError('Project UUID is required.')
+        project = self.get_object(request, models.Project, project_uuid)
+        client = project.settings.get_backend().client
+        applications = client.get_project_applications(project.backend_id)
+        return response.Response([
+            {
+                'name': app['name'],
+                'state': app['state'],
+                'created': app['created'],
+                'id': app['id'],
+                'answers': app['answers'],
+            }
+            for app in applications
+        ])
+
+    def post(self, request):
+        serializer = serializers.ApplicationCreateSerializer(request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        template = self.get_object(request, models.Template, data['template_uuid'])
+        project = self.get_object(request, models.Project, data['project_uuid'])
+        namespace = self.get_object(request, models.Namespace, data['namespace_uuid'])
+
+        settings = {template.settings, project.settings, namespace.settings}
+        if len(settings) > 1:
+            raise ValidationError(_('The same settings should be used for template, project and namespace.'))
+
+        client = project.settings.get_backend().client
+        application = client.create_application(
+            template.catalog.backend_id,
+            template.backend_id,
+            data['version'],
+            project.backend_id,
+            namespace.backend_id,
+            data['name'],
+            data['answers'],
+        )
+        return response.Response(application['data'])
+
+    def get_object(self, request, model_class, object_uuid):
+        return get_object_or_404(
+            filter_queryset_for_user(model_class.objects.all(), request.user),
+            uuid=object_uuid
+        )

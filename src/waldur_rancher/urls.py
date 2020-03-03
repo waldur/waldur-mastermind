@@ -1,3 +1,5 @@
+from django.conf.urls import url
+
 from . import views
 
 
@@ -17,3 +19,11 @@ def register_in(router):
                     basename='rancher-namespace')
     router.register(r'rancher-templates', views.TemplateViewSet,
                     basename='rancher-template')
+
+
+urlpatterns = [
+    url(r'^api/rancher-template-versions/(?P<template_uuid>[a-f0-9]+)/(?P<version>[0-9.]+)/$',
+        views.TemplateVersionView.as_view()),
+    url(r'^api/rancher-apps/$',
+        views.ApplicationViewSet.as_view()),
+]
