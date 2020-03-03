@@ -30,4 +30,3 @@ The following settings files are read in from **/etc/waldur/**:
  - **override.conf.py** - all settings overwritten for the deployment apart from logging settings.
 
  - **core.ini** - contains basic settings for the deployment in INI format.
-

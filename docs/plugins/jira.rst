@@ -76,7 +76,7 @@ You will be presented with a web hook creation view. There are only 3 mandatory 
 4.3 Configure a url to send a "POST" request to. For instance: http://waldur.example.com/api/support-jira-webhook/
 It is not needed to add any additional fields to request.
 
-*Note: In case of VirtualBox localhost usually is 10.0.2.2. So the complete url will be next: 
+*Note: In case of VirtualBox localhost usually is 10.0.2.2. So the complete url will be next:
 http://10.0.2.2:8000/api/support-jira-webhook/*
 
 4.4 Add a description.

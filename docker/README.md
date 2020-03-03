@@ -35,7 +35,7 @@ cd waldur-mastermind-docker
 make build
 
 # push image to docker hub
-# NB! Make sure that you are authenticated via docker login 
+# NB! Make sure that you are authenticated via docker login
 # and that you have write access to hub.docker.com/opennode/waldur-mastermind repo!
 make push
 ```
@@ -75,7 +75,7 @@ mkdir -p $CONF_DIR
 cp files/waldur-mastermind-api/nginx.conf $CONF_DIR
 chown root:root $CONF_DIR/nginx.conf
 chmod 644 $CONF_DIR/nginx.conf
-chown -R 1001:root ${TARGET_DIR}/nginx 
+chown -R 1001:root ${TARGET_DIR}/nginx
 ```
 
 Booting up:
@@ -198,7 +198,7 @@ docker run --rm \
 
 ### Running Mastermind worker service (celery)
 
-```bash  
+```bash
 source mastermindrc && \
 docker run -d --name waldur-mastermind-worker \
   --network waldur \
@@ -254,7 +254,7 @@ mkdir -p $CONF_DIR
 cp files/waldur-mastermind-api/nginx.conf $CONF_DIR
 chown root:root $CONF_DIR/nginx.conf
 chmod 644 $CONF_DIR/nginx.conf
-chown -R 1001:root ${TARGET_DIR}/nginx 
+chown -R 1001:root ${TARGET_DIR}/nginx
 
 docker run -d --name waldur-mastermind-api \
     --network waldur \
@@ -263,7 +263,7 @@ docker run -d --name waldur-mastermind-api \
     bitnami/nginx:latest
 
 # verify
-docker logs -f waldur-mastermind-api 
+docker logs -f waldur-mastermind-api
 ```
 
 ### Checking Mastermind status
@@ -281,7 +281,7 @@ docker run --rm \
 
 ### Docker host configuration
 
-* Image was tested with the following docker versions: 17.07.0-ce, 1.13.1 
+* Image was tested with the following docker versions: 17.07.0-ce, 1.13.1
 * Overlay storage driver was used with XFS data volume
 * NB! XFS needs to be formatted with ftype=1 option - or overlay storage driver will cause problems!
 * App network needs to be created - which is used for Mastermind components inter-communication

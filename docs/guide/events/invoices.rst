@@ -11,4 +11,3 @@ Invoicing events
 
     **invoice_deletion_succeeded**
         Invoice has been deleted.
-
