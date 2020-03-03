@@ -229,3 +229,37 @@ class RancherClient:
 
     def get_template_icon(self, template_id):
         return self._get(f'templates/{template_id}/icon')
+
+    def get_template_version_details(self, template_id, template_version):
+        return self._get(f'templateVersions/{template_id}-{template_version}')
+
+    def get_template_version_readme(self, template_id, template_version):
+        return self._get(f'templateVersions/{template_id}-{template_version}/readme')
+
+    def get_template_version_app_readme(self, template_id, template_version):
+        return self._get(f'templateVersions/{template_id}-{template_version}/app-readme')
+
+    def create_application(
+        self,
+        catalog_id,
+        template_id,
+        version,
+        project_id,
+        namespace_id,
+        name,
+        answers,
+    ):
+        return self._post(f'projects/f{project_id}/app', json={
+            'prune': False,
+            'timeout': 300,
+            'wait': False,
+            'type': 'app',
+            'name': name,
+            'answers': answers,
+            'targetNamespace': namespace_id,
+            'externalId': f'catalog://?catalog={catalog_id}&template={template_id}&version={version}',
+            'projectId': project_id,
+        })
+
+    def get_project_applications(self, project_id):
+        return self._get(f'project/{project_id}/apps', params={'limit': -1})['data']

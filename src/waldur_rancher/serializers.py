@@ -6,6 +6,7 @@ from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import VirtualMachine
@@ -389,15 +390,27 @@ class NamespaceSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class TemplateSerializer(structure_serializers.BasePropertySerializer):
+class TemplateSerializer(
+    ProtectedMediaSerializerMixin,
+    structure_serializers.BasePropertySerializer,
+):
     class Meta:
         model = models.Template
         view_name = 'rancher-template-detail'
         fields = ('url', 'uuid', 'name', 'description', 'created', 'modified', 'runtime_state',
-                  'catalog', 'cluster', 'project')
+                  'catalog', 'cluster', 'project', 'icon', 'versions')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'catalog': {'lookup_field': 'uuid', 'view_name': 'rancher-catalog-detail'},
             'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
             'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
         }
+
+
+class ApplicationCreateSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    template_uuid = serializers.UUIDField()
+    version = serializers.CharField()
+    project_uuid = serializers.UUIDField()
+    namespace_uuid = serializers.UUIDField()
+    answers = serializers.DictField()
