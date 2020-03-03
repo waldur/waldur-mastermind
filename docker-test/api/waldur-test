@@ -11,6 +11,7 @@ poetry config virtualenvs.create false
 echo '[+] Installing Python package under test'
 cd /tmp/mnt
 poetry install
+pre-commit run --all
 
 echo '[+] Running Python linter'
 python3 -m flake8 --ignore E501 --exclude=*migrations* src/
@@ -27,7 +28,7 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 # which makes them considerably faster than ordinary tables.
 BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
 
-DATABASES = { 
+DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'waldur',

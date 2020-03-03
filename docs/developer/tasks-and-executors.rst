@@ -45,7 +45,7 @@ Regular tasks
 ^^^^^^^^^^^^^
 
 Each regular task corresponds to a particular granular action - like state transition,
-object deletion or backend method execution. They are supposed to be combined and 
+object deletion or backend method execution. They are supposed to be combined and
 called in executors. It is not allowed to schedule tasks directly from
 views or serializer.
 

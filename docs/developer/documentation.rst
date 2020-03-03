@@ -68,4 +68,3 @@ For example,
             """
 
             return super(InstanceViewSet, self).retrieve(request, *args, **kwargs)
-

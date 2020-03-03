@@ -32,7 +32,7 @@ Example:
 Ordering
 --------
 
-In each group imports should be ordered in alphabetical order, regardless 
+In each group imports should be ordered in alphabetical order, regardless
 import keyword.
 
 Wrong:

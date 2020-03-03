@@ -27,13 +27,13 @@ against **/api/openstack-dr-backups/<uuid>/** endpoint.
 To restore DR backup - issue POST request with DR backup, new tenant and new
 instance flavor against **/api/openstack-dr-backup-restorations/** endpoint.
 Make sure that flavor is big enough for instance. You can check DR backup
-metadata to get stored instance minimum ram, cores and storage. On successful 
+metadata to get stored instance minimum ram, cores and storage. On successful
 start of the restoration, endpoint will return URL of an instance that
 should will be created from DR backup, field "state" of this instance indicates
 restoration process progress.
 
 To create a schedule of DR backups, use the same endpoint as for regular backups
-(**/api/openstack-backup-schedules/**) and additionally pass parameter 
+(**/api/openstack-backup-schedules/**) and additionally pass parameter
 "backup type" as "DR".
 
 For more detailed endpoints description - please check endpoints documentation.

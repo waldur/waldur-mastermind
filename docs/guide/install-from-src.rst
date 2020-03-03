@@ -32,6 +32,7 @@ Installation from source
   .. code-block:: bash
 
     poetry install
+    poetry run pre-commit install
 
 4. Create and edit settings file (see 'Configuration' section for details):
 
