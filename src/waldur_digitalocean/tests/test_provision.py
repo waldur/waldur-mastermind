@@ -1,15 +1,15 @@
-import digitalocean
 from unittest import mock
 
+import digitalocean
 from rest_framework import test
 
 from waldur_core.structure.models import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories
 from ..apps import DigitalOceanConfig
 from ..models import Droplet
 from ..views import DropletViewSet
+from . import factories
 
 
 class DigitalOceanBackendTest(test.APITransactionTestCase):
@@ -41,11 +41,10 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.settings = structure_factories.ServiceSettingsFactory(
             customer=self.customer,
             type=DigitalOceanConfig.service_name,
-            token='VALID_TOKEN'
+            token='VALID_TOKEN',
         )
         self.service = factories.DigitalOceanServiceFactory(
-            customer=self.customer,
-            settings=self.settings
+            customer=self.customer, settings=self.settings
         )
 
         self.region = factories.RegionFactory()
@@ -57,8 +56,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
         self.project = structure_factories.ProjectFactory(customer=self.customer)
         self.link = factories.DigitalOceanServiceProjectLinkFactory(
-            service=self.service,
-            project=self.project
+            service=self.service, project=self.project
         )
 
         self.customer_owner = structure_factories.UserFactory()
@@ -67,8 +65,12 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.client.force_authenticate(user=self.customer_owner)
         self.url = factories.DropletFactory.get_list_url()
 
-        self.ssh_public_key = structure_factories.SshPublicKeyFactory(user=self.customer_owner)
-        self.ssh_url = structure_factories.SshPublicKeyFactory.get_url(self.ssh_public_key)
+        self.ssh_public_key = structure_factories.SshPublicKeyFactory(
+            user=self.customer_owner
+        )
+        self.ssh_url = structure_factories.SshPublicKeyFactory.get_url(
+            self.ssh_public_key
+        )
 
         self.mock_backend()
         DropletViewSet.async_executor = False
@@ -97,7 +99,9 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
     def get_valid_data(self, **extra):
         default = {
-            'service_project_link': factories.DigitalOceanServiceProjectLinkFactory.get_url(self.link),
+            'service_project_link': factories.DigitalOceanServiceProjectLinkFactory.get_url(
+                self.link
+            ),
             'region': factories.RegionFactory.get_url(self.region),
             'image': factories.ImageFactory.get_url(self.image),
             'size': factories.SizeFactory.get_url(self.size),
@@ -107,15 +111,13 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         return default
 
     def test_if_ssh_key_exists_it_is_pulled_but_not_pushed(self):
-        self.client.post(self.url, self.get_valid_data(
-            ssh_public_key=self.ssh_url
-        ))
+        self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
 
         self.ssh_api.assert_called_once_with(
             token=mock.ANY,
             fingerprint=self.ssh_public_key.fingerprint,
             name=self.ssh_public_key.name,
-            id=None
+            id=None,
         )
         self.ssh_api().load.assert_called_once()
         self.assertFalse(self.ssh_api.create.called)
@@ -124,9 +126,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.ssh_api().load.side_effect = digitalocean.DataReadError(
             'The resource you were accessing could not be found.'
         )
-        self.client.post(self.url, self.get_valid_data(
-            ssh_public_key=self.ssh_url
-        ))
+        self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         self.ssh_api().load.assert_called_once()
         self.ssh_api().create.assert_called_once()
 
@@ -142,18 +142,16 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.assertEqual(droplet.key_fingerprint, '')
 
     def test_if_ssh_is_used_it_is_stored_in_droplet(self):
-        self.client.post(self.url, self.get_valid_data(
-            ssh_public_key=self.ssh_url
-        ))
+        self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         droplet = Droplet.objects.get(backend_id=self.mock_droplet.id)
         self.assertEqual(droplet.key_name, self.mock_key.name)
         self.assertEqual(droplet.key_fingerprint, self.mock_key.fingerprint)
 
     def test_when_droplet_is_created_backend_is_called(self):
-        self.client.post(self.url, self.get_valid_data(
-            name='VALID-NAME',
-            ssh_public_key=self.ssh_url
-        ))
+        self.client.post(
+            self.url,
+            self.get_valid_data(name='VALID-NAME', ssh_public_key=self.ssh_url),
+        )
 
         self.droplet_api.assert_called_once_with(
             token=mock.ANY,
@@ -162,21 +160,17 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
             region=self.region.backend_id,
             image=self.image.backend_id,
             size_slug=self.size.backend_id,
-            ssh_keys=[self.mock_key.id]
+            ssh_keys=[self.mock_key.id],
         )
         self.droplet_api().create.assert_called_once()
 
     def test_when_droplet_is_created_last_action_is_pulled(self):
-        self.client.post(self.url, self.get_valid_data(
-            ssh_public_key=self.ssh_url
-        ))
+        self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         action_id = self.mock_droplet.action_ids[-1]
         self.manager_api().get_action.assert_called_once_with(action_id)
 
     def test_when_droplet_is_created_external_ip_is_pulled(self):
-        self.client.post(self.url, self.get_valid_data(
-            ssh_public_key=self.ssh_url
-        ))
+        self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         self.manager_api().get_droplet.assert_called_once_with(self.mock_droplet.id)
 
         droplet = Droplet.objects.get(backend_id=self.mock_droplet.id)

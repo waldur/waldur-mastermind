@@ -1,18 +1,17 @@
 import logging
 
 from django.conf import settings
-from django.db.models import Q
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
-from waldur_core.core import tasks as core_tasks
 from waldur_core.core import models as core_models
+from waldur_core.core import tasks as core_tasks
 from waldur_core.quotas import exceptions as quotas_exceptions
-from waldur_core.structure import (tasks as structure_tasks,
-                                   SupportedServices)
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import tasks as structure_tasks
 
-from . import models, serializers, log
-
+from . import log, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -71,24 +70,26 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
         # Deactivate schedule if its backup become erred.
         schedule = backup.backup_schedule
         if schedule:
-            schedule.error_message = 'Failed to execute backup schedule for %s. Error: %s' % (
-                backup.instance, backup.error_message)
+            schedule.error_message = (
+                'Failed to execute backup schedule for %s. Error: %s'
+                % (backup.instance, backup.error_message)
+            )
             schedule.is_active = False
             schedule.save()
 
 
 class DeleteIncompleteInstanceTask(core_tasks.Task):
-
     def execute(self, instance):
         with transaction.atomic():
-            scopes = [instance] + list(instance.volumes.all()) + list(instance.floating_ips)
+            scopes = (
+                [instance] + list(instance.volumes.all()) + list(instance.floating_ips)
+            )
             for scope in scopes:
                 if not scope.backend_id:
                     scope.decrease_backend_quotas_usage()
 
 
 class ForceDeleteBackupTask(core_tasks.DeletionTask):
-
     def execute(self, backup):
         backup.snapshots.all().delete()
         super(ForceDeleteBackupTask, self).execute(backup)
@@ -159,18 +160,28 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
 
     @transaction.atomic()
     def run(self):
-        schedules = self.model.objects.filter(is_active=True, next_trigger_at__lt=timezone.now())
+        schedules = self.model.objects.filter(
+            is_active=True, next_trigger_at__lt=timezone.now()
+        )
         for schedule in schedules:
             existing_resources = self._get_resources(schedule)
             if existing_resources.count() >= schedule.maximal_number_of_resources:
-                self._schedule_exceeding_resources_deletion(schedule, existing_resources)
-                logger.debug('Skipping schedule %s because number of resources %s has reached limit %s.',
-                             schedule, existing_resources, schedule.maximal_number_of_resources)
+                self._schedule_exceeding_resources_deletion(
+                    schedule, existing_resources
+                )
+                logger.debug(
+                    'Skipping schedule %s because number of resources %s has reached limit %s.',
+                    schedule,
+                    existing_resources,
+                    schedule.maximal_number_of_resources,
+                )
                 continue
 
             kept_until = None
             if schedule.retention_time:
-                kept_until = timezone.now() + timezone.timedelta(days=schedule.retention_time)
+                kept_until = timezone.now() + timezone.timedelta(
+                    days=schedule.retention_time
+                )
 
             try:
                 # Value of call_count attribute is used as suffix of new resource name
@@ -178,11 +189,14 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 schedule.save()
                 resource = self._create_resource(schedule, kept_until=kept_until)
             except quotas_exceptions.QuotaValidationError as e:
-                message = 'Failed to schedule "%s" creation. Error: %s' % (self.model.__name__, e)
+                message = 'Failed to schedule "%s" creation. Error: %s' % (
+                    self.model.__name__,
+                    e,
+                )
                 logger.debug(
-                    'Resource schedule (PK: %s), (Name: %s) execution failed. %s' % (schedule.pk,
-                                                                                     schedule.name,
-                                                                                     message))
+                    'Resource schedule (PK: %s), (Name: %s) execution failed. %s'
+                    % (schedule.pk, schedule.name, message)
+                )
                 schedule.is_active = False
                 schedule.error_message = message
                 schedule.save()
@@ -193,25 +207,27 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                 schedule.save()
 
     def _schedule_exceeding_resources_deletion(self, schedule, existing_resources):
-        deleting_states = (
-            Q(state=core_models.StateMixin.States.DELETION_SCHEDULED) |
-            Q(state=core_models.StateMixin.States.DELETING)
+        deleting_states = Q(state=core_models.StateMixin.States.DELETION_SCHEDULED) | Q(
+            state=core_models.StateMixin.States.DELETING
         )
 
-        terminal_states = (
-            Q(state=core_models.StateMixin.States.OK) |
-            Q(state=core_models.StateMixin.States.ERRED)
+        terminal_states = Q(state=core_models.StateMixin.States.OK) | Q(
+            state=core_models.StateMixin.States.ERRED
         )
 
         if existing_resources.filter(deleting_states).exists():
-            logger.debug('Deletion of exceeding resources for schedule %s is pending.', schedule)
+            logger.debug(
+                'Deletion of exceeding resources for schedule %s is pending.', schedule
+            )
             return
 
         total = existing_resources.count()
         amount_to_remove = max(1, total - schedule.maximal_number_of_resources)
         self._log_backup_cleanup(schedule, amount_to_remove, total)
 
-        resources = existing_resources.filter(terminal_states).order_by('kept_until', 'created')
+        resources = existing_resources.filter(terminal_states).order_by(
+            'kept_until', 'created'
+        )
         resources_to_remove = resources[:amount_to_remove]
         executor = self._get_delete_executor()
         for resource in resources_to_remove:
@@ -246,7 +262,9 @@ class ScheduleBackups(BaseScheduleTask):
             service_project_link=schedule.instance.service_project_link,
             instance=schedule.instance,
             backup_schedule=schedule,
-            metadata=serializers.BackupSerializer.get_backup_metadata(schedule.instance),
+            metadata=serializers.BackupSerializer.get_backup_metadata(
+                schedule.instance
+            ),
             kept_until=kept_until,
         )
         serializers.BackupSerializer.create_backup_snapshots(backup)
@@ -254,17 +272,22 @@ class ScheduleBackups(BaseScheduleTask):
 
     def _get_create_executor(self):
         from . import executors
+
         return executors.BackupCreateExecutor
 
     def _get_delete_executor(self):
         from . import executors
+
         return executors.BackupDeleteExecutor
 
     def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
-        message_template = ('Maximum resource count "%s" has been reached.'
-                            '"%s" from "%s" resources are going to be removed.')
+        message_template = (
+            'Maximum resource count "%s" has been reached.'
+            '"%s" from "%s" resources are going to be removed.'
+        )
         log.event_logger.openstack_backup_schedule.info(
-            message_template % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
+            message_template
+            % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
             event_type='resource_backup_schedule_cleaned_up',
             event_context={'resource': schedule.instance, 'backup_schedule': schedule},
         )
@@ -282,8 +305,9 @@ class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
     @transaction.atomic
     def run(self):
         executor = self._get_delete_executor()
-        resources = self.model.objects.filter(kept_until__lt=timezone.now(),
-                                              state=core_models.StateMixin.States.OK)
+        resources = self.model.objects.filter(
+            kept_until__lt=timezone.now(), state=core_models.StateMixin.States.OK
+        )
         for resource in resources:
             executor.execute(resource)
 
@@ -294,6 +318,7 @@ class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
 
     def _get_delete_executor(self):
         from . import executors
+
         return executors.BackupDeleteExecutor
 
 
@@ -305,7 +330,8 @@ class ScheduleSnapshots(BaseScheduleTask):
     @transaction.atomic()
     def _create_resource(self, schedule, kept_until):
         snapshot = models.Snapshot.objects.create(
-            name='Snapshot#%s of %s' % (schedule.call_count, schedule.source_volume.name),
+            name='Snapshot#%s of %s'
+            % (schedule.call_count, schedule.source_volume.name),
             description='Scheduled snapshot of volume "%s"' % schedule.source_volume,
             service_project_link=schedule.source_volume.service_project_link,
             source_volume=schedule.source_volume,
@@ -318,19 +344,27 @@ class ScheduleSnapshots(BaseScheduleTask):
 
     def _get_create_executor(self):
         from . import executors
+
         return executors.SnapshotCreateExecutor
 
     def _get_delete_executor(self):
         from . import executors
+
         return executors.SnapshotDeleteExecutor
 
     def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
-        message_template = ('Maximum resource count "%s" has been reached.'
-                            '"%s" from "%s" resources are going to be removed.')
+        message_template = (
+            'Maximum resource count "%s" has been reached.'
+            '"%s" from "%s" resources are going to be removed.'
+        )
         log.event_logger.openstack_snapshot_schedule.info(
-            message_template % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
+            message_template
+            % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
             event_type='resource_snapshot_schedule_cleaned_up',
-            event_context={'resource': schedule.source_volume, 'snapshot_schedule': schedule},
+            event_context={
+                'resource': schedule.source_volume,
+                'snapshot_schedule': schedule,
+            },
         )
 
 
@@ -340,21 +374,27 @@ class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
 
     def _get_delete_executor(self):
         from . import executors
+
         return executors.SnapshotDeleteExecutor
 
 
 class LimitedPerTypeThrottleMixin:
-
     def get_limit(self, resource):
         nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})
         limit_per_type = nc_settings.get('MAX_CONCURRENT_PROVISION', {})
         model_name = SupportedServices.get_name_for_model(resource)
-        return limit_per_type.get(model_name, super(LimitedPerTypeThrottleMixin, self).get_limit(resource))
+        return limit_per_type.get(
+            model_name, super(LimitedPerTypeThrottleMixin, self).get_limit(resource)
+        )
 
 
-class ThrottleProvisionTask(LimitedPerTypeThrottleMixin, structure_tasks.ThrottleProvisionTask):
+class ThrottleProvisionTask(
+    LimitedPerTypeThrottleMixin, structure_tasks.ThrottleProvisionTask
+):
     pass
 
 
-class ThrottleProvisionStateTask(LimitedPerTypeThrottleMixin, structure_tasks.ThrottleProvisionStateTask):
+class ThrottleProvisionStateTask(
+    LimitedPerTypeThrottleMixin, structure_tasks.ThrottleProvisionStateTask
+):
     pass

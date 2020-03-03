@@ -1,10 +1,12 @@
 import collections
 import logging
 
-from django.conf import settings
 import requests
+from django.conf import settings
 
-UserDetails = collections.namedtuple('UserDetails', ('full_name', 'native_name', 'organization', 'job_title'))
+UserDetails = collections.namedtuple(
+    'UserDetails', ('full_name', 'native_name', 'organization', 'job_title')
+)
 
 
 class BCCException(Exception):
@@ -42,7 +44,9 @@ def get_user_details(nid, vno):
     try:
         response = requests.get(url, params=params)
     except requests.RequestException as e:
-        logging.warning('Unable to get user details from PayFixation API. Exception: %s', e)
+        logging.warning(
+            'Unable to get user details from PayFixation API. Exception: %s', e
+        )
         raise BCCException(detail=e.message)
 
     if response.status_code != 200:

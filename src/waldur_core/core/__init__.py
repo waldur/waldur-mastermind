@@ -10,6 +10,7 @@ class WaldurExtension:
 
     class Settings:
         """ Defines extra django settings """
+
         pass
 
     @staticmethod

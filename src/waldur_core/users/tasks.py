@@ -1,11 +1,11 @@
 import logging
 from smtplib import SMTPException
 
+import requests
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 from python_freeipa import exceptions as freeipa_exceptions
-import requests
 
 from waldur_core.core import models as core_models
 from waldur_core.core.utils import broadcast_mail, pwgen
@@ -23,7 +23,9 @@ def cancel_expired_invitations(invitations=None):
     """
     expiration_date = timezone.now() - settings.WALDUR_CORE['INVITATION_LIFETIME']
     if not invitations:
-        invitations = models.Invitation.objects.filter(state=models.Invitation.State.PENDING)
+        invitations = models.Invitation.objects.filter(
+            state=models.Invitation.State.PENDING
+        )
     invitations = invitations.filter(created__lte=expiration_date)
     invitations.update(state=models.Invitation.State.EXPIRED)
 
@@ -37,8 +39,11 @@ def send_invitation_created(invitation_uuid, sender):
     context = utils.get_invitation_context(invitation, sender)
     context['link'] = invitation.link_template.format(uuid=invitation_uuid)
 
-    logger.debug('About to send invitation to {email} to join {name} {type} as {role}'.format(
-        email=invitation.email, **context))
+    logger.debug(
+        'About to send invitation to {email} to join {name} {type} as {role}'.format(
+            email=invitation.email, **context
+        )
+    )
     try:
         broadcast_mail('users', 'invitation_created', context, [invitation.email])
     except SMTPException as e:
@@ -55,12 +60,18 @@ def send_invitation_requested(invitation_uuid, sender):
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
     base_context = utils.get_invitation_context(invitation, sender)
 
-    staff_users = core_models.User.objects.filter(is_staff=True, is_active=True).exclude(email='')
+    staff_users = core_models.User.objects.filter(
+        is_staff=True, is_active=True
+    ).exclude(email='')
     for user in staff_users:
         token = utils.get_invitation_token(invitation, user)
-        approve_link = settings.WALDUR_CORE['INVITATION_APPROVE_URL'].format(token=token)
+        approve_link = settings.WALDUR_CORE['INVITATION_APPROVE_URL'].format(
+            token=token
+        )
         reject_link = settings.WALDUR_CORE['INVITATION_REJECT_URL'].format(token=token)
-        context = dict(approve_link=approve_link, reject_link=reject_link, **base_context)
+        context = dict(
+            approve_link=approve_link, reject_link=reject_link, **base_context
+        )
         broadcast_mail('users', 'invitation_requested', context, [user.email])
 
 
@@ -71,7 +82,9 @@ def send_invitation_rejected(invitation_uuid, sender):
     """
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
     context = utils.get_invitation_context(invitation, sender)
-    broadcast_mail('users', 'invitation_rejected', context, [invitation.created_by.email])
+    broadcast_mail(
+        'users', 'invitation_rejected', context, [invitation.created_by.email]
+    )
 
 
 @shared_task(name='waldur_core.users.get_or_create_user')
@@ -84,7 +97,9 @@ def get_or_create_user(invitation_uuid, sender):
     try:
         profile, created = utils.get_or_create_profile(user, username, password)
     except (freeipa_exceptions.FreeIPAError, requests.RequestException) as e:
-        logger.exception('Unable to create FreeIPA profile for user with ID: %s', user.id)
+        logger.exception(
+            'Unable to create FreeIPA profile for user with ID: %s', user.id
+        )
         invitation.error_message = str(e)
         invitation.save(update_fields=['error_message'])
         raise

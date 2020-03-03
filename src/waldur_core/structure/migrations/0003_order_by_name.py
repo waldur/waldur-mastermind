@@ -16,6 +16,10 @@ class Migration(migrations.Migration):
         ),
         migrations.AlterModelOptions(
             name='servicesettings',
-            options={'ordering': ('name',), 'verbose_name': 'Service settings', 'verbose_name_plural': 'Service settings'},
+            options={
+                'ordering': ('name',),
+                'verbose_name': 'Service settings',
+                'verbose_name_plural': 'Service settings',
+            },
         ),
     ]

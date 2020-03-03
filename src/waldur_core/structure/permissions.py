@@ -1,5 +1,5 @@
-from functools import reduce
 import logging
+from functools import reduce
 
 from django.conf import settings as django_settings
 from rest_framework import exceptions
@@ -64,11 +64,15 @@ def _has_owner_access(user, customer):
 
 
 def _has_manager_access(user, project):
-    return _has_owner_access(user, project.customer) or project.has_user(user, models.ProjectRole.MANAGER)
+    return _has_owner_access(user, project.customer) or project.has_user(
+        user, models.ProjectRole.MANAGER
+    )
 
 
 def _has_admin_access(user, project):
-    return _has_manager_access(user, project) or project.has_user(user, models.ProjectRole.ADMINISTRATOR)
+    return _has_manager_access(user, project) or project.has_user(
+        user, models.ProjectRole.ADMINISTRATOR
+    )
 
 
 def _get_parent_by_permission_path(obj, permission_path):
@@ -89,5 +93,8 @@ def _get_customer(obj):
 
 
 def check_access_to_services_management(request, view, obj=None):
-    if django_settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES'] and not request.user.is_staff:
+    if (
+        django_settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']
+        and not request.user.is_staff
+    ):
         raise exceptions.PermissionDenied()

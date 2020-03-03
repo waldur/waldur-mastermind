@@ -12,10 +12,7 @@ INSTALLED_APPS += (  # noqa: F405
 ROOT_URLCONF = 'waldur_core.structure.tests.urls'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'waldur',
-    }
+    'default': {'ENGINE': 'django.db.backends.postgresql_psycopg2', 'NAME': 'waldur',}
 }
 
 ALLOWED_HOSTS = ['localhost']

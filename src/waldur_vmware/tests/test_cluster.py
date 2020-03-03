@@ -1,10 +1,11 @@
 from unittest import mock
+
 from rest_framework import status, test
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 
-from . import factories
 from .. import backend, models
+from . import factories
 
 
 class ClusterGetTest(test.APITransactionTestCase):
@@ -18,20 +19,16 @@ class ClusterGetTest(test.APITransactionTestCase):
         cluster_4 = factories.ClusterFactory()
 
         factories.CustomerClusterFactory(
-            cluster=cluster_1,
-            customer=self.fixture.customer,
+            cluster=cluster_1, customer=self.fixture.customer,
         )
         factories.CustomerClusterFactory(
-            cluster=cluster_2,
-            customer=self.fixture.customer,
+            cluster=cluster_2, customer=self.fixture.customer,
         )
         factories.CustomerClusterFactory(
-            cluster=cluster_3,
-            customer=self.fixture_2.customer,
+            cluster=cluster_3, customer=self.fixture_2.customer,
         )
         factories.CustomerClusterFactory(
-            cluster=cluster_4,
-            customer=self.fixture_2.customer,
+            cluster=cluster_4, customer=self.fixture_2.customer,
         )
         self.url = factories.ClusterFactory.get_list_url()
 
@@ -43,7 +40,9 @@ class ClusterGetTest(test.APITransactionTestCase):
 
     def test_filter_cluster_list(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {'customer_uuid': self.fixture.customer.uuid.hex})
+        response = self.client.get(
+            self.url, {'customer_uuid': self.fixture.customer.uuid.hex}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 2)
 

@@ -14,6 +14,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='node',
             name='initial_data',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict, help_text='Initial data for instance creating.'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Initial data for instance creating.',
+            ),
         ),
     ]

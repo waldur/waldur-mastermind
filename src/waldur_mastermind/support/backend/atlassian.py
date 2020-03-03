@@ -1,19 +1,19 @@
 import collections
-from html.parser import HTMLParser
 import json
 import logging
 from datetime import datetime
+from html.parser import HTMLParser
 
 import dateutil.parser
 from django.conf import settings
-from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.utils import timezone
 from jira import Comment
 from jira.utils import json_loads
 
 from waldur_core.structure import ServiceBackendError
-from waldur_jira.backend import reraise_exceptions, JiraBackend
+from waldur_jira.backend import JiraBackend, reraise_exceptions
 from waldur_mastermind.support import models
 from waldur_mastermind.support.exceptions import SupportUserInactive
 
@@ -22,7 +22,9 @@ from . import SupportBackend
 logger = logging.getLogger(__name__)
 
 
-Settings = collections.namedtuple('Settings', ['backend_url', 'username', 'password', 'email', 'token'])
+Settings = collections.namedtuple(
+    'Settings', ['backend_url', 'username', 'password', 'email', 'token']
+)
 
 
 class ServiceDeskBackend(JiraBackend, SupportBackend):
@@ -62,19 +64,25 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def _add_comment(self, issue, body, is_internal):
         data = {
             'body': body,
-            'properties': [{'key': 'sd.public.comment', 'value': {'internal': is_internal}}, ]
+            'properties': [
+                {'key': 'sd.public.comment', 'value': {'internal': is_internal}},
+            ],
         }
 
         url = self.manager._get_url('issue/{0}/comment'.format(issue))
         response = self.manager._session.post(url, data=json.dumps(data))
 
-        comment = Comment(self.manager._options, self.manager._session, raw=json_loads(response))
+        comment = Comment(
+            self.manager._options, self.manager._session, raw=json_loads(response)
+        )
         return comment
 
     @reraise_exceptions
     def create_issue(self, issue):
         if not issue.caller.email:
-            raise ServiceBackendError('Issue is not created because caller user does not have email.')
+            raise ServiceBackendError(
+                'Issue is not created because caller user does not have email.'
+            )
 
         self.create_user(issue.caller)
 
@@ -87,9 +95,15 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             self.pull_request_types()
 
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
-            raise ServiceBackendError('Issue is not created because corresponding request type is not found.')
+            raise ServiceBackendError(
+                'Issue is not created because corresponding request type is not found.'
+            )
 
-        args['requestTypeId'] = models.RequestType.objects.filter(issue_type_name=issue.type).first().backend_id
+        args['requestTypeId'] = (
+            models.RequestType.objects.filter(issue_type_name=issue.type)
+            .first()
+            .backend_id
+        )
         backend_issue = self.manager.create_customer_request(args)
         args = self._get_custom_fields(issue)
 
@@ -104,41 +118,65 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
             existing_support_user = self.manager.search_users(user.email)
         else:
-            existing_support_user = self.manager.search_users(user.email, includeInactive=True)
+            existing_support_user = self.manager.search_users(
+                user.email, includeInactive=True
+            )
 
         if existing_support_user:
             active_user = [u for u in existing_support_user if u.active]
             if not active_user:
-                raise SupportUserInactive('Issue is not created because caller user is disabled.')
+                raise SupportUserInactive(
+                    'Issue is not created because caller user is disabled.'
+                )
 
-            logger.debug('Skipping user %s creation because it already exists', user.email)
+            logger.debug(
+                'Skipping user %s creation because it already exists', user.email
+            )
             backend_customer = active_user[0]
         else:
             if self.use_old_api:
                 # add_user method returns boolean value therefore we need to fetch user object to find its key
-                self.manager.add_user(user.email, user.email, fullname=user.full_name, ignore_existing=True)
+                self.manager.add_user(
+                    user.email,
+                    user.email,
+                    fullname=user.full_name,
+                    ignore_existing=True,
+                )
                 backend_customer = self.manager.search_users(user.email)[0]
             else:
-                backend_customer = self.manager.create_customer(user.email, user.full_name)
+                backend_customer = self.manager.create_customer(
+                    user.email, user.full_name
+                )
 
         try:
             user.supportcustomer
         except ObjectDoesNotExist:
-            support_customer = models.SupportCustomer(user=user, backend_id=backend_customer.key)
+            support_customer = models.SupportCustomer(
+                user=user, backend_id=backend_customer.key
+            )
             support_customer.save()
 
     @reraise_exceptions
     def get_users(self):
-        users = self.manager.search_assignable_users_for_projects('', self.project_settings['key'], maxResults=False)
-        return [models.SupportUser(name=user.displayName, backend_id=self.get_user_id(user)) for user in users]
+        users = self.manager.search_assignable_users_for_projects(
+            '', self.project_settings['key'], maxResults=False
+        )
+        return [
+            models.SupportUser(name=user.displayName, backend_id=self.get_user_id(user))
+            for user in users
+        ]
 
     def _get_custom_fields(self, issue):
         args = {}
 
         if issue.reporter:
-            args[self.get_field_id_by_name(self.issue_settings['reporter_field'])] = issue.reporter.name
+            args[
+                self.get_field_id_by_name(self.issue_settings['reporter_field'])
+            ] = issue.reporter.name
         if issue.impact:
-            args[self.get_field_id_by_name(self.issue_settings['impact_field'])] = issue.impact
+            args[
+                self.get_field_id_by_name(self.issue_settings['impact_field'])
+            ] = issue.impact
         if issue.priority:
             args['priority'] = {'name': issue.priority}
 
@@ -179,23 +217,23 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             except models.SupportUser.DoesNotExist:
                 key = issue.caller.email
 
-            args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [{
-                "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
-                "key": key,
-            }]
+            args[self.get_field_id_by_name(self.issue_settings['caller_field'])] = [
+                {
+                    "name": issue.caller.supportcustomer.backend_id,  # will be equal to username
+                    "key": key,
+                }
+            ]
             return args
 
         args = {
             'requestFieldValues': {
                 'summary': parser.unescape(issue.summary),
-                'description': parser.unescape(issue.description)
+                'description': parser.unescape(issue.description),
             }
         }
 
         if issue.priority:
-            args['requestFieldValues']['priority'] = {
-                'name': issue.priority
-            }
+            args['requestFieldValues']['priority'] = {'name': issue.priority}
 
         support_customer = issue.caller.supportcustomer
         args['requestParticipants'] = [support_customer.backend_id]
@@ -207,12 +245,16 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if value and hasattr(value, 'ongoingCycle'):
             epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
             if epoch_milliseconds:
-                return datetime.fromtimestamp(epoch_milliseconds / 1000.0, timezone.get_default_timezone())
+                return datetime.fromtimestamp(
+                    epoch_milliseconds / 1000.0, timezone.get_default_timezone()
+                )
 
     def _backend_issue_to_issue(self, backend_issue, issue):
         issue.key = backend_issue.key
         issue.backend_id = backend_issue.key
-        issue.resolution = (backend_issue.fields.resolution and backend_issue.fields.resolution.name) or ''
+        issue.resolution = (
+            backend_issue.fields.resolution and backend_issue.fields.resolution.name
+        ) or ''
         issue.status = backend_issue.fields.status.name or ''
         issue.link = backend_issue.permalink()
         issue.priority = backend_issue.fields.priority.name
@@ -258,7 +300,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def _backend_comment_to_comment(self, backend_comment, comment):
         comment.update_message(backend_comment.body)
         comment.author = self.get_or_create_support_user(backend_comment.author)
-        internal = self._get_property('comment', backend_comment.id, 'sd.public.comment')
+        internal = self._get_property(
+            'comment', backend_comment.id, 'sd.public.comment'
+        )
         comment.is_public = not internal.get('value', {}).get('internal', False)
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
@@ -273,7 +317,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         backend_request_types = self.manager.request_types(service_desk_id)
         with transaction.atomic():
             backend_request_type_map = {
-                int(request_type.id): request_type for request_type in backend_request_types
+                int(request_type.id): request_type
+                for request_type in backend_request_types
             }
 
             waldur_request_type = {
@@ -281,8 +326,12 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 for request_type in models.RequestType.objects.all()
             }
 
-            stale_request_types = set(waldur_request_type.keys()) - set(backend_request_type_map.keys())
-            models.RequestType.objects.filter(backend_id__in=stale_request_types).delete()
+            stale_request_types = set(waldur_request_type.keys()) - set(
+                backend_request_type_map.keys()
+            )
+            models.RequestType.objects.filter(
+                backend_id__in=stale_request_types
+            ).delete()
 
             for backend_request_type in backend_request_types:
                 issue_type = self.manager.issue_type(backend_request_type.issueTypeId)
@@ -290,8 +339,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                     backend_id=backend_request_type.id,
                     defaults={
                         'name': backend_request_type.name,
-                        'issue_type_name': issue_type.name
-                    })
+                        'issue_type_name': issue_type.name,
+                    },
+                )
 
     @reraise_exceptions
     def pull_priorities(self):
@@ -306,7 +356,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 for priority in models.Priority.objects.all()
             }
 
-            stale_priorities = set(waldur_priorities.keys()) - set(backend_priorities_map.keys())
+            stale_priorities = set(waldur_priorities.keys()) - set(
+                backend_priorities_map.keys()
+            )
             models.Priority.objects.filter(backend_id__in=stale_priorities).delete()
 
             for priority in backend_priorities:
@@ -316,7 +368,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                         'name': priority.name,
                         'description': priority.description,
                         'icon_url': priority.iconUrl,
-                    })
+                    },
+                )
 
     def create_issue_links(self, issue, linked_issues):
         for linked_issue in linked_issues:

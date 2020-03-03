@@ -17,7 +17,7 @@ class MarketplaceAzureConfig(AppConfig):
         resource_models = (
             azure_models.VirtualMachine,
             azure_models.SQLServer,
-            azure_models.SQLDatabase
+            azure_models.SQLDatabase,
         )
 
         marketplace_handlers.connect_resource_handlers(*resource_models)
@@ -35,12 +35,16 @@ class MarketplaceAzureConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketpace_azure.synchronize_public_ip',
         )
 
-        manager.register(offering_type=VIRTUAL_MACHINE_TYPE,
-                         create_resource_processor=processors.VirtualMachineCreateProcessor,
-                         delete_resource_processor=processors.VirtualMachineDeleteProcessor,
-                         service_type=AzureConfig.service_name)
+        manager.register(
+            offering_type=VIRTUAL_MACHINE_TYPE,
+            create_resource_processor=processors.VirtualMachineCreateProcessor,
+            delete_resource_processor=processors.VirtualMachineDeleteProcessor,
+            service_type=AzureConfig.service_name,
+        )
 
-        manager.register(offering_type=SQL_SERVER_TYPE,
-                         create_resource_processor=processors.SQLServerCreateProcessor,
-                         delete_resource_processor=processors.SQLServerDeleteProcessor,
-                         service_type=AzureConfig.service_name)
+        manager.register(
+            offering_type=SQL_SERVER_TYPE,
+            create_resource_processor=processors.SQLServerCreateProcessor,
+            delete_resource_processor=processors.SQLServerDeleteProcessor,
+            service_type=AzureConfig.service_name,
+        )

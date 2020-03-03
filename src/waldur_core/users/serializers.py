@@ -14,7 +14,7 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         lookup_field='uuid',
         queryset=structure_models.Project.objects.all(),
         required=False,
-        allow_null=True
+        allow_null=True,
     )
     project_name = serializers.ReadOnlyField(source='project.name')
     customer = serializers.HyperlinkedRelatedField(
@@ -22,7 +22,7 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         lookup_field='uuid',
         queryset=structure_models.Customer.objects.all(),
         required=False,
-        allow_null=True
+        allow_null=True,
     )
     customer_name = serializers.ReadOnlyField(source='customer.name')
 
@@ -31,34 +31,50 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Invitation
         detail_fields = (
-            'full_name', 'native_name',
-            'tax_number', 'phone_number',
-            'organization', 'job_title',
+            'full_name',
+            'native_name',
+            'tax_number',
+            'phone_number',
+            'organization',
+            'job_title',
         )
-        fields = ('url', 'uuid', 'link_template', 'email', 'civil_number',
-                  'project', 'project_role', 'project_name',
-                  'customer', 'customer_role', 'customer_name',
-                  'state', 'error_message', 'created', 'expires') + detail_fields
-        read_only_fields = ('url', 'uuid', 'state', 'error_message', 'created', 'expires')
+        fields = (
+            'url',
+            'uuid',
+            'link_template',
+            'email',
+            'civil_number',
+            'project',
+            'project_role',
+            'project_name',
+            'customer',
+            'customer_role',
+            'customer_name',
+            'state',
+            'error_message',
+            'created',
+            'expires',
+        ) + detail_fields
+        read_only_fields = (
+            'url',
+            'uuid',
+            'state',
+            'error_message',
+            'created',
+            'expires',
+        )
         extra_kwargs = {
-            'url': {
-                'lookup_field': 'uuid',
-                'view_name': 'user-invitation-detail',
-            },
-            'project_role': {
-                'required': False,
-                'allow_null': True,
-            },
-            'customer_role': {
-                'required': False,
-                'allow_null': True,
-            },
+            'url': {'lookup_field': 'uuid', 'view_name': 'user-invitation-detail',},
+            'project_role': {'required': False, 'allow_null': True,},
+            'customer_role': {'required': False, 'allow_null': True,},
         }
 
     def validate(self, attrs):
         link_template = attrs['link_template']
         if '{uuid}' not in link_template:
-            raise serializers.ValidationError({'link_template': _("Link template must include '{uuid}' parameter.")})
+            raise serializers.ValidationError(
+                {'link_template': _("Link template must include '{uuid}' parameter.")}
+            )
 
         project = attrs.get('project')
         customer = attrs.get('customer')
@@ -67,13 +83,21 @@ class InvitationSerializer(serializers.HyperlinkedModelSerializer):
         customer_role = attrs.get('customer_role', '')
 
         if customer and project:
-            raise serializers.ValidationError(_('Cannot create invitation to project and customer simultaneously.'))
+            raise serializers.ValidationError(
+                _('Cannot create invitation to project and customer simultaneously.')
+            )
         elif not (customer or project):
-            raise serializers.ValidationError(_('Customer or project must be provided.'))
+            raise serializers.ValidationError(
+                _('Customer or project must be provided.')
+            )
         elif (customer and not customer_role) or (customer_role and not customer):
-            raise serializers.ValidationError({'customer_role': _('Customer and its role must be provided.')})
+            raise serializers.ValidationError(
+                {'customer_role': _('Customer and its role must be provided.')}
+            )
         elif (project and not project_role) or (project_role and not project):
-            raise serializers.ValidationError({'project_role': _('Project and its role must be provided.')})
+            raise serializers.ValidationError(
+                {'project_role': _('Project and its role must be provided.')}
+            )
 
         return attrs
 

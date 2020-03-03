@@ -1,5 +1,13 @@
 from django.db import IntegrityError, transaction
-from django.db.models import Count, OuterRef, Subquery, F, Q, ExpressionWrapper, PositiveSmallIntegerField
+from django.db.models import (
+    Count,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    PositiveSmallIntegerField,
+    Q,
+    Subquery,
+)
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -7,8 +15,9 @@ from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
-from rest_framework import status, exceptions as rf_exceptions, viewsets as rf_viewsets
-from rest_framework import views
+from rest_framework import exceptions as rf_exceptions
+from rest_framework import status, views
+from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -17,25 +26,24 @@ from rest_framework.reverse import reverse
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
-from waldur_core.core.utils import order_with_nulls, month_start
-from waldur_core.structure import models as structure_models
+from waldur_core.core.utils import month_start, order_with_nulls
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.permissions import _has_owner_access
-from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.signals import resource_imported
 
-from . import serializers, models, filters, tasks, plugins, permissions
+from . import filters, models, permissions, plugins, serializers, tasks
 
 
 class BaseMarketplaceView(core_views.ActionsViewSet):
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
-    update_permissions = \
-        partial_update_permissions = \
-        destroy_permissions = \
-        [structure_permissions.is_owner]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_owner
+    ]
 
 
 class ServiceProviderViewSet(BaseMarketplaceView):
@@ -51,22 +59,26 @@ class ServiceProviderViewSet(BaseMarketplaceView):
         """
         service_provider = self.get_object()
         if request.method == 'GET':
-            return Response({
-                'api_secret_code': service_provider.api_secret_code
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {'api_secret_code': service_provider.api_secret_code},
+                status=status.HTTP_200_OK,
+            )
         else:
             service_provider.generate_api_secret_code()
             service_provider.save()
-            return Response({
-                'detail': _('Api secret code updated.'),
-                'api_secret_code': service_provider.api_secret_code
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {
+                    'detail': _('Api secret code updated.'),
+                    'api_secret_code': service_provider.api_secret_code,
+                },
+                status=status.HTTP_200_OK,
+            )
 
     def check_related_resources(request, view, obj=None):
         if obj and obj.has_active_offerings:
-            raise rf_exceptions.ValidationError(_(
-                'Service provider has active offerings. Please archive them first.'
-            ))
+            raise rf_exceptions.ValidationError(
+                _('Service provider has active offerings. Please archive them first.')
+            )
 
     destroy_permissions = [structure_permissions.is_owner, check_related_resources]
 
@@ -77,11 +89,11 @@ class CategoryViewSet(EagerLoadMixin, core_views.ActionsViewSet):
     lookup_field = 'uuid'
     filter_backends = (DjangoFilterBackend,)
 
-    create_permissions = \
-        update_permissions = \
-        partial_update_permissions = \
-        destroy_permissions = \
-        [structure_permissions.is_staff]
+    create_permissions = (
+        update_permissions
+    ) = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_staff
+    ]
 
 
 def can_update_offering(request, view, obj=None):
@@ -98,14 +110,18 @@ def can_update_offering(request, view, obj=None):
 
 def validate_offering_update(offering):
     if offering.state == models.Offering.States.ARCHIVED:
-        raise rf_exceptions.ValidationError(_('It is not possible to update archived offering.'))
+        raise rf_exceptions.ValidationError(
+            _('It is not possible to update archived offering.')
+        )
 
 
 class OfferingViewSet(BaseMarketplaceView):
     queryset = models.Offering.objects.all()
     serializer_class = serializers.OfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
-    update_serializer_class = partial_update_serializer_class = serializers.OfferingUpdateSerializer
+    update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.OfferingUpdateSerializer
     filterset_class = filters.OfferingFilter
     filter_backends = (
         DjangoFilterBackend,
@@ -142,30 +158,28 @@ class OfferingViewSet(BaseMarketplaceView):
             offering = serializer.save()
 
         offering.save(update_fields=['state'])
-        return Response({
-            'detail': _('Offering state updated.'),
-            'state': offering.get_state_display()
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {
+                'detail': _('Offering state updated.'),
+                'state': offering.get_state_display(),
+            },
+            status=status.HTTP_200_OK,
+        )
 
-    pause_permissions = \
-        archive_permissions = \
-        [structure_permissions.is_owner]
+    pause_permissions = archive_permissions = [structure_permissions.is_owner]
 
     activate_permissions = [structure_permissions.is_staff]
 
-    activate_validators = \
-        pause_validators = \
-        archive_validators = \
-        destroy_validators = \
-        [structure_utils.check_customer_blocked]
+    activate_validators = pause_validators = archive_validators = destroy_validators = [
+        structure_utils.check_customer_blocked
+    ]
 
-    update_permissions = \
-        partial_update_permissions = \
-        [can_update_offering]
+    update_permissions = partial_update_permissions = [can_update_offering]
 
-    update_validators = \
-        partial_update_validators = \
-        [validate_offering_update, structure_utils.check_customer_blocked]
+    update_validators = partial_update_validators = [
+        validate_offering_update,
+        structure_utils.check_customer_blocked,
+    ]
 
     def perform_create(self, serializer):
         customer = serializer.validated_data['customer']
@@ -182,9 +196,7 @@ class OfferingViewSet(BaseMarketplaceView):
             resource_viewset = plugins.manager.get_resource_viewset(offering.type)
             serializer_class = resource_viewset.importable_resources_serializer_class
             serializer = serializer_class(
-                instance=resources,
-                many=True,
-                context=self.get_serializer_context()
+                instance=resources, many=True, context=self.get_serializer_context()
             )
             resources = serializer.data
 
@@ -209,7 +221,9 @@ class OfferingViewSet(BaseMarketplaceView):
         backend_id = marketplace_serializer.validated_data['backend_id']
 
         service_model = plugins.manager.get_service_model(offering.type)
-        service = service_model.objects.get(settings=offering.scope, customer=project.customer)
+        service = service_model.objects.get(
+            settings=offering.scope, customer=project.customer
+        )
 
         spl_model = plugins.manager.get_spl_model(offering.type)
         spl = spl_model.objects.get(project=project, service=service)
@@ -223,7 +237,9 @@ class OfferingViewSet(BaseMarketplaceView):
         resource_viewset = plugins.manager.get_resource_viewset(offering.type)
         serializer_class = resource_viewset.import_resource_serializer_class
 
-        serializer = serializer_class(data=resource_data, context=self.get_serializer_context())
+        serializer = serializer_class(
+            data=resource_data, context=self.get_serializer_context()
+        )
         serializer.is_valid(raise_exception=True)
 
         try:
@@ -239,14 +255,16 @@ class OfferingViewSet(BaseMarketplaceView):
             )
 
         if resource_viewset.import_resource_executor:
-            transaction.on_commit(lambda: resource_viewset.import_resource_executor.execute(resource))
+            transaction.on_commit(
+                lambda: resource_viewset.import_resource_executor.execute(resource)
+            )
 
         marketplace_resource = models.Resource.objects.get(scope=resource)
         resource_serializer = serializers.ResourceSerializer(
-            marketplace_resource, context=self.get_serializer_context())
+            marketplace_resource, context=self.get_serializer_context()
+        )
 
-        return Response(data=resource_serializer.data,
-                        status=status.HTTP_201_CREATED)
+        return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
 
 class PlanUsageReporter:
@@ -254,6 +272,7 @@ class PlanUsageReporter:
     This class provides aggregate counts of how many plans of a
     certain type for each offering is used.
     """
+
     def __init__(self, view, request):
         self.view = view
         self.request = request
@@ -267,29 +286,32 @@ class PlanUsageReporter:
 
         resources = self.get_subquery()
         remaining = ExpressionWrapper(
-            F('limit') - F('usage'),
-            output_field=PositiveSmallIntegerField()
+            F('limit') - F('usage'), output_field=PositiveSmallIntegerField()
         )
-        plans = plans.annotate(usage=Subquery(resources[:1]), limit=F('max_amount'))\
-            .annotate(remaining=remaining)
+        plans = plans.annotate(
+            usage=Subquery(resources[:1]), limit=F('max_amount')
+        ).annotate(remaining=remaining)
         plans = self.apply_ordering(plans)
 
         return self.serialize(plans)
 
     def parse_query(self):
         if self.request.query_params:
-            serializer = serializers.PlanUsageRequestSerializer(data=self.request.query_params)
+            serializer = serializers.PlanUsageRequestSerializer(
+                data=self.request.query_params
+            )
             serializer.is_valid(raise_exception=True)
             return serializer.validated_data
         return None
 
     def get_subquery(self):
         # Aggregate
-        resources = models.Resource.objects \
-            .filter(plan_id=OuterRef('pk')) \
-            .exclude(state=models.Resource.States.TERMINATED) \
-            .annotate(count=Count('*')) \
+        resources = (
+            models.Resource.objects.filter(plan_id=OuterRef('pk'))
+            .exclude(state=models.Resource.States.TERMINATED)
+            .annotate(count=Count('*'))
             .values_list('count', flat=True)
+        )
 
         # Workaround for Django bug:
         # https://code.djangoproject.com/ticket/28296
@@ -303,12 +325,16 @@ class PlanUsageReporter:
             plans = plans.filter(offering__uuid=query.get('offering_uuid'))
 
         if query.get('customer_provider_uuid'):
-            plans = plans.filter(offering__customer__uuid=query.get('customer_provider_uuid'))
+            plans = plans.filter(
+                offering__customer__uuid=query.get('customer_provider_uuid')
+            )
 
         return plans
 
     def apply_ordering(self, plans):
-        param = self.request.query_params and self.request.query_params.get('o') or '-usage'
+        param = (
+            self.request.query_params and self.request.query_params.get('o') or '-usage'
+        )
         return order_with_nulls(plans, param)
 
     def serialize(self, plans):
@@ -319,7 +345,9 @@ class PlanUsageReporter:
 
 def validate_plan_update(plan):
     if models.Resource.objects.filter(plan=plan).exists():
-        raise rf_exceptions.ValidationError(_('It is not possible to update plan because it is used by resources.'))
+        raise rf_exceptions.ValidationError(
+            _('It is not possible to update plan because it is used by resources.')
+        )
 
 
 def validate_plan_archive(plan):
@@ -343,7 +371,9 @@ class PlanViewSet(BaseMarketplaceView):
         plan = self.get_object()
         plan.archived = True
         plan.save(update_fields=['archived'])
-        return Response({'detail': _('Plan has been archived.')}, status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Plan has been archived.')}, status=status.HTTP_200_OK
+        )
 
     @action(detail=False)
     def usage_stats(self, request):
@@ -361,16 +391,22 @@ class OrderViewSet(BaseMarketplaceView):
     serializer_class = serializers.OrderSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.OrderFilter
-    destroy_validators = partial_update_validators = [structure_utils.check_customer_blocked]
+    destroy_validators = partial_update_validators = [
+        structure_utils.check_customer_blocked
+    ]
 
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
         tasks.approve_order(self.get_object(), request.user)
 
-        return Response({'detail': _('Order has been approved.')}, status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Order has been approved.')}, status=status.HTTP_200_OK
+        )
 
-    approve_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
-                          structure_utils.check_customer_blocked]
+    approve_validators = [
+        core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
+        structure_utils.check_customer_blocked,
+    ]
     approve_permissions = [permissions.user_can_approve_order_permission]
 
     @action(detail=True, methods=['post'])
@@ -378,10 +414,14 @@ class OrderViewSet(BaseMarketplaceView):
         order = self.get_object()
         order.reject()
         order.save(update_fields=['state'])
-        return Response({'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK)
+        return Response(
+            {'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK
+        )
 
-    reject_validators = [core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
-                         structure_utils.check_customer_blocked]
+    reject_validators = [
+        core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
+        structure_utils.check_customer_blocked,
+    ]
     reject_permissions = [permissions.user_can_reject_order]
 
     @action(detail=True)
@@ -392,7 +432,9 @@ class OrderViewSet(BaseMarketplaceView):
 
         file_response = HttpResponse(order.file, content_type='application/pdf')
         filename = order.get_filename()
-        file_response['Content-Disposition'] = 'attachment; filename="{filename}"'.format(filename=filename)
+        file_response[
+            'Content-Disposition'
+        ] = 'attachment; filename="{filename}"'.format(filename=filename)
         return file_response
 
     def perform_create(self, serializer):
@@ -416,11 +458,15 @@ class PluginViewSet(views.APIView):
                 )
                 for component in plugins.manager.get_components(offering_type)
             ]
-            payload.append(dict(
-                offering_type=offering_type,
-                components=components,
-                available_limits=plugins.manager.get_available_limits(offering_type),
-            ))
+            payload.append(
+                dict(
+                    offering_type=offering_type,
+                    components=components,
+                    available_limits=plugins.manager.get_available_limits(
+                        offering_type
+                    ),
+                )
+            )
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -460,15 +506,20 @@ class OrderItemViewSet(BaseMarketplaceView):
             raise rf_exceptions.PermissionDenied()
 
     destroy_validators = [order_items_destroy_validator]
-    destroy_permissions = terminate_permissions = [structure_permissions.is_administrator]
+    destroy_permissions = terminate_permissions = [
+        structure_permissions.is_administrator
+    ]
 
     @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
         order_item = self.get_object()
         if not plugins.manager.can_terminate_order_item(order_item.offering.type):
-            return Response({
-                'details': 'Order item could not be terminated because it is not supported by plugin.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    'details': 'Order item could not be terminated because it is not supported by plugin.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             # It is expected that plugin schedules Celery task to call backend
@@ -476,12 +527,16 @@ class OrderItemViewSet(BaseMarketplaceView):
             order_item.set_state_terminating()
             order_item.save(update_fields=['state'])
         except TransitionNotAllowed:
-            return Response({
-                'details': 'Order item could not be terminated because it has been already processed.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        return Response({
-            'details': 'Order item termination has been scheduled.'
-        }, status=status.HTTP_202_ACCEPTED)
+            return Response(
+                {
+                    'details': 'Order item could not be terminated because it has been already processed.'
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'details': 'Order item termination has been scheduled.'},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 class CartItemViewSet(core_views.ActionsViewSet):
@@ -499,7 +554,9 @@ class CartItemViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
-        order_serializer = serializers.OrderSerializer(instance=order, context=self.get_serializer_context())
+        order_serializer = serializers.OrderSerializer(
+            instance=order, context=self.get_serializer_context()
+        )
         return Response(order_serializer.data, status=status.HTTP_201_CREATED)
 
     submit_serializer_class = serializers.CartSubmitSerializer
@@ -507,10 +564,7 @@ class CartItemViewSet(core_views.ActionsViewSet):
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Resource.objects.all()
-    filter_backends = (
-        DjangoFilterBackend,
-        filters.ResourceScopeFilterBackend
-    )
+    filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
     filterset_class = filters.ResourceFilter
     lookup_field = 'uuid'
     serializer_class = serializers.ResourceSerializer
@@ -526,10 +580,12 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             Q(
                 project__permissions__user=self.request.user,
                 project__permissions__is_active=True,
-            ) | Q(
+            )
+            | Q(
                 project__customer__permissions__user=self.request.user,
                 project__customer__permissions__is_active=True,
-            ) | Q(
+            )
+            | Q(
                 offering__customer__permissions__user=self.request.user,
                 offering__customer__permissions__is_active=True,
             )
@@ -563,8 +619,10 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     terminate_permissions = [permissions.user_can_terminate_resource]
 
     terminate_validators = [
-        core_validators.StateValidator(models.Resource.States.OK, models.Resource.States.ERRED),
-        structure_utils.check_customer_blocked
+        core_validators.StateValidator(
+            models.Resource.States.OK, models.Resource.States.ERRED
+        ),
+        structure_utils.check_customer_blocked,
     ]
 
     @action(detail=True, methods=['post'])
@@ -621,15 +679,14 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
-    switch_plan_permissions = \
-        update_limits_permissions = \
-        [structure_permissions.is_administrator]
+    switch_plan_permissions = update_limits_permissions = [
+        structure_permissions.is_administrator
+    ]
 
-    switch_plan_validators = \
-        update_limits_validators = [
-            core_validators.StateValidator(models.Resource.States.OK),
-            structure_utils.check_customer_blocked
-        ]
+    switch_plan_validators = update_limits_validators = [
+        core_validators.StateValidator(models.Resource.States.OK),
+        structure_utils.check_customer_blocked,
+    ]
 
     @action(detail=True, methods=['get'])
     def plan_periods(self, request, uuid=None):
@@ -641,8 +698,13 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.CategoryComponentUsage.objects.all().order_by('-date', 'component__type')
-    filter_backends = (DjangoFilterBackend, filters.CategoryComponentUsageScopeFilterBackend)
+    queryset = models.CategoryComponentUsage.objects.all().order_by(
+        '-date', 'component__type'
+    )
+    filter_backends = (
+        DjangoFilterBackend,
+        filters.CategoryComponentUsageScopeFilterBackend,
+    )
     filterset_class = filters.CategoryComponentUsageFilter
     serializer_class = serializers.CategoryComponentUsageSerializer
 
@@ -660,8 +722,10 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         resource = serializer.validated_data['plan_period'].resource
         if not _has_owner_access(request.user, resource.offering.customer):
             raise PermissionDenied(
-                _('Only staff and service provider owner is allowed '
-                  'to submit usage data for marketplace resource.')
+                _(
+                    'Only staff and service provider owner is allowed '
+                    'to submit usage data for marketplace resource.'
+                )
             )
         serializer.save()
         return Response(status=status.HTTP_201_CREATED)
@@ -718,8 +782,10 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
         user = request.user
         offering = serializer.validated_data['offering']
 
-        if user.is_staff or \
-                (offering.customer and offering.customer.has_user(user, structure_models.CustomerRole.OWNER)):
+        if user.is_staff or (
+            offering.customer
+            and offering.customer.has_user(user, structure_models.CustomerRole.OWNER)
+        ):
             return
 
         raise rf_exceptions.PermissionDenied()
@@ -729,8 +795,11 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
 
 
 for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
+
     def inject_resources_counter(scope):
-        counters = models.AggregateResourceCount.objects.filter(scope=scope).only('count', 'category')
+        counters = models.AggregateResourceCount.objects.filter(scope=scope).only(
+            'count', 'category'
+        )
         return {
             'marketplace_category_{}'.format(counter.category.uuid): counter.count
             for counter in counters

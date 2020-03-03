@@ -14,6 +14,10 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='offering',
             name='plugin_options',
-            field=django.contrib.postgres.fields.jsonb.JSONField(blank=True, default=dict, help_text='Data used by specific plugin, such as credentials and hooks.'),
+            field=django.contrib.postgres.fields.jsonb.JSONField(
+                blank=True,
+                default=dict,
+                help_text='Data used by specific plugin, such as credentials and hooks.',
+            ),
         ),
     ]

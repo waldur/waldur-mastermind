@@ -1,6 +1,6 @@
 import logging
 
-from waldur_slurm.base import BatchError, BaseBatchClient
+from waldur_slurm.base import BaseBatchClient, BatchError
 from waldur_slurm.parser_moab import MoabReportLine
 from waldur_slurm.structures import Account, Association
 from waldur_slurm.utils import format_current_month
@@ -23,18 +23,19 @@ class MoabClient(BaseBatchClient):
         output = self.execute_command(
             'mam-list-accounts --raw --quiet --show Name,Description,Organization'.split()
         )
-        return [self._parse_account(line) for line in output.splitlines() if '|' in line]
+        return [
+            self._parse_account(line) for line in output.splitlines() if '|' in line
+        ]
 
     def _parse_account(self, line):
         parts = line.split('|')
-        return Account(
-            name=parts[0],
-            description=parts[1],
-            organization=parts[2],
-        )
+        return Account(name=parts[0], description=parts[1], organization=parts[2],)
 
     def get_account(self, name):
-        command = 'mam-list-accounts --raw --quiet --show Name,Description,Organization -a %s' % name
+        command = (
+            'mam-list-accounts --raw --quiet --show Name,Description,Organization -a %s'
+            % name
+        )
         output = self.execute_command(command.split())
         lines = [line for line in output.splitlines() if '|' in line]
         if len(lines) == 0:
@@ -42,11 +43,10 @@ class MoabClient(BaseBatchClient):
         return self._parse_account(lines[0])
 
     def create_account(self, name, description, organization, parent_name=None):
-        command = 'mam-create-account -a %(name)s -d "%(description)s" -o %(organization)s' % {
-            'name': name,
-            'description': description,
-            'organization': organization,
-        }
+        command = (
+            'mam-create-account -a %(name)s -d "%(description)s" -o %(organization)s'
+            % {'name': name, 'description': description, 'organization': organization,}
+        )
         return self.execute_command(command.split())
 
     def delete_account(self, name):
@@ -55,40 +55,40 @@ class MoabClient(BaseBatchClient):
 
     def set_resource_limits(self, account, quotas):
         if quotas.deposit < 0:
-            logger.warning('Skipping limit update because pricing '
-                           'package is not created for the related service settings.')
+            logger.warning(
+                'Skipping limit update because pricing '
+                'package is not created for the related service settings.'
+            )
             return
-        command = 'mam-deposit -a %(account)s -z %(deposit_amount)s --create-fund True' % {
-            'account': account,
-            'deposit_amount': quotas.deposit
-        }
+        command = (
+            'mam-deposit -a %(account)s -z %(deposit_amount)s --create-fund True'
+            % {'account': account, 'deposit_amount': quotas.deposit}
+        )
         return self.execute_command(command.split())
 
     def get_association(self, user, account):
-        command = 'mam-list-funds --raw --quiet -u %(user)s -a %(account)s --show Constraints,Balance' % \
-                  {'user': user, 'account': account}
+        command = (
+            'mam-list-funds --raw --quiet -u %(user)s -a %(account)s --show Constraints,Balance'
+            % {'user': user, 'account': account}
+        )
         output = self.execute_command(command.split())
         lines = [line for line in output.splitlines() if '|' in line]
         if len(lines) == 0:
             return None
 
-        return Association(
-            account=account,
-            user=user,
-            value=lines[0].split('|')[-1],
-        )
+        return Association(account=account, user=user, value=lines[0].split('|')[-1],)
 
     def create_association(self, username, account, default_account=None):
         command = 'mam-modify-account --add-user %(username)s -a %(account)s' % {
             'username': username,
-            'account': account
+            'account': account,
         }
         return self.execute_command(command.split())
 
     def delete_association(self, username, account):
         command = 'mam-modify-account --del-user %(username)s -a %(account)s' % {
             'username': username,
-            'account': account
+            'account': account,
         }
         return self.execute_command(command.split())
 

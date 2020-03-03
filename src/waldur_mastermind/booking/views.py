@@ -2,9 +2,8 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status
-from rest_framework import views
 from rest_framework import serializers as rf_serializers
+from rest_framework import status, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -41,17 +40,27 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                     state=models.OrderItem.States.EXECUTING,
                 )
             except models.OrderItem.DoesNotExist:
-                raise rf_serializers.ValidationError(_('Resource rejecting is not available because '
-                                                       'the reference order item is not found.'))
+                raise rf_serializers.ValidationError(
+                    _(
+                        'Resource rejecting is not available because '
+                        'the reference order item is not found.'
+                    )
+                )
             except models.OrderItem.MultipleObjectsReturned:
-                raise rf_serializers.ValidationError(_('Resource rejecting is not available because '
-                                                       'several reference order items are found.'))
+                raise rf_serializers.ValidationError(
+                    _(
+                        'Resource rejecting is not available because '
+                        'several reference order items are found.'
+                    )
+                )
             order_item.set_state_terminated()
             order_item.save()
             resource.set_state_terminated()
             resource.save()
 
-        return Response({'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK)
+        return Response(
+            {'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK
+        )
 
     @action(detail=True, methods=['post'])
     def accept(self, request, uuid=None):
@@ -66,11 +75,19 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
                     state=models.OrderItem.States.EXECUTING,
                 )
             except models.OrderItem.DoesNotExist:
-                raise rf_serializers.ValidationError(_('Resource accepting is not available because '
-                                                       'the reference order item is not found.'))
+                raise rf_serializers.ValidationError(
+                    _(
+                        'Resource accepting is not available because '
+                        'the reference order item is not found.'
+                    )
+                )
             except models.OrderItem.MultipleObjectsReturned:
-                raise rf_serializers.ValidationError(_('Resource accepting is not available because '
-                                                       'several reference order items are found.'))
+                raise rf_serializers.ValidationError(
+                    _(
+                        'Resource accepting is not available because '
+                        'several reference order items are found.'
+                    )
+                )
             order_item.set_state_done()
             order_item.save()
             resource.set_state_ok()
@@ -79,11 +96,12 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
             event_logger.waldur_booking.info(
                 'Device booking {resource_name} has been accepted.',
                 event_type='device_booking_is_accepted',
-                event_context={
-                    'resource': resource,
-                })
+                event_context={'resource': resource,},
+            )
 
-        return Response({'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK)
+        return Response(
+            {'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK
+        )
 
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)

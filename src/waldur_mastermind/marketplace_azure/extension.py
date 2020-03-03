@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class MarketplaceAzureExtension(WaldurExtension):
-
     @staticmethod
     def django_app():
         return 'waldur_mastermind.marketplace_azure'

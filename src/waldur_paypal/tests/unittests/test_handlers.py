@@ -10,7 +10,6 @@ from .. import fixtures
 
 
 class CreateInvoiceTest(TestCase):
-
     def setUp(self):
         self.fixture = fixtures.PayPalFixture()
         self.issuer_details = {
@@ -18,17 +17,14 @@ class CreateInvoiceTest(TestCase):
             'first_name': "John",
             'last_name': "White",
             'business_name': "Corporation Professionals, LLC",
-            'phone': {
-                'country_code': '001',
-                'national_number': '5032141716',
-            },
+            'phone': {'country_code': '001', 'national_number': '5032141716',},
             'address': {
                 "line1": "1234 Main St.",
                 "city": "Portland",
                 "state": "OR",
                 "postal_code": "97217",
-                "country_code": "US"
-            }
+                "country_code": "US",
+            },
         }
 
     def _get_valid_invoice(self):
@@ -76,20 +72,30 @@ class CreateInvoiceTest(TestCase):
         invoice.items = self._generate_invoice_items(2)
         self.assertEqual(models.Invoice.objects.count(), 0)
 
-        handlers.create_invoice(sender=None, invoice=invoice, issuer_details=self.issuer_details)
+        handlers.create_invoice(
+            sender=None, invoice=invoice, issuer_details=self.issuer_details
+        )
 
         self.assertEqual(models.Invoice.objects.count(), 1)
-        new_invoice = models.Invoice.objects.get(invoice_date=invoice.invoice_date, customer=invoice.customer)
+        new_invoice = models.Invoice.objects.get(
+            invoice_date=invoice.invoice_date, customer=invoice.customer
+        )
         self.assertEqual(new_invoice.year, invoice.year)
         self.assertEqual(new_invoice.month, invoice.month)
         self.assertEqual(new_invoice.items.count(), 2)
 
         for original_item in invoice.items:
-            created_item = [item for item in new_invoice.items.iterator() if item.name == original_item.name][0]
+            created_item = [
+                item
+                for item in new_invoice.items.iterator()
+                if item.name == original_item.name
+            ][0]
             self.assertEqual(created_item.unit_price, original_item.unit_price)
             self.assertEqual(created_item.price, original_item.price)
             self.assertEqual(created_item.start, original_item.start)
             self.assertEqual(created_item.end, original_item.end)
             self.assertEqual(created_item.tax, original_item.tax)
-            self.assertEqual(created_item.unit_of_measure, models.InvoiceItem.UnitsOfMeasure.AMOUNT)
+            self.assertEqual(
+                created_item.unit_of_measure, models.InvoiceItem.UnitsOfMeasure.AMOUNT
+            )
             self.assertEqual(created_item.quantity, original_item.usage_days)

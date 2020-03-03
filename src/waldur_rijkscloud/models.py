@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
+
 from waldur_core.core.fields import JSONField
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.structure import models as structure_models
@@ -9,7 +10,7 @@ class RijkscloudService(structure_models.Service):
     projects = models.ManyToManyField(
         structure_models.Project,
         related_name='rijkscloud_services',
-        through='RijkscloudServiceProjectLink'
+        through='RijkscloudServiceProjectLink',
     )
 
     class Meta:
@@ -51,9 +52,7 @@ class Flavor(LoggableMixin, structure_models.ServiceProperty):
 
 class Volume(structure_models.Volume):
     service_project_link = models.ForeignKey(
-        RijkscloudServiceProjectLink,
-        related_name='volumes',
-        on_delete=models.PROTECT
+        RijkscloudServiceProjectLink, related_name='volumes', on_delete=models.PROTECT
     )
     metadata = JSONField(blank=True)
 
@@ -64,17 +63,21 @@ class Volume(structure_models.Volume):
     @classmethod
     def get_backend_fields(cls):
         return super(Volume, cls).get_backend_fields() + (
-            'name', 'size', 'metadata', 'runtime_state')
+            'name',
+            'size',
+            'metadata',
+            'runtime_state',
+        )
 
 
 class Instance(structure_models.VirtualMachine):
     service_project_link = models.ForeignKey(
-        RijkscloudServiceProjectLink,
-        related_name='instances',
-        on_delete=models.PROTECT
+        RijkscloudServiceProjectLink, related_name='instances', on_delete=models.PROTECT
     )
     flavor_name = models.CharField(max_length=255, blank=True)
-    floating_ip = models.ForeignKey(on_delete=models.CASCADE, to='FloatingIP', blank=True, null=True)
+    floating_ip = models.ForeignKey(
+        on_delete=models.CASCADE, to='FloatingIP', blank=True, null=True
+    )
     internal_ip = models.ForeignKey(on_delete=models.CASCADE, to='InternalIP')
 
     @classmethod
@@ -84,7 +87,10 @@ class Instance(structure_models.VirtualMachine):
     @classmethod
     def get_backend_fields(cls):
         return super(Instance, cls).get_backend_fields() + (
-            'flavor_name', 'ram', 'cores', 'runtime_state'
+            'flavor_name',
+            'ram',
+            'cores',
+            'runtime_state',
         )
 
     @property
@@ -131,11 +137,15 @@ class Network(structure_models.ServiceProperty):
 
 
 class SubNet(structure_models.ServiceProperty):
-    network = models.ForeignKey(on_delete=models.CASCADE, to=Network, related_name='subnets')
+    network = models.ForeignKey(
+        on_delete=models.CASCADE, to=Network, related_name='subnets'
+    )
     cidr = models.CharField(max_length=32)
     gateway_ip = models.GenericIPAddressField(protocol='IPv4')
     allocation_pools = JSONField()
-    dns_nameservers = JSONField(help_text=_('List of DNS name servers associated with the subnet.'))
+    dns_nameservers = JSONField(
+        help_text=_('List of DNS name servers associated with the subnet.')
+    )
 
     class Meta:
         verbose_name = _('Subnet')
@@ -153,7 +163,9 @@ class SubNet(structure_models.ServiceProperty):
 class InternalIP(structure_models.ServiceProperty):
     address = models.GenericIPAddressField(protocol='IPv4')
     is_available = models.BooleanField(default=True)
-    subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet, related_name='internal_ips')
+    subnet = models.ForeignKey(
+        on_delete=models.CASCADE, to=SubNet, related_name='internal_ips'
+    )
 
     @classmethod
     def get_backend_fields(cls):

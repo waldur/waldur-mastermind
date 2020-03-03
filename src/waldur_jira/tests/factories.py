@@ -1,5 +1,4 @@
 import factory
-
 from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -24,7 +23,9 @@ class JiraServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None):
         if service is None:
             service = JiraServiceFactory()
-        return 'http://testserver' + reverse('jira-detail', kwargs={'uuid': service.uuid.hex})
+        return 'http://testserver' + reverse(
+            'jira-detail', kwargs={'uuid': service.uuid.hex}
+        )
 
     @classmethod
     def get_list_url(cls):
@@ -61,7 +62,9 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectTemplateFactory()
-        url = 'http://testserver' + reverse('jira-project-templates-detail', kwargs={'uuid': project.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'jira-project-templates-detail', kwargs={'uuid': project.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -83,7 +86,9 @@ class ProjectFactory(factory.DjangoModelFactory):
     def get_url(cls, project=None, action=None):
         if project is None:
             project = ProjectFactory()
-        url = 'http://testserver' + reverse('jira-projects-detail', kwargs={'uuid': project.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'jira-projects-detail', kwargs={'uuid': project.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -105,7 +110,9 @@ class IssueTypeFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueTypeFactory()
-        url = 'http://testserver' + reverse('jira-issue-types-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'jira-issue-types-detail', kwargs={'uuid': issue.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -126,7 +133,9 @@ class PriorityFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = PriorityFactory()
-        url = 'http://testserver' + reverse('jira-priorities-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'jira-priorities-detail', kwargs={'uuid': issue.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -152,7 +161,9 @@ class IssueFactory(factory.DjangoModelFactory):
     def get_url(cls, issue=None, action=None):
         if issue is None:
             issue = IssueFactory()
-        url = 'http://testserver' + reverse('jira-issues-detail', kwargs={'uuid': issue.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'jira-issues-detail', kwargs={'uuid': issue.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -171,7 +182,9 @@ class CommentFactory(factory.DjangoModelFactory):
     def get_url(cls, comment=None, action=None):
         if comment is None:
             comment = CommentFactory()
-        url = 'http://testserver' + reverse('jira-comments-detail', kwargs={'uuid': comment.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'jira-comments-detail', kwargs={'uuid': comment.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod

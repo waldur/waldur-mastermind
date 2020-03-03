@@ -4,15 +4,19 @@ from django import forms
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import serializers, exceptions
+from rest_framework import exceptions, serializers
 
 from waldur_core.core.fields import MappedChoiceField
-from waldur_core.core.serializers import GenericRelatedField, HyperlinkedRelatedModelSerializer
+from waldur_core.core.serializers import (
+    GenericRelatedField,
+    HyperlinkedRelatedModelSerializer,
+)
 from waldur_core.core.utils import datetime_to_timestamp, pwgen
 from waldur_core.monitoring.utils import get_period
-from waldur_core.structure import serializers as structure_serializers, models as structure_models
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import serializers as structure_serializers
 
-from . import models, apps
+from . import apps, models
 
 
 class ServiceSerializer(structure_serializers.BaseServiceSerializer):
@@ -34,7 +38,9 @@ class ServiceSerializer(structure_serializers.BaseServiceSerializer):
         required_fields = ('backend_url', 'username', 'password')
 
 
-class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
+class ServiceProjectLinkSerializer(
+    structure_serializers.BaseServiceProjectLinkSerializer
+):
     class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
         model = models.ZabbixServiceProjectLink
         view_name = 'zabbix-spl-detail'
@@ -50,7 +56,16 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Template
         view_name = 'zabbix-template-detail'
-        fields = ('url', 'uuid', 'name', 'items', 'triggers', 'settings', 'children', 'parents')
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'items',
+            'triggers',
+            'settings',
+            'children',
+            'parents',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
             'children': {'lookup_field': 'uuid', 'view_name': 'zabbix-template-detail'},
@@ -61,7 +76,9 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
     def get_items(self, template):
         items = template.items.all().values('name', 'key', 'units', 'value_type')
         for item in items:  # replace value types with human-readable names
-            item['value_type'] = dict(models.Item.ValueTypes.CHOICES)[item['value_type']]
+            item['value_type'] = dict(models.Item.ValueTypes.CHOICES)[
+                item['value_type']
+            ]
         return items
 
     def get_triggers(self, template):
@@ -78,7 +95,8 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
         source='service_project_link.service',
         view_name='zabbix-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='zabbix-spl-detail',
@@ -88,29 +106,51 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     # visible name could be populated from scope, so we need to mark it as not required
-    visible_name = serializers.CharField(required=False, max_length=models.Host.VISIBLE_NAME_MAX_LENGTH)
-    scope = GenericRelatedField(related_models=structure_models.ResourceMixin.get_all_models(), required=False)
+    visible_name = serializers.CharField(
+        required=False, max_length=models.Host.VISIBLE_NAME_MAX_LENGTH
+    )
+    scope = GenericRelatedField(
+        related_models=structure_models.ResourceMixin.get_all_models(), required=False
+    )
     templates = NestedTemplateSerializer(
-        queryset=models.Template.objects.all().prefetch_related('items', 'children'), many=True, required=False)
+        queryset=models.Template.objects.all().prefetch_related('items', 'children'),
+        many=True,
+        required=False,
+    )
     status = MappedChoiceField(
         choices={v: v for _, v in models.Host.Statuses.CHOICES},
         choice_mappings={v: k for k, v in models.Host.Statuses.CHOICES},
         read_only=True,
     )
-    interface_ip = serializers.IPAddressField(allow_blank=True, required=False, write_only=True,
-                                              help_text='IP of host interface.')
+    interface_ip = serializers.IPAddressField(
+        allow_blank=True,
+        required=False,
+        write_only=True,
+        help_text='IP of host interface.',
+    )
     interface_parameters = serializers.JSONField(read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Host
         view_name = 'zabbix-host-detail'
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'visible_name', 'host_group_name', 'scope', 'templates', 'error', 'status',
-            'interface_ip', 'interface_parameters',)
-        read_only_fields = structure_serializers.BaseResourceSerializer.Meta.read_only_fields + (
-            'error', 'interface_parameters')
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'interface_ip', 'visible_name')
+            'visible_name',
+            'host_group_name',
+            'scope',
+            'templates',
+            'error',
+            'status',
+            'interface_ip',
+            'interface_parameters',
+        )
+        read_only_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
+            + ('error', 'interface_parameters')
+        )
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + ('interface_ip', 'visible_name')
+        )
 
     def get_resource_fields(self):
         return super(HostSerializer, self).get_resource_fields() + ['scope']
@@ -126,23 +166,37 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
         else:
             service_settings = attrs.get('service_project_link').service.settings
             if service_settings.state == structure_models.ServiceSettings.States.ERRED:
-                raise serializers.ValidationError('It is impossible to create host if service is in ERRED state.')
+                raise serializers.ValidationError(
+                    'It is impossible to create host if service is in ERRED state.'
+                )
 
             if not attrs.get('visible_name'):
                 if 'scope' not in attrs:
-                    raise serializers.ValidationError('Visible name or scope should be defined.')
+                    raise serializers.ValidationError(
+                        'Visible name or scope should be defined.'
+                    )
 
                 # initiate name and visible name from scope if it is defined
-                attrs['visible_name'] = models.Host.get_visible_name_from_scope(attrs['scope'])
+                attrs['visible_name'] = models.Host.get_visible_name_from_scope(
+                    attrs['scope']
+                )
 
             spl = attrs['service_project_link']
             if models.Host.objects.filter(
-                    service_project_link__service__settings=spl.service.settings,
-                    visible_name=attrs['visible_name']
+                service_project_link__service__settings=spl.service.settings,
+                visible_name=attrs['visible_name'],
             ).exists():
-                raise serializers.ValidationError({'visible_name': 'Visible name should be unique.'})
+                raise serializers.ValidationError(
+                    {'visible_name': 'Visible name should be unique.'}
+                )
 
-            instance = models.Host(**{k: v for k, v in attrs.items() if k not in ('templates', 'interface_ip')})
+            instance = models.Host(
+                **{
+                    k: v
+                    for k, v in attrs.items()
+                    if k not in ('templates', 'interface_ip')
+                }
+            )
             instance.clean()
 
         spl = attrs.get('service_project_link') or self.instance.service_project_link
@@ -151,23 +205,35 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
         for template in templates:
             if template.settings != spl.service.settings:
                 raise serializers.ValidationError(
-                    {'templates': 'Template "%s" and host belong to different service settings.' % template.name})
+                    {
+                        'templates': 'Template "%s" and host belong to different service settings.'
+                        % template.name
+                    }
+                )
             for child in template.children.all():
                 if child in templates:
-                    message = 'Template "%s" is already registered as child of template "%s"' % (
-                        child.name, template.name)
+                    message = (
+                        'Template "%s" is already registered as child of template "%s"'
+                        % (child.name, template.name)
+                    )
                     raise serializers.ValidationError({'templates': message})
             for parent in template.parents.all():
                 if parent in parents:
-                    message = 'Templates %s and %s belong to the same parent %s' % (template, parents[parent], parent)
+                    message = 'Templates %s and %s belong to the same parent %s' % (
+                        template,
+                        parents[parent],
+                        parent,
+                    )
                     raise serializers.ValidationError({'templates': message})
                 else:
                     parents[parent] = template
 
         for template in templates:
             if template in parents:
-                message = 'Template "%s" is already registered as a parent of template "%s"' % \
-                          (template, parents[template])
+                message = (
+                    'Template "%s" is already registered as a parent of template "%s"'
+                    % (template, parents[template])
+                )
                 raise serializers.ValidationError({'templates': message})
 
         return attrs
@@ -177,7 +243,9 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
         spl = validated_data['service_project_link']
         interface_parameters = spl.service.settings.get_option('interface_parameters')
         scope = validated_data.get('scope')
-        interface_ip = validated_data.pop('interface_ip', None) or getattr(scope, 'internal_ips', None)
+        interface_ip = validated_data.pop('interface_ip', None) or getattr(
+            scope, 'internal_ips', None
+        )
         if interface_ip:
             # Note, that we're not supporting multiple network interfaces for single host yet.
             # IPv6 is not supported yet too.
@@ -194,7 +262,9 @@ class HostSerializer(structure_serializers.BaseResourceSerializer):
             if templates is None:
                 templates = models.Template.objects.filter(
                     settings=host.service_project_link.service.settings,
-                    name__in=host.service_project_link.service.settings.get_option('templates_names'),
+                    name__in=host.service_project_link.service.settings.get_option(
+                        'templates_names'
+                    ),
                 )
             for template in templates:
                 host.templates.add(template)
@@ -218,7 +288,8 @@ class ITServiceSerializer(structure_serializers.BaseResourceSerializer):
         source='service_project_link.service',
         view_name='zabbix-detail',
         read_only=True,
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     service_project_link = serializers.HyperlinkedRelatedField(
         view_name='zabbix-spl-detail',
@@ -230,12 +301,14 @@ class ITServiceSerializer(structure_serializers.BaseResourceSerializer):
     host = serializers.HyperlinkedRelatedField(
         view_name='zabbix-host-detail',
         queryset=models.Host.objects.all(),
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     trigger = serializers.HyperlinkedRelatedField(
         view_name='zabbix-trigger-detail',
         queryset=models.Trigger.objects.order_by('name').select_related('settings'),
-        lookup_field='uuid')
+        lookup_field='uuid',
+    )
 
     algorithm = MappedChoiceField(
         choices={v: v for _, v in models.ITService.Algorithm.CHOICES},
@@ -248,13 +321,23 @@ class ITServiceSerializer(structure_serializers.BaseResourceSerializer):
         model = models.ITService
         view_name = 'zabbix-itservice-detail'
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'host', 'algorithm', 'sort_order', 'agreed_sla', 'actual_sla', 'trigger', 'trigger_name', 'is_main')
+            'host',
+            'algorithm',
+            'sort_order',
+            'agreed_sla',
+            'actual_sla',
+            'trigger',
+            'trigger_name',
+            'is_main',
+        )
 
     # XXX: Should we display sla here?
     def get_actual_sla(self, itservice):
         key = 'itservice_sla_map'
         if key not in self.context:
-            qs = models.SlaHistory.objects.filter(period=get_period(self.context['request']))
+            qs = models.SlaHistory.objects.filter(
+                period=get_period(self.context['request'])
+            )
             if isinstance(self.instance, list):
                 qs = qs.filter(itservice__in=self.instance)
             else:
@@ -271,19 +354,22 @@ class ITServiceSerializer(structure_serializers.BaseResourceSerializer):
             trigger = attrs['trigger']
 
             if host and not host.templates.filter(id=trigger.template_id).exists():
-                raise serializers.ValidationError("Host templates should contain trigger's template")
+                raise serializers.ValidationError(
+                    "Host templates should contain trigger's template"
+                )
 
             if host.service_project_link != attrs['service_project_link']:
-                raise serializers.ValidationError('Host and IT service should belong to the same SPL.')
+                raise serializers.ValidationError(
+                    'Host and IT service should belong to the same SPL.'
+                )
 
         return attrs
 
 
 class TriggerSerializer(structure_serializers.BasePropertySerializer):
     template = serializers.HyperlinkedRelatedField(
-        view_name='zabbix-template-detail',
-        read_only=True,
-        lookup_field='uuid')
+        view_name='zabbix-template-detail', read_only=True, lookup_field='uuid'
+    )
     priority = serializers.IntegerField()
 
     class Meta(structure_serializers.BasePropertySerializer.Meta):
@@ -301,8 +387,13 @@ class SlaHistoryEventSerializer(serializers.Serializer):
 
 class ItemsAggregatedValuesSerializer(serializers.Serializer):
     """ Validate input parameters for items_aggregated_values action. """
-    start = serializers.IntegerField(default=lambda: datetime_to_timestamp(timezone.now() - timedelta(hours=1)))
-    end = serializers.IntegerField(default=lambda: datetime_to_timestamp(timezone.now()))
+
+    start = serializers.IntegerField(
+        default=lambda: datetime_to_timestamp(timezone.now() - timedelta(hours=1))
+    )
+    end = serializers.IntegerField(
+        default=lambda: datetime_to_timestamp(timezone.now())
+    )
     method = serializers.ChoiceField(default='MAX', choices=('MIN', 'MAX'))
 
     def validate(self, data):
@@ -331,7 +422,9 @@ class NestedUserGroupSerializer(UserGroupSerializer, HyperlinkedRelatedModelSeri
 
 
 class UserSerializer(structure_serializers.BasePropertySerializer):
-    groups = NestedUserGroupSerializer(queryset=models.UserGroup.objects.all(), many=True)
+    groups = NestedUserGroupSerializer(
+        queryset=models.UserGroup.objects.all(), many=True
+    )
     state = MappedChoiceField(
         choices={v: v for _, v in models.User.States.CHOICES},
         choice_mappings={v: k for k, v in models.User.States.CHOICES},
@@ -342,13 +435,28 @@ class UserSerializer(structure_serializers.BasePropertySerializer):
         choice_mappings={v: k for k, v in models.User.Types.CHOICES},
     )
     password = serializers.SerializerMethodField(
-        help_text='Password is visible only after user creation or if user has type "default".')
+        help_text='Password is visible only after user creation or if user has type "default".'
+    )
 
     class Meta:
         model = models.User
-        fields = ('url', 'alias', 'name', 'surname', 'type', 'groups', 'backend_id', 'settings', 'state', 'phone',
-                  'password')
-        read_only_fields = ('url', 'backend_id',)
+        fields = (
+            'url',
+            'alias',
+            'name',
+            'surname',
+            'type',
+            'groups',
+            'backend_id',
+            'settings',
+            'state',
+            'phone',
+            'password',
+        )
+        read_only_fields = (
+            'url',
+            'backend_id',
+        )
         protected_fields = ('settings',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'zabbix-user-detail'},
@@ -356,14 +464,16 @@ class UserSerializer(structure_serializers.BasePropertySerializer):
         }
 
     def get_password(self, user):
-        show_password = ((self.context['request'].method == 'POST' and user is None) or
-                         user.type == models.User.Types.DEFAULT)
+        show_password = (
+            self.context['request'].method == 'POST' and user is None
+        ) or user.type == models.User.Types.DEFAULT
         return user.password if show_password else None
 
     def get_fields(self):
         fields = super(UserSerializer, self).get_fields()
         fields['settings'].queryset = structure_models.ServiceSettings.objects.filter(
-            type=apps.ZabbixConfig.service_name)
+            type=apps.ZabbixConfig.service_name
+        )
         return fields
 
     def validate_type(self, value):
@@ -376,7 +486,9 @@ class UserSerializer(structure_serializers.BasePropertySerializer):
         settings = attrs.get('settings') or self.instance.settings
         groups = attrs.get('groups', [])
         if any([group.settings != settings for group in groups]):
-            raise serializers.ValidationError('User groups and user should belong to the same service settings')
+            raise serializers.ValidationError(
+                'User groups and user should belong to the same service settings'
+            )
         return attrs
 
     def create(self, attrs):
@@ -398,13 +510,21 @@ class UserSerializer(structure_serializers.BasePropertySerializer):
 class TriggerRequestSerializer(serializers.Serializer):
     changed_before = serializers.DateTimeField(required=False)
     changed_after = serializers.DateTimeField(required=False)
-    min_priority = serializers.ChoiceField(choices=models.Trigger.Priority.CHOICES, required=False)
-    priority = serializers.MultipleChoiceField(choices=models.Trigger.Priority.CHOICES, required=False)
-    acknowledge_status = serializers.ChoiceField(choices=models.Trigger.AcknowledgeStatus.CHOICES, required=False)
+    min_priority = serializers.ChoiceField(
+        choices=models.Trigger.Priority.CHOICES, required=False
+    )
+    priority = serializers.MultipleChoiceField(
+        choices=models.Trigger.Priority.CHOICES, required=False
+    )
+    acknowledge_status = serializers.ChoiceField(
+        choices=models.Trigger.AcknowledgeStatus.CHOICES, required=False
+    )
     host_name = serializers.CharField(required=False)
     host_id = serializers.CharField(required=False)
     # Value is not a good name for the filter, but let's keep consistency with Zabbix API.
-    value = serializers.ChoiceField(choices=models.Trigger.Value.CHOICES, required=False)
+    value = serializers.ChoiceField(
+        choices=models.Trigger.Value.CHOICES, required=False
+    )
 
     def validate(self, attrs):
         self._add_field_from_initial_data(attrs, 'include_events_count')

@@ -1,5 +1,5 @@
 import logging
-from datetime import timedelta, datetime
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.utils import timezone
@@ -8,7 +8,7 @@ from waldur_core.core import tasks as core_tasks
 from waldur_core.core.tasks import ExtensionTaskMixin
 from waldur_core.structure import SupportedServices
 
-from . import models, executors
+from . import executors, models
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ class DebitCustomers(PaypalTaskMixin, core_tasks.BackgroundTask):
         Reduce customer's balance accordingly
         Stop online resource if needed
     """
+
     name = 'waldur_paypal.DebitCustomers'
 
     def is_equal(self, other_task, *args, **kwargs):
@@ -41,7 +42,8 @@ class DebitCustomers(PaypalTaskMixin, core_tasks.BackgroundTask):
 
         for model in models:
             resources = model.objects.filter(
-                service_project_link__service__settings__shared=True)
+                service_project_link__service__settings__shared=True
+            )
 
             for resource in resources:
                 try:
@@ -59,8 +61,12 @@ class PaymentsCleanUp(PaypalTaskMixin, core_tasks.BackgroundTask):
         return self.name == other_task.get('name')
 
     def run(self):
-        timespan = settings.WALDUR_PAYPAL.get('STALE_PAYMENTS_LIFETIME', timedelta(weeks=1))
-        models.Payment.objects.filter(state=models.Payment.States.CREATED, created__lte=timezone.now() - timespan).delete()
+        timespan = settings.WALDUR_PAYPAL.get(
+            'STALE_PAYMENTS_LIFETIME', timedelta(weeks=1)
+        )
+        models.Payment.objects.filter(
+            state=models.Payment.States.CREATED, created__lte=timezone.now() - timespan
+        ).delete()
 
 
 class SendInvoices(PaypalTaskMixin, core_tasks.BackgroundTask):

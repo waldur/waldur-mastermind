@@ -8,5 +8,8 @@ def register_in(router):
     router.register(r'aws-sizes', views.SizeViewSet, basename='aws-size')
     router.register(r'aws-instances', views.InstanceViewSet, basename='aws-instance')
     router.register(r'aws-volumes', views.VolumeViewSet, basename='aws-volume')
-    router.register(r'aws-service-project-link',
-                    views.AmazonServiceProjectLinkViewSet, basename='aws-spl')
+    router.register(
+        r'aws-service-project-link',
+        views.AmazonServiceProjectLinkViewSet,
+        basename='aws-spl',
+    )

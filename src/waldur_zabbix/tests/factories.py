@@ -1,5 +1,4 @@
 import factory
-
 from django.urls import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -23,7 +22,9 @@ class ZabbixServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ZabbixServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'zabbix-detail', kwargs={'uuid': service.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -61,7 +62,9 @@ class HostFactory(factory.DjangoModelFactory):
     def get_url(cls, host=None, action=None):
         if host is None:
             host = HostFactory()
-        url = 'http://testserver' + reverse('zabbix-host-detail', kwargs={'uuid': host.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'zabbix-host-detail', kwargs={'uuid': host.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
 
@@ -78,7 +81,9 @@ class ITServiceFactory(factory.DjangoModelFactory):
     def get_url(cls, service=None, action=None):
         if service is None:
             service = ITServiceFactory()
-        url = 'http://testserver' + reverse('zabbix-itservice-detail', kwargs={'uuid': service.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'zabbix-itservice-detail', kwargs={'uuid': service.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -98,5 +103,7 @@ class TemplateFactory(factory.DjangoModelFactory):
     def get_url(cls, template=None, action=None):
         if template is None:
             template = TemplateFactory()
-        url = 'http://testserver' + reverse('zabbix-template-detail', kwargs={'uuid': template.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'zabbix-template-detail', kwargs={'uuid': template.uuid.hex}
+        )
         return url if action is None else url + action + '/'

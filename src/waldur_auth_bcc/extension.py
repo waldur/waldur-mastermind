@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class AuthBCCExtension(WaldurExtension):
-
     class Settings:
         WALDUR_AUTH_BCC = {
             'ENABLED': False,
@@ -18,4 +17,5 @@ class AuthBCCExtension(WaldurExtension):
     @staticmethod
     def django_urls():
         from .urls import urlpatterns
+
         return urlpatterns

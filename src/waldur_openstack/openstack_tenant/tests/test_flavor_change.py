@@ -1,5 +1,5 @@
-from ddt import ddt, data
-from rest_framework import test, status
+from ddt import data, ddt
+from rest_framework import status, test
 
 from waldur_core.structure.models import ProjectRole
 
@@ -18,8 +18,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         # User manages managed_instance through its project group
         self.managed_instance = factories.InstanceFactory(
-            state=Instance.States.OK,
-            runtime_state=Instance.RuntimeStates.SHUTOFF,
+            state=Instance.States.OK, runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
 
     @data('admin', 'manager')
@@ -28,18 +27,27 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         new_flavor = factories.FlavorFactory(
             settings=self.fixture.openstack_tenant_service_settings,
-            disk=self.instance.disk + 1
+            disk=self.instance.disk + 1,
         )
 
         data = {'flavor': factories.FlavorFactory.get_url(new_flavor)}
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'),
+            data,
+        )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
         reread_instance = Instance.objects.get(pk=self.instance.pk)
-        self.assertEqual(reread_instance.disk, self.instance.disk,
-                         'Instance disk size should not have changed')
-        self.assertEqual(reread_instance.state, Instance.States.UPDATE_SCHEDULED,
-                         'Instance should have been scheduled to flavor change')
+        self.assertEqual(
+            reread_instance.disk,
+            self.instance.disk,
+            'Instance disk size should not have changed',
+        )
+        self.assertEqual(
+            reread_instance.state,
+            Instance.States.UPDATE_SCHEDULED,
+            'Instance should have been scheduled to flavor change',
+        )
 
     def test_when_flavor_is_changed_related_quotas_are_updated(self):
         Quotas = OpenStackTenantServiceProjectLink.Quotas
@@ -50,8 +58,12 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             ram=self.instance.ram + 1024,
         )
 
-        self.fixture.openstack_tenant_service_settings.add_quota_usage(Quotas.vcpu, self.instance.cores)
-        self.fixture.openstack_tenant_service_settings.add_quota_usage(Quotas.ram, self.instance.ram)
+        self.fixture.openstack_tenant_service_settings.add_quota_usage(
+            Quotas.vcpu, self.instance.cores
+        )
+        self.fixture.openstack_tenant_service_settings.add_quota_usage(
+            Quotas.ram, self.instance.ram
+        )
 
         self.fixture.tenant.add_quota_usage(Quotas.vcpu, self.instance.cores)
         self.fixture.tenant.add_quota_usage(Quotas.ram, self.instance.ram)
@@ -76,7 +88,9 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             self.assertEqual(vcpu_usage, self.instance.cores + 1)
             self.assertEqual(ram_usage, self.instance.ram + 1024)
 
-    def test_user_can_change_flavor_to_flavor_with_less_cpu_if_result_cpu_quota_usage_is_less_then_cpu_limit(self):
+    def test_user_can_change_flavor_to_flavor_with_less_cpu_if_result_cpu_quota_usage_is_less_then_cpu_limit(
+        self,
+    ):
         self.client.force_authenticate(user=self.fixture.admin)
         instance = self.instance
         instance.cores = 5
@@ -90,20 +104,30 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         data = {'flavor': factories.FlavorFactory.get_url(new_flavor)}
 
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'),
+            data,
+        )
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
         reread_instance = Instance.objects.get(pk=self.instance.pk)
-        self.assertEqual(reread_instance.state, Instance.States.UPDATE_SCHEDULED,
-                         'Instance should have been scheduled for flavor change')
+        self.assertEqual(
+            reread_instance.state,
+            Instance.States.UPDATE_SCHEDULED,
+            'Instance should have been scheduled for flavor change',
+        )
 
     def test_user_cannot_change_instance_flavor_without_flavor_in_request(self):
         self.client.force_authenticate(user=self.fixture.admin)
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), {})
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'), {}
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_user_can_change_flavor_to_flavor_with_less_ram_if_result_ram_quota_usage_is_less_then_ram_limit(self):
+    def test_user_can_change_flavor_to_flavor_with_less_ram_if_result_ram_quota_usage_is_less_then_ram_limit(
+        self,
+    ):
         self.client.force_authenticate(user=self.fixture.admin)
         instance = self.instance
         instance.cores = 5
@@ -116,29 +140,45 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
         data = {'flavor': factories.FlavorFactory.get_url(new_flavor)}
 
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'),
+            data,
+        )
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
         reread_instance = Instance.objects.get(pk=self.instance.pk)
-        self.assertEqual(reread_instance.state, Instance.States.UPDATE_SCHEDULED,
-                         'Instance should have been scheduled for flavor change')
+        self.assertEqual(
+            reread_instance.state,
+            Instance.States.UPDATE_SCHEDULED,
+            'Instance should have been scheduled for flavor change',
+        )
 
     @data('admin', 'manager')
-    def test_user_with_access_cannot_change_flavor_of_stopped_instance_if_spl_quota_would_be_exceeded(self, user):
+    def test_user_with_access_cannot_change_flavor_of_stopped_instance_if_spl_quota_would_be_exceeded(
+        self, user
+    ):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         settings = self.fixture.openstack_tenant_service_settings
         spl = self.fixture.spl
 
-        self._assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(settings, spl)
+        self._assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(
+            settings, spl
+        )
 
     @data('admin', 'manager')
-    def test_user_with_access_cannot_change_flavor_of_stopped_instance_if_settings_quota_would_be_exceeded(self, user):
+    def test_user_with_access_cannot_change_flavor_of_stopped_instance_if_settings_quota_would_be_exceeded(
+        self, user
+    ):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         settings = self.fixture.openstack_tenant_service_settings
 
-        self._assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(settings, settings)
+        self._assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(
+            settings, settings
+        )
 
-    def _assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(self, settings, quotas_holder):
+    def _assert_bad_request_is_raised_if_vcpu_or_ram_quotas_exceed_quotas_holder_limit(
+        self, settings, quotas_holder
+    ):
         quotas_holder.set_quota_limit('ram', 1024)
 
         # check for ram
@@ -147,8 +187,13 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             ram=quotas_holder.quotas.get(name='ram').limit + self.instance.ram + 1,
         )
         data = {'flavor': factories.FlavorFactory.get_url(big_ram_flavor)}
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'),
+            data,
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
         # check for vcpu
         many_core_flavor = factories.FlavorFactory(
@@ -156,8 +201,13 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             cores=quotas_holder.quotas.get(name='vcpu').limit + self.instance.cores + 1,
         )
         data = {'flavor': factories.FlavorFactory.get_url(many_core_flavor)}
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'),
+            data,
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
 
     def test_user_cannot_change_flavor_to_flavor_from_different_service(self):
         self.client.force_authenticate(user=self.fixture.admin)
@@ -166,16 +216,22 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         data = {'flavor': factories.FlavorFactory.get_url(new_flavor)}
 
-        response = self.client.post(factories.InstanceFactory.get_url(self.instance, action='change_flavor'), data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(self.instance, action='change_flavor'),
+            data,
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertDictContainsSubset({'flavor': ['New flavor is not within the same service settings']},
-                                      response.data)
+        self.assertDictContainsSubset(
+            {'flavor': ['New flavor is not within the same service settings']},
+            response.data,
+        )
 
         reread_instance = Instance.objects.get(pk=self.instance.pk)
 
-        self.assertEqual(reread_instance.disk, self.instance.disk,
-                         'Instance disk not have changed')
+        self.assertEqual(
+            reread_instance.disk, self.instance.disk, 'Instance disk not have changed'
+        )
 
     def test_user_cannot_change_flavor_of_instance_he_has_no_role_in(self):
         self.client.force_authenticate(user=self.fixture.admin)
@@ -189,12 +245,20 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         data = {'flavor': factories.FlavorFactory.get_url(new_flavor)}
 
-        response = self.client.post(factories.InstanceFactory.get_url(inaccessible_instance, action='change_flavor'), data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(
+                inaccessible_instance, action='change_flavor'
+            ),
+            data,
+        )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         reread_instance = Instance.objects.get(pk=inaccessible_instance.pk)
-        self.assertEqual(reread_instance.disk, inaccessible_instance.disk,
-                         'Instance disk not have changed')
+        self.assertEqual(
+            reread_instance.disk,
+            inaccessible_instance.disk,
+            'Instance disk not have changed',
+        )
 
     def test_user_cannot_flavor_change_instance_in_creation_scheduled_state(self):
         self.client.force_authenticate(user=self.fixture.user)
@@ -203,7 +267,9 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         project = instance.service_project_link.project
         project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
 
-        response = self.client.post(factories.InstanceFactory.get_url(instance, action='change_flavor'), {})
+        response = self.client.post(
+            factories.InstanceFactory.get_url(instance, action='change_flavor'), {}
+        )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_user_cannot_change_flavor_of_non_offline_instance(self):
@@ -226,20 +292,23 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
             data = {'flavor': factories.FlavorFactory.get_url(changed_flavor)}
 
-            response = self.client.post(factories.InstanceFactory.get_url(instance, action='change_flavor'), data)
+            response = self.client.post(
+                factories.InstanceFactory.get_url(instance, action='change_flavor'),
+                data,
+            )
 
             self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
             reread_instance = Instance.objects.get(pk=instance.pk)
-            self.assertEqual(reread_instance.disk, instance.disk,
-                             'Instance disk not have changed')
+            self.assertEqual(
+                reread_instance.disk, instance.disk, 'Instance disk not have changed'
+            )
 
     def test_user_cannot_flavor_change_with_empty_parameters(self):
         self.client.force_authenticate(user=self.fixture.user)
 
         instance = factories.InstanceFactory(
-            state=Instance.States.OK,
-            runtime_state=Instance.RuntimeStates.SHUTOFF,
+            state=Instance.States.OK, runtime_state=Instance.RuntimeStates.SHUTOFF,
         )
         project = instance.service_project_link.project
 
@@ -247,6 +316,8 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         data = {}
 
-        response = self.client.post(factories.InstanceFactory.get_url(instance, action='change_flavor'), data)
+        response = self.client.post(
+            factories.InstanceFactory.get_url(instance, action='change_flavor'), data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

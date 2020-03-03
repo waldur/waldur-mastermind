@@ -88,7 +88,13 @@ class QuotaField:
         quota_name = QuotaField(default_limit=lambda scope: scope.attr)
     """
 
-    def __init__(self, default_limit=-1, default_usage=0, is_backend=False, creation_condition=None):
+    def __init__(
+        self,
+        default_limit=-1,
+        default_usage=0,
+        is_backend=False,
+        creation_condition=None,
+    ):
         self.default_limit = default_limit
         self.default_usage = default_usage
         self.is_backend = is_backend
@@ -106,15 +112,23 @@ class QuotaField:
         try:
             return getattr(scope, attr_name)
         except AttributeError:
-            return self.default_limit(scope) if callable(self.default_limit) else self.default_limit
+            return (
+                self.default_limit(scope)
+                if callable(self.default_limit)
+                else self.default_limit
+            )
 
     def get_or_create_quota(self, scope):
         if not self.is_connected_to_scope(scope):
             raise exceptions.CreationConditionFailedQuotaError(
-                'Wrong scope: Cannot create quota "%s" for scope "%s".' % (self.name, scope))
+                'Wrong scope: Cannot create quota "%s" for scope "%s".'
+                % (self.name, scope)
+            )
         defaults = {
             'limit': self.scope_default_limit(scope),
-            'usage': self.default_usage(scope) if callable(self.default_usage) else self.default_usage,
+            'usage': self.default_usage(scope)
+            if callable(self.default_usage)
+            else self.default_usage,
         }
 
         return scope.quotas.get_or_create(name=self.name, defaults=defaults)
@@ -124,9 +138,13 @@ class QuotaField:
         ancestors = quota.scope.get_quota_ancestors()
         aggregator_quotas = []
         for ancestor in ancestors:
-            for ancestor_quota_field in ancestor.get_quotas_fields(field_class=AggregatorQuotaField):
+            for ancestor_quota_field in ancestor.get_quotas_fields(
+                field_class=AggregatorQuotaField
+            ):
                 if ancestor_quota_field.get_child_quota_name() == quota.name:
-                    aggregator_quotas.append(ancestor.quotas.get(name=ancestor_quota_field))
+                    aggregator_quotas.append(
+                        ancestor.quotas.get(name=ancestor_quota_field)
+                    )
         return aggregator_quotas
 
     def __str__(self):
@@ -163,7 +181,14 @@ class CounterQuotaField(QuotaField):
     And return count of current usage.
     """
 
-    def __init__(self, target_models, path_to_scope, get_current_usage=None, get_delta=None, **kwargs):
+    def __init__(
+        self,
+        target_models,
+        path_to_scope,
+        get_current_usage=None,
+        get_delta=None,
+        **kwargs
+    ):
         self._raw_target_models = target_models
         self._raw_get_current_usage = get_current_usage
         self._raw_get_delta = get_delta
@@ -180,13 +205,21 @@ class CounterQuotaField(QuotaField):
             return self._raw_get_current_usage(models, scope)
         else:
             filter_path_to_scope = self.path_to_scope.replace('.', '__')
-            return sum([m.objects.filter(**{filter_path_to_scope: scope}).count() for m in models])
+            return sum(
+                [
+                    m.objects.filter(**{filter_path_to_scope: scope}).count()
+                    for m in models
+                ]
+            )
 
     @property
     def target_models(self):
         if not hasattr(self, '_target_models'):
-            self._target_models = (self._raw_target_models() if callable(self._raw_target_models)
-                                   else self._raw_target_models)
+            self._target_models = (
+                self._raw_target_models()
+                if callable(self._raw_target_models)
+                else self._raw_target_models
+            )
         return self._target_models
 
     def recalculate_usage(self, scope):
@@ -231,8 +264,9 @@ class TotalQuotaField(CounterQuotaField):
         query = {filter_path_to_scope: scope}
         for model in models:
             resources = model.objects.filter(**query)
-            subtotal = (resources.values(self.target_field)
-                        .aggregate(total_usage=Sum(self.target_field))['total_usage'])
+            subtotal = resources.values(self.target_field).aggregate(
+                total_usage=Sum(self.target_field)
+            )['total_usage']
             if subtotal:
                 total_usage += subtotal
         return total_usage
@@ -252,6 +286,7 @@ class AggregatorQuotaField(QuotaField):
                 get_children=lambda customer: customer.projects.all(),
             )
     """
+
     aggregation_field = NotImplemented
 
     def __init__(self, get_children, child_quota_name=None, **kwargs):
@@ -260,7 +295,9 @@ class AggregatorQuotaField(QuotaField):
         super(AggregatorQuotaField, self).__init__(**kwargs)
 
     def get_child_quota_name(self):
-        return self._child_quota_name if self._child_quota_name is not None else self.name
+        return (
+            self._child_quota_name if self._child_quota_name is not None else self.name
+        )
 
     def recalculate_usage(self, scope):
         children = self.get_children(scope)
@@ -291,11 +328,14 @@ class UsageAggregatorQuotaField(AggregatorQuotaField):
         Note! It is impossible to aggregate usage of another usage aggregator quotas.
         This restriction was added to avoid calls duplications on quota usage field update.
     """
+
     aggregation_field = 'usage'
 
 
 class LimitAggregatorQuotaField(AggregatorQuotaField):
     """ Aggregates sum children quotas limits. """
+
     aggregation_field = 'limit'
+
 
 # TODO: Implement GlobalQuotaField and GlobalCounterQuotaField

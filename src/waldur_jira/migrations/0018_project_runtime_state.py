@@ -13,6 +13,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='project',
             name='runtime_state',
-            field=models.CharField(blank=True, max_length=150, verbose_name='runtime state'),
+            field=models.CharField(
+                blank=True, max_length=150, verbose_name='runtime state'
+            ),
         ),
     ]

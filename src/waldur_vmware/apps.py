@@ -19,12 +19,12 @@ class VMwareConfig(AppConfig):
             handlers.update_vm_total_disk_when_disk_is_created_or_updated,
             sender=models.Disk,
             dispatch_uid='waldur_vmware.handlers.'
-                         'update_vm_total_disk_when_disk_is_created_or_updated',
+            'update_vm_total_disk_when_disk_is_created_or_updated',
         )
 
         signals.post_delete.connect(
             handlers.update_vm_total_disk_when_disk_is_deleted,
             sender=models.Disk,
             dispatch_uid='waldur_vmware.handlers.'
-                         'update_vm_total_disk_when_disk_is_deleted',
+            'update_vm_total_disk_when_disk_is_deleted',
         )

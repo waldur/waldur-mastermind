@@ -1,10 +1,11 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from django.db import models
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.models import ProjectRole
-from waldur_core.structure.tests import factories, fixtures, models as test_models
+from waldur_core.structure.tests import factories, fixtures
+from waldur_core.structure.tests import models as test_models
 
 
 @ddt
@@ -126,13 +127,17 @@ class ServiceDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(test_models.TestService.objects.filter(pk=self.service.pk).exists())
+        self.assertFalse(
+            test_models.TestService.objects.filter(pk=self.service.pk).exists()
+        )
 
     def assert_user_can_not_delete_service(self, user, expected_status):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, expected_status)
-        self.assertTrue(test_models.TestService.objects.filter(pk=self.service.pk).exists())
+        self.assertTrue(
+            test_models.TestService.objects.filter(pk=self.service.pk).exists()
+        )
 
 
 class ServiceResourcesCounterTest(test.APITransactionTestCase):
@@ -145,18 +150,24 @@ class ServiceResourcesCounterTest(test.APITransactionTestCase):
     def setUp(self):
         self.customer = factories.CustomerFactory()
         self.settings = factories.ServiceSettingsFactory(shared=True)
-        self.service = factories.TestServiceFactory(customer=self.customer, settings=self.settings)
+        self.service = factories.TestServiceFactory(
+            customer=self.customer, settings=self.settings
+        )
 
         self.user1 = factories.UserFactory()
         self.project1 = factories.ProjectFactory(customer=self.customer)
         self.project1.add_user(self.user1, ProjectRole.ADMINISTRATOR)
-        self.spl1 = factories.TestServiceProjectLinkFactory(service=self.service, project=self.project1)
+        self.spl1 = factories.TestServiceProjectLinkFactory(
+            service=self.service, project=self.project1
+        )
         self.vm1 = factories.TestNewInstanceFactory(service_project_link=self.spl1)
 
         self.user2 = factories.UserFactory()
         self.project2 = factories.ProjectFactory(customer=self.customer)
         self.project2.add_user(self.user2, ProjectRole.ADMINISTRATOR)
-        self.spl2 = factories.TestServiceProjectLinkFactory(service=self.service, project=self.project2)
+        self.spl2 = factories.TestServiceProjectLinkFactory(
+            service=self.service, project=self.project2
+        )
         self.vm2 = factories.TestNewInstanceFactory(service_project_link=self.spl2)
 
         self.service_url = factories.TestServiceFactory.get_url(self.service)
@@ -208,7 +219,9 @@ class ServiceUnlinkTest(test.APITransactionTestCase):
     def test_owner_cannot_unlink_service_with_shared_settings(self):
         fixture = fixtures.ServiceFixture()
         service_settings = factories.ServiceSettingsFactory(shared=True)
-        service = test_models.TestService.objects.get(customer=fixture.customer, settings=service_settings)
+        service = test_models.TestService.objects.get(
+            customer=fixture.customer, settings=service_settings
+        )
         unlink_url = factories.TestServiceFactory.get_url(service, 'unlink')
         self.client.force_authenticate(fixture.owner)
 

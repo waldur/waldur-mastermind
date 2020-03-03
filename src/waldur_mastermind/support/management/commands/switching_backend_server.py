@@ -6,7 +6,7 @@ from ... import models
 
 
 class Command(BaseCommand):
-    help = ("Backend data update if a server was switched.")
+    help = "Backend data update if a server was switched."
 
     def handle(self, *args, **options):
         models.RequestType.objects.all().delete()

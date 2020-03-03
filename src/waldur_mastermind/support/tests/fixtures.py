@@ -6,7 +6,6 @@ from . import factories
 
 
 class SupportFixture(structure_fixtures.ServiceFixture):
-
     @cached_property
     def issue(self):
         issue = factories.IssueFactory(customer=self.customer, project=self.project)

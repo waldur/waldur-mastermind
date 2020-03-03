@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class MarketplaceSlurmExtension(WaldurExtension):
-
     class Settings:
         WALDUR_MARKETPLACE_SLURM = {
             'CATEGORY_UUID': None,

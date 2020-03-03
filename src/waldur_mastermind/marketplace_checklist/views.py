@@ -1,8 +1,8 @@
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import status
-from rest_framework.exceptions import ValidationError, PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import get_object_or_404
-from rest_framework.mixins import ListModelMixin, CreateModelMixin
+from rest_framework.mixins import CreateModelMixin, ListModelMixin
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
@@ -22,7 +22,9 @@ class QuestionsView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.QuestionSerializer
 
     def get_queryset(self):
-        return models.Question.objects.filter(checklist__uuid=self.kwargs['checklist_uuid'])
+        return models.Question.objects.filter(
+            checklist__uuid=self.kwargs['checklist_uuid']
+        )
 
 
 class StatsView(APIView):
@@ -40,13 +42,18 @@ class StatsView(APIView):
                 question__checklist=checklist,
                 value=True,
             ).count()
-            points.append(dict(
-                name=customer.name,
-                uuid=customer.uuid,
-                latitude=customer.latitude,
-                longitude=customer.longitude,
-                score=round(100 * positive_count / max(1, projects_count * total_questions), 2)
-            ))
+            points.append(
+                dict(
+                    name=customer.name,
+                    uuid=customer.uuid,
+                    latitude=customer.latitude,
+                    longitude=customer.longitude,
+                    score=round(
+                        100 * positive_count / max(1, projects_count * total_questions),
+                        2,
+                    ),
+                )
+            )
         return Response(points)
 
 
@@ -62,21 +69,24 @@ class ProjectStatsView(APIView):
         checklists = []
         for checklist in models.Checklist.objects.all():
             qs = models.Answer.objects.filter(
-                project=project,
-                question__checklist=checklist
+                project=project, question__checklist=checklist
             )
             total = checklist.questions.count()
             positive_count = qs.filter(value=True).count()
             negative_count = qs.filter(value=False).count()
             unknown_count = total - positive_count - negative_count
-            checklists.append(dict(
-                name=checklist.name,
-                uuid=checklist.uuid,
-                positive_count=positive_count,
-                negative_count=negative_count,
-                unknown_count=unknown_count,
-                score=round(100 * positive_count / total, 2) if total > 0 else 100,  # consider empty lists as fully compliant
-            ))
+            checklists.append(
+                dict(
+                    name=checklist.name,
+                    uuid=checklist.uuid,
+                    positive_count=positive_count,
+                    negative_count=negative_count,
+                    unknown_count=unknown_count,
+                    score=round(100 * positive_count / total, 2)
+                    if total > 0
+                    else 100,  # consider empty lists as fully compliant
+                )
+            )
         return Response(checklists)
 
 
@@ -118,11 +128,10 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
             models.Answer.objects.update_or_create(
                 question=question,
                 project=project,
-                defaults={
-                    'user': request.user,
-                    'value': answer['value'],
-                }
+                defaults={'user': request.user, 'value': answer['value'],},
             )
 
         headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )

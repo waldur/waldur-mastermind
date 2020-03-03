@@ -2,7 +2,9 @@ import unicodedata
 
 from django.contrib.auth import password_validation
 from django.contrib.auth.hashers import (
-    check_password, is_password_usable, make_password,
+    check_password,
+    is_password_usable,
+    make_password,
 )
 from django.db import models
 from django.db.models.fields.related import lazy_related_operation
@@ -15,6 +17,7 @@ class AbstractBaseUser(models.Model):
     """
     is_active is removed
     """
+
     password = models.CharField(_('password'), max_length=128)
     last_login = models.DateTimeField(_('last login'), blank=True, null=True)
 
@@ -71,11 +74,13 @@ class AbstractBaseUser(models.Model):
         Return a boolean of whether the raw_password was correct. Handles
         hashing formats behind the scenes.
         """
+
         def setter(raw_password):
             self.set_password(raw_password)
             # Password hash upgrades shouldn't be considered password changes.
             self._password = None
             self.save(update_fields=["password"])
+
         return check_password(raw_password, self.password, setter)
 
     def set_unusable_password(self):
@@ -104,7 +109,11 @@ class AbstractBaseUser(models.Model):
 
     @classmethod
     def normalize_username(cls, username):
-        return unicodedata.normalize('NFKC', username) if isinstance(username, str) else username
+        return (
+            unicodedata.normalize('NFKC', username)
+            if isinstance(username, str)
+            else username
+        )
 
 
 class TaggableManager(_TaggableManager):
@@ -112,6 +121,7 @@ class TaggableManager(_TaggableManager):
     Modify contribute_to_class method, so it can use in abstract class
     See also: https://github.com/jazzband/django-taggit/pull/632/files
     """
+
     def contribute_to_class(self, cls, name):
         self.set_attributes_from_name(name)
         self.model = cls
@@ -120,11 +130,14 @@ class TaggableManager(_TaggableManager):
         cls._meta.add_field(self)
         setattr(cls, name, self)
         if not cls._meta.abstract:
-            self.remote_field.related_name = '%(class)s_%(model_name)s_%(app_label)s' % {
-                "class": cls.__name__.lower(),
-                "model_name": cls._meta.model_name.lower(),
-                "app_label": cls._meta.app_label.lower(),
-            }
+            self.remote_field.related_name = (
+                '%(class)s_%(model_name)s_%(app_label)s'
+                % {
+                    "class": cls.__name__.lower(),
+                    "model_name": cls._meta.model_name.lower(),
+                    "app_label": cls._meta.app_label.lower(),
+                }
+            )
 
             if self.remote_field.related_query_name:
                 related_query_name = self.remote_field.related_query_name % {

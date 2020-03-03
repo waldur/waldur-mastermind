@@ -6,8 +6,8 @@ from django.utils.lru_cache import lru_cache
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
-from waldur_core.structure import SupportedServices, models as structure_models
-
+from waldur_core.structure import SupportedServices
+from waldur_core.structure import models as structure_models
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,10 @@ def get_content_types_query(items):
 
 @lru_cache(maxsize=1)
 def get_service_content_types():
-    services = [service['service'] for service in SupportedServices.get_service_models().values()]
+    services = [
+        service['service']
+        for service in SupportedServices.get_service_models().values()
+    ]
     return get_content_types_query(services)
 
 
@@ -27,6 +30,7 @@ class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedMo
     """
     Deployment plan contains list of plan items.
     """
+
     class Permissions:
         customer_path = 'project__customer'
         project_path = 'project'
@@ -34,8 +38,12 @@ class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedMo
     class Meta:
         ordering = ['-created']
 
-    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project, related_name='+')
-    certifications = models.ManyToManyField(structure_models.ServiceCertification, blank=True)
+    project = models.ForeignKey(
+        on_delete=models.CASCADE, to=structure_models.Project, related_name='+'
+    )
+    certifications = models.ManyToManyField(
+        structure_models.ServiceCertification, blank=True
+    )
 
     def __str__(self):
         return self.name
@@ -58,7 +66,9 @@ class DeploymentPlan(core_models.UuidMixin, core_models.NameMixin, TimeStampedMo
         return requirements
 
     def get_required_certifications(self):
-        return set(list(self.certifications.all()) + list(self.project.certifications.all()))
+        return set(
+            list(self.certifications.all()) + list(self.project.certifications.all())
+        )
 
 
 class DeploymentPlanItem(models.Model):
@@ -71,11 +81,14 @@ class DeploymentPlanItem(models.Model):
         "quantity": 10
     }
     """
+
     class Meta:
         ordering = 'plan', 'preset'
         unique_together = 'plan', 'preset'
 
-    plan = models.ForeignKey(on_delete=models.CASCADE, to=DeploymentPlan, related_name='items')
+    plan = models.ForeignKey(
+        on_delete=models.CASCADE, to=DeploymentPlan, related_name='items'
+    )
     preset = models.ForeignKey(on_delete=models.CASCADE, to='Preset')
     quantity = models.PositiveSmallIntegerField(default=1)
 
@@ -105,6 +118,7 @@ class Preset(core_models.UuidMixin, core_models.NameMixin):
         "storage": "1024000",
     }
     """
+
     class Meta:
         ordering = 'category', 'name', 'variant'
         unique_together = 'category', 'name', 'variant'
@@ -119,7 +133,9 @@ class Preset(core_models.UuidMixin, core_models.NameMixin):
         (LARGE, 'Large'),
     )
 
-    category = models.ForeignKey(on_delete=models.CASCADE, to=Category, related_name='presets')
+    category = models.ForeignKey(
+        on_delete=models.CASCADE, to=Category, related_name='presets'
+    )
     variant = models.CharField(max_length=150, choices=VARIANTS)
     ram = models.PositiveIntegerField(default=0)
     cores = models.PositiveIntegerField(default=0, help_text='Preset cores count.')

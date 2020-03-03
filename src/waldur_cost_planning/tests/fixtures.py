@@ -7,7 +7,6 @@ from . import factories
 
 
 class CostPlanningFixture(structure_fixtures.ProjectFixture):
-
     @cached_property
     def category(self):
         return factories.CategoryFactory()
@@ -22,7 +21,8 @@ class CostPlanningFixture(structure_fixtures.ProjectFixture):
 
 
 class CostPlanningOpenStackPluginFixture(CostPlanningFixture):
-
     @cached_property
     def spl(self):
-        return ot_factories.OpenStackTenantServiceProjectLinkFactory(project=self.project)
+        return ot_factories.OpenStackTenantServiceProjectLinkFactory(
+            project=self.project
+        )

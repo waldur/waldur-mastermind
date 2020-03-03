@@ -7,7 +7,6 @@ from waldur_core.core import utils as core_utils
 
 from . import utils
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +28,10 @@ def synchronize_public_ip(sender, instance, created=False, **kwargs):
         nic = azure_models.NetworkInterface.objects.get(public_ip=public_ip)
         utils.synchronize_nic(nic)
     except ObjectDoesNotExist:
-        logger.debug('Skipping resource synchronization for Azure virtual machine'
-                     'because marketplace resource does not exist. '
-                     'Resource: %s', core_utils.serialize_instance(public_ip))
+        logger.debug(
+            'Skipping resource synchronization for Azure virtual machine'
+            'because marketplace resource does not exist. '
+            'Resource: %s',
+            core_utils.serialize_instance(public_ip),
+        )
         return

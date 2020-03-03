@@ -3,12 +3,11 @@ from django.utils.functional import cached_property
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 
-from . import factories
 from .. import models
+from . import factories
 
 
 class OpenStackTenantFixture(ProjectFixture):
-
     @cached_property
     def tenant(self):
         return openstack_fixtures.OpenStackFixture().tenant
@@ -32,8 +31,7 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def openstack_tenant_service(self):
         return factories.OpenStackTenantServiceFactory(
-            customer=self.customer,
-            settings=self.openstack_tenant_service_settings
+            customer=self.customer, settings=self.openstack_tenant_service_settings
         )
 
     @cached_property
@@ -42,12 +40,15 @@ class OpenStackTenantFixture(ProjectFixture):
 
     @cached_property
     def subnet(self):
-        return factories.SubNetFactory(network=self.network, settings=self.openstack_tenant_service_settings)
+        return factories.SubNetFactory(
+            network=self.network, settings=self.openstack_tenant_service_settings
+        )
 
     @cached_property
     def spl(self):
         return factories.OpenStackTenantServiceProjectLinkFactory(
-            project=self.project, service=self.openstack_tenant_service)
+            project=self.project, service=self.openstack_tenant_service
+        )
 
     @cached_property
     def volume(self):
@@ -87,7 +88,7 @@ class OpenStackTenantFixture(ProjectFixture):
         return factories.BackupFactory(
             service_project_link=self.spl,
             instance=self.instance,
-            backup_schedule=self.backup_schedule
+            backup_schedule=self.backup_schedule,
         )
 
     @cached_property
@@ -109,16 +110,12 @@ class OpenStackTenantFixture(ProjectFixture):
     @cached_property
     def floating_ip(self):
         return factories.FloatingIPFactory(
-            settings=self.openstack_tenant_service_settings,
-            runtime_state='DOWN',
+            settings=self.openstack_tenant_service_settings, runtime_state='DOWN',
         )
 
     @cached_property
     def internal_ip(self):
-        return factories.InternalIPFactory(
-            subnet=self.subnet,
-            instance=self.instance,
-        )
+        return factories.InternalIPFactory(subnet=self.subnet, instance=self.instance,)
 
     @cached_property
     def volume_type(self):

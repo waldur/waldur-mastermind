@@ -29,8 +29,13 @@ class BaseSecurityGroupRule(models.Model):
         abstract = True
 
     def __str__(self):
-        return '%s (%s): %s (%s -> %s)' % \
-               (self.security_group, self.protocol, self.cidr, self.from_port, self.to_port)
+        return '%s (%s): %s (%s -> %s)' % (
+            self.security_group,
+            self.protocol,
+            self.cidr,
+            self.from_port,
+            self.to_port,
+        )
 
 
 class Port(core_models.BackendModelMixin, models.Model):
@@ -48,12 +53,20 @@ class Port(core_models.BackendModelMixin, models.Model):
 
     @classmethod
     def get_backend_fields(cls):
-        return super(Port, cls).get_backend_fields() + ('ip4_address', 'ip6_address', 'mac_address')
+        return super(Port, cls).get_backend_fields() + (
+            'ip4_address',
+            'ip6_address',
+            'mac_address',
+        )
 
 
 class BaseImage(structure_models.ServiceProperty):
-    min_disk = models.PositiveIntegerField(default=0, help_text=_('Minimum disk size in MiB'))
-    min_ram = models.PositiveIntegerField(default=0, help_text=_('Minimum memory size in MiB'))
+    min_disk = models.PositiveIntegerField(
+        default=0, help_text=_('Minimum disk size in MiB')
+    )
+    min_ram = models.PositiveIntegerField(
+        default=0, help_text=_('Minimum memory size in MiB')
+    )
 
     class Meta(structure_models.ServiceProperty.Meta):
         abstract = True

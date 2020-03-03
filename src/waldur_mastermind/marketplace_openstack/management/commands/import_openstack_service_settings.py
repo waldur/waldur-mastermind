@@ -12,11 +12,18 @@ class Command(DryRunCommand):
 
     def add_arguments(self, parser):
         super(Command, self).add_arguments(parser)
-        parser.add_argument('--customer', dest='customer_uuid', required=True,
-                            help='Default customer argument is used for shared service setting.')
+        parser.add_argument(
+            '--customer',
+            dest='customer_uuid',
+            required=True,
+            help='Default customer argument is used for shared service setting.',
+        )
 
-        parser.add_argument('--require-templates', action='store_true',
-                            help='Skip service settings without package template.')
+        parser.add_argument(
+            '--require-templates',
+            action='store_true',
+            help='Skip service settings without package template.',
+        )
 
     def handle(self, customer_uuid, dry_run, require_templates, *args, **options):
         try:
@@ -26,9 +33,18 @@ class Command(DryRunCommand):
 
         try:
             offerings_counter, plans_counter = utils.import_openstack_service_settings(
-                customer, dry_run, require_templates)
-            self.stdout.write(self.style.SUCCESS('%s offerings have been created.' % offerings_counter))
-            self.stdout.write(self.style.SUCCESS('%s plans have been created.' % plans_counter))
+                customer, dry_run, require_templates
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    '%s offerings have been created.' % offerings_counter
+                )
+            )
+            self.stdout.write(
+                self.style.SUCCESS('%s plans have been created.' % plans_counter)
+            )
         except Category.DoesNotExist:
-            raise CommandError('Please ensure that WALDUR_MARKETPLACE_OPENSTACK.TENANT_CATEGORY_UUID '
-                               'setting has valid value.')
+            raise CommandError(
+                'Please ensure that WALDUR_MARKETPLACE_OPENSTACK.TENANT_CATEGORY_UUID '
+                'setting has valid value.'
+            )

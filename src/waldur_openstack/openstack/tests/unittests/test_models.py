@@ -1,4 +1,4 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from django.test import TestCase
 
 from .. import factories

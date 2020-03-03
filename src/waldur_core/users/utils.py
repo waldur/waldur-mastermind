@@ -1,7 +1,8 @@
 from django.conf import settings
-from django.core.signing import TimestampSigner, BadSignature
+from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
 from django.utils.translation import ugettext_lazy as _
+from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 
 from waldur_core.core import models as core_models
@@ -9,25 +10,27 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import pwgen
 from waldur_core.structure.models import ProjectRole
 from waldur_core.users import models
+from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
 from waldur_freeipa.models import Profile
-from waldur_freeipa import tasks
-from python_freeipa import exceptions as freeipa_exceptions
-
 from waldur_freeipa.utils import generate_username
 
 
 def get_invitation_context(invitation, sender):
     if invitation.project_role is not None:
         context = dict(type=_('project'), name=invitation.project.name)
-        role_prefix = _('project') if invitation.project_role == ProjectRole.MANAGER else _('system')
+        role_prefix = (
+            _('project')
+            if invitation.project_role == ProjectRole.MANAGER
+            else _('system')
+        )
         context['role'] = '%s %s' % (role_prefix, invitation.get_project_role_display())
 
     else:
         context = dict(
             type=_('organization'),
             name=invitation.customer.name,
-            role=invitation.get_customer_role_display()
+            role=invitation.get_customer_role_display(),
         )
 
     context['sender'] = sender
@@ -44,7 +47,9 @@ def get_invitation_token(invitation, user):
 def parse_invitation_token(token):
     signer = TimestampSigner()
     try:
-        payload = signer.unsign(token, max_age=settings.WALDUR_CORE['INVITATION_MAX_AGE'])
+        payload = signer.unsign(
+            token, max_age=settings.WALDUR_CORE['INVITATION_MAX_AGE']
+        )
     except BadSignature:
         raise serializers.ValidationError('Invalid signature.')
 
@@ -59,7 +64,9 @@ def parse_invitation_token(token):
         raise serializers.ValidationError('Invalid user UUID.')
 
     try:
-        user = core_models.User.objects.filter(uuid=parts[0], is_active=True, is_staff=True).get()
+        user = core_models.User.objects.filter(
+            uuid=parts[0], is_active=True, is_staff=True
+        ).get()
     except core_models.User.DoesNotExist:
         raise serializers.ValidationError('Invalid user UUID.')
 
@@ -67,7 +74,9 @@ def parse_invitation_token(token):
         raise serializers.ValidationError('Invalid invitation UUID.')
 
     try:
-        invitation = models.Invitation.objects.get(uuid=parts[1], state=models.Invitation.State.REQUESTED)
+        invitation = models.Invitation.objects.get(
+            uuid=parts[1], state=models.Invitation.State.REQUESTED
+        )
     except models.Invitation.DoesNotExist:
         raise serializers.ValidationError('Invalid invitation UUID.')
 
@@ -90,7 +99,9 @@ def generate_safe_username(username):
 @transaction.atomic
 def get_or_create_user(invitation):
     if invitation.civil_number:
-        user = core_models.User.objects.filter(civil_number=invitation.civil_number).first()
+        user = core_models.User.objects.filter(
+            civil_number=invitation.civil_number
+        ).first()
         if user:
             return user, False
 
@@ -106,9 +117,12 @@ def get_or_create_user(invitation):
     payload = {
         field: getattr(invitation, field)
         for field in (
-            'full_name', 'native_name',
-            'organization', 'civil_number',
-            'job_title', 'phone_number',
+            'full_name',
+            'native_name',
+            'organization',
+            'civil_number',
+            'job_title',
+            'phone_number',
         )
     }
     user = core_models.User.objects.create_user(
@@ -128,10 +142,7 @@ def get_or_create_profile(user, username, password):
     if profile:
         return profile, False
 
-    profile = Profile.objects.create(
-        user=user,
-        username=username,
-    )
+    profile = Profile.objects.create(user=user, username=username,)
     try:
         FreeIPABackend().create_profile(profile, password=password)
         tasks.schedule_sync()

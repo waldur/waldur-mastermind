@@ -16,7 +16,7 @@ class AnalyticsExtension(WaldurExtension):
                 'database': 'DATABASE',
                 'ssl': False,
                 'verify_ssl': False,
-            }
+            },
         }
 
     @staticmethod
@@ -30,6 +30,7 @@ class AnalyticsExtension(WaldurExtension):
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod

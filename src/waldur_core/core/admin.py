@@ -8,7 +8,8 @@ from django.conf.urls import url
 from django.contrib import admin, messages
 from django.contrib.admin import forms as admin_forms
 from django.contrib.admin import widgets
-from django.contrib.auth import admin as auth_admin, get_user_model
+from django.contrib.auth import admin as auth_admin
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.forms.utils import flatatt
@@ -28,7 +29,10 @@ from waldur_core.core.authentication import can_access_admin_site
 
 
 def get_admin_url(obj):
-    return reverse('admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name), args=[obj.id])
+    return reverse(
+        'admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name),
+        args=[obj.id],
+    )
 
 
 def render_to_readonly(value):
@@ -48,6 +52,7 @@ class ReadOnlyAdminMixin:
     Disables all editing capabilities.
     Please ensure that readonly_fields is specified in derived class.
     """
+
     change_form_template = 'admin/core/readonly_change_form.html'
 
     def get_actions(self, request):
@@ -76,9 +81,7 @@ class ReadOnlyAdminMixin:
 
 class CopyButtonMixin:
     class Media:
-        js = (
-            settings.STATIC_URL + 'landing/js/copy2clipboard.js',
-        )
+        js = (settings.STATIC_URL + 'landing/js/copy2clipboard.js',)
 
     def render(self, name, value, attrs=None, renderer=None):
         result = super().render(name, value, attrs)
@@ -130,8 +133,7 @@ class UserCreationForm(auth_admin.UserCreationForm):
         except get_user_model().DoesNotExist:
             return username
         raise forms.ValidationError(
-            _('Username is not unique.'),
-            code='duplicate_username',
+            _('Username is not unique.'), code='duplicate_username',
         )
 
 
@@ -142,8 +144,12 @@ class UserChangeForm(auth_admin.UserChangeForm):
 
     def __init__(self, *args, **kwargs):
         super(UserChangeForm, self).__init__(*args, **kwargs)
-        competences = [(key, key) for key in settings.WALDUR_CORE.get('USER_COMPETENCE_LIST', [])]
-        self.fields['competence'] = OptionalChoiceField(choices=competences, required=False)
+        competences = [
+            (key, key) for key in settings.WALDUR_CORE.get('USER_COMPETENCE_LIST', [])
+        ]
+        self.fields['competence'] = OptionalChoiceField(
+            choices=competences, required=False
+        )
 
     def clean_civil_number(self):
         # Empty string should be converted to None.
@@ -201,47 +207,115 @@ class NativeNameAdminMixin(ExcludedFieldsAdminMixin):
 
 
 class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin):
-    list_display = ('username', 'uuid', 'email', 'full_name', 'native_name', 'is_active', 'is_staff', 'is_support')
-    search_fields = ('username', 'uuid', 'full_name', 'native_name', 'email', 'civil_number')
+    list_display = (
+        'username',
+        'uuid',
+        'email',
+        'full_name',
+        'native_name',
+        'is_active',
+        'is_staff',
+        'is_support',
+    )
+    search_fields = (
+        'username',
+        'uuid',
+        'full_name',
+        'native_name',
+        'email',
+        'civil_number',
+    )
     list_filter = ('is_active', 'is_staff', 'is_support', 'registration_method')
     date_hierarchy = 'date_joined'
     fieldsets = (
         (None, {'fields': ('username', 'password', 'registration_method', 'uuid')}),
-        (_('Personal info'), {'fields': (
-            'civil_number', 'full_name', 'native_name', 'email',
-            'preferred_language', 'competence', 'phone_number'
-        )}),
+        (
+            _('Personal info'),
+            {
+                'fields': (
+                    'civil_number',
+                    'full_name',
+                    'native_name',
+                    'email',
+                    'preferred_language',
+                    'competence',
+                    'phone_number',
+                )
+            },
+        ),
         (_('Organization'), {'fields': ('organization', 'job_title',)}),
-        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_support', 'customer_roles', 'project_roles')}),
-        (_('Important dates'), {'fields': ('last_login', 'date_joined', 'agreement_date')}),
-        (_('Authentication backend details'), {'fields': ('format_details', 'backend_id')}),
+        (
+            _('Permissions'),
+            {
+                'fields': (
+                    'is_active',
+                    'is_staff',
+                    'is_support',
+                    'customer_roles',
+                    'project_roles',
+                )
+            },
+        ),
+        (
+            _('Important dates'),
+            {'fields': ('last_login', 'date_joined', 'agreement_date')},
+        ),
+        (
+            _('Authentication backend details'),
+            {'fields': ('format_details', 'backend_id')},
+        ),
     )
-    readonly_fields = ('registration_method', 'agreement_date', 'customer_roles', 'project_roles', 'uuid',
-                       'last_login', 'date_joined', 'format_details')
+    readonly_fields = (
+        'registration_method',
+        'agreement_date',
+        'customer_roles',
+        'project_roles',
+        'uuid',
+        'last_login',
+        'date_joined',
+        'format_details',
+    )
     form = UserChangeForm
     add_form = UserCreationForm
 
     def customer_roles(self, instance):
         from waldur_core.structure.models import CustomerPermission
-        permissions = CustomerPermission.objects.filter(user=instance, is_active=True).order_by('customer')
+
+        permissions = CustomerPermission.objects.filter(
+            user=instance, is_active=True
+        ).order_by('customer')
 
         return format_html_join(
             mark_safe('<br/>'),  # nosec
             '<a href={}>{}</a>',
-            ((get_admin_url(permission.customer), str(permission)) for permission in permissions),
-        ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any organization.'))  # nosec
+            (
+                (get_admin_url(permission.customer), str(permission))
+                for permission in permissions
+            ),
+        ) or mark_safe(
+            "<span class='errors'>%s</span>"
+            % _('User has no roles in any organization.')
+        )  # nosec
 
     customer_roles.short_description = _('Roles in organizations')
 
     def project_roles(self, instance):
         from waldur_core.structure.models import ProjectPermission
-        permissions = ProjectPermission.objects.filter(user=instance, is_active=True).order_by('project')
+
+        permissions = ProjectPermission.objects.filter(
+            user=instance, is_active=True
+        ).order_by('project')
 
         return format_html_join(
             mark_safe('<br/>'),  # nosec
             '<a href={}>{}</a>',
-            ((get_admin_url(permission.project), str(permission)) for permission in permissions),
-        ) or mark_safe("<span class='errors'>%s</span>" % _('User has no roles in any project.'))  # nosec
+            (
+                (get_admin_url(permission.project), str(permission))
+                for permission in permissions
+            ),
+        ) or mark_safe(
+            "<span class='errors'>%s</span>" % _('User has no roles in any project.')
+        )  # nosec
 
     project_roles.short_description = _('Roles in projects')
 
@@ -264,14 +338,18 @@ class ChangeEmailRequestAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
 
 class CustomAdminAuthenticationForm(admin_forms.AdminAuthenticationForm):
     error_messages = {
-        'invalid_login': _("Please enter the correct %(username)s and password "
-                           "for a staff or a support account. Note that both fields may be "
-                           "case-sensitive."),
+        'invalid_login': _(
+            "Please enter the correct %(username)s and password "
+            "for a staff or a support account. Note that both fields may be "
+            "case-sensitive."
+        ),
     }
 
     def confirm_login_allowed(self, user):
         if not can_access_admin_site(user):
-            return super(CustomAdminAuthenticationForm, self).confirm_login_allowed(user)
+            return super(CustomAdminAuthenticationForm, self).confirm_login_allowed(
+                user
+            )
 
 
 class CustomAdminSite(admin.AdminSite):
@@ -282,7 +360,9 @@ class CustomAdminSite(admin.AdminSite):
 
     def has_permission(self, request):
         is_safe = request.method in rf_permissions.SAFE_METHODS
-        return can_access_admin_site(request.user) and (is_safe or request.user.is_staff)
+        return can_access_admin_site(request.user) and (
+            is_safe or request.user.is_staff
+        )
 
     @classmethod
     def clone_default(cls):
@@ -314,7 +394,9 @@ class ReversionAdmin(VersionAdmin):
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         # Revision creation is ignored in this method because it has to be implemented in model.save method
-        return super(VersionAdmin, self).change_view(request, object_id, form_url, extra_context)
+        return super(VersionAdmin, self).change_view(
+            request, object_id, form_url, extra_context
+        )
 
 
 class ExecutorAdminAction:
@@ -333,6 +415,7 @@ class ExecutorAdminAction:
         pull_security_groups = PullSecurityGroups()  # this action could be registered as admin action
 
     """
+
     executor = NotImplemented
     short_description = ''
     confirmation_template = 'admin/action_confirmation.html'
@@ -361,10 +444,8 @@ class ExecutorAdminAction:
             'description': self.short_description,
         }
         request.current_app = admin_class.admin_site.name
-        context.update(
-            media=admin_class.media,
-        )
-        return TemplateResponse(request, self.confirmation_template, context, )
+        context.update(media=admin_class.media,)
+        return TemplateResponse(request, self.confirmation_template, context,)
 
     def execute(self, admin_class, request, queryset):
         errors = defaultdict(list)
@@ -380,14 +461,18 @@ class ExecutorAdminAction:
                 successfully_executed.append(instance)
 
         if successfully_executed:
-            message = _('Operation was successfully scheduled for %(count)d instances: %(names)s') % dict(
+            message = _(
+                'Operation was successfully scheduled for %(count)d instances: %(names)s'
+            ) % dict(
                 count=len(successfully_executed),
-                names=', '.join([str(i) for i in successfully_executed])
+                names=', '.join([str(i) for i in successfully_executed]),
             )
             admin_class.message_user(request, message)
 
         for error, instances in errors.items():
-            message = _('Failed to schedule operation for %(count)d instances: %(names)s. Error: %(message)s') % dict(
+            message = _(
+                'Failed to schedule operation for %(count)d instances: %(names)s. Error: %(message)s'
+            ) % dict(
                 count=len(instances),
                 names=', '.join([str(i) for i in instances]),
                 message=error,
@@ -414,10 +499,13 @@ class ExtraActionsMixin:
     """
     Allows to add extra actions to admin list page.
     """
+
     change_list_template = 'admin/core/change_list.html'
 
     def get_extra_actions(self):
-        raise NotImplementedError('Method "get_extra_actions" should be implemented in ExtraActionsMixin.')
+        raise NotImplementedError(
+            'Method "get_extra_actions" should be implemented in ExtraActionsMixin.'
+        )
 
     def get_urls(self):
         """
@@ -439,10 +527,12 @@ class ExtraActionsMixin:
         links = []
 
         for action in self.get_extra_actions():
-            links.append({
-                'label': self._get_action_label(action),
-                'href': self._get_action_href(action)
-            })
+            links.append(
+                {
+                    'label': self._get_action_label(action),
+                    'href': self._get_action_href(action),
+                }
+            )
 
         extra_context = extra_context or {}
         extra_context['extra_links'] = links
@@ -462,10 +552,13 @@ class ExtraActionsObjectMixin:
     """
     Allows to add extra actions to admin object edit page.
     """
+
     change_form_template = 'admin/core/change_form.html'
 
     def get_extra_object_actions(self):
-        raise NotImplementedError('Method "get_extra_object_actions" should be implemented in ExtraActionsMixin.')
+        raise NotImplementedError(
+            'Method "get_extra_object_actions" should be implemented in ExtraActionsMixin.'
+        )
 
     def get_urls(self):
         """
@@ -489,11 +582,13 @@ class ExtraActionsObjectMixin:
 
         for action in self.get_extra_object_actions():
             validator = self._get_action_validator(action)
-            links.append({
-                'label': self._get_action_label(action),
-                'href': self._get_action_href(action),
-                'show': True if not validator else validator(request, obj)
-            })
+            links.append(
+                {
+                    'label': self._get_action_label(action),
+                    'href': self._get_action_href(action),
+                    'show': True if not validator else validator(request, obj),
+                }
+            )
 
         extra_context = extra_context or {}
         extra_context['extra_object_links'] = links
@@ -513,7 +608,6 @@ class ExtraActionsObjectMixin:
 
 
 class UpdateOnlyModelAdmin:
-
     def has_add_permission(self, request, obj=None):
         return False
 

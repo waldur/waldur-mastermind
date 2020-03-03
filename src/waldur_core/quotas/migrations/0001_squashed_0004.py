@@ -18,19 +18,43 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Quota',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('threshold', models.FloatField(default=0, validators=[django.core.validators.MinValueValidator(0)])),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'threshold',
+                    models.FloatField(
+                        default=0,
+                        validators=[django.core.validators.MinValueValidator(0)],
+                    ),
+                ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('limit', models.FloatField(default=-1)),
                 ('usage', models.FloatField(default=0)),
                 ('name', models.CharField(db_index=True, max_length=150)),
                 ('object_id', models.PositiveIntegerField(null=True)),
-                ('content_type', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, to='contenttypes.ContentType')),
+                (
+                    'content_type',
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to='contenttypes.ContentType',
+                    ),
+                ),
             ],
-            bases=(waldur_core.logging.loggers.LoggableMixin, waldur_core.core.models.ReversionMixin, models.Model),
+            bases=(
+                waldur_core.logging.loggers.LoggableMixin,
+                waldur_core.core.models.ReversionMixin,
+                models.Model,
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='quota',
-            unique_together=set([('name', 'content_type', 'object_id')]),
+            name='quota', unique_together=set([('name', 'content_type', 'object_id')]),
         ),
     ]

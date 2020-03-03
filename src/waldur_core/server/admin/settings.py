@@ -21,11 +21,13 @@ FLUENT_DASHBOARD_APP_ICONS = {
     'backup/backupschedule': 'view-resource-calendar.png',
     'cost_tracking/pricelistitem': 'view-bank-account.png',
     'cost_tracking/priceestimate': 'feed-subscribe.png',
-    'cost_tracking/defaultpricelistitem': 'view-calendar-list.png'
+    'cost_tracking/defaultpricelistitem': 'view-calendar-list.png',
 }
 
 ADMIN_TOOLS_INDEX_DASHBOARD = 'waldur_core.server.admin.dashboard.CustomIndexDashboard'
-ADMIN_TOOLS_APP_INDEX_DASHBOARD = 'waldur_core.server.admin.dashboard.CustomAppIndexDashboard'
+ADMIN_TOOLS_APP_INDEX_DASHBOARD = (
+    'waldur_core.server.admin.dashboard.CustomAppIndexDashboard'
+)
 ADMIN_TOOLS_MENU = 'waldur_core.server.admin.menu.CustomMenu'
 
 # Should be specified, otherwise all Applications dashboard will be included.

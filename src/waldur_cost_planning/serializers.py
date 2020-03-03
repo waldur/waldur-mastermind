@@ -2,7 +2,8 @@ from django.db import transaction
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.structure import permissions as structure_permissions, models as structure_models
+from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 
 from . import models, register
 
@@ -13,7 +14,16 @@ class PresetSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.Preset
-        fields = ('url', 'uuid', 'name', 'category', 'variant', 'ram', 'cores', 'storage')
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'category',
+            'variant',
+            'ram',
+            'cores',
+            'storage',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'deployment-preset-detail'},
         }
@@ -24,7 +34,10 @@ class DeploymentPlanItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.DeploymentPlanItem
-        fields = ('preset', 'quantity',)
+        fields = (
+            'preset',
+            'quantity',
+        )
 
 
 class NestedDeploymentPlanItemSerializer(serializers.HyperlinkedModelSerializer):
@@ -32,10 +45,7 @@ class NestedDeploymentPlanItemSerializer(serializers.HyperlinkedModelSerializer)
         model = models.DeploymentPlanItem
         fields = ('preset', 'quantity')
         extra_kwargs = {
-            'preset': {
-                'lookup_field': 'uuid',
-                'view_name': 'deployment-preset-detail'
-            }
+            'preset': {'lookup_field': 'uuid', 'view_name': 'deployment-preset-detail'}
         }
 
 
@@ -44,13 +54,21 @@ class NestedCertificatesSerializer(core_serializers.HyperlinkedRelatedModelSeria
         model = structure_models.ServiceCertification
         fields = ('url', 'uuid', 'name', 'description', 'link')
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'service-certification-detail'},
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'service-certification-detail',
+            },
         }
 
 
-class BaseDeploymentPlanSerializer(core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer):
+class BaseDeploymentPlanSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     certifications = NestedCertificatesSerializer(
-        many=True, queryset=structure_models.ServiceCertification.objects.all(), required=False)
+        many=True,
+        queryset=structure_models.ServiceCertification.objects.all(),
+        required=False,
+    )
 
     class Meta:
         model = models.DeploymentPlan
@@ -70,7 +88,9 @@ class DeploymentPlanCreateSerializer(BaseDeploymentPlanSerializer):
     items = NestedDeploymentPlanItemSerializer(many=True, required=False)
 
     def validate_project(self, project):
-        structure_permissions.is_administrator(self.context['request'], self.context['view'], project)
+        structure_permissions.is_administrator(
+            self.context['request'], self.context['view'], project
+        )
         return project
 
     def create(self, validated_data):
@@ -86,7 +106,9 @@ class DeploymentPlanCreateSerializer(BaseDeploymentPlanSerializer):
         items = validated_data.pop('items', None)
         certifications = validated_data.pop('certifications', None)
 
-        plan = super(DeploymentPlanCreateSerializer, self).update(instance, validated_data)
+        plan = super(DeploymentPlanCreateSerializer, self).update(
+            instance, validated_data
+        )
 
         if certifications is not None:
             with transaction.atomic():
@@ -124,7 +146,10 @@ class OptimizedServiceSummarySerializer(serializers.Serializer):
     def get_serializer(cls, optimized_service):
         if optimized_service.error_message:
             return OptimizedServiceSerializer
-        return register.Register.get_serilizer(optimized_service.service.settings.type) or OptimizedServiceSerializer
+        return (
+            register.Register.get_serilizer(optimized_service.service.settings.type)
+            or OptimizedServiceSerializer
+        )
 
     def to_representation(self, instance):
         serializer = self.get_serializer(instance)

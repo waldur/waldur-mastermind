@@ -1,10 +1,11 @@
 from unittest import mock
+
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories
 from .. import models
+from . import factories
 
 
 class TriggerQueryTest(test.APITransactionTestCase):
@@ -20,22 +21,20 @@ class TriggerQueryTest(test.APITransactionTestCase):
         return kwargs
 
     def test_filter_problem_status(self):
-        kwargs = self.execute_call({
-            'value': 1,
-        })
+        kwargs = self.execute_call({'value': 1,})
 
         self.assertEqual(kwargs['filter'], dict(value=1))
 
     def test_filter_priority(self):
-        kwargs = self.execute_call({
-            'priority': [1, 2, 3],
-        })
+        kwargs = self.execute_call({'priority': [1, 2, 3],})
 
         self.assertEqual(kwargs['filter']['priority'], [1, 2, 3])
 
     def test_filter_acknowledge_status(self):
-        kwargs = self.execute_call({
-            'acknowledge_status': models.Trigger.AcknowledgeStatus.SOME_EVENTS_UNACKNOWLEDGED,
-        })
+        kwargs = self.execute_call(
+            {
+                'acknowledge_status': models.Trigger.AcknowledgeStatus.SOME_EVENTS_UNACKNOWLEDGED,
+            }
+        )
 
         self.assertEqual(kwargs['withUnacknowledgedEvents'], 1)

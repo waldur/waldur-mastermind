@@ -15,7 +15,11 @@ def _get_filename(path):
     fname = os.path.basename(path)
     filename = fname.split('.')[0]
     filename_extension = fname.split('.')[1:]
-    count = len('.'.join(filename_extension).encode('utf-8')) + 1 if filename_extension else 0
+    count = (
+        len('.'.join(filename_extension).encode('utf-8')) + 1
+        if filename_extension
+        else 0
+    )
     char_limit = 0
 
     for char in filename:
@@ -37,11 +41,17 @@ def _get_filename(path):
 def _upload_file(manager, issue, upload_file, filename):
     # This method will fix original method jira.JIRA.add_attachment (jira/client.py line 591)
     url = manager._get_url('issue/' + str(issue) + '/attachments')
-    files = {'file': (filename, upload_file), }
-    headers = {'X-Atlassian-Token': 'nocheck', }
+    files = {
+        'file': (filename, upload_file),
+    }
+    headers = {
+        'X-Atlassian-Token': 'nocheck',
+    }
     req = Request('POST', url, headers=headers, files=files, auth=manager._session.auth)
     prepped = req.prepare()
-    prepped.body = re.sub(b'filename\*=.*', b'filename="%s"\r' % filename.encode('utf-8'), prepped.body)
+    prepped.body = re.sub(
+        b'filename=.*', b'filename="%s"\r' % filename.encode('utf-8'), prepped.body
+    )
     r = manager._session.send(prepped)
 
     js = utils.json_loads(r)
@@ -52,7 +62,9 @@ def _upload_file(manager, issue, upload_file, filename):
     attachment = Attachment(manager._options, manager._session, js[0])
 
     if attachment.size == 0:
-        raise JIRAError("Added empty attachment?!: r: %s\nattachment: %s" % (r, attachment))
+        raise JIRAError(
+            "Added empty attachment?!: r: %s\nattachment: %s" % (r, attachment)
+        )
 
     return attachment
 

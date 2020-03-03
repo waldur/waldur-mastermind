@@ -1,10 +1,8 @@
 import factory
-
 from django.urls import reverse
 from django.utils import timezone
 
 from waldur_core.structure.tests import factories as structure_factories
-
 from waldur_paypal import models
 
 
@@ -21,7 +19,9 @@ class PaypalPaymentFactory(factory.DjangoModelFactory):
     def get_url(self, payment=None, action=None):
         if payment is None:
             payment = PaypalPaymentFactory()
-        url = 'http://testserver' + reverse('paypal-payment-detail', kwargs={'uuid': payment.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'paypal-payment-detail', kwargs={'uuid': payment.uuid.hex}
+        )
         return url if action is None else url + action + '/'
 
     @classmethod
@@ -41,17 +41,16 @@ class InvoiceFactory(factory.DjangoModelFactory):
     year = factory.fuzzy.FuzzyInteger(1970, 2017)
     end_date = factory.fuzzy.FuzzyDate(start_date=timezone.now().date())
     tax_percent = factory.fuzzy.FuzzyInteger(1, 10)
-    issuer_details = factory.Dict({
-        'email': factory.Sequence(lambda n: 'email-%s@domain.com' % n),
-        'address': factory.Sequence(lambda n: 'address-%s' % n),
-        'city': factory.Sequence(lambda n: 'city-%s' % n),
-        'postal_code': 1101,
-        'country_code': 'EE',
-        'phone': {
-            'country_code': '372',
-            'national_number': '5555555'
+    issuer_details = factory.Dict(
+        {
+            'email': factory.Sequence(lambda n: 'email-%s@domain.com' % n),
+            'address': factory.Sequence(lambda n: 'address-%s' % n),
+            'city': factory.Sequence(lambda n: 'city-%s' % n),
+            'postal_code': 1101,
+            'country_code': 'EE',
+            'phone': {'country_code': '372', 'national_number': '5555555'},
         }
-    })
+    )
 
 
 class InvoiceItemFactory(factory.DjangoModelFactory):

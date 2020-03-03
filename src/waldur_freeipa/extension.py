@@ -22,6 +22,7 @@ class FreeIPAExtension(WaldurExtension):
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
@@ -31,6 +32,7 @@ class FreeIPAExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         from datetime import timedelta
+
         return {
             'waldur-freeipa-sync-groups': {
                 'task': 'waldur_freeipa.sync_groups',

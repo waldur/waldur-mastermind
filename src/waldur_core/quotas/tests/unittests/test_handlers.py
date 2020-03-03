@@ -6,9 +6,10 @@ from waldur_core.structure.tests import factories as structure_factories
 
 
 class GlobalQuotasHandlersTestCase(TestCase):
-
     def test_project_global_quota_increased_after_project_creation(self):
-        quota = models.Quota.objects.get(name=structure_models.Project.GLOBAL_COUNT_QUOTA_NAME)
+        quota = models.Quota.objects.get(
+            name=structure_models.Project.GLOBAL_COUNT_QUOTA_NAME
+        )
 
         structure_factories.ProjectFactory()
 
@@ -17,7 +18,9 @@ class GlobalQuotasHandlersTestCase(TestCase):
 
     def test_project_global_quota_decreased_after_project_deletion(self):
         project = structure_factories.ProjectFactory()
-        quota = models.Quota.objects.get(name=structure_models.Project.GLOBAL_COUNT_QUOTA_NAME)
+        quota = models.Quota.objects.get(
+            name=structure_models.Project.GLOBAL_COUNT_QUOTA_NAME
+        )
 
         project.delete()
 

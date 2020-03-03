@@ -12,11 +12,11 @@ def get_usage():
 
     points = []
     for quota in utils.FIELD_NAMES:
-        points.append({
-            'measurement': 'slurm_%s' % quota,
-            'fields': {
-                'value': qs['total_%s' % quota]
+        points.append(
+            {
+                'measurement': 'slurm_%s' % quota,
+                'fields': {'value': qs['total_%s' % quota]},
             }
-        })
+        )
 
     return points

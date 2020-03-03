@@ -12,13 +12,14 @@ def get_filtered_services(deployment_plan):
     deployment_plan_certifications = deployment_plan.get_required_certifications()
     for model in service_models:
         services = (
-            model.objects
-            .filter(projects=deployment_plan.project)
+            model.objects.filter(projects=deployment_plan.project)
             .select_related('settings')
             .prefetch_related('settings__certifications')
         )
         for service in services:
-            if set(service.settings.certifications.all()).issuperset(deployment_plan_certifications):
+            if set(service.settings.certifications.all()).issuperset(
+                deployment_plan_certifications
+            ):
                 yield service
 
 
@@ -37,7 +38,8 @@ def namedtuple_with_defaults(typename, field_names, default_values=()):
 
 # Abstract object that represents the best choice for a particular service.
 OptimizedService = namedtuple_with_defaults(
-    'OptimizedService', ('service', 'price', 'error_message'), {'error_message': ''})
+    'OptimizedService', ('service', 'price', 'error_message'), {'error_message': ''}
+)
 
 
 class Strategy:
@@ -63,7 +65,9 @@ class SingleServiceStrategy(Strategy):
             try:
                 return optimizer.optimize(self.deployment_plan, service)
             except OptimizationError as e:
-                return OptimizedService(service=service, price=None, error_message=str(e))
+                return OptimizedService(
+                    service=service, price=None, error_message=str(e)
+                )
 
     def get_optimized(self):
         optimized = []

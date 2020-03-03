@@ -8,23 +8,33 @@ from model_utils import FieldTracker
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
-from waldur_openstack.openstack import models as openstack_models, apps as openstack_apps
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
+from waldur_openstack.openstack import apps as openstack_apps
+from waldur_openstack.openstack import models as openstack_models
 
 
-class PackageTemplate(core_models.UuidMixin,
-                      core_models.NameMixin,
-                      common_mixins.ProductCodeMixin,
-                      core_models.UiDescribableMixin,):
+class PackageTemplate(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    common_mixins.ProductCodeMixin,
+    core_models.UiDescribableMixin,
+):
     # We do not define permissions for PackageTemplate because we are planning
     # to use them with shared service settings only - it means that
     # PackageTemplates are visible for all users.
-    service_settings = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+')
-    archived = models.BooleanField(default=False, help_text=_('Forbids creation of new packages.'))
+    service_settings = models.ForeignKey(
+        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+'
+    )
+    archived = models.BooleanField(
+        default=False, help_text=_('Forbids creation of new packages.')
+    )
     tracker = FieldTracker()
-    unit = models.CharField(default=common_mixins.UnitPriceMixin.Units.PER_DAY, max_length=30,
-                            choices=common_mixins.UnitPriceMixin.Units.CHOICES)
+    unit = models.CharField(
+        default=common_mixins.UnitPriceMixin.Units.PER_DAY,
+        max_length=30,
+        choices=common_mixins.UnitPriceMixin.Units.CHOICES,
+    )
 
     class Categories:
         SMALL = 'small'
@@ -32,9 +42,16 @@ class PackageTemplate(core_models.UuidMixin,
         LARGE = 'large'
         TRIAL = 'trial'
 
-        CHOICES = ((SMALL, _('Small')), (MEDIUM, _('Medium')), (LARGE, _('Large')), (TRIAL, _('Trial')))
+        CHOICES = (
+            (SMALL, _('Small')),
+            (MEDIUM, _('Medium')),
+            (LARGE, _('Large')),
+            (TRIAL, _('Trial')),
+        )
 
-    category = models.CharField(max_length=10, choices=Categories.CHOICES, default=Categories.SMALL)
+    category = models.CharField(
+        max_length=10, choices=Categories.CHOICES, default=Categories.SMALL
+    )
 
     class Meta:
         verbose_name = _('VPC package template')
@@ -47,9 +64,12 @@ class PackageTemplate(core_models.UuidMixin,
         :rtype: Decimal
         """
         if self.unit == common_mixins.UnitPriceMixin.Units.PER_DAY:
-            price = self.components.aggregate(total=models.Sum(
-                models.F('price') * models.F('amount'),
-                output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
+            price = self.components.aggregate(
+                total=models.Sum(
+                    models.F('price') * models.F('amount'),
+                    output_field=models.DecimalField(max_digits=22, decimal_places=10),
+                )
+            )['total'] or Decimal('0')
             return quantize_price(price)
 
     @property
@@ -59,36 +79,62 @@ class PackageTemplate(core_models.UuidMixin,
         :rtype: Decimal
         """
         if self.unit == common_mixins.UnitPriceMixin.Units.PER_MONTH:
-            price = self.components.aggregate(total=models.Sum(
-                models.F('price') * models.F('amount'),
-                output_field=models.DecimalField(max_digits=22, decimal_places=10)))['total'] or Decimal('0')
+            price = self.components.aggregate(
+                total=models.Sum(
+                    models.F('price') * models.F('amount'),
+                    output_field=models.DecimalField(max_digits=22, decimal_places=10),
+                )
+            )['total'] or Decimal('0')
             return quantize_price(price)
         elif self.unit == common_mixins.UnitPriceMixin.Units.PER_DAY:
             return self.price * 30
 
     @staticmethod
     def get_required_component_types():
-        return (PackageComponent.Types.RAM,
-                PackageComponent.Types.CORES,
-                PackageComponent.Types.STORAGE)
+        return (
+            PackageComponent.Types.RAM,
+            PackageComponent.Types.CORES,
+            PackageComponent.Types.STORAGE,
+        )
 
     @staticmethod
     def get_memory_types():
-        return (PackageComponent.Types.RAM,
-                PackageComponent.Types.STORAGE)
+        return (PackageComponent.Types.RAM, PackageComponent.Types.STORAGE)
 
     def clean(self):
         openstack_type = openstack_apps.OpenStackConfig.service_name
 
         if not hasattr(self, 'service_settings'):
-            raise ValidationError({'service_settings': _('Please select service settings.')})
+            raise ValidationError(
+                {'service_settings': _('Please select service settings.')}
+            )
         if not self.service_settings.shared:
-            raise ValidationError({'service_settings': _('PackageTemplate can be created only for shared settings.')})
-        if self.service_settings.type == openstack_type and not self.service_settings.options.get('is_admin', True):
-            raise ValidationError({'service_settings': _('Service settings should support tenant creation.')})
+            raise ValidationError(
+                {
+                    'service_settings': _(
+                        'PackageTemplate can be created only for shared settings.'
+                    )
+                }
+            )
+        if (
+            self.service_settings.type == openstack_type
+            and not self.service_settings.options.get('is_admin', True)
+        ):
+            raise ValidationError(
+                {
+                    'service_settings': _(
+                        'Service settings should support tenant creation.'
+                    )
+                }
+            )
         if 'external_network_id' not in self.service_settings.options:
             raise ValidationError(
-                {'service_settings': _('external_network_id has to be defined for service settings.')})
+                {
+                    'service_settings': _(
+                        'external_network_id has to be defined for service settings.'
+                    )
+                }
+            )
         return self
 
     def is_read_only(self):
@@ -99,7 +145,6 @@ class PackageTemplate(core_models.UuidMixin,
 
 
 class PackageComponent(models.Model):
-
     class Meta:
         unique_together = ('type', 'template')
 
@@ -112,12 +157,16 @@ class PackageComponent(models.Model):
 
     type = models.CharField(max_length=50, choices=Types.CHOICES)
     amount = models.PositiveIntegerField(default=0)
-    price = models.DecimalField(default=0,
-                                max_digits=common_mixins.PRICE_MAX_DIGITS,
-                                decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
-                                validators=[MinValueValidator(Decimal('0'))],
-                                verbose_name=_('Price per unit'))
-    template = models.ForeignKey(on_delete=models.CASCADE, to=PackageTemplate, related_name='components')
+    price = models.DecimalField(
+        default=0,
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        validators=[MinValueValidator(Decimal('0'))],
+        verbose_name=_('Price per unit'),
+    )
+    template = models.ForeignKey(
+        on_delete=models.CASCADE, to=PackageTemplate, related_name='components'
+    )
 
     def __str__(self):
         return '%s | %s' % (self.type, self.template.name)
@@ -135,16 +184,26 @@ class PackageComponent(models.Model):
 
 class OpenStackPackage(core_models.UuidMixin, models.Model):
     """ OpenStackPackage allows to create tenant and service_settings based on PackageTemplate """
+
     class Permissions:
         customer_path = 'tenant__service_project_link__project__customer'
         project_path = 'tenant__service_project_link__project'
 
-    template = models.ForeignKey(PackageTemplate, related_name='openstack_packages',
-                                 help_text=_('Tenant will be created based on this template.'),
-                                 on_delete=models.PROTECT)
-    tenant = models.OneToOneField(openstack_models.Tenant, related_name='+', on_delete=models.CASCADE)
-    service_settings = models.ForeignKey(structure_models.ServiceSettings, related_name='+', null=True,
-                                         on_delete=models.SET_NULL)
+    template = models.ForeignKey(
+        PackageTemplate,
+        related_name='openstack_packages',
+        help_text=_('Tenant will be created based on this template.'),
+        on_delete=models.PROTECT,
+    )
+    tenant = models.OneToOneField(
+        openstack_models.Tenant, related_name='+', on_delete=models.CASCADE
+    )
+    service_settings = models.ForeignKey(
+        structure_models.ServiceSettings,
+        related_name='+',
+        null=True,
+        on_delete=models.SET_NULL,
+    )
 
     def __str__(self):
         return 'Package "%s" for tenant %s' % (self.template, self.tenant)

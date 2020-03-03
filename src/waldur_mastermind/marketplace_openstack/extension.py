@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class MarketplaceOpenStackExtension(WaldurExtension):
-
     class Settings:
         WALDUR_MARKETPLACE_OPENSTACK = {
             'TENANT_CATEGORY_UUID': None,

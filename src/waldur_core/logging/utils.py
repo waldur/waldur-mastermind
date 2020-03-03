@@ -1,7 +1,7 @@
-from io import BytesIO
 import datetime
 import os
 import tarfile
+from io import BytesIO
 
 from django.apps import apps
 from django.core.files.base import ContentFile

@@ -3,11 +3,10 @@ from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import RestrictedSerializerMixin
-from waldur_core.logging import models, loggers
+from waldur_core.logging import loggers, models
 
 
-class EventSerializer(RestrictedSerializerMixin,
-                      serializers.ModelSerializer):
+class EventSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
     context = serializers.JSONField(read_only=True)
 
     class Meta:
@@ -23,9 +22,15 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         model = models.BaseHook
 
         fields = (
-            'url', 'uuid', 'is_active', 'author_uuid',
-            'event_types', 'event_groups', 'created', 'modified',
-            'hook_type'
+            'url',
+            'uuid',
+            'is_active',
+            'author_uuid',
+            'event_types',
+            'event_groups',
+            'created',
+            'modified',
+            'hook_type',
         )
 
         extra_kwargs = {
@@ -40,9 +45,11 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         """
         fields = super(BaseHookSerializer, self).get_fields()
         fields['event_types'] = serializers.MultipleChoiceField(
-            choices=loggers.get_valid_events(), required=False)
+            choices=loggers.get_valid_events(), required=False
+        )
         fields['event_groups'] = serializers.MultipleChoiceField(
-            choices=loggers.get_event_groups_keys(), required=False)
+            choices=loggers.get_event_groups_keys(), required=False
+        )
         return fields
 
     def create(self, validated_data):
@@ -50,8 +57,14 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         return super(BaseHookSerializer, self).create(validated_data)
 
     def validate(self, attrs):
-        if not self.instance and 'event_types' not in attrs and 'event_groups' not in attrs:
-            raise serializers.ValidationError(_('Please specify list of event_types or event_groups.'))
+        if (
+            not self.instance
+            and 'event_types' not in attrs
+            and 'event_groups' not in attrs
+        ):
+            raise serializers.ValidationError(
+                _('Please specify list of event_types or event_groups.')
+            )
 
         if 'event_groups' in attrs:
             events = list(attrs.get('event_types', []))
@@ -71,7 +84,6 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class SummaryHookSerializer(serializers.Serializer):
-
     def to_representation(self, instance):
         serializer = self.get_hook_serializer(instance.__class__)
         return serializer(instance, context=self.context).data
@@ -84,7 +96,9 @@ class SummaryHookSerializer(serializers.Serializer):
 
 
 class WebHookSerializer(BaseHookSerializer):
-    content_type = NaturalChoiceField(models.WebHook.ContentTypeChoices.CHOICES, required=False)
+    content_type = NaturalChoiceField(
+        models.WebHook.ContentTypeChoices.CHOICES, required=False
+    )
 
     class Meta(BaseHookSerializer.Meta):
         model = models.WebHook
@@ -99,17 +113,22 @@ class PushHookSerializer(BaseHookSerializer):
 
     class Meta(BaseHookSerializer.Meta):
         model = models.PushHook
-        fields = BaseHookSerializer.Meta.fields + ('type', 'device_id', 'token', 'device_manufacturer', 'device_model')
+        fields = BaseHookSerializer.Meta.fields + (
+            'type',
+            'device_id',
+            'token',
+            'device_manufacturer',
+            'device_model',
+        )
 
     def get_hook_type(self, hook):
         return 'pushhook'
 
 
 class EmailHookSerializer(BaseHookSerializer):
-
     class Meta(BaseHookSerializer.Meta):
         model = models.EmailHook
-        fields = BaseHookSerializer.Meta.fields + ('email', )
+        fields = BaseHookSerializer.Meta.fields + ('email',)
 
     def get_hook_type(self, hook):
         return 'email'

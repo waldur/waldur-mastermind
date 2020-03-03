@@ -9,13 +9,18 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write('Collecting duplicates...')
-        duplicates = sum([self.get_quota_duplicate_versions(quota) for quota in Quota.objects.all()], [])
+        duplicates = sum(
+            [self.get_quota_duplicate_versions(quota) for quota in Quota.objects.all()],
+            [],
+        )
         self.stdout.write('...Done')
 
         if not duplicates:
             self.stdout.write('No duplicates were found. Congratulations!')
         else:
-            self.stdout.write('There are %s duplicates for quotas versions.' % len(duplicates))
+            self.stdout.write(
+                'There are %s duplicates for quotas versions.' % len(duplicates)
+            )
             while True:
                 delete = input('  Do you want to delete them? [Y/n]:') or 'y'
                 if delete.lower() not in ('y', 'n'):
@@ -31,7 +36,9 @@ class Command(BaseCommand):
                 self.stdout.write('Duplicates were not deleted.')
 
     def get_quota_duplicate_versions(self, quota):
-        versions = Version.objects.get_for_object(quota).order_by('revision__date_created')
+        versions = Version.objects.get_for_object(quota).order_by(
+            'revision__date_created'
+        )
         if not versions:
             return []
         duplicates = []
@@ -47,4 +54,6 @@ class Command(BaseCommand):
     def are_versions_equal(self, quota, v1, v2):
         o1 = v1._object_version.object
         o2 = v2._object_version.object
-        return all([getattr(o1, f) == getattr(o2, f) for f in quota.get_version_fields()])
+        return all(
+            [getattr(o1, f) == getattr(o2, f) for f in quota.get_version_fields()]
+        )

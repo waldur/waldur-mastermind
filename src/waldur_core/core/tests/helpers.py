@@ -2,7 +2,7 @@ import copy
 
 from django.conf import settings
 from django.test.utils import override_settings
-from rest_framework import test, status
+from rest_framework import status, test
 
 
 class PermissionsTest(test.APITransactionTestCase):
@@ -76,18 +76,25 @@ class PermissionsTest(test.APITransactionTestCase):
                 self.client.force_authenticate(user=user)
                 response = getattr(self.client, method.lower())(url, data=data)
                 self.assertFalse(
-                    response.status_code in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+                    response.status_code
+                    in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
                     'Error. User %s can not reach url: %s (method:%s). (Response status code %s, data %s)'
-                    % (user, url, method, response.status_code, response.data))
+                    % (user, url, method, response.status_code, response.data),
+                )
 
             for user in self.get_users_without_permissions(url, method):
                 self.client.force_authenticate(user=user)
                 response = getattr(self.client, method.lower())(url, data=data)
-                unreachable_statuses = (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND, status.HTTP_409_CONFLICT)
+                unreachable_statuses = (
+                    status.HTTP_403_FORBIDDEN,
+                    status.HTTP_404_NOT_FOUND,
+                    status.HTTP_409_CONFLICT,
+                )
                 self.assertTrue(
                     response.status_code in unreachable_statuses,
                     'Error. User %s can reach url: %s (method:%s). (Response status code %s, data %s)'
-                    % (user, url, method, response.status_code, response.data))
+                    % (user, url, method, response.status_code, response.data),
+                )
 
 
 class ListPermissionsTest(test.APITransactionTestCase):
@@ -118,9 +125,11 @@ class ListPermissionsTest(test.APITransactionTestCase):
             self.client.force_authenticate(user=user)
             response = self.client.get(self.get_url())
             self.assertEqual(
-                len(expected_results), len(response.data),
+                len(expected_results),
+                len(response.data),
                 'User %s receive wrong number of objects. Expected: %s, received %s'
-                % (user, len(expected_results), len(response.data)))
+                % (user, len(expected_results), len(response.data)),
+            )
             for actual, expected in zip(response.data, expected_results):
                 for key, value in expected.items():
                     self.assertEqual(actual[key], value)

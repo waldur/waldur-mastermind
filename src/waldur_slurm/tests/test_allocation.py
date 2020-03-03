@@ -1,5 +1,6 @@
-from ddt import ddt, data
 from unittest import mock
+
+from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_freeipa import models as freeipa_models
@@ -13,7 +14,9 @@ class AllocationGetTest(test.APITransactionTestCase):
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
 
     def test_freeipa_username_is_returned_if_profile_exists(self):
-        freeipa_models.Profile.objects.create(user=self.fixture.admin, username='waldur_admin')
+        freeipa_models.Profile.objects.create(
+            user=self.fixture.admin, username='waldur_admin'
+        )
         self.client.force_login(self.fixture.admin)
 
         response = self.client.get(self.url)
@@ -43,7 +46,6 @@ class AllocationGetTest(test.APITransactionTestCase):
 
 @ddt
 class AllocationCreateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_list_url()
@@ -69,7 +71,9 @@ class AllocationCreateTest(test.APITransactionTestCase):
     def get_valid_payload(self):
         return {
             'name': 'Test allocation',
-            'service_project_link': factories.SlurmServiceProjectLinkFactory.get_url(self.fixture.spl),
+            'service_project_link': factories.SlurmServiceProjectLinkFactory.get_url(
+                self.fixture.spl
+            ),
             'cpu_limit': 100,
             'gpu_limit': 200,
             'ram_limit': 300,
@@ -101,7 +105,9 @@ class AllocationDeleteTest(test.APITransactionTestCase):
 class AllocationCancelTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
-        self.url = factories.AllocationFactory.get_url(self.fixture.allocation, 'cancel')
+        self.url = factories.AllocationFactory.get_url(
+            self.fixture.allocation, 'cancel'
+        )
 
     @data('staff', 'owner')
     def test_authorized_user_can_cancel_allocation(self, user):

@@ -15,8 +15,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-o', '--output',
-            dest='output', default=None,
+            '-o',
+            '--output',
+            dest='output',
+            default=None,
             help='Specifies file to which the output is written. The output will be printed to stdout by default.',
         )
 
@@ -33,7 +35,9 @@ class Command(BaseCommand):
             host = '127.0.0.1'
 
         client = APIClient(HTTP_HOST=host)
-        user, _ = User.objects.get_or_create(username='waldur_docs_exporter', is_staff=True)
+        user, _ = User.objects.get_or_create(
+            username='waldur_docs_exporter', is_staff=True
+        )
         client.force_authenticate(user=user)
         response = client.get('/docs/?format=openapi')
         user.delete()

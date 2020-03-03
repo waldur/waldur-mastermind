@@ -11,7 +11,7 @@ from waldur_core.core import admin as core_admin
 from waldur_core.core.admin import JsonWidget
 from waldur_core.structure import admin as structure_admin
 
-from . import models, backend, executors
+from . import backend, executors, models
 from .backend.basic import BasicBackend
 
 User = get_user_model()
@@ -25,7 +25,9 @@ class UserChoiceField(forms.ModelChoiceField):
 class SupportUserAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(SupportUserAdminForm, self).__init__(*args, **kwargs)
-        self.fields['user'] = UserChoiceField(queryset=User.objects.all().order_by('full_name'))
+        self.fields['user'] = UserChoiceField(
+            queryset=User.objects.all().order_by('full_name')
+        )
 
 
 class SupportUserAdmin(admin.ModelAdmin):
@@ -40,11 +42,30 @@ class OfferingAdminForm(forms.ModelForm):
 
 
 class OfferingAdmin(admin.ModelAdmin):
-    list_display = ('template', 'name', 'project', 'unit_price', 'unit', 'state',
-                    'created', 'modified', 'issue_key')
+    list_display = (
+        'template',
+        'name',
+        'project',
+        'unit_price',
+        'unit',
+        'state',
+        'created',
+        'modified',
+        'issue_key',
+    )
     search_fields = ('name', 'template__name', 'issue__key')
-    fields = ('name', 'unit_price', 'unit', 'template', 'issue',
-              'project', 'state', 'product_code', 'article_code', 'report')
+    fields = (
+        'name',
+        'unit_price',
+        'unit',
+        'template',
+        'issue',
+        'project',
+        'state',
+        'product_code',
+        'article_code',
+        'report',
+    )
     form = OfferingAdminForm
     actions = ('create_issue',)
 
@@ -74,7 +95,14 @@ class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendMode
     ordering = ('-created',)
     search_fields = ('key', 'backend_id', 'summary')
     list_filter = ('type', 'status', 'resolution')
-    list_display = ('key', 'summary', 'type', 'status', 'resolution', 'get_caller_full_name')
+    list_display = (
+        'key',
+        'summary',
+        'type',
+        'status',
+        'resolution',
+        'get_caller_full_name',
+    )
 
     def get_caller_full_name(self, obj):
         if obj.caller:
@@ -98,7 +126,10 @@ class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendMode
         return HttpResponseRedirect('../')
 
     def buttons_validate(request, obj):
-        if isinstance(backend.get_active_backend(), BasicBackend) and obj.resolved is None:
+        if (
+            isinstance(backend.get_active_backend(), BasicBackend)
+            and obj.resolved is None
+        ):
             return True
 
     resolve.validator = buttons_validate
@@ -116,13 +147,18 @@ class TemplateAttachmentInline(admin.TabularInline):
     fields = ('name', 'file')
 
 
-class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin,
-                    admin.ModelAdmin):
+class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin, admin.ModelAdmin):
     list_display = ('name', 'issue_type', 'created')
     search_fields = ('name', 'native_name')
-    fields = ('name', 'native_name',
-              'description', 'native_description',
-              'issue_type', 'created', 'modified')
+    fields = (
+        'name',
+        'native_name',
+        'description',
+        'native_description',
+        'issue_type',
+        'created',
+        'modified',
+    )
     readonly_fields = ('created', 'modified')
     inlines = [TemplateAttachmentInline]
 

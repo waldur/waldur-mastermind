@@ -15,6 +15,7 @@ class JiraConfig(AppConfig):
 
         from . import handlers
         from .backend import JiraBackend
+
         SupportedServices.register_backend(JiraBackend)
 
         Issue = self.get_model('Issue')
@@ -26,7 +27,7 @@ class JiraConfig(AppConfig):
             quota_field=quota_fields.CounterQuotaField(
                 target_models=lambda: [Project],
                 path_to_scope='service_project_link.project',
-            )
+            ),
         )
 
         resource_imported.connect(

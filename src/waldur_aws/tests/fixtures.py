@@ -6,14 +6,15 @@ from . import factories
 
 
 class AWSFixture(ProjectFixture):
-
     @cached_property
     def service(self):
         return factories.AWSServiceFactory(customer=self.customer)
 
     @cached_property
     def spl(self):
-        return factories.AWSServiceProjectLinkFactory(service=self.service, project=self.project)
+        return factories.AWSServiceProjectLinkFactory(
+            service=self.service, project=self.project
+        )
 
     @cached_property
     def region(self):
@@ -31,4 +32,6 @@ class AWSFixture(ProjectFixture):
 
     @cached_property
     def instance(self):
-        return factories.InstanceFactory(service_project_link=self.spl, region=self.region)
+        return factories.InstanceFactory(
+            service_project_link=self.spl, region=self.region
+        )

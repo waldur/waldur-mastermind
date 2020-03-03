@@ -11,30 +11,36 @@ from waldur_core.structure.tasks import ConnectSharedSettingsTask
 
 
 class ServiceSettingsCreateExecutor(core_executors.CreateExecutor):
-
     @classmethod
     def get_task_signature(cls, settings, serialized_settings, **kwargs):
-        creation_tasks = [core_tasks.StateTransitionTask().si(serialized_settings, state_transition='begin_creating')]
+        creation_tasks = [
+            core_tasks.StateTransitionTask().si(
+                serialized_settings, state_transition='begin_creating'
+            )
+        ]
         # connect settings to all customers if they are shared
         if settings.shared:
             creation_tasks.append(ConnectSharedSettingsTask().si(serialized_settings))
         # sync settings if they have not only global properties
         backend = settings.get_backend()
         if not backend.has_global_properties():
-            creation_tasks.append(core_tasks.IndependentBackendMethodTask().si(serialized_settings, 'sync'))
+            creation_tasks.append(
+                core_tasks.IndependentBackendMethodTask().si(
+                    serialized_settings, 'sync'
+                )
+            )
         return chain(*creation_tasks)
 
 
 class ServiceSettingsPullExecutor(core_executors.ActionExecutor):
-
     @classmethod
     def get_task_signature(cls, settings, serialized_settings, **kwargs):
         return core_tasks.IndependentBackendMethodTask().si(
-            serialized_settings, 'sync', state_transition='begin_updating')
+            serialized_settings, 'sync', state_transition='begin_updating'
+        )
 
 
 class ServiceSettingsConnectSharedExecutor(core_executors.BaseExecutor):
-
     @classmethod
     def get_task_signature(cls, settings, serialized_settings, **kwargs):
         return ConnectSharedSettingsTask().si(serialized_settings)
@@ -117,12 +123,17 @@ class BaseCleanupExecutor(core_executors.BaseExecutor):
 
 
 class ProjectResourceCleanupTask(core_tasks.Task):
-
     @classmethod
     def get_description(cls, executor, model, project, *args, **kwargs):
-        return 'Delete "%s" resources for project "%s" using executor %s.' % (model, project, executor)
+        return 'Delete "%s" resources for project "%s" using executor %s.' % (
+            model,
+            project,
+            executor,
+        )
 
-    def run(self, serialized_executor, serialized_model, serialized_project, *args, **kwargs):
+    def run(
+        self, serialized_executor, serialized_model, serialized_project, *args, **kwargs
+    ):
         executor = core_utils.deserialize_class(serialized_executor)
         model_cls = core_utils.deserialize_class(serialized_model)
         project = core_utils.deserialize_instance(serialized_project)
@@ -132,7 +143,6 @@ class ProjectResourceCleanupTask(core_tasks.Task):
 
 
 class ProjectCleanupExecutor(core_executors.BaseExecutor):
-
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         executors = cls.get_executors()
@@ -174,9 +184,9 @@ class ProjectCleanupExecutor(core_executors.BaseExecutor):
 
 def is_valid_executor(item):
     return (
-        isinstance(item, tuple) and
-        issubclass(item[0], Model) and
-        issubclass(item[1], core_executors.BaseExecutor)
+        isinstance(item, tuple)
+        and issubclass(item[0], Model)
+        and issubclass(item[1], core_executors.BaseExecutor)
     )
 
 

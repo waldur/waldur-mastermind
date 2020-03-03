@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class PIDExtension(WaldurExtension):
-
     class Settings:
         WALDUR_PID = {
             'DATACITE': {
@@ -10,7 +9,7 @@ class PIDExtension(WaldurExtension):
                 'PASSWORD': '',
                 'PREFIX': '',
                 'API_URL': 'https://example.com',
-                'PUBLISHER': 'Waldur'
+                'PUBLISHER': 'Waldur',
             }
         }
 

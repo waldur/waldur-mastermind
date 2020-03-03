@@ -20,8 +20,7 @@ OrderTypes = marketplace_models.OrderItem.Types
 class OfferingRegistrator(registrators.BaseRegistrator):
     def get_sources(self, customer):
         return support_models.Offering.objects.filter(
-            project__customer=customer,
-            state=support_models.Offering.States.OK,
+            project__customer=customer, state=support_models.Offering.States.OK,
         ).distinct()
 
     def get_customer(self, source):
@@ -44,7 +43,9 @@ class OfferingRegistrator(registrators.BaseRegistrator):
 
         try:
             resource = marketplace_models.Resource.objects.get(scope=offering)
-            self.create_items_for_plan(invoice, resource, offering, start, end, **kwargs)
+            self.create_items_for_plan(
+                invoice, resource, offering, start, end, **kwargs
+            )
 
         except marketplace_models.Resource.DoesNotExist:
             # If an offering isn't request based support offering
@@ -59,7 +60,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
                 unit_price=offering.unit_price,
                 unit=offering.unit,
                 product_code=offering.product_code,
-                article_code=offering.article_code
+                article_code=offering.article_code,
             )
             self.init_details(item)
             return item
@@ -67,9 +68,12 @@ class OfferingRegistrator(registrators.BaseRegistrator):
     def create_items_for_plan(self, invoice, resource, offering, start, end, **kwargs):
         plan = resource.plan
         if not plan:
-            logger.warning('Skipping support invoice creation because '
-                           'billing is not enabled for offering. '
-                           'Offering ID: %s', offering.id)
+            logger.warning(
+                'Skipping support invoice creation because '
+                'billing is not enabled for offering. '
+                'Offering ID: %s',
+                offering.id,
+            )
             return
 
         order_type = kwargs.get('order_type')
@@ -82,10 +86,12 @@ class OfferingRegistrator(registrators.BaseRegistrator):
             is_one = offering_component.billing_type == BillingTypes.ONE_TIME
             is_switch = offering_component.billing_type == BillingTypes.ON_PLAN_SWITCH
 
-            if is_fixed or \
-                    (is_one and order_type == OrderTypes.CREATE) or \
-                    (is_switch and order_type == OrderTypes.UPDATE) or \
-                    (is_usage and offering_component.use_limit_for_billing):
+            if (
+                is_fixed
+                or (is_one and order_type == OrderTypes.CREATE)
+                or (is_switch and order_type == OrderTypes.UPDATE)
+                or (is_usage and offering_component.use_limit_for_billing)
+            ):
                 details = self.get_component_details(offering, plan_component)
 
                 unit_price = plan_component.price
@@ -123,7 +129,7 @@ class OfferingRegistrator(registrators.BaseRegistrator):
             'offering_type': offering.type,
             'offering_name': offering.name,
             'offering_uuid': offering.uuid.hex,
-            'plan_name': offering.plan.name if offering.plan else ''
+            'plan_name': offering.plan.name if offering.plan else '',
         }
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)
@@ -140,14 +146,18 @@ class OfferingRegistrator(registrators.BaseRegistrator):
         offering = source
 
         if not utils.is_request_based(offering):
-            utils.get_offering_items().filter(object_id=offering.id).update(object_id=None)
+            utils.get_offering_items().filter(object_id=offering.id).update(
+                object_id=None
+            )
 
     def get_component_details(self, offering, plan_component):
         details = self.get_details(offering)
-        details.update({
-            'plan_component_id': plan_component.id,
-            'offering_component_type': plan_component.component.type,
-            'offering_component_name': plan_component.component.name,
-            'offering_component_measured_unit': plan_component.component.measured_unit,
-        })
+        details.update(
+            {
+                'plan_component_id': plan_component.id,
+                'offering_component_type': plan_component.component.type,
+                'offering_component_name': plan_component.component.name,
+                'offering_component_measured_unit': plan_component.component.measured_unit,
+            }
+        )
         return details

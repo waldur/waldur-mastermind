@@ -1,10 +1,10 @@
-from ddt import ddt, data
+from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 
-from . import factories, fixtures
 from .. import models
+from . import factories, fixtures
 
 
 @ddt
@@ -26,9 +26,10 @@ class DeploymentPlanListTest(test.APITransactionTestCase):
     def test_deployment_plans_can_be_filtered_by_customer(self):
         self.client.force_authenticate(self.fixture.staff)
         customer = structure_factories.CustomerFactory()
-        response = self.client.get(factories.DeploymentPlanFactory.get_list_url(), {
-            'customer_uuid': customer.uuid.hex
-        })
+        response = self.client.get(
+            factories.DeploymentPlanFactory.get_list_url(),
+            {'customer_uuid': customer.uuid.hex},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
@@ -41,7 +42,6 @@ class DeploymentPlanListTest(test.APITransactionTestCase):
 
 @ddt
 class DeploymentPlanCreateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.CostPlanningFixture()
 
@@ -60,21 +60,20 @@ class DeploymentPlanCreateTest(test.APITransactionTestCase):
 
     def create_deployment_plan(self, user):
         self.client.force_authenticate(user=user)
-        return self.client.post(factories.DeploymentPlanFactory.get_list_url(), {
-            'project': structure_factories.ProjectFactory.get_url(self.fixture.project),
-            'name': 'Webapp for Monster Inc.',
-            'items': [
-                {
-                    'preset': factories.PresetFactory.get_url(),
-                    'quantity': 1
-                }
-            ]
-        })
+        return self.client.post(
+            factories.DeploymentPlanFactory.get_list_url(),
+            {
+                'project': structure_factories.ProjectFactory.get_url(
+                    self.fixture.project
+                ),
+                'name': 'Webapp for Monster Inc.',
+                'items': [{'preset': factories.PresetFactory.get_url(), 'quantity': 1}],
+            },
+        )
 
 
 @ddt
 class DeploymentPlanUpdateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.CostPlanningFixture()
         self.plan = self.fixture.deployment_plan
@@ -92,10 +91,7 @@ class DeploymentPlanUpdateTest(test.APITransactionTestCase):
         Old item is removed, remaining item is updated.
         """
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        item = {
-            'preset': factories.PresetFactory.get_url(self.preset1),
-            'quantity': 2
-        }
+        item = {'preset': factories.PresetFactory.get_url(self.preset1), 'quantity': 2}
 
         response = self.client.patch(self.url, {'items': [item]})
 
@@ -114,9 +110,7 @@ class DeploymentPlanUpdateTest(test.APITransactionTestCase):
     def test_user_with_permissions_can_update_name(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        response = self.client.patch(self.url, {
-            'name': 'New name for plan'
-        })
+        response = self.client.patch(self.url, {'name': 'New name for plan'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.plan.refresh_from_db()
@@ -125,7 +119,6 @@ class DeploymentPlanUpdateTest(test.APITransactionTestCase):
 
 @ddt
 class DeploymentPlanDeleteTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.CostPlanningFixture()
         self.plan = self.fixture.deployment_plan
@@ -152,7 +145,6 @@ class DeploymentPlanDeleteTest(test.APITransactionTestCase):
 
 @ddt
 class DeploymentPlanEvaluateTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.fixture = fixtures.CostPlanningFixture()
         self.plan = self.fixture.deployment_plan

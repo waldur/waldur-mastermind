@@ -1,12 +1,16 @@
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import decorators, exceptions, response, status, serializers as rf_serializers
+from rest_framework import decorators, exceptions, response
+from rest_framework import serializers as rf_serializers
+from rest_framework import status
 
-from waldur_core.core import validators as core_validators, exceptions as core_exceptions
-from waldur_core.structure import (views as structure_views, filters as structure_filters,
-                                   permissions as structure_permissions)
+from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core import validators as core_validators
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import views as structure_views
 
-from . import models, filters, serializers, executors
+from . import executors, filters, models, serializers
 
 
 class OpenStackServiceViewSet(structure_views.BaseServiceViewSet):
@@ -107,7 +111,9 @@ class OpenStackServiceProjectLinkViewSet(structure_views.BaseServiceProjectLinkV
 
         To remove a link, issue DELETE to URL of the corresponding connection as stuff user or customer owner.
         """
-        return super(OpenStackServiceProjectLinkViewSet, self).list(request, *args, **kwargs)
+        return super(OpenStackServiceProjectLinkViewSet, self).list(
+            request, *args, **kwargs
+        )
 
 
 class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
@@ -116,6 +122,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     CPU, memory, disk size etc. VM instance flavor is not to be confused with VM template -- flavor is a set of virtual
     hardware parameters whereas template is a definition of a system to be installed on this instance.
     """
+
     queryset = models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = serializers.FlavorSerializer
     lookup_field = 'uuid'
@@ -140,17 +147,21 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
     queryset = models.SecurityGroup.objects.all()
     serializer_class = serializers.SecurityGroupSerializer
     filterset_class = filters.SecurityGroupFilter
-    disabled_actions = ['create', 'pull']  # pull operation should be implemented in WAL-323
+    disabled_actions = [
+        'create',
+        'pull',
+    ]  # pull operation should be implemented in WAL-323
 
     def default_security_group_validator(security_group):
         if security_group.name == 'default':
-            raise exceptions.ValidationError({
-                'name': _('Default security group is managed by OpenStack itself.')
-            })
+            raise exceptions.ValidationError(
+                {'name': _('Default security group is managed by OpenStack itself.')}
+            )
 
-    update_validators = partial_update_validators = structure_views.ResourceViewSet.update_validators + [
-        default_security_group_validator
-    ]
+    update_validators = partial_update_validators = (
+        structure_views.ResourceViewSet.update_validators
+        + [default_security_group_validator]
+    )
     update_executor = executors.SecurityGroupUpdateExecutor
 
     destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
@@ -178,7 +189,9 @@ class SecurityGroupViewSet(structure_views.BaseResourceViewSet):
 
         executors.PushSecurityGroupRulesExecutor().execute(self.get_object())
         return response.Response(
-            {'status': _('Rules update was successfully scheduled.')}, status=status.HTTP_202_ACCEPTED)
+            {'status': _('Rules update was successfully scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     set_rules_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
     set_rules_serializer_class = serializers.SecurityGroupRuleListUpdateSerializer
@@ -302,7 +315,9 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         executors.TenantPushQuotasExecutor.execute(tenant, quotas=quotas)
 
         return response.Response(
-            {'detail': _('Quota update has been scheduled')}, status=status.HTTP_202_ACCEPTED)
+            {'detail': _('Quota update has been scheduled')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     set_quotas_permissions = [structure_permissions.is_staff]
     set_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
@@ -317,13 +332,18 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         executors.NetworkCreateExecutor().execute(network)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_network_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    create_network_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
     create_network_serializer_class = serializers.NetworkSerializer
 
     def external_network_is_defined(tenant):
         if not tenant.external_network_id:
             raise core_exceptions.IncorrectStateException(
-                _('Cannot create floating IP if tenant external network is not defined.'))
+                _(
+                    'Cannot create floating IP if tenant external network is not defined.'
+                )
+            )
 
     @decorators.action(detail=True, methods=['post'])
     def create_floating_ip(self, request, uuid=None):
@@ -334,8 +354,10 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         executors.FloatingIPCreateExecutor.execute(floating_ip)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_floating_ip_validators = [core_validators.StateValidator(models.Tenant.States.OK),
-                                     external_network_is_defined]
+    create_floating_ip_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK),
+        external_network_is_defined,
+    ]
     create_floating_ip_serializer_class = serializers.FloatingIPSerializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -345,7 +367,9 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         executors.TenantPullFloatingIPsExecutor.execute(tenant)
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
-    pull_floating_ips_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    pull_floating_ips_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
     pull_floating_ips_serializer_class = rf_serializers.Serializer
 
     @decorators.action(detail=True, methods=['post'])
@@ -381,16 +405,22 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         executors.SecurityGroupCreateExecutor().execute(security_group)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_security_group_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    create_security_group_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
     create_security_group_serializer_class = serializers.SecurityGroupSerializer
 
     @decorators.action(detail=True, methods=['post'])
     def pull_security_groups(self, request, uuid=None):
         executors.TenantPullSecurityGroupsExecutor.execute(self.get_object())
         return response.Response(
-            {'status': _('Security groups pull has been scheduled.')}, status=status.HTTP_202_ACCEPTED)
+            {'status': _('Security groups pull has been scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
-    pull_security_groups_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    pull_security_groups_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
 
     @decorators.action(detail=True, methods=['post'])
     def change_password(self, request, uuid=None):
@@ -399,15 +429,23 @@ class TenantViewSet(structure_views.ImportableResourceViewSet):
         serializer.save()
 
         executors.TenantChangeUserPasswordExecutor.execute(self.get_object())
-        return response.Response({'status': _('Password update has been scheduled.')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('Password update has been scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     change_password_serializer_class = serializers.TenantChangePasswordSerializer
-    change_password_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
+    change_password_validators = [
+        core_validators.StateValidator(models.Tenant.States.OK)
+    ]
 
     @decorators.action(detail=True, methods=['post'])
     def pull_quotas(self, request, uuid=None):
         executors.TenantPullQuotasExecutor.execute(self.get_object())
-        return response.Response({'status': _('Quotas pull has been scheduled.')}, status=status.HTTP_202_ACCEPTED)
+        return response.Response(
+            {'status': _('Quotas pull has been scheduled.')},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
     pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
 
@@ -431,7 +469,9 @@ class NetworkViewSet(structure_views.BaseResourceViewSet):
         executors.SubNetCreateExecutor.execute(subnet)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    create_subnet_validators = [core_validators.StateValidator(models.Network.States.OK)]
+    create_subnet_validators = [
+        core_validators.StateValidator(models.Network.States.OK)
+    ]
     create_subnet_serializer_class = serializers.SubNetSerializer
 
 

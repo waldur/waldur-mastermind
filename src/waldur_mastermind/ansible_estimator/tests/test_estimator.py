@@ -1,6 +1,6 @@
 import json
-
 from unittest import mock
+
 from rest_framework import status
 from rest_framework.reverse import reverse
 from rest_framework.test import APITransactionTestCase
@@ -15,7 +15,6 @@ Types = package_models.PackageComponent.Types
 
 
 class EstimatorTest(APITransactionTestCase):
-
     def setUp(self):
         self.fixture = EstimationFixture()
         self.template = self.fixture.template
@@ -24,7 +23,9 @@ class EstimatorTest(APITransactionTestCase):
         self.private_service = self.fixture.private_service
 
         self.private_link = self.fixture.private_link
-        self.private_link_url = tenant_factories.OpenStackTenantServiceProjectLinkFactory.get_url(self.private_link)
+        self.private_link_url = tenant_factories.OpenStackTenantServiceProjectLinkFactory.get_url(
+            self.private_link
+        )
 
         self.image = self.fixture.image
         self.image_url = tenant_factories.ImageFactory.get_url(self.image)
@@ -40,11 +41,19 @@ class EstimatorTest(APITransactionTestCase):
         self.playbook = factories.PlaybookFactory()
         self.playbook_url = factories.PlaybookFactory.get_url(self.playbook)
 
-        self.ssh_public_key = structure_factories.SshPublicKeyFactory(user=self.fixture.owner)
-        self.ssh_public_key_url = structure_factories.SshPublicKeyFactory.get_url(self.ssh_public_key)
+        self.ssh_public_key = structure_factories.SshPublicKeyFactory(
+            user=self.fixture.owner
+        )
+        self.ssh_public_key_url = structure_factories.SshPublicKeyFactory.get_url(
+            self.ssh_public_key
+        )
 
-        self.internal_key = structure_factories.SshPublicKeyFactory(user=self.fixture.staff)
-        self.internal_key_url = structure_factories.SshPublicKeyFactory.get_url(self.internal_key)
+        self.internal_key = structure_factories.SshPublicKeyFactory(
+            user=self.fixture.staff
+        )
+        self.internal_key_url = structure_factories.SshPublicKeyFactory.get_url(
+            self.internal_key
+        )
 
         self.path_patcher = mock.patch('os.path.exists')
         self.path_api = self.path_patcher.start()
@@ -76,10 +85,7 @@ class EstimatorTest(APITransactionTestCase):
     def test_validation_error_if_quota_exceeded(self):
         self.private_settings.quotas.filter(
             name=self.private_settings.Quotas.instances
-        ).update(
-            limit=10,
-            usage=10
-        )
+        ).update(limit=10, usage=10)
 
         response = self.get_report()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -97,25 +103,28 @@ class EstimatorTest(APITransactionTestCase):
     def get_report(self):
         self.client.force_login(self.fixture.owner)
         url = reverse('ansible-estimator')
-        return self.client.post(url, {
-            'playbook': self.playbook_url,
-            'service_project_link': self.private_link_url,
-            'ssh_public_key': self.ssh_public_key_url,
-        })
+        return self.client.post(
+            url,
+            {
+                'playbook': self.playbook_url,
+                'service_project_link': self.private_link_url,
+                'ssh_public_key': self.ssh_public_key_url,
+            },
+        )
 
     def get_valid_output(self):
-        return 'ok: [localhost] => %s' % json.dumps({
-            'WALDUR_CHECK_MODE': True,
-            'service_project_link': self.private_link_url,
-            'ssh_public_key': self.internal_key_url,
-            'flavor': self.flavor_url,
-            'image': self.image_url,
-            'name': 'valid-name',
-            'system_volume_size': self.image.min_disk,
-            'internal_ips_set': [
-                {'subnet': self.subnet_url}
-            ]
-        })
+        return 'ok: [localhost] => %s' % json.dumps(
+            {
+                'WALDUR_CHECK_MODE': True,
+                'service_project_link': self.private_link_url,
+                'ssh_public_key': self.internal_key_url,
+                'flavor': self.flavor_url,
+                'image': self.image_url,
+                'name': 'valid-name',
+                'system_volume_size': self.image.min_disk,
+                'internal_ips_set': [{'subnet': self.subnet_url}],
+            }
+        )
 
     def get_expected_requirements(self):
         return {
@@ -133,14 +142,14 @@ class EstimatorTest(APITransactionTestCase):
 
     def get_expected_cost(self):
         return (
-            self.flavor.cores * self.prices[Types.CORES] +
-            self.flavor.ram * self.prices[Types.RAM] +
-            self.flavor.disk * self.prices[Types.STORAGE]
+            self.flavor.cores * self.prices[Types.CORES]
+            + self.flavor.ram * self.prices[Types.RAM]
+            + self.flavor.disk * self.prices[Types.STORAGE]
         )
 
     def get_expected_report(self):
         return {
             'requirements': self.get_expected_requirements(),
             'prices': self.get_expected_prices(),
-            'cost': self.get_expected_cost()
+            'cost': self.get_expected_cost(),
         }

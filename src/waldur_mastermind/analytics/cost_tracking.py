@@ -9,15 +9,13 @@ def get_total_cost():
     points = []
     estimates, mapping = get_current_estimates()
     for estimate in estimates.only('consumed', 'object_id'):
-        points.append({
-            'measurement': 'total_cost',
-            'tags': {
-                'provider': mapping[estimate.object_id],
-            },
-            'fields': {
-                'value': estimate.consumed,
-            },
-        })
+        points.append(
+            {
+                'measurement': 'total_cost',
+                'tags': {'provider': mapping[estimate.object_id],},
+                'fields': {'value': estimate.consumed,},
+            }
+        )
     return points
 
 

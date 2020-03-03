@@ -1,17 +1,16 @@
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import exceptions as rf_exceptions, decorators, response, status
-from rest_framework import mixins
-from rest_framework import viewsets
+from rest_framework import decorators
+from rest_framework import exceptions as rf_exceptions
+from rest_framework import mixins, response, status, viewsets
 from reversion.models import Version
 
 from waldur_core.core.pagination import UnlimitedLinkHeaderPagination
 from waldur_core.core.serializers import HistorySerializer
 from waldur_core.core.utils import datetime_to_timestamp
-from waldur_core.quotas import models, serializers, filters, exceptions
+from waldur_core.quotas import exceptions, filters, models, serializers
 
 
-class QuotaViewSet(mixins.UpdateModelMixin,
-                   viewsets.ReadOnlyModelViewSet):
+class QuotaViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.Quota.objects.all()
     serializer_class = serializers.QuotaSerializer
     lookup_field = 'uuid'
@@ -80,7 +79,9 @@ class QuotaViewSet(mixins.UpdateModelMixin,
         if 'limit' in serializer.validated_data:
             limit = serializer.validated_data['limit']
             if limit != -1 and quota.usage > limit:
-                raise rf_exceptions.ValidationError(_('Current quota usage exceeds new limit.'))
+                raise rf_exceptions.ValidationError(
+                    _('Current quota usage exceeds new limit.')
+                )
             quota.scope.set_quota_limit(quota.name, limit)
             serializer.instance.refresh_from_db()
 
@@ -90,7 +91,7 @@ class QuotaViewSet(mixins.UpdateModelMixin,
             quota.save(update_fields=['threshold'])
             serializer.instance.refresh_from_db()
 
-    @decorators.action(detail=True, )
+    @decorators.action(detail=True,)
     def history(self, request, uuid=None):
         """
         Warning! This endpoint is deprecated. Please use daily-quotas endpoint instead.
@@ -131,7 +132,9 @@ class QuotaViewSet(mixins.UpdateModelMixin,
             'points_count': request.query_params.get('points_count'),
             'point_list': request.query_params.getlist('point'),
         }
-        history_serializer = HistorySerializer(data={k: v for k, v in mapped.items() if v})
+        history_serializer = HistorySerializer(
+            data={k: v for k, v in mapped.items() if v}
+        )
         history_serializer.is_valid(raise_exception=True)
 
         quota = self.get_object()
@@ -139,13 +142,15 @@ class QuotaViewSet(mixins.UpdateModelMixin,
         serialized_versions = []
         for point_date in history_serializer.get_filter_data():
             serialized = {'point': datetime_to_timestamp(point_date)}
-            version = Version.objects.get_for_object(quota).filter(revision__date_created__lte=point_date)
+            version = Version.objects.get_for_object(quota).filter(
+                revision__date_created__lte=point_date
+            )
             if version.exists():
                 # make copy of serialized data and update field that are stored in version
                 version_object = version.first()._object_version.object
                 serialized['object'] = serializer.data.copy()
-                serialized['object'].update({
-                    f: getattr(version_object, f) for f in quota.get_version_fields()
-                })
+                serialized['object'].update(
+                    {f: getattr(version_object, f) for f in quota.get_version_fields()}
+                )
             serialized_versions.append(serialized)
         return response.Response(serialized_versions, status=status.HTTP_200_OK)

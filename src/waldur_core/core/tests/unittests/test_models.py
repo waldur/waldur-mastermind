@@ -5,8 +5,9 @@ from django.utils import timezone
 
 
 class TestModels(TestCase):
-
-    def test_token_lifetime_is_read_from_settings_as_default_value_when_user_is_created(self):
+    def test_token_lifetime_is_read_from_settings_as_default_value_when_user_is_created(
+        self,
+    ):
         waldur_core_settings = settings.WALDUR_CORE.copy()
         waldur_core_settings['TOKEN_LIFETIME'] = timezone.timedelta(days=1)
 

@@ -1,15 +1,14 @@
 import logging
 
 from django.conf import settings
-from django_fsm import TransitionNotAllowed
 from django.utils.translation import ugettext_lazy as _
-from rest_framework import decorators, exceptions, status, response, views
+from django_fsm import TransitionNotAllowed
+from rest_framework import decorators, exceptions, response, status, views
 
 from waldur_core.core import views as core_views
 from waldur_core.structure import permissions as structure_permissions
 
 from . import backend, filters, log, models, serializers
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,6 @@ class CheckExtensionMixin:
 
 
 class CreateByStaffOrOwnerMixin:
-
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -40,7 +38,9 @@ class CreateByStaffOrOwnerMixin:
         return super(CreateByStaffOrOwnerMixin, self).create(request)
 
 
-class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.ProtectedViewSet):
+class PaymentView(
+    CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.ProtectedViewSet
+):
     queryset = models.Payment.objects.all()
     serializer_class = serializers.PaymentSerializer
     lookup_field = 'uuid'
@@ -58,10 +58,13 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
 
         try:
             backend_payment = payment.get_backend().make_payment(
-                payment.amount, payment.tax,
-                description='Replenish account in Waldur for %s' % payment.customer.name,
+                payment.amount,
+                payment.tax,
+                description='Replenish account in Waldur for %s'
+                % payment.customer.name,
                 return_url=return_url,
-                cancel_url=cancel_url)
+                cancel_url=cancel_url,
+            )
 
             payment.backend_id = backend_payment.payment_id
             payment.approval_url = backend_payment.approval_url
@@ -74,7 +77,7 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
             log.event_logger.paypal_payment.info(
                 'Created new payment for {customer_name}',
                 event_type='payment_creation_succeeded',
-                event_context={'payment': payment}
+                event_context={'payment': payment},
             )
 
         except backend.PayPalError as e:
@@ -99,7 +102,9 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
         except models.Payment.DoesNotExist:
             raise exceptions.NotFound(error_message)
 
-        if not structure_permissions._has_owner_access(self.request.user, payment.customer):
+        if not structure_permissions._has_owner_access(
+            self.request.user, payment.customer
+        ):
             raise exceptions.NotFound(error_message)
 
         return payment
@@ -127,9 +132,11 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
             log.event_logger.paypal_payment.info(
                 'Payment for {customer_name} has been approved.',
                 event_type='payment_approval_succeeded',
-                event_context={'payment': payment}
+                event_context={'payment': payment},
             )
-            return response.Response({'detail': 'Payment has been approved.'}, status=status.HTTP_200_OK)
+            return response.Response(
+                {'detail': 'Payment has been approved.'}, status=status.HTTP_200_OK
+            )
 
         except backend.PayPalError as e:
             message = 'Unable to approve payment because of backend error %s' % e
@@ -143,7 +150,9 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
             payment.set_erred()
             payment.error_message = message
             payment.save()
-            return response.Response({'detail': message}, status=status.HTTP_409_CONFLICT)
+            return response.Response(
+                {'detail': message}, status=status.HTTP_409_CONFLICT
+            )
 
     @decorators.action(detail=False, methods=['POST'])
     def cancel(self, request):
@@ -163,13 +172,17 @@ class PaymentView(CheckExtensionMixin, CreateByStaffOrOwnerMixin, core_views.Pro
             log.event_logger.paypal_payment.info(
                 'Payment for {customer_name} has been cancelled.',
                 event_type='payment_cancel_succeeded',
-                event_context={'payment': payment}
+                event_context={'payment': payment},
             )
-            return response.Response({'detail': 'Payment has been cancelled.'}, status=status.HTTP_200_OK)
+            return response.Response(
+                {'detail': 'Payment has been cancelled.'}, status=status.HTTP_200_OK
+            )
 
         except TransitionNotAllowed:
-            return response.Response({'detail': 'Unable to cancel payment because of invalid state.'},
-                                     status=status.HTTP_409_CONFLICT)
+            return response.Response(
+                {'detail': 'Unable to cancel payment because of invalid state.'},
+                status=status.HTTP_409_CONFLICT,
+            )
 
 
 class InvoicesViewSet(CheckExtensionMixin, core_views.ReadOnlyActionsViewSet):

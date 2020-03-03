@@ -18,7 +18,9 @@ class QuotaExceededException(APIException):
 
 class BackendQuotaUpdateError(APIException):
     status_code = status.HTTP_409_CONFLICT
-    default_detail = _('It is impossible to modify backend quota through this endpoint.')
+    default_detail = _(
+        'It is impossible to modify backend quota through this endpoint.'
+    )
 
 
 class QuotaValidationError(ValidationError):

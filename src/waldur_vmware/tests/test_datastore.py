@@ -1,10 +1,11 @@
 from unittest import mock
+
 from rest_framework import status, test
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 
-from . import factories
 from .. import backend, models
+from . import factories
 
 
 class DatastoreGetTest(test.APITransactionTestCase):
@@ -18,20 +19,16 @@ class DatastoreGetTest(test.APITransactionTestCase):
         datastore_4 = factories.DatastoreFactory()
 
         factories.CustomerDatastoreFactory(
-            datastore=datastore_1,
-            customer=self.fixture.customer,
+            datastore=datastore_1, customer=self.fixture.customer,
         )
         factories.CustomerDatastoreFactory(
-            datastore=datastore_2,
-            customer=self.fixture.customer,
+            datastore=datastore_2, customer=self.fixture.customer,
         )
         factories.CustomerDatastoreFactory(
-            datastore=datastore_3,
-            customer=self.fixture_2.customer,
+            datastore=datastore_3, customer=self.fixture_2.customer,
         )
         factories.CustomerDatastoreFactory(
-            datastore=datastore_4,
-            customer=self.fixture_2.customer,
+            datastore=datastore_4, customer=self.fixture_2.customer,
         )
         self.url = factories.DatastoreFactory.get_list_url()
 
@@ -43,7 +40,9 @@ class DatastoreGetTest(test.APITransactionTestCase):
 
     def test_filter_datastore_list(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {'customer_uuid': self.fixture.customer.uuid.hex})
+        response = self.client.get(
+            self.url, {'customer_uuid': self.fixture.customer.uuid.hex}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 2)
 
@@ -82,7 +81,7 @@ class DatastorePullTest(test.APITransactionTestCase):
                 'type': 'VMFS',
                 'datastore': 'datastore_%s' % i,
                 'capacity': i * 1024 * 1024 * 10,
-                'free_space': i * 1024 * 1024 * 5
+                'free_space': i * 1024 * 1024 * 5,
             }
             datastores.append(backend_datastore)
 

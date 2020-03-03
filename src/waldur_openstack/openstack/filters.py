@@ -7,7 +7,9 @@ from . import models
 
 
 class OpenStackServiceProjectLinkFilter(structure_filters.BaseServiceProjectLinkFilter):
-    service = core_filters.URLFilter(view_name='openstack-detail', field_name='service__uuid')
+    service = core_filters.URLFilter(
+        view_name='openstack-detail', field_name='service__uuid'
+    )
 
     class Meta(structure_filters.BaseServiceProjectLinkFilter.Meta):
         model = models.OpenStackServiceProjectLink
@@ -15,7 +17,9 @@ class OpenStackServiceProjectLinkFilter(structure_filters.BaseServiceProjectLink
 
 class SecurityGroupFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(
+        view_name='openstack-tenant-detail', field_name='tenant__uuid'
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SecurityGroup
@@ -23,11 +27,13 @@ class SecurityGroupFilter(structure_filters.BaseResourceFilter):
 
 class FloatingIPFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(
+        view_name='openstack-tenant-detail', field_name='tenant__uuid'
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.FloatingIP
-        fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state', )
+        fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
 
 
 class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
@@ -36,15 +42,20 @@ class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
 
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Flavor
-        fields = dict({
-            'cores': ['exact', 'gte', 'lte'],
-            'ram': ['exact', 'gte', 'lte'],
-            'disk': ['exact', 'gte', 'lte'],
-        }, **{field: ['exact'] for field in structure_filters.ServicePropertySettingsFilter.Meta.fields})
+        fields = dict(
+            {
+                'cores': ['exact', 'gte', 'lte'],
+                'ram': ['exact', 'gte', 'lte'],
+                'disk': ['exact', 'gte', 'lte'],
+            },
+            **{
+                field: ['exact']
+                for field in structure_filters.ServicePropertySettingsFilter.Meta.fields
+            }
+        )
 
 
 class ImageFilter(structure_filters.ServicePropertySettingsFilter):
-
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
 
@@ -56,7 +67,9 @@ class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
 
 class NetworkFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='tenant__uuid')
+    tenant = core_filters.URLFilter(
+        view_name='openstack-tenant-detail', field_name='tenant__uuid'
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Network
@@ -64,9 +77,13 @@ class NetworkFilter(structure_filters.BaseResourceFilter):
 
 class SubNetFilter(structure_filters.BaseResourceFilter):
     tenant_uuid = django_filters.UUIDFilter(field_name='network__tenant__uuid')
-    tenant = core_filters.URLFilter(view_name='openstack-tenant-detail', field_name='network__tenant__uuid')
+    tenant = core_filters.URLFilter(
+        view_name='openstack-tenant-detail', field_name='network__tenant__uuid'
+    )
     network_uuid = django_filters.UUIDFilter(field_name='network__uuid')
-    network = core_filters.URLFilter(view_name='openstack-network-detail', field_name='network__uuid')
+    network = core_filters.URLFilter(
+        view_name='openstack-network-detail', field_name='network__uuid'
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SubNet

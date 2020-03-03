@@ -1,6 +1,6 @@
 import factory
-from factory import fuzzy
 from django.urls import reverse
+from factory import fuzzy
 
 from waldur_core.structure.tests import factories as structure_factories
 
@@ -25,6 +25,7 @@ class PriceEstimateFactory(factory.DjangoModelFactory):
     def get_url(self, price_estimate, action=None):
         if price_estimate is None:
             price_estimate = PriceEstimateFactory()
-        url = 'http://testserver' + reverse('billing-price-estimate-detail',
-                                            kwargs={'uuid': price_estimate.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'billing-price-estimate-detail', kwargs={'uuid': price_estimate.uuid.hex}
+        )
         return url if action is None else url + action + '/'

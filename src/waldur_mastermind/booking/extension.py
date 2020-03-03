@@ -16,16 +16,19 @@ class BookingExtension(WaldurExtension):
     @staticmethod
     def django_urls():
         from .urls import urlpatterns
+
         return urlpatterns
 
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
     def celery_tasks():
         from celery.schedules import crontab
+
         return {
             'waldur-mastermind-send-notifications-about-upcoming-bookings': {
                 'task': 'waldur_mastermind.booking.send_notifications_about_upcoming_bookings',

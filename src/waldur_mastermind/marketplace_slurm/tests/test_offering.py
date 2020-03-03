@@ -1,5 +1,6 @@
 from unittest import mock
-from rest_framework import test, status
+
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -20,8 +21,12 @@ class SlurmPackageTest(test.APITransactionTestCase):
         payload = {
             'name': 'offering',
             'type': PLUGIN_NAME,
-            'category': marketplace_factories.CategoryFactory.get_url(category=category),
-            'customer': structure_factories.CustomerFactory.get_url(customer=fixture.customer),
+            'category': marketplace_factories.CategoryFactory.get_url(
+                category=category
+            ),
+            'customer': structure_factories.CustomerFactory.get_url(
+                customer=fixture.customer
+            ),
             'service_attributes': {
                 'batch_service': 'SLURM',
                 'hostname': 'example.com',
@@ -37,13 +42,9 @@ class SlurmPackageTest(test.APITransactionTestCase):
                     'description': 'default plan',
                     'unit': UnitPriceMixin.Units.QUANTITY,
                     'unit_price': 100,
-                    'prices': {
-                        'cpu': 10,
-                        'gpu': 100,
-                        'ram': 1000,
-                    },
+                    'prices': {'cpu': 10, 'gpu': 100, 'ram': 1000,},
                 }
-            ]
+            ],
         }
         with mock.patch('waldur_core.structure.models.ServiceSettings.get_backend'):
             response = self.client.post(url, payload)

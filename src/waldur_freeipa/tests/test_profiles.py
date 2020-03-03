@@ -1,14 +1,15 @@
 from unittest import mock
+
+from ddt import data, ddt
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
-from ddt import data, ddt
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa.tests.helpers import override_plugin_settings
 
-from . import factories
 from .. import tasks
 from ..backend import FreeIPABackend
+from . import factories
 
 
 @override_plugin_settings(ENABLED=True)
@@ -20,7 +21,6 @@ class BaseProfileTest(test.APITransactionTestCase):
 
 
 class ProfileValidateTest(BaseProfileTest):
-
     def test_username_should_not_contain_spaces(self):
         response = self.client.post(self.url, {'username': 'Alice Lebowski'})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
@@ -38,40 +38,33 @@ class ProfileValidateTest(BaseProfileTest):
 
     @override_plugin_settings(ENABLED=True, BLACKLISTED_USERNAMES=['root'])
     def test_blacklisted_username_is_not_allowed(self):
-        response = self.client.post(self.url, {
-            'username': 'root',
-            'agree_with_policy': True
-        })
+        response = self.client.post(
+            self.url, {'username': 'root', 'agree_with_policy': True}
+        )
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn('username', response.data)
 
     def test_user_should_agree_with_policy(self):
-        response = self.client.post(self.url, {
-            'username': 'VALID',
-            'agree_with_policy': False
-        })
+        response = self.client.post(
+            self.url, {'username': 'VALID', 'agree_with_policy': False}
+        )
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn('agree_with_policy', response.data)
 
     def test_profile_should_be_unique(self):
         factories.ProfileFactory(user=self.user)
-        response = self.client.post(self.url, {
-            'username': 'VALID',
-            'agree_with_policy': True
-        })
+        response = self.client.post(
+            self.url, {'username': 'VALID', 'agree_with_policy': True}
+        )
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
         self.assertIn('details', response.data)
 
 
 @mock.patch('python_freeipa.Client')
 class ProfileCreateTest(BaseProfileTest):
-
     def setUp(self):
         super(ProfileCreateTest, self).setUp()
-        self.valid_data = {
-            'username': 'alice',
-            'agree_with_policy': True
-        }
+        self.valid_data = {'username': 'alice', 'agree_with_policy': True}
 
     def test_profile_creation_fails_if_username_is_not_available(self, mock_client):
         mock_client().user_add.side_effect = freeipa_exceptions.DuplicateEntry()
@@ -107,13 +100,17 @@ class ProfileCreateTest(BaseProfileTest):
             telephonenumber=self.user.phone_number,
             preferred_language=self.user.preferred_language,
             ssh_key=[],
-            gecos=','.join([self.user.full_name, self.user.email, self.user.phone_number]),
+            gecos=','.join(
+                [self.user.full_name, self.user.email, self.user.phone_number]
+            ),
             user_password=None,
             organization_unit=self.user.organization,
         )
 
     def test_when_profile_created_ssh_keys_are_attached(self, mock_client):
-        ssh_keys = structure_factories.SshPublicKeyFactory.create_batch(3, user=self.user)
+        ssh_keys = structure_factories.SshPublicKeyFactory.create_batch(
+            3, user=self.user
+        )
         expected_keys = [key.public_key for key in ssh_keys]
 
         self.client.post(self.url, self.valid_data)
@@ -227,7 +224,9 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
         self.user = structure_factories.UserFactory()
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
 
-        self.ssh_keys = structure_factories.SshPublicKeyFactory.create_batch(3, user=self.user)
+        self.ssh_keys = structure_factories.SshPublicKeyFactory.create_batch(
+            3, user=self.user
+        )
         self.expected_keys = [key.public_key for key in self.ssh_keys]
 
     def update_keys(self):
@@ -239,14 +238,11 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
         response = self.update_keys()
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         mock_client().user_mod.assert_called_once_with(
-            self.profile.username,
-            ipasshpubkey=self.expected_keys
+            self.profile.username, ipasshpubkey=self.expected_keys
         )
 
     def test_if_profile_has_same_ssh_keys_profile_is_not_updated(self, mock_client):
-        mock_client().user_show.return_value = {
-            'ipasshpubkey': self.expected_keys
-        }
+        mock_client().user_show.return_value = {'ipasshpubkey': self.expected_keys}
         response = self.update_keys()
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         mock_client().user_mod.assert_not_called()
@@ -278,13 +274,13 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
             mock_task.delay.assert_called_once_with(self.profile.id)
 
     def test_profile_is_updated_when_task_is_called(self, mock_client):
-        mock_client().user_show.return_value = {
-            'ipasshpubkey': self.expected_keys
-        }
+        mock_client().user_show.return_value = {'ipasshpubkey': self.expected_keys}
         self.user.sshpublickey_set.all().delete()
 
         tasks.sync_profile_ssh_keys(self.profile.id)
-        mock_client().user_mod.assert_called_once_with(self.profile.username, ipasshpubkey=None)
+        mock_client().user_mod.assert_called_once_with(
+            self.profile.username, ipasshpubkey=None
+        )
 
 
 @ddt
@@ -295,10 +291,14 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         self.user = structure_factories.UserFactory()
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
 
-    @data(('Alex Bloggs', 'Alex', 'Bloggs', 'AB'),
-          ('Alex', 'Alex', 'N/A', 'A'),
-          ('', 'N/A', 'N/A', ''))
-    def test_backend_is_called_with_correct_parameters_if_update_full_name(self, names, mock_client):
+    @data(
+        ('Alex Bloggs', 'Alex', 'Bloggs', 'AB'),
+        ('Alex', 'Alex', 'N/A', 'A'),
+        ('', 'N/A', 'N/A', ''),
+    )
+    def test_backend_is_called_with_correct_parameters_if_update_full_name(
+        self, names, mock_client
+    ):
         full_name = names[0]
         first_name = names[1]
         last_name = names[2]
@@ -319,9 +319,13 @@ class ProfileUpdateTest(test.APITransactionTestCase):
             sn=last_name,
         )
 
-    def test_backend_is_called_with_correct_parameters_if_update_gecos(self, mock_client):
+    def test_backend_is_called_with_correct_parameters_if_update_gecos(
+        self, mock_client
+    ):
         FreeIPABackend().update_gecos(self.profile)
         mock_client().user_mod.assert_called_once_with(
             self.profile.username,
-            gecos=','.join([self.user.full_name, self.user.email, self.user.phone_number]),
+            gecos=','.join(
+                [self.user.full_name, self.user.email, self.user.phone_number]
+            ),
         )

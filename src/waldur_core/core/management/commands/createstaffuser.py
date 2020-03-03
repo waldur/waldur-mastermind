@@ -17,7 +17,8 @@ class Command(BaseCommand):
         password = options['password']
 
         user, created = User.objects.get_or_create(
-            username=username, defaults=dict(last_login=timezone.now(), is_staff=True))
+            username=username, defaults=dict(last_login=timezone.now(), is_staff=True)
+        )
         if not created:
             raise CommandError('Username %s is already taken.' % username)
 

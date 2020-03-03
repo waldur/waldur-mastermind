@@ -1,11 +1,10 @@
-from rest_framework import test, status
+from rest_framework import status, test
 
 from waldur_core.core import models as core_models
 from waldur_core.structure.tests import factories
 
 
 class BaseSshKeyTest(test.APITransactionTestCase):
-
     def setUp(self):
         self.staff = factories.UserFactory(is_staff=True)
         self.user = factories.UserFactory()
@@ -13,7 +12,6 @@ class BaseSshKeyTest(test.APITransactionTestCase):
 
 
 class SshKeyRetrieveListTest(BaseSshKeyTest):
-
     def test_staff_can_get_any_key(self):
         self.client.force_authenticate(self.staff)
         url = factories.SshPublicKeyFactory.get_url(self.user_key)
@@ -42,7 +40,6 @@ class SshKeyRetrieveListTest(BaseSshKeyTest):
 
 
 class SshKeyCreateTest(BaseSshKeyTest):
-
     def test_key_user_and_name_uniqueness(self):
         self.client.force_authenticate(self.user)
         key = factories.SshPublicKeyFactory.build()
@@ -51,10 +48,13 @@ class SshKeyCreateTest(BaseSshKeyTest):
             'public_key': key.public_key,
         }
 
-        response = self.client.post(factories.SshPublicKeyFactory.get_list_url(), data=data)
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertDictContainsSubset(
-            {'name': ['This field must be unique.']}, response.data)
+            {'name': ['This field must be unique.']}, response.data
+        )
 
     def test_valid_key_creation(self):
         self.client.force_authenticate(self.user)
@@ -63,11 +63,15 @@ class SshKeyCreateTest(BaseSshKeyTest):
             'name': key.name,
             'public_key': key.public_key,
         }
-        response = self.client.post(factories.SshPublicKeyFactory.get_list_url(), data=data)
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        self.assertTrue(core_models.SshPublicKey.objects.filter(name=data['name']).exists(),
-                        'New key should have been created in the database')
+        self.assertTrue(
+            core_models.SshPublicKey.objects.filter(name=data['name']).exists(),
+            'New key should have been created in the database',
+        )
 
     def test_key_name_is_stripped(self):
         self.client.force_authenticate(self.user)
@@ -76,7 +80,9 @@ class SshKeyCreateTest(BaseSshKeyTest):
             'name': '  ' + key.name + '  ',
             'public_key': key.public_key,
         }
-        response = self.client.post(factories.SshPublicKeyFactory.get_list_url(), data=data)
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(core_models.SshPublicKey.objects.filter(name=key.name).exists())
 
@@ -89,7 +95,9 @@ class SshKeyCreateTest(BaseSshKeyTest):
         }
 
         self.client.force_authenticate(staff)
-        response = self.client.post(factories.SshPublicKeyFactory.get_list_url(), data=data)
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(core_models.SshPublicKey.objects.filter(**data).exists())
@@ -103,22 +111,27 @@ class SshKeyCreateTest(BaseSshKeyTest):
         }
 
         self.client.force_authenticate(staff)
-        response = self.client.post(factories.SshPublicKeyFactory.get_list_url(), data=data)
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(core_models.SshPublicKey.objects.filter(**data).exists())
 
 
 class SshKeyDeleteTest(BaseSshKeyTest):
-
     def test_staff_user_can_delete_any_key(self):
         self.client.force_authenticate(self.staff)
-        response = self.client.delete(factories.SshPublicKeyFactory.get_url(self.user_key))
+        response = self.client.delete(
+            factories.SshPublicKeyFactory.get_url(self.user_key)
+        )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_user_can_delete_his_key(self):
         self.client.force_authenticate(self.user)
-        response = self.client.delete(factories.SshPublicKeyFactory.get_url(self.user_key))
+        response = self.client.delete(
+            factories.SshPublicKeyFactory.get_url(self.user_key)
+        )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     def test_user_cannot_delete_other_users_key(self):

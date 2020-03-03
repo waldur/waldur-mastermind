@@ -9,20 +9,23 @@ from waldur_core.structure.tests import factories as structure_factories
 
 
 class QuotaFieldTest(TestCase):
-
     def setUp(self):
-        self.customer_quotas_names = [f.name for f in structure_models.Customer.get_quotas_fields()]
+        self.customer_quotas_names = [
+            f.name for f in structure_models.Customer.get_quotas_fields()
+        ]
 
     def test_quotas_initialization_on_object_creation(self):
         customer = structure_factories.CustomerFactory()
 
         for quota_name in self.customer_quotas_names:
-            self.assertTrue(customer.quotas.filter(name=quota_name).exists(),
-                            'Quota with name "%s" was not added to customer on creation' % quota_name)
+            self.assertTrue(
+                customer.quotas.filter(name=quota_name).exists(),
+                'Quota with name "%s" was not added to customer on creation'
+                % quota_name,
+            )
 
 
 class CounterQuotaFieldTest(TestCase):
-
     def test_target_model_instance_creation_increases_scope_counter_quota(self):
         customer = structure_factories.CustomerFactory()
         structure_factories.ProjectFactory(customer=customer)

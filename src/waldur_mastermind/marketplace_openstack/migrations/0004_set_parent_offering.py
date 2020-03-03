@@ -1,7 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import migrations
 
-
 INSTANCE_TYPE = 'OpenStackTenant.Instance'
 
 VOLUME_TYPE = 'OpenStackTenant.Volume'
@@ -15,7 +14,9 @@ def set_parent_offering(apps, schema_editor):
     ContentType = apps.get_model('contenttypes', 'ContentType')
     content_type = ContentType.objects.get_for_model(Tenant)
 
-    for offering in Offering.objects.filter(type__in=(INSTANCE_TYPE, VOLUME_TYPE)).all():
+    for offering in Offering.objects.filter(
+        type__in=(INSTANCE_TYPE, VOLUME_TYPE)
+    ).all():
         service_settings_id = offering.object_id
         if not service_settings_id:
             continue
@@ -30,7 +31,9 @@ def set_parent_offering(apps, schema_editor):
             continue
 
         try:
-            resource = Resource.objects.get(object_id=tenant_id, content_type=content_type)
+            resource = Resource.objects.get(
+                object_id=tenant_id, content_type=content_type
+            )
         except ObjectDoesNotExist:
             continue
 
@@ -47,6 +50,4 @@ class Migration(migrations.Migration):
         ('openstack', '0002_volumetype'),
     ]
 
-    operations = [
-        migrations.RunPython(set_parent_offering)
-    ]
+    operations = [migrations.RunPython(set_parent_offering)]

@@ -1,14 +1,18 @@
 import base64
+import logging
 from collections import OrderedDict
 from datetime import timedelta
-import logging
 
-from django.core.exceptions import ImproperlyConfigured, MultipleObjectsReturned, ObjectDoesNotExist
-from django.urls import reverse, Resolver404
+from django.core.exceptions import (
+    ImproperlyConfigured,
+    MultipleObjectsReturned,
+    ObjectDoesNotExist,
+)
+from django.urls import Resolver404, reverse
 from django.utils.translation import ugettext_lazy as _
 from rest_framework import serializers
-from rest_framework.fields import Field, ReadOnlyField
 from rest_framework.exceptions import ValidationError
+from rest_framework.fields import Field, ReadOnlyField
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import TimestampField
@@ -22,6 +26,7 @@ class AuthTokenSerializer(serializers.Serializer):
     API token serializer loosely based on DRF's default AuthTokenSerializer.
     but with the logic of authorization is extracted to view.
     """
+
     # Fields are both required, non-blank and don't allow nulls by default
     username = serializers.CharField()
     password = serializers.CharField()
@@ -34,7 +39,9 @@ class Base64Field(serializers.CharField):
             base64.b64decode(value)
             return value
         except (TypeError, ValueError):
-            raise serializers.ValidationError(_('This field should a be valid Base64 encoded string.'))
+            raise serializers.ValidationError(
+                _('This field should a be valid Base64 encoded string.')
+            )
 
     def to_representation(self, value):
         value = super(Base64Field, self).to_representation(value)
@@ -69,6 +76,7 @@ class GenericRelatedField(Field):
     """
     A custom field to use for the `tagged_object` generic relationship.
     """
+
     read_only = False
     _default_view_name = '%(model_name)s-detail'
     lookup_fields = ['uuid', 'pk']
@@ -99,7 +107,9 @@ class GenericRelatedField(Field):
         try:
             return self.context['request']
         except KeyError:
-            raise AttributeError('GenericRelatedField have to be initialized with `request` in context')
+            raise AttributeError(
+                'GenericRelatedField have to be initialized with `request` in context'
+            )
 
     def to_representation(self, obj):
         """
@@ -130,8 +140,15 @@ class GenericRelatedField(Field):
             model = obj.__class__
         except ValueError:
             raise serializers.ValidationError(_('URL is invalid: %s.') % data)
-        except (Resolver404, AttributeError, MultipleObjectsReturned, ObjectDoesNotExist):
-            raise serializers.ValidationError(_("Can't restore object from url: %s") % data)
+        except (
+            Resolver404,
+            AttributeError,
+            MultipleObjectsReturned,
+            ObjectDoesNotExist,
+        ):
+            raise serializers.ValidationError(
+                _("Can't restore object from url: %s") % data
+            )
 
         if self.related_models and model not in self.related_models:
             context = (model, ', '.join(str(model) for model in self.related_models))
@@ -262,15 +279,22 @@ class AugmentedSerializerMixin:
         related_paths = self._get_related_paths()
 
         related_field_source_map = {
-            '{0}_{1}'.format(path.split('.')[-1], attribute): '{0}.{1}'.format(path, attribute)
+            '{0}_{1}'.format(path.split('.')[-1], attribute): '{0}.{1}'.format(
+                path, attribute
+            )
             for path, attributes in related_paths.items()
             for attribute in attributes
         }
 
         try:
-            return serializers.ReadOnlyField, {'source': related_field_source_map[field_name]}
+            return (
+                serializers.ReadOnlyField,
+                {'source': related_field_source_map[field_name]},
+            )
         except KeyError:
-            return super(AugmentedSerializerMixin, self).build_unknown_field(field_name, model_class)
+            return super(AugmentedSerializerMixin, self).build_unknown_field(
+                field_name, model_class
+            )
 
     def get_extra_kwargs(self):
         extra_kwargs = super(AugmentedSerializerMixin, self).get_extra_kwargs()
@@ -305,7 +329,9 @@ class RestrictedSerializerMixin:
         keys = set(key for key in keys if key in fields.keys())
         if not keys:
             return fields
-        return OrderedDict(((key, value) for key, value in fields.items() if key in keys))
+        return OrderedDict(
+            ((key, value) for key, value in fields.items() if key in keys)
+        )
 
 
 class RequiredFieldsMixin:
@@ -356,7 +382,9 @@ class HyperlinkedRelatedModelSerializer(serializers.HyperlinkedModelSerializer):
 
     def to_internal_value(self, data):
         if 'url' not in data:
-            raise serializers.ValidationError(_('URL has to be defined for related object.'))
+            raise serializers.ValidationError(
+                _('URL has to be defined for related object.')
+            )
         url_field = self.fields['url']
 
         # This is tricky: self.fields['url'] is the one generated
@@ -404,26 +432,34 @@ class HistorySerializer(serializers.Serializer):
      - point_list - list of timestamps that will be converted to datetime points
 
     """
+
     start = TimestampField(required=False)
     end = TimestampField(required=False)
     points_count = serializers.IntegerField(min_value=2, required=False)
-    point_list = serializers.ListField(
-        child=TimestampField(),
-        required=False
-    )
+    point_list = serializers.ListField(child=TimestampField(), required=False)
 
     def validate(self, attrs):
         autosplit_fields = {'start', 'end', 'points_count'}
-        if ('point_list' not in attrs or not attrs['point_list']) and not autosplit_fields == set(attrs.keys()):
+        if (
+            'point_list' not in attrs or not attrs['point_list']
+        ) and not autosplit_fields == set(attrs.keys()):
             raise serializers.ValidationError(
-                _('Not enough parameters for historical data. '
-                  '(Either "point" or "start" + "end" + "points_count" parameters have to be provided).'))
+                _(
+                    'Not enough parameters for historical data. '
+                    '(Either "point" or "start" + "end" + "points_count" parameters have to be provided).'
+                )
+            )
         if 'point_list' in attrs and autosplit_fields & set(attrs.keys()):
             raise serializers.ValidationError(
-                _('Too many parameters for historical data. '
-                  '(Either "point" or "start" + "end" + "points_count" parameters have to be provided).'))
+                _(
+                    'Too many parameters for historical data. '
+                    '(Either "point" or "start" + "end" + "points_count" parameters have to be provided).'
+                )
+            )
         if 'point_list' not in attrs and not attrs['start'] < attrs['end']:
-            raise serializers.ValidationError(_('Start timestamps have to be later than end timestamps.'))
+            raise serializers.ValidationError(
+                _('Start timestamps have to be later than end timestamps.')
+            )
         return attrs
 
     # History serializer is used for validation only. We are providing custom method for such serializers
@@ -432,9 +468,13 @@ class HistorySerializer(serializers.Serializer):
         if 'point_list' in self.validated_data:
             return self.validated_data['point_list']
         else:
-            interval = ((self.validated_data['end'] - self.validated_data['start']) /
-                        (self.validated_data['points_count'] - 1))
-            return [self.validated_data['start'] + interval * i for i in range(self.validated_data['points_count'])]
+            interval = (self.validated_data['end'] - self.validated_data['start']) / (
+                self.validated_data['points_count'] - 1
+            )
+            return [
+                self.validated_data['start'] + interval * i
+                for i in range(self.validated_data['points_count'])
+            ]
 
 
 class TimelineSerializer(serializers.Serializer):
@@ -479,7 +519,9 @@ class BaseSummarySerializer(serializers.Serializer):
 
     @classmethod
     def get_serializer(cls, model):
-        raise NotImplementedError('Method `get_serializer` should be implemented for SummarySerializer.')
+        raise NotImplementedError(
+            'Method `get_serializer` should be implemented for SummarySerializer.'
+        )
 
     @classmethod
     def eager_load(cls, summary_queryset, request):
@@ -502,15 +544,23 @@ class GeoLocationField(serializers.JSONField):
         def geo_location_validator(value):
             if value is not None:
                 if not isinstance(value, list):
-                    raise ValidationError(_('GeoLocationField should be a list of dictionaries.'))
+                    raise ValidationError(
+                        _('GeoLocationField should be a list of dictionaries.')
+                    )
                 else:
                     for location in value:
                         if not isinstance(location, dict):
-                            raise ValidationError(_('GeoLocationField should be a list of dictionaries.'))
+                            raise ValidationError(
+                                _('GeoLocationField should be a list of dictionaries.')
+                            )
                         if not {'latitude', 'longitude'}.issubset(location.keys()):
-                            raise ValidationError(_('GeoLocationField should be a list of dictionaries. For example: '
-                                                    '[{"latitude": 123, "longitude": 345}, '
-                                                    '{"latitude": 456, "longitude": 678}]'))
+                            raise ValidationError(
+                                _(
+                                    'GeoLocationField should be a list of dictionaries. For example: '
+                                    '[{"latitude": 123, "longitude": 345}, '
+                                    '{"latitude": 456, "longitude": 678}]'
+                                )
+                            )
             return value
 
         validators.append(geo_location_validator)
@@ -518,7 +568,6 @@ class GeoLocationField(serializers.JSONField):
 
 
 class UnicodeIntegerField(serializers.IntegerField):
-
     def to_internal_value(self, data):
         if isinstance(data, str):
             data = core_utils.normalize_unicode(data)

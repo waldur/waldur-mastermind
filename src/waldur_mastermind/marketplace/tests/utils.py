@@ -1,5 +1,5 @@
-from waldur_mastermind.marketplace import processors
 from waldur_core.structure.tests.views import TestNewInstanceViewSet
+from waldur_mastermind.marketplace import processors
 
 
 class TestCreateProcessor(processors.BaseCreateResourceProcessor):

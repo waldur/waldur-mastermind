@@ -20,8 +20,7 @@ def create_support_template(sender, instance, created=False, **kwargs):
 
     if not instance.scope:
         template = support_models.OfferingTemplate.objects.create(
-            name=instance.name,
-            config=instance.options
+            name=instance.name, config=instance.options
         )
         instance.scope = template
         instance.save()
@@ -57,14 +56,20 @@ def change_order_item_state(sender, instance, created=False, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.warning('Skipping support offering state synchronization '
-                       'because related order item is not found. Offering ID: %s', instance.id)
+        logger.warning(
+            'Skipping support offering state synchronization '
+            'because related order item is not found. Offering ID: %s',
+            instance.id,
+        )
         return
 
     if instance.state == support_models.Offering.States.OK:
         callbacks.resource_creation_succeeded(resource)
     elif instance.state == support_models.Offering.States.TERMINATED:
-        if instance.tracker.previous('state') == support_models.Offering.States.REQUESTED:
+        if (
+            instance.tracker.previous('state')
+            == support_models.Offering.States.REQUESTED
+        ):
             callbacks.resource_creation_failed(resource)
         if instance.tracker.previous('state') == support_models.Offering.States.OK:
             callbacks.resource_deletion_succeeded(resource)
@@ -74,9 +79,12 @@ def terminate_resource(sender, instance, **kwargs):
     try:
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
-        logger.debug('Skipping resource terminate for support request '
-                     'because related resource does not exist. '
-                     'Request ID: %s', instance.id)
+        logger.debug(
+            'Skipping resource terminate for support request '
+            'because related resource does not exist. '
+            'Request ID: %s',
+            instance.id,
+        )
     else:
         callbacks.resource_deletion_succeeded(resource)
 
@@ -121,8 +129,11 @@ def change_offering_state(sender, instance, created=False, **kwargs):
         try:
             offering = support_models.Offering.objects.get(issue=issue)
         except support_models.Offering.DoesNotExist:
-            logger.warning('Skipping issue state synchronization '
-                           'because related support offering is not found. Issue ID: %s', issue.id)
+            logger.warning(
+                'Skipping issue state synchronization '
+                'because related support offering is not found. Issue ID: %s',
+                issue.id,
+            )
             return
 
         if issue.resolved:
@@ -143,9 +154,12 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
     if not issue.tracker.has_changed('status'):
         return
 
-    if issue.resource \
-            and isinstance(issue.resource, marketplace_models.OrderItem) \
-            and issue.resource.offering.type == PLUGIN_NAME and issue.resolved is not None:
+    if (
+        issue.resource
+        and isinstance(issue.resource, marketplace_models.OrderItem)
+        and issue.resource.offering.type == PLUGIN_NAME
+        and issue.resolved is not None
+    ):
         order_item = issue.resource
 
         if issue.resolved:
@@ -154,8 +168,11 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
             # Support.Offering object created from a marketplace is called 'request' in a frontend
 
             if not request:
-                logger.warning('Skipping resource termination '
-                               'because request is not found. Order item ID: %s', order_item.id)
+                logger.warning(
+                    'Skipping resource termination '
+                    'because request is not found. Order item ID: %s',
+                    order_item.id,
+                )
                 return
 
             with transaction.atomic():
@@ -195,8 +212,9 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
         return
 
     try:
-        order_item = marketplace_models.OrderItem.objects.get(resource=resource,
-                                                              type=marketplace_models.OrderItem.Types.CREATE)
+        order_item = marketplace_models.OrderItem.objects.get(
+            resource=resource, type=marketplace_models.OrderItem.Types.CREATE
+        )
     except marketplace_models.OrderItem.DoesNotExist:
         return
 
@@ -206,7 +224,9 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
     service_provider = getattr(order_item.offering.customer, 'serviceprovider', None)
 
     if not service_provider:
-        logger.warning('Customer providing an Offering is not registered as a Service Provider.')
+        logger.warning(
+            'Customer providing an Offering is not registered as a Service Provider.'
+        )
         return
 
     if not service_provider.lead_email:
@@ -218,4 +238,8 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
     template = Template(service_provider.lead_subject)
     subject = template.render(context).strip()
 
-    transaction.on_commit(lambda: tasks.send_mail_notification.delay(subject, message, service_provider.lead_email))
+    transaction.on_commit(
+        lambda: tasks.send_mail_notification.delay(
+            subject, message, service_provider.lead_email
+        )
+    )

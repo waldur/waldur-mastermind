@@ -11,10 +11,16 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--store', '-s', action='store', dest='path',
-            default='docs/drfapi', help='Where to store docs.'
+            '--store',
+            '-s',
+            action='store',
+            dest='path',
+            default='docs/drfapi',
+            help='Where to store docs.',
         )
-        parser.add_argument('args', metavar='app_label', nargs='*', help='Application label.')
+        parser.add_argument(
+            'args', metavar='app_label', nargs='*', help='Application label.'
+        )
 
     def handle(self, *app_labels, **options):
         path = options.get('path', 'docs/drfapi')

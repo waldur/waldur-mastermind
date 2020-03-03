@@ -1,14 +1,13 @@
 from django.conf import settings
 from django.core import mail
+from django.template import Context, Template
 from django.test import TransactionTestCase
 from django.utils import timezone
-from django.template import Template, Context
 
 from .. import factories
 
 
 class BaseHandlerTest(TransactionTestCase):
-
     def setUp(self):
         settings.task_always_eager = True
         settings.WALDUR_SUPPORT['ENABLED'] = True
@@ -19,7 +18,6 @@ class BaseHandlerTest(TransactionTestCase):
 
 
 class IssueUpdatedHandlerTest(BaseHandlerTest):
-
     def test_email_notification_is_sent_when_issue_is_updated(self):
         issue = factories.IssueFactory()
 
@@ -69,14 +67,18 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_email_notification_is_not_sent_if_issue_just_has_not_been_created_on_backend_yet(self):
+    def test_email_notification_is_not_sent_if_issue_just_has_not_been_created_on_backend_yet(
+        self,
+    ):
         issue = factories.IssueFactory(backend_id='')
         issue.status = 'new_status'
         issue.save()
 
         self.assertEqual(len(mail.outbox), 0)
 
-    def test_email_notification_is_not_sent_if_issue_just_has_been_created_on_backend(self):
+    def test_email_notification_is_not_sent_if_issue_just_has_been_created_on_backend(
+        self,
+    ):
         issue = factories.IssueFactory(backend_id='')
         issue.backend_id = 'new_backend_id'
         issue.save()
@@ -138,11 +140,15 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
     def test_email_notification_if_issue_is_resolved(self):
         issue = factories.IssueFactory()
-        template_text = '{{issue.summary}} ' \
-                        '{{issue.key}} ' \
-                        'you ticket has been resolved at ' \
-                        '{{issue.resolution_date|date:"G"}} hours {{issue.resolution_date|date:"i"}} minutes.'
-        template = factories.TemplateStatusNotificationFactory(status='Resolved', text=template_text)
+        template_text = (
+            '{{issue.summary}} '
+            '{{issue.key}} '
+            'you ticket has been resolved at '
+            '{{issue.resolution_date|date:"G"}} hours {{issue.resolution_date|date:"i"}} minutes.'
+        )
+        template = factories.TemplateStatusNotificationFactory(
+            status='Resolved', text=template_text
+        )
 
         new_summary = 'new_summary'
         issue.summary = new_summary
@@ -156,7 +162,6 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
 
 
 class CommentCreatedHandlerTest(BaseHandlerTest):
-
     def test_email_is_sent_when_public_comment_is_created(self):
         factories.CommentFactory(is_public=True)
 

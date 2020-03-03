@@ -22,42 +22,121 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Invitation',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False,
-                                                                verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False,
-                                                                      verbose_name='modified')),
+                (
+                    'id',
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID',
+                    ),
+                ),
+                (
+                    'created',
+                    model_utils.fields.AutoCreatedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='created',
+                    ),
+                ),
+                (
+                    'modified',
+                    model_utils.fields.AutoLastModifiedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name='modified',
+                    ),
+                ),
                 ('uuid', waldur_core.core.fields.UUIDField()),
                 ('error_message', models.TextField(blank=True)),
-                ('customer_role', waldur_core.structure.models.CustomerRole(blank=True, choices=[('owner', 'Owner'), (
-                'support', 'Support')], max_length=30, null=True, verbose_name='organization role')),
-                ('project_role', waldur_core.structure.models.ProjectRole(blank=True,
-                                                                          choices=[('admin', 'Administrator'),
-                                                                                   ('manager', 'Manager'),
-                                                                                   ('support', 'Support')],
-                                                                          max_length=30, null=True)),
-                ('state', models.CharField(
-                    choices=[('accepted', 'Accepted'), ('canceled', 'Canceled'), ('pending', 'Pending'),
-                             ('expired', 'Expired')], default='pending', max_length=8)),
-                ('link_template', models.CharField(
-                    help_text='The template must include {uuid} parameter e.g. http://example.com/invitation/{uuid}',
-                    max_length=255)),
-                ('email', models.EmailField(
-                    help_text='Invitation link will be sent to this email. Note that user can accept invitation with different email.',
-                    max_length=254)),
-                ('civil_number', models.CharField(blank=True,
-                                                  help_text='Civil number of invited user. If civil number is not defined any user can accept invitation.',
-                                                  max_length=50)),
-                ('created_by',
-                 models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='+',
-                                   to=settings.AUTH_USER_MODEL)),
-                ('customer', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='invitations',
-                                               to='structure.Customer', verbose_name='organization')),
-                ('project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE,
-                                              related_name='invitations', to='structure.Project')),
+                (
+                    'customer_role',
+                    waldur_core.structure.models.CustomerRole(
+                        blank=True,
+                        choices=[('owner', 'Owner'), ('support', 'Support')],
+                        max_length=30,
+                        null=True,
+                        verbose_name='organization role',
+                    ),
+                ),
+                (
+                    'project_role',
+                    waldur_core.structure.models.ProjectRole(
+                        blank=True,
+                        choices=[
+                            ('admin', 'Administrator'),
+                            ('manager', 'Manager'),
+                            ('support', 'Support'),
+                        ],
+                        max_length=30,
+                        null=True,
+                    ),
+                ),
+                (
+                    'state',
+                    models.CharField(
+                        choices=[
+                            ('accepted', 'Accepted'),
+                            ('canceled', 'Canceled'),
+                            ('pending', 'Pending'),
+                            ('expired', 'Expired'),
+                        ],
+                        default='pending',
+                        max_length=8,
+                    ),
+                ),
+                (
+                    'link_template',
+                    models.CharField(
+                        help_text='The template must include {uuid} parameter e.g. http://example.com/invitation/{uuid}',
+                        max_length=255,
+                    ),
+                ),
+                (
+                    'email',
+                    models.EmailField(
+                        help_text='Invitation link will be sent to this email. Note that user can accept invitation with different email.',
+                        max_length=254,
+                    ),
+                ),
+                (
+                    'civil_number',
+                    models.CharField(
+                        blank=True,
+                        help_text='Civil number of invited user. If civil number is not defined any user can accept invitation.',
+                        max_length=50,
+                    ),
+                ),
+                (
+                    'created_by',
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name='+',
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    'customer',
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name='invitations',
+                        to='structure.Customer',
+                        verbose_name='organization',
+                    ),
+                ),
+                (
+                    'project',
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name='invitations',
+                        to='structure.Project',
+                    ),
+                ),
             ],
-            options={
-                'abstract': False,
-            },
+            options={'abstract': False,},
         ),
     ]

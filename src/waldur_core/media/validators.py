@@ -7,7 +7,7 @@ from django.utils.translation import ugettext_lazy as _
 from waldur_core.media import magic
 
 # max bytes to read for file type detection
-READ_SIZE = 5 * (1024 * 1024)   # 5MB
+READ_SIZE = 5 * (1024 * 1024)  # 5MB
 
 
 # Based on https://github.com/mckinseyacademy/django-upload-validator/blob/master/upload_validator/__init__.py
@@ -20,6 +20,7 @@ class FileTypeValidator:
                     see https://www.iana.org/assignments/media-types/media-types.xhtml
         allowed_extensions (list, optional): list of allowed file extensions e.g; ['.jpeg', '.pdf', '.docx']
     """
+
     type_message = _(
         "File type '%(detected_type)s' is not allowed. "
         "Allowed types are: '%(allowed_types)s'."
@@ -49,15 +50,17 @@ class FileTypeValidator:
 
         if detected_type not in self.allowed_mimes:
             # use more readable file type names for feedback message
-            allowed_types = map(lambda mime_type: mime_type.split('/')[1], self.allowed_mimes)
+            allowed_types = map(
+                lambda mime_type: mime_type.split('/')[1], self.allowed_mimes
+            )
 
             raise ValidationError(
                 message=self.type_message,
                 params={
                     'detected_type': detected_type,
-                    'allowed_types': ', '.join(allowed_types)
+                    'allowed_types': ', '.join(allowed_types),
                 },
-                code='invalid_type'
+                code='invalid_type',
             )
 
         if self.allowed_exts and (extension not in self.allowed_exts):
@@ -65,17 +68,25 @@ class FileTypeValidator:
                 message=self.extension_message,
                 params={
                     'extension': extension,
-                    'allowed_extensions': ', '.join(self.allowed_exts)
+                    'allowed_extensions': ', '.join(self.allowed_exts),
                 },
-                code='invalid_extension'
+                code='invalid_extension',
             )
 
     def check_word_or_excel(self, fileobj, detected_type, extension):
         """
         Returns proper mimetype in case of word or excel files
         """
-        word_strings = ['Microsoft Word', 'Microsoft Office Word', 'Microsoft Macintosh Word']
-        excel_strings = ['Microsoft Excel', 'Microsoft Office Excel', 'Microsoft Macintosh Excel']
+        word_strings = [
+            'Microsoft Word',
+            'Microsoft Office Word',
+            'Microsoft Macintosh Word',
+        ]
+        excel_strings = [
+            'Microsoft Excel',
+            'Microsoft Office Excel',
+            'Microsoft Macintosh Excel',
+        ]
         office_strings = ['Microsoft OOXML']
 
         file_type_details = magic.from_buffer(fileobj.read(READ_SIZE))
@@ -86,8 +97,9 @@ class FileTypeValidator:
             detected_type = 'application/msword'
         elif any(string in file_type_details for string in excel_strings):
             detected_type = 'application/vnd.ms-excel'
-        elif any(string in file_type_details for string in office_strings) or \
-                (detected_type == 'application/vnd.ms-office'):
+        elif any(string in file_type_details for string in office_strings) or (
+            detected_type == 'application/vnd.ms-office'
+        ):
             if extension in ('.doc', '.docx'):
                 detected_type = 'application/msword'
             if extension in ('.xls', '.xlsx'):
@@ -112,9 +124,9 @@ CertificateValidator = FileTypeValidator(
     allowed_types=[
         'application/x-pem-file',
         'application/x-x509-ca-cert',
-        'text/plain'
+        'text/plain',
     ],
-    allowed_extensions=['pem']
+    allowed_extensions=['pem'],
 )
 
 
@@ -135,7 +147,7 @@ DocumentValidator = FileTypeValidator(
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.oasis.opendocument.text',
         'application/vnd.oasis.opendocument.spreadsheet',
-        'application/vnd.oasis.opendocument.presentation'
+        'application/vnd.oasis.opendocument.presentation',
     ],
     allowed_extensions=[
         'csv',
@@ -155,5 +167,5 @@ DocumentValidator = FileTypeValidator(
         'odp',
         'ods',
         'rtf',
-    ]
+    ],
 )

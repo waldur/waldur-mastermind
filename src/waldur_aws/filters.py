@@ -6,7 +6,6 @@ from . import models
 
 
 class ImageFilter(structure_filters.BaseServicePropertyFilter):
-
     class Meta:
         model = models.Image
         fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('region',)
@@ -15,7 +14,6 @@ class ImageFilter(structure_filters.BaseServicePropertyFilter):
 
 
 class SizeFilter(structure_filters.BaseServicePropertyFilter):
-
     class Meta:
         model = models.Size
         fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('region',)
@@ -24,7 +22,6 @@ class SizeFilter(structure_filters.BaseServicePropertyFilter):
 
 
 class RegionFilter(structure_filters.BaseServicePropertyFilter):
-
     class Meta(structure_filters.BaseServicePropertyFilter.Meta):
         model = models.Region
 

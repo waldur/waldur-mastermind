@@ -1,7 +1,7 @@
 from django.http.response import Http404
 from rest_framework.views import APIView
 
-from waldur_core.media.utils import send_file, get_file_from_token
+from waldur_core.media.utils import get_file_from_token, send_file
 
 
 class ProtectedFileView(APIView):

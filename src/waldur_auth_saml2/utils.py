@@ -3,7 +3,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from djangosaml2.conf import get_config
 from djangosaml2.utils import available_idps
 from saml2.attribute_converter import ac_factory
-from saml2.mdstore import InMemoryMetaData, MetaDataFile, name as get_idp_name
+from saml2.mdstore import InMemoryMetaData, MetaDataFile
+from saml2.mdstore import name as get_idp_name
 from saml2.s_utils import UnknownSystemEntity
 
 from . import models
@@ -51,18 +52,22 @@ def sync_providers():
 
 def is_valid_idp(value):
     remote_providers = available_idps(get_config()).keys()
-    return value in remote_providers or models.IdentityProvider.objects.filter(url=value).exists()
+    return (
+        value in remote_providers
+        or models.IdentityProvider.objects.filter(url=value).exists()
+    )
 
 
 def get_idp_sso_supported_bindings(idp_entity_id, config):
     try:
-        return config.metadata.service(idp_entity_id, 'idpsso_descriptor', 'single_sign_on_service').keys()
+        return config.metadata.service(
+            idp_entity_id, 'idpsso_descriptor', 'single_sign_on_service'
+        ).keys()
     except (UnknownSystemEntity, AttributeError):
         return []
 
 
 class DatabaseMetadataLoader(InMemoryMetaData):
-
     def load(self, *args, **kwargs):
         # Skip default parsing because data is not stored in file
         pass

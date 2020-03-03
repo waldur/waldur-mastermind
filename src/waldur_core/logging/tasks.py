@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.core.utils import deserialize_instance
-from waldur_core.logging.models import BaseHook, SystemNotification, Report, Feed, Event
+from waldur_core.logging.models import BaseHook, Event, Feed, Report, SystemNotification
 from waldur_core.logging.utils import create_report_archive
 from waldur_core.structure import models as structure_models
 
@@ -34,7 +34,9 @@ def process_system_notification(event):
     customer_feed = Feed.objects.filter(event=event, content_type=customer_ct).first()
     customer = customer_feed and customer_feed.scope
 
-    for hook in SystemNotification.get_hooks(event.event_type, project=project, customer=customer):
+    for hook in SystemNotification.get_hooks(
+        event.event_type, project=project, customer=customer
+    ):
         if check_event(event, hook):
             hook.process(event)
 
@@ -68,7 +70,10 @@ def create_report(serialized_report):
         )
     except (tarfile.TarError, OSError, ValueError) as e:
         report.state = Report.States.ERRED
-        error_message = 'Error message: %s. Traceback: %s' % (str(e), traceback.format_exc())
+        error_message = 'Error message: %s. Traceback: %s' % (
+            str(e),
+            traceback.format_exc(),
+        )
         report.error_message = error_message
         report.save()
     else:

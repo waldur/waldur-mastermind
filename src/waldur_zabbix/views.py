@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from rest_framework import status, exceptions, response
+from rest_framework import exceptions, response, status
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
@@ -11,7 +11,7 @@ from waldur_core.core.utils import datetime_to_timestamp, pwgen
 from waldur_core.monitoring.utils import get_period
 from waldur_core.structure import views as structure_views
 
-from . import models, serializers, filters, executors
+from . import executors, filters, models, serializers
 from .managers import filter_active
 
 
@@ -33,13 +33,17 @@ class ZabbixServiceViewSet(structure_views.BaseServiceViewSet):
         """
         service = self.get_object()
         if request.method == 'GET':
-            user = models.User.objects.get(settings=service.settings, alias=service.settings.username)
+            user = models.User.objects.get(
+                settings=service.settings, alias=service.settings.username
+            )
             serializer_class = self.get_serializer_class()
             serializer = serializer_class(user, context=self.get_serializer_context())
             return Response(serializer.data)
         else:
             password = pwgen()
-            executors.ServiceSettingsPasswordResetExecutor.execute(service.settings, password=password)
+            executors.ServiceSettingsPasswordResetExecutor.execute(
+                service.settings, password=password
+            )
             return Response({'password': password})
 
     @action(detail=True, methods=['GET', 'HEAD'])
@@ -60,7 +64,8 @@ class ZabbixServiceViewSet(structure_views.BaseServiceViewSet):
 
         backend_triggers = backend.get_trigger_status(query)
         response_serializer = serializers.TriggerResponseSerializer(
-            instance=backend_triggers, many=True)
+            instance=backend_triggers, many=True
+        )
 
         page = self.paginate_queryset(response_serializer.data)
         if page is not None:
@@ -86,6 +91,7 @@ class NoItemsException(exceptions.APIException):
 
 class HostViewSet(structure_views.ResourceViewSet):
     """ Representation of Zabbix hosts and related actions. """
+
     queryset = models.Host.objects.all()
     serializer_class = serializers.HostSerializer
     filter_backends = structure_views.ResourceViewSet.filter_backends + (
@@ -147,7 +153,9 @@ class HostViewSet(structure_views.ResourceViewSet):
         Endpoint will return status 400 if there are no hosts or items that match request parameters.
         """
         hosts = self._get_hosts()
-        serializer = serializers.ItemsAggregatedValuesSerializer(data=request.query_params)
+        serializer = serializers.ItemsAggregatedValuesSerializer(
+            data=request.query_params
+        )
         serializer.is_valid(raise_exception=True)
         filter_data = serializer.validated_data
         items = self._get_items(request, hosts)
@@ -156,7 +164,12 @@ class HostViewSet(structure_views.ResourceViewSet):
         for host in hosts:
             backend = host.get_backend()
             host_aggregated_values = backend.get_items_aggregated_values(
-                host, items, filter_data['start'], filter_data['end'], filter_data['method'])
+                host,
+                items,
+                filter_data['start'],
+                filter_data['end'],
+                filter_data['method'],
+            )
             for key, value in host_aggregated_values.items():
                 aggregated_data[key] += value
         return Response(aggregated_data, status=status.HTTP_200_OK)
@@ -166,14 +179,17 @@ class HostViewSet(structure_views.ResourceViewSet):
     def items_values(self, request, uuid):
         """ The same as items_aggregated_values, only for one host """
         host = self.get_object()
-        serializer = serializers.ItemsAggregatedValuesSerializer(data=request.query_params)
+        serializer = serializers.ItemsAggregatedValuesSerializer(
+            data=request.query_params
+        )
         serializer.is_valid(raise_exception=True)
         filter_data = serializer.validated_data
         items = self._get_items(request, [host])
 
         backend = host.get_backend()
         host_aggregated_values = backend.get_items_aggregated_values(
-            host, items, filter_data['start'], filter_data['end'], filter_data['method'])
+            host, items, filter_data['start'], filter_data['end'], filter_data['method']
+        )
         return Response(host_aggregated_values, status=status.HTTP_200_OK)
 
     def _get_hosts(self):
@@ -184,7 +200,9 @@ class HostViewSet(structure_views.ResourceViewSet):
 
     def _get_items(self, request, hosts):
         items = request.query_params.getlist('item')
-        items = models.Item.objects.filter(template__hosts__in=hosts, key__in=items).distinct()
+        items = models.Item.objects.filter(
+            template__hosts__in=hosts, key__in=items
+        ).distinct()
         if not items:
             raise NoItemsException()
         return items
@@ -196,26 +214,34 @@ class HostViewSet(structure_views.ResourceViewSet):
         """
         items = self._get_items(request, hosts)
         numeric_types = (models.Item.ValueTypes.FLOAT, models.Item.ValueTypes.INTEGER)
-        non_numeric_items = [item.name for item in items if item.value_type not in numeric_types]
+        non_numeric_items = [
+            item.name for item in items if item.value_type not in numeric_types
+        ]
         if non_numeric_items:
             raise exceptions.ValidationError(
-                'Cannot show historical data for non-numeric items: %s' % ', '.join(non_numeric_items))
+                'Cannot show historical data for non-numeric items: %s'
+                % ', '.join(non_numeric_items)
+            )
         points = self._get_points(request)
 
         stats = []
         for item in items:
-            values = self._sum_rows([
-                host.get_backend().get_item_stats(host.backend_id, item, points)
-                for host in hosts
-            ])
+            values = self._sum_rows(
+                [
+                    host.get_backend().get_item_stats(host.backend_id, item, points)
+                    for host in hosts
+                ]
+            )
 
             for point, value in zip(points, values):
-                stats.append({
-                    'point': point,
-                    'item': item.key,
-                    'item_name': item.name,
-                    'value': value,
-                })
+                stats.append(
+                    {
+                        'point': point,
+                        'item': item.key,
+                        'item_name': item.name,
+                        'value': value,
+                    }
+                )
         return stats
 
     def _get_points(self, request):
@@ -223,7 +249,7 @@ class HostViewSet(structure_views.ResourceViewSet):
             'start': request.query_params.get('start'),
             'end': request.query_params.get('end'),
             'points_count': request.query_params.get('points_count'),
-            'point_list': request.query_params.getlist('point')
+            'point_list': request.query_params.getlist('point'),
         }
         serializer = HistorySerializer(data={k: v for k, v in mapped.items() if v})
         serializer.is_valid(raise_exception=True)
@@ -235,8 +261,10 @@ class HostViewSet(structure_views.ResourceViewSet):
         Input: [[1, 2], [10, 20], [None, None]]
         Output: [11, 22]
         """
+
         def sum_without_none(xs):
             return sum(x for x in xs if x)
+
         return map(sum_without_none, zip(*rows))
 
 
@@ -253,8 +281,12 @@ class ITServiceViewSet(structure_views.ResourceViewSet):
         itservice = self.get_object()
         period = get_period(request)
 
-        history = get_object_or_404(models.SlaHistory, itservice=itservice, period=period)
-        events = list(history.events.all().order_by('-timestamp').values('timestamp', 'state'))
+        history = get_object_or_404(
+            models.SlaHistory, itservice=itservice, period=period
+        )
+        events = list(
+            history.events.all().order_by('-timestamp').values('timestamp', 'state')
+        )
 
         serializer = serializers.SlaHistoryEventSerializer(data=events, many=True)
         serializer.is_valid(raise_exception=True)
@@ -299,6 +331,9 @@ class UserViewSet(structure_views.BaseServicePropertyViewSet):
         user.save()
         executors.UserUpdateExecutor.execute(user, updated_fields=['password'])
         return response.Response(
-            {'detail': 'password update was scheduled successfully', 'password': user.password},
-            status=status.HTTP_200_OK
+            {
+                'detail': 'password update was scheduled successfully',
+                'password': user.password,
+            },
+            status=status.HTTP_200_OK,
         )

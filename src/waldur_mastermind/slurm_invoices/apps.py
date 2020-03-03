@@ -12,8 +12,7 @@ class SlurmInvoicesConfig(AppConfig):
         from . import handlers, registrators as slurm_registrators
 
         registrators.RegistrationManager.add_registrator(
-            slurm_models.Allocation,
-            slurm_registrators.AllocationRegistrator
+            slurm_models.Allocation, slurm_registrators.AllocationRegistrator
         )
 
         signals.post_save.connect(

@@ -1,15 +1,16 @@
 import logging
 
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
-from django_fsm import transition, FSMIntegerField
+from django_fsm import FSMIntegerField, transition
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.fields import JSONField
-from waldur_core.core.models import UuidMixin, ErrorMessageMixin, BackendModelMixin
+from waldur_core.core.models import BackendModelMixin, ErrorMessageMixin, UuidMixin
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.structure.models import Customer
+
 from . import backend
 
 logger = logging.getLogger(__name__)
@@ -113,18 +114,34 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
             (PAYMENT_PENDING, _('Payment pending')),
         )
 
-    customer = models.ForeignKey(on_delete=models.CASCADE, to=Customer, related_name='paypal_invoices')
-    state = models.CharField(max_length=30, choices=States.CHOICES, default=States.DRAFT)
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE, to=Customer, related_name='paypal_invoices'
+    )
+    state = models.CharField(
+        max_length=30, choices=States.CHOICES, default=States.DRAFT
+    )
     invoice_date = models.DateField()
     end_date = models.DateField()
     pdf = models.FileField(upload_to='paypal-invoices', blank=True, null=True)
     number = models.CharField(max_length=30)
-    tax_percent = models.DecimalField(default=0, max_digits=4, decimal_places=2,
-                                      validators=[MinValueValidator(0), MaxValueValidator(100)])
+    tax_percent = models.DecimalField(
+        default=0,
+        max_digits=4,
+        decimal_places=2,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
     backend_id = models.CharField(max_length=128, blank=True)
-    issuer_details = JSONField(default=dict, blank=True, help_text=_('Stores data about invoice issuer'))
-    payment_details = JSONField(default=dict, blank=True, help_text=_('Stores data about customer payment details'))
-    month = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(12)])
+    issuer_details = JSONField(
+        default=dict, blank=True, help_text=_('Stores data about invoice issuer')
+    )
+    payment_details = JSONField(
+        default=dict,
+        blank=True,
+        help_text=_('Stores data about customer payment details'),
+    )
+    month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)]
+    )
     year = models.PositiveSmallIntegerField()
 
     def get_backend(self):
@@ -133,7 +150,12 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
     @classmethod
     def get_backend_fields(cls):
         return super(Invoice, cls).get_backend_fields() + (
-            'state', 'issuer_details', 'number', 'payment_details', 'backend_id')
+            'state',
+            'issuer_details',
+            'number',
+            'payment_details',
+            'backend_id',
+        )
 
     @classmethod
     def get_url_name(cls):
@@ -141,7 +163,9 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
 
     @property
     def file_name(self):
-        return '{}-invoice-{}.pdf'.format(self.invoice_date.strftime('%Y-%m-%d'), self.pk)
+        return '{}-invoice-{}.pdf'.format(
+            self.invoice_date.strftime('%Y-%m-%d'), self.pk
+        )
 
     @property
     def total(self):
@@ -171,14 +195,22 @@ class InvoiceItem(models.Model):
         HOURS = 'HOURS'
         AMOUNT = 'AMOUNT'
 
-        CHOICES = ((QUANTITY, _('Quantity')), (HOURS, _('Hours')), (AMOUNT, _('Amount')))
+        CHOICES = (
+            (QUANTITY, _('Quantity')),
+            (HOURS, _('Hours')),
+            (AMOUNT, _('Amount')),
+        )
 
-    invoice = models.ForeignKey(on_delete=models.CASCADE, to=Invoice, related_name='items')
+    invoice = models.ForeignKey(
+        on_delete=models.CASCADE, to=Invoice, related_name='items'
+    )
     price = models.DecimalField(max_digits=9, decimal_places=2)
     tax = models.DecimalField(max_digits=9, decimal_places=2, default=0)
     unit_price = models.DecimalField(max_digits=9, decimal_places=2)
     quantity = models.PositiveIntegerField(default=0)
-    unit_of_measure = models.CharField(max_length=30, choices=UnitsOfMeasure.CHOICES, default=UnitsOfMeasure.HOURS)
+    unit_of_measure = models.CharField(
+        max_length=30, choices=UnitsOfMeasure.CHOICES, default=UnitsOfMeasure.HOURS
+    )
     name = models.CharField(max_length=255)
     start = models.DateTimeField(null=True)
     end = models.DateTimeField(null=True)

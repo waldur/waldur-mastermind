@@ -1,6 +1,6 @@
-from django.urls import reverse
 import factory
 import factory.fuzzy
+from django.urls import reverse
 
 from waldur_core.quotas import models
 
@@ -21,5 +21,7 @@ class QuotaFactory(factory.DjangoModelFactory):
     def get_url(cls, quota, action=None):
         if quota is None:
             quota = QuotaFactory()
-        url = 'http://testserver' + reverse('quota-detail', kwargs={'uuid': quota.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'quota-detail', kwargs={'uuid': quota.uuid.hex}
+        )
         return url if action is None else url + action + '/'

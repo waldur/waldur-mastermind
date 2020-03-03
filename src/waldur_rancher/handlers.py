@@ -6,20 +6,24 @@ from django.db import transaction
 
 from waldur_core.core.models import StateMixin
 
-from . import tasks, models
+from . import models, tasks
 
 logger = logging.getLogger(__name__)
 
 
 def notify_create_user(sender, instance, password, created=False, **kwargs):
-    transaction.on_commit(lambda: tasks.notify_create_user.delay(instance.id,
-                                                                 password,
-                                                                 instance.settings.backend_url))
+    transaction.on_commit(
+        lambda: tasks.notify_create_user.delay(
+            instance.id, password, instance.settings.backend_url
+        )
+    )
 
 
 def delete_catalog_when_cluster_is_deleted(sender, instance, **kwargs):
     content_type = ContentType.objects.get_for_model(instance)
-    models.Catalog.objects.filter(content_type=content_type, object_id=instance.id).delete()
+    models.Catalog.objects.filter(
+        content_type=content_type, object_id=instance.id
+    ).delete()
 
 
 def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs):
@@ -35,12 +39,17 @@ def delete_node_if_related_instance_has_been_deleted(sender, instance, **kwargs)
 def delete_cluster_if_all_related_nodes_have_been_deleted(sender, instance, **kwargs):
     node = instance
 
-    if node.cluster.state == models.Cluster.States.DELETING and not node.cluster.node_set.count():
+    if (
+        node.cluster.state == models.Cluster.States.DELETING
+        and not node.cluster.node_set.count()
+    ):
         backend = node.cluster.get_backend()
         backend.delete_cluster(node.cluster)
 
 
-def set_error_state_for_node_if_related_instance_deleting_is_failed(sender, instance, created=False, **kwargs):
+def set_error_state_for_node_if_related_instance_deleting_is_failed(
+    sender, instance, created=False, **kwargs
+):
     if created:
         return
 
@@ -50,13 +59,18 @@ def set_error_state_for_node_if_related_instance_deleting_is_failed(sender, inst
     except ObjectDoesNotExist:
         return
 
-    if instance.tracker.has_changed('state') and instance.state == StateMixin.States.ERRED:
+    if (
+        instance.tracker.has_changed('state')
+        and instance.state == StateMixin.States.ERRED
+    ):
         node.state = models.Node.States.ERRED
         node.error_message = 'Deleting related VM has failed.'
         node.save()
 
 
-def set_error_state_for_cluster_if_related_node_deleting_is_failed(sender, instance, created=False, **kwargs):
+def set_error_state_for_cluster_if_related_node_deleting_is_failed(
+    sender, instance, created=False, **kwargs
+):
     node = instance
 
     if created:

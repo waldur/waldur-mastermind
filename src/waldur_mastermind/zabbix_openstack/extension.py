@@ -2,7 +2,6 @@ from waldur_core.core import WaldurExtension
 
 
 class ZabbixOpenStackExtension(WaldurExtension):
-
     @staticmethod
     def django_app():
         return 'waldur_mastermind.zabbix_openstack'
@@ -10,11 +9,13 @@ class ZabbixOpenStackExtension(WaldurExtension):
     @staticmethod
     def rest_urls():
         from .urls import register_in
+
         return register_in
 
     @staticmethod
     def django_urls():
         from .urls import urlpatterns
+
         return urlpatterns
 
     @staticmethod

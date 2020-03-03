@@ -7,9 +7,9 @@ from django.test import TestCase
 
 from waldur_core.structure import admin as structure_admin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.tests import fixtures, factories
+from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests.serializers import ServiceSerializer
-from waldur_core.structure.utils import get_all_services_field_info, FieldInfo
+from waldur_core.structure.utils import FieldInfo, get_all_services_field_info
 
 
 class MockRequest:
@@ -37,7 +37,9 @@ class override_serializer:
             self.fields = NotImplemented
 
         if ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS is not NotImplemented:
-            self.extra_fields = copy.copy(ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS)
+            self.extra_fields = copy.copy(
+                ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS
+            )
         else:
             self.extra_fields = NotImplemented
 
@@ -50,12 +52,10 @@ class override_serializer:
         }
 
         ServiceSerializer.SERVICE_ACCOUNT_FIELDS = {
-            field: ''
-            for field in self.field_info.fields
+            field: '' for field in self.field_info.fields
         }
         ServiceSerializer.SERVICE_ACCOUNT_EXTRA_FIELDS = {
-            field: ''
-            for field in self.field_info.extra_fields_required
+            field: '' for field in self.field_info.extra_fields_required
         }
         return ServiceSerializer
 
@@ -76,7 +76,7 @@ class ServiceSettingAdminTest(TestCase):
             fields_required=['backend_url'],
             fields=['backend_url'],
             extra_fields_required=[],
-            extra_fields_default={}
+            extra_fields_default={},
         )
 
         data = self.get_valid_data(backend_url='http://test.net')
@@ -87,7 +87,7 @@ class ServiceSettingAdminTest(TestCase):
             fields_required=['backend_url'],
             fields=['backend_url'],
             extra_fields_required=[],
-            extra_fields_default={}
+            extra_fields_default={},
         )
 
         data = self.get_valid_data()
@@ -98,7 +98,7 @@ class ServiceSettingAdminTest(TestCase):
             fields_required=['tenant'],
             fields=[],
             extra_fields_required=['tenant'],
-            extra_fields_default={}
+            extra_fields_default={},
         )
         data = self.get_valid_data(options=json.dumps({'tenant': 1}))
         self.assert_form_valid(fields, data)
@@ -108,7 +108,7 @@ class ServiceSettingAdminTest(TestCase):
             fields_required=['tenant'],
             fields=[],
             extra_fields_required=['tenant'],
-            extra_fields_default={}
+            extra_fields_default={},
         )
         data = self.get_valid_data()
         self.assert_form_invalid(fields, data)
@@ -118,17 +118,19 @@ class ServiceSettingAdminTest(TestCase):
             fields_required=['tenant'],
             fields=[],
             extra_fields_required=['tenant'],
-            extra_fields_default={}
+            extra_fields_default={},
         )
         data = self.get_valid_data(options='INVALID')
         self.assert_form_invalid(fields, data)
 
-    def test_if_required_field_is_not_filled_but_it_has_got_default_value_form_is_valid(self):
+    def test_if_required_field_is_not_filled_but_it_has_got_default_value_form_is_valid(
+        self,
+    ):
         fields = FieldInfo(
             fields_required=['tenant'],
             fields=[],
             extra_fields_required=['tenant'],
-            extra_fields_default={'tenant': 'tenant_id'}
+            extra_fields_default={'tenant': 'tenant_id'},
         )
         data = self.get_valid_data()
         self.assert_form_valid(fields, data)
@@ -149,7 +151,8 @@ class ServiceSettingAdminTest(TestCase):
         with override_serializer(fields):
             site = AdminSite()
             model_admin = structure_admin.PrivateServiceSettingsAdmin(
-                structure_models.PrivateServiceSettings, site)
+                structure_models.PrivateServiceSettings, site
+            )
             form = model_admin.get_form(request)(data)
             return form.is_valid()
 
@@ -216,7 +219,9 @@ class ProjectAdminTest(TestCase):
 
         # Act
         with self.assertRaises(ValueError):
-            self.change_project(support_users=[user1.pk, user2.pk], managers=[user1.pk, user2.pk])
+            self.change_project(
+                support_users=[user1.pk, user2.pk], managers=[user1.pk, user2.pk]
+            )
 
 
 class CustomerAdminTest(TestCase):
@@ -240,10 +245,9 @@ class CustomerAdminTest(TestCase):
         dt_date = dt_now.strftime("%Y-%m-%d")
         dt_time = dt_now.strftime("%H:%M:%S")
 
-        post_data.update(dict(
-            accounting_start_date_0=dt_date,
-            accounting_start_date_1=dt_time
-        ))
+        post_data.update(
+            dict(accounting_start_date_0=dt_date, accounting_start_date_1=dt_time)
+        )
 
         post_data.update(kwargs)
 
@@ -275,7 +279,9 @@ class CustomerAdminTest(TestCase):
         customer = self.change_customer(support_users=[user2.pk])
 
         # Asset
-        self.assertFalse(customer.has_user(user1, structure_models.CustomerRole.SUPPORT))
+        self.assertFalse(
+            customer.has_user(user1, structure_models.CustomerRole.SUPPORT)
+        )
         self.assertTrue(customer.has_user(user2, structure_models.CustomerRole.SUPPORT))
 
     def test_user_may_have_only_one_role_in_the_same_customer(self):
@@ -285,4 +291,6 @@ class CustomerAdminTest(TestCase):
 
         # Act
         with self.assertRaises(ValueError):
-            self.change_customer(support_users=[user1.pk, user2.pk], owners=[user1.pk, user2.pk])
+            self.change_customer(
+                support_users=[user1.pk, user2.pk], owners=[user1.pk, user2.pk]
+            )

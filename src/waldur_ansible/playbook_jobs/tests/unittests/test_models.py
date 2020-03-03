@@ -10,4 +10,9 @@ class PlaybookParameterTest(TestCase):
 
     def test_cannot_create_parameters_with_same_name_for_same_playbook(self):
         param = PlaybookParameterFactory(playbook=self.playbook)
-        self.assertRaises(IntegrityError, PlaybookParameterFactory, playbook=self.playbook, name=param.name)
+        self.assertRaises(
+            IntegrityError,
+            PlaybookParameterFactory,
+            playbook=self.playbook,
+            name=param.name,
+        )

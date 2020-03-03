@@ -3,18 +3,20 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, views, permissions, decorators, response, status, exceptions as rf_exceptions
+from rest_framework import decorators
+from rest_framework import exceptions as rf_exceptions
+from rest_framework import permissions, response, status, views, viewsets
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core import utils as core_utils
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import metadata as structure_metadata
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
 
-from . import filters, models, serializers, backend, exceptions, tasks
+from . import backend, exceptions, filters, models, serializers, tasks
 
 
 class CheckExtensionMixin(core_views.CheckExtensionMixin):
@@ -38,16 +40,26 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def check_related_resources(request, view, obj=None):
         if obj and obj.offering_set.exists():
-            raise rf_exceptions.ValidationError(_('Issue has offering. Please remove it first.'))
+            raise rf_exceptions.ValidationError(
+                _('Issue has offering. Please remove it first.')
+            )
 
     def can_create_user(request, view, obj=None):
         if not request.user.email:
-            raise rf_exceptions.ValidationError(_('Current user does not have email, '
-                                                  'therefore he is not allowed to create issues.'))
+            raise rf_exceptions.ValidationError(
+                _(
+                    'Current user does not have email, '
+                    'therefore he is not allowed to create issues.'
+                )
+            )
 
         if not request.user.full_name:
-            raise rf_exceptions.ValidationError(_('Current user does not have full_name, '
-                                                  'therefore he is not allowed to create issues.'))
+            raise rf_exceptions.ValidationError(
+                _(
+                    'Current user does not have full_name, '
+                    'therefore he is not allowed to create issues.'
+                )
+            )
 
     @transaction.atomic()
     def perform_create(self, serializer):
@@ -81,10 +93,14 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         # if it's a personal issue
         if not issue.customer and not issue.project and issue.caller == user:
             return
-        if issue.customer and issue.customer.has_user(user, structure_models.CustomerRole.OWNER):
+        if issue.customer and issue.customer.has_user(
+            user, structure_models.CustomerRole.OWNER
+        ):
             return
-        if (issue.project and (issue.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR) or
-                               issue.project.has_user(user, structure_models.ProjectRole.MANAGER))):
+        if issue.project and (
+            issue.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)
+            or issue.project.has_user(user, structure_models.ProjectRole.MANAGER)
+        ):
             return
         raise rf_exceptions.PermissionDenied()
 
@@ -155,7 +171,10 @@ class IsStaffOrSupportUser(permissions.BasePermission):
 class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.SupportUser.objects.all()
     lookup_field = 'uuid'
-    permission_classes = (permissions.IsAuthenticated, IsStaffOrSupportUser,)
+    permission_classes = (
+        permissions.IsAuthenticated,
+        IsStaffOrSupportUser,
+    )
     serializer_class = serializers.SupportUserSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SupportUserFilter
@@ -202,20 +221,26 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_serializer_class = serializers.OfferingCreateSerializer
-    create_permissions = [structure_permissions.is_owner,
-                          structure_permissions.is_manager,
-                          structure_permissions.is_administrator]
+    create_permissions = [
+        structure_permissions.is_owner,
+        structure_permissions.is_manager,
+        structure_permissions.is_administrator,
+    ]
 
     def offering_is_in_requested_state(offering):
         if offering.state != models.Offering.States.REQUESTED:
-            raise rf_exceptions.ValidationError(_('Offering must be in requested state.'))
+            raise rf_exceptions.ValidationError(
+                _('Offering must be in requested state.')
+            )
 
     @decorators.action(detail=True, methods=['post'])
     def complete(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return response.Response({'status': _('Offering is marked as completed.')}, status=status.HTTP_200_OK)
+        return response.Response(
+            {'status': _('Offering is marked as completed.')}, status=status.HTTP_200_OK
+        )
 
     complete_validators = [offering_is_in_requested_state]
     complete_permissions = [structure_permissions.is_staff]
@@ -227,18 +252,22 @@ class OfferingViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         offering.state = models.Offering.States.TERMINATED
         offering.terminated_at = timezone.now()
         offering.save()
-        return response.Response({'status': _('Offering is marked as terminated.')}, status=status.HTTP_200_OK)
+        return response.Response(
+            {'status': _('Offering is marked as terminated.')},
+            status=status.HTTP_200_OK,
+        )
 
     terminate_permissions = [structure_permissions.is_staff]
 
     update_permissions = partial_update_permissions = [structure_permissions.is_staff]
 
     destroy_permissions = [structure_permissions.is_staff]
-    destroy_validators = [core_validators.StateValidator(models.Offering.States.TERMINATED)]
+    destroy_validators = [
+        core_validators.StateValidator(models.Offering.States.TERMINATED)
+    ]
 
 
-class AttachmentViewSet(CheckExtensionMixin,
-                        core_views.ActionsViewSet):
+class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Attachment.objects.all()
     filterset_class = filters.AttachmentFilter
     filter_backends = [DjangoFilterBackend]

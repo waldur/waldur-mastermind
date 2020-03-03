@@ -4,8 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
-from waldur_core.core.fields import JSONField
 from waldur_core.core import models as core_models
+from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
 
 from . import managers
@@ -13,7 +13,10 @@ from . import managers
 
 class ZabbixService(structure_models.Service):
     projects = models.ManyToManyField(
-        structure_models.Project, related_name='zabbix_services', through='ZabbixServiceProjectLink')
+        structure_models.Project,
+        related_name='zabbix_services',
+        through='ZabbixServiceProjectLink',
+    )
 
     @classmethod
     def get_url_name(cls):
@@ -53,15 +56,27 @@ class Host(structure_models.NewResource):
 
         CHOICES = ((MONITORED, 'monitored'), (UNMONITORED, 'unmonitored'))
 
-    service_project_link = models.ForeignKey(ZabbixServiceProjectLink, related_name='hosts', on_delete=models.PROTECT)
-    visible_name = models.CharField(_('visible name'), max_length=VISIBLE_NAME_MAX_LENGTH)
+    service_project_link = models.ForeignKey(
+        ZabbixServiceProjectLink, related_name='hosts', on_delete=models.PROTECT
+    )
+    visible_name = models.CharField(
+        _('visible name'), max_length=VISIBLE_NAME_MAX_LENGTH
+    )
     interface_parameters = JSONField(blank=True)
     host_group_name = models.CharField(_('host group name'), max_length=64, blank=True)
-    error = models.CharField(max_length=500, blank=True, help_text='Error text if Zabbix agent is unavailable.')
-    status = models.CharField(max_length=30, choices=Statuses.CHOICES, default=Statuses.MONITORED)
+    error = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text='Error text if Zabbix agent is unavailable.',
+    )
+    status = models.CharField(
+        max_length=30, choices=Statuses.CHOICES, default=Statuses.MONITORED
+    )
     templates = models.ManyToManyField('Template', related_name='hosts')
 
-    content_type = models.ForeignKey(on_delete=models.CASCADE, to=ContentType, null=True)
+    content_type = models.ForeignKey(
+        on_delete=models.CASCADE, to=ContentType, null=True
+    )
     object_id = models.PositiveIntegerField(null=True)
     scope = GenericForeignKey('content_type', 'object_id')
 
@@ -77,13 +92,23 @@ class Host(structure_models.NewResource):
     def clean(self):
         # It is impossible to mark service and name unique together at DB level, because host is connected with service
         # through SPL.
-        same_service_hosts = Host.objects.filter(service_project_link__service=self.service_project_link.service)
+        same_service_hosts = Host.objects.filter(
+            service_project_link__service=self.service_project_link.service
+        )
         if same_service_hosts.filter(name=self.name).exclude(pk=self.pk).exists():
             raise ValidationError(
-                'Host with name "%s" already exists at this service. Host name should be unique.' % self.name)
-        if same_service_hosts.filter(visible_name=self.visible_name).exclude(pk=self.pk).exists():
-            raise ValidationError('Host with visible_name "%s" already exists at this service.'
-                                  ' Host name should be unique.' % self.visible_name)
+                'Host with name "%s" already exists at this service. Host name should be unique.'
+                % self.name
+            )
+        if (
+            same_service_hosts.filter(visible_name=self.visible_name)
+            .exclude(pk=self.pk)
+            .exists()
+        ):
+            raise ValidationError(
+                'Host with visible_name "%s" already exists at this service.'
+                ' Host name should be unique.' % self.visible_name
+            )
 
     @classmethod
     def get_visible_name_from_scope(cls, scope):
@@ -116,12 +141,14 @@ class Item(models.Model):
             (CHAR, 'Character'),
             (LOG, 'Log'),
             (INTEGER, 'Numeric (unsigned)'),
-            (TEXT, 'Text')
+            (TEXT, 'Text'),
         )
 
     key = models.CharField(max_length=255)
     name = models.CharField(max_length=255)
-    template = models.ForeignKey(on_delete=models.CASCADE, to=Template, related_name='items')
+    template = models.ForeignKey(
+        on_delete=models.CASCADE, to=Template, related_name='items'
+    )
     backend_id = models.CharField(max_length=64)
     value_type = models.IntegerField(choices=ValueTypes.CHOICES)
     units = models.CharField(max_length=255)
@@ -136,7 +163,9 @@ class Item(models.Model):
 
 
 class Trigger(structure_models.ServiceProperty):
-    template = models.ForeignKey(on_delete=models.CASCADE, to=Template, related_name='triggers')
+    template = models.ForeignKey(
+        on_delete=models.CASCADE, to=Template, related_name='triggers'
+    )
     # https://www.zabbix.com/documentation/3.4/manual/api/reference/trigger/object
     priority = models.IntegerField(default=0)
 
@@ -198,21 +227,36 @@ class ITService(structure_models.NewResource):
         CHOICES = (
             (SKIP, 'do not calculate'),
             (ANY, 'problem, if at least one child has a problem'),
-            (ALL, 'problem, if all children have problems')
+            (ALL, 'problem, if all children have problems'),
         )
 
     service_project_link = models.ForeignKey(
-        ZabbixServiceProjectLink, related_name='itservices', on_delete=models.PROTECT)
-    host = models.ForeignKey(on_delete=models.CASCADE, to=Host, related_name='itservices', blank=True, null=True)
+        ZabbixServiceProjectLink, related_name='itservices', on_delete=models.PROTECT
+    )
+    host = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Host,
+        related_name='itservices',
+        blank=True,
+        null=True,
+    )
     is_main = models.BooleanField(
-        default=True, help_text='Main IT service SLA will be added to hosts resource as monitoring item.')
+        default=True,
+        help_text='Main IT service SLA will be added to hosts resource as monitoring item.',
+    )
 
-    algorithm = models.PositiveSmallIntegerField(choices=Algorithm.CHOICES, default=Algorithm.SKIP)
+    algorithm = models.PositiveSmallIntegerField(
+        choices=Algorithm.CHOICES, default=Algorithm.SKIP
+    )
     sort_order = models.PositiveSmallIntegerField(default=1)
-    agreed_sla = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True)
+    agreed_sla = models.DecimalField(
+        max_digits=6, decimal_places=4, null=True, blank=True
+    )
 
     backend_trigger_id = models.CharField(max_length=64, null=True, blank=True)
-    trigger = models.ForeignKey(on_delete=models.CASCADE, to=Trigger, null=True, blank=True)
+    trigger = models.ForeignKey(
+        on_delete=models.CASCADE, to=Trigger, null=True, blank=True
+    )
 
     class Meta:
         unique_together = ('host', 'is_main')
@@ -242,7 +286,9 @@ class SlaHistoryEvent(models.Model):
         ('D', 'UP'),
     )
 
-    history = models.ForeignKey(on_delete=models.CASCADE, to=SlaHistory, related_name='events')
+    history = models.ForeignKey(
+        on_delete=models.CASCADE, to=SlaHistory, related_name='events'
+    )
     timestamp = models.IntegerField()
     state = models.CharField(max_length=1, choices=EVENTS)
 

@@ -12,7 +12,9 @@ class PackageTemplatePriceTest(test.APITransactionTestCase):
         prices = (Decimal('1.411'), Decimal('2.224'), Decimal('3.312'))
         self.daily_price = Decimal('6.95')
         self.monthly_price = Decimal('208.50')
-        for price, component in zip(prices, list(self.package_template.components.all())):
+        for price, component in zip(
+            prices, list(self.package_template.components.all())
+        ):
             component.price = price
             component.save()
 

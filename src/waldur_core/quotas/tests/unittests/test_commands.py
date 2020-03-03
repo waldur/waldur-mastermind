@@ -5,7 +5,6 @@ from waldur_core.structure.tests import factories as structure_factories
 
 
 class RecalculateCommandTest(TestCase):
-
     def test_counter_quota_recalculation(self):
         customer = structure_factories.CustomerFactory()
         structure_factories.ProjectFactory(customer=customer)

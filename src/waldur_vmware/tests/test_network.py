@@ -1,10 +1,11 @@
 from unittest import mock
+
 from rest_framework import status, test
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 
-from . import factories
 from .. import backend, models
+from . import factories
 
 
 class NetworkGetTest(test.APITransactionTestCase):
@@ -18,20 +19,16 @@ class NetworkGetTest(test.APITransactionTestCase):
         network_4 = factories.NetworkFactory()
 
         factories.CustomerNetworkFactory(
-            network=network_1,
-            customer=self.fixture.customer,
+            network=network_1, customer=self.fixture.customer,
         )
         factories.CustomerNetworkFactory(
-            network=network_2,
-            customer=self.fixture.customer,
+            network=network_2, customer=self.fixture.customer,
         )
         factories.CustomerNetworkFactory(
-            network=network_3,
-            customer=self.fixture_2.customer,
+            network=network_3, customer=self.fixture_2.customer,
         )
         factories.CustomerNetworkFactory(
-            network=network_4,
-            customer=self.fixture_2.customer,
+            network=network_4, customer=self.fixture_2.customer,
         )
         self.url = factories.NetworkFactory.get_list_url()
 
@@ -43,7 +40,9 @@ class NetworkGetTest(test.APITransactionTestCase):
 
     def test_filter_network_list(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {'customer_uuid': self.fixture.customer.uuid.hex})
+        response = self.client.get(
+            self.url, {'customer_uuid': self.fixture.customer.uuid.hex}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 2)
 
@@ -80,7 +79,7 @@ class NetworkPullTest(test.APITransactionTestCase):
             backend_network = {
                 'name': 'network_%s' % i,
                 'network': 'network_%s' % i,
-                'type': 'STANDARD_PORTGROUP'
+                'type': 'STANDARD_PORTGROUP',
             }
             networks.append(backend_network)
 

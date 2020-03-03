@@ -1,7 +1,7 @@
 import base64
 import collections
-from io import BytesIO
 import json
+from io import BytesIO
 from unittest import mock
 
 import jira
@@ -81,19 +81,29 @@ class TestJiraWebHooks(APITransactionTestCase):
         self.assertTrue(self._call_update_attachment(mock_jira))
 
     def _call_update_attachment(self, mock_jira):
-        return filter(lambda x: x[0] == '().update_attachment_from_jira', mock_jira.mock_calls)
+        return filter(
+            lambda x: x[0] == '().update_attachment_from_jira', mock_jira.mock_calls
+        )
 
     def _call_create_comment(self, mock_jira):
-        return filter(lambda x: x[0] == '().create_comment_from_jira', mock_jira.mock_calls)
+        return filter(
+            lambda x: x[0] == '().create_comment_from_jira', mock_jira.mock_calls
+        )
 
     def _call_update_comment(self, mock_jira):
-        return filter(lambda x: x[0] == '().update_comment_from_jira', mock_jira.mock_calls)
+        return filter(
+            lambda x: x[0] == '().update_comment_from_jira', mock_jira.mock_calls
+        )
 
     def _call_delete_comment(self, mock_jira):
-        return filter(lambda x: x[0] == '().delete_comment_from_jira', mock_jira.mock_calls)
+        return filter(
+            lambda x: x[0] == '().delete_comment_from_jira', mock_jira.mock_calls
+        )
 
     def _call_update_issue(self, mock_jira):
-        return filter(lambda x: x[0] == '().update_issue_from_jira', mock_jira.mock_calls)
+        return filter(
+            lambda x: x[0] == '().update_issue_from_jira', mock_jira.mock_calls
+        )
 
 
 MockSupportUser = collections.namedtuple('MockSupportUser', ['key'])
@@ -107,7 +117,9 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.issue = factories.IssueFactory()
 
         backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
-        self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
+        self.backend_issue = jira.resources.Issue(
+            {'server': 'example.com'}, None, backend_issue_raw
+        )
 
         self.impact_field_id = 'customfield_10116'
         self.first_response_sla = timezone.now()
@@ -118,7 +130,9 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
 
         self.backend = ServiceDeskBackend()
         self.backend.get_backend_issue = mock.Mock(return_value=self.backend_issue)
-        self.backend._get_first_sla_field = mock.Mock(return_value=self.first_response_sla)
+        self.backend._get_first_sla_field = mock.Mock(
+            return_value=self.first_response_sla
+        )
         self.backend.get_field_id_by_name = mock.Mock(side_effect=side_effect)
 
     def update_issue_from_jira(self):
@@ -176,7 +190,9 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.update_issue_from_jira()
         self.assertEqual(self.issue.status, self.backend_issue.fields.status.name)
 
-    def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(self):
+    def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(
+        self,
+    ):
         self.update_issue_from_jira()
         self.update_issue_from_jira()
         self.assertEqual(len(mail.outbox), 0)
@@ -203,16 +219,24 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
         self.comment = factories.CommentFactory()
 
         backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
-        self.backend_comment = jira.resources.Comment({'server': 'example.com'}, None, backend_comment_raw)
+        self.backend_comment = jira.resources.Comment(
+            {'server': 'example.com'}, None, backend_comment_raw
+        )
         self.backend = ServiceDeskBackend()
 
         self.internal = {'value': {'internal': False}}
-        path = mock.patch.object(ServiceDeskBackend, '_get_property',
-                                 new=mock.Mock(return_value=self.internal))
+        path = mock.patch.object(
+            ServiceDeskBackend,
+            '_get_property',
+            new=mock.Mock(return_value=self.internal),
+        )
         path.start()
 
-        path = mock.patch.object(ServiceDeskBackend, 'get_backend_comment',
-                                 new=mock.Mock(return_value=self.backend_comment))
+        path = mock.patch.object(
+            ServiceDeskBackend,
+            'get_backend_comment',
+            new=mock.Mock(return_value=self.backend_comment),
+        )
         path.start()
 
     def tearDown(self):
@@ -221,7 +245,10 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
     def test_update_comment_description(self):
         self.backend.update_comment_from_jira(self.comment)
         self.comment.refresh_from_db()
-        self.assertEqual(self.comment.description, self.comment.clean_message(self.backend_comment.body))
+        self.assertEqual(
+            self.comment.description,
+            self.comment.clean_message(self.backend_comment.body),
+        )
 
     def test_update_comment_is_public(self):
         self.internal['value']['internal'] = True
@@ -230,7 +257,9 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
         self.comment.refresh_from_db()
         self.assertEqual(self.comment.is_public, False)
 
-    def test_webhook_cleans_up_user_info_and_does_not_update_comment_if_it_is_not_changed(self):
+    def test_webhook_cleans_up_user_info_and_does_not_update_comment_if_it_is_not_changed(
+        self,
+    ):
         expected_comment_body = self.comment.description
         jira_comment_body = '[Luke Skywalker 19BBY-TA-T16]: %s' % expected_comment_body
         self.backend_comment.body = jira_comment_body
@@ -247,25 +276,40 @@ class TestUpdateAttachmentFromJira(APITransactionTestCase):
         self.issue = factories.IssueFactory()
 
         backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
-        self.backend_issue = jira.resources.Issue({'server': 'example.com'}, None, backend_issue_raw)
+        self.backend_issue = jira.resources.Issue(
+            {'server': 'example.com'}, None, backend_issue_raw
+        )
 
         backend_attachment_raw = json.loads(load_resource('jira_attachment_raw.json'))
-        self.backend_attachment = jira.resources.Attachment({'server': 'example.com'}, None, backend_attachment_raw)
+        self.backend_attachment = jira.resources.Attachment(
+            {'server': 'example.com'}, None, backend_attachment_raw
+        )
         self.backend_issue.fields.attachment.append(self.backend_attachment)
 
         self.backend = ServiceDeskBackend()
 
-        path = mock.patch.object(ServiceDeskBackend, 'get_backend_issue',
-                                 new=mock.Mock(return_value=self.backend_issue))
+        path = mock.patch.object(
+            ServiceDeskBackend,
+            'get_backend_issue',
+            new=mock.Mock(return_value=self.backend_issue),
+        )
         path.start()
 
-        path = mock.patch.object(ServiceDeskBackend, 'get_backend_attachment',
-                                 new=mock.Mock(return_value=self.backend_attachment))
+        path = mock.patch.object(
+            ServiceDeskBackend,
+            'get_backend_attachment',
+            new=mock.Mock(return_value=self.backend_attachment),
+        )
         path.start()
 
-        file_content = BytesIO(base64.b64decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'))
-        path = mock.patch.object(AttachmentSynchronizer, '_download_file',
-                                 new=mock.Mock(return_value=file_content))
+        file_content = BytesIO(
+            base64.b64decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
+        )
+        path = mock.patch.object(
+            AttachmentSynchronizer,
+            '_download_file',
+            new=mock.Mock(return_value=file_content),
+        )
         path.start()
 
     def tearDown(self):

@@ -1,14 +1,16 @@
+from unittest import mock
+
 from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
 from mock_django import mock_signal_receiver
 from rest_framework import status, test
-from unittest import mock
 
 from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure import executors, models, signals, views
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
-from waldur_core.structure.tests import factories, fixtures, models as test_models
+from waldur_core.structure.tests import factories, fixtures
+from waldur_core.structure.tests import models as test_models
 
 
 class ProjectPermissionGrantTest(TransactionTestCase):
@@ -19,13 +21,17 @@ class ProjectPermissionGrantTest(TransactionTestCase):
     def test_add_user_returns_created_if_grant_didnt_exist_before(self):
         _, created = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
 
-        self.assertTrue(created, 'Project permission should have been reported as created')
+        self.assertTrue(
+            created, 'Project permission should have been reported as created'
+        )
 
     def test_add_user_returns_not_created_if_grant_existed_before(self):
         self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
         _, created = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
 
-        self.assertFalse(created, 'Project permission should have been reported as not created')
+        self.assertFalse(
+            created, 'Project permission should have been reported as not created'
+        )
 
     def test_add_user_returns_membership(self):
         membership, _ = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
@@ -33,7 +39,9 @@ class ProjectPermissionGrantTest(TransactionTestCase):
         self.assertEqual(membership.user, self.user)
         self.assertEqual(membership.project, self.project)
 
-    def test_add_user_returns_same_membership_for_consequent_calls_with_same_arguments(self):
+    def test_add_user_returns_same_membership_for_consequent_calls_with_same_arguments(
+        self,
+    ):
         membership1, _ = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
         membership2, _ = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
 
@@ -48,7 +56,6 @@ class ProjectPermissionGrantTest(TransactionTestCase):
             user=self.user,
             role=ProjectRole.ADMINISTRATOR,
             created_by=None,
-
             sender=Project,
             signal=signals.structure_role_granted,
         )
@@ -59,7 +66,9 @@ class ProjectPermissionGrantTest(TransactionTestCase):
         with mock_signal_receiver(signals.structure_role_granted) as receiver:
             self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
 
-        self.assertFalse(receiver.called, 'structure_role_granted should not be emitted')
+        self.assertFalse(
+            receiver.called, 'structure_role_granted should not be emitted'
+        )
 
 
 class ProjectPermissionRevokeTest(TransactionTestCase):
@@ -68,7 +77,9 @@ class ProjectPermissionRevokeTest(TransactionTestCase):
         self.user = factories.UserFactory()
         self.removed_by = factories.UserFactory()
 
-    def test_remove_user_emits_structure_role_revoked_for_each_role_user_had_in_project(self):
+    def test_remove_user_emits_structure_role_revoked_for_each_role_user_had_in_project(
+        self,
+    ):
         self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
         self.project.add_user(self.user, ProjectRole.MANAGER)
 
@@ -81,17 +92,14 @@ class ProjectPermissionRevokeTest(TransactionTestCase):
                 user=self.user,
                 removed_by=self.removed_by,
                 role=ProjectRole.MANAGER,
-
                 sender=Project,
                 signal=signals.structure_role_revoked,
             ),
-
             mock.call(
                 structure=self.project,
                 user=self.user,
                 removed_by=self.removed_by,
                 role=ProjectRole.ADMINISTRATOR,
-
                 sender=Project,
                 signal=signals.structure_role_revoked,
             ),
@@ -99,10 +107,7 @@ class ProjectPermissionRevokeTest(TransactionTestCase):
 
         receiver.assert_has_calls(calls, any_order=True)
 
-        self.assertEqual(
-            receiver.call_count, 2,
-            'Excepted exactly 2 signals emitted'
-        )
+        self.assertEqual(receiver.call_count, 2, 'Excepted exactly 2 signals emitted')
 
     def test_remove_user_emits_structure_role_revoked_if_grant_existed_before(self):
         self.project.add_user(self.user, ProjectRole.MANAGER)
@@ -114,13 +119,14 @@ class ProjectPermissionRevokeTest(TransactionTestCase):
             structure=self.project,
             user=self.user,
             role=ProjectRole.MANAGER,
-
             sender=Project,
             signal=signals.structure_role_revoked,
             removed_by=self.removed_by,
         )
 
-    def test_remove_user_doesnt_emit_structure_role_revoked_if_grant_didnt_exist_before(self):
+    def test_remove_user_doesnt_emit_structure_role_revoked_if_grant_didnt_exist_before(
+        self,
+    ):
         with mock_signal_receiver(signals.structure_role_revoked) as receiver:
             self.project.remove_user(self.user, ProjectRole.MANAGER)
 
@@ -136,7 +142,9 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         data = {'name': 'New project name'}
-        response = self.client.patch(factories.ProjectFactory.get_url(self.fixture.project), data)
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(self.fixture.project), data
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('New project name', response.data['name'])
         self.assertTrue(Project.objects.filter(name=data['name']).exists())
@@ -212,14 +220,23 @@ class ProjectCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         data = self._get_valid_project_payload(self.fixture.customer)
         certificate = factories.ServiceCertificationFactory()
-        data['certifications'] = [{"url": factories.ServiceCertificationFactory.get_url(certificate)}]
+        data['certifications'] = [
+            {"url": factories.ServiceCertificationFactory.get_url(certificate)}
+        ]
 
         response = self.client.post(factories.ProjectFactory.get_list_url(), data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Project.objects.filter(name=data['name'], customer=self.fixture.customer).exists())
-        self.assertTrue(models.ServiceCertification.objects.filter(projects__name=data['name'],
-                                                                   name=certificate.name).exists())
+        self.assertTrue(
+            Project.objects.filter(
+                name=data['name'], customer=self.fixture.customer
+            ).exists()
+        )
+        self.assertTrue(
+            models.ServiceCertification.objects.filter(
+                projects__name=data['name'], name=certificate.name
+            ).exists()
+        )
 
     def _get_valid_project_payload(self, customer):
         return {
@@ -259,48 +276,69 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         self.projects['admin'].add_user(self.users['admin'], ProjectRole.ADMINISTRATOR)
         self.projects['manager'].add_user(self.users['manager'], ProjectRole.MANAGER)
 
-        self.projects['admin'].add_user(self.users['multirole'], ProjectRole.ADMINISTRATOR)
+        self.projects['admin'].add_user(
+            self.users['multirole'], ProjectRole.ADMINISTRATOR
+        )
         self.projects['manager'].add_user(self.users['multirole'], ProjectRole.MANAGER)
-        self.projects['owner'].customer.add_user(self.users['owner'], CustomerRole.OWNER)
+        self.projects['owner'].customer.add_user(
+            self.users['owner'], CustomerRole.OWNER
+        )
 
     # TODO: Test for customer owners
     # Creation tests
     def test_anonymous_user_cannot_create_project(self):
         for old_project in self.projects.values():
             project = factories.ProjectFactory(customer=old_project.customer)
-            response = self.client.post(reverse('project-list'), self._get_valid_payload(project))
+            response = self.client.post(
+                reverse('project-list'), self._get_valid_payload(project)
+            )
             self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_user_cannot_create_project_within_customer_he_doesnt_own_but_admins_its_project(self):
+    def test_user_cannot_create_project_within_customer_he_doesnt_own_but_admins_its_project(
+        self,
+    ):
         self.client.force_authenticate(user=self.users['admin'])
 
         customer = self.projects['admin'].customer
 
         project = factories.ProjectFactory(customer=customer)
-        response = self.client.post(reverse('project-list'), self._get_valid_payload(project))
+        response = self.client.post(
+            reverse('project-list'), self._get_valid_payload(project)
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertDictContainsSubset(
-            {'detail': 'You do not have permission to perform this action.'}, response.data)
+            {'detail': 'You do not have permission to perform this action.'},
+            response.data,
+        )
 
-    def test_user_cannot_create_project_within_customer_he_doesnt_own_but_manages_its_project(self):
+    def test_user_cannot_create_project_within_customer_he_doesnt_own_but_manages_its_project(
+        self,
+    ):
         self.client.force_authenticate(user=self.users['manager'])
 
         customer = self.projects['manager'].customer
 
         project = factories.ProjectFactory(customer=customer)
-        response = self.client.post(reverse('project-list'), self._get_valid_payload(project))
+        response = self.client.post(
+            reverse('project-list'), self._get_valid_payload(project)
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertDictContainsSubset(
-            {'detail': 'You do not have permission to perform this action.'}, response.data)
+            {'detail': 'You do not have permission to perform this action.'},
+            response.data,
+        )
 
     def test_user_cannot_create_project_within_customer_he_is_not_affiliated_with(self):
         self.client.force_authenticate(user=self.users['admin'])
 
         project = factories.ProjectFactory()
-        response = self.client.post(reverse('project-list'), self._get_valid_payload(project))
+        response = self.client.post(
+            reverse('project-list'), self._get_valid_payload(project)
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertDictContainsSubset(
-            {'customer': ['Invalid hyperlink - Object does not exist.']}, response.data)
+            {'customer': ['Invalid hyperlink - Object does not exist.']}, response.data
+        )
 
     def test_user_can_create_project_within_customer_he_owns(self):
         self.client.force_authenticate(user=self.users['owner'])
@@ -308,7 +346,9 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         customer = self.projects['owner'].customer
 
         project = factories.ProjectFactory(customer=customer)
-        response = self.client.post(reverse('project-list'), self._get_valid_payload(project))
+        response = self.client.post(
+            reverse('project-list'), self._get_valid_payload(project)
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_staff_user_can_create_project(self):
@@ -318,7 +358,9 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         customer = self.projects['inaccessible'].customer
 
         project = factories.ProjectFactory(customer=customer)
-        response = self.client.post(reverse('project-list'), self._get_valid_payload(project))
+        response = self.client.post(
+            reverse('project-list'), self._get_valid_payload(project)
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     # List filtration tests
@@ -347,8 +389,12 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         managed_project_url = self._get_project_url(self.projects['manager'])
         administrated_project_url = self._get_project_url(self.projects['admin'])
 
-        self.assertIn(managed_project_url, [resource['url'] for resource in response.data])
-        self.assertNotIn(administrated_project_url, [resource['url'] for resource in response.data])
+        self.assertIn(
+            managed_project_url, [resource['url'] for resource in response.data]
+        )
+        self.assertNotIn(
+            administrated_project_url, [resource['url'] for resource in response.data]
+        )
 
     # Direct instance access tests
     def test_anonymous_user_cannot_access_project(self):
@@ -428,9 +474,13 @@ class ProjectUsersListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
-        self.assertSetEqual({user['role'] for user in response.data}, {'admin', 'manager'})
-        self.assertSetEqual({user['uuid'] for user in response.data},
-                            {self.admin.uuid.hex, self.manager.uuid.hex})
+        self.assertSetEqual(
+            {user['role'] for user in response.data}, {'admin', 'manager'}
+        )
+        self.assertSetEqual(
+            {user['uuid'] for user in response.data},
+            {self.admin.uuid.hex, self.manager.uuid.hex},
+        )
 
     def test_user_can_not_list_project_users(self):
         self.client.force_authenticate(self.fixture.user)
@@ -471,7 +521,9 @@ class ProjectCertificationUpdateTest(test.APITransactionTestCase):
         self.associated_certification = factories.ServiceCertificationFactory()
         self.project.certifications.add(self.associated_certification)
         self.new_certification = factories.ServiceCertificationFactory()
-        self.url = factories.ProjectFactory.get_url(self.project, action='update_certifications')
+        self.url = factories.ProjectFactory.get_url(
+            self.project, action='update_certifications'
+        )
 
     @data('staff', 'owner')
     def test_user_can_update_certifications(self, user):
@@ -481,8 +533,14 @@ class ProjectCertificationUpdateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(self.project.certifications.filter(pk=self.new_certification.pk).exists())
-        self.assertFalse(self.project.certifications.filter(pk=self.associated_certification.pk).exists())
+        self.assertTrue(
+            self.project.certifications.filter(pk=self.new_certification.pk).exists()
+        )
+        self.assertFalse(
+            self.project.certifications.filter(
+                pk=self.associated_certification.pk
+            ).exists()
+        )
 
     @data('global_support', 'manager')
     def test_user_cannot_update_certifications_if_he_has_no_permissions(self, user):
@@ -494,21 +552,26 @@ class ProjectCertificationUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def _get_payload(self, *certifications):
-        urls = [{"url": factories.ServiceCertificationFactory.get_url(c)} for c in certifications]
-        return {
-            'certifications': urls
-        }
+        urls = [
+            {"url": factories.ServiceCertificationFactory.get_url(c)}
+            for c in certifications
+        ]
+        return {'certifications': urls}
 
 
 class ProjectCertificationGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
 
-    def test_service_certification_state_is_ok_if_project_certifications_is_a_subset_of_service_certifications(self):
+    def test_service_certification_state_is_ok_if_project_certifications_is_a_subset_of_service_certifications(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         link = self.fixture.service_project_link
         project_certifications = [factories.ServiceCertificationFactory()]
-        service_certifications = project_certifications + [factories.ServiceCertificationFactory()]
+        service_certifications = project_certifications + [
+            factories.ServiceCertificationFactory()
+        ]
         link.service.settings.certifications.add(*service_certifications)
         link.project.certifications.add(*project_certifications)
         url = factories.ProjectFactory.get_url(link.project)
@@ -519,7 +582,9 @@ class ProjectCertificationGetTest(test.APITransactionTestCase):
         self.assertIsNotNone('validation_state', response.data['services'][0])
         self.assertEqual(response.data['services'][0]['validation_state'], "OK")
 
-    def test_certification_state_is_erred_if_project_certifications_is_not_a_subset_of_service_certifications(self):
+    def test_certification_state_is_erred_if_project_certifications_is_not_a_subset_of_service_certifications(
+        self,
+    ):
         self.client.force_authenticate(self.fixture.owner)
         link = self.fixture.service_project_link
         service_certification = factories.ServiceCertificationFactory()
@@ -548,7 +613,10 @@ class ProjectCertificationGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNotNone('validation_state', response.data['services'][0])
         self.assertEqual(response.data['services'][0]['validation_state'], "ERRED")
-        self.assertIn(project_certification.name, response.data['services'][0]['validation_message'])
+        self.assertIn(
+            project_certification.name,
+            response.data['services'][0]['validation_message'],
+        )
 
 
 @ddt
@@ -559,9 +627,7 @@ class ProjectQuotasTest(test.APITransactionTestCase):
 
     def update_quota(self):
         url = quota_factories.QuotaFactory.get_url(self.quota)
-        return self.client.put(url, {
-            'limit': 100
-        })
+        return self.client.put(url, {'limit': 100})
 
     @data('staff', 'owner')
     def test_authorized_user_can_edit_project_quota(self, user):
@@ -590,9 +656,7 @@ class TestExecutor(executors.BaseCleanupExecutor):
 
 @mock.patch('waldur_core.core.WaldurExtension.get_extensions')
 class ProjectCleanupTest(test.APITransactionTestCase):
-
     def test_executors_are_sorted_in_topological_order(self, get_extensions):
-
         class ParentExecutor(executors.BaseCleanupExecutor):
             pass
 
@@ -611,8 +675,10 @@ class ProjectCleanupTest(test.APITransactionTestCase):
 
         get_extensions.return_value = [ParentExtension, ChildExtension]
 
-        self.assertEqual([ChildExecutor, ParentExecutor],
-                         executors.ProjectCleanupExecutor.get_executors())
+        self.assertEqual(
+            [ChildExecutor, ParentExecutor],
+            executors.ProjectCleanupExecutor.get_executors(),
+        )
 
     def test_project_without_resources_is_deleted(self, get_extensions):
         fixture = fixtures.ServiceFixture()
@@ -623,7 +689,9 @@ class ProjectCleanupTest(test.APITransactionTestCase):
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
 
-    def test_project_with_resources_without_executors_is_not_deleted(self, get_extensions):
+    def test_project_with_resources_without_executors_is_not_deleted(
+        self, get_extensions
+    ):
         fixture = fixtures.ServiceFixture()
         project = fixture.project
         resource = fixture.resource
@@ -632,7 +700,9 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertTrue(models.Project.objects.filter(id=project.id).exists())
-        self.assertTrue(test_models.TestNewInstance.objects.filter(id=resource.id).exists())
+        self.assertTrue(
+            test_models.TestNewInstance.objects.filter(id=resource.id).exists()
+        )
 
     def test_project_with_resources_and_executors_is_deleted(self, get_extensions):
         fixture = fixtures.ServiceFixture()
@@ -648,4 +718,6 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         executors.ProjectCleanupExecutor.execute(fixture.project, is_async=False)
 
         self.assertFalse(models.Project.objects.filter(id=project.id).exists())
-        self.assertFalse(test_models.TestNewInstance.objects.filter(id=resource.id).exists())
+        self.assertFalse(
+            test_models.TestNewInstance.objects.filter(id=resource.id).exists()
+        )

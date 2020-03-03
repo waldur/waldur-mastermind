@@ -1,19 +1,21 @@
-from croniter import croniter
 import datetime
-import freezegun
 
+import freezegun
+from croniter import croniter
 from django.conf import settings
 from django.test import TestCase
 from django.utils import timezone
 
-from .. import factories, fixtures
 from ... import models
+from .. import factories, fixtures
 
 
 class InstanceTest(TestCase):
     def test_instance_size_is_sum_of_volumes_size(self):
         fixture = fixtures.OpenStackTenantFixture()
-        expected_size = sum(fixture.instance.volumes.all().values_list('size', flat=True))
+        expected_size = sum(
+            fixture.instance.volumes.all().values_list('size', flat=True)
+        )
         self.assertEqual(fixture.instance.size, expected_size)
 
 
@@ -82,11 +84,13 @@ class BackupScheduleTest(TestCase):
         expected = croniter(schedule, today).get_next(datetime.datetime)
 
         with freezegun.freeze_time(today):
-            self.assertEqual(expected, factories.BackupScheduleFactory(schedule=schedule).next_trigger_at)
+            self.assertEqual(
+                expected,
+                factories.BackupScheduleFactory(schedule=schedule).next_trigger_at,
+            )
 
 
 class SnapshotScheduleTest(TestCase):
-
     def test_weekly_snapshot_schedule_next_trigger_at_is_correct(self):
         schedule = factories.SnapshotScheduleFactory(schedule='0 2 * * 4')
 
@@ -105,4 +109,7 @@ class SnapshotScheduleTest(TestCase):
         expected = croniter(schedule, today).get_next(datetime.datetime)
 
         with freezegun.freeze_time(today):
-            self.assertEqual(expected, factories.SnapshotScheduleFactory(schedule=schedule).next_trigger_at)
+            self.assertEqual(
+                expected,
+                factories.SnapshotScheduleFactory(schedule=schedule).next_trigger_at,
+            )

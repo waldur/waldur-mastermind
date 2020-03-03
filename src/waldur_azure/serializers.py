@@ -29,8 +29,9 @@ def generate_password():
     return lowercase + uppercase + digits
 
 
-class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
-                        structure_serializers.BaseServiceSerializer):
+class ServiceSerializer(
+    core_serializers.ExtraFieldOptionsMixin, structure_serializers.BaseServiceSerializer
+):
 
     SERVICE_ACCOUNT_EXTRA_FIELDS = {
         'tenant_id': 'Azure Active Directory tenant id or domain',
@@ -45,7 +46,6 @@ class ServiceSerializer(core_serializers.ExtraFieldOptionsMixin,
 
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
-
     class Meta:
         model = models.Image
         view_name = 'azure-image-detail'
@@ -56,19 +56,25 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
 
 
 class SizeSerializer(structure_serializers.BasePropertySerializer):
-
     class Meta:
         model = models.Size
         view_name = 'azure-size-detail'
-        fields = ('url', 'uuid', 'name', 'max_data_disk_count',
-                  'memory_in_mb', 'number_of_cores', 'os_disk_size_in_mb', 'resource_disk_size_in_mb')
+        fields = (
+            'url',
+            'uuid',
+            'name',
+            'max_data_disk_count',
+            'memory_in_mb',
+            'number_of_cores',
+            'os_disk_size_in_mb',
+            'resource_disk_size_in_mb',
+        )
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
         }
 
 
 class LocationSerializer(structure_serializers.BasePropertySerializer):
-
     class Meta:
         model = models.Location
         view_name = 'azure-location-detail'
@@ -78,8 +84,9 @@ class LocationSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class ServiceProjectLinkSerializer(structure_serializers.BaseServiceProjectLinkSerializer):
-
+class ServiceProjectLinkSerializer(
+    structure_serializers.BaseServiceProjectLinkSerializer
+):
     class Meta(structure_serializers.BaseServiceProjectLinkSerializer.Meta):
         model = models.AzureServiceProjectLink
         view_name = 'azure-spl-detail'
@@ -104,8 +111,9 @@ class BaseResourceSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
-        protected_fields = structure_serializers.BaseResourceSerializer.Meta.protected_fields + (
-            'name',
+        protected_fields = (
+            structure_serializers.BaseResourceSerializer.Meta.protected_fields
+            + ('name',)
         )
 
 
@@ -127,9 +135,7 @@ class BaseResourceGroupSerializer(BaseResourceSerializer):
     location_name = serializers.ReadOnlyField(source='resource_group.location.name')
 
     resource_group = serializers.HyperlinkedRelatedField(
-        view_name='azure-resource-group-detail',
-        lookup_field='uuid',
-        read_only=True,
+        view_name='azure-resource-group-detail', lookup_field='uuid', read_only=True,
     )
 
     location = serializers.HyperlinkedRelatedField(
@@ -140,8 +146,9 @@ class BaseResourceGroupSerializer(BaseResourceSerializer):
     )
 
 
-class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
-                               BaseResourceGroupSerializer):
+class VirtualMachineSerializer(
+    structure_serializers.VirtualMachineSerializer, BaseResourceGroupSerializer
+):
 
     image = serializers.HyperlinkedRelatedField(
         view_name='azure-image-detail',
@@ -162,7 +169,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         required=False,
         allow_null=True,
         write_only=True,
-        source='ssh_key'
+        source='ssh_key',
     )
 
     size_name = serializers.ReadOnlyField(source='size.name')
@@ -172,17 +179,40 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         model = models.VirtualMachine
         view_name = 'azure-virtualmachine-detail'
         fields = structure_serializers.VirtualMachineSerializer.Meta.fields + (
-            'image', 'size', 'user_data', 'runtime_state', 'start_time',
-            'cores', 'ram', 'disk', 'image_name', 'location',
-            'resource_group', 'username', 'password',
-            'resource_group_name', 'location_name', 'image_name', 'size_name'
+            'image',
+            'size',
+            'user_data',
+            'runtime_state',
+            'start_time',
+            'cores',
+            'ram',
+            'disk',
+            'image_name',
+            'location',
+            'resource_group',
+            'username',
+            'password',
+            'resource_group_name',
+            'location_name',
+            'image_name',
+            'size_name',
         )
-        protected_fields = structure_serializers.VirtualMachineSerializer.Meta.protected_fields + (
-            'image', 'size', 'user_data', 'name'
+        protected_fields = (
+            structure_serializers.VirtualMachineSerializer.Meta.protected_fields
+            + ('image', 'size', 'user_data', 'name')
         )
-        read_only_fields = structure_serializers.VirtualMachineSerializer.Meta.read_only_fields + (
-            'runtime_state', 'start_time', 'cores', 'ram', 'disk', 'image_name',
-            'username', 'password'
+        read_only_fields = (
+            structure_serializers.VirtualMachineSerializer.Meta.read_only_fields
+            + (
+                'runtime_state',
+                'start_time',
+                'cores',
+                'ram',
+                'disk',
+                'image_name',
+                'username',
+                'password',
+            )
         )
 
     @transaction.atomic
@@ -202,9 +232,7 @@ class VirtualMachineSerializer(structure_serializers.VirtualMachineSerializer,
         security_group_name = 'NSG{}'.format(vm_name)
 
         resource_group = models.ResourceGroup.objects.create(
-            service_project_link=spl,
-            name=resource_group_name,
-            location=location,
+            service_project_link=spl, name=resource_group_name, location=location,
         )
 
         models.StorageAccount.objects.create(
@@ -280,9 +308,7 @@ class PublicIPSerializer(BaseResourceSerializer):
     class Meta(BaseResourceSerializer.Meta):
         model = models.PublicIP
         view_name = 'azure-public-ip-detail'
-        fields = BaseResourceSerializer.Meta.fields + (
-            'location', 'resource_group',
-        )
+        fields = BaseResourceSerializer.Meta.fields + ('location', 'resource_group',)
 
 
 class SQLServerSerializer(BaseResourceGroupSerializer):
@@ -290,12 +316,21 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
         model = models.SQLServer
         view_name = 'azure-sql-server-detail'
         fields = BaseResourceGroupSerializer.Meta.fields + (
-            'resource_group', 'location', 'username', 'password', 'storage_mb',
-            'username', 'password', 'fqdn',
-            'resource_group_name', 'location_name'
+            'resource_group',
+            'location',
+            'username',
+            'password',
+            'storage_mb',
+            'username',
+            'password',
+            'fqdn',
+            'resource_group_name',
+            'location_name',
         )
         read_only_fields = BaseResourceGroupSerializer.Meta.read_only_fields + (
-            'username', 'password', 'fqdn'
+            'username',
+            'password',
+            'fqdn',
         )
 
     @transaction.atomic
@@ -306,9 +341,7 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
         resource_group_name = 'group{}'.format(uuid.uuid4().hex)
 
         resource_group = models.ResourceGroup.objects.create(
-            service_project_link=spl,
-            name=resource_group_name,
-            location=location,
+            service_project_link=spl, name=resource_group_name, location=location,
         )
         validated_data['resource_group'] = resource_group
         validated_data['username'] = generate_username()
@@ -319,7 +352,9 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
 
 class SQLDatabaseSerializer(BaseResourceSerializer):
     resource_group_name = serializers.ReadOnlyField(source='server.resource_group.name')
-    location_name = serializers.ReadOnlyField(source='server.resource_group.location.name')
+    location_name = serializers.ReadOnlyField(
+        source='server.resource_group.location.name'
+    )
     server_name = serializers.ReadOnlyField(source='server.name')
     server_uuid = serializers.ReadOnlyField(source='server.uuid')
 
@@ -333,9 +368,13 @@ class SQLDatabaseSerializer(BaseResourceSerializer):
         model = models.SQLDatabase
         view_name = 'azure-sql-database-detail'
         fields = BaseResourceSerializer.Meta.fields + (
-            'server', 'charset', 'collation',
-            'resource_group_name', 'location_name',
-            'server_name', 'server_uuid',
+            'server',
+            'charset',
+            'collation',
+            'resource_group_name',
+            'location_name',
+            'server_name',
+            'server_uuid',
         )
 
 

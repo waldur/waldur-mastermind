@@ -45,17 +45,23 @@ class OrderTest:
             raise OrderTestException('Offering does not exist.')
 
         try:
-            self.customer = structure_models.Customer.objects.get(name=organization_name)
+            self.customer = structure_models.Customer.objects.get(
+                name=organization_name
+            )
             self.project = structure_models.Project.objects.get(customer=self.customer)
             self.owner = self.customer.get_owners().first()
-            self.admin = self.project.get_users(role=structure_models.ProjectRole.ADMINISTRATOR).first()
+            self.admin = self.project.get_users(
+                role=structure_models.ProjectRole.ADMINISTRATOR
+            ).first()
         except structure_models.Customer.DoesNotExist:
             self.customer = structure_factories.CustomerFactory(name=organization_name)
             self.owner = structure_factories.UserFactory(username='test owner')
             self.customer.add_user(self.owner, structure_models.CustomerRole.OWNER)
             self.project = structure_factories.ProjectFactory(customer=self.customer)
             self.admin = structure_factories.UserFactory(username='test admin')
-            self.project.add_user(self.admin, structure_models.ProjectRole.ADMINISTRATOR)
+            self.project.add_user(
+                self.admin, structure_models.ProjectRole.ADMINISTRATOR
+            )
             self.stdout('Organization is created.')
 
         for i in range(1, 2 - self.offering.plans.count()):
@@ -66,8 +72,9 @@ class OrderTest:
 
     @property
     def order_item(self):
-        order_item_queryset = marketplace_models.OrderItem.objects.filter(offering=self.offering,
-                                                                          order__project=self.project)
+        order_item_queryset = marketplace_models.OrderItem.objects.filter(
+            offering=self.offering, order__project=self.project
+        )
         if order_item_queryset.exists():
             return order_item_queryset.last()
 
@@ -94,10 +101,19 @@ class OrderTest:
             return self.order_item.resource.scope.issue
         else:
             ct = ContentType.objects.get_for_model(marketplace_models.OrderItem)
-            return support_models.Issue.objects.get(resource_content_type=ct,
-                                                    resource_object_id=self.order_item.pk)
+            return support_models.Issue.objects.get(
+                resource_content_type=ct, resource_object_id=self.order_item.pk
+            )
 
-    def get_response(self, user, url_name, data=None, action=None, uuid=None, status_code=status.HTTP_200_OK):
+    def get_response(
+        self,
+        user,
+        url_name,
+        data=None,
+        action=None,
+        uuid=None,
+        status_code=status.HTTP_200_OK,
+    ):
         if uuid:
             url = 'http://localhost%s' % reverse(url_name, kwargs={'uuid': uuid})
         else:
@@ -110,12 +126,19 @@ class OrderTest:
         response = self.client.post(url, data)
 
         if response.status_code != status_code:
-            raise OrderTestException('Request %s failed. %s' % (action, response.rendered_content))
+            raise OrderTestException(
+                'Request %s failed. %s' % (action, response.rendered_content)
+            )
 
         return response
 
     def approve_order(self):
-        self.get_response(self.owner, 'marketplace-order-detail', action='approve', uuid=self.order.uuid)
+        self.get_response(
+            self.owner,
+            'marketplace-order-detail',
+            action='approve',
+            uuid=self.order.uuid,
+        )
         process_order_item(self.order_item, self.owner)
 
         self.stdout('A %s order has been approved.' % self.get_request_type())
@@ -129,20 +152,34 @@ class OrderTest:
             raise OrderTestException('An order is not done.')
 
     def validate_request_state(self, issue_resolved, request_state, request_type):
-        if request_type == 'create' and issue_resolved and request_state == support_models.Offering.States.OK:
+        if (
+            request_type == 'create'
+            and issue_resolved
+            and request_state == support_models.Offering.States.OK
+        ):
             return
 
-        if request_type == 'create' and not issue_resolved and \
-                request_state == support_models.Offering.States.TERMINATED:
+        if (
+            request_type == 'create'
+            and not issue_resolved
+            and request_state == support_models.Offering.States.TERMINATED
+        ):
             return
 
         if request_type == 'terminate' and issue_resolved and request_state is None:
             return
 
-        if request_type == 'terminate' and not issue_resolved and request_state == support_models.Offering.States.OK:
+        if (
+            request_type == 'terminate'
+            and not issue_resolved
+            and request_state == support_models.Offering.States.OK
+        ):
             return
 
-        if request_type == 'update' and request_state == support_models.Offering.States.OK:
+        if (
+            request_type == 'update'
+            and request_state == support_models.Offering.States.OK
+        ):
             return
 
         raise OrderTestException('Request state is wrong.')
@@ -150,7 +187,9 @@ class OrderTest:
     def issue_info(self):
         if self.order.state == marketplace_models.Order.States.EXECUTING:
             self.stdout('STEP 2: resolve or cancel an issue.')
-            self.stdout('A %s order UUID: %s' % (self.get_request_type(), self.order.uuid))
+            self.stdout(
+                'A %s order UUID: %s' % (self.get_request_type(), self.order.uuid)
+            )
             self.stdout('Request UUID: %s' % self.order_item.resource.scope.uuid)
             issue = self.get_issue()
             self.stdout('Issue UUID: %s, PK: %s' % (issue.uuid.hex, issue.pk))
@@ -160,21 +199,36 @@ class OrderTest:
             issue = self.get_issue()
 
             if issue.resolved is None:
-                raise OrderTestException('An order is done, but the issue is not resolved or canceled.')
+                raise OrderTestException(
+                    'An order is done, but the issue is not resolved or canceled.'
+                )
             elif issue.resolved:
-                self.stdout('FINISH: A %s order has been resolved.' % self.get_request_type())
+                self.stdout(
+                    'FINISH: A %s order has been resolved.' % self.get_request_type()
+                )
             else:
-                self.stdout('FINISH: A %s order has been canceled.' % self.get_request_type())
+                self.stdout(
+                    'FINISH: A %s order has been canceled.' % self.get_request_type()
+                )
 
             if self.order_item.resource.scope:
-                self.stdout('Request state is: %s.' % self.order_item.resource.scope.state)
+                self.stdout(
+                    'Request state is: %s.' % self.order_item.resource.scope.state
+                )
             else:
-                self.stdout('Request with ID %s has been deleted.' % self.order_item.resource.object_id)
+                self.stdout(
+                    'Request with ID %s has been deleted.'
+                    % self.order_item.resource.object_id
+                )
 
             self.stdout('Resource plan is: %s' % self.order_item.resource.plan.name)
 
-            request_state = self.order_item.resource.scope and self.order_item.resource.scope.state
-            self.validate_request_state(issue.resolved, request_state, self.get_request_type())
+            request_state = (
+                self.order_item.resource.scope and self.order_item.resource.scope.state
+            )
+            self.validate_request_state(
+                issue.resolved, request_state, self.get_request_type()
+            )
 
         if self.order.state == marketplace_models.Order.States.REJECTED:
             self.stdout('A %s order has been rejected.' % self.get_request_type())
@@ -185,20 +239,31 @@ class OrderTest:
     def create_request(self):
         self.stdout('STEP 1: Make an order.')
         data = {
-            'project': 'http://localhost' + reverse('project-detail', kwargs={'uuid': self.project.uuid}),
+            'project': 'http://localhost'
+            + reverse('project-detail', kwargs={'uuid': self.project.uuid}),
             'items': [
                 {
-                    'offering': 'http://localhost' + reverse('marketplace-offering-detail',
-                                                             kwargs={'uuid': self.offering.uuid}),
+                    'offering': 'http://localhost'
+                    + reverse(
+                        'marketplace-offering-detail',
+                        kwargs={'uuid': self.offering.uuid},
+                    ),
                     'attributes': self.attributes,
                     'limits': {},
-                    'plan': 'http://localhost' + reverse('marketplace-plan-detail',
-                                                         kwargs={'uuid': self.plan_1.uuid}),
+                    'plan': 'http://localhost'
+                    + reverse(
+                        'marketplace-plan-detail', kwargs={'uuid': self.plan_1.uuid}
+                    ),
                 },
-            ]
+            ],
         }
 
-        self.get_response(self.admin, 'marketplace-order-list', data=data, status_code=status.HTTP_201_CREATED)
+        self.get_response(
+            self.admin,
+            'marketplace-order-list',
+            data=data,
+            status_code=status.HTTP_201_CREATED,
+        )
         self.approve_order()
 
     def choice_step(func):
@@ -222,8 +287,12 @@ class OrderTest:
             self.order_item.resource.scope.issue.set_resolved()
 
         self.validate_order_done()
-        self.get_response(self.admin, 'marketplace-resource-detail', action='terminate',
-                          uuid=self.order_item.resource.uuid)
+        self.get_response(
+            self.admin,
+            'marketplace-resource-detail',
+            action='terminate',
+            uuid=self.order_item.resource.uuid,
+        )
         self.approve_order()
 
     @choice_step
@@ -236,17 +305,23 @@ class OrderTest:
         self.validate_order_done()
         self.stdout('Resource plan is: %s' % self.order_item.resource.plan.name)
         data = {
-            'plan': 'http://localhost' + reverse('marketplace-plan-detail',
-                                                 kwargs={'uuid': self.plan_2.uuid}),
+            'plan': 'http://localhost'
+            + reverse('marketplace-plan-detail', kwargs={'uuid': self.plan_2.uuid}),
         }
-        self.get_response(self.admin, 'marketplace-resource-detail', data=data,
-                          action='switch_plan', uuid=self.order_item.resource.uuid)
+        self.get_response(
+            self.admin,
+            'marketplace-resource-detail',
+            data=data,
+            action='switch_plan',
+            uuid=self.order_item.resource.uuid,
+        )
 
         self.approve_order()
 
     def delete(self):
-        order_item_queryset = marketplace_models.OrderItem.objects.filter(offering=self.offering,
-                                                                          order__project=self.project)
+        order_item_queryset = marketplace_models.OrderItem.objects.filter(
+            offering=self.offering, order__project=self.project
+        )
         if not order_item_queryset.exists():
             self.stdout('The order has already been deleted.')
             return
@@ -265,14 +340,31 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--offering', type=str, help='Offering UUID', required=True)
-        parser.add_argument('--organization', type=str, help='Organization name', default='Test organization')
-        parser.add_argument('--action', type=str, help='Action', default='create',
-                            choices=['create', 'delete', 'terminate', 'update'])
-        parser.add_argument('--attributes', type=str, help='Path to JSON file with order item attributes.', default='')
+        parser.add_argument(
+            '--organization',
+            type=str,
+            help='Organization name',
+            default='Test organization',
+        )
+        parser.add_argument(
+            '--action',
+            type=str,
+            help='Action',
+            default='create',
+            choices=['create', 'delete', 'terminate', 'update'],
+        )
+        parser.add_argument(
+            '--attributes',
+            type=str,
+            help='Path to JSON file with order item attributes.',
+            default='',
+        )
 
     def handle(self, *args, **options):
         try:
             with transaction.atomic():
-                OrderTest(options, lambda m: self.stdout.write(self.style.SUCCESS(m))).run()
+                OrderTest(
+                    options, lambda m: self.stdout.write(self.style.SUCCESS(m))
+                ).run()
         except OrderTestException as e:
             self.stdout.write(self.style.ERROR(e.message))

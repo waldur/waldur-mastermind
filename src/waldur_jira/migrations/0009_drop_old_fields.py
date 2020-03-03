@@ -10,12 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='project',
-            name='available_for_all',
-        ),
-        migrations.RemoveField(
-            model_name='project',
-            name='reporter_field',
-        ),
+        migrations.RemoveField(model_name='project', name='available_for_all',),
+        migrations.RemoveField(model_name='project', name='reporter_field',),
     ]
