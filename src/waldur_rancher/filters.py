@@ -24,3 +24,31 @@ class NodeFilter(django_filters.FilterSet):
     class Meta:
         model = models.Node
         fields = ('cluster_uuid',)
+
+
+class ProjectFilter(structure_filters.ServicePropertySettingsFilter):
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+
+    class Meta:
+        model = models.Project
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + ('cluster_uuid',)
+
+
+class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+
+    class Meta:
+        model = models.Namespace
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + ('project_uuid',)
+
+
+class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
+    catalog_uuid = django_filters.UUIDFilter(field_name='catalog__uuid')
+    cluster_uuid = django_filters.UUIDFilter(field_name='cluster__uuid')
+    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+
+    class Meta:
+        model = models.Template
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            'catalog_uuid', 'cluster_uuid', 'project_uuid',
+        )

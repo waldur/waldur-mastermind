@@ -11,3 +11,9 @@ def register_in(router):
                     basename='rancher-node')
     router.register(r'rancher-catalogs', views.CatalogViewSet,
                     basename='rancher-catalog')
+    router.register(r'rancher-projects', views.ProjectViewSet,
+                    basename='rancher-project')
+    router.register(r'rancher-namespaces', views.NamespaceViewSet,
+                    basename='rancher-namespace')
+    router.register(r'rancher-templates', views.TemplateViewSet,
+                    basename='rancher-template')
