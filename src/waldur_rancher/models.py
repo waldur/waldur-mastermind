@@ -259,6 +259,10 @@ class Project(core_models.UuidMixin,
         project_path = 'cluster__service_project_link__project'
         service_path = 'cluster__service_project_link__service'
 
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-project'
+
 
 class Namespace(core_models.UuidMixin,
                 core_models.NameMixin,
@@ -270,6 +274,10 @@ class Namespace(core_models.UuidMixin,
 
     def __str__(self):
         return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-namespace'
 
 
 class Template(core_models.UuidMixin,
@@ -286,3 +294,10 @@ class Template(core_models.UuidMixin,
     default_version = models.CharField(max_length=255)
     versions = ArrayField(models.CharField(max_length=255))
     icon = models.FileField(upload_to='rancher_icons', blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return 'rancher-template'
