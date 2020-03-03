@@ -8,12 +8,12 @@ from django.db import transaction
 from django.db.utils import DatabaseError
 from django.utils import timezone
 
-from waldur_core.core import structure_models as core_models
+from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.quotas.exceptions import QuotaValidationError
 from waldur_core.structure import ServiceBackendError, SupportedServices
-from waldur_core.structure import structure_models as structure_models
+from waldur_core.structure import models as structure_models
 
 logger = logging.getLogger(__name__)
 
