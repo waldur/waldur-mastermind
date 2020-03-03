@@ -443,7 +443,7 @@ def update_cluster_nodes_states(cluster_id):
             node.state = models.Node.States.ERRED
 
         if old_state != node.state:
-            node.save()
+            node.save(update_fields=['state'])
             has_changes = True
 
     if has_changes:
