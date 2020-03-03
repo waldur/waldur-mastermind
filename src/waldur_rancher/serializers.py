@@ -365,3 +365,39 @@ class CatalogCreateSerializer(CatalogSerializer):
 class CatalogUpdateSerializer(CatalogCreateSerializer):
     class Meta(CatalogSerializer.Meta):
         read_only_fields = CatalogSerializer.Meta.read_only_fields + ('scope',)
+
+
+class ProjectSerializer(structure_serializers.BasePropertySerializer):
+    class Meta:
+        model = models.Project
+        view_name = 'rancher-project-detail'
+        fields = ('url', 'uuid', 'name', 'description', 'created', 'modified', 'runtime_state', 'cluster')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+        }
+
+
+class NamespaceSerializer(structure_serializers.BasePropertySerializer):
+    class Meta:
+        model = models.Namespace
+        view_name = 'rancher-namespace-detail'
+        fields = ('url', 'uuid', 'name', 'created', 'modified', 'runtime_state', 'project')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+        }
+
+
+class TemplateSerializer(structure_serializers.BasePropertySerializer):
+    class Meta:
+        model = models.Template
+        view_name = 'rancher-template-detail'
+        fields = ('url', 'uuid', 'name', 'description', 'created', 'modified', 'runtime_state',
+                  'catalog', 'cluster', 'project')
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'catalog': {'lookup_field': 'uuid', 'view_name': 'rancher-catalog-detail'},
+            'cluster': {'lookup_field': 'uuid', 'view_name': 'rancher-cluster-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'rancher-project-detail'},
+        }

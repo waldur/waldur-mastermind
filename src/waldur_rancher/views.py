@@ -254,3 +254,27 @@ class CatalogViewSet(core_views.ActionsViewSet):
             raise ValidationError(_('Only staff is allowed to manage global catalogs.'))
         if isinstance(scope, models.Cluster):
             is_administrator(self.request.user, scope.service_project_link.project)
+
+
+class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Project.objects.all()
+    serializer_class = serializers.ProjectSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.ProjectFilter
+    lookup_field = 'uuid'
+
+
+class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Namespace.objects.all()
+    serializer_class = serializers.NamespaceSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.NamespaceFilter
+    lookup_field = 'uuid'
+
+
+class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Template.objects.all()
+    serializer_class = serializers.TemplateSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.TemplateFilter
+    lookup_field = 'uuid'
