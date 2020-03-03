@@ -17,7 +17,7 @@ from waldur_openstack.openstack_tenant.views import InstanceViewSet
 
 from waldur_rancher.utils import SyncUser
 
-from . import models, exceptions, signals, utils
+from . import models, exceptions, utils
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,8 @@ def update_nodes(cluster_id):
 @shared_task(name='waldur_rancher.update_clusters_nodes')
 def update_clusters_nodes():
     for cluster in models.Cluster.objects.exclude(backend_id=''):
-        update_nodes.delay(cluster.id)
+        update_nodes(cluster.id)
+        utils.update_cluster_nodes_states(cluster.id)
 
 
 class PollRuntimeStateNodeTask(core_tasks.Task):
@@ -132,8 +133,11 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
     def execute(self, node):
         update_nodes(node.cluster_id)
         node.refresh_from_db()
+
         if node.runtime_state == models.Node.RuntimeStates.ACTIVE:
-            signals.node_states_have_been_updated.send(sender=models.Cluster, instance=node.cluster)
+            # If node runtime state is ACTIVE,
+            # then it is necessary to update node state and to call signal for usages updating.
+            utils.update_cluster_nodes_states(node.cluster.id)
             return
         elif node.runtime_state in [models.Node.RuntimeStates.REGISTERING,
                                     models.Node.RuntimeStates.UNAVAILABLE] or not node.runtime_state:

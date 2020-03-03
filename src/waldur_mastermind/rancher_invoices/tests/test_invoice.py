@@ -1,6 +1,6 @@
 import copy
 import datetime
-from unittest import mock, skip
+from unittest import mock
 
 from freezegun import freeze_time
 from rest_framework import test
@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
 from waldur_openstack.openstack_tenant.tests import factories as openstack_tenant_factories
 from waldur_openstack.openstack_tenant.tests import fixtures as openstack_tenant_fixtures
 from waldur_rancher import models as rancher_models
-from waldur_rancher import tasks, models
+from waldur_rancher import tasks, models, utils
 
 from waldur_rancher.tests import factories as rancher_factories
 from waldur_rancher.tests.utils import backend_node_response
@@ -111,8 +111,8 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         invoices_tasks.create_monthly_invoices()
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
 
-    @skip('Needs rewriting')
     @freeze_time('2019-01-01')
     @mock.patch('waldur_rancher.views.executors')
     def test_create_usage_if_node_is_active(self, mock_executors):
@@ -130,7 +130,6 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price)
 
-    @skip('Needs rewriting')
     @freeze_time('2019-01-01')
     @mock.patch('waldur_rancher.views.executors')
     def test_usage_is_zero_if_node_is_not_active(self, mock_executors):
@@ -155,7 +154,6 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         self.assertEqual(usage.usage, 0)
 
-    @skip('Needs rewriting')
     @freeze_time('2019-01-01')
     @mock.patch('waldur_rancher.views.executors')
     def test_usage_grows_if_active_nodes_count_grow(self, mock_executors):
@@ -178,6 +176,7 @@ class InvoiceTest(test.APITransactionTestCase):
             {'backend_id': 'second_node_backend_id', 'name': 'second node'}
         ]
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(marketplace_models.ComponentUsage.objects.filter(
             resource=self.resource,
             component=self.offering_component,
@@ -197,7 +196,6 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price * 2)
 
-    @skip('Needs rewriting')
     @freeze_time('2019-01-01')
     @mock.patch('waldur_rancher.views.executors')
     def test_usage_does_not_decrease_if_active_nodes_count_decrease(self, mock_executors):
@@ -220,6 +218,7 @@ class InvoiceTest(test.APITransactionTestCase):
             {'backend_id': 'second_node_backend_id', 'name': 'second node'}
         ]
         tasks.update_nodes(self.cluster.id)
+        utils.update_cluster_nodes_states(self.cluster.id)
         self.assertTrue(marketplace_models.ComponentUsage.objects.filter(
             resource=self.resource,
             component=self.offering_component,
